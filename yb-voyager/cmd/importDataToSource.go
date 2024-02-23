@@ -24,10 +24,10 @@ import (
 )
 
 var importDataToSourceCmd = &cobra.Command{
-	Use:   "source",
+	Use: "source",
 	Short: "Import data into the source DB to prepare for fall-back.\n" +
-	"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/",
-	Long:  ``,
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/",
+	Long: ``,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateMetaDBCreated()
@@ -47,6 +47,7 @@ func init() {
 	registerCommonGlobalFlags(importDataToSourceCmd)
 	registerCommonImportFlags(importDataToSourceCmd)
 	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)
+	registerFlagsForSourceReplica(importDataToSourceCmd)
 	registerImportDataCommonFlags(importDataToSourceCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceCmd)
 	importDataToSourceCmd.Flags().MarkHidden("batch-size")

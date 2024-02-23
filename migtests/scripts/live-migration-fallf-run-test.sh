@@ -27,11 +27,12 @@ source ${TEST_DIR}/env.sh
 
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 then
-	source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh 
-	source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
+    source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh 
 else
-	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+    source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
+
+source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 
 source ${SCRIPTS}/yugabytedb/env.sh
 
@@ -51,21 +52,17 @@ main() {
 
 	pushd ${TEST_DIR}
 
-	step "Setup Fall Forward environment"
-	create_ff_schema ${SOURCE_REPLICA_DB_NAME}
-	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
-
 	step "Initialise source and fall forward database."
-	./init-db
 
-	step "Grant source database user permissions"
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 	then
-		grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
-		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_forward_prep.sql
-	else
-		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+		create_ff_schema ${SOURCE_REPLICA_DB_NAME}
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
 	fi
+	./init-db
+
+	step "Grant source database user permissions for live migration"
+	grant_permissions_for_live_migration
 
 	step "Check the Voyager version installed"
 	yb-voyager version
@@ -76,7 +73,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -86,7 +83,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
@@ -152,11 +149,13 @@ main() {
 	# Storing the pid for the fall forward setup command
 	ffs_pid=$!
 
-	# Updating the trap command to include the ff setup
-	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
-
 	step "Archive Changes."
 	archive_changes &
+
+	archive_changes_pid=$!
+
+	# Updating the trap command to include the ff setup
+	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; kill_process -${archive_changes_pid}; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	sleep 1m
 
@@ -171,14 +170,16 @@ main() {
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --yes
 
-	for ((i = 0; i < 5; i++)); do
+	# max sleep time = 15 * 20s = 5 minutes, but that much sleep will be in failure cases
+	# in success case it will exit as soon as cutover is COMPLETED + 20sec
+	for ((i = 0; i < 15; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
-        if [ "$i" -eq 4 ]; then
+        if [ "$i" -eq 14 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
-			exit 1
+			tail_log_file "debezium-source_db_exporter.log"
         fi
     else
         break
@@ -198,14 +199,14 @@ main() {
 	step "Initiating cutover to source-replica"
 	yb-voyager initiate cutover to source-replica --export-dir ${EXPORT_DIR} --yes
 
-	for ((i = 0; i < 5; i++)); do
+	for ((i = 0; i < 15; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to source-replica status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
-        if [ "$i" -eq 4 ]; then
+        if [ "$i" -eq 14 ]; then
             tail_log_file "yb-voyager-import-data-to-source-replica.log"
             tail_log_file "yb-voyager-export-data-from-target.log"
-			exit 1
+			tail_log_file "debezium-target_db_exporter_ff.log"
         fi
     else
         break
@@ -213,7 +214,7 @@ main() {
 	done
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-import-data true --refresh-mviews true
+	import_schema --post-snapshot-import true --refresh-mviews true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 

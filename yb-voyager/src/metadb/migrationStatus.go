@@ -11,6 +11,7 @@ import (
 
 type MigrationStatusRecord struct {
 	MigrationUUID                                   string            `json:"MigrationUUID"`
+	VoyagerVersion                                  string            `json:"VoyagerVersion"`
 	ExportType                                      string            `json:"ExportType"`
 	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                              bool              `json:"FallForwardEnabled"`
@@ -37,6 +38,7 @@ type MigrationStatusRecord struct {
 	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
 	RenameTablesMap                                 string            `json:"RenameTablesMap"` // stores the mapping of leaf partitions (Unquoted) to root table (MinQuoted)
 	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	PGPublicationName                               string            `json:"PGPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
 	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump)
 }
 
@@ -63,6 +65,10 @@ func (m *MetaDB) InitMigrationStatusRecord() error {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
 		}
+		if record.VoyagerVersion == "" {
+			record.VoyagerVersion = utils.YB_VOYAGER_VERSION
+		}
+
 		record.MigrationUUID = uuid.New().String()
 		record.ExportType = utils.SNAPSHOT_ONLY
 	})

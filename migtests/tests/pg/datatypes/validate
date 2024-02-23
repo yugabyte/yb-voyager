@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
 
+import argparse
+import os
 import yb
+import collections
 
 def main():
-	yb.run_checks(migration_completed_checks)
+	parser = argparse.ArgumentParser(description='Process an argument.')
+	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
+	args = parser.parse_args()
+	global live_migration 
+	live_migration = args.live_migration
+	global ff_enabled
+	ff_enabled = args.ff_enabled
 
+	migration_completed_checks_yb()
+
+	if ff_enabled == 'true':
+		migration_completed_checks_pg()
 
 #=============================================================================
 
@@ -14,6 +29,8 @@ EXPECTED_ROW_COUNT = {
 	'datetime_type': 3, 
 	'datatypes2': 3,
 	'datetime_type2': 2, 
+	'null_and_default' :2,
+	'decimal_types': 3,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -22,18 +39,30 @@ EXPECTED_SUM_OF_COLUMN = {
 		'v2': '-3380617',
 		'v3': '564312385451',
 		'v4': '993.999',
-		'v5': '9992334.5429',
+		'v5': ['9992334.5429','9992334.54290'],
 		'v6': '-$12,000,369.60'
-	}
+	},
+	'decimal_types': {
+		'n1':'1865936917203721067473070692042057616523559824435284801786158802063081501757370781516738843414444000.095730002',
+		'n2':'167981693608097436.14'
+	},
 }
 
 EXPECTED_ENUM_VALUES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 EXPECTED_BYTE_TYPE_VALUES = ['3031303130', '2d61626364', '34343538']
 
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_pg():
+	print("Running tests on PG")
+	yb.run_checks(migration_completed_checks, db_type="postgres")
+
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 5
+	assert len(table_list) == 7
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
@@ -44,8 +73,14 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name} ---- ")
 		for column, sum in column_names_with_sum.items():
 			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			# YB returns .5429 and PG returns .54290. Thus this fails during string comparison
+			# TODO Add proper handling for the case
+			if column == 'v5' and table_name == 'num_types':
+				expected_values = column_names_with_sum[column]
+				assert str(col_sum) in expected_values
+			else:
+				assert str(col_sum) == sum
 			print(f"column_name: {column}, sum: {col_sum}")
-			assert sum == str(col_sum)
 
 	distinct_values_enum_types = tgt.get_distinct_values__of_column_of_table("datatypes1", "enum_type", "public")
 	print(f"distinct_enum_values:")
@@ -69,7 +104,15 @@ def migration_completed_checks(tgt):
 
 	print(f"distinct_bit10_values:")
 	tgt.assert_distinct_values_of_col("datatypes2", "v2", "public", 
-		transform_func=str, expected_distinct_values=['1000000000','1000110000'])
+		transform_func=str, expected_distinct_values=['1001100101','0001010101','1001000101'])
+	
+	print(f"distinct_bit_varying_values:")
+	expected_values = ['0001010101','0001010','00101010101010101010101010001010100101010101010101000']
+	if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
+		expected_values = ['1010101','1010','101010101010101010101010001010100101010101010101000']
+	print(f"expected_values: {expected_values}")
+	tgt.assert_distinct_values_of_col("datatypes2", "v5", "public", 
+		None, expected_distinct_values=expected_values)
 
 	print(f"distinct_int[]_values:")
 	tgt.assert_distinct_values_of_col("datatypes2", "v3", "public", 
@@ -84,7 +127,10 @@ def migration_completed_checks(tgt):
 	tgt.assert_distinct_values_of_col("datetime_type2", "v1", "public", 
 		transform_func=str, expected_distinct_values=['2022-11-01 15:55:58.091241', '2022-11-01 15:58:02'])
 	
-		
+	print("null_and_default:")
+	tgt.assert_all_values_of_col("null_and_default", "val", "public", expected_values=["testdefault", None])
+	tgt.assert_all_values_of_col("null_and_default", "i", "public", expected_values=[10, None])
+	tgt.assert_all_values_of_col("null_and_default", "b", "public", expected_values=[False, None])
 
 if __name__ == "__main__":
 	main()

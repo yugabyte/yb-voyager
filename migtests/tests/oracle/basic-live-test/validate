@@ -23,20 +23,24 @@ def main():
 		migration_completed_checks_oracle()
 
 EXPECTED_ROW_COUNT = {
-	'x':3
+	'x':3,
+ 	'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN = {
 	'x': {
 		'id': '6',
 		'id2': '9'
+	},
+	'user_table': {
+		'id': '36',
 	}
 }
 
 def migration_completed_checks_yb():
 	print("Running tests on YB")
 	global db_schema
-	db_schema="public"
+	db_schema="test_schema"
 	yb.run_checks(migration_completed_checks)
 
 def migration_completed_checks_oracle():

@@ -143,3 +143,44 @@ create table schema1.multiple_serial_columns (
 
 insert into schema1.multiple_serial_columns(name, balance, name2, balance2) values('def', 10000, 'def', 10000);
 insert into schema1.multiple_serial_columns(name, balance, name2, balance2) values('abc', 10000, 'abc', 10000);
+
+-- Single Sequence attached to two columns of different table
+create sequence baz;
+create table foo(id bigint default nextval('baz'), value text);
+create table bar(id bigint default nextval('baz'), value date);
+
+insert into foo (value) values ('Hello');
+insert into bar (value) values (now());
+insert into foo (value) values ('World');
+insert into bar (value) values (now());
+
+-- Single Sequence attached to two columns of different table in non-public schema
+create schema schema2;
+create sequence schema2.baz;
+create table schema2.foo(id bigint default nextval('schema2.baz'), value text);
+create table schema2.bar(id bigint default nextval('schema2.baz'), value date);
+
+insert into schema2.foo (value) values ('Hello');
+insert into schema2.bar (value) values (now());
+insert into schema2.foo (value) values ('World');
+insert into schema2.bar (value) values (now());
+
+
+-- Single Sequence attached to two columns of different table in different schemas
+create schema schema3;
+create schema schema4;
+create sequence schema3.baz;
+create table schema3.foo(id bigint default nextval('schema3.baz'), value text);
+create table schema4.bar(id bigint default nextval('schema3.baz'), value date);
+
+insert into schema3.foo (value) values ('Hello');
+insert into schema4.bar (value) values (now());
+insert into schema3.foo (value) values ('World');
+insert into schema4.bar (value) values (now());
+
+-- Single Sequence attached to two columns of a table
+create sequence foo_bar_baz;
+create table foo_bar(id bigint default nextval('foo_bar_baz'), value text, id2 bigint default nextval('foo_bar_baz'), value2 text);
+
+insert into foo_bar (value, value2) values ('Hello', 'World');
+insert into foo_bar (value, value2) values ('World', 'Hello');

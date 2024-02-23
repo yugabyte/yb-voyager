@@ -33,12 +33,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/mitchellh/go-ps"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -106,7 +108,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 
 	pgRestorePath, err := srcdb.GetAbsPathOfPGCommand("pg_restore")
 	if err != nil {
-		utils.ErrExit("could not get absolute path of pg_restore command: %v", pgRestorePath)
+		utils.ErrExit("could not get absolute path of pg_restore command: %s", err)
 	}
 	pgRestoreCmd := exec.Command(pgRestorePath, "-l", dataDirPath)
 	stdOut, err := pgRestoreCmd.Output()
@@ -238,7 +240,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	if err != nil {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
-	//TODO: report table with case-sensitiveness 
+	//TODO: report table with case-sensitiveness
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
 			if tableStatus.SchemaName != "" {
@@ -259,7 +261,11 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 }
 
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
-	fmt.Printf("import report\n")
+	if importerRole == IMPORT_FILE_ROLE {
+		fmt.Printf("import report\n")
+	} else {
+		fmt.Printf("snapshot import report\n")
+	}
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID()
 	if err != nil {
@@ -340,6 +346,21 @@ func initMetaDB() {
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
+		userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n" +
+		"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh " + 
+		"with a new export-dir.", exportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
+		if msr.VoyagerVersion == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
+			userFacingMsg = fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n" +
+		"The export-dir %q was created using older version and the current version is %q. Either use older version to continue the migration or start afresh " + 
+		"with a new export-dir.", exportDir, utils.YB_VOYAGER_VERSION)
+		}
+		utils.ErrExit(userFacingMsg)
+	}
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
@@ -378,17 +399,18 @@ func getCutoverStatus() string {
 	a := msr.CutoverToTargetRequested
 	b := msr.CutoverProcessedBySourceExporter
 	c := msr.CutoverProcessedByTargetImporter
-	d := msr.ExportFromTargetFallForwardStarted
-	ffDBExists := msr.FallForwardEnabled
+
 	if !a {
 		return NOT_INITIATED
-	} else if !ffDBExists && a && b && c {
+	}
+	if msr.FallForwardEnabled && a && b && c && msr.ExportFromTargetFallForwardStarted {
 		return COMPLETED
-	} else if a && b && c && d {
+	} else if msr.FallbackEnabled && a && b && c && msr.ExportFromTargetFallBackStarted {
+		return COMPLETED
+	} else if !msr.FallForwardEnabled && !msr.FallbackEnabled && a && b && c {
 		return COMPLETED
 	}
 	return INITIATED
-
 }
 
 func checkStreamingMode() (bool, error) {
@@ -516,10 +538,12 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	}
 }
 
-func getDefaultPGSchema(schema string) (string, bool) {
-	schemas := strings.Split(schema, "|")
+func getDefaultPGSchema(schema string, separator string) (string, bool) {
+	// second return value is true if public is not included in the schema
+	// which indicates that the no default schema
+	schemas := strings.Split(schema, separator)
 	if len(schemas) == 1 {
-		return source.Schema, false
+		return schema, false
 	} else if slices.Contains(schemas, "public") {
 		return "public", false
 	} else {
@@ -537,4 +561,89 @@ func createRenameTableMap(renameTablesList string) map[string]string {
 		renameTableMap[fromTable] = toTable
 	}
 	return renameTableMap
+}
+func CleanupChildProcesses() {
+	myPid := os.Getpid()
+	processes, err := ps.Processes()
+	if err != nil {
+		log.Errorf("failed to read processes: %v", err)
+	}
+	childProcesses := lo.Filter(processes, func(process ps.Process, _ int) bool {
+		return process.PPid() == myPid
+	})
+	if len(childProcesses) > 0 {
+		log.Info("Cleaning up child processes...")
+	}
+	for _, process := range childProcesses {
+		pid := process.Pid()
+		log.Infof("shutting down child pid %d", pid)
+		err := ShutdownProcess(pid, 60)
+		if err != nil {
+			log.Errorf("shut down child pid %d : %v", pid, err)
+		} else {
+			log.Infof("shut down child pid %d", pid)
+		}
+	}
+}
+
+// this function wait for process to exit after signalling it to stop
+func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
+	err := signalProcess(pid, syscall.SIGTERM)
+	if err != nil {
+		return fmt.Errorf("send sigterm to %d: %v", pid, err)
+	}
+	waitForProcessToExit(pid, forceShutdownAfterSeconds)
+	return nil
+}
+
+func signalProcess(pid int, signal syscall.Signal) error {
+	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
+	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
+	err := process.Signal(signal)
+	if err != nil {
+		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
+	}
+
+	return nil
+}
+
+func waitForProcessToExit(pid int, forceShutdownAfterSeconds int) {
+	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
+	// Poll every 2 sec to make sure process is stopped
+	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
+	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
+	secondsWaited := 0
+	for {
+		time.Sleep(time.Second * 2)
+		secondsWaited += 2
+		err := process.Signal(syscall.Signal(0))
+		if err != nil {
+			log.Infof("process with PID=%d is stopped", process.Pid)
+			return
+		}
+		if forceShutdownAfterSeconds > 0 && secondsWaited > forceShutdownAfterSeconds {
+			log.Infof("force shutting down pid %d", pid)
+			process.Signal(syscall.SIGKILL)
+		}
+	}
+}
+
+func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
+	*bev = cp.BaseEvent{
+		EventType:     eventType,
+		MigrationUUID: migrationUUID,
+		DBType:        source.DBType,
+		DatabaseName:  source.DBName,
+		SchemaNames:   cp.GetSchemaList(source.Schema),
+	}
+}
+
+func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
+	*bev = cp.BaseEvent{
+		EventType:     eventType,
+		MigrationUUID: migrationUUID,
+		DBType:        tconf.TargetDBType,
+		DatabaseName:  tconf.DBName,
+		SchemaNames:   []string{tconf.Schema},
+	}
 }

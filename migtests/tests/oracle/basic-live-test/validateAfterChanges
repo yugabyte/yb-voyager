@@ -20,24 +20,32 @@ def main():
 		migration_completed_checks_yb()
 
 EXPECTED_ROW_COUNT = {
-	'x':5
+	'x':5,
+	'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN = {
 	'x': {
 		'id': '18',
 		'id2': '43'
+	},
+	'user_table': {
+		'id': '51',
 	}
 }
 
 EXPECTED_ROW_COUNT_FF = {
-	'x':7
+	'x':7,
+	'user_table': 10
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {
 	'x': {
 		'id': '133',
 		'id2': '53'
+	},
+	'user_table': {
+		'id': '85',
 	}
 }
 
@@ -52,7 +60,7 @@ def change_expected_values():
 def migration_completed_checks_yb():
 	print("Running tests on YB")
 	global db_schema
-	db_schema="public"
+	db_schema="test_schema"
 	yb.run_checks(migration_completed_checks)
 
 def migration_completed_checks_oracle():

@@ -18,7 +18,6 @@ package tgtdb
 import (
 	"fmt"
 	"strings"
-
 	"sync"
 
 	"github.com/google/uuid"
@@ -34,14 +33,44 @@ type Event struct {
 	TableName    string             `json:"table_name"`
 	Key          map[string]*string `json:"key"`
 	Fields       map[string]*string `json:"fields"`
+	BeforeFields map[string]*string `json:"before_fields"`
 	ExporterRole string             `json:"exporter_role"`
 }
 
 var cachePreparedStmt = sync.Map{}
 
 func (e *Event) String() string {
-	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v}",
-		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
+	// Helper function to print a map[string]*string
+	mapStr := func(m map[string]*string) string {
+		var elements []string
+		for key, value := range m {
+			if value != nil {
+				elements = append(elements, fmt.Sprintf("%s:%s", key, *value))
+			} else {
+				elements = append(elements, fmt.Sprintf("%s:<nil>", key))
+			}
+		}
+		return "{" + strings.Join(elements, ", ") + "}"
+	}
+
+	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, before_fields=%v, fields=%v, exporter_role=%v}",
+		e.Vsn, e.Op, e.SchemaName, e.TableName, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
+}
+
+func (e *Event) Copy() *Event {
+	idFn := func(k string, v *string) (string, *string) {
+		return k, v
+	}
+	return &Event{
+		Vsn:          e.Vsn,
+		Op:           e.Op,
+		SchemaName:   e.SchemaName,
+		TableName:    e.TableName,
+		Key:          lo.MapEntries(e.Key, idFn),
+		Fields:       lo.MapEntries(e.Fields, idFn),
+		BeforeFields: lo.MapEntries(e.BeforeFields, idFn),
+		ExporterRole: e.ExporterRole,
+	}
 }
 
 func (e *Event) IsCutoverToTarget() bool {
@@ -56,32 +85,33 @@ func (e *Event) IsCutoverToSource() bool {
 	return e.Op == "cutover.source"
 }
 
-func (e *Event) GetSQLStmt(targetSchema string) string {
+func (e *Event) GetSQLStmt() string {
 	switch e.Op {
 	case "c":
-		return e.getInsertStmt(targetSchema)
+		return e.getInsertStmt()
 	case "u":
-		return e.getUpdateStmt(targetSchema)
+		return e.getUpdateStmt()
 	case "d":
-		return e.getDeleteStmt(targetSchema)
+		return e.getDeleteStmt()
 	default:
 		panic("unknown op: " + e.Op)
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
-	psName := e.GetPreparedStmtName(targetSchema)
+func (e *Event) GetPreparedSQLStmt(targetDBType string) string {
+	psName := e.GetPreparedStmtName()
 	if stmt, ok := cachePreparedStmt.Load(psName); ok {
 		return stmt.(string)
 	}
 	var ps string
 	switch e.Op {
 	case "c":
-		ps = e.getPreparedInsertStmt(targetSchema)
+		ps = e.getPreparedInsertStmt(targetDBType)
+
 	case "u":
-		ps = e.getPreparedUpdateStmt(targetSchema)
+		ps = e.getPreparedUpdateStmt()
 	case "d":
-		ps = e.getPreparedDeleteStmt(targetSchema)
+		ps = e.getPreparedDeleteStmt()
 	default:
 		panic("unknown op: " + e.Op)
 	}
@@ -103,9 +133,9 @@ func (e *Event) GetParams() []interface{} {
 	}
 }
 
-func (event *Event) GetPreparedStmtName(targetSchema string) string {
+func (event *Event) GetPreparedStmtName() string {
 	var ps strings.Builder
-	ps.WriteString(event.getTableName(targetSchema))
+	ps.WriteString(event.getTableName())
 	ps.WriteString("_")
 	ps.WriteString(event.Op)
 	if event.Op == "u" {
@@ -120,8 +150,8 @@ const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
 const updateTemplate = "UPDATE %s SET %s WHERE %s"
 const deleteTemplate = "DELETE FROM %s WHERE %s"
 
-func (event *Event) getInsertStmt(targetSchema string) string {
-	tableName := event.getTableName(targetSchema)
+func (event *Event) getInsertStmt() string {
+	tableName := event.getTableName()
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
@@ -138,8 +168,8 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 	return stmt
 }
 
-func (event *Event) getUpdateStmt(targetSchema string) string {
-	tableName := event.getTableName(targetSchema)
+func (event *Event) getUpdateStmt() string {
+	tableName := event.getTableName()
 	setClauses := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
 		if value == nil {
@@ -161,8 +191,8 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
 }
 
-func (event *Event) getDeleteStmt(targetSchema string) string {
-	tableName := event.getTableName(targetSchema)
+func (event *Event) getDeleteStmt() string {
+	tableName := event.getTableName()
 	whereClauses := make([]string, 0, len(event.Key))
 	for column, value := range event.Key {
 		if value == nil { // value can't be nil for keys
@@ -174,8 +204,8 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
 }
 
-func (event *Event) getPreparedInsertStmt(targetSchema string) string {
-	tableName := event.getTableName(targetSchema)
+func (event *Event) getPreparedInsertStmt(targetDBType string) string {
+	tableName := event.getTableName()
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
@@ -186,12 +216,16 @@ func (event *Event) getPreparedInsertStmt(targetSchema string) string {
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
 	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
+	if targetDBType == POSTGRESQL {
+		keyColumns := utils.GetMapKeysSorted(event.Key)
+		stmt = fmt.Sprintf("%s ON CONFLICT (%s) DO NOTHING", stmt, strings.Join(keyColumns, ","))
+	}
 	return stmt
 }
 
 // NOTE: PS for each event of same table can be different as it depends on columns being updated
-func (event *Event) getPreparedUpdateStmt(targetSchema string) string {
-	tableName := event.getTableName(targetSchema)
+func (event *Event) getPreparedUpdateStmt() string {
+	tableName := event.getTableName()
 	setClauses := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
@@ -209,8 +243,8 @@ func (event *Event) getPreparedUpdateStmt(targetSchema string) string {
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
 }
 
-func (event *Event) getPreparedDeleteStmt(targetSchema string) string {
-	tableName := event.getTableName(targetSchema)
+func (event *Event) getPreparedDeleteStmt() string {
+	tableName := event.getTableName()
 	whereClauses := make([]string, 0, len(event.Key))
 	keys := utils.GetMapKeysSorted(event.Key)
 	for pos, key := range keys {
@@ -244,12 +278,15 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 	return values
 }
 
-func (event *Event) getTableName(targetSchema string) string {
+func (event *Event) getTableName() string {
 	tableName := strings.Join([]string{event.SchemaName, event.TableName}, ".")
-	// if targetSchema != "" && len(strings.Split(targetSchema, ",")) <=1  { 
-	// 	tableName = strings.Join([]string{targetSchema, event.TableName}, ".")
-	// }
 	return tableName
+}
+
+func (event *Event) IsUniqueKeyChanged(uniqueKeyCols []string) bool {
+	return event.Op == "u" &&
+		len(uniqueKeyCols) > 0 &&
+		lo.Some(lo.Keys(event.Fields), uniqueKeyCols)
 }
 
 // ==============================================================================================================================
@@ -289,14 +326,14 @@ type EventBatch struct {
 	EventCountsByTable map[string]*EventCounter
 }
 
-func NewEventBatch(events []*Event, chanNo int, targetSchema string) *EventBatch {
+func NewEventBatch(events []*Event, chanNo int) *EventBatch {
 	batch := &EventBatch{
 		Events:             events,
 		ChanNo:             chanNo,
 		EventCounts:        &EventCounter{},
 		EventCountsByTable: make(map[string]*EventCounter),
 	}
-	batch.updateCounts(targetSchema)
+	batch.updateCounts()
 	return batch
 }
 
@@ -360,9 +397,9 @@ func (eb *EventBatch) GetTableNames() []string {
 	return lo.Keys(eb.EventCountsByTable)
 }
 
-func (eb *EventBatch) updateCounts(targetSchema string) {
+func (eb *EventBatch) updateCounts() {
 	for _, event := range eb.Events {
-		tableName := event.getTableName(targetSchema)
+		tableName := event.getTableName()
 		if _, ok := eb.EventCountsByTable[tableName]; !ok {
 			eb.EventCountsByTable[tableName] = &EventCounter{}
 		}

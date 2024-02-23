@@ -30,6 +30,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mcuadros/go-version"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -38,6 +39,24 @@ import (
 )
 
 const PG_COMMAND_VERSION string = "14.0"
+const FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE = `SELECT
+a.attname AS column_name,
+COALESCE(seq.relname, '') AS sequence_name,
+COALESCE(ns.nspname, '') AS schema_name
+FROM pg_class AS t
+JOIN pg_attribute AS a ON a.attrelid = t.oid
+JOIN pg_namespace AS tn ON tn.oid = t.relnamespace
+LEFT JOIN pg_attrdef AS ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
+LEFT JOIN pg_depend AS d ON d.objid = ad.oid
+LEFT JOIN pg_class AS seq ON seq.oid = d.refobjid
+LEFT JOIN pg_namespace AS ns ON ns.oid = seq.relnamespace
+WHERE
+tn.nspname = '%s' -- schema name
+AND t.relname = '%s' -- table name
+AND a.attnum > 0
+AND NOT a.attisdropped
+AND t.relkind IN ('r', 'P')
+AND seq.relkind = 'S';`
 
 type PostgreSQL struct {
 	source *Source
@@ -328,7 +347,7 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
 		}
-		sequenceNames = append(sequenceNames, fmt.Sprintf("%s.%s", sequenceSchema, sequenceName))
+		sequenceNames = append(sequenceNames, fmt.Sprintf(`%s."%s"`, sequenceSchema, sequenceName))
 	}
 	return sequenceNames
 }
@@ -397,22 +416,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
 		// this query also covers the case of identity columns
-		query := fmt.Sprintf(`SELECT a.attname AS column_name, s.relname AS sequence_name,
-		s.relnamespace::pg_catalog.regnamespace::text AS schema_name
-		FROM pg_class AS t
-			JOIN pg_attribute AS a
-		ON a.attrelid = t.oid
-			JOIN pg_depend AS d
-		ON d.refobjid = t.oid
-			AND d.refobjsubid = a.attnum
-			JOIN pg_class AS s
-		ON s.oid = d.objid
-		WHERE d.classid = 'pg_catalog.pg_class'::regclass
-		AND d.refclassid = 'pg_catalog.pg_class'::regclass
-		AND d.deptype IN ('i', 'a')
-		AND t.relkind IN ('r', 'P')
-		AND s.relkind = 'S'
-		AND t.oid = '%s'::regclass;`, table.Qualified.MinQuoted)
+		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, table.SchemaName.Unquoted, table.ObjectName.Unquoted)
 
 		var columeName, sequenceName, schemaName string
 		rows, err := pg.db.Query(context.Background(), query)
@@ -511,6 +515,45 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 	return partitions
 }
 
+func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+	log.Infof("getting unique key columns for tables: %v", tableList)
+	result := make(map[string][]string)
+	var querySchemaList, queryTableList []string
+	for i := 0; i < len(tableList); i++ {
+		schema, table := tableList[i].SchemaName.Unquoted, tableList[i].ObjectName.Unquoted
+		querySchemaList = append(querySchemaList, schema)
+		queryTableList = append(queryTableList, table)
+	}
+
+	querySchemaList = lo.Uniq(querySchemaList)
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+	log.Infof("query to get unique key columns: %s", query)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique key columns: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName, colName string
+		err := rows.Scan(&schemaName, &tableName, &colName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
+		}
+		if schemaName != "public" {
+			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		}
+		result[tableName] = append(result[tableName], colName)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+	}
+	log.Infof("unique key columns for tables: %v", result)
+	return result, nil
+}
+
 func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for PostgreSQL")
 	return nil
@@ -520,21 +563,16 @@ func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), pg.getConnectionUri()+"&replication=database")
 }
 
-func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migrationUUID uuid.UUID, dropIfAlreadyExists bool) (*pglogrepl.CreateReplicationSlotResult, error) {
-	replicationSlotName := fmt.Sprintf("voyager_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
-
+func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string, dropIfAlreadyExists bool) (*pglogrepl.CreateReplicationSlotResult, error) {
 	if dropIfAlreadyExists {
-		log.Infof("Dropping replication slot %s before creating a new one", replicationSlotName)
-		err := pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+		log.Infof("dropping replication slot %s if already exists", replicationSlotName)
+		err := pg.DropLogicalReplicationSlot(conn, replicationSlotName)
 		if err != nil {
-			// ignore "does not exist" error while dropping replication slot
-			if !strings.Contains(err.Error(), "does not exist") {
-				return nil, fmt.Errorf("delete existing replication slot: %v", err)
-			}
+			return nil, err
 		}
 	}
 
-	log.Infof("Creating replication slot %s", replicationSlotName)
+	log.Infof("creating replication slot %s", replicationSlotName)
 	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
 		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
 	if err != nil {
@@ -542,4 +580,92 @@ func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migratio
 	}
 
 	return &res, nil
+}
+
+func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) error {
+	var err error
+	if conn == nil {
+		conn, err = pg.GetReplicationConnection()
+		if err != nil {
+			utils.ErrExit("failed to create replication connection for dropping replication slot: %s", err)
+		}
+		defer conn.Close(context.Background())
+	}
+	log.Infof("dropping replication slot: %s", replicationSlotName)
+	err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+	if err != nil {
+		// ignore "does not exist" error while dropping replication slot
+		if !strings.Contains(err.Error(), "does not exist") {
+			return fmt.Errorf("delete existing replication slot(%s): %v", replicationSlotName, err)
+		}
+	}
+	return nil
+}
+
+func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []*sqlname.SourceName, dropIfAlreadyExists bool) error {
+	if dropIfAlreadyExists {
+		err := pg.DropPublication(publicationName)
+		if err != nil {
+			return fmt.Errorf("drop publication: %v", err)
+		}
+	}
+	tablelistQualifiedQuoted := []string{}
+	for _, tableName := range tableList {
+		tablelistQualifiedQuoted = append(tablelistQualifiedQuoted, tableName.Qualified.Quoted)
+	}
+	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))
+	result := conn.Exec(context.Background(), stmt)
+	_, err := result.ReadAll()
+	if err != nil {
+		return fmt.Errorf("create publication with stmt %s: %v", err, stmt)
+	}
+	log.Infof("created publication with stmt %s", stmt)
+	return nil
+}
+
+func (pg *PostgreSQL) DropPublication(publicationName string) error {
+	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
+	if err != nil {
+		utils.ErrExit("failed to connect to the source database for dropping publication: %s", err)
+	}
+	defer conn.Close(context.Background())
+
+	log.Infof("dropping publication: %s", publicationName)
+	res, err := conn.Exec(context.Background(), fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
+	log.Infof("drop publication result: %v", res)
+	if err != nil {
+		return fmt.Errorf("drop publication(%s): %v", publicationName, err)
+	}
+	return nil
+}
+
+var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname AS table_name, COUNT(conname) AS pk_count
+FROM pg_class c
+LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_constraint con ON con.conrelid = c.oid AND con.contype = 'p'
+GROUP BY schema_name, table_name HAVING nspname IN (%s);`
+
+func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
+	var nonPKTables []string
+	schemaList := strings.Split(pg.source.Schema, "|")
+	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for primary key: %v", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var schemaName, tableName string
+		var pkCount int
+		err := rows.Scan(&schemaName, &tableName, &pkCount)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for primary key: %v", err)
+		}
+		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
+		if pkCount == 0 {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		}
+	}
+	return nonPKTables, nil
 }

@@ -18,10 +18,12 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+var transactionOrdering utils.BoolStr
 
 var exportDataFromTargetCmd = &cobra.Command{
 	Use:   "target",
@@ -41,22 +43,16 @@ var exportDataFromTargetCmd = &cobra.Command{
 		} else {
 			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		}
+		err = verifySSLFlags()
+		if err != nil {
+			utils.ErrExit("failed to verify SSL flags: %v", err)
+		}
 		err = initSourceConfFromTargetConf()
 		if err != nil {
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
 		}
-		exportDataCmd.PreRun(cmd, args)
-		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				record.ExportFromTargetFallBackStarted = true
-			} else {
-				record.ExportFromTargetFallForwardStarted = true
-			}
 
-		})
-		if err != nil {
-			utils.ErrExit("failed to update migration status record for fall-back sync started: %v", err)
-		}
+		exportDataCmd.PreRun(cmd, args)
 		exportDataCmd.Run(cmd, args)
 	},
 }
@@ -67,6 +63,19 @@ func init() {
 	registerTargetDBAsSourceConnFlags(exportDataFromTargetCmd)
 	registerExportDataFlags(exportDataFromTargetCmd)
 	hideExportFlagsInFallForwardOrBackCmds(exportDataFromTargetCmd)
+
+	BoolVar(exportDataFromTargetCmd.Flags(), &transactionOrdering, "transaction-ordering", true,
+		"Setting the flag to `false` disables the transaction ordering. This speeds up change data capture from target YugabyteDB. Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.")
+}
+
+func verifySSLFlags() error {
+	if !lo.Contains([]string{"disable", "require", "verify-ca", "verify-full"}, source.SSLMode) {
+		return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: 'disable', 'require', 'verify-ca', 'verify-full'", source.SSLMode)
+	}
+	if (lo.Contains([]string{"require", "verify-ca", "verify-full"}, source.SSLMode)) && source.SSLRootCert == "" {
+		return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
+	}
+	return nil
 }
 
 func initSourceConfFromTargetConf() error {
@@ -86,10 +95,14 @@ func initSourceConfFromTargetConf() error {
 	} else {
 		source.Schema = targetConf.Schema
 	}
-	source.SSLMode = targetConf.SSLMode
-	source.SSLCertPath = targetConf.SSLCertPath
-	source.SSLKey = targetConf.SSLKey
-	source.SSLRootCert = targetConf.SSLRootCert
+	if (targetConf.SSLCertPath != "" || targetConf.SSLKey != "") && source.SSLMode != "disable" {
+		if !utils.AskPrompt("Warning: SSL cert and key are not supported for 'export data from target' yet. Do you want to ignore these settings and continue") {
+			{
+				fmt.Println("Exiting...")
+				return fmt.Errorf("SSL cert and key are not supported for 'export data from target' yet")
+			}
+		}
+	}
 	source.SSLCRL = targetConf.SSLCRL
 	source.SSLQueryString = targetConf.SSLQueryString
 	source.Uri = targetConf.Uri

@@ -37,6 +37,7 @@ const (
 	MAX_SLEEP_SECOND                = 60
 	DEFAULT_BATCH_SIZE_ORACLE       = 10000000
 	DEFAULT_BATCH_SIZE_YUGABYTEDB   = 20000
+	DEFAULT_BATCH_SIZE_POSTGRESQL   = 100000
 	INDEX_RETRY_COUNT               = 5
 	DDL_MAX_RETRY_COUNT             = 5
 	SCHEMA_VERSION_MISMATCH_ERR     = "Query error: schema version mismatch for table"
@@ -52,6 +53,9 @@ const (
 	TARGET_DB_EXPORTER_FF_ROLE      = "target_db_exporter_ff"
 	TARGET_DB_EXPORTER_FB_ROLE      = "target_db_exporter_fb"
 	IMPORT_FILE_ROLE                = "import_file"
+	ROW_UPDATE_STATUS_NOT_STARTED   = 0
+	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
+	ROW_UPDATE_STATUS_COMPLETED     = 3
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
@@ -62,3 +66,5 @@ var validSSLModes = map[string][]string{
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }
+
+var EVENT_BATCH_MAX_RETRY_COUNT = 50

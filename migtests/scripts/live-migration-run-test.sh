@@ -52,13 +52,8 @@ main() {
 	step "Initialise source database."
 	./init-db
 
-	step "Grant source database user permissions"
-	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
-	then
-		grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
-	else
-		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
-	fi
+	step "Grant source database user permissions for live migration"
+	grant_permissions_for_live_migration
 
 	step "Check the Voyager version installed"
 	yb-voyager version
@@ -69,7 +64,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -79,7 +74,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
@@ -139,7 +134,7 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover"
-	yes | yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back false
+	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back false --yes
 
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
@@ -148,7 +143,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
-			exit 1
+			tail_log_file "debezium-source_db_exporter.log"
         fi
     else
         break
@@ -156,7 +151,7 @@ main() {
 	done
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-import-data true --refresh-mviews=true
+	import_schema --post-snapshot-import true --refresh-mviews=true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 

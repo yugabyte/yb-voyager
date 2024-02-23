@@ -42,7 +42,7 @@ var tableListFilePath string
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "export schema and data from compatible databases",
-	Long:  `Export has various sub-commands i.e. export schema, export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL) 
+	Long: `Export has various sub-commands i.e. export schema, export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL) 
 	and export data from target in case of live migration with fall-back/fall-forward workflows.`,
 }
 
@@ -119,6 +119,10 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+	cmd.Flags().StringVar(&source.SSLMode, "target-ssl-mode", "disable",
+		"specify the target YugabyteDB SSL mode out of: (disable, require, verify-ca, verify-full)")
+	cmd.Flags().StringVar(&source.SSLRootCert, "target-ssl-root-cert", "",
+		"Path of the file containing target YugabyteDB SSL Root Certificate")
 }
 
 func setExportFlagsDefaults() {
@@ -225,7 +229,8 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"path of the file containing comma-separated list of table names to export data")
 
 	cmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
-		"number of Parallel Jobs to extract data from source database")
+		"number of Parallel Jobs to extract data from source database.\n"+
+			"In case of BETA_FAST_DATA_EXPORT=1 or --export-type=snapshot-and-changes or --export-type=changes-only, this flag has no effect and the number of parallel jobs is fixed to 1.")
 
 	cmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
 		fmt.Sprintf("export type: (%s, %s[TECH PREVIEW])", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
@@ -363,7 +368,7 @@ func validateExportTypeFlag() {
 	}
 }
 
-func saveExportTypeInMetaDB() {
+func saveExportTypeInMSR() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ExportType = exportType
 	})

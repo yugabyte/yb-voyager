@@ -39,6 +39,7 @@ var (
 	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
 	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key"
 	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
+	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY            = "table_to_unique_key_columns_key"
 	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
 )
 
@@ -87,6 +88,7 @@ func initMetaDB(path string) error {
 		fmt.Sprintf(`CREATE TABLE %s 
       (segment_no INTEGER PRIMARY KEY, 
        file_path TEXT, size_committed INTEGER, 
+	   total_events INTEGER,
 	   exporter_role TEXT,
        imported_by_target_db_importer INTEGER DEFAULT 0, 
        imported_by_source_replica_db_importer INTEGER DEFAULT 0, 
@@ -433,7 +435,6 @@ func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole stri
 	}, nil
 }
 
-
 func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, error) {
 	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR
 	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = 1)))
@@ -456,8 +457,8 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 }
 
 func (m *MetaDB) GetPendingSegments(importCount int) ([]utils.Segment, error) {
-	predicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < %d)) OR
-		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < 1))`, importCount)
+	predicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < %d)) OR
+		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("fetch pending segments: %v", err)

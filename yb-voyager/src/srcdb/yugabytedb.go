@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -359,22 +360,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
 		// this query also covers the case of identity columns
-		query := fmt.Sprintf(`SELECT a.attname AS column_name, s.relname AS sequence_name,
-		s.relnamespace::pg_catalog.regnamespace::text AS schema_name
-		FROM pg_class AS t
-			JOIN pg_attribute AS a
-		ON a.attrelid = t.oid
-			JOIN pg_depend AS d
-		ON d.refobjid = t.oid
-			AND d.refobjsubid = a.attnum
-			JOIN pg_class AS s
-		ON s.oid = d.objid
-		WHERE d.classid = 'pg_catalog.pg_class'::regclass
-		AND d.refclassid = 'pg_catalog.pg_class'::regclass
-		AND d.deptype IN ('i', 'a')
-		AND t.relkind IN ('r', 'P')
-		AND s.relkind = 'S'
-		AND t.oid = '%s'::regclass;`, table.Qualified.MinQuoted)
+		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, table.SchemaName.Unquoted, table.ObjectName.Unquoted)
 
 		var columeName, sequenceName, schemaName string
 		rows, err := yb.conn.Query(context.Background(), query)
@@ -388,7 +374,8 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.Qualified.Unquoted, columeName)
-			columnToSequenceMap[qualifiedColumnName] = schemaName + "." + sequenceName
+			// quoting sequence name as it can be case sensitive - required during import data restore sequences
+			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
 		}
 	}
 
@@ -454,7 +441,81 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 	return partitions
 }
 
+const ybQueryTmplForUniqCols = `
+SELECT tc.table_schema, tc.table_name, kcu.column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+    ON tc.constraint_name = kcu.constraint_name
+	AND tc.table_schema = kcu.table_schema
+    AND tc.table_name = kcu.table_name
+WHERE tc.table_schema = ANY('{%s}') AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
+`
+
+func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+	log.Infof("getting unique key columns for tables: %v", tableList)
+	result := make(map[string][]string)
+	var querySchemaList, queryTableList []string
+	for i := 0; i < len(tableList); i++ {
+		schema, table := tableList[i].SchemaName.Unquoted, tableList[i].ObjectName.Unquoted
+		querySchemaList = append(querySchemaList, schema)
+		queryTableList = append(queryTableList, table)
+	}
+
+	querySchemaList = lo.Uniq(querySchemaList)
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+	log.Infof("query to get unique key columns: %s", query)
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique key columns: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName, colName string
+		err := rows.Scan(&schemaName, &tableName, &colName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
+		}
+		if schemaName != "public" {
+			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		}
+		result[tableName] = append(result[tableName], colName)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+	}
+	log.Infof("unique key columns for tables: %v", result)
+	return result, nil
+}
+
 func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for YugabyteDB")
 	return nil
+}
+
+func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
+	var nonPKTables []string
+	schemaList := strings.Split(yb.source.Schema, "|")
+	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var schemaName, tableName string
+		var pkCount int
+		err := rows.Scan(&schemaName, &tableName, &pkCount)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for primary key: %v\n", err)
+		}
+		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
+		if pkCount == 0 {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		}
+	}
+	return nonPKTables, nil
 }

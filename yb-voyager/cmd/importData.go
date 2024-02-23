@@ -37,13 +37,13 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -61,6 +61,7 @@ var TableToColumnNames = make(map[string][]string)         // map of table name 
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
+var conflictDetectionCache *ConflictDetectionCache
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -75,6 +76,7 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		sourceDBType = GetSourceDBTypeFromMSR()
 		err := validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
@@ -158,10 +160,20 @@ func startExportDataFromTargetIfRequired() {
 	importTableList := getImportTableList(tableListExportedFromSource)
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
+
+	if tconf.SSLMode == "prefer" || tconf.SSLMode == "allow" {
+		utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you don't want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
+		tconf.SSLMode = "disable"
+	}
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
 		"--table-list", strings.Join(importTableList, ","),
+		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
+		"--target-ssl-mode", tconf.SSLMode,
+	}
+	if tconf.SSLRootCert != "" {
+		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
@@ -177,7 +189,8 @@ func startExportDataFromTargetIfRequired() {
 		utils.ErrExit("could not find yb-voyager - %w", lookErr)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
+	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
+
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
@@ -217,6 +230,11 @@ func discoverFilesToImport() []*ImportFileTask {
 	}
 
 	for i, fileEntry := range dataFileDescriptor.DataFileList {
+		if fileEntry.RowCount == 0 {
+			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables
+			// but pb hangs for empty so skipping empty tables in snapshot import
+			continue
+		}
 		task := &ImportFileTask{
 			ID:        i,
 			FilePath:  fileEntry.FilePath,
@@ -362,6 +380,12 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		importDataStartEvent := createSnapshotImportStartedEvent()
+		controlPlane.SnapshotImportStarted(&importDataStartEvent)
+	}
+
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	updateTargetConfInMigrationStatus()
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -375,7 +399,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 	if msr.SnapshotMechanism == "debezium" {
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType)
 	} else {
 		valueConverter, err = dbzm.NewNoOpValueConverter()
 	}
@@ -436,6 +460,12 @@ func importData(importFileTasks []*ImportFileTask) {
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
+
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
+				controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
+			}
+
 			for _, task := range pendingTasks {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
 				// `parallelism` number of batches at a time.
@@ -445,12 +475,32 @@ func importData(importFileTasks []*ImportFileTask) {
 				progressReporter.ImportFileStarted(task, totalProgressAmount)
 				importedProgressAmount := getImportedProgressAmount(task, state)
 				progressReporter.AddProgressAmount(task, importedProgressAmount)
+
+				var currentProgress int64
 				updateProgressFn := func(progressAmount int64) {
+					currentProgress += progressAmount
 					progressReporter.AddProgressAmount(task, progressAmount)
+
+					if importerRole == TARGET_DB_IMPORTER_ROLE && totalProgressAmount > currentProgress {
+						importDataTableMetrics := createImportDataTableMetrics(task.TableName,
+							currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_IN_PROGRESS)
+						// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
+						controlPlane.UpdateImportedRowCount(
+							[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
+					}
 				}
+
 				importFile(state, task, updateProgressFn)
-				batchImportPool.Wait()                // Wait for the file import to finish.
-				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
+				batchImportPool.Wait() // Wait for the file import to finish.
+
+				if importerRole == TARGET_DB_IMPORTER_ROLE {
+					importDataTableMetrics := createImportDataTableMetrics(task.TableName,
+						currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_COMPLETED)
+					controlPlane.UpdateImportedRowCount(
+						[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
+				}
+
+				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.\
 			}
 			time.Sleep(time.Second * 2)
 		}
@@ -459,7 +509,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
-		executePostImportDataSqls()
+		executePostSnapshotImportSqls()
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
@@ -467,7 +517,11 @@ func importData(importFileTasks []*ImportFileTask) {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
-			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+
+			if err != nil {
+				utils.ErrExit("failed to get table unique key columns map: %s", err)
+			}
+			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType)
 			if err != nil {
 				utils.ErrExit("Failed to create value converter: %s", err)
 			}
@@ -507,6 +561,11 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	fmt.Printf("\nImport data complete.\n")
+
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		importDataCompletedEvent := createSnapshotImportCompletedEvent()
+		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
+	}
 }
 
 func disableGeneratedAlwaysAsIdentityColumns(tables []string) {
@@ -829,7 +888,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func executePostImportDataSqls() {
+func executePostSnapshotImportSqls() {
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s\n", "")
@@ -929,13 +988,14 @@ func setTargetSchema(conn *pgx.Conn) {
 	}
 }
 
-func dropIdx(conn *pgx.Conn, idxName string) {
+func dropIdx(conn *pgx.Conn, idxName string) error {
 	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
 	log.Infof("Dropping index: %q", dropIdxQuery)
 	_, err := conn.Exec(context.Background(), dropIdxQuery)
 	if err != nil {
-		utils.ErrExit("Failed in dropping index %q: %v", idxName, err)
+		return fmt.Errorf("failed to drop index %q: %w", idxName, err)
 	}
+	return nil
 }
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
@@ -958,6 +1018,16 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
 		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
 			continue
+		}
+
+		if objType == "TABLE" {
+			stmt := strings.ToUpper(sqlInfo.stmt)
+			skip := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
+			if skip {
+				//skipping DDLS like ALTER TABLE ... REPLICA IDENTITY .. as this is not supported in YB
+				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
+				continue
+			}
 		}
 
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
@@ -984,7 +1054,6 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 	}
 
 	parts := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
-
 	for index, part := range parts {
 		if strings.EqualFold(part, "ON") {
 			tableName := parts[index+1]
@@ -1004,6 +1073,13 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 		}
+
+		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
+			err = beforeIndexCreation(sqlInfo, conn, objType)
+			if err != nil {
+				return fmt.Errorf("before index creation: %w", err)
+			}
+		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
@@ -1017,7 +1093,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			*conn = newTargetConn()
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
-			objType == "INDEX" || objType == "PARTITION_INDEX" { // retriable error
+			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
@@ -1029,7 +1105,11 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			}
 
 			// DROP INDEX in case INVALID index got created
-			dropIdx(*conn, fullyQualifiedObjName)
+			// `err` is already being used for retries, so using `err2`
+			err2 := dropIdx(*conn, fullyQualifiedObjName)
+			if err2 != nil {
+				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
+			}
 			continue
 		} else if missingRequiredSchemaObject(err) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
@@ -1062,6 +1142,36 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
+func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
+	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
+		return nil
+	}
+	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
+	if err != nil {
+		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
+	}
+
+	if invalidTargetIndexesCache == nil {
+		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
+		if err != nil {
+			return fmt.Errorf("failed to fetch invalid indexes: %w", err)
+		}
+	}
+
+	// check if even it exists or not
+	if invalidTargetIndexesCache[fullyQualifiedObjName] {
+		log.Infof("invalid index %q already exists, dropping it", fullyQualifiedObjName)
+		err = dropIdx(*conn, fullyQualifiedObjName)
+		if err != nil {
+			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
+		}
+	}
+
+	// print the index name as index creation takes time and user can see the progress
+	color.Yellow("creating index %s ...", fullyQualifiedObjName)
+	return nil
+}
+
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
 func getTargetSchemaName(tableName string) string {
 	parts := strings.Split(tableName, ".")
@@ -1069,8 +1179,7 @@ func getTargetSchemaName(tableName string) string {
 		return parts[0]
 	}
 	if tconf.TargetDBType == POSTGRESQL {
-		schemas := strings.Join(strings.Split(tconf.Schema, ","), "|")
-		defaultSchema, noDefaultSchema := getDefaultPGSchema(schemas)
+		defaultSchema, noDefaultSchema := getDefaultPGSchema(tconf.Schema, ",")
 		if noDefaultSchema {
 			utils.ErrExit("no default schema for table %q ", tableName)
 		}
@@ -1145,7 +1254,8 @@ func init() {
 	importCmd.AddCommand(importDataCmd)
 	importDataCmd.AddCommand(importDataToCmd)
 	importDataToCmd.AddCommand(importDataToTargetCmd)
-
+	registerFlagsForTarget(importDataCmd)
+	registerFlagsForTarget(importDataToTargetCmd)
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonGlobalFlags(importDataToTargetCmd)
 	registerCommonImportFlags(importDataCmd)
@@ -1158,4 +1268,74 @@ func init() {
 	registerImportDataCommonFlags(importDataToTargetCmd)
 	registerImportDataFlags(importDataCmd)
 	registerImportDataFlags(importDataToTargetCmd)
+}
+
+func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {
+	result := cp.SnapshotImportStartedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT DATA")
+	return result
+}
+
+func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
+
+	result := cp.SnapshotImportCompletedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT DATA")
+	return result
+}
+
+func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+
+	result := []*cp.UpdateImportedRowCountEvent{}
+
+	for _, task := range tasks {
+
+		var schemaName, tableName string
+		if strings.Count(task.TableName, ".") == 1 {
+			schemaName, tableName = cp.SplitTableNameForPG(task.TableName)
+		} else {
+			schemaName, tableName = tconf.Schema, task.TableName
+		}
+		tableMetrics := cp.UpdateImportedRowCountEvent{
+			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+				BaseEvent: cp.BaseEvent{
+					EventType:     "IMPORT DATA",
+					MigrationUUID: migrationUUID,
+					SchemaNames:   []string{schemaName},
+				},
+				TableName:         tableName,
+				Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[ROW_UPDATE_STATUS_NOT_STARTED],
+				TotalRowCount:     getTotalProgressAmount(task),
+				CompletedRowCount: 0,
+			},
+		}
+		result = append(result, &tableMetrics)
+	}
+
+	return result
+}
+
+func createImportDataTableMetrics(tableName string, countLiveRows int64, countTotalRows int64,
+	status int) cp.UpdateImportedRowCountEvent {
+
+	var schemaName, tableName2 string
+	if strings.Count(tableName, ".") == 1 {
+		schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
+	} else {
+		schemaName, tableName2 = tconf.Schema, tableName
+	}
+	result := cp.UpdateImportedRowCountEvent{
+		BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+			BaseEvent: cp.BaseEvent{
+				EventType:     "IMPORT DATA",
+				MigrationUUID: migrationUUID,
+				SchemaNames:   []string{schemaName},
+			},
+			TableName:         tableName2,
+			Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[status],
+			TotalRowCount:     countTotalRows,
+			CompletedRowCount: countLiveRows,
+		},
+	}
+
+	return result
 }

@@ -46,8 +46,9 @@ type TargetDB interface {
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error
+	GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
-
+	InvalidIndexes() (map[string]bool, error)
 	// NOTE: The following four methods should not be used for arbitrary query
 	// execution on TargetDB. The should be only used from higher level
 	// abstractions like ImportDataState.
@@ -63,6 +64,7 @@ type Rows interface {
 	Row
 	Next() bool
 	Close()
+	Err() error
 }
 
 type Row interface {

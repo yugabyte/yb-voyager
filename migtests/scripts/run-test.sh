@@ -65,7 +65,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -75,7 +75,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
@@ -107,7 +107,7 @@ main() {
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-import-data true --refresh-mviews=true
+	import_schema --post-snapshot-import true --refresh-mviews=true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 

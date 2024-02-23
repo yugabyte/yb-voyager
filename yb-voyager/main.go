@@ -32,6 +32,7 @@ func main() {
 	captureTerminalState()
 
 	registerSignalHandlers()
+	atexit.Register(cmd.CleanupChildProcesses)
 	cmd.Execute()
 }
 
@@ -43,8 +44,10 @@ func registerSignalHandlers() {
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
 			utils.PrintAndLog("\nReceived signal %s. Exiting...", sig)
+			cmd.ProcessShutdownRequested = true
 		case syscall.SIGUSR2:
 			utils.PrintAndLog("\nReceived signal to terminate due to end migration command. Exiting...")
+			cmd.ProcessShutdownRequested = true
 		case syscall.SIGUSR1:
 			cmd.StopArchiverSignal = true
 			return

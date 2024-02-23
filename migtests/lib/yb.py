@@ -1,12 +1,18 @@
 import os
 import sys
 from typing import Any, Dict, List
+from collections import Counter
 from xmlrpc.client import boolean
 import psycopg2
 
 
-def run_checks(checkFn):
-	tgt = new_target_db()
+def run_checks(checkFn, db_type="yb"):
+	if db_type == "postgres":
+		tgt = new_source_replica_db()
+	elif db_type == "yb":
+		tgt = new_target_db()
+	else:
+		raise ValueError("Invalid database type. Use 'source' or 'target'.")
 	tgt.connect()
 	print("Connected")
 	checkFn(tgt)
@@ -23,6 +29,14 @@ def new_target_db():
 		env.get("TARGET_DB_PASSWORD", ""),
 		env["TARGET_DB_NAME"])
 
+def new_source_replica_db():
+    env = os.environ
+    return PostgresDB(
+        env.get("SOURCE_REPLICA_DB_HOST", "127.0.0.1"),
+        env.get("SOURCE_REPLICA_DB_PORT", "5432"),
+        env.get("SOURCE_REPLICA_DB_USER", "postgres"),
+        env.get("SOURCE_REPLICA_DB_PASSWORD", "secret"),
+        env["SOURCE_REPLICA_DB_NAME"])
 
 class PostgresDB:
 	  
@@ -59,6 +73,11 @@ class PostgresDB:
 		cur.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name=%s AND table_schema=%s)", (table_name, table_schema))
 		result = cur.fetchone()
 		return result[0]
+
+	def count_tables(self, schema="public") -> int:
+		cur = self.conn.cursor()
+		cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_type='BASE TABLE'", (schema,))
+		return cur.fetchone()[0]
 
 	def get_table_names(self, schema="public") -> List[str]:
 		cur = self.conn.cursor()
@@ -211,13 +230,9 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
 		all_values = [value[0] for value in cur.fetchall()]
-		for value in all_values:
-			if transform_func:
-				transformed_value = transform_func(value) if value else value
-			else:
-				transformed_distinct_value = value
-			print(f"{transformed_value}")
-			assert transformed_value in expected_values
+		if transform_func:
+			all_values = [transform_func(value) if value else value for value in all_values]
+		assert Counter(all_values) == Counter(expected_values)
 
 	def get_available_extensions(self) -> List[str]:
 		cur = self.conn.cursor()
@@ -227,4 +242,9 @@ class PostgresDB:
 	def get_target_version(self) -> str:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT version()")
+		return cur.fetchone()[0]
+
+	def get_text_length(self, primary_key, id, column, table_name, schema_name="public") -> int:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT length({column}) FROM {schema_name}.{table_name} WHERE {primary_key} = {id}")
 		return cur.fetchone()[0]

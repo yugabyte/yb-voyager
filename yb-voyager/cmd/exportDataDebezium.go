@@ -136,8 +136,9 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		SSLTrustStore:         source.SSLTrustStore,
 		SSLTrustStorePassword: source.SSLTrustStorePassword,
 		SnapshotMode:          snapshotMode,
+		TransactionOrdering:   transactionOrdering,
 	}
-	if source.DBType == "oracle" {
+	if source.DBType == ORACLE {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
 		if source.IsOracleCDBSetup() {
 			// uri = cdb uri
@@ -157,7 +158,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
-	} else if source.DBType == "yugabytedb" {
+	} else if source.DBType == YUGABYTEDB {
 		if exportType == CHANGES_ONLY {
 			ybServers := source.DB().GetServers()
 			masterPort := "7100"
@@ -294,7 +295,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 			record.SnapshotMechanism = "debezium"
 		})
 		if err != nil {
-			return fmt.Errorf("udpate SnapshotMechanism: update migration status record: %s", err)
+			return fmt.Errorf("update SnapshotMechanism: update migration status record: %s", err)
 		}
 	}
 
@@ -410,6 +411,31 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 	}
 
 	if changeStreamingIsEnabled(exportType) {
+		if isTargetDBExporter(exporterRole) {
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				return false, fmt.Errorf("failed to get migration status record: %w", err)
+			}
+			if !(msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted) {
+				utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
+				// only events received after yb cdc initialization will be emitted by debezium.
+				// Therefore, we sleep to allow yb cdc connector to initialize and only then mark the cutover to be complete.
+				// Ideally, we should have a more reliable way to determine that init is complete. This is a temp solution.
+				time.Sleep(2 * time.Minute)
+
+				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+						record.ExportFromTargetFallBackStarted = true
+					} else {
+						record.ExportFromTargetFallForwardStarted = true
+					}
+
+				})
+				if err != nil {
+					utils.ErrExit("failed to update migration status record for export data from target start: %v", err)
+				}
+			}
+		}
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
 			go reportStreamingProgress()

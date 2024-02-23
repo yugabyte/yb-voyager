@@ -347,7 +347,52 @@ func (ms *MySQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceN
 	panic("not implemented")
 }
 
+func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+	return nil, nil
+}
+
 func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for MySQL")
 	return nil
+}
+
+func (ms *MySQL) GetNonPKTables() ([]string, error) {
+	query := fmt.Sprintf(`SELECT 
+		IFNULL(pk_count.count, 0) AS pk_count, 
+		t.table_name
+	FROM 
+		information_schema.TABLES t
+	LEFT JOIN (
+		SELECT 
+			COUNT(CONSTRAINT_NAME) AS count, 
+			table_name
+		FROM 
+			information_schema.KEY_COLUMN_USAGE
+		WHERE 
+			TABLE_SCHEMA = '%s' 
+			AND CONSTRAINT_NAME = 'PRIMARY' 
+		GROUP BY 
+			table_name
+	) pk_count ON t.table_name = pk_count.table_name
+	WHERE 
+		t.TABLE_SCHEMA = '%s'`, ms.source.DBName, ms.source.DBName)
+	rows, err := ms.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %q for primary key of %q: %w", query, ms.source.DBName, err)
+	}
+	defer rows.Close()
+	var nonPKTables []string
+	for rows.Next() {
+		var count int
+		var tableName string
+		err = rows.Scan(&count, &tableName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan count from output of query %q: %w", query, err)
+		}
+		table := sqlname.NewSourceName(ms.source.DBName, tableName)
+		if count == 0 {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		}
+	}
+	return nonPKTables, nil
 }

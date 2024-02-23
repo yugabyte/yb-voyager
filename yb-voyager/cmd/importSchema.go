@@ -29,7 +29,9 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -45,6 +47,7 @@ var importSchemaCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
+		sourceDBType = GetSourceDBTypeFromMSR()
 		err := validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
@@ -53,7 +56,6 @@ var importSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		sourceDBType = GetSourceDBTypeFromMSR()
 		importSchema()
 	},
 }
@@ -66,9 +68,10 @@ func init() {
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
-var flagPostImportData utils.BoolStr
+var flagPostSnapshotImport utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
+var invalidTargetIndexesCache = make(map[string]bool)
 
 func importSchema() {
 	err := retrieveMigrationUUID()
@@ -76,6 +79,17 @@ func importSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
+
+	if flagPostSnapshotImport {
+		tdb = tgtdb.NewTargetDB(&tconf)
+		err = tdb.Init()
+		if err != nil {
+			utils.ErrExit("failed to initialize the target DB: %s", err)
+		}
+	}
+
+	importSchemaStartEvent := createImportSchemaStartedEvent()
+	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
@@ -94,23 +108,19 @@ func importSchema() {
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.TargetDBVersion = targetDBVersion
 
-	if !flagPostImportData {
+	if !flagPostSnapshotImport {
 		filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 		if utils.FileOrFolderExists(filePath) {
 			color.Red("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
 		}
 
 		createTargetSchemas(conn)
-
-		if sourceDBType == ORACLE && enableOrafce {
-			// Install Orafce extension in target YugabyteDB.
-			installOrafce(conn)
-		}
+		installOrafceIfRequired(conn)
 	}
-	var objectList []string
 
+	var objectList []string
 	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
-	if !flagPostImportData { // Pre data load.
+	if !flagPostSnapshotImport { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
 		objectList = utils.GetSchemaObjectList(sourceDBType)
 		objectList = utils.SetDifference(objectList, objectsToImportAfterData)
@@ -121,8 +131,7 @@ func importSchema() {
 		objectList = objectsToImportAfterData
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
-	log.Infof("List of schema objects to import: %v", objectList)
-
+	log.Infof("list of schema objects to import: %v", objectList)
 	// Import some statements only after importing everything else
 	isSkipStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
@@ -162,13 +171,16 @@ func importSchema() {
 
 	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 
-	if flagPostImportData {
+	if flagPostSnapshotImport {
 		if flagRefreshMViews {
 			refreshMViews(conn)
 		}
 	} else {
-		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
+		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
+
+	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
+	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
 	callhome.PackAndSendPayload(exportDir)
 }
@@ -202,7 +214,12 @@ func dumpStatements(stmts []string, filePath string) {
 	log.Info(msg)
 }
 
-func installOrafce(conn *pgx.Conn) {
+// installs Orafce extension in target YugabyteDB.
+func installOrafceIfRequired(conn *pgx.Conn) {
+	if sourceDBType != ORACLE || !enableOrafce {
+		return
+	}
+
 	utils.PrintAndLog("Installing Orafce extension in target YugabyteDB")
 	_, err := conn.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS orafce")
 	if err != nil {
@@ -211,7 +228,7 @@ func installOrafce(conn *pgx.Conn) {
 }
 
 func refreshMViews(conn *pgx.Conn) {
-	utils.PrintAndLog("\nRefreshing Materialised Views..\n\n")
+	utils.PrintAndLog("\nRefreshing Materialized Views..\n\n")
 	var mViewNames []string
 	mViewsSqlInfoArr := getDDLStmts("MVIEW")
 	for _, eachMviewSql := range mViewsSqlInfoArr {
@@ -224,7 +241,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
 		_, err := conn.Exec(context.Background(), query)
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated") {
-			utils.ErrExit("error in refreshing the materialised view %s: %v", mViewName, err)
+			utils.ErrExit("error in refreshing the materialized view %s: %v", mViewName, err)
 		}
 	}
 	log.Infof("Checking if mviews are refreshed or not - %v", mViewNames)
@@ -274,7 +291,6 @@ func createTargetSchemas(conn *pgx.Conn) {
 	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
 	utils.PrintAndLog("schemas to be present in target database %q: %v\n", tconf.DBName, targetSchemas)
-
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)
@@ -347,4 +363,16 @@ func isAlreadyExists(errString string) bool {
 		}
 	}
 	return false
+}
+
+func createImportSchemaStartedEvent() cp.ImportSchemaStartedEvent {
+	result := cp.ImportSchemaStartedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT SCHEMA")
+	return result
+}
+
+func createImportSchemaCompletedEvent() cp.ImportSchemaCompletedEvent {
+	result := cp.ImportSchemaCompletedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT SCHEMA")
+	return result
 }

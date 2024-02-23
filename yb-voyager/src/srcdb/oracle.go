@@ -450,6 +450,49 @@ func (ora *Oracle) GetPartitions(tableName *sqlname.SourceName) []*sqlname.Sourc
 	panic("not implemented")
 }
 
+func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+	result := make(map[string][]string)
+	queryTemplate := `
+		SELECT TABLE_NAME, COLUMN_NAME
+		FROM ALL_CONS_COLUMNS
+		WHERE CONSTRAINT_NAME IN (
+			SELECT CONSTRAINT_NAME
+			FROM ALL_CONSTRAINTS
+			WHERE CONSTRAINT_TYPE = 'U'
+			AND OWNER = '%s'
+			AND TABLE_NAME IN ('%s')
+		)`
+
+	var queryTableList []string
+	for _, table := range tableList {
+		queryTableList = append(queryTableList, table.ObjectName.Unquoted)
+	}
+	query := fmt.Sprintf(queryTemplate, ora.source.Schema, strings.Join(queryTableList, "','"))
+	log.Infof("query to get unique key columns for tables: %q", query)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique key columns for tables: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tableName string
+		var columnName string
+		err := rows.Scan(&tableName, &columnName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
+		}
+		result[tableName] = append(result[tableName], columnName)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+	}
+	log.Infof("unique key columns for tables: %+v", result)
+	return result, nil
+}
+
 func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("Clearing migration state for migration %q", migrationUUID)
 	log.Infof("Dropping table LOG_MINING_FLUSH")
@@ -463,4 +506,35 @@ func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string
 		return fmt.Errorf("drop table %s: %w", logMiningFlushTableName, err)
 	}
 	return nil
+}
+
+func (ora *Oracle) GetNonPKTables() ([]string, error) {
+	query := fmt.Sprintf(`SELECT NVL(pk_count.count, 0) AS pk_count, at.table_name
+	FROM ALL_TABLES at
+	LEFT JOIN (
+		SELECT COUNT(constraint_name) AS count, table_name
+		FROM ALL_CONSTRAINTS
+		WHERE constraint_type = 'P' AND owner = '%s'
+		GROUP BY table_name
+	) pk_count ON at.table_name = pk_count.table_name
+	WHERE at.owner = '%s'`, ora.source.Schema, ora.source.Schema)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying source database for unsupported tables: %v", err)
+	}
+	defer rows.Close()
+	var nonPKTables []string
+	for rows.Next() {
+		var count int
+		var tableName string
+		err = rows.Scan(&count, &tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for unsupported tables: %v", err)
+		}
+		table := sqlname.NewSourceName(ora.source.Schema, fmt.Sprintf(`"%s"`, tableName))
+		if count == 0 {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		}
+	}
+	return nonPKTables, nil
 }

@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import yb
+import collections
+
+def main():
+	parser = argparse.ArgumentParser(description='Process an argument.')
+	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
+	args = parser.parse_args()
+	ff_fb_enabled = args.ff_fb_enabled
+
+	if ff_fb_enabled == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_pg()
+	else:
+		migration_completed_checks_yb()
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+ 	'num_types': 3,   
+	'datatypes1': 3,  
+	'datetime_type': 3, 
+	'datatypes2': 5,
+	'datetime_type2': 2, 
+	'null_and_default' :2,
+	'decimal_types': 4,
+}
+
+EXPECTED_SUM_OF_COLUMN = {
+	'num_types': {
+		'v1': '32556',
+		'v2': '211369200',
+		'v3': '1844675717304493978',
+		'v4': '1570.685',
+		'v5': '39691.3578',
+		'v6': '$217,175.38'
+	},
+	'decimal_types': {
+		'n1':'2853392251566501749938533440831300954025170802737098078636711923415133694412160070629816221840337665.109639922',
+		'n2':'180349583731554025.26'
+	},
+}
+
+EXPECTED_DISNTICT_VALUES = {
+	'v2' : ['1001100101','0001010101','0101010101','1010101010','0000101010'],
+	'v5': ['0001010101','0001010','101010101010101010101010101010','1010101','1010101010101010101010']
+}
+
+EXPECTED_DISNTICT_VALUES_FF = {
+	'v2' : ['1001100101','0001010101','0101010101','1111000011','0000101010','0101010101','1101010101'],
+	'v5': ['0001010101','0001010','101010101010101010101010101010','00101010010101010101010101001','1010101010101010101010','10101010101010101','01001010101010101000101010']
+}
+
+
+EXPECTED_ROW_COUNT_FF = {
+ 	'num_types': 3,   
+	'datatypes1': 2,  
+	'datetime_type': 1, 
+	'datatypes2': 6,
+	'datetime_type2': 3, 
+	'null_and_default' :2,
+	'decimal_types': 4,
+}
+
+EXPECTED_SUM_OF_COLUMN_FF = {
+	'num_types': {
+		'v1': '16401',
+		'v2': '214783737',
+		'v3': '1844674408679724160',
+		'v4': '574.686',
+		'v5': '79444.4418',
+		'v6': '$227,070.58'
+	},
+	'decimal_types': {
+		'n1':'531349381567983913051474631101346872050803974030268278014088484327035860106983140443622806995814770.993622164',
+		'n2':'111797748546368966.60'
+	},
+}
+
+def change_expected_values():
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN_FF.items():
+		for column, sum in column_names_with_sum.items():
+			EXPECTED_SUM_OF_COLUMN[table_name][column] = sum
+
+	for column_name, distinct_values in EXPECTED_DISNTICT_VALUES_FF.items():
+		EXPECTED_DISNTICT_VALUES[column_name] = distinct_values
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_pg():
+	print("Running tests on PG")
+	yb.run_checks(migration_completed_checks, db_type="postgres")
+
+def migration_completed_checks(tgt):
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
+		print(f"table_name: {table_name} ---- ")
+		for column, sum in column_names_with_sum.items():
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			print(f"column_name: {column}, sum: {col_sum}")
+			assert sum == str(col_sum)
+
+	print(f"distinct_bit10_values:")
+	expected_distinct_values = EXPECTED_DISNTICT_VALUES['v2']
+	tgt.assert_distinct_values_of_col("datatypes2", "v2", "public", 
+		transform_func=str, expected_distinct_values = expected_distinct_values)
+	
+	print(f"distinct_bit_varying_values:")
+	expected_distinct_values = EXPECTED_DISNTICT_VALUES['v5']
+	tgt.assert_distinct_values_of_col("datatypes2", "v5", "public", 
+		None, expected_distinct_values = expected_distinct_values)
+
+if __name__ == "__main__":
+	main()

@@ -22,16 +22,19 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -70,6 +73,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 				getSourceDBPassword(cmd)
 				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
 			}
+			color.Yellow("Generating data migration report for migration UUID: %s...\n", migrationStatus.MigrationUUID)
 			getDataMigrationReportCmdFn(migrationStatus)
 		} else {
 			utils.ErrExit("Error: Data migration report is only applicable when export-type is 'snapshot-and-changes'(live migration)\nPlease run export data status/import data status commands.")
@@ -91,6 +95,8 @@ type rowData struct {
 }
 
 var fBEnabled, fFEnabled bool
+var firstHeader = []string{"TABLE", "DB TYPE", "EXPORTED", "IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT"}
+var secondHeader = []string{"", "", "SNAPSHOT ROWS", "SNAPSHOT ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", ""}
 
 func renameTablesAndGetExportedRows(msr *metadb.MigrationStatusRecord, tableList []string, dbzmStatus *dbzm.ExportStatus, snapshotDataFileDescriptor *datafile.Descriptor, ffEnabled bool) ([]string, map[string]int64, map[string]int64, map[string]int64) {
 	renameTablesList := msr.RenameTablesMap
@@ -157,6 +163,10 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	sqlname.SourceDBType = source.DBType
 	tableList := msr.TableListExportedFromSource
 
+	maxTablesInOnePage := 10 
+
+	addHeader(uitbl,firstHeader... )
+	addHeader(uitbl, secondHeader...)
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
@@ -167,9 +177,10 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
 	if utils.FileOrFolderExists(dataFileDescriptorPath) {
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	} else {
-		utils.ErrExit("data file descriptor not found at %s for snapshot", dataFileDescriptorPath)
 	}
+	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	var exportSnapshotStatus *ExportSnapshotStatus
 
 	renamedTableList, tableToExportedSnapshotRowsMap, targetTableToImportedSnapshotRowsMap, sourceReplicaTableToImportedSnapshotRowsMap := renameTablesAndGetExportedRows(msr, tableList, dbzmStatus, 
 		snapshotDataFileDescriptor, fFEnabled)
@@ -183,6 +194,18 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 
 	for _, table := range renamedTableList {
+	source = *msr.SourceDBConf
+	if source.DBType == POSTGRESQL {
+		exportSnapshotStatus, err = exportSnapshotStatusFile.Read()
+		if err != nil {
+			utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
+		}
+	}
+
+	sqlname.SourceDBType = source.DBType
+	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
+
+	for i, table := range tableList {
 		uitbl.AddRow() // blank row
 
 		row := rowData{}
@@ -191,7 +214,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row.ExportedSnapshotRows = tableToExportedSnapshotRowsMap[table]
 		row.ImportedSnapshotRows = 0
 		row.TableName = table
-		if sourceSchemaCount <= 1 {
+		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case 
 			schemaName = ""
 			row.TableName = tableName
 		}
@@ -237,8 +260,19 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			row.ImportedSnapshotRows = sourceReplicaTableToImportedSnapshotRowsMap[table]
 			addRowInTheTable(uitbl, row)
 		}
+		if i%maxTablesInOnePage == 0 && i != 0 {
+			//multiple table in case of large set of tables
+			fmt.Print("\n")
+			fmt.Println(uitbl)
+			fmt.Print("\n")
+			uitbl = uitable.New()
+			uitbl.MaxColWidth = 50
+			uitbl.Separator = " | "
+			addHeader(uitbl, firstHeader...)
+			addHeader(uitbl, secondHeader...)
+		}
 	}
-	if len(tableList) > 0 {
+	if uitbl.Rows != nil {
 		fmt.Print("\n")
 		fmt.Println(uitbl)
 		fmt.Print("\n")
@@ -268,16 +302,9 @@ func getExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, tableNam
 			//multiple schema specific
 			tableName = schemaName + "." + tableName
 		}
-		dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(tableName)
-		if dataFile == nil {
-			dataFile = &datafile.FileEntry{
-				FilePath:  "",
-				TableName: tableName,
-				FileSize:  0,
-				RowCount:  0,
-			}
-		}
-		return dataFile.RowCount
+		qualifiedName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		status := exportSnapshotStatus.Tables[qualifiedName]
+		row.ExportedSnapshotRows = status.ExportedRowCountSnapshot
 	}
 }
 
@@ -323,8 +350,8 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
-	if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" {
-		//multiple schema specific
+
+	if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" { //multiple schema specific
 		tableName = schemaName + "." + tableName
 	}
 
@@ -359,6 +386,9 @@ func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 		} else if fBEnabled {
 			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
 		}
+	}
+	if len(strings.Split(source.Schema, "|")) <=1 {
+		schemaName = ""
 	}
 	eventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(exporterRole, schemaName, tableName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

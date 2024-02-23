@@ -26,7 +26,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -37,6 +39,7 @@ var EVENT_CHANNEL_SIZE int // has to be > MAX_EVENTS_PER_BATCH
 var MAX_EVENTS_PER_BATCH int
 var MAX_INTERVAL_BETWEEN_BATCHES int //ms
 var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
+var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
 
@@ -105,6 +108,8 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 	return nil
 }
 
+var prevExporterRole = ""
+
 func streamChangesFromSegment(
 	segment *EventQueueSegment,
 	evChans []chan *tgtdb.Event,
@@ -139,7 +144,25 @@ func streamChangesFromSegment(
 
 		if event == nil && segment.IsProcessed() {
 			break
-		} else if event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE ||
+		}
+
+		// segment switch and cutover(for example: source changed from PG to YB)
+		if event != nil && prevExporterRole != event.ExporterRole {
+			/*
+				Note: `sourceDBType` is a global variable, which always represent the initial source db type
+				which does not change even after cutover to target but for conflict detection cache,
+				we need to use the actual source db type at the moment since we save information like
+				TableToUniqueKeyColumns during export(from source/target) to reuse it during import
+			*/
+			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), "yugabytedb", sourceDBType)
+			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
+			if err != nil {
+				return fmt.Errorf("error initializing conflict detection cache: %w", err)
+			}
+			prevExporterRole = event.ExporterRole
+		}
+
+		if event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE ||
 			event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
 			event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
@@ -170,8 +193,13 @@ func streamChangesFromSegment(
 }
 
 func shouldFormatValues(event *tgtdb.Event) bool {
-	return (tconf.TargetDBType == YUGABYTEDB && event.Op == "u") ||
-		tconf.TargetDBType == ORACLE
+	switch tconf.TargetDBType {
+	case YUGABYTEDB, POSTGRESQL:
+		return event.Op == "u"
+	case ORACLE:
+		return true
+	}
+	return false
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	if event.IsCutoverToTarget() || event.IsCutoverToSourceReplica() || event.IsCutoverToSource() {
@@ -189,6 +217,26 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	// This is because the value converter can generate different values (formatting vs no formatting) for the same key
 	// which will affect hash value.
 	h := hashEvent(event)
+
+	/*
+		Checking for all possible conflicts among events
+		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
+	*/
+	tableNameForUniqueKeyColumns := tableName
+	if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
+		tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
+	}
+	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableNameForUniqueKeyColumns]
+	if len(uniqueKeyCols) > 0 {
+		if event.Op == "d" {
+			conflictDetectionCache.Put(event)
+		} else { // "i" or "u"
+			conflictDetectionCache.WaitUntilNoConflict(event)
+			if event.IsUniqueKeyChanged(uniqueKeyCols) {
+				conflictDetectionCache.Put(event)
+			}
+		}
+	}
 
 	// preparing value converters for the streaming mode
 	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
@@ -233,6 +281,9 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 					endOfProcessing = true
 					break Batching
 				}
+				if event == FLUSH_BATCH_EVENT {
+					break Batching
+				}
 				if event.Vsn <= lastAppliedVsn {
 					log.Tracef("ignoring event %v because event vsn <= %v", event, lastAppliedVsn)
 					continue
@@ -256,8 +307,26 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		}
 
 		start := time.Now()
-		eventBatch := tgtdb.NewEventBatch(batch, chanNo, tconf.Schema)
-		err := tdb.ExecuteBatch(migrationUUID, eventBatch)
+		eventBatch := tgtdb.NewEventBatch(batch, chanNo)
+		var err error
+		sleepIntervalSec := 0
+		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
+			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
+			if err == nil {
+				conflictDetectionCache.RemoveEvents(eventBatch)
+				break
+			} else if tdb.IsNonRetryableCopyError(err) {
+				break
+			}
+			log.Warnf("retriable error executing batch on channel %v (last VSN: %d): %v", chanNo, eventBatch.GetLastVsn(), err)
+			sleepIntervalSec += 10
+			if sleepIntervalSec > MAX_SLEEP_SECOND {
+				sleepIntervalSec = MAX_SLEEP_SECOND
+			}
+			log.Infof("sleep for %d seconds before retrying the batch on channel %v (attempt %d)",
+				sleepIntervalSec, chanNo, attempt)
+			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+		}
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
@@ -266,4 +335,30 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			chanNo, len(batch), time.Since(start).String())
 	}
 	done <- true
+}
+
+func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole string, sourceDBTypeForConflictCache string) error {
+	tableToUniqueKeyColumns, err := getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole)
+	if err != nil {
+		return fmt.Errorf("get table unique key columns map: %w", err)
+	}
+	log.Infof("initializing conflict detection cache")
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBTypeForConflictCache)
+	return nil
+}
+
+func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]string, error) {
+	log.Infof("fetching table to unique key columns map from metaDB")
+	var res map[string][]string
+
+	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
+	found, err := metaDB.GetJsonObject(nil, key, &res)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("table to unique key columns map not found in metaDB")
+	}
+	log.Infof("fetched table to unique key columns map: %v", res)
+	return res, nil
 }
