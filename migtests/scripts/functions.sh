@@ -166,10 +166,10 @@ grant_permissions_for_live_migration_pg() {
 			"GRANT replication_group TO postgres"
 			"GRANT replication_group TO ybvoyager;"
 			"DO \$CUSTOM\$
-			set search_path to ${db_schema};
 			DECLARE
 			  cur_table text;
 			BEGIN
+			  EXECUTE 'SET search_path TO ${db_schema}';
 			  FOR cur_table IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${db_schema}')
 			  LOOP
 			    EXECUTE 'ALTER TABLE ' || cur_table || ' OWNER TO replication_group';
