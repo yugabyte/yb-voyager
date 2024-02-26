@@ -156,6 +156,31 @@ EOF
 	run_sqlplus_as_sys ${cdb_name} "oracle-inputs.sql"
 }
 
+grant_permissions_for_live_migration_pg() {
+	db_name=$1
+	db_schema=$2
+	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	commands=(
+			"ALTER USER ybvoyager REPLICATION"
+			"CREATE ROLE replication_group;"
+			"GRANT replication_group TO postgres"
+			"GRANT replication_group TO ybvoyager;"
+			"DO $$
+			DECLARE
+			  cur_table text;
+			BEGIN
+			  FOR cur_table IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${db_schema}')
+			  LOOP
+			    EXECUTE 'ALTER TABLE ' || cur_table || ' OWNER TO replication_group';
+			  END LOOP;
+			END $$;"
+			"GRANT CREATE ON DATABASE '${db_name}' TO ybvoyager;"
+		)
+	for command in "${commands[@]}"; do
+		echo "${command}" | psql "${conn_string}" 
+	done
+}
+
 grant_permissions() {
 	db_name=$1
 	db_type=$2
@@ -539,6 +564,7 @@ grant_permissions_for_live_migration() {
     elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
         set_replica_identity
         grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+		grant_permissions_for_live_migration_pg ${SOURCE_DB_NAME} ${SOURCE_DB_SCHEMA}
     elif [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
         grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
         if [ -n "${SOURCE_REPLICA_DB_NAME}" ]; then
