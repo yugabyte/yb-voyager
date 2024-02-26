@@ -165,7 +165,7 @@ grant_permissions_for_live_migration_pg() {
 			"CREATE ROLE replication_group;"
 			"GRANT replication_group TO postgres"
 			"GRANT replication_group TO ybvoyager;"
-			"DO \$CUSTOM\$
+			"DO \$CUSTOMPG\$
 			DECLARE
 			  cur_table text;
 			BEGIN
@@ -174,7 +174,7 @@ grant_permissions_for_live_migration_pg() {
 			  LOOP
 			    EXECUTE 'ALTER TABLE ' || cur_table || ' OWNER TO replication_group';
 			  END LOOP;
-			END \$CUSTOM\$;"
+			END \$CUSTOMPG\$;"
 			"GRANT CREATE ON DATABASE ${db_name} TO ybvoyager;"
 		)
 	for command in "${commands[@]}"; do
