@@ -171,10 +171,10 @@ grant_permissions_for_live_migration_pg() {
 			BEGIN
 			  FOR cur_table IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${db_schema}')
 			  LOOP
-			    EXECUTE 'ALTER TABLE ' || cur_table || ' OWNER TO replication_group';
+			    EXECUTE 'ALTER TABLE ' || ${db_schema}.cur_table || ' OWNER TO replication_group';
 			  END LOOP;
 			END \$CUSTOM\$;"
-			"GRANT CREATE ON DATABASE '${db_name}' TO ybvoyager;"
+			"GRANT CREATE ON DATABASE ${db_name} TO ybvoyager;"
 		)
 	for command in "${commands[@]}"; do
 		echo "${command}" | psql "${conn_string}" 
