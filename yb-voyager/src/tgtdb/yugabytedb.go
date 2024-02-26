@@ -525,7 +525,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	// processing batch events to convert into prepared or unprepared statements based on Op type
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
-		if event.Op == "u" {
+		if true {
 			stmt := event.GetSQLStmt()
 			ybBatch.Queue(stmt)
 		} else {
@@ -569,11 +569,11 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 			switch true {
 			case res.Insert():
-				numInserts+= res.RowsAffected()
+				numInserts += res.RowsAffected()
 			case res.Delete():
-				numDeletes+= res.RowsAffected()
+				numDeletes += res.RowsAffected()
 			case res.Update():
-				numUpdates+= res.RowsAffected()
+				numUpdates += res.RowsAffected()
 			}
 			if res.RowsAffected() != 1 {
 				log.Warnf("unexpected rows affected for event with vsn(%d) in batch(%s): %d", batch.Events[i].Vsn, batch.ID(), res.RowsAffected())
