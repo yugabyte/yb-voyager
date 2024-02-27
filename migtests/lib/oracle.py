@@ -12,17 +12,17 @@ import cx_Oracle
 #     print("Disconnected")
 
 def run_checks(checkFn, db_type):
-	if db_type == "source":
-		tgt = new_source_db()
+    if db_type == "source":
+        tgt = new_source_db()
     elif db_type == "source_replica":
-		tgt = new_source_replica_db()
-	else:
-		raise ValueError("Invalid database type. Use 'source' or 'source_replica'.")
-	tgt.connect()
-	print("Connected")
-	checkFn(tgt)
-	tgt.close()
-	print("Disconnected")
+        tgt = new_source_replica_db()
+    else:
+        raise ValueError("Invalid database type. Use 'source' or 'source_replica'.")
+    tgt.connect()
+    print("Connected")
+    checkFn(tgt)
+    tgt.close()
+    print("Disconnected")
     
 def new_source_replica_db():
     env = os.environ
