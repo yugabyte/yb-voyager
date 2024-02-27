@@ -21,7 +21,7 @@ def main():
 	
 	if ff_enabled == 'true':
 		change_expected_values()
-		migration_completed_checks_oracle()
+		migration_completed_checks_ff()
 
 
 
@@ -135,11 +135,11 @@ def migration_completed_checks_yb():
 	db_schema="public"
 	yb.run_checks(migration_completed_checks)
 
-def migration_completed_checks_oracle():
+def migration_completed_checks_ff():
 	print("Running tests on Oracle")
 	global db_schema
 	db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
-	oracle.run_checks(migration_completed_checks)
+	oracle.run_checks(migration_completed_checks, db_type="source_replica")
 
 def change_expected_values():
 	keys_to_delete = []

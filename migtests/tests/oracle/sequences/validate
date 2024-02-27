@@ -15,14 +15,11 @@ def main():
 	live_migration = args.live_migration
 	global ff_enabled
 	ff_enabled = args.ff_enabled
-
-	global fb_enabled
-	fb_enabled = args.fb_enabled
 	
 	migration_completed_checks_yb()
 
 	if ff_enabled == 'true':
-		migration_completed_checks_oracle()
+		migration_completed_checks_ff()
 
 
 #=============================================================================
@@ -90,12 +87,11 @@ def migration_completed_checks_yb():
 	db_schema="public"
 	yb.run_checks(migration_completed_checks)
 
-def migration_completed_checks_oracle():
+def migration_completed_checks_ff():
 	print("Running tests on Oracle")
 	global db_schema
 	db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
-	oracle.run_checks(migration_completed_checks)
-
+	oracle.run_checks(migration_completed_checks, db_type="source_replica")
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names(db_schema)
