@@ -520,24 +520,24 @@ and needs to be prepared again
 */
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
-	ybBatch := pgx.Batch{}
-	stmtToPrepare := make(map[string]string)
+	// ybBatch := pgx.Batch{}
+	// stmtToPrepare := make(map[string]string)
 	// processing batch events to convert into prepared or unprepared statements based on Op type
-	for i := 0; i < len(batch.Events); i++ {
-		event := batch.Events[i]
-		if true {
-			stmt := event.GetSQLStmt()
-			ybBatch.Queue(stmt)
-		} else {
-			stmt := event.GetPreparedSQLStmt(yb.tconf.TargetDBType)
+	// for i := 0; i < len(batch.Events); i++ {
+	// 	event := batch.Events[i]
+	// 	if true {
+	// 		stmt := event.GetSQLStmt()
+	// 		ybBatch.Queue(stmt)
+	// 	} else {
+	// 		stmt := event.GetPreparedSQLStmt(yb.tconf.TargetDBType)
 
-			params := event.GetParams()
-			if _, ok := stmtToPrepare[stmt]; !ok {
-				stmtToPrepare[event.GetPreparedStmtName()] = stmt
-			}
-			ybBatch.Queue(stmt, params...)
-		}
-	}
+	// 		params := event.GetParams()
+	// 		if _, ok := stmtToPrepare[stmt]; !ok {
+	// 			stmtToPrepare[event.GetPreparedStmtName()] = stmt
+	// 		}
+	// 		ybBatch.Queue(stmt, params...)
+	// 	}
+	// }
 
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
 		ctx := context.Background()
@@ -551,21 +551,18 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
 			}
 		}()
-		for name, stmt := range stmtToPrepare {
-			err := yb.connPool.PrepareStatement(conn, name, stmt)
-			if err != nil {
-				log.Errorf("error preparing stmt(%q): %v", stmt, err)
-				return false, fmt.Errorf("error preparing stmt: %w", err)
-			}
-		}
-
-		br := conn.SendBatch(ctx, &ybBatch)
 		var numInserts, numDeletes, numUpdates int64
 		for i := 0; i < len(batch.Events); i++ {
-			res, err := br.Exec()
+			event := batch.Events[i]
+			stmt := event.GetSQLStmt()
+			res, err := tx.Exec(context.Background(), stmt)
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
-				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
+				return false, fmt.Errorf("failed to insert table stats on target db via query-%s: %w, rowsAffected: %v",
+					stmt, err, res.RowsAffected())
+			}
+			if res.RowsAffected() != 1 {
+				log.Warnf("unexpected rows affected for event with vsn(%d) in batch(%s): %d", batch.Events[i].Vsn, batch.ID(), res.RowsAffected())
 			}
 			switch true {
 			case res.Insert():
@@ -575,14 +572,40 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			case res.Update():
 				numUpdates += res.RowsAffected()
 			}
-			if res.RowsAffected() != 1 {
-				log.Warnf("unexpected rows affected for event with vsn(%d) in batch(%s): %d", batch.Events[i].Vsn, batch.ID(), res.RowsAffected())
-			}
 		}
-		if err = br.Close(); err != nil {
-			log.Errorf("error closing batch(%s): %v", batch.ID(), err)
-			return false, fmt.Errorf("error closing batch id (%s): %v", batch.ID(), err)
-		}
+
+		// for name, stmt := range stmtToPrepare {
+		// 	err := yb.connPool.PrepareStatement(conn, name, stmt)
+		// 	if err != nil {
+		// 		log.Errorf("error preparing stmt(%q): %v", stmt, err)
+		// 		return false, fmt.Errorf("error preparing stmt: %w", err)
+		// 	}
+		// }
+
+		// br := conn.SendBatch(ctx, &ybBatch)
+		// var numInserts, numDeletes, numUpdates int64
+		// for i := 0; i < len(batch.Events); i++ {
+		// 	res, err := br.Exec()
+		// 	if err != nil {
+		// 		log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
+		// 		return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+		// 	}
+		// 	switch true {
+		// 	case res.Insert():
+		// 		numInserts += res.RowsAffected()
+		// 	case res.Delete():
+		// 		numDeletes += res.RowsAffected()
+		// 	case res.Update():
+		// 		numUpdates += res.RowsAffected()
+		// 	}
+		// 	if res.RowsAffected() != 1 {
+		// 		log.Warnf("unexpected rows affected for event with vsn(%d) in batch(%s): %d", batch.Events[i].Vsn, batch.ID(), res.RowsAffected())
+		// 	}
+		// }
+		// if err = br.Close(); err != nil {
+		// 	log.Errorf("error closing batch(%s): %v", batch.ID(), err)
+		// 	return false, fmt.Errorf("error closing batch id (%s): %v", batch.ID(), err)
+		// }
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
 		res, err := tx.Exec(context.Background(), updateVsnQuery)
