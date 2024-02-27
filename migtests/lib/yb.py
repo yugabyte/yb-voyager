@@ -14,7 +14,7 @@ def run_checks(checkFn, db_type="yb"):
 	elif db_type == "source":
 		tgt = new_source_db()
 	else:
-		raise ValueError("Invalid database type. Use 'source' or 'target'.")
+		raise ValueError("Invalid database type. Use 'source' or 'source_replica'.")
 	tgt.connect()
 	print("Connected")
 	checkFn(tgt)
@@ -46,7 +46,7 @@ def new_source_db():
 		env.get("SOURCE_DB_HOST", "127.0.0.1"),
 		env.get("SOURCE_DB_PORT", "5432"),
 		env.get("SOURCE_DB_USER", "postgres"),
-		env.get("SOURCE_DB_PASSWORD", "postgres"),
+		env.get("SOURCE_DB_PASSWORD", "secret"),
 		env["SOURCE_DB_NAME"])
 
 class PostgresDB:
