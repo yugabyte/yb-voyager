@@ -8,13 +8,23 @@ import collections
 def main():
 	parser = argparse.ArgumentParser(description='Process an argument.')
 	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
 	args = parser.parse_args()
 	ff_fb_enabled = args.ff_fb_enabled
+	global ff_enabled
+	ff_enabled = args.ff_enabled
+	global fb_enabled
+	fb_enabled = args.fb_enabled
 
-	if ff_fb_enabled == 'true':
+	if ff_enabled == 'true':
 		change_expected_values()
 		migration_completed_checks_yb()
 		migration_completed_checks_pg()
+	elif fb_enabled == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_src()
 	else:
 		migration_completed_checks_yb()
 
@@ -73,8 +83,12 @@ def migration_completed_checks_yb():
 	yb.run_checks(migration_completed_checks)
 
 def migration_completed_checks_pg():
-	print("Running tests on PG")
-	yb.run_checks(migration_completed_checks, db_type="postgres")
+	print("Running tests on source replica")
+	yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_src():
+	print("Running tests on source")
+	yb.run_checks(migration_completed_checks, db_type="source")
 
 def migration_completed_checks(tgt):
 	# Validation to check for matching row counts

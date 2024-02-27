@@ -7,15 +7,33 @@ import collections
 import oracle
 
 def main():
+
+	# if ff_fb_enabled == 'true':
+	# 	change_expected_values()
+	# 	migration_completed_checks_yb()
+	# 	migration_completed_checks_oracle()
+	# else:
+	# 	migration_completed_checks_yb()
+
 	parser = argparse.ArgumentParser(description='Process an argument.')
 	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
 	args = parser.parse_args()
 	ff_fb_enabled = args.ff_fb_enabled
-    
-	if ff_fb_enabled == 'true':
+	global ff_enabled
+	ff_enabled = args.ff_enabled
+	global fb_enabled
+	fb_enabled = args.fb_enabled
+	
+	if ff_enabled == 'true':
 		change_expected_values()
 		migration_completed_checks_yb()
-		migration_completed_checks_oracle()
+		migration_completed_checks_ff()
+	elif fb_enabled == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_fb()
 	else:
 		migration_completed_checks_yb()
 
@@ -63,11 +81,17 @@ def migration_completed_checks_yb():
 	db_schema="test_schema"
 	yb.run_checks(migration_completed_checks)
 
-def migration_completed_checks_oracle():
+def migration_completed_checks_ff():
 	print("Running tests on Oracle")
 	global db_schema
 	db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
-	oracle.run_checks(migration_completed_checks)
+	oracle.run_checks(migration_completed_checks, source_replica)
+
+def migration_completed_checks_fb():
+	print("Running tests on Oracle")
+	global db_schema
+	db_schema = os.environ.get("SOURCE_DB_SCHEMA")
+	oracle.run_checks(migration_completed_checks, source)
 
 def migration_completed_checks(tgt):
 	# Validation to check for matching row counts

@@ -576,4 +576,18 @@ grant_permissions_for_live_migration() {
     fi
 }
 
+setup_fallback_environment() {
+	if [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
+	elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		cat > alter_user_superuser.sql <<EOF
+    	ALTER ROLE ybvoyager WITH SUPERUSER;
+EOF
+    run_psql ${SOURCE_DB_NAME} "$(cat alter_user_superuser.sql)"
+	
+	fi
+
+}
+
 
