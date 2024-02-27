@@ -14,7 +14,7 @@ def main():
 	args = parser.parse_args()
 	
 	global live_migration 
- 	live_migration = args.live_migration
+	live_migration = args.live_migration
 	global ff_enabled
 	ff_enabled = args.ff_enabled
 	
@@ -25,7 +25,7 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'x':3,
- 	'user_table': 8
+	'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN = {
