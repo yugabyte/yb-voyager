@@ -16,7 +16,7 @@ def main():
     ff_enabled = args.ff_enabled
     global fb_enabled
     fb_enabled = args.fb_enabled
-    
+
     if ff_enabled == 'true':
         change_expected_values()
         migration_completed_checks_yb()
@@ -145,7 +145,13 @@ def change_expected_values():
         EXPECTED_TABLE_SUM[table_name] = sum_column_values
 
     for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT_FF.items():
-        EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert    
+        EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert  
+
+def change_expected_values_ff_fb():
+    for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT_ORA.items():
+        EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert
+    for type_check, query_and_code in QUERIES_CHECK.items():
+        query_and_code['code'] = "32795"  
 
 def migration_completed_checks_yb():
     print("Running tests on YB")
@@ -154,22 +160,18 @@ def migration_completed_checks_yb():
     yb.run_checks(migration_completed_checks)
 
 def migration_completed_checks_ff():
-    print("Running tests on Oracle")
+    print("Running tests on Oracle source replica")
     global db_schema
     db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
+    change_expected_values_ff_fb()
     oracle.run_checks(migration_completed_checks, db_type="source_replica")
 
 def migration_completed_checks_fb():
     print("Running tests on Oracle")
     global db_schema
     db_schema = os.environ.get("SOURCE_DB_SCHEMA")
+    change_expected_values_ff_fb()
     oracle.run_checks(migration_completed_checks, db_type="source")
-
-    for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT_ORA.items():
-        EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert
-    for type_check, query_and_code in QUERIES_CHECK.items():
-        query_and_code['code'] = "32795"
-    oracle.run_checks(migration_completed_checks, db_type="source_replica")
 
 def migration_completed_checks(tgt):
     table_list = tgt.get_table_names(db_schema)
