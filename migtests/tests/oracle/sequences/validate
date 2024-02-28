@@ -17,7 +17,7 @@ def main():
 	ff_enabled = args.ff_enabled
 
 	global fb_enabled
- 	fb_enabled = args.fb_enabled
+	fb_enabled = args.fb_enabled
 	
 	migration_completed_checks_yb()
 
