@@ -1,19 +1,8 @@
 #!/usr/bin/env python3
 
 import yb
-import argparse
 
-live_migration = False
 def main():
-	parser = argparse.ArgumentParser(description='Process an argument.')
-	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
-	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
-	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
-	args = parser.parse_args()
-	global live_migration
-	live_migration = args.live_migration
-	if live_migration == 'true':
-		change_expected_values_for_live_migration()
 	yb.run_checks(migration_completed_checks)
 
 
@@ -21,13 +10,22 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'ext_test': 1,    
-	'tt': 4,
-	'audit': 4,
-	'recipients': 1,    
-	'session_log': 0,
-	'Mixed_Case_Table_Name_Test': 5,
-	'group':5
+	'tt': 1,
+	'audit': 5,
+	'recipients': 2,    
+	'session_log': 0
 }
+EXPECTED_TOTAL=15
+
+EXPECTED_ROW_COUNT2 = {
+	'ext_test': 1,    
+	'tt': 5,
+	'audit': 5,
+	'recipients': 3,    
+	'session_log': 0
+}
+EXPECTED_TOTAL2=25
+
 
 def check_validations_per_schema(tgt,schema_name):
 	table_list = tgt.get_table_names(schema_name)
@@ -50,7 +48,7 @@ def check_validations_per_schema(tgt,schema_name):
 
 	res_total_proc = tgt.execute_query(f"select total();")
 	print(f"result of total() - {res_total_proc}")
-	assert res_total_proc == 20
+	assert res_total_proc == EXPECTED_TOTAL
 
 	res_aggregate_inc_sum = tgt.execute_query("select inc_sum(110);")
 	print(f"result of aggregate of inc_sum(110) - {res_aggregate_inc_sum}")
@@ -60,24 +58,23 @@ def check_validations_per_schema(tgt,schema_name):
 	print(f"fetched extension for extname - {fetched_extension}")
 	assert fetched_extension == 'pgcrypto'
 
-	if not live_migration == 'true':
-		chk_executed_query = tgt.run_query_and_chk_error("call tt_insert_data(5);", None)
-		print(f"error in executing query - {chk_executed_query}")
-		assert chk_executed_query == False
+	chk_executed_query = tgt.run_query_and_chk_error("call tt_insert_data(6);", None)
+	print(f"error in executing query - {chk_executed_query}")
+	assert chk_executed_query == False
 
-		#after calling tt_insert_data() functions inserts happen on tt and audit table
-		cnt_tt = tgt.get_row_count("tt", schema_name)
-		print(f"after running the procedure to insert into tt table, row count - {cnt_tt}")
-		assert cnt_tt == 5
+	#after calling tt_insert_data() functions inserts happen on tt and audit table
+	cnt_tt = tgt.get_row_count("tt", schema_name)
+	print(f"after running the procedure to insert into tt table, row count - {cnt_tt}")
+	assert cnt_tt == EXPECTED_ROW_COUNT["tt"]+1
 
-		cnt_audit = tgt.get_row_count("audit", schema_name)
-		print(f"after running the procedure to insert into audit table, row count of audit- {cnt_audit}")
-		assert cnt_audit == 5
+	cnt_audit = tgt.get_row_count("audit", schema_name)
+	print(f"after running the procedure to insert into audit table, row count of audit- {cnt_audit}")
+	assert cnt_audit == EXPECTED_ROW_COUNT["audit"]+1
 
-		#checking the total again with changed value
-		res_total_proc = tgt.execute_query("select total();")
-		print(f"result of total() - {res_total_proc}")
-		assert res_total_proc == 25
+	#checking the total again with changed value
+	res_total_proc = tgt.execute_query("select total();")
+	print(f"result of total() - {res_total_proc}")
+	assert res_total_proc == EXPECTED_TOTAL+6
 
 
 
@@ -99,18 +96,20 @@ def migration_completed_checks(tgt):
 	print(f"schema set in search_path - {schema_set}")
 	assert schema_set == 'schema2'
 
+	global EXPECTED_ROW_COUNT
+	global EXPECTED_TOTAL
+	EXPECTED_ROW_COUNT = EXPECTED_ROW_COUNT2
+	EXPECTED_TOTAL=EXPECTED_TOTAL2
 	check_validations_per_schema(tgt, "schema2")
 
-	# in live migration, sequences are only applied at cutover.
-	if not live_migration == 'true':
-		INSERT_QUERY_EXT_TEST = "insert into ext_test(password) values (crypt('tomspassword', gen_salt('bf')));"
-		chk_insert_error_ext_test = tgt.run_query_and_chk_error(INSERT_QUERY_EXT_TEST, None)
-		print(f"error in inserting in ext_test - {chk_insert_error_ext_test}")
-		assert chk_insert_error_ext_test == False
+	INSERT_QUERY_EXT_TEST = "insert into ext_test(password) values (crypt('tomspassword', gen_salt('bf')));"
+	chk_insert_error_ext_test = tgt.run_query_and_chk_error(INSERT_QUERY_EXT_TEST, None)
+	print(f"error in inserting in ext_test - {chk_insert_error_ext_test}")
+	assert chk_insert_error_ext_test == False
 
-		cnt_ext_test = tgt.get_row_count("ext_test", "schema2")
-		print(f"after running the procedure to insert into ext_test table, row count- {cnt_ext_test}")
-		assert cnt_ext_test == 2
+	cnt_ext_test = tgt.get_row_count("ext_test", "schema2")
+	print(f"after running the procedure to insert into ext_test table, row count- {cnt_ext_test}")
+	assert cnt_ext_test == 2
 
 	QUERY_TO_CHECK_PASSWORD_OF_ID = "select id from ext_test where password = crypt('johnspassword', password);"
 	id_returned_ext_test = tgt.execute_query(QUERY_TO_CHECK_PASSWORD_OF_ID)
@@ -135,9 +134,5 @@ def migration_completed_checks(tgt):
 	for extension in expectedExtensions:
 		assert extension in extensions, f"expected extension is not reported: {extension}"
 	
-def change_expected_values_for_live_migration():
-	del EXPECTED_ROW_COUNT["Mixed_Case_Table_Name_Test"]
-	del EXPECTED_ROW_COUNT["group"]
-
 if __name__ == "__main__":
 	main()

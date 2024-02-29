@@ -4,7 +4,7 @@ CREATE EXTENSION pgcrypto;
 
 drop table if exists ext_test;
 
-create table ext_test(id serial, password text);
+create table ext_test(id serial PRIMARY KEY, password text);
 
 
 
@@ -23,11 +23,11 @@ where aggfnoid = 'inc_sum'::regproc;
 
 drop table if exists tt;
 
-CREATE TABLE tt (i int);
+CREATE TABLE tt (i int PRIMARY KEY);
 
 drop table if exists audit;
 
-create table audit(id text);
+create table audit(id text PRIMARY KEY);
 
 drop function if exists auditlogfunc();
 
@@ -148,7 +148,7 @@ drop table if exists session_log;
 
 create table session_log 
 ( 
-   userid int not null, 
+   userid int not null PRIMARY KEY, 
    phonenumber int
 ); 
 
