@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	YUGABYTEDB = "yugabytedb"
-	POSTGRESQL = "postgresql"
-	ORACLE     = "oracle"
-	MYSQL      = "mysql"
+	YUGABYTEDB = sqlname.YUGABYTEDB
+	POSTGRESQL = sqlname.POSTGRESQL
+	ORACLE     = sqlname.ORACLE
+	MYSQL      = sqlname.MYSQL
 )
 
 const (
@@ -198,14 +198,14 @@ func newTableName(dbType, defaultSchemaName, schemaName, tableName string) *Tabl
 		SchemaName:        schemaName,
 		FromDefaultSchema: schemaName == defaultSchemaName,
 		Qualified: identifier{
-			Quoted:    schemaName + "." + sqlname.Quote(tableName, dbType),
+			Quoted:    schemaName + "." + quote(dbType, tableName),
 			Unquoted:  schemaName + "." + tableName,
-			MinQuoted: schemaName + "." + sqlname.MinQuote(tableName, dbType),
+			MinQuoted: schemaName + "." + minQuote(tableName, dbType),
 		},
 		Unqualified: identifier{
-			Quoted:    sqlname.Quote(tableName, dbType),
+			Quoted:    quote(dbType, tableName),
 			Unquoted:  tableName,
-			MinQuoted: sqlname.MinQuote(tableName, dbType),
+			MinQuoted: minQuote(tableName, dbType),
 		},
 	}
 	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)
@@ -285,4 +285,38 @@ func (t *NameTuple) ForUserQuery() string {
 
 func (t *NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentTableName.SchemaName, t.CurrentTableName.Unqualified.Unquoted
+}
+
+//================================================
+
+func quote(dbType, name string) string {
+	switch dbType {
+	case POSTGRESQL, YUGABYTEDB, ORACLE:
+		return `"` + name + `"`
+	case MYSQL:
+		return name
+	default:
+		panic("unknown source db type")
+	}
+}
+
+func minQuote(objectName, sourceDBType string) string {
+	switch sourceDBType {
+	case YUGABYTEDB, POSTGRESQL:
+		if sqlname.IsAllLowercase(objectName) && !sqlname.IsReservedKeywordPG(objectName) {
+			return objectName
+		} else {
+			return `"` + objectName + `"`
+		}
+	case MYSQL:
+		return objectName
+	case ORACLE:
+		if sqlname.IsAllUppercase(objectName) && !sqlname.IsReservedKeywordOracle(objectName) {
+			return objectName
+		} else {
+			return `"` + objectName + `"`
+		}
+	default:
+		panic("invalid source db type")
+	}
 }
