@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import yb
+import collections
+
+def main():
+	parser = argparse.ArgumentParser(description='Process an argument.')
+	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
+	args = parser.parse_args()
+	ff_fb_enabled = args.ff_fb_enabled
+	global ff_enabled
+	ff_enabled = args.ff_enabled
+	global fb_enabled
+	fb_enabled = args.fb_enabled
+
+	if ff_enabled == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_pg()
+	elif fb_enabled == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_src()
+	else:
+		migration_completed_checks_yb()
+
+EXPECTED_ROW_COUNT = {
+	'x':5,
+	'user_table': 8
+}
+
+EXPECTED_DATA_TYPES = {
+	'x': {
+		'id': 'integer',
+		'id2': 'integer'
+	},
+	'user_table': {
+		'id': 'integer',
+		'email': 'character varying',
+		'status': 'character varying'
+	}
+}
+
+EXPECTED_SUM_OF_COLUMN = {
+	'x': {
+		'id': '15',
+		'id2': '20'
+	},
+	'user_table': {
+		'id': '51',
+	}
+}
+
+EXPECTED_ROW_COUNT_FF = {
+	'x':7,
+	'user_table': 8
+}
+
+EXPECTED_SUM_OF_COLUMN_FF = {
+	'x': {
+		'id': '130',
+		'id2': '44'
+	},
+	'user_table': {
+		'id': '49',
+	}
+}
+
+def change_expected_values():
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN_FF.items():
+		for column, sum in column_names_with_sum.items():
+			EXPECTED_SUM_OF_COLUMN[table_name][column] = sum
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_pg():
+	print("Running tests on source replica")
+	yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_src():
+	print("Running tests on source")
+	yb.run_checks(migration_completed_checks, db_type="source")
+
+def migration_completed_checks(tgt):
+	# Validation to check for matching row counts
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+#=============================================================================
+	fetched_datatypes_schema = tgt.get_column_to_data_type_mapping("public")
+ 
+	print(fetched_datatypes_schema)
+	for table_name, columns in fetched_datatypes_schema.items():
+		print(f"table_name: {table_name} ---- ")
+		for column_name, datatype in columns.items():
+			print(f"column_name: {column_name}, datatype: {datatype}")
+			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
+		print(f"table_name: {table_name} ---- ")
+		for column, sum in column_names_with_sum.items():
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			print(f"column_name: {column}, sum: {col_sum}")
+			assert sum == str(col_sum)
+
+if __name__ == "__main__":
+	main()
