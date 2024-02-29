@@ -28,6 +28,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -309,6 +310,10 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		start := time.Now()
 		eventBatch := tgtdb.NewEventBatch(batch, chanNo)
 		var err error
+		vsns := make([]int64, 0, len(batch))
+		for _, e := range batch {
+			vsns = append(vsns, e.Vsn)
+		}
 		sleepIntervalSec := 0
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
@@ -317,10 +322,6 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 				break
 			} else if tdb.IsNonRetryableCopyError(err) {
 				break
-			}
-			vsns := make([]int64, 0, len(batch))
-			for _, e := range batch {
-				vsns = append(vsns, e.Vsn)
 			}
 			log.Warnf("retriable error executing batch on channel %v (batch id: %s), vsns in batch - (%v): %v", chanNo, eventBatch.ID(), vsns, err)
 			sleepIntervalSec += 10
@@ -334,6 +335,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
+		log.Infof("successful execution of a batch on channel %v (batch id: %s), vsns in batch - (%v)", chanNo, eventBatch.ID(), vsns)
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
