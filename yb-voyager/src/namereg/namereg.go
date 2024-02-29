@@ -225,6 +225,9 @@ func (nv *TableName) MatchesPattern(pattern string) (bool, error) {
 		}
 		pattern = parts[1]
 	case len(parts) == 1:
+		if !nv.FromDefaultSchema {
+			return false, nil
+		}
 		pattern = parts[0]
 	default:
 		return false, fmt.Errorf("invalid pattern: %s", pattern)
@@ -276,7 +279,19 @@ func (t *NameTuple) String() string {
 }
 
 func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
-	return t.CurrentTableName.MatchesPattern(pattern)
+	for _, tableName := range []*TableName{t.SourceTableName, t.TargetTableName} {
+		if tableName == nil {
+			continue
+		}
+		match, err := tableName.MatchesPattern(pattern)
+		if err != nil {
+			return false, err
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (t *NameTuple) ForUserQuery() string {

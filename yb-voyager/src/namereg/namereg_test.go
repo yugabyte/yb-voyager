@@ -361,6 +361,78 @@ func TestMySQLNonDefaultSchemaCaseSensitiveUpperCaseTableName(t *testing.T) {
 
 //=====================================================
 
+func TestNameTuple(t *testing.T) {
+	assert := assert.New(t)
+
+	ntup := &NameTuple{
+		SourceTableName: newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
+		TargetTableName: newTableName(YUGABYTEDB, "public", "public", "table1"),
+	}
+	ntup.SetMode(IMPORT_TO_TARGET_MODE)
+	assert.Equal(ntup.CurrentTableName, ntup.TargetTableName)
+	assert.Equal(ntup.ForUserQuery(), `public."table1"`)
+	schemaName, tableName := ntup.ForCatalogQuery()
+	assert.Equal(schemaName, `public`)
+	assert.Equal(tableName, `table1`)
+
+	ntup.SetMode(IMPORT_TO_SOURCE_REPLICA_MODE)
+	assert.Equal(ntup.CurrentTableName, ntup.SourceTableName)
+	assert.Equal(ntup.ForUserQuery(), `SAKILA."TABLE1"`)
+	schemaName, tableName = ntup.ForCatalogQuery()
+	assert.Equal(schemaName, `SAKILA`)
+	assert.Equal(tableName, `TABLE1`)
+
+	ntup.SetMode(EXPORT_FROM_SOURCE_MODE)
+	assert.Equal(ntup.CurrentTableName, ntup.SourceTableName)
+
+	ntup.SetMode(EXPORT_FROM_TARGET_MODE)
+	assert.Equal(ntup.CurrentTableName, ntup.TargetTableName)
+
+	ntup.SetMode(UNSPECIFIED_MODE)
+	assert.Nil(ntup.CurrentTableName)
+}
+
+func TestNameTupleMatchesPattern(t *testing.T) {
+	assert := assert.New(t)
+
+	ntup := &NameTuple{
+		SourceTableName: newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
+		TargetTableName: newTableName(YUGABYTEDB, "public", "sakila", "table1"),
+	}
+	ntup.SetMode(IMPORT_TO_TARGET_MODE)
+
+	testCases := []struct {
+		pattern string
+		match   bool
+	}{
+		{"table1", false}, // effectively: <defaultSchema>.table1 i.e. public.table1
+		{"table2", false},
+		{"table", false},
+		{"TABLE1", true},
+		{"TABLE2", false},
+		{"TABLE", false},
+		{"TABLE*", true},
+		{"table*", false},
+		{"SAKILA.TABLE1", true},
+		{"SAKILA.TABLE2", false},
+		{"SAKILA.TABLE", false},
+		{"SAKILA.TABLE*", true},
+		{"SAKILA.table*", true}, // Schema name comparison is case insensitive. Matches with target name.
+		{"sakila.table1", true},
+		{"sakila.table2", false},
+		{"sakila.table", false},
+		{"sakila.table*", true},
+	}
+
+	for _, tc := range testCases {
+		match, err := ntup.MatchesPattern(tc.pattern)
+		assert.Nil(err)
+		assert.Equal(tc.match, match, "pattern: %s, expected: %b, got: %b", tc.pattern, tc.match, match)
+	}
+}
+
+//=====================================================
+
 func TestNameRegistry(t *testing.T) {
 	assert := assert.New(t)
 
