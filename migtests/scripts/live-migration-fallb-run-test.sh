@@ -36,9 +36,6 @@ source ${SCRIPTS}/yugabytedb/env.sh
 
 source ${SCRIPTS}/functions.sh
 
-# export SOURCE_REPLICA_DB_USER=${SOURCE_DB_USER_SCHEMA_OWNER:-"TEST_SCHEMA"}
-# export SOURCE_REPLICA_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"TEST_SCHEMA"}
-
 main() {
 
 	echo "Deleting the parent export-dir present in the test directory"
@@ -61,12 +58,6 @@ main() {
 
 	step "Setup Fall Back environment"
 	setup_fallback_environment
-
-	# if [ "${SOURCE_DB_TYPE}" = "oracle"]
-	# then
-	# 	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
-	# 	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
-	# fi
 
 	step "Check the Voyager version installed"
 	yb-voyager version

@@ -3,14 +3,6 @@ import sys
 from typing import Any, Dict, List
 import cx_Oracle
 
-# def run_checks(checkFn):
-#     tgt = new_target_db()
-#     tgt.connect()
-#     print("Connected")
-#     checkFn(tgt)
-#     tgt.close()
-#     print("Disconnected")
-
 def run_checks(checkFn, db_type):
     if db_type == "source":
         tgt = new_source_db()
