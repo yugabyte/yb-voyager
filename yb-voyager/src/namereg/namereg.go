@@ -1,6 +1,7 @@
 package namereg
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -21,12 +22,13 @@ const (
 )
 
 const (
-	IMPORT_TO_TARGET_MODE         = "import_to_target"
-	IMPORT_TO_SOURCE_REPLICA_MODE = "import_to_source_replica"
-	EXPORT_FROM_SOURCE_MODE       = "export_from_source"
-	EXPORT_FROM_TARGET_MODE       = "export_from_target"
+	IMPORT_TO_TARGET_MODE         = "import_to_target_mode"
+	IMPORT_TO_SOURCE_REPLICA_MODE = "import_to_source_replica_mode"
+	EXPORT_FROM_SOURCE_MODE       = "export_from_source_mode"
+	EXPORT_FROM_TARGET_MODE       = "export_from_target_mode"
+	IMPORT_DATA_FILE_MODE         = "import_data_file_mode"
 
-	UNSPECIFIED_MODE = "unspecified"
+	UNSPECIFIED_MODE = "unspecified_mode"
 )
 
 type NameRegistry struct {
@@ -35,14 +37,16 @@ type NameRegistry struct {
 	Mode         string // "import" or "export"
 	SourceDBType string
 
-	SourceDBSchemaNames       []string
-	TargetDBSchemaNames       []string
-	DefaultSourceDBSchemaName string
-	DefaultTargetDBSchemaName string
-
 	// All schema and table names are in the format as stored in DB catalog.
-	SourceDBTableNames map[string][]string // nil for `import data file` mode.
-	TargetDBTableNames map[string][]string
+	SourceDBSchemaNames       []string
+	DefaultSourceDBSchemaName string
+	// TODO: Depending on the mode, select appropriate default schema.
+	DefaultSourceReplicaSchemaName string
+	SourceDBTableNames             map[string][]string // nil for `import data file` mode.
+
+	YBSchemaNames       []string
+	DefaultYBSchemaName string
+	YBTableNames        map[string][]string
 }
 
 func NewNameRegistry(metaDB *metadb.MetaDB) *NameRegistry {
@@ -74,8 +78,8 @@ func (reg *NameRegistry) SetSourceDBSchemaNames(sdb srcdb.SourceDB, sourceDBSche
 	return reg.saveToMetaDB()
 }
 
-func (reg *NameRegistry) SetTargetDBSchemaNames(tdb tgtdb.TargetDB, targetDBSchemaNamesFromCLI []string) error {
-	reg.TargetDBSchemaNames = targetDBSchemaNamesFromCLI
+func (reg *NameRegistry) SetYBSchemaNames(tdb tgtdb.TargetDB, ybSchemaNamesFromCLI []string) error {
+	reg.YBSchemaNames = ybSchemaNamesFromCLI
 	return reg.saveToMetaDB()
 }
 
@@ -83,7 +87,7 @@ func (reg *NameRegistry) RegisterNamesFromSourceDB(sdb srcdb.SourceDB) error {
 	return nil
 }
 
-func (reg *NameRegistry) RegisterNamesFromTargetDB(tdb tgtdb.TargetDB) error {
+func (reg *NameRegistry) RegisterNamesFromYB(tdb tgtdb.TargetDB) error {
 	return nil
 }
 
@@ -98,6 +102,13 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error) {
+	if (reg.Mode == IMPORT_TO_TARGET_MODE || reg.Mode == IMPORT_TO_SOURCE_REPLICA_MODE) &&
+		(reg.DefaultSourceDBSchemaName == "") != (reg.DefaultYBSchemaName == "") {
+
+		msg := "either both or none of the default schema names should be set"
+		return nil, fmt.Errorf("%s: [%s], [%s]", msg,
+			reg.DefaultSourceDBSchemaName, reg.DefaultYBSchemaName)
+	}
 	var err error
 	parts := strings.Split(tableNameArg, ".")
 
@@ -112,25 +123,61 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 	default:
 		return nil, fmt.Errorf("invalid table name: %s", tableNameArg)
 	}
-	objTableName := &NameTuple{}
+	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultYBSchemaName {
+		schemaName = ""
+	}
+	ntup := &NameTuple{}
 	if reg.SourceDBTableNames != nil { // nil for `import data file` mode.
-		objTableName.SourceTableName, err = reg.lookup(
+		ntup.SourceTableName, err = reg.lookup(
 			reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceDBSchemaName, schemaName, tableName)
 		if err != nil {
-			// `err` can be: no default schema, no matching name, multiple matching names.
-			return nil, fmt.Errorf("lookup source table name [%s]: %w", tableNameArg, err)
+			errObj := &ErrMultipleMatchingNames{}
+			if errors.As(err, &errObj) {
+				// Case insensitive match.
+				caseInsensitiveName := tableName
+				if reg.SourceDBType == POSTGRESQL || reg.SourceDBType == YUGABYTEDB {
+					caseInsensitiveName = strings.ToLower(tableName)
+				} else if reg.SourceDBType == ORACLE {
+					caseInsensitiveName = strings.ToUpper(tableName)
+				}
+				if lo.Contains(errObj.Names, caseInsensitiveName) {
+					ntup.SourceTableName, err = reg.lookup(
+						reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceDBSchemaName, schemaName, caseInsensitiveName)
+					if err != nil {
+						return nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
+					}
+				}
+			} else {
+				// `err` can be: no default schema, no matching name, multiple matching names.
+				return nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
+			}
 		}
 	}
-	if reg.TargetDBTableNames != nil { // nil in `export` mode.
-		objTableName.TargetTableName, err = reg.lookup(
-			YUGABYTEDB, reg.TargetDBTableNames, reg.DefaultTargetDBSchemaName, schemaName, tableName)
+	if reg.YBTableNames != nil { // nil in `export` mode.
+		ntup.TargetTableName, err = reg.lookup(
+			YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, tableName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
+			errObj := &ErrMultipleMatchingNames{}
+			if errors.As(err, &errObj) {
+				// A special case.
+				if lo.Contains(errObj.Names, strings.ToLower(tableName)) {
+					ntup.TargetTableName, err = reg.lookup(
+						YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
+					if err != nil {
+						return nil, fmt.Errorf("lookup target table name [%s.%s]: %w", schemaName, strings.ToLower(tableName), err)
+					}
+				}
+			} else {
+				return nil, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
+			}
 		}
 	}
 	// Set the current table name based on the mode.
-	objTableName.SetMode(reg.Mode)
-	return objTableName, nil
+	ntup.SetMode(reg.Mode)
+	if ntup.SourceTableName == nil && ntup.TargetTableName == nil {
+		return nil, fmt.Errorf("no matching table name: %s", tableNameArg)
+	}
+	return ntup, nil
 }
 
 func (reg *NameRegistry) lookup(
@@ -153,6 +200,24 @@ func (reg *NameRegistry) lookup(
 	return newTableName(dbType, defaultSchemaName, schemaName, tableName), nil
 }
 
+type ErrMultipleMatchingNames struct {
+	ObjectType string
+	Names      []string
+}
+
+func (e *ErrMultipleMatchingNames) Error() string {
+	return fmt.Sprintf("multiple matching %s names: %s", e.ObjectType, strings.Join(e.Names, ", "))
+}
+
+type ErrNameNotFound struct {
+	ObjectType string
+	Name       string
+}
+
+func (e *ErrNameNotFound) Error() string {
+	return fmt.Sprintf("%s name not found: %s", e.ObjectType, e.Name)
+}
+
 func matchName(objType string, names []string, name string) (string, error) {
 	if name[0] == '"' {
 		if name[len(name)-1] != '"' {
@@ -173,9 +238,9 @@ func matchName(objType string, names []string, name string) (string, error) {
 		return candidateNames[0], nil
 	}
 	if len(candidateNames) > 1 {
-		return "", fmt.Errorf("multiple matching %s names for [%s]: %s", objType, name, strings.Join(candidateNames, ", "))
+		return "", &ErrMultipleMatchingNames{ObjectType: objType, Names: candidateNames}
 	}
-	return "", fmt.Errorf("no matching %s name: [%s]", objType, name)
+	return "", &ErrNameNotFound{ObjectType: objType, Name: name}
 }
 
 //================================================

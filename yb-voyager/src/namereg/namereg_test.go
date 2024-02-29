@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPGDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
@@ -433,51 +434,70 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 
 //=====================================================
 
-func TestNameRegistry(t *testing.T) {
+var oracleToYBNameRegistry = &NameRegistry{
+	SourceDBType:              ORACLE,
+	Mode:                      IMPORT_TO_TARGET_MODE,
+	SourceDBSchemaNames:       []string{"SAKILA"},
+	YBSchemaNames:             []string{"public"},
+	DefaultSourceDBSchemaName: "SAKILA",
+	DefaultYBSchemaName:       "public",
+	SourceDBTableNames: map[string][]string{
+		"SAKILA": {`TABLE1`, `TABLE2`, `Table2`, `MixedCaps`, `lower_caps`},
+	},
+	YBTableNames: map[string][]string{
+		"public": {"table1", "table2", `Table2`, "mixedcaps", "lower_caps"},
+	},
+}
+
+func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, targetTable string) *NameTuple {
+	ntup := &NameTuple{
+		SourceTableName: newTableName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable),
+		TargetTableName: newTableName(YUGABYTEDB, targetSchema, targetSchema, targetTable),
+	}
+	ntup.SetMode(reg.Mode)
+	return ntup
+}
+
+func TestNameRegistrySuccessfulLookup(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 
-	reg := &NameRegistry{
-		SourceDBType:              POSTGRESQL,
-		SourceDBSchemaNames:       []string{"public", "schema1", "schema2"},
-		TargetDBSchemaNames:       []string{"public", "schema1", "schema2"},
-		DefaultSourceDBSchemaName: "public",
-		DefaultTargetDBSchemaName: "public",
-		SourceDBTableNames: map[string][]string{
-			"public":  {"table1", "table2"},
-			"schema1": {"table1", "table2"},
-			"schema2": {"table1", "table2"},
-		},
-		TargetDBTableNames: map[string][]string{
-			"public":  {"table1", "table2"},
-			"schema1": {"table1", "table2"},
-			"schema2": {"table1", "table2"},
-		},
+	reg := oracleToYBNameRegistry
+	table1 := buildNameTuple(reg, "SAKILA", "TABLE1", "public", "table1")
+	table2 := buildNameTuple(reg, "SAKILA", "TABLE2", "public", "table2")
+	mixedCaps := buildNameTuple(reg, "SAKILA", "MixedCaps", "public", "mixedcaps")
+	lowerCaps := buildNameTuple(reg, "SAKILA", "lower_caps", "public", "lower_caps")
+
+	var testCases = []struct {
+		tableNames []string
+		expected   *NameTuple
+	}{
+		{[]string{
+			// YB side variants:
+			`table1`, `"table1"`, `public.table1`, `public."table1"`, `public."TABLE1"`, `public.TABLE1`,
+			// Oracle side variants:
+			`TABLE1`, `"TABLE1"`, `SAKILA.TABLE1`, `SAKILA."TABLE1"`, `SAKILA."table1"`, `SAKILA.table1`,
+		}, table1},
+		{[]string{"table2", "TABLE2"}, table2},
+		{[]string{
+			// YB side variants:
+			"MixedCaps", `"MixedCaps"`, `public.MixedCaps`, `public."MixedCaps"`, `public."MIXEDCAPS"`, `public.MIXEDCAPS`,
+			// Oracle side variants:
+			"MIXEDCAPS", `"MIXEDCAPS"`, `SAKILA.MIXEDCAPS`, `SAKILA."MIXEDCAPS"`, `SAKILA."mixedcaps"`, `SAKILA.mixedcaps`,
+		}, mixedCaps},
+		{[]string{
+			// YB side variants:
+			"lower_caps", `"lower_caps"`, `public.lower_caps`, `public."lower_caps"`, `public."LOWER_CAPS"`, `public.LOWER_CAPS`,
+			// Oracle side variants:
+			"LOWER_CAPS", `"LOWER_CAPS"`, `SAKILA.LOWER_CAPS`, `SAKILA."LOWER_CAPS"`, `SAKILA."lower_caps"`, `SAKILA.lower_caps`,
+		}, lowerCaps},
 	}
 
-	tableName, err := reg.LookupTableName("table1")
-	assert.Nil(err)
-	assert.NotNil(tableName)
-	expectedTableName := &NameTuple{
-		SourceTableName: &TableName{
-			SchemaName:        "public",
-			FromDefaultSchema: true,
-			Qualified: identifier{
-				Quoted:    `public."table1"`,
-				Unquoted:  "public.table1",
-				MinQuoted: "public.table1",
-			},
-			Unqualified: identifier{
-				Quoted:    `"table1"`,
-				Unquoted:  "table1",
-				MinQuoted: "table1",
-			},
-			MinQualified: identifier{
-				Quoted:    `"table1"`,
-				Unquoted:  "table1",
-				MinQuoted: "table1",
-			},
-		},
+	for _, tc := range testCases {
+		for _, tableName := range tc.tableNames {
+			ntup, err := reg.LookupTableName(tableName)
+			require.Nil(err)
+			assert.Equal(tc.expected, ntup, "tableName: %s", tableName)
+		}
 	}
-	expectedTableName.TargetTableName = expectedTableName.SourceTableName // Source and Target are the same for PG source.
-	assert.Equal(expectedTableName, tableName)
 }
