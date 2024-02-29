@@ -8,13 +8,6 @@ import oracle
 
 def main():
 
-	# if ff_fb_enabled == 'true':
-	# 	change_expected_values()
-	# 	migration_completed_checks_yb()
-	# 	migration_completed_checks_oracle()
-	# else:
-	# 	migration_completed_checks_yb()
-
 	parser = argparse.ArgumentParser(description='Process an argument.')
 	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
 	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
