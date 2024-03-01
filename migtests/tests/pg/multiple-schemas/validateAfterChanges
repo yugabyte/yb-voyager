@@ -17,14 +17,14 @@ EXPECTED_ROW_COUNT = {
 }
 EXPECTED_TOTAL=15
 
-EXPECTED_ROW_COUNT2 = {
+EXPECTED_ROW_COUNT_SCHEMA2 = {
 	'ext_test': 1,    
 	'tt': 5,
 	'audit': 5,
 	'recipients': 3,    
 	'session_log': 0
 }
-EXPECTED_TOTAL2=25
+EXPECTED_TOTAL_SCHEMA2=25
 
 
 def check_validations_per_schema(tgt,schema_name):
@@ -98,8 +98,8 @@ def migration_completed_checks(tgt):
 
 	global EXPECTED_ROW_COUNT
 	global EXPECTED_TOTAL
-	EXPECTED_ROW_COUNT = EXPECTED_ROW_COUNT2
-	EXPECTED_TOTAL=EXPECTED_TOTAL2
+	EXPECTED_ROW_COUNT = EXPECTED_ROW_COUNT_SCHEMA2
+	EXPECTED_TOTAL=EXPECTED_TOTAL_SCHEMA2
 	check_validations_per_schema(tgt, "schema2")
 
 	INSERT_QUERY_EXT_TEST = "insert into ext_test(password) values (crypt('tomspassword', gen_salt('bf')));"
