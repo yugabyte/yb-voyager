@@ -23,7 +23,8 @@ const (
 
 const (
 	IMPORT_TO_TARGET_MODE         = "import_to_target_mode"
-	IMPORT_TO_SOURCE_REPLICA_MODE = "import_to_source_replica_mode"
+	IMPORT_TO_SOURCE_MODE         = "import_to_source_mode"         // Fallback.
+	IMPORT_TO_SOURCE_REPLICA_MODE = "import_to_source_replica_mode" // Fall-forward.
 	EXPORT_FROM_SOURCE_MODE       = "export_from_source_mode"
 	EXPORT_FROM_TARGET_MODE       = "export_from_target_mode"
 	IMPORT_DATA_FILE_MODE         = "import_data_file_mode"
@@ -40,13 +41,16 @@ type NameRegistry struct {
 	// All schema and table names are in the format as stored in DB catalog.
 	SourceDBSchemaNames       []string
 	DefaultSourceDBSchemaName string
-	// TODO: Depending on the mode, select appropriate default schema.
-	DefaultSourceReplicaSchemaName string
-	SourceDBTableNames             map[string][]string // nil for `import data file` mode.
+	// SourceDBTableNames has one entry for `DefaultSchemaReplicaName` if `Mode` is `IMPORT_TO_SOURCE_REPLICA_MODE`.
+	SourceDBTableNames map[string][]string // nil for `import data file` mode.
 
 	YBSchemaNames       []string
 	DefaultYBSchemaName string
 	YBTableNames        map[string][]string
+
+	// TODO: Depending on the mode, select appropriate default schema.
+	DefaultSourceReplicaDBSchemaName string
+	// Source replica has same table name list as original source.
 }
 
 func NewNameRegistry(metaDB *metadb.MetaDB) *NameRegistry {
@@ -58,6 +62,22 @@ func NewNameRegistry(metaDB *metadb.MetaDB) *NameRegistry {
 
 func (reg *NameRegistry) Init() error {
 	return nil
+}
+
+func (reg *NameRegistry) DefaultSourceSideSchemaName() string {
+	originalSourceModes := []string{
+		EXPORT_FROM_SOURCE_MODE,
+		IMPORT_TO_SOURCE_MODE,
+		IMPORT_TO_TARGET_MODE,
+		EXPORT_FROM_TARGET_MODE,
+	}
+	if lo.Contains(originalSourceModes, reg.Mode) {
+		return reg.DefaultSourceDBSchemaName
+	} else if reg.Mode == IMPORT_TO_SOURCE_REPLICA_MODE {
+		return reg.DefaultSourceReplicaDBSchemaName
+	} else {
+		return ""
+	}
 }
 
 func (reg *NameRegistry) loadFromMetaDB() error {
@@ -83,6 +103,12 @@ func (reg *NameRegistry) SetYBSchemaNames(tdb tgtdb.TargetDB, ybSchemaNamesFromC
 	return reg.saveToMetaDB()
 }
 
+func (reg *NameRegistry) SetDefaultSourceReplicaDBSchemaName(sdb srcdb.SourceDB, defaultSourceReplicaDBSchemaName string) error {
+	reg.DefaultSourceReplicaDBSchemaName = defaultSourceReplicaDBSchemaName
+	reg.SourceDBTableNames[defaultSourceReplicaDBSchemaName] = reg.SourceDBTableNames[reg.DefaultSourceDBSchemaName]
+	return reg.saveToMetaDB()
+}
+
 func (reg *NameRegistry) RegisterNamesFromSourceDB(sdb srcdb.SourceDB) error {
 	return nil
 }
@@ -103,11 +129,11 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 */
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error) {
 	if (reg.Mode == IMPORT_TO_TARGET_MODE || reg.Mode == IMPORT_TO_SOURCE_REPLICA_MODE) &&
-		(reg.DefaultSourceDBSchemaName == "") != (reg.DefaultYBSchemaName == "") {
+		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
 		msg := "either both or none of the default schema names should be set"
 		return nil, fmt.Errorf("%s: [%s], [%s]", msg,
-			reg.DefaultSourceDBSchemaName, reg.DefaultYBSchemaName)
+			reg.DefaultSourceSideSchemaName(), reg.DefaultYBSchemaName)
 	}
 	var err error
 	parts := strings.Split(tableNameArg, ".")
@@ -123,13 +149,13 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 	default:
 		return nil, fmt.Errorf("invalid table name: %s", tableNameArg)
 	}
-	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultYBSchemaName {
+	if schemaName == reg.DefaultSourceSideSchemaName() || schemaName == reg.DefaultYBSchemaName {
 		schemaName = ""
 	}
 	ntup := &NameTuple{}
 	if reg.SourceDBTableNames != nil { // nil for `import data file` mode.
 		ntup.SourceTableName, err = reg.lookup(
-			reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceDBSchemaName, schemaName, tableName)
+			reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, tableName)
 		if err != nil {
 			errObj := &ErrMultipleMatchingNames{}
 			if errors.As(err, &errObj) {
@@ -142,7 +168,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 				}
 				if lo.Contains(errObj.Names, caseInsensitiveName) {
 					ntup.SourceTableName, err = reg.lookup(
-						reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceDBSchemaName, schemaName, caseInsensitiveName)
+						reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, caseInsensitiveName)
 					if err != nil {
 						return nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
 					}
