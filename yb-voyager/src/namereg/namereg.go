@@ -367,6 +367,13 @@ func (t *NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentTableName.SchemaName, t.CurrentTableName.Unqualified.Unquoted
 }
 
+func (t *NameTuple) ForKey() string {
+	if t.SourceTableName != nil {
+		return t.SourceTableName.Qualified.Quoted
+	}
+	return t.TargetTableName.Qualified.Quoted
+}
+
 //================================================
 
 func quote(dbType, name string) string {
