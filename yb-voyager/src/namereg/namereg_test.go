@@ -442,10 +442,10 @@ var oracleToYBNameRegistry = &NameRegistry{
 	DefaultSourceDBSchemaName: "SAKILA",
 	DefaultYBSchemaName:       "public",
 	SourceDBTableNames: map[string][]string{
-		"SAKILA": {`TABLE1`, `TABLE2`, `Table2`, `MixedCaps`, `lower_caps`},
+		"SAKILA": {`TABLE1`, `TABLE2`, `Table2`, `MixedCaps`, `MixedCaps1`, `MixedCAPS1`, `lower_caps`},
 	},
 	YBTableNames: map[string][]string{
-		"public": {"table1", "table2", `Table2`, "mixedcaps", "lower_caps"},
+		"public": {"table1", "table2", `Table2`, `mixedcaps`, `MixedCaps1`, `MixedCAPS1`, "lower_caps"},
 	},
 }
 
@@ -500,4 +500,59 @@ func TestNameRegistrySuccessfulLookup(t *testing.T) {
 			assert.Equal(tc.expected, ntup, "tableName: %s", tableName)
 		}
 	}
+}
+
+func TestNameRegistryFailedLookup(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	errMultipleMatchingNames := &ErrMultipleMatchingNames{}
+	errNameNotFound := &ErrNameNotFound{}
+
+	// Missing table name.
+	reg := oracleToYBNameRegistry
+	ntup, err := reg.LookupTableName("table3")
+	require.NotNil(err)
+	assert.Nil(ntup)
+	assert.ErrorAs(err, &errNameNotFound)
+	assert.Equal(&ErrNameNotFound{ObjectType: "table", Name: "table3"}, errNameNotFound)
+
+	// Missing schema name.
+	ntup, err = reg.LookupTableName("schema1.table1")
+	require.NotNil(err)
+	assert.Nil(ntup)
+	assert.ErrorAs(err, &errNameNotFound)
+	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "schema1"}, errNameNotFound)
+	assert.Contains(err.Error(), "schema1.table1")
+
+	// Missing schema and table name.
+	ntup, err = reg.LookupTableName("schema1.table3")
+	require.NotNil(err)
+	assert.Nil(ntup)
+	assert.ErrorAs(err, &errNameNotFound)
+	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "schema1"}, errNameNotFound)
+	assert.Contains(err.Error(), "schema1.table3")
+
+	// Multiple matches.
+	ntup, err = reg.LookupTableName("mixedCaps1")
+	require.NotNil(err)
+	assert.Nil(ntup)
+	assert.ErrorAs(err, &errMultipleMatchingNames)
+	assert.Equal(&ErrMultipleMatchingNames{ObjectType: "table", Names: []string{"MixedCaps1", "MixedCAPS1"}},
+		errMultipleMatchingNames)
+
+	// No default schema.
+	reg.DefaultSourceDBSchemaName = ""
+	ntup, err = reg.LookupTableName("table1")
+	require.NotNil(err)
+
+	assert.Nil(ntup)
+	assert.Contains(err.Error(), "either both or none of the default schema")
+	reg.DefaultYBSchemaName = ""
+	ntup, err = reg.LookupTableName("table1")
+	require.NotNil(err)
+	//assert.Nil(ntup)
+	assert.Contains(err.Error(), "no default schema name")
+	reg.DefaultSourceDBSchemaName = "SAKILA"
+	reg.DefaultYBSchemaName = "public"
 }

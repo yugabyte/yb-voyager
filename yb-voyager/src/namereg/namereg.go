@@ -169,11 +169,9 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 				if lo.Contains(errObj.Names, caseInsensitiveName) {
 					ntup.SourceName, err = reg.lookup(
 						reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, caseInsensitiveName)
-					if err != nil {
-						return nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
-					}
 				}
-			} else {
+			}
+			if err != nil {
 				// `err` can be: no default schema, no matching name, multiple matching names.
 				return nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
 			}
@@ -189,11 +187,9 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 				if lo.Contains(errObj.Names, strings.ToLower(tableName)) {
 					ntup.TargetName, err = reg.lookup(
 						YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
-					if err != nil {
-						return nil, fmt.Errorf("lookup target table name [%s.%s]: %w", schemaName, strings.ToLower(tableName), err)
-					}
 				}
-			} else {
+			}
+			if err != nil {
 				return nil, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
 			}
 		}
