@@ -168,6 +168,7 @@ jobs:
       - name: "TEST: pg-basic-live-migration-test"
         run: migtests/scripts/live-migration-run-test.sh pg/basic-live-test
 
+      # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
       - name: "TEST: pg-live-migration-multiple-schemas"
         run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
 

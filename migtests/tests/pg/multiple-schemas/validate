@@ -60,7 +60,9 @@ def check_validations_per_schema(tgt,schema_name):
 	print(f"fetched extension for extname - {fetched_extension}")
 	assert fetched_extension == 'pgcrypto'
 
+	# don't want to insert anything in case of live migration
 	if not live_migration == 'true':
+
 		chk_executed_query = tgt.run_query_and_chk_error("call tt_insert_data(5);", None)
 		print(f"error in executing query - {chk_executed_query}")
 		assert chk_executed_query == False
