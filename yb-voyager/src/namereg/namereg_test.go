@@ -366,39 +366,39 @@ func TestNameTuple(t *testing.T) {
 	assert := assert.New(t)
 
 	ntup := &NameTuple{
-		SourceTableName: newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
-		TargetTableName: newTableName(YUGABYTEDB, "public", "public", "table1"),
+		SourceName: newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
+		TargetName: newTableName(YUGABYTEDB, "public", "public", "table1"),
 	}
 	ntup.SetMode(IMPORT_TO_TARGET_MODE)
-	assert.Equal(ntup.CurrentTableName, ntup.TargetTableName)
+	assert.Equal(ntup.CurrentName, ntup.TargetName)
 	assert.Equal(ntup.ForUserQuery(), `public."table1"`)
 	schemaName, tableName := ntup.ForCatalogQuery()
 	assert.Equal(schemaName, `public`)
 	assert.Equal(tableName, `table1`)
 
 	ntup.SetMode(IMPORT_TO_SOURCE_REPLICA_MODE)
-	assert.Equal(ntup.CurrentTableName, ntup.SourceTableName)
+	assert.Equal(ntup.CurrentName, ntup.SourceName)
 	assert.Equal(ntup.ForUserQuery(), `SAKILA."TABLE1"`)
 	schemaName, tableName = ntup.ForCatalogQuery()
 	assert.Equal(schemaName, `SAKILA`)
 	assert.Equal(tableName, `TABLE1`)
 
 	ntup.SetMode(EXPORT_FROM_SOURCE_MODE)
-	assert.Equal(ntup.CurrentTableName, ntup.SourceTableName)
+	assert.Equal(ntup.CurrentName, ntup.SourceName)
 
 	ntup.SetMode(EXPORT_FROM_TARGET_MODE)
-	assert.Equal(ntup.CurrentTableName, ntup.TargetTableName)
+	assert.Equal(ntup.CurrentName, ntup.TargetName)
 
 	ntup.SetMode(UNSPECIFIED_MODE)
-	assert.Nil(ntup.CurrentTableName)
+	assert.Nil(ntup.CurrentName)
 }
 
 func TestNameTupleMatchesPattern(t *testing.T) {
 	assert := assert.New(t)
 
 	ntup := &NameTuple{
-		SourceTableName: newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
-		TargetTableName: newTableName(YUGABYTEDB, "public", "sakila", "table1"),
+		SourceName: newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
+		TargetName: newTableName(YUGABYTEDB, "public", "sakila", "table1"),
 	}
 	ntup.SetMode(IMPORT_TO_TARGET_MODE)
 
@@ -451,8 +451,8 @@ var oracleToYBNameRegistry = &NameRegistry{
 
 func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, targetTable string) *NameTuple {
 	ntup := &NameTuple{
-		SourceTableName: newTableName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable),
-		TargetTableName: newTableName(YUGABYTEDB, targetSchema, targetSchema, targetTable),
+		SourceName: newTableName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable),
+		TargetName: newTableName(YUGABYTEDB, targetSchema, targetSchema, targetTable),
 	}
 	ntup.SetMode(reg.Mode)
 	return ntup

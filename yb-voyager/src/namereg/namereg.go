@@ -154,7 +154,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 	}
 	ntup := &NameTuple{}
 	if reg.SourceDBTableNames != nil { // nil for `import data file` mode.
-		ntup.SourceTableName, err = reg.lookup(
+		ntup.SourceName, err = reg.lookup(
 			reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, tableName)
 		if err != nil {
 			errObj := &ErrMultipleMatchingNames{}
@@ -167,7 +167,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 					caseInsensitiveName = strings.ToUpper(tableName)
 				}
 				if lo.Contains(errObj.Names, caseInsensitiveName) {
-					ntup.SourceTableName, err = reg.lookup(
+					ntup.SourceName, err = reg.lookup(
 						reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, caseInsensitiveName)
 					if err != nil {
 						return nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
@@ -180,14 +180,14 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 		}
 	}
 	if reg.YBTableNames != nil { // nil in `export` mode.
-		ntup.TargetTableName, err = reg.lookup(
+		ntup.TargetName, err = reg.lookup(
 			YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, tableName)
 		if err != nil {
 			errObj := &ErrMultipleMatchingNames{}
 			if errors.As(err, &errObj) {
 				// A special case.
 				if lo.Contains(errObj.Names, strings.ToLower(tableName)) {
-					ntup.TargetTableName, err = reg.lookup(
+					ntup.TargetName, err = reg.lookup(
 						YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
 					if err != nil {
 						return nil, fmt.Errorf("lookup target table name [%s.%s]: %w", schemaName, strings.ToLower(tableName), err)
@@ -200,7 +200,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 	}
 	// Set the current table name based on the mode.
 	ntup.SetMode(reg.Mode)
-	if ntup.SourceTableName == nil && ntup.TargetTableName == nil {
+	if ntup.SourceName == nil && ntup.TargetName == nil {
 		return nil, fmt.Errorf("no matching table name: %s", tableNameArg)
 	}
 	return ntup, nil
@@ -339,10 +339,10 @@ func (nv *TableName) MatchesPattern(pattern string) (bool, error) {
 
 // <SourceTableName, TargetTableName>
 type NameTuple struct {
-	Mode             string
-	CurrentTableName *TableName
-	SourceTableName  *TableName
-	TargetTableName  *TableName
+	Mode        string
+	CurrentName *TableName
+	SourceName  *TableName
+	TargetName  *TableName
 }
 
 func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
@@ -353,24 +353,24 @@ func (t *NameTuple) SetMode(mode string) {
 	t.Mode = mode
 	switch mode {
 	case IMPORT_TO_TARGET_MODE:
-		t.CurrentTableName = t.TargetTableName
+		t.CurrentName = t.TargetName
 	case IMPORT_TO_SOURCE_REPLICA_MODE:
-		t.CurrentTableName = t.SourceTableName
+		t.CurrentName = t.SourceName
 	case EXPORT_FROM_SOURCE_MODE:
-		t.CurrentTableName = t.SourceTableName
+		t.CurrentName = t.SourceName
 	case EXPORT_FROM_TARGET_MODE:
-		t.CurrentTableName = t.TargetTableName
+		t.CurrentName = t.TargetName
 	default:
-		t.CurrentTableName = nil
+		t.CurrentName = nil
 	}
 }
 
 func (t *NameTuple) String() string {
-	return t.CurrentTableName.String()
+	return t.CurrentName.String()
 }
 
 func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
-	for _, tableName := range []*TableName{t.SourceTableName, t.TargetTableName} {
+	for _, tableName := range []*TableName{t.SourceName, t.TargetName} {
 		if tableName == nil {
 			continue
 		}
@@ -386,18 +386,18 @@ func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
 }
 
 func (t *NameTuple) ForUserQuery() string {
-	return t.CurrentTableName.Qualified.Quoted
+	return t.CurrentName.Qualified.Quoted
 }
 
 func (t *NameTuple) ForCatalogQuery() (string, string) {
-	return t.CurrentTableName.SchemaName, t.CurrentTableName.Unqualified.Unquoted
+	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
 }
 
 func (t *NameTuple) ForKey() string {
-	if t.SourceTableName != nil {
-		return t.SourceTableName.Qualified.Quoted
+	if t.SourceName != nil {
+		return t.SourceName.Qualified.Quoted
 	}
-	return t.TargetTableName.Qualified.Quoted
+	return t.TargetName.Qualified.Quoted
 }
 
 //================================================
