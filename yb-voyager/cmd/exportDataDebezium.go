@@ -104,6 +104,11 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
+
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.RenameTablesMap = tableRenameMapping
+	})
+	
 	config := &dbzm.Config{
 		RunId:          runId,
 		SourceDBType:   source.DBType,
