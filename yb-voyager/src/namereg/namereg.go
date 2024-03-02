@@ -350,6 +350,8 @@ func (t *NameTuple) SetMode(mode string) {
 	switch mode {
 	case IMPORT_TO_TARGET_MODE:
 		t.CurrentName = t.TargetName
+	case IMPORT_TO_SOURCE_MODE:
+		t.CurrentName = t.SourceName
 	case IMPORT_TO_SOURCE_REPLICA_MODE:
 		t.CurrentName = t.SourceName
 	case EXPORT_FROM_SOURCE_MODE:

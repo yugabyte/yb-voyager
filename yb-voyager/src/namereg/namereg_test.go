@@ -441,6 +441,7 @@ var oracleToYBNameRegistry = &NameRegistry{
 	YBSchemaNames:             []string{"public"},
 	DefaultSourceDBSchemaName: "SAKILA",
 	DefaultYBSchemaName:       "public",
+	//DefaultSourceReplicaDBSchemaName: "SAKILA_FF", // Will be set using SetDefaultSourceReplicaDBSchemaName().
 	SourceDBTableNames: map[string][]string{
 		"SAKILA": {`TABLE1`, `TABLE2`, `Table2`, `MixedCaps`, `MixedCaps1`, `MixedCAPS1`, `lower_caps`},
 	},
@@ -551,8 +552,85 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	reg.DefaultYBSchemaName = ""
 	ntup, err = reg.LookupTableName("table1")
 	require.NotNil(err)
-	//assert.Nil(ntup)
+	assert.Nil(ntup)
 	assert.Contains(err.Error(), "no default schema name")
 	reg.DefaultSourceDBSchemaName = "SAKILA"
 	reg.DefaultYBSchemaName = "public"
+}
+
+func TestDifferentSchemaInSameDBAsSourceReplica1(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	regCopy := *oracleToYBNameRegistry // Copy the registry.
+	reg := &regCopy
+	reg.Mode = IMPORT_TO_SOURCE_REPLICA_MODE
+
+	// Set the default source replica schema name.
+	reg.SetDefaultSourceReplicaDBSchemaName(nil, "SAKILA_FF")
+
+	table1 := buildNameTuple(reg, "SAKILA_FF", "TABLE1", "public", "table1")
+	table2 := buildNameTuple(reg, "SAKILA_FF", "TABLE2", "public", "table2")
+	mixedCaps := buildNameTuple(reg, "SAKILA_FF", "MixedCaps", "public", "mixedcaps")
+	lowerCaps := buildNameTuple(reg, "SAKILA_FF", "lower_caps", "public", "lower_caps")
+
+	var testCases = []struct {
+		tableNames []string
+		expected   *NameTuple
+	}{
+		{[]string{
+			// YB side variants:
+			`table1`, `"table1"`, `public.table1`, `public."table1"`, `public."TABLE1"`, `public.TABLE1`,
+			// Oracle side variants:
+			`TABLE1`, `"TABLE1"`, `SAKILA_FF.TABLE1`, `SAKILA_FF."TABLE1"`, `SAKILA_FF."table1"`, `SAKILA_FF.table1`,
+		}, table1},
+		{[]string{"table2", "TABLE2"}, table2},
+		{[]string{
+			// YB side variants:
+			"MixedCaps", `"MixedCaps"`, `public.MixedCaps`, `public."MixedCaps"`, `public."MIXEDCAPS"`, `public.MIXEDCAPS`,
+			// Oracle side variants:
+			"MIXEDCAPS", `"MIXEDCAPS"`, `SAKILA_FF.MIXEDCAPS`, `SAKILA_FF."MIXEDCAPS"`, `SAKILA_FF."mixedcaps"`, `SAKILA_FF.mixedcaps`,
+		}, mixedCaps},
+		{[]string{
+			// YB side variants:
+			"lower_caps", `"lower_caps"`, `public.lower_caps`, `public."lower_caps"`, `public."LOWER_CAPS"`, `public.LOWER_CAPS`,
+			// Oracle side variants:
+			"LOWER_CAPS", `"LOWER_CAPS"`, `SAKILA_FF.LOWER_CAPS`, `SAKILA_FF."LOWER_CAPS"`, `SAKILA_FF."lower_caps"`, `SAKILA_FF.lower_caps`,
+		}, lowerCaps},
+	}
+	for _, tc := range testCases {
+		for _, tableName := range tc.tableNames {
+			ntup, err := reg.LookupTableName(tableName)
+			require.Nil(err)
+			assert.Equal(tc.expected, ntup, "tableName: %s", tableName)
+		}
+	}
+}
+
+func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	regCopy := *oracleToYBNameRegistry // Copy the registry.
+	reg := &regCopy
+
+	table1 := buildNameTuple(reg, "SAKILA", "TABLE1", "public", "table1")
+
+	ntup, err := reg.LookupTableName("table1")
+	require.Nil(err)
+	assert.Equal(table1, ntup)
+
+	ntup, err = reg.LookupTableName("SAKILA_FF.table1")
+	require.NotNil(err)
+	assert.Nil(ntup)
+	errNameNotFound := &ErrNameNotFound{}
+	assert.ErrorAs(err, &errNameNotFound)
+	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "SAKILA_FF"}, errNameNotFound)
+
+	reg.Mode = IMPORT_TO_SOURCE_REPLICA_MODE
+	table1FF := buildNameTuple(reg, "SAKILA_FF", "TABLE1", "public", "table1")
+	reg.SetDefaultSourceReplicaDBSchemaName(nil, "SAKILA_FF")
+	ntup, err = reg.LookupTableName("table1")
+	require.Nil(err)
+	assert.Equal(table1FF, ntup)
 }
