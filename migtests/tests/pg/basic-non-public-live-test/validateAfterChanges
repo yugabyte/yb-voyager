@@ -6,16 +6,6 @@ import collections
 import common
 
 def main():
-	# parser = argparse.ArgumentParser(description='Process an argument.')
-	# parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
-	# parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
-	# parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
-	# args = parser.parse_args()
-	# ff_fb_enabled = args.ff_fb_enabled
-	# global ff_enabled
-	# ff_enabled = args.ff_enabled
-	# global fb_enabled
-	# fb_enabled = args.fb_enabled
 
 	common.valparser()
 
