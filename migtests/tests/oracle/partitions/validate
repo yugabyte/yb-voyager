@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import argparse
+import common
 import os
 import oracle
 import yb

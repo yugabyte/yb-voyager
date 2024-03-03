@@ -3,7 +3,7 @@
 import yb
 import oracle
 import os
-import argparse
+import common
 
 def main():
     common.valparser()
