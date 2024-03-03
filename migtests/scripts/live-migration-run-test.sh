@@ -158,7 +158,7 @@ main() {
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'false'
+	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'false' --fb_enabled 'false'
 	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"

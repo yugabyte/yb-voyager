@@ -6,22 +6,11 @@ import os
 import oracle
 
 def main():
-	parser = argparse.ArgumentParser(description='Process an argument.')
-	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
-	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
-	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
-	args = parser.parse_args()
-	global live_migration 
-	live_migration = args.live_migration
-	global ff_enabled
-	ff_enabled = args.ff_enabled
-
-	global fb_enabled
-	fb_enabled = args.fb_enabled
+	common.valparser()
 	
 	migration_completed_checks_yb()
 
-	if ff_enabled == 'true':
+	if common.test_type_flags['ff_enabled'] == 'true':
 		migration_completed_checks_ff()
 
 
