@@ -182,6 +182,12 @@ func exportData() bool {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.RenameTablesMap = strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
+			return fmt.Sprintf("%s:%s", k, v)
+		}), ",")
+	})
+
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(finalTableList, tablesColumnList)
 		if err != nil {

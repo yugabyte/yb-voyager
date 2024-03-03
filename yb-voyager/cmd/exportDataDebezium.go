@@ -105,10 +105,6 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.RenameTablesMap = tableRenameMapping
-	})
-	
 	config := &dbzm.Config{
 		RunId:          runId,
 		SourceDBType:   source.DBType,
@@ -198,7 +194,6 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	}
 	return config, tableNameToApproxRowCountMap, nil
 }
-
 
 func prepareSSLParamsForDebezium(exportDir string) error {
 	switch source.DBType {
