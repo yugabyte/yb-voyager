@@ -61,6 +61,7 @@ var (
 	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
 	commaSeperatedTokens         = `[^,]+(?:,[^,]+){1,}`
 	unqualifiedIdent             = `[a-zA-Z0-9_]+`
+	clause                       = `[A-Z]+`
 	supportedExtensionsOnYB      = []string{
 		"adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
 		"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
@@ -131,7 +132,7 @@ var (
 	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
 	viewWithCheckRegex    = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
 	rangeRegex            = re("PRECEDING", "and", anything, ":float")
-	fetchRegex            = re("FETCH", anything, "FROM")
+	fetchRegex            = re("FETCH", clause, "FROM")
 	fetchRelativeRegex    = re("FETCH", "RELATIVE")
 	backwardRegex         = re("MOVE", "BACKWARD")
 	fetchAbsRegex         = re("FETCH", "ABSOLUTE")
