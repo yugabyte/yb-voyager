@@ -176,20 +176,20 @@ func exportData() bool {
 		dfd.Save()
 		os.Exit(0)
 	}
-
-	finalTableList, err = addLeafPartitionsInTableList(finalTableList)
+	var partitionsToRootTableMap map[string]string
+	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList)
 	if err != nil {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.RenameTablesMap = strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
-			return fmt.Sprintf("%s:%s", k, v)
-		}), ",")
-	})
+	if source.DBType == POSTGRESQL {
+		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.RenameTablesMap = partitionsToRootTableMap
+		})
+	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
-		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(finalTableList, tablesColumnList)
+		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList)
 		if err != nil {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
 			return false
@@ -284,22 +284,23 @@ func exportData() bool {
 }
 
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
-func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, error) {
+func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) (map[string]string, []*sqlname.SourceName, error) {
 	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
 	if !requiredForSource {
-		return tableList, nil
+		return nil, tableList, nil
 	}
-	// here we are adding leaf partitions in the list only in yb or pg because events in the 
-	// these dbs are referred with leaf partitions only but in oracle root table is main point of reference 
-	// for partitions and in Oracle fall-forward/fall-back case we are doing renaming using the config `ybexporter.tables.rename` in dbzm 
-	// when event is coming from YB for leaf partitions it is getting renamed to root_table 
-	// ex - customers -> cust_other, cust_part11, cust_part12, cust_part22, cust_part21 
-	// events from oracle - will have customers for all of these partitions 
-	// events from yb,pg will have `cust_other, cust_part11, cust_part12, cust_part22, cust_part21` out of these leaf partitions only 
+	// here we are adding leaf partitions in the list only in yb or pg because events in the
+	// these dbs are referred with leaf partitions only but in oracle root table is main point of reference
+	// for partitions and in Oracle fall-forward/fall-back case we are doing renaming using the config `ybexporter.tables.rename` in dbzm
+	// when event is coming from YB for leaf partitions it is getting renamed to root_table
+	// ex - customers -> cust_other, cust_part11, cust_part12, cust_part22, cust_part21
+	// events from oracle - will have customers for all of these partitions
+	// events from yb,pg will have `cust_other, cust_part11, cust_part12, cust_part22, cust_part21` out of these leaf partitions only
 	// using the dbzm we are renaming these events coming from yb to root_table for oracle.
 	// not required for pg to rename them.
-	
+
 	modifiedTableList := []*sqlname.SourceName{}
+	var partitionsToRootTableMap = make(map[string]string)
 
 	//TODO: optimisation to avoid multiple calls to DB with one call in the starting to fetch TablePartitionTree map.
 
@@ -308,12 +309,12 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.S
 	for _, table := range tableList {
 		rootTable, err := GetRootTableOfPartition(table)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get root table of partition %s: %v", table.Qualified.MinQuoted, err)
+			return nil, nil, fmt.Errorf("failed to get root table of partition %s: %v", table.Qualified.MinQuoted, err)
 		}
 		allLeafPartitions := GetAllLeafPartitions(table)
 		switch true {
 		case len(allLeafPartitions) == 0 && rootTable != table: //leaf partition
-			partitionsToRootTableMap[table.Qualified.Unquoted] = rootTable.Qualified.MinQuoted // Unquoted->MinQuoted map as debezium uses Unquoted table name 
+			partitionsToRootTableMap[table.Qualified.Unquoted] = rootTable.Qualified.MinQuoted // Unquoted->MinQuoted map as debezium uses Unquoted table name
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
@@ -324,7 +325,7 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.S
 			}
 		}
 	}
-	return lo.UniqBy(modifiedTableList, func(table *sqlname.SourceName) string {
+	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table *sqlname.SourceName) string {
 		return table.Qualified.MinQuoted
 	}), nil
 }

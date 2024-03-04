@@ -637,17 +637,6 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 	}
 }
 
-func getRenameTableMap(renameTablesList string) map[string]string {
-	list := strings.Split(renameTablesList, ",")
-	var renameTableMap map[string]string = make(map[string]string)
-	for _, renameTable := range list {
-		fromTable := strings.Split(renameTable, ":")[0]
-		toTable := strings.Split(renameTable, ":")[1]
-		renameTableMap[fromTable] = toTable
-	}
-	return renameTableMap
-}
-
 func renameTableIfRequired(table string) string {
 	// required to rename the table name from leaf to root partition in case of pg_dump
 	// to be load data in target using via root table
@@ -659,7 +648,7 @@ func renameTableIfRequired(table string) string {
 	if source.DBType != POSTGRESQL {
 		return table
 	}
-	if msr.RenameTablesMap == "" {
+	if msr.RenameTablesMap == nil {
 		return table
 	}
 	defaultSchema, noDefaultSchema := getDefaultPGSchema(source.Schema, "|")
@@ -669,9 +658,8 @@ func renameTableIfRequired(table string) string {
 	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
 	fromTable := tableName.Qualified.Unquoted
 
-	renameTablesMap := getRenameTableMap(msr.RenameTablesMap)
-	if renameTablesMap[fromTable] != "" {
-		table := sqlname.NewSourceNameFromQualifiedName(renameTablesMap[fromTable])
+	if msr.RenameTablesMap[fromTable] != "" {
+		table := sqlname.NewSourceNameFromQualifiedName(msr.RenameTablesMap[fromTable])
 		toTable := table.Qualified.MinQuoted
 		if table.SchemaName.MinQuoted == "public" {
 			toTable = table.ObjectName.MinQuoted
