@@ -678,7 +678,12 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
-	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
+	renamedTablesNames := make([]string, 0)
+	for _, tableName := range tableNames {//In case partitions are changed during the migration, need to check root table
+		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
+	}
+	renamedTablesNames = lo.Uniq(renamedTablesNames)
+	nonEmptyTableNames := tdb.GetNonEmptyTables(renamedTablesNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
@@ -729,7 +734,7 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableName:  tableName,
+		TableName:  renameTableIfRequired(tableName),
 		Columns:    columns,
 		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,

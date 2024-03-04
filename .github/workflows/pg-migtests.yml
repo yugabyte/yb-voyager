@@ -114,6 +114,9 @@ jobs:
       - name: "TEST: pg-partitions"
         run: migtests/scripts/run-test.sh pg/partitions
 
+      - name: "TEST: pg-partitions with (table-list)"
+        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region' migtests/scripts/run-test.sh pg/partitions 
+
       # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
       # Fixed in 2.17.1.0-b368
       - name: "TEST: pg-partitions-with-indexes"
