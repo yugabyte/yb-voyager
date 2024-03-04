@@ -648,7 +648,6 @@ func getRenameTableMap(renameTablesList string) map[string]string {
 	return renameTableMap
 }
 
-
 func renameTableIfRequired(table string) string {
 	// required to rename the table name from leaf to root partition in case of pg_dump
 	// to be load data in target using via root table
@@ -658,6 +657,9 @@ func renameTableIfRequired(table string) string {
 	}
 	source = *msr.SourceDBConf
 	if source.DBType != POSTGRESQL {
+		return table
+	}
+	if msr.RenameTablesMap == "" {
 		return table
 	}
 	defaultSchema, noDefaultSchema := getDefaultPGSchema(source.Schema, "|")
