@@ -1115,15 +1115,16 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
+// TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
 func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
 	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
 		return nil
 	}
+
 	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 	if err != nil {
 		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 	}
-
 	if invalidTargetIndexesCache == nil {
 		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
 		if err != nil {
@@ -1131,9 +1132,9 @@ func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error
 		}
 	}
 
-	// check if even it exists or not
+	// check index valid or not
 	if invalidTargetIndexesCache[fullyQualifiedObjName] {
-		log.Infof("invalid index %q already exists, dropping it", fullyQualifiedObjName)
+		log.Infof("index %q already exists but in invalid state, dropping it", fullyQualifiedObjName)
 		err = dropIdx(*conn, fullyQualifiedObjName)
 		if err != nil {
 			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
