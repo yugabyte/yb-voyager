@@ -678,7 +678,12 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
-	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
+	renamedTablesNames := make([]string, 0)
+	for _, tableName := range tableNames {//In case of load partitions via root table, need to check root table
+		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
+	}
+	renamedTablesNames = lo.Uniq(renamedTablesNames)
+	nonEmptyTableNames := tdb.GetNonEmptyTables(renamedTablesNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
