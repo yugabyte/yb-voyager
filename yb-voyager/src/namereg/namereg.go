@@ -8,9 +8,10 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -28,20 +29,17 @@ const (
 	EXPORT_FROM_SOURCE_MODE       = "export_from_source_mode"
 	EXPORT_FROM_TARGET_MODE       = "export_from_target_mode"
 	IMPORT_DATA_FILE_MODE         = "import_data_file_mode"
-
-	UNSPECIFIED_MODE = "unspecified_mode"
 )
 
 type NameRegistry struct {
-	metaDB *metadb.MetaDB
-
-	Mode         string // "import" or "export"
+	ExportDir    string
 	SourceDBType string
+	mode         string // "import" or "export"
 
 	// All schema and table names are in the format as stored in DB catalog.
 	SourceDBSchemaNames       []string
 	DefaultSourceDBSchemaName string
-	// SourceDBTableNames has one entry for `DefaultSchemaReplicaName` if `Mode` is `IMPORT_TO_SOURCE_REPLICA_MODE`.
+	// SourceDBTableNames has one entry for `DefaultSourceReplicaDBSchemaName` if `Mode` is `IMPORT_TO_SOURCE_REPLICA_MODE`.
 	SourceDBTableNames map[string][]string // nil for `import data file` mode.
 
 	YBSchemaNames       []string
@@ -51,16 +49,126 @@ type NameRegistry struct {
 	// TODO: Depending on the mode, select appropriate default schema.
 	DefaultSourceReplicaDBSchemaName string
 	// Source replica has same table name list as original source.
+
+	sconf *srcdb.Source
+	tconf *tgtdb.TargetConf
+	tdb   tgtdb.TargetDB
 }
 
-func NewNameRegistry(metaDB *metadb.MetaDB) *NameRegistry {
+func NewNameRegistry(exportDir string, mode string, source *srcdb.Source, tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) *NameRegistry {
 	return &NameRegistry{
-		Mode:   UNSPECIFIED_MODE,
-		metaDB: metaDB,
+		ExportDir: exportDir,
+		mode:      mode,
+		sconf:     source,
+		tconf:     tconf,
+		tdb:       tdb,
 	}
 }
 
 func (reg *NameRegistry) Init() error {
+	filePath := fmt.Sprintf("%s/metainfo/name_registry.json", reg.ExportDir)
+	jsonFile := jsonfile.NewJsonFile[NameRegistry](filePath)
+	if utils.FileOrFolderExists(filePath) {
+		err := jsonFile.Load(reg)
+		if err != nil {
+			return fmt.Errorf("load name registry: %w", err)
+		}
+	}
+	registryUpdated, err := reg.registerNames()
+	if err != nil {
+		return fmt.Errorf("register names: %w", err)
+	}
+	if registryUpdated {
+		err = jsonFile.Update(func(nr *NameRegistry) {
+			*nr = *reg
+		})
+		if err != nil {
+			return fmt.Errorf("create/update name registry: %w", err)
+		}
+	}
+	return nil
+}
+
+func (reg *NameRegistry) registerNames() (bool, error) {
+	registryUpdated := false
+	switch true {
+	case reg.mode == EXPORT_FROM_SOURCE_MODE && reg.SourceDBTableNames == nil:
+
+		reg.SourceDBType = reg.sconf.DBType
+		reg.initSourceDBSchemaNames()
+		m := make(map[string][]string)
+		for _, schemaName := range reg.SourceDBSchemaNames {
+			tableNames, err := reg.sconf.DB().GetAllTableNamesRaw(schemaName)
+			if err != nil {
+				return false, fmt.Errorf("get all table names: %w", err)
+			}
+			m[schemaName] = tableNames
+		}
+		reg.SourceDBTableNames = m
+		registryUpdated = true
+
+	case (reg.mode == IMPORT_TO_TARGET_MODE || reg.mode == IMPORT_DATA_FILE_MODE) && reg.YBTableNames == nil:
+		if reg.tdb == nil {
+			return false, fmt.Errorf("target db is nil")
+		}
+		yb, ok := reg.tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			return false, fmt.Errorf("target db is not YugabyteDB")
+		}
+
+		m := make(map[string][]string)
+		schemaNames, err := yb.GetAllSchemaNamesRaw()
+		if err != nil {
+			return false, fmt.Errorf("get all schema names: %w", err)
+		}
+		reg.DefaultYBSchemaName = reg.tconf.Schema // Covers MySQL, Oracle, and import data file.
+		if reg.SourceDBTableNames != nil && reg.SourceDBType == POSTGRESQL {
+			reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
+		}
+		for _, schemaName := range schemaNames {
+			tableNames, err := yb.GetAllTableNamesRaw(schemaName)
+			if err != nil {
+				return false, fmt.Errorf("get all table names: %w", err)
+			}
+			m[schemaName] = tableNames
+		}
+
+		reg.YBTableNames = m
+		reg.YBSchemaNames = schemaNames
+		registryUpdated = true
+
+	case reg.mode == IMPORT_TO_SOURCE_REPLICA_MODE && reg.DefaultSourceReplicaDBSchemaName == "":
+		defaultSchema := lo.Ternary(reg.SourceDBType == POSTGRESQL, reg.DefaultSourceDBSchemaName, reg.tconf.Schema)
+		reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
+		registryUpdated = true
+	}
+
+	return registryUpdated, nil
+}
+
+func (reg *NameRegistry) initSourceDBSchemaNames() {
+	// source.Schema contains only one schema name for MySQL and Oracle; whereas
+	// it contains a pipe separated list for postgres.
+	switch reg.sconf.DBType {
+	case ORACLE:
+		reg.SourceDBSchemaNames = []string{strings.ToUpper(reg.sconf.Schema)}
+	case MYSQL:
+		reg.SourceDBSchemaNames = []string{reg.sconf.DBName}
+	case POSTGRESQL:
+		reg.SourceDBSchemaNames = lo.Map(strings.Split(reg.sconf.Schema, "|"), func(s string, _ int) string {
+			return strings.ToLower(s)
+		})
+	}
+	if len(reg.SourceDBSchemaNames) == 1 {
+		reg.DefaultSourceDBSchemaName = reg.SourceDBSchemaNames[0]
+	} else if lo.Contains(reg.SourceDBSchemaNames, "public") {
+		reg.DefaultSourceDBSchemaName = "public"
+	}
+}
+
+func (reg *NameRegistry) setDefaultSourceReplicaDBSchemaName(defaultSourceReplicaDBSchemaName string) error {
+	reg.DefaultSourceReplicaDBSchemaName = defaultSourceReplicaDBSchemaName
+	reg.SourceDBTableNames[defaultSourceReplicaDBSchemaName] = reg.SourceDBTableNames[reg.DefaultSourceDBSchemaName]
 	return nil
 }
 
@@ -71,51 +179,16 @@ func (reg *NameRegistry) DefaultSourceSideSchemaName() string {
 		IMPORT_TO_TARGET_MODE,
 		EXPORT_FROM_TARGET_MODE,
 	}
-	if lo.Contains(originalSourceModes, reg.Mode) {
+	if lo.Contains(originalSourceModes, reg.mode) {
 		return reg.DefaultSourceDBSchemaName
-	} else if reg.Mode == IMPORT_TO_SOURCE_REPLICA_MODE {
+	} else if reg.mode == IMPORT_TO_SOURCE_REPLICA_MODE {
 		return reg.DefaultSourceReplicaDBSchemaName
 	} else {
 		return ""
 	}
 }
 
-func (reg *NameRegistry) loadFromMetaDB() error {
-	return nil
-}
-
-func (reg *NameRegistry) saveToMetaDB() error {
-	return nil
-}
-
-func (reg *NameRegistry) SetSourceDBType(sourceDBType string) error {
-	reg.SourceDBType = sourceDBType
-	return reg.saveToMetaDB()
-}
-
-func (reg *NameRegistry) SetSourceDBSchemaNames(sdb srcdb.SourceDB, sourceDBSchemaNamesFromCLI []string) error {
-	reg.SourceDBSchemaNames = sourceDBSchemaNamesFromCLI
-	return reg.saveToMetaDB()
-}
-
-func (reg *NameRegistry) SetYBSchemaNames(tdb tgtdb.TargetDB, ybSchemaNamesFromCLI []string) error {
-	reg.YBSchemaNames = ybSchemaNamesFromCLI
-	return reg.saveToMetaDB()
-}
-
-func (reg *NameRegistry) SetDefaultSourceReplicaDBSchemaName(sdb srcdb.SourceDB, defaultSourceReplicaDBSchemaName string) error {
-	reg.DefaultSourceReplicaDBSchemaName = defaultSourceReplicaDBSchemaName
-	reg.SourceDBTableNames[defaultSourceReplicaDBSchemaName] = reg.SourceDBTableNames[reg.DefaultSourceDBSchemaName]
-	return reg.saveToMetaDB()
-}
-
-func (reg *NameRegistry) RegisterNamesFromSourceDB(sdb srcdb.SourceDB) error {
-	return nil
-}
-
-func (reg *NameRegistry) RegisterNamesFromYB(tdb tgtdb.TargetDB) error {
-	return nil
-}
+//================================================
 
 /*
 `tableName` can be qualified/unqualified, quoted/unquoted.
@@ -128,7 +201,7 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error) {
-	if (reg.Mode == IMPORT_TO_TARGET_MODE || reg.Mode == IMPORT_TO_SOURCE_REPLICA_MODE) &&
+	if (reg.mode == IMPORT_TO_TARGET_MODE || reg.mode == IMPORT_TO_SOURCE_REPLICA_MODE) &&
 		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
 		msg := "either both or none of the default schema names should be set"
@@ -195,9 +268,9 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 		}
 	}
 	// Set the current table name based on the mode.
-	ntup.SetMode(reg.Mode)
+	ntup.SetMode(reg.mode)
 	if ntup.SourceName == nil && ntup.TargetName == nil {
-		return nil, fmt.Errorf("no matching table name: %s", tableNameArg)
+		return nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
 	return ntup, nil
 }

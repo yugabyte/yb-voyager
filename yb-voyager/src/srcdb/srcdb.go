@@ -34,6 +34,7 @@ type SourceDB interface {
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
+	GetAllTableNamesRaw(schemaName string) ([]string, error)
 	ExportSchema(exportDir string)
 	GetIndexesInfo() []utils.IndexInfo
 	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string)

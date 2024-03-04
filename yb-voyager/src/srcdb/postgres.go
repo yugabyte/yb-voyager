@@ -170,6 +170,32 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	return trimmedList
 }
 
+func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	var tableName string
+
+	for rows.Next() {
+		err = rows.Scan(&tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
+	return tableNames, nil
+}
+
 func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"

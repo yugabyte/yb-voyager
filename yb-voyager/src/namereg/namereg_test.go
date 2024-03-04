@@ -388,9 +388,6 @@ func TestNameTuple(t *testing.T) {
 
 	ntup.SetMode(EXPORT_FROM_TARGET_MODE)
 	assert.Equal(ntup.CurrentName, ntup.TargetName)
-
-	ntup.SetMode(UNSPECIFIED_MODE)
-	assert.Nil(ntup.CurrentName)
 }
 
 func TestNameTupleMatchesPattern(t *testing.T) {
@@ -436,7 +433,7 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 
 var oracleToYBNameRegistry = &NameRegistry{
 	SourceDBType:              ORACLE,
-	Mode:                      IMPORT_TO_TARGET_MODE,
+	mode:                      IMPORT_TO_TARGET_MODE,
 	SourceDBSchemaNames:       []string{"SAKILA"},
 	YBSchemaNames:             []string{"public"},
 	DefaultSourceDBSchemaName: "SAKILA",
@@ -455,7 +452,7 @@ func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, 
 		SourceName: newTableName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable),
 		TargetName: newTableName(YUGABYTEDB, targetSchema, targetSchema, targetTable),
 	}
-	ntup.SetMode(reg.Mode)
+	ntup.SetMode(reg.mode)
 	return ntup
 }
 
@@ -564,10 +561,10 @@ func TestDifferentSchemaInSameDBAsSourceReplica1(t *testing.T) {
 
 	regCopy := *oracleToYBNameRegistry // Copy the registry.
 	reg := &regCopy
-	reg.Mode = IMPORT_TO_SOURCE_REPLICA_MODE
+	reg.mode = IMPORT_TO_SOURCE_REPLICA_MODE
 
 	// Set the default source replica schema name.
-	reg.SetDefaultSourceReplicaDBSchemaName(nil, "SAKILA_FF")
+	reg.setDefaultSourceReplicaDBSchemaName("SAKILA_FF")
 
 	table1 := buildNameTuple(reg, "SAKILA_FF", "TABLE1", "public", "table1")
 	table2 := buildNameTuple(reg, "SAKILA_FF", "TABLE2", "public", "table2")
@@ -627,10 +624,13 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 	assert.ErrorAs(err, &errNameNotFound)
 	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "SAKILA_FF"}, errNameNotFound)
 
-	reg.Mode = IMPORT_TO_SOURCE_REPLICA_MODE
+	reg.mode = IMPORT_TO_SOURCE_REPLICA_MODE
 	table1FF := buildNameTuple(reg, "SAKILA_FF", "TABLE1", "public", "table1")
-	reg.SetDefaultSourceReplicaDBSchemaName(nil, "SAKILA_FF")
+	reg.setDefaultSourceReplicaDBSchemaName("SAKILA_FF")
 	ntup, err = reg.LookupTableName("table1")
 	require.Nil(err)
 	assert.Equal(table1FF, ntup)
 }
+
+// TODO: Add similar tests for PG.
+// TODO: Add similar tests for MySQL.
