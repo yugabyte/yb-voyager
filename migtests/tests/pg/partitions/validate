@@ -31,9 +31,9 @@ EXPECTED_ROW_COUNT = {
  	"public.sales_region":		1000,
   	"public.sydney": 			333,
 	"p1.sales_region":			1000,
-	"p2.boston":    			334,
-	"p2.london":    			333,
-	"p2.sydney":    			333,
+	"p2.boston_region":    			334,
+	"p2.london_region":    			333,
+	"p2.sydney_region":    			333,
 	"public.range_columns_partition_test": 6,
 	"public.range_columns_partition_test_p0": 3,
 	"public.range_columns_partition_test_p1": 3
