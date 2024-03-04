@@ -679,7 +679,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
 	renamedTablesNames := make([]string, 0)
-	for _, tableName := range tableNames {//In case of load partitions via root table, need to check root table
+	for _, tableName := range tableNames {//In case partitions are changed during the migration, need to check root table
 		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
 	}
 	renamedTablesNames = lo.Uniq(renamedTablesNames)
