@@ -6,7 +6,7 @@ import yb
 import collections
 
 def main():
-	common.valparser()
+	test_type_flags = common.valparser()
 	
 	yb.run_checks(migration_completed_checks)
 

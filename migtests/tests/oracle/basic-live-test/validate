@@ -7,11 +7,11 @@ import collections
 import oracle
 
 def main():
-	common.valparser()
+	test_type_flags = common.valparser()
 	
 	migration_completed_checks_yb()
 
-	if common.test_type_flags['ff_enabled'] == 'true':
+	if test_type_flags['ff_enabled'] == 'true':
 		migration_completed_checks_ff()
 
 EXPECTED_ROW_COUNT = {

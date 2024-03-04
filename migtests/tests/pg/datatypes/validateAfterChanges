@@ -6,13 +6,13 @@ import yb
 import collections
 
 def main():
-	common.valparser()
+	test_type_flags = common.valparser()
 
-	if common.test_type_flags['ff_enabled'] == 'true':
+	if test_type_flags['ff_enabled'] == 'true':
 		change_expected_values()
 		migration_completed_checks_yb()
 		migration_completed_checks_ff()
-	elif common.test_type_flags['fb_enabled'] == 'true':
+	elif test_type_flags['fb_enabled'] == 'true':
 		change_expected_values()
 		migration_completed_checks_yb()
 		migration_completed_checks_fb()

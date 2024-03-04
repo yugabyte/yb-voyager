@@ -6,11 +6,11 @@ import os
 import oracle
 
 def main():
-	common.valparser()
+	test_type_flags = common.valparser()
 	
 	migration_completed_checks_yb()
 
-	if common.test_type_flags['ff_enabled'] == 'true':
+	if test_type_flags['ff_enabled'] == 'true':
 		migration_completed_checks_ff()
 
 
@@ -100,7 +100,7 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values}, expected_sum_column_values: {sum_column_values}")
 		assert sum_column_values == got_sum_column_values
 
-	if common.test_type_flags['live_migration'] != 'true':
+	if test_type_flags['live_migration'] != 'true':
 		for type_check, query_and_code in QUERIES_CHECK.items():
 			query, code = query_and_code['query'], query_and_code['code']
 			chk_err_returned = tgt.run_query_and_chk_error(query, code)
@@ -121,7 +121,7 @@ def migration_completed_checks(tgt):
 	else: # in live_migration only 
 		for table_name, columns in EXPECTED_IDENTITY_DEFAULT_COLUMNS.items():
 			typename = "BY DEFAULT"
-			if common.test_type_flags['fb_enabled'] == 'true' and type(tgt) == oracle.OracleDB: # as for fall-back identity is change to by default after cutover
+			if test_type_flags['fb_enabled'] == 'true' and type(tgt) == oracle.OracleDB: # as for fall-back identity is change to by default after cutover
 				typename = "ALWAYS"
 			got_columns = tgt.get_identity_type_columns(typename,table_name, db_schema)
 			print(f"table_name: {table_name}, got_columns: {got_columns}, expected_columns: {columns}")

@@ -6,11 +6,11 @@ import oracle
 import yb
 
 def main():
-	common.valparser()
+	test_type_flags = common.valparser()
 
 	migration_completed_checks_yb()
 	
-	if common.test_type_flags['ff_enabled'] == 'true':
+	if test_type_flags['ff_enabled'] == 'true':
 		change_expected_values()
 		migration_completed_checks_ff()
 
