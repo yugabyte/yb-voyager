@@ -58,9 +58,9 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 	}
 	return &SourceName{
 		ObjectName: Identifier{
-			Quoted:    Quote(objectName, SourceDBType),
+			Quoted:    quote(objectName, SourceDBType),
 			Unquoted:  unquote(objectName, SourceDBType),
-			MinQuoted: MinQuote(objectName, SourceDBType),
+			MinQuoted: minQuote(objectName, SourceDBType),
 		},
 		// We do not support quoted schema names yet.
 		SchemaName: Identifier{
@@ -69,9 +69,9 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 			MinQuoted: schemaName,
 		},
 		Qualified: Identifier{
-			Quoted:    schemaName + "." + Quote(objectName, SourceDBType),
+			Quoted:    schemaName + "." + quote(objectName, SourceDBType),
 			Unquoted:  schemaName + "." + unquote(objectName, SourceDBType),
-			MinQuoted: schemaName + "." + MinQuote(objectName, SourceDBType),
+			MinQuoted: schemaName + "." + minQuote(objectName, SourceDBType),
 		},
 	}
 }
@@ -112,9 +112,9 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 	}
 	return &TargetName{
 		ObjectName: Identifier{
-			Quoted:    Quote(objectName, YUGABYTEDB),
+			Quoted:    quote(objectName, YUGABYTEDB),
 			Unquoted:  unquote(objectName, YUGABYTEDB),
-			MinQuoted: MinQuote(objectName, YUGABYTEDB),
+			MinQuoted: minQuote(objectName, YUGABYTEDB),
 		},
 		SchemaName: Identifier{
 			Quoted:    `"` + schemaName + `"`,
@@ -122,9 +122,9 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 			MinQuoted: schemaName,
 		},
 		Qualified: Identifier{
-			Quoted:    schemaName + "." + Quote(objectName, YUGABYTEDB),
+			Quoted:    schemaName + "." + quote(objectName, YUGABYTEDB),
 			Unquoted:  schemaName + "." + unquote(objectName, YUGABYTEDB),
-			MinQuoted: schemaName + "." + MinQuote(objectName, YUGABYTEDB),
+			MinQuoted: schemaName + "." + minQuote(objectName, YUGABYTEDB),
 		},
 	}
 }
@@ -157,7 +157,7 @@ func IsQuoted(s string) bool {
 	return (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '`' && s[len(s)-1] == '`')
 }
 
-func Quote(s string, dbType string) string {
+func quote(s string, dbType string) string {
 	if IsQuoted(s) {
 		if s[0] == '`' && dbType == YUGABYTEDB {
 			return `"` + unquote(s, dbType) + `"` // `Foo` -> "Foo"
@@ -206,7 +206,7 @@ func SetDifference(a, b []*SourceName) []*SourceName {
 	return res
 }
 
-func MinQuote(objectName, sourceDBType string) string {
+func minQuote(objectName, sourceDBType string) string {
 	objectName = unquote(objectName, sourceDBType)
 	switch sourceDBType {
 	case YUGABYTEDB, POSTGRESQL:

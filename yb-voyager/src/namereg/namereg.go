@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -32,9 +34,7 @@ const (
 )
 
 type NameRegistry struct {
-	ExportDir    string
 	SourceDBType string
-	mode         string // "import" or "export"
 
 	// All schema and table names are in the format as stored in DB catalog.
 	SourceDBSchemaNames       []string
@@ -46,29 +46,37 @@ type NameRegistry struct {
 	DefaultYBSchemaName string
 	YBTableNames        map[string][]string
 
-	// TODO: Depending on the mode, select appropriate default schema.
 	DefaultSourceReplicaDBSchemaName string
 	// Source replica has same table name list as original source.
 
-	sconf *srcdb.Source
-	tconf *tgtdb.TargetConf
-	tdb   tgtdb.TargetDB
+	// Private members are not saved in the JSON file.
+	filePath string
+	mode     string
+	sconf    *srcdb.Source
+	sdb      srcdb.SourceDB
+	tconf    *tgtdb.TargetConf
+	tdb      tgtdb.TargetDB
 }
 
-func NewNameRegistry(exportDir string, mode string, source *srcdb.Source, tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) *NameRegistry {
+func NewNameRegistry(
+	exportDir string, mode string,
+	sconf *srcdb.Source, sdb srcdb.SourceDB,
+	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) *NameRegistry {
+
 	return &NameRegistry{
-		ExportDir: exportDir,
-		mode:      mode,
-		sconf:     source,
-		tconf:     tconf,
-		tdb:       tdb,
+		filePath: fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
+		mode:     mode,
+		sconf:    sconf,
+		sdb:      sdb,
+		tconf:    tconf,
+		tdb:      tdb,
 	}
 }
 
 func (reg *NameRegistry) Init() error {
-	filePath := fmt.Sprintf("%s/metainfo/name_registry.json", reg.ExportDir)
-	jsonFile := jsonfile.NewJsonFile[NameRegistry](filePath)
-	if utils.FileOrFolderExists(filePath) {
+	log.Infof("initialising name registry: %s", reg.filePath)
+	jsonFile := jsonfile.NewJsonFile[NameRegistry](reg.filePath)
+	if utils.FileOrFolderExists(reg.filePath) {
 		err := jsonFile.Load(reg)
 		if err != nil {
 			return fmt.Errorf("load name registry: %w", err)
@@ -90,60 +98,36 @@ func (reg *NameRegistry) Init() error {
 }
 
 func (reg *NameRegistry) registerNames() (bool, error) {
-	registryUpdated := false
 	switch true {
 	case reg.mode == EXPORT_FROM_SOURCE_MODE && reg.SourceDBTableNames == nil:
-
-		reg.SourceDBType = reg.sconf.DBType
-		reg.initSourceDBSchemaNames()
-		m := make(map[string][]string)
-		for _, schemaName := range reg.SourceDBSchemaNames {
-			tableNames, err := reg.sconf.DB().GetAllTableNamesRaw(schemaName)
-			if err != nil {
-				return false, fmt.Errorf("get all table names: %w", err)
-			}
-			m[schemaName] = tableNames
-		}
-		reg.SourceDBTableNames = m
-		registryUpdated = true
-
+		log.Info("registering source names in the name registry")
+		return reg.registerSourceNames()
 	case (reg.mode == IMPORT_TO_TARGET_MODE || reg.mode == IMPORT_DATA_FILE_MODE) && reg.YBTableNames == nil:
-		if reg.tdb == nil {
-			return false, fmt.Errorf("target db is nil")
-		}
-		yb, ok := reg.tdb.(*tgtdb.TargetYugabyteDB)
-		if !ok {
-			return false, fmt.Errorf("target db is not YugabyteDB")
-		}
-
-		m := make(map[string][]string)
-		schemaNames, err := yb.GetAllSchemaNamesRaw()
-		if err != nil {
-			return false, fmt.Errorf("get all schema names: %w", err)
-		}
-		reg.DefaultYBSchemaName = reg.tconf.Schema // Covers MySQL, Oracle, and import data file.
-		if reg.SourceDBTableNames != nil && reg.SourceDBType == POSTGRESQL {
-			reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
-		}
-		for _, schemaName := range schemaNames {
-			tableNames, err := yb.GetAllTableNamesRaw(schemaName)
-			if err != nil {
-				return false, fmt.Errorf("get all table names: %w", err)
-			}
-			m[schemaName] = tableNames
-		}
-
-		reg.YBTableNames = m
-		reg.YBSchemaNames = schemaNames
-		registryUpdated = true
-
+		log.Info("registering YB names in the name registry")
+		return reg.registerYBNames()
 	case reg.mode == IMPORT_TO_SOURCE_REPLICA_MODE && reg.DefaultSourceReplicaDBSchemaName == "":
+		log.Infof("setting default source replica schema name in the name registry: %s", reg.DefaultSourceDBSchemaName)
 		defaultSchema := lo.Ternary(reg.SourceDBType == POSTGRESQL, reg.DefaultSourceDBSchemaName, reg.tconf.Schema)
 		reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
-		registryUpdated = true
+		return true, nil
 	}
+	log.Infof("no name registry update required: mode %q", reg.mode)
+	return false, nil
+}
 
-	return registryUpdated, nil
+func (reg *NameRegistry) registerSourceNames() (bool, error) {
+	reg.SourceDBType = reg.sconf.DBType
+	reg.initSourceDBSchemaNames()
+	m := make(map[string][]string)
+	for _, schemaName := range reg.SourceDBSchemaNames {
+		tableNames, err := reg.sconf.DB().GetAllTableNamesRaw(schemaName)
+		if err != nil {
+			return false, fmt.Errorf("get all table names: %w", err)
+		}
+		m[schemaName] = tableNames
+	}
+	reg.SourceDBTableNames = m
+	return false, nil
 }
 
 func (reg *NameRegistry) initSourceDBSchemaNames() {
@@ -164,6 +148,36 @@ func (reg *NameRegistry) initSourceDBSchemaNames() {
 	} else if lo.Contains(reg.SourceDBSchemaNames, "public") {
 		reg.DefaultSourceDBSchemaName = "public"
 	}
+}
+
+func (reg *NameRegistry) registerYBNames() (bool, error) {
+	if reg.tdb == nil {
+		return false, fmt.Errorf("target db is nil")
+	}
+	yb, ok := reg.tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return false, fmt.Errorf("target db is not YugabyteDB")
+	}
+
+	m := make(map[string][]string)
+	schemaNames, err := yb.GetAllSchemaNamesRaw()
+	if err != nil {
+		return false, fmt.Errorf("get all schema names: %w", err)
+	}
+	reg.DefaultYBSchemaName = reg.tconf.Schema
+	if reg.SourceDBTableNames != nil && reg.SourceDBType == POSTGRESQL {
+		reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
+	}
+	for _, schemaName := range schemaNames {
+		tableNames, err := yb.GetAllTableNamesRaw(schemaName)
+		if err != nil {
+			return false, fmt.Errorf("get all table names: %w", err)
+		}
+		m[schemaName] = tableNames
+	}
+	reg.YBTableNames = m
+	reg.YBSchemaNames = schemaNames
+	return true, nil
 }
 
 func (reg *NameRegistry) setDefaultSourceReplicaDBSchemaName(defaultSourceReplicaDBSchemaName string) error {
