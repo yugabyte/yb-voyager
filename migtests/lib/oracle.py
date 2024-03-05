@@ -3,15 +3,20 @@ import sys
 from typing import Any, Dict, List
 import cx_Oracle
 
-def run_checks(checkFn):
-    tgt = new_target_db()
+def run_checks(checkFn, db_type):
+    if db_type == "source":
+        tgt = new_source_db()
+    elif db_type == "source_replica":
+        tgt = new_source_replica_db()
+    else:
+        raise ValueError("Invalid database type. Use 'source' or 'source_replica'.")
     tgt.connect()
     print("Connected")
     checkFn(tgt)
     tgt.close()
     print("Disconnected")
     
-def new_target_db():
+def new_source_replica_db():
     env = os.environ
     return OracleDB(
         env.get("SOURCE_REPLICA_DB_HOST", "localhost"),
@@ -19,6 +24,15 @@ def new_target_db():
         env["SOURCE_REPLICA_DB_NAME"],
         env.get("SOURCE_REPLICA_DB_SCHEMA", "FF_SCHEMA"),
         env.get("SOURCE_REPLICA_DB_PASSWORD", "password"))
+
+def new_source_db():
+    env = os.environ
+    return OracleDB(
+        env.get("SOURCE_DB_HOST", "localhost"),
+        env.get("SOURCE_DB_PORT", "1521"),
+        env["SOURCE_DB_NAME"],
+        env.get("SOURCE_DB_SCHEMA", "TEST_SCHEMA"),
+        env.get("SOURCE_DB_PASSWORD", "password"))
     
 class OracleDB:
     
