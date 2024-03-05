@@ -2,6 +2,7 @@
 
 import yb
 import argparse
+import common
 
 live_migration = 'false'
 def main():
