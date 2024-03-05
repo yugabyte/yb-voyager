@@ -71,7 +71,7 @@ func init() {
 var flagPostSnapshotImport utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
-var invalidTargetIndexesCache = make(map[string]bool)
+var invalidTargetIndexesCache map[string]bool
 
 func importSchema() {
 	err := retrieveMigrationUUID()

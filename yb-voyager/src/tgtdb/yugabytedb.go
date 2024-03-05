@@ -1130,7 +1130,7 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 
 func (yb *TargetYugabyteDB) InvalidIndexes() (map[string]bool, error) {
 	var result = make(map[string]bool)
-	// NOTE: this won't fetch any valid index like pg_catalog schema indexes or index of other successful migrations
+	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
 	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
 	rows, err := yb.Query(query)
 	if err != nil {
@@ -1143,6 +1143,10 @@ func (yb *TargetYugabyteDB) InvalidIndexes() (map[string]bool, error) {
 		err := rows.Scan(&fullyQualifiedIndexName)
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
+		}
+		// if schema is not provided by catalog table, then it is public schema
+		if !strings.Contains(fullyQualifiedIndexName, ".") {
+			fullyQualifiedIndexName = fmt.Sprintf("public.%s", fullyQualifiedIndexName)
 		}
 		result[fullyQualifiedIndexName] = true
 	}

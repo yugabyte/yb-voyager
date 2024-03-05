@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+
+sed -i  's/p2\.boston/p2.boston_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
+sed -i  's/p2\.london/p2.london_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
+sed -i  's/p2\.sydney/p2.sydney_region/g' $TEST_DIR/export-dir/schema/tables/table.sql

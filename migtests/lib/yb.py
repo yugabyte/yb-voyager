@@ -7,12 +7,14 @@ import psycopg2
 
 
 def run_checks(checkFn, db_type="yb"):
-	if db_type == "postgres":
+	if db_type == "source_replica":
 		tgt = new_source_replica_db()
 	elif db_type == "yb":
 		tgt = new_target_db()
+	elif db_type == "source":
+		tgt = new_source_db()
 	else:
-		raise ValueError("Invalid database type. Use 'source' or 'target'.")
+		raise ValueError("Invalid database type. Use 'source' or 'source_replica'.")
 	tgt.connect()
 	print("Connected")
 	checkFn(tgt)
@@ -30,13 +32,22 @@ def new_target_db():
 		env["TARGET_DB_NAME"])
 
 def new_source_replica_db():
-    env = os.environ
-    return PostgresDB(
-        env.get("SOURCE_REPLICA_DB_HOST", "127.0.0.1"),
-        env.get("SOURCE_REPLICA_DB_PORT", "5432"),
-        env.get("SOURCE_REPLICA_DB_USER", "postgres"),
-        env.get("SOURCE_REPLICA_DB_PASSWORD", "secret"),
-        env["SOURCE_REPLICA_DB_NAME"])
+	env = os.environ
+	return PostgresDB(
+		env.get("SOURCE_REPLICA_DB_HOST", "127.0.0.1"),
+		env.get("SOURCE_REPLICA_DB_PORT", "5432"),
+		env.get("SOURCE_REPLICA_DB_USER", "postgres"),
+		env.get("SOURCE_REPLICA_DB_PASSWORD", "secret"),
+		env["SOURCE_REPLICA_DB_NAME"])
+
+def new_source_db():
+	env = os.environ
+	return PostgresDB(
+		env.get("SOURCE_DB_HOST", "127.0.0.1"),
+		env.get("SOURCE_DB_PORT", "5432"),
+		env.get("SOURCE_DB_USER", "postgres"),
+		env.get("SOURCE_DB_PASSWORD", "secret"),
+		env["SOURCE_DB_NAME"])
 
 class PostgresDB:
 	  

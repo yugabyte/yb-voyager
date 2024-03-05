@@ -351,13 +351,13 @@ func initMetaDB() {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 	if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
-		userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n" +
-		"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh " + 
-		"with a new export-dir.", exportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
+		userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
+			"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh "+
+			"with a new export-dir.", exportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
 		if msr.VoyagerVersion == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
-			userFacingMsg = fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n" +
-		"The export-dir %q was created using older version and the current version is %q. Either use older version to continue the migration or start afresh " + 
-		"with a new export-dir.", exportDir, utils.YB_VOYAGER_VERSION)
+			userFacingMsg = fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
+				"The export-dir %q was created using older version and the current version is %q. Either use older version to continue the migration or start afresh "+
+				"with a new export-dir.", exportDir, utils.YB_VOYAGER_VERSION)
 		}
 		utils.ErrExit(userFacingMsg)
 	}
@@ -635,4 +635,37 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		DatabaseName:  tconf.DBName,
 		SchemaNames:   []string{tconf.Schema},
 	}
+}
+
+func renameTableIfRequired(table string) string {
+	// required to rename the table name from leaf to root partition in case of pg_dump
+	// to be load data in target using via root table
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
+	source = *msr.SourceDBConf
+	if source.DBType != POSTGRESQL {
+		return table
+	}
+	if msr.RenameTablesMap == nil {
+		return table
+	}
+	defaultSchema, noDefaultSchema := getDefaultPGSchema(source.Schema, "|")
+	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
+		utils.ErrExit("no default schema found to qualify table %s", table)
+	}
+	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
+	fromTable := tableName.Qualified.Unquoted
+
+	if msr.RenameTablesMap[fromTable] != "" {
+		table := sqlname.NewSourceNameFromQualifiedName(msr.RenameTablesMap[fromTable])
+		toTable := table.Qualified.MinQuoted
+		if table.SchemaName.MinQuoted == "public" {
+			toTable = table.ObjectName.MinQuoted
+		}
+		log.Infof("renaming table %s to %s for ImportBatchArgs", fromTable, toTable)
+		return toTable
+	}
+	return table
 }

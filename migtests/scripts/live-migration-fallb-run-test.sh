@@ -36,9 +36,6 @@ source ${SCRIPTS}/yugabytedb/env.sh
 
 source ${SCRIPTS}/functions.sh
 
-export SOURCE_REPLICA_DB_USER=${SOURCE_DB_USER_SCHEMA_OWNER:-"TEST_SCHEMA"}
-export SOURCE_REPLICA_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"TEST_SCHEMA"}
-
 main() {
 
 	echo "Deleting the parent export-dir present in the test directory"
@@ -60,8 +57,7 @@ main() {
 	grant_permissions_for_live_migration
 
 	step "Setup Fall Back environment"
-	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
-	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
+	setup_fallback_environment
 
 	step "Check the Voyager version installed"
 	yb-voyager version
@@ -131,7 +127,7 @@ main() {
 	sleep 30 
 
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'true'
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'true'
 
 	step "Inserting new events"
 	run_sql_file source_delta.sql
@@ -144,11 +140,11 @@ main() {
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true --yes
 
-	for ((i = 0; i < 5; i++)); do
+	for ((i = 0; i < 15; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
-        if [ "$i" -eq 4 ]; then
+        if [ "$i" -eq 14 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
@@ -193,7 +189,7 @@ main() {
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'true'
+	"${TEST_DIR}/validateAfterChanges" --fb_enabled 'true' --ff_enabled 'false'
 	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"
