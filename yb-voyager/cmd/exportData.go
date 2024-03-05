@@ -201,6 +201,11 @@ func exportData() bool {
 			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
 			if !dataIsExported() { // if snapshot is not already done...
+				err = checkIfTablesHaveReplicationIdentityFull(finalTableList)
+				if err != nil {
+					utils.ErrExit("error: check if tables have replication identity full: %v", err)
+				}
+
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
 				if err != nil {
 					log.Errorf("export snapshot failed: %v", err)
@@ -328,6 +333,17 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) (map[string]s
 	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table *sqlname.SourceName) string {
 		return table.Qualified.MinQuoted
 	}), nil
+}
+
+func checkIfTablesHaveReplicationIdentityFull(finalTableList []*sqlname.SourceName) error {
+	tablesReplicaIdentity, err := source.DB().GetTablesWithReplicaIdentityNotFull(finalTableList)
+	if err != nil {
+		return fmt.Errorf("get tables replica identity: %v", err)
+	}
+	if len(tablesReplicaIdentity) > 0 {
+		return fmt.Errorf("tables %v do not have replica_identity as FULL\nPlease ALTER the tables and set their REPLICA IDENTITY to FULL", tablesReplicaIdentity)
+	}
+	return nil
 }
 
 func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, error) {
