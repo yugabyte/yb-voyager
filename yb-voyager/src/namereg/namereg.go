@@ -120,14 +120,14 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 	reg.initSourceDBSchemaNames()
 	m := make(map[string][]string)
 	for _, schemaName := range reg.SourceDBSchemaNames {
-		tableNames, err := reg.sconf.DB().GetAllTableNamesRaw(schemaName)
+		tableNames, err := reg.sdb.GetAllTableNamesRaw(schemaName)
 		if err != nil {
 			return false, fmt.Errorf("get all table names: %w", err)
 		}
 		m[schemaName] = tableNames
 	}
 	reg.SourceDBTableNames = m
-	return false, nil
+	return true, nil
 }
 
 func (reg *NameRegistry) initSourceDBSchemaNames() {
@@ -151,10 +151,14 @@ func (reg *NameRegistry) initSourceDBSchemaNames() {
 }
 
 func (reg *NameRegistry) registerYBNames() (bool, error) {
+	type YBDB interface {
+		GetAllSchemaNamesRaw() ([]string, error)
+		GetAllTableNamesRaw(schemaName string) ([]string, error)
+	} // Only implemented by TargetYugabyteDB and dummyTargetDB.
 	if reg.tdb == nil {
 		return false, fmt.Errorf("target db is nil")
 	}
-	yb, ok := reg.tdb.(*tgtdb.TargetYugabyteDB)
+	yb, ok := reg.tdb.(YBDB)
 	if !ok {
 		return false, fmt.Errorf("target db is not YugabyteDB")
 	}

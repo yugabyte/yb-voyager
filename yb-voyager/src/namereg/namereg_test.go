@@ -1,10 +1,15 @@
 package namereg
 
 import (
+	"fmt"
+	"os"
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 func TestPGDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
@@ -448,9 +453,13 @@ var oracleToYBNameRegistry = &NameRegistry{
 }
 
 func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, targetTable string) *NameTuple {
-	ntup := &NameTuple{
-		SourceName: newTableName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable),
-		TargetName: newTableName(YUGABYTEDB, targetSchema, targetSchema, targetTable),
+	ntup := &NameTuple{}
+
+	if sourceSchema != "" && sourceTable != "" {
+		ntup.SourceName = newTableName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable)
+	}
+	if targetSchema != "" && targetTable != "" {
+		ntup.TargetName = newTableName(YUGABYTEDB, targetSchema, targetSchema, targetTable)
 	}
 	ntup.SetMode(reg.mode)
 	return ntup
@@ -634,3 +643,137 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 
 // TODO: Add similar tests for PG.
 // TODO: Add similar tests for MySQL.
+
+//=====================================================
+
+type dummySourceDB struct {
+	*srcdb.Oracle                     // Just to satisfy the interface.
+	tableNames    map[string][]string // schemaName -> tableNames
+}
+
+var _ srcdb.SourceDB = &dummySourceDB{}
+
+func (db *dummySourceDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	tableNames, ok := db.tableNames[schemaName]
+	if !ok {
+		return nil, fmt.Errorf("schema %q not found", schemaName)
+	}
+	return tableNames, nil
+}
+
+type dummyTargetDB struct {
+	*tgtdb.TargetYugabyteDB                     // Just to satisfy the interface.
+	tableNames              map[string][]string // schemaName -> tableNames
+}
+
+var _ tgtdb.TargetDB = &dummyTargetDB{}
+
+func (db *dummyTargetDB) GetAllSchemaNamesRaw() ([]string, error) {
+	return lo.Keys(db.tableNames), nil
+}
+
+func (db *dummyTargetDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	tableNames, ok := db.tableNames[schemaName]
+	if !ok {
+		return nil, fmt.Errorf("schema %q not found", schemaName)
+	}
+	return tableNames, nil
+}
+
+func TestNameRegistryWithDummyDBs(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	sconf := &srcdb.Source{
+		DBType: ORACLE,
+		Schema: "SAKILA",
+	}
+	tconf := &tgtdb.TargetConf{
+		Schema: "ybsakila",
+	}
+	// Create a dummy source DB.
+	dummySdb := &dummySourceDB{
+		Oracle: &srcdb.Oracle{},
+		tableNames: map[string][]string{
+			"SAKILA": {"TABLE1", "TABLE2", "MixedCaps", "lower_caps"},
+		},
+	}
+
+	// Create a dummy target DB.
+	dummyTdb := &dummyTargetDB{
+		TargetYugabyteDB: &tgtdb.TargetYugabyteDB{},
+		tableNames: map[string][]string{
+			"ybsakila": {"table1", "table2", "mixedcaps", "lower_caps"},
+		},
+	}
+
+	// Create a NameRegistry using the dummy DBs.
+	currentMode := EXPORT_FROM_SOURCE_MODE
+	newNameRegistry := func() *NameRegistry {
+		reg := NewNameRegistry("", currentMode, sconf, dummySdb, tconf, dummyTdb)
+		reg.filePath = "dummy_name_registry.json"
+		return reg
+	}
+	reg := newNameRegistry()
+
+	// Delete the dummy_name_registry.json file if it exists.
+	_ = os.Remove(reg.filePath)
+
+	err := reg.Init()
+	require.Nil(err)
+	assert.Equal(sconf.DBType, reg.SourceDBType)
+	assert.Equal("SAKILA", reg.DefaultSourceDBSchemaName)
+	assert.Equal(dummySdb.tableNames, reg.SourceDBTableNames)
+	table1 := buildNameTuple(reg, "SAKILA", "TABLE1", "", "")
+	ntup, err := reg.LookupTableName("TABLE1")
+	require.Nil(err)
+	assert.Equal(table1, ntup)
+
+	// When `export data` restarts, the registry should be reloaded from the file.
+	reg = newNameRegistry()
+	err = reg.Init()
+	require.Nil(err)
+	assert.Equal(sconf.DBType, reg.SourceDBType)
+	assert.Equal("SAKILA", reg.DefaultSourceDBSchemaName)
+	assert.Equal(dummySdb.tableNames, reg.SourceDBTableNames)
+	ntup, err = reg.LookupTableName("TABLE1")
+	require.Nil(err)
+	assert.Equal(table1, ntup)
+
+	// Change the mode to IMPORT_TO_TARGET_MODE.
+	currentMode = IMPORT_TO_TARGET_MODE
+	reg = newNameRegistry()
+	err = reg.Init()
+	require.Nil(err)
+	assert.Equal(reg.YBSchemaNames, []string{"ybsakila"})
+	assert.Equal(reg.DefaultYBSchemaName, "ybsakila")
+	assert.Equal(dummyTdb.tableNames, reg.YBTableNames)
+	table1 = buildNameTuple(reg, "SAKILA", "TABLE1", "ybsakila", "table1")
+	ntup, err = reg.LookupTableName("TABLE1")
+	require.Nil(err)
+	assert.Equal(table1, ntup)
+	ntup, err = reg.LookupTableName("ybsakila.table1")
+	require.Nil(err)
+	assert.Equal(table1, ntup)
+
+	// When `import data` restarts, the registry should be reloaded from the file.
+	reg = newNameRegistry()
+	err = reg.Init()
+	require.Nil(err)
+	assert.Equal(reg.YBSchemaNames, []string{"ybsakila"})
+	assert.Equal(reg.DefaultYBSchemaName, "ybsakila")
+	assert.Equal(dummyTdb.tableNames, reg.YBTableNames)
+
+	// Change the mode to IMPORT_TO_SOURCE_REPLICA_MODE.
+	currentMode = IMPORT_TO_SOURCE_REPLICA_MODE
+	tconf.Schema = "SAKILA_FF"
+	reg = newNameRegistry()
+	err = reg.Init()
+	require.Nil(err)
+	assert.Equal(reg.DefaultSourceReplicaDBSchemaName, "SAKILA_FF")
+	assert.Equal(reg.SourceDBTableNames["SAKILA_FF"], dummySdb.tableNames["SAKILA"])
+	table1 = buildNameTuple(reg, "SAKILA_FF", "TABLE1", "ybsakila", "table1")
+	ntup, err = reg.LookupTableName("TABLE1")
+	require.Nil(err)
+	assert.Equal(table1, ntup)
+}
