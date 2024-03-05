@@ -570,8 +570,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 		br := tx.SendBatch(ctx, &ybBatch)
 		defer func() {
-			if err = br.Close(); err != nil {
-				log.Errorf("error closing batch: %v", err)
+			if closeErr := br.Close(); closeErr != nil {
+				log.Errorf("error closing batch: %v", closeErr)
 			}
 		}()
 		for i := 0; i < len(batch.Events); i++ {
