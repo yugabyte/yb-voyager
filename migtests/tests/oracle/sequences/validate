@@ -6,10 +6,10 @@ import os
 import oracle
 
 def main():
+	global test_type_flags
 	test_type_flags = common.valparser()
-	
-	migration_completed_checks_yb()
 
+	migration_completed_checks_yb()	
 	if test_type_flags['ff_enabled'] == 'true':
 		migration_completed_checks_ff()
 
@@ -86,6 +86,7 @@ def migration_completed_checks_ff():
 	oracle.run_checks(migration_completed_checks, db_type="source_replica")
 
 def migration_completed_checks(tgt):
+	global test_type_flags
 	table_list = tgt.get_table_names(db_schema)
 	print("table_list: ", table_list)
 	assert len(table_list) == 9
