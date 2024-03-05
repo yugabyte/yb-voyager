@@ -555,17 +555,18 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 		}
 
-		br := conn.SendBatch(ctx, &ybBatch)
+		br := tx.SendBatch(ctx, &ybBatch)
+		defer func() {
+			if err = br.Close(); err != nil {
+				log.Errorf("error closing batch: %v", err)
+			}
+		}()
 		for i := 0; i < len(batch.Events); i++ {
 			_, err := br.Exec()
 			if err != nil {
 				log.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
 				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
 			}
-		}
-		if err = br.Close(); err != nil {
-			log.Errorf("error closing batch: %v", err)
-			return false, fmt.Errorf("error closing batch: %v", err)
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
