@@ -172,7 +172,7 @@ grant_permissions_for_live_migration_pg() {
 			  EXECUTE 'SET search_path TO ${db_schema}';
 			  FOR cur_table IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${db_schema}')
 			  LOOP
-			    EXECUTE 'ALTER TABLE ' || cur_table || ' OWNER TO replication_group';
+			    EXECUTE 'ALTER TABLE \"' || cur_table || '\" OWNER TO replication_group';
 			  END LOOP;
 			END \$CUSTOM\$;"
 			"GRANT CREATE ON DATABASE ${db_name} TO ybvoyager;"
@@ -544,15 +544,15 @@ EOF
 }
 
 set_replica_identity(){
-	
+	db_schema=$1
     cat > alter_replica_identity.sql <<EOF
     DO \$CUSTOM\$ 
     DECLARE
 		r record;
     BEGIN
-        FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = '${SOURCE_DB_SCHEMA}' AND table_type = 'BASE TABLE') 
+        FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = '${db_schema}' AND table_type = 'BASE TABLE') 
         LOOP
-            EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.table_name || ' REPLICA IDENTITY FULL';
+            EXECUTE 'ALTER TABLE ' || r.table_schema || '."' || r.table_name || '" REPLICA IDENTITY FULL';
         END LOOP;
     END \$CUSTOM\$;
 EOF
@@ -563,9 +563,13 @@ grant_permissions_for_live_migration() {
     if [ "${SOURCE_DB_TYPE}" = "mysql" ]; then
         grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
     elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-        set_replica_identity
-        grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
-		grant_permissions_for_live_migration_pg ${SOURCE_DB_NAME} ${SOURCE_DB_SCHEMA}
+		for schema_name in $(echo ${SOURCE_DB_SCHEMA} | tr "," "\n")
+		do
+			set_replica_identity ${schema_name}
+			grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${schema_name}
+			grant_permissions_for_live_migration_pg ${SOURCE_DB_NAME} ${schema_name}
+		done
+        
     elif [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
         grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
         if [ -n "${SOURCE_REPLICA_DB_NAME}" ]; then
