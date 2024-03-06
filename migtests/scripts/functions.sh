@@ -563,7 +563,7 @@ grant_permissions_for_live_migration() {
     if [ "${SOURCE_DB_TYPE}" = "mysql" ]; then
         grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
     elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-		for schema_name in $(echo ${SOURCE_DB_SCHEMA} | tr ";" "\n")
+		for schema_name in $(echo ${SOURCE_DB_SCHEMA} | tr "," "\n")
 		do
 			set_replica_identity ${schema_name}
 			grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${schema_name}
