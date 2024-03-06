@@ -25,12 +25,13 @@ const (
 )
 
 const (
-	IMPORT_TO_TARGET_MODE         = "import_to_target_mode"
-	IMPORT_TO_SOURCE_MODE         = "import_to_source_mode"         // Fallback.
-	IMPORT_TO_SOURCE_REPLICA_MODE = "import_to_source_replica_mode" // Fall-forward.
-	EXPORT_FROM_SOURCE_MODE       = "export_from_source_mode"
-	EXPORT_FROM_TARGET_MODE       = "export_from_target_mode"
-	IMPORT_DATA_FILE_MODE         = "import_data_file_mode"
+	TARGET_DB_IMPORTER_ROLE         = "target_db_importer"
+	SOURCE_DB_IMPORTER_ROLE         = "source_db_importer"         // Fallback.
+	SOURCE_REPLICA_DB_IMPORTER_ROLE = "source_replica_db_importer" // Fall-forward.
+	SOURCE_DB_EXPORTER_ROLE         = "source_db_exporter"
+	TARGET_DB_EXPORTER_FF_ROLE      = "target_db_exporter_ff"
+	TARGET_DB_EXPORTER_FB_ROLE      = "target_db_exporter_fb"
+	IMPORT_FILE_ROLE                = "import_file"
 )
 
 type NameRegistry struct {
@@ -51,7 +52,7 @@ type NameRegistry struct {
 
 	// Private members are not saved in the JSON file.
 	filePath string
-	mode     string
+	role     string
 	sconf    *srcdb.Source
 	sdb      srcdb.SourceDB
 	tconf    *tgtdb.TargetConf
@@ -59,13 +60,13 @@ type NameRegistry struct {
 }
 
 func NewNameRegistry(
-	exportDir string, mode string,
+	exportDir string, role string,
 	sconf *srcdb.Source, sdb srcdb.SourceDB,
 	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) *NameRegistry {
 
 	return &NameRegistry{
 		filePath: fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
-		mode:     mode,
+		role:     role,
 		sconf:    sconf,
 		sdb:      sdb,
 		tconf:    tconf,
@@ -99,19 +100,19 @@ func (reg *NameRegistry) Init() error {
 
 func (reg *NameRegistry) registerNames() (bool, error) {
 	switch true {
-	case reg.mode == EXPORT_FROM_SOURCE_MODE && reg.SourceDBTableNames == nil:
+	case reg.role == SOURCE_DB_EXPORTER_ROLE && reg.SourceDBTableNames == nil:
 		log.Info("registering source names in the name registry")
 		return reg.registerSourceNames()
-	case (reg.mode == IMPORT_TO_TARGET_MODE || reg.mode == IMPORT_DATA_FILE_MODE) && reg.YBTableNames == nil:
+	case (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == IMPORT_FILE_ROLE) && reg.YBTableNames == nil:
 		log.Info("registering YB names in the name registry")
 		return reg.registerYBNames()
-	case reg.mode == IMPORT_TO_SOURCE_REPLICA_MODE && reg.DefaultSourceReplicaDBSchemaName == "":
+	case reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE && reg.DefaultSourceReplicaDBSchemaName == "":
 		log.Infof("setting default source replica schema name in the name registry: %s", reg.DefaultSourceDBSchemaName)
 		defaultSchema := lo.Ternary(reg.SourceDBType == POSTGRESQL, reg.DefaultSourceDBSchemaName, reg.tconf.Schema)
 		reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
 		return true, nil
 	}
-	log.Infof("no name registry update required: mode %q", reg.mode)
+	log.Infof("no name registry update required: mode %q", reg.role)
 	return false, nil
 }
 
@@ -192,14 +193,15 @@ func (reg *NameRegistry) setDefaultSourceReplicaDBSchemaName(defaultSourceReplic
 
 func (reg *NameRegistry) DefaultSourceSideSchemaName() string {
 	originalSourceModes := []string{
-		EXPORT_FROM_SOURCE_MODE,
-		IMPORT_TO_SOURCE_MODE,
-		IMPORT_TO_TARGET_MODE,
-		EXPORT_FROM_TARGET_MODE,
+		SOURCE_DB_EXPORTER_ROLE,
+		SOURCE_DB_IMPORTER_ROLE,
+		TARGET_DB_IMPORTER_ROLE,
+		TARGET_DB_EXPORTER_FF_ROLE,
+		TARGET_DB_EXPORTER_FB_ROLE,
 	}
-	if lo.Contains(originalSourceModes, reg.mode) {
+	if lo.Contains(originalSourceModes, reg.role) {
 		return reg.DefaultSourceDBSchemaName
-	} else if reg.mode == IMPORT_TO_SOURCE_REPLICA_MODE {
+	} else if reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		return reg.DefaultSourceReplicaDBSchemaName
 	} else {
 		return ""
@@ -219,7 +221,7 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error) {
-	if (reg.mode == IMPORT_TO_TARGET_MODE || reg.mode == IMPORT_TO_SOURCE_REPLICA_MODE) &&
+	if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
 		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
 		msg := "either both or none of the default schema names should be set"
@@ -286,7 +288,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 		}
 	}
 	// Set the current table name based on the mode.
-	ntup.SetMode(reg.mode)
+	ntup.SetMode(reg.role)
 	if ntup.SourceName == nil && ntup.TargetName == nil {
 		return nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
@@ -294,7 +296,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 }
 
 func (reg *NameRegistry) lookup(
-	dbType string, m map[string][]string, defaultSchemaName, schemaName, tableName string) (*TableName, error) {
+	dbType string, m map[string][]string, defaultSchemaName, schemaName, tableName string) (*ObjectName, error) {
 
 	if schemaName == "" {
 		if defaultSchemaName == "" {
@@ -310,7 +312,7 @@ func (reg *NameRegistry) lookup(
 	if err != nil {
 		return nil, err
 	}
-	return newTableName(dbType, defaultSchemaName, schemaName, tableName), nil
+	return newObjectName(dbType, defaultSchemaName, schemaName, tableName), nil
 }
 
 type ErrMultipleMatchingNames struct {
@@ -362,7 +364,8 @@ type identifier struct {
 	Quoted, Unquoted, MinQuoted string
 }
 
-type TableName struct {
+// Can be a name of a table, sequence, materialised view, etc.
+type ObjectName struct {
 	SchemaName        string
 	FromDefaultSchema bool
 
@@ -371,8 +374,8 @@ type TableName struct {
 	MinQualified identifier
 }
 
-func newTableName(dbType, defaultSchemaName, schemaName, tableName string) *TableName {
-	result := &TableName{
+func newObjectName(dbType, defaultSchemaName, schemaName, tableName string) *ObjectName {
+	result := &ObjectName{
 		SchemaName:        schemaName,
 		FromDefaultSchema: schemaName == defaultSchemaName,
 		Qualified: identifier{
@@ -390,11 +393,11 @@ func newTableName(dbType, defaultSchemaName, schemaName, tableName string) *Tabl
 	return result
 }
 
-func (nv *TableName) String() string {
+func (nv *ObjectName) String() string {
 	return nv.MinQualified.MinQuoted
 }
 
-func (nv *TableName) MatchesPattern(pattern string) (bool, error) {
+func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
 	parts := strings.Split(pattern, ".")
 	switch true {
 	case len(parts) == 2:
@@ -427,9 +430,9 @@ func (nv *TableName) MatchesPattern(pattern string) (bool, error) {
 // <SourceTableName, TargetTableName>
 type NameTuple struct {
 	Mode        string
-	CurrentName *TableName
-	SourceName  *TableName
-	TargetName  *TableName
+	CurrentName *ObjectName
+	SourceName  *ObjectName
+	TargetName  *ObjectName
 }
 
 func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
@@ -439,15 +442,15 @@ func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
 func (t *NameTuple) SetMode(mode string) {
 	t.Mode = mode
 	switch mode {
-	case IMPORT_TO_TARGET_MODE:
+	case TARGET_DB_IMPORTER_ROLE:
 		t.CurrentName = t.TargetName
-	case IMPORT_TO_SOURCE_MODE:
+	case SOURCE_DB_IMPORTER_ROLE:
 		t.CurrentName = t.SourceName
-	case IMPORT_TO_SOURCE_REPLICA_MODE:
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		t.CurrentName = t.SourceName
-	case EXPORT_FROM_SOURCE_MODE:
+	case SOURCE_DB_EXPORTER_ROLE:
 		t.CurrentName = t.SourceName
-	case EXPORT_FROM_TARGET_MODE:
+	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
 		t.CurrentName = t.TargetName
 	default:
 		t.CurrentName = nil
@@ -459,7 +462,7 @@ func (t *NameTuple) String() string {
 }
 
 func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
-	for _, tableName := range []*TableName{t.SourceName, t.TargetName} {
+	for _, tableName := range []*ObjectName{t.SourceName, t.TargetName} {
 		if tableName == nil {
 			continue
 		}

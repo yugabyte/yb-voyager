@@ -17,9 +17,9 @@ func TestPGDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a table name belonging to default schema.
-	tableName := newTableName(POSTGRESQL, "public", "public", "table1")
+	tableName := newObjectName(POSTGRESQL, "public", "public", "table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "public",
 		FromDefaultSchema: true,
 		Qualified: identifier{
@@ -46,9 +46,9 @@ func TestPGNonDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a table name belonging to a non-default schema.
-	tableName := newTableName(POSTGRESQL, "public", "schema1", "table1")
+	tableName := newObjectName(POSTGRESQL, "public", "schema1", "table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",
 		FromDefaultSchema: false,
 		Qualified: identifier{
@@ -75,9 +75,9 @@ func TestPGDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a case-sensitive name with mixed cases.
-	tableName := newTableName(POSTGRESQL, "public", "public", "Table1")
+	tableName := newObjectName(POSTGRESQL, "public", "public", "Table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "public",
 		FromDefaultSchema: true,
 		Qualified: identifier{
@@ -104,9 +104,9 @@ func TestPGNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a case-sensitive name with mixed cases.
-	tableName := newTableName(POSTGRESQL, "public", "schema1", "Table1")
+	tableName := newObjectName(POSTGRESQL, "public", "schema1", "Table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",
 		FromDefaultSchema: false,
 		Qualified: identifier{
@@ -135,9 +135,9 @@ func TestOracleDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with Oracle and default schema "SAKILA" and
 	// a table name belonging to default schema.
-	tableName := newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1")
+	tableName := newObjectName(ORACLE, "SAKILA", "SAKILA", "TABLE1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "SAKILA",
 		FromDefaultSchema: true,
 		Qualified: identifier{
@@ -164,9 +164,9 @@ func TestOracleNonDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with Oracle and default schema "SAKILA" and
 	// a table name belonging to a non-default schema.
-	tableName := newTableName(ORACLE, "SAKILA", "SCHEMA1", "TABLE1")
+	tableName := newObjectName(ORACLE, "SAKILA", "SCHEMA1", "TABLE1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "SCHEMA1",
 		FromDefaultSchema: false,
 		Qualified: identifier{
@@ -193,9 +193,9 @@ func TestOracleDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with Oracle and default schema "SAKILA" and
 	// a case-sensitive name with mixed cases.
-	tableName := newTableName(ORACLE, "SAKILA", "SAKILA", "Table1")
+	tableName := newObjectName(ORACLE, "SAKILA", "SAKILA", "Table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "SAKILA",
 		FromDefaultSchema: true,
 		Qualified: identifier{
@@ -222,9 +222,9 @@ func TestOracleNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with Oracle and default schema "SAKILA" and
 	// a case-sensitive name with mixed cases.
-	tableName := newTableName(ORACLE, "SAKILA", "SCHEMA1", "Table1")
+	tableName := newObjectName(ORACLE, "SAKILA", "SCHEMA1", "Table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "SCHEMA1",
 		FromDefaultSchema: false,
 		Qualified: identifier{
@@ -253,9 +253,9 @@ func TestMySQLDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with MySQL and default schema "sakila" and
 	// a table name belonging to default schema.
-	tableName := newTableName(MYSQL, "sakila", "sakila", "table1")
+	tableName := newObjectName(MYSQL, "sakila", "sakila", "table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "sakila",
 		FromDefaultSchema: true,
 		Qualified: identifier{
@@ -282,9 +282,9 @@ func TestMySQLNonDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with MySQL and default schema "sakila" and
 	// a table name belonging to a non-default schema.
-	tableName := newTableName(MYSQL, "sakila", "schema1", "table1")
+	tableName := newObjectName(MYSQL, "sakila", "schema1", "table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",
 		FromDefaultSchema: false,
 		Qualified: identifier{
@@ -311,9 +311,9 @@ func TestMySQLDefaultSchemaCaseSensitiveMixedCaseTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with MySQL and default schema "sakila" and
 	// a case-sensitive name with mixed cases.
-	tableName := newTableName(MYSQL, "sakila", "sakila", "Table1")
+	tableName := newObjectName(MYSQL, "sakila", "sakila", "Table1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "sakila",
 		FromDefaultSchema: true,
 		Qualified: identifier{
@@ -340,9 +340,9 @@ func TestMySQLNonDefaultSchemaCaseSensitiveUpperCaseTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with MySQL and default schema "sakila" and
 	// a case-sensitive name with all upper case letters.
-	tableName := newTableName(MYSQL, "sakila", "schema1", "TABLE1")
+	tableName := newObjectName(MYSQL, "sakila", "schema1", "TABLE1")
 	assert.NotNil(tableName)
-	expectedTableName := &TableName{
+	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",
 		FromDefaultSchema: false,
 		Qualified: identifier{
@@ -371,27 +371,27 @@ func TestNameTuple(t *testing.T) {
 	assert := assert.New(t)
 
 	ntup := &NameTuple{
-		SourceName: newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
-		TargetName: newTableName(YUGABYTEDB, "public", "public", "table1"),
+		SourceName: newObjectName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
+		TargetName: newObjectName(YUGABYTEDB, "public", "public", "table1"),
 	}
-	ntup.SetMode(IMPORT_TO_TARGET_MODE)
+	ntup.SetMode(TARGET_DB_IMPORTER_ROLE)
 	assert.Equal(ntup.CurrentName, ntup.TargetName)
 	assert.Equal(ntup.ForUserQuery(), `public."table1"`)
 	schemaName, tableName := ntup.ForCatalogQuery()
 	assert.Equal(schemaName, `public`)
 	assert.Equal(tableName, `table1`)
 
-	ntup.SetMode(IMPORT_TO_SOURCE_REPLICA_MODE)
+	ntup.SetMode(SOURCE_REPLICA_DB_IMPORTER_ROLE)
 	assert.Equal(ntup.CurrentName, ntup.SourceName)
 	assert.Equal(ntup.ForUserQuery(), `SAKILA."TABLE1"`)
 	schemaName, tableName = ntup.ForCatalogQuery()
 	assert.Equal(schemaName, `SAKILA`)
 	assert.Equal(tableName, `TABLE1`)
 
-	ntup.SetMode(EXPORT_FROM_SOURCE_MODE)
+	ntup.SetMode(SOURCE_DB_EXPORTER_ROLE)
 	assert.Equal(ntup.CurrentName, ntup.SourceName)
 
-	ntup.SetMode(EXPORT_FROM_TARGET_MODE)
+	ntup.SetMode(TARGET_DB_EXPORTER_FF_ROLE)
 	assert.Equal(ntup.CurrentName, ntup.TargetName)
 }
 
@@ -399,10 +399,10 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 	assert := assert.New(t)
 
 	ntup := &NameTuple{
-		SourceName: newTableName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
-		TargetName: newTableName(YUGABYTEDB, "public", "sakila", "table1"),
+		SourceName: newObjectName(ORACLE, "SAKILA", "SAKILA", "TABLE1"),
+		TargetName: newObjectName(YUGABYTEDB, "public", "sakila", "table1"),
 	}
-	ntup.SetMode(IMPORT_TO_TARGET_MODE)
+	ntup.SetMode(TARGET_DB_IMPORTER_ROLE)
 
 	testCases := []struct {
 		pattern string
@@ -438,7 +438,7 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 
 var oracleToYBNameRegistry = &NameRegistry{
 	SourceDBType:              ORACLE,
-	mode:                      IMPORT_TO_TARGET_MODE,
+	role:                      TARGET_DB_IMPORTER_ROLE,
 	SourceDBSchemaNames:       []string{"SAKILA"},
 	YBSchemaNames:             []string{"public"},
 	DefaultSourceDBSchemaName: "SAKILA",
@@ -456,12 +456,12 @@ func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, 
 	ntup := &NameTuple{}
 
 	if sourceSchema != "" && sourceTable != "" {
-		ntup.SourceName = newTableName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable)
+		ntup.SourceName = newObjectName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable)
 	}
 	if targetSchema != "" && targetTable != "" {
-		ntup.TargetName = newTableName(YUGABYTEDB, targetSchema, targetSchema, targetTable)
+		ntup.TargetName = newObjectName(YUGABYTEDB, targetSchema, targetSchema, targetTable)
 	}
-	ntup.SetMode(reg.mode)
+	ntup.SetMode(reg.role)
 	return ntup
 }
 
@@ -570,7 +570,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica1(t *testing.T) {
 
 	regCopy := *oracleToYBNameRegistry // Copy the registry.
 	reg := &regCopy
-	reg.mode = IMPORT_TO_SOURCE_REPLICA_MODE
+	reg.role = SOURCE_REPLICA_DB_IMPORTER_ROLE
 
 	// Set the default source replica schema name.
 	reg.setDefaultSourceReplicaDBSchemaName("SAKILA_FF")
@@ -633,7 +633,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 	assert.ErrorAs(err, &errNameNotFound)
 	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "SAKILA_FF"}, errNameNotFound)
 
-	reg.mode = IMPORT_TO_SOURCE_REPLICA_MODE
+	reg.role = SOURCE_REPLICA_DB_IMPORTER_ROLE
 	table1FF := buildNameTuple(reg, "SAKILA_FF", "TABLE1", "public", "table1")
 	reg.setDefaultSourceReplicaDBSchemaName("SAKILA_FF")
 	ntup, err = reg.LookupTableName("table1")
@@ -708,7 +708,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	}
 
 	// Create a NameRegistry using the dummy DBs.
-	currentMode := EXPORT_FROM_SOURCE_MODE
+	currentMode := SOURCE_DB_EXPORTER_ROLE
 	newNameRegistry := func() *NameRegistry {
 		reg := NewNameRegistry("", currentMode, sconf, dummySdb, tconf, dummyTdb)
 		reg.filePath = "dummy_name_registry.json"
@@ -739,9 +739,10 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
+	assert.Equal(`SAKILA."TABLE1"`, table1.ForUserQuery())
 
 	// Change the mode to IMPORT_TO_TARGET_MODE.
-	currentMode = IMPORT_TO_TARGET_MODE
+	currentMode = TARGET_DB_IMPORTER_ROLE
 	reg = newNameRegistry()
 	err = reg.Init()
 	require.Nil(err)
@@ -755,6 +756,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("ybsakila.table1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
+	assert.Equal(`ybsakila."table1"`, table1.ForUserQuery())
 
 	// When `import data` restarts, the registry should be reloaded from the file.
 	reg = newNameRegistry()
@@ -765,7 +767,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	assert.Equal(dummyTdb.tableNames, reg.YBTableNames)
 
 	// Change the mode to IMPORT_TO_SOURCE_REPLICA_MODE.
-	currentMode = IMPORT_TO_SOURCE_REPLICA_MODE
+	currentMode = SOURCE_REPLICA_DB_IMPORTER_ROLE
 	tconf.Schema = "SAKILA_FF"
 	reg = newNameRegistry()
 	err = reg.Init()
@@ -776,4 +778,5 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
+	assert.Equal(`SAKILA_FF."TABLE1"`, table1.ForUserQuery())
 }
