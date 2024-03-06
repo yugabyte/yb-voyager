@@ -1153,7 +1153,7 @@ func getTargetSchemaName(tableName string) string {
 		return parts[0]
 	}
 	if tconf.TargetDBType == POSTGRESQL {
-		defaultSchema, noDefaultSchema := getDefaultPGSchema(tconf.Schema, ",")
+		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schema, ",")
 		if noDefaultSchema {
 			utils.ErrExit("no default schema for table %q ", tableName)
 		}

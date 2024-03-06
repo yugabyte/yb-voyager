@@ -31,10 +31,23 @@ func (j *JsonFile[T]) Create(obj *T) error {
 func (j *JsonFile[T]) Read() (*T, error) {
 	j.Lock()
 	defer j.Unlock()
-	return j.read()
+	return j.read(nil)
 }
 
-func (j *JsonFile[T]) read() (*T, error) {
+func (j *JsonFile[T]) Load(obj *T) error {
+	j.Lock()
+	defer j.Unlock()
+
+	if utils.FileOrFolderExists(j.FilePath) {
+		_, err := j.read(obj)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (j *JsonFile[T]) read(obj *T) (*T, error) {
 	bs, err := os.ReadFile(j.FilePath)
 	if err != nil {
 		return nil, fmt.Errorf("read file %s: %w", j.FilePath, err)
@@ -42,7 +55,9 @@ func (j *JsonFile[T]) read() (*T, error) {
 	if len(bs) == 0 {
 		return nil, fmt.Errorf("file %s is empty", j.FilePath)
 	}
-	obj := new(T)
+	if obj == nil {
+		obj = new(T)
+	}
 	err = json.Unmarshal(bs, obj)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal json: %w", err)
@@ -56,7 +71,7 @@ func (j *JsonFile[T]) Update(fn func(*T)) error {
 	var obj *T
 	var err error
 	if utils.FileOrFolderExists(j.FilePath) {
-		obj, err = j.read()
+		obj, err = j.read(nil)
 		if err != nil {
 			return err
 		}

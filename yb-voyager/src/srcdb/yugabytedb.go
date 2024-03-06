@@ -146,6 +146,32 @@ func (yb *YugabyteDB) checkSchemasExists() []string {
 	return trimmedList
 }
 
+func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) YB database for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	var tableName string
+
+	for rows.Next() {
+		err = rows.Scan(&tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
+	return tableNames, nil
+}
+
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
@@ -156,7 +182,7 @@ func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 
 	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
+		utils.ErrExit("error in querying(%q) YB database for table names: %v\n", query, err)
 	}
 	defer rows.Close()
 

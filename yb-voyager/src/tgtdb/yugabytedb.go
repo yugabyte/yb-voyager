@@ -215,6 +215,53 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	return nil
 }
 
+func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
+	query := "SELECT schema_name FROM information_schema.schemata"
+	rows, err := yb.conn_.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying YB database for schema names: %w", err)
+	}
+	defer rows.Close()
+
+	var schemaNames []string
+	var schemaName string
+	for rows.Next() {
+		err = rows.Scan(&schemaName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w", err)
+		}
+		schemaNames = append(schemaNames, schemaName)
+	}
+	log.Infof("Query found %d schemas in the YB db: %v", len(schemaNames), schemaNames)
+	return schemaNames, nil
+}
+
+func (yb *TargetYugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+
+	rows, err := yb.conn_.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) YB database for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	var tableName string
+
+	for rows.Next() {
+		err = rows.Scan(&tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	log.Infof("Query found %d tables in the YB db: %v", len(tableNames), tableNames)
+	return tableNames, nil
+}
+
 // The _v2 is appended in the table name so that the import code doesn't
 // try to use the similar table created by the voyager 1.3 and earlier.
 // Voyager 1.4 uses import data state format that is incompatible from
