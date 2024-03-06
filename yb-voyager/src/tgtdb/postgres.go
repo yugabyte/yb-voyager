@@ -569,17 +569,24 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 
 		br := tx.SendBatch(ctx, &ybBatch)
-		defer func() {
+		closeBatch := func() error {
 			if closeErr := br.Close(); closeErr != nil {
 				log.Errorf("error closing batch: %v", closeErr)
+				return closeErr
 			}
-		}()
+			return nil
+		}
 		for i := 0; i < len(batch.Events); i++ {
 			_, err := br.Exec()
 			if err != nil {
 				log.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+				closeBatch()
 				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
 			}
+		}
+		err = closeBatch()
+		if err != nil {
+			return false, err
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
