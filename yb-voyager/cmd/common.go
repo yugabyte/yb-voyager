@@ -651,7 +651,7 @@ func renameTableIfRequired(table string) string {
 	if msr.RenameTablesMap == nil {
 		return table
 	}
-	defaultSchema, noDefaultSchema := getDefaultPGSchema(source.Schema, "|")
+	defaultSchema, noDefaultSchema := GetDefaultPGSchema(source.Schema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
 		utils.ErrExit("no default schema found to qualify table %s", table)
 	}
