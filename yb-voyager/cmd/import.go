@@ -343,7 +343,8 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. By default, voyager will try if it can determine the total "+
 			"number of cores N and use N/4 as parallel jobs. "+
-			"Otherwise, it fall back to using twice the number of nodes in the cluster.")
+			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
+			"Any value less than 1 reverts to the default calculation.")
 }
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {
@@ -351,11 +352,12 @@ func registerFlagsForSourceReplica(cmd *cobra.Command) {
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(%d), POSTGRESQL(%d)", DEFAULT_BATCH_SIZE_ORACLE, DEFAULT_BATCH_SIZE_POSTGRESQL))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. default: For PostgreSQL(voyager will try if it can determine the total "+
-			"number of cores N and use N/2 as parallel jobs else it will fall back to 8) and Oracle(16)")
+			"number of cores N and use N/2 as parallel jobs else it will fall back to 8) and Oracle(16). "+
+			"Any value less than 1 reverts to the default calculation.")
 }
 
 func validateBatchSizeFlag(numLinesInASplit int64) {
-	if batchSize == 0 {
+	if batchSize <= 0 {
 		if tconf.TargetDBType == ORACLE {
 			batchSize = DEFAULT_BATCH_SIZE_ORACLE
 		} else if tconf.TargetDBType == POSTGRESQL {
