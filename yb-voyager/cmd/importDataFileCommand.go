@@ -63,9 +63,6 @@ var importDataFileCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
 		importerRole = IMPORT_FILE_ROLE
 		reportProgressInBytes = true
 		validateBatchSizeFlag(batchSize)
@@ -76,23 +73,28 @@ var importDataFileCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
-		defer tdb.Finalize()
 		err = namereg.InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
 		if err != nil {
 			utils.ErrExit("initialize name registry: %v", err)
 		}
+		sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
+		sqlname.SourceDBType = sourceDBType
+		CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
+	},
+
+	Run: func(cmd *cobra.Command, args []string) {
 		dataStore = datastore.NewDataStore(dataDir)
 		importFileTasks := prepareImportFileTasks()
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks)
 
 	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		tdb.Finalize()
+	},
 }
 
 func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
-	sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
-	sqlname.SourceDBType = sourceDBType
-	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		source.DBType = POSTGRESQL
 		record.SourceDBConf = source.Clone()
