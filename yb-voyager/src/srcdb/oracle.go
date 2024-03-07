@@ -362,7 +362,7 @@ func (ora *Oracle) ParentTableOfPartition(table *sqlname.SourceName) string {
 	panic("not implemented")
 }
 
-func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) ([]string, error) {
+func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
 	panic("not implemented")
 }
 

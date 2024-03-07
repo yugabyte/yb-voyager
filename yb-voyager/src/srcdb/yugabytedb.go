@@ -213,7 +213,7 @@ func (yb *YugabyteDB) ExportSchema(exportDir string) {
 	panic("not implemented")
 }
 
-func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) ([]string, error) {
+func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
 	panic("not implemented")
 }
 

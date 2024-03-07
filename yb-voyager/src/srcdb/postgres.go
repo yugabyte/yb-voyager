@@ -670,11 +670,11 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
-func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) ([]string, error) {
+func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
 	var tablesWithReplicaIdentityNotFull []string
 	var qualifiedTableNames []string
 	for _, table := range tableList {
-		qualifiedTableNames = append(qualifiedTableNames, fmt.Sprintf("'%s'", table.Qualified.MinQuoted))
+		qualifiedTableNames = append(qualifiedTableNames, fmt.Sprintf("'%s'", table.Qualified.Unquoted))
 	}
 	query := fmt.Sprintf(`SELECT n.nspname || '.' || c.relname AS table_name_with_schema
     FROM pg_class AS c
@@ -684,16 +684,19 @@ func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.S
     AND c.relreplident <> 'f';`, strings.Join(qualifiedTableNames, ","))
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
-		return nil, fmt.Errorf("error in querying(%q) source database for replica identity: %v", query, err)
+		return fmt.Errorf("error in querying(%q) source database for replica identity: %v", query, err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var tableWithSchema string
 		err := rows.Scan(&tableWithSchema)
 		if err != nil {
-			return nil, fmt.Errorf("error in scanning query rows for replica identity: %v", err)
+			return fmt.Errorf("error in scanning query rows for replica identity: %v", err)
 		}
 		tablesWithReplicaIdentityNotFull = append(tablesWithReplicaIdentityNotFull, tableWithSchema)
 	}
-	return tablesWithReplicaIdentityNotFull, nil
+	if len(tablesWithReplicaIdentityNotFull) > 0 {
+		return fmt.Errorf("tables %v do not have REPLICA IDENTITY FULL\nPlease ALTER the tables and set their REPLICA IDENTITY to FULL", tablesWithReplicaIdentityNotFull)
+	}
+	return nil
 }
