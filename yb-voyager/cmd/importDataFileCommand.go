@@ -67,6 +67,11 @@ var importDataFileCmd = &cobra.Command{
 		reportProgressInBytes = true
 		validateBatchSizeFlag(batchSize)
 		checkImportDataFileFlags(cmd)
+
+		sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
+		sqlname.SourceDBType = sourceDBType
+		CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
+
 		tconf.Schema = strings.ToLower(tconf.Schema)
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
@@ -77,9 +82,7 @@ var importDataFileCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("initialize name registry: %v", err)
 		}
-		sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
-		sqlname.SourceDBType = sourceDBType
-		CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
