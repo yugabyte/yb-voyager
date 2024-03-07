@@ -42,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -109,6 +110,19 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	checkExportDataDoneFlag()
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
+
+	tdb = tgtdb.NewTargetDB(&tconf)
+	err := tdb.Init()
+	if err != nil {
+		utils.ErrExit("Failed to initialize the target DB: %s", err)
+	}
+	defer tdb.Finalize()
+
+	err = namereg.InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+	if err != nil {
+		utils.ErrExit("initialize name registry: %v", err)
+	}
+
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	// TODO: handle case-sensitive in table names with oracle ff-db
@@ -392,12 +406,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
-	tdb = tgtdb.NewTargetDB(&tconf)
-	err = tdb.Init()
-	if err != nil {
-		utils.ErrExit("Failed to initialize the target DB: %s", err)
-	}
-	defer tdb.Finalize()
+
 	if msr.SnapshotMechanism == "debezium" {
 		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType)
 	} else {
@@ -679,7 +688,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
 	renamedTablesNames := make([]string, 0)
-	for _, tableName := range tableNames {//In case partitions are changed during the migration, need to check root table
+	for _, tableName := range tableNames { //In case partitions are changed during the migration, need to check root table
 		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
 	}
 	renamedTablesNames = lo.Uniq(renamedTablesNames)

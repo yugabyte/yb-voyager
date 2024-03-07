@@ -34,6 +34,8 @@ const (
 	IMPORT_FILE_ROLE                = "import_file"
 )
 
+var NameReg NameRegistry
+
 type NameRegistry struct {
 	SourceDBType string
 
@@ -72,6 +74,14 @@ func NewNameRegistry(
 		tconf:    tconf,
 		tdb:      tdb,
 	}
+}
+
+func InitNameRegistry(
+	exportDir string, role string,
+	sconf *srcdb.Source, sdb srcdb.SourceDB,
+	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) error {
+	NameReg = *NewNameRegistry(exportDir, role, sconf, sdb, tconf, tdb)
+	return NameReg.Init()
 }
 
 func (reg *NameRegistry) Init() error {
