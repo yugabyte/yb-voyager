@@ -239,6 +239,10 @@ func (yb *YugabyteDB) ExportSchema(exportDir string) {
 	panic("not implemented")
 }
 
+func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
+	panic("not implemented")
+}
+
 func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
@@ -455,7 +459,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		}
 		if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
 			// case sensitive unquoted table name returns unquoted parititons name as well
-			// so we need to add quotes around them 
+			// so we need to add quotes around them
 			partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
 		} else {
 			partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))

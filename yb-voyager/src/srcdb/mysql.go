@@ -279,6 +279,10 @@ func (ms *MySQL) ParentTableOfPartition(table *sqlname.SourceName) string {
 	panic("not implemented")
 }
 
+func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
+	panic("not implemented")
+}
+
 /*
 Only valid case is when the table has a auto increment column
 Note: a mysql table can have only one auto increment column

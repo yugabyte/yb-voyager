@@ -373,6 +373,10 @@ func (ora *Oracle) ParentTableOfPartition(table *sqlname.SourceName) string {
 	panic("not implemented")
 }
 
+func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
+	panic("not implemented")
+}
+
 /*
 GetColumnToSequenceMap returns a map of column name to sequence name for all identity columns in the given list of tables.
 Note: There can be only one identity column per table in Oracle

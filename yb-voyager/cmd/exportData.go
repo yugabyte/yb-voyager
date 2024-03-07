@@ -194,6 +194,10 @@ func exportData() bool {
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
 			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
+			err := source.DB().ValidateTablesReadyForLiveMigration(finalTableList)
+			if err != nil {
+				utils.ErrExit("error: validate if tables are ready for live migration: %v", err)
+			}
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
 				if err != nil {
