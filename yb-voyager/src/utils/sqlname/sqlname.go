@@ -172,7 +172,7 @@ func quote(s string, dbType string) string {
 	case ORACLE:
 		return `"` + strings.ToUpper(s) + `"`
 	default:
-		panic("unknown source db type")
+		panic("unknown source db type " + dbType)
 	}
 }
 

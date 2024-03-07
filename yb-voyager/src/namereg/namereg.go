@@ -3,8 +3,6 @@ package namereg
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
-	"reflect"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -232,7 +230,7 @@ foobar, "foobar", FooBar, "FooBar", FOOBAR, "FOOBAR",
 schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOBAR, schema1."FOOBAR",
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
-func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error) {
+func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTuple, error) {
 	if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
 		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
@@ -257,9 +255,11 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 	if schemaName == reg.DefaultSourceSideSchemaName() || schemaName == reg.DefaultYBSchemaName {
 		schemaName = ""
 	}
-	ntup := &NameTuple{}
+	// ntup := &NameTuple{}
+	var sourceName *sqlname.ObjectName
+	var targetName *sqlname.ObjectName
 	if reg.SourceDBTableNames != nil { // nil for `import data file` mode.
-		ntup.SourceName, err = reg.lookup(
+		sourceName, err = reg.lookup(
 			reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, tableName)
 		if err != nil {
 			errObj := &ErrMultipleMatchingNames{}
@@ -272,7 +272,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 					caseInsensitiveName = strings.ToUpper(tableName)
 				}
 				if lo.Contains(errObj.Names, caseInsensitiveName) {
-					ntup.SourceName, err = reg.lookup(
+					sourceName, err = reg.lookup(
 						reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, caseInsensitiveName)
 				}
 			}
@@ -283,14 +283,14 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 		}
 	}
 	if reg.YBTableNames != nil { // nil in `export` mode.
-		ntup.TargetName, err = reg.lookup(
+		targetName, err = reg.lookup(
 			YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, tableName)
 		if err != nil {
 			errObj := &ErrMultipleMatchingNames{}
 			if errors.As(err, &errObj) {
 				// A special case.
 				if lo.Contains(errObj.Names, strings.ToLower(tableName)) {
-					ntup.TargetName, err = reg.lookup(
+					targetName, err = reg.lookup(
 						YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
 				}
 			}
@@ -299,16 +299,18 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*NameTuple, error
 			}
 		}
 	}
-	// Set the current table name based on the mode.
-	ntup.SetMode(reg.role)
-	if ntup.SourceName == nil && ntup.TargetName == nil {
+	// // Set the current table name based on the mode.
+	// ntup.SetMode(reg.role)
+	if sourceName == nil && targetName == nil {
 		return nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
+
+	ntup := NewNameTuple(reg.role, sourceName, targetName)
 	return ntup, nil
 }
 
 func (reg *NameRegistry) lookup(
-	dbType string, m map[string][]string, defaultSchemaName, schemaName, tableName string) (*ObjectName, error) {
+	dbType string, m map[string][]string, defaultSchemaName, schemaName, tableName string) (*sqlname.ObjectName, error) {
 
 	if schemaName == "" {
 		if defaultSchemaName == "" {
@@ -324,7 +326,7 @@ func (reg *NameRegistry) lookup(
 	if err != nil {
 		return nil, err
 	}
-	return newObjectName(dbType, defaultSchemaName, schemaName, tableName), nil
+	return sqlname.NewObjectName(dbType, defaultSchemaName, schemaName, tableName), nil
 }
 
 type ErrMultipleMatchingNames struct {
@@ -370,90 +372,9 @@ func matchName(objType string, names []string, name string) (string, error) {
 	return "", &ErrNameNotFound{ObjectType: objType, Name: name}
 }
 
-//================================================
-
-type identifier struct {
-	Quoted, Unquoted, MinQuoted string
-}
-
-// Can be a name of a table, sequence, materialised view, etc.
-type ObjectName struct {
-	SchemaName        string
-	FromDefaultSchema bool
-
-	Qualified    identifier
-	Unqualified  identifier
-	MinQualified identifier
-}
-
-func newObjectName(dbType, defaultSchemaName, schemaName, tableName string) *ObjectName {
-	result := &ObjectName{
-		SchemaName:        schemaName,
-		FromDefaultSchema: schemaName == defaultSchemaName,
-		Qualified: identifier{
-			Quoted:    schemaName + "." + quote(dbType, tableName),
-			Unquoted:  schemaName + "." + tableName,
-			MinQuoted: schemaName + "." + minQuote(tableName, dbType),
-		},
-		Unqualified: identifier{
-			Quoted:    quote(dbType, tableName),
-			Unquoted:  tableName,
-			MinQuoted: minQuote(tableName, dbType),
-		},
-	}
-	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)
-	return result
-}
-
-func (nv *ObjectName) String() string {
-	return nv.MinQualified.MinQuoted
-}
-
-func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
-	parts := strings.Split(pattern, ".")
-	switch true {
-	case len(parts) == 2:
-		if !strings.EqualFold(parts[0], nv.SchemaName) {
-			return false, nil
-		}
-		pattern = parts[1]
-	case len(parts) == 1:
-		if !nv.FromDefaultSchema {
-			return false, nil
-		}
-		pattern = parts[0]
-	default:
-		return false, fmt.Errorf("invalid pattern: %s", pattern)
-	}
-	match1, err := filepath.Match(pattern, nv.Unqualified.Unquoted)
-	if err != nil {
-		return false, fmt.Errorf("invalid pattern: %s", pattern)
-	}
-	if match1 {
-		return true, nil
-	}
-	match2, err := filepath.Match(pattern, nv.Unqualified.Quoted)
-	if err != nil {
-		return false, fmt.Errorf("invalid pattern: %s", pattern)
-	}
-	return match2, nil
-}
-
-// <SourceTableName, TargetTableName>
-type NameTuple struct {
-	Mode        string
-	CurrentName *ObjectName
-	SourceName  *ObjectName
-	TargetName  *ObjectName
-}
-
-func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
-	return reflect.DeepEqual(t1, t2)
-}
-
-func (t *NameTuple) SetMode(mode string) {
-	t.Mode = mode
-	switch mode {
+func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName) *sqlname.NameTuple {
+	t := sqlname.NameTuple{SourceName: sourceName, TargetName: targetName}
+	switch role {
 	case TARGET_DB_IMPORTER_ROLE:
 		t.CurrentName = t.TargetName
 	case SOURCE_DB_IMPORTER_ROLE:
@@ -467,73 +388,5 @@ func (t *NameTuple) SetMode(mode string) {
 	default:
 		t.CurrentName = nil
 	}
-}
-
-func (t *NameTuple) String() string {
-	return t.CurrentName.String()
-}
-
-func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
-	for _, tableName := range []*ObjectName{t.SourceName, t.TargetName} {
-		if tableName == nil {
-			continue
-		}
-		match, err := tableName.MatchesPattern(pattern)
-		if err != nil {
-			return false, err
-		}
-		if match {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (t *NameTuple) ForUserQuery() string {
-	return t.CurrentName.Qualified.Quoted
-}
-
-func (t *NameTuple) ForCatalogQuery() (string, string) {
-	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
-}
-
-func (t *NameTuple) ForKey() string {
-	if t.SourceName != nil {
-		return t.SourceName.Qualified.Quoted
-	}
-	return t.TargetName.Qualified.Quoted
-}
-
-//================================================
-
-func quote(dbType, name string) string {
-	switch dbType {
-	case POSTGRESQL, YUGABYTEDB, ORACLE:
-		return `"` + name + `"`
-	case MYSQL:
-		return name
-	default:
-		panic("unknown source db type")
-	}
-}
-
-func minQuote(objectName, sourceDBType string) string {
-	switch sourceDBType {
-	case YUGABYTEDB, POSTGRESQL:
-		if sqlname.IsAllLowercase(objectName) && !sqlname.IsReservedKeywordPG(objectName) {
-			return objectName
-		} else {
-			return `"` + objectName + `"`
-		}
-	case MYSQL:
-		return objectName
-	case ORACLE:
-		if sqlname.IsAllUppercase(objectName) && !sqlname.IsReservedKeywordOracle(objectName) {
-			return objectName
-		} else {
-			return `"` + objectName + `"`
-		}
-	default:
-		panic("invalid source db type")
-	}
+	return &t
 }
