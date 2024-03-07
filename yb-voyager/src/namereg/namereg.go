@@ -108,6 +108,7 @@ func (reg *NameRegistry) Init() error {
 	return nil
 }
 
+// TODO: only registry tables from tablelist, not all from schema.
 func (reg *NameRegistry) registerNames() (bool, error) {
 	switch true {
 	case reg.role == SOURCE_DB_EXPORTER_ROLE && reg.SourceDBTableNames == nil:
@@ -175,15 +176,17 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	}
 
 	m := make(map[string][]string)
-	schemaNames, err := yb.GetAllSchemaNamesRaw()
-	if err != nil {
-		return false, fmt.Errorf("get all schema names: %w", err)
-	}
 	reg.DefaultYBSchemaName = reg.tconf.Schema
 	if reg.SourceDBTableNames != nil && reg.SourceDBType == POSTGRESQL {
 		reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
 	}
-	for _, schemaName := range schemaNames {
+	switch reg.SourceDBType {
+	case POSTGRESQL:
+		reg.YBSchemaNames = reg.SourceDBSchemaNames
+	default:
+		reg.YBSchemaNames = []string{reg.tconf.Schema}
+	}
+	for _, schemaName := range reg.YBSchemaNames {
 		tableNames, err := yb.GetAllTableNamesRaw(schemaName)
 		if err != nil {
 			return false, fmt.Errorf("get all table names: %w", err)
@@ -191,7 +194,6 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 		m[schemaName] = tableNames
 	}
 	reg.YBTableNames = m
-	reg.YBSchemaNames = schemaNames
 	return true, nil
 }
 
