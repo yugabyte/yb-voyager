@@ -670,7 +670,7 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
-func (pg *PostgreSQL) GetTablesWithReplicaIdentityNotFull(tableList []*sqlname.SourceName) ([]string, error) {
+func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) ([]string, error) {
 	var tablesWithReplicaIdentityNotFull []string
 	var qualifiedTableNames []string
 	for _, table := range tableList {

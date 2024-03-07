@@ -51,7 +51,7 @@ type SourceDB interface {
 	GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
-	GetTablesWithReplicaIdentityNotFull(tableList []*sqlname.SourceName) ([]string, error)
+	ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) ([]string, error)
 }
 
 func newSourceDB(source *Source) SourceDB {
