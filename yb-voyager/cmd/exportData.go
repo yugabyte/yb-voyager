@@ -200,11 +200,10 @@ func exportData() bool {
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
 			// 3. start debezium with configration to read changes from the created replication slot, publication.
 			err = checkIfTablesHaveReplicationIdentityFull(finalTableList)
+			if err != nil {
+				utils.ErrExit("error: check if tables have replication identity full: %v", err)
+			}
 			if !dataIsExported() { // if snapshot is not already done...
-				if err != nil {
-					utils.ErrExit("error: check if tables have replication identity full: %v", err)
-				}
-
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
 				if err != nil {
 					log.Errorf("export snapshot failed: %v", err)
