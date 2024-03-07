@@ -111,6 +111,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
+	if tconf.TargetDBType == YUGABYTEDB {
+		tconf.Schema = strings.ToLower(tconf.Schema)
+	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
+		tconf.Schema = strings.ToUpper(tconf.Schema)
+	}
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()
 	if err != nil {
@@ -385,11 +390,7 @@ func updateTargetConfInMigrationStatus() {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	if tconf.TargetDBType == YUGABYTEDB {
-		tconf.Schema = strings.ToLower(tconf.Schema)
-	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
-		tconf.Schema = strings.ToUpper(tconf.Schema)
-	}
+
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
