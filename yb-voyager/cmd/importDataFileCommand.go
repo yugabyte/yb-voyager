@@ -29,6 +29,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
@@ -68,10 +70,22 @@ var importDataFileCmd = &cobra.Command{
 		reportProgressInBytes = true
 		validateBatchSizeFlag(batchSize)
 		checkImportDataFileFlags(cmd)
+		tconf.Schema = strings.ToLower(tconf.Schema)
+		tdb = tgtdb.NewTargetDB(&tconf)
+		err := tdb.Init()
+		if err != nil {
+			utils.ErrExit("Failed to initialize the target DB: %s", err)
+		}
+		defer tdb.Finalize()
+		err = namereg.InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+		if err != nil {
+			utils.ErrExit("initialize name registry: %v", err)
+		}
 		dataStore = datastore.NewDataStore(dataDir)
 		importFileTasks := prepareImportFileTasks()
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks)
+
 	},
 }
 
