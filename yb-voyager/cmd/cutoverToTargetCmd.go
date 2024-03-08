@@ -53,9 +53,6 @@ var cutoverToTargetCmd = &cobra.Command{
 			if msr.FallForwardEnabled {
 				utils.ErrExit("Live migration with Fall-forward workflow is already started on this export-dir. So --prepare-for-fall-back is not applicable.")
 			}
-			if msr.SourceDBConf.DBType == POSTGRESQL {
-				utils.ErrExit("Live migration with Fall-back is not supported for PostgreSQL sourceDB.")
-			}
 		}
 		err = InitiateCutover("target", bool(prepareForFallBack))
 		if err != nil {

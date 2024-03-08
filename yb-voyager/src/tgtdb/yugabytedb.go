@@ -215,6 +215,53 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	return nil
 }
 
+func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
+	query := "SELECT schema_name FROM information_schema.schemata"
+	rows, err := yb.conn_.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying YB database for schema names: %w", err)
+	}
+	defer rows.Close()
+
+	var schemaNames []string
+	var schemaName string
+	for rows.Next() {
+		err = rows.Scan(&schemaName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w", err)
+		}
+		schemaNames = append(schemaNames, schemaName)
+	}
+	log.Infof("Query found %d schemas in the YB db: %v", len(schemaNames), schemaNames)
+	return schemaNames, nil
+}
+
+func (yb *TargetYugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+
+	rows, err := yb.conn_.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) YB database for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	var tableName string
+
+	for rows.Next() {
+		err = rows.Scan(&tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	log.Infof("Query found %d tables in the YB db: %v", len(tableNames), tableNames)
+	return tableNames, nil
+}
+
 // The _v2 is appended in the table name so that the import code doesn't
 // try to use the similar table created by the voyager 1.3 and earlier.
 // Voyager 1.4 uses import data state format that is incompatible from
@@ -558,13 +605,21 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				return false, fmt.Errorf("error preparing stmt: %w", err)
 			}
 		}
-
-		br := conn.SendBatch(ctx, &ybBatch)
+		
 		var numInserts, numDeletes, numUpdates int64
+		br := tx.SendBatch(ctx, &ybBatch)
+		closeBatch := func() error {
+			if closeErr := br.Close(); closeErr != nil {
+				log.Errorf("error closing batch(%s): %v", batch.ID(), closeErr)
+				return closeErr
+			}
+			return nil
+		}
 		for i := 0; i < len(batch.Events); i++ {
 			res, err := br.Exec()
 			if err != nil {
 				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
+				closeBatch()
 				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
 			}
 			switch true {
@@ -579,9 +634,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				log.Warnf("unexpected rows affected for event with vsn(%d) in batch(%s): %d", batch.Events[i].Vsn, batch.ID(), res.RowsAffected())
 			}
 		}
-		if err = br.Close(); err != nil {
-			log.Errorf("error closing batch(%s): %v", batch.ID(), err)
-			return false, fmt.Errorf("error closing batch id (%s): %v", batch.ID(), err)
+		err = closeBatch()
+		if err != nil {
+			return false, err
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
@@ -1146,7 +1201,7 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 
 func (yb *TargetYugabyteDB) InvalidIndexes() (map[string]bool, error) {
 	var result = make(map[string]bool)
-	// NOTE: this won't fetch any valid index like pg_catalog schema indexes or index of other successful migrations
+	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
 	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
 	rows, err := yb.Query(query)
 	if err != nil {
@@ -1159,6 +1214,10 @@ func (yb *TargetYugabyteDB) InvalidIndexes() (map[string]bool, error) {
 		err := rows.Scan(&fullyQualifiedIndexName)
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
+		}
+		// if schema is not provided by catalog table, then it is public schema
+		if !strings.Contains(fullyQualifiedIndexName, ".") {
+			fullyQualifiedIndexName = fmt.Sprintf("public.%s", fullyQualifiedIndexName)
 		}
 		result[fullyQualifiedIndexName] = true
 	}

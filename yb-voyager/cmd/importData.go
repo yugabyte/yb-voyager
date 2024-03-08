@@ -678,7 +678,12 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
-	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
+	renamedTablesNames := make([]string, 0)
+	for _, tableName := range tableNames {//In case partitions are changed during the migration, need to check root table
+		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
+	}
+	renamedTablesNames = lo.Uniq(renamedTablesNames)
+	nonEmptyTableNames := tdb.GetNonEmptyTables(renamedTablesNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
@@ -729,7 +734,7 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableName:  tableName,
+		TableName:  renameTableIfRequired(tableName),
 		Columns:    columns,
 		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,
@@ -1110,15 +1115,16 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
+// TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
 func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
 	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
 		return nil
 	}
+
 	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 	if err != nil {
 		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 	}
-
 	if invalidTargetIndexesCache == nil {
 		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
 		if err != nil {
@@ -1126,9 +1132,9 @@ func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error
 		}
 	}
 
-	// check if even it exists or not
+	// check index valid or not
 	if invalidTargetIndexesCache[fullyQualifiedObjName] {
-		log.Infof("invalid index %q already exists, dropping it", fullyQualifiedObjName)
+		log.Infof("index %q already exists but in invalid state, dropping it", fullyQualifiedObjName)
 		err = dropIdx(*conn, fullyQualifiedObjName)
 		if err != nil {
 			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
@@ -1147,7 +1153,7 @@ func getTargetSchemaName(tableName string) string {
 		return parts[0]
 	}
 	if tconf.TargetDBType == POSTGRESQL {
-		defaultSchema, noDefaultSchema := getDefaultPGSchema(tconf.Schema, ",")
+		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schema, ",")
 		if noDefaultSchema {
 			utils.ErrExit("no default schema for table %q ", tableName)
 		}

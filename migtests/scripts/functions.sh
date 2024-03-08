@@ -156,6 +156,32 @@ EOF
 	run_sqlplus_as_sys ${cdb_name} "oracle-inputs.sql"
 }
 
+grant_permissions_for_live_migration_pg() {
+	db_name=$1
+	db_schema=$2
+	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	commands=(
+			"ALTER USER ybvoyager REPLICATION"
+			"CREATE ROLE replication_group;"
+			"GRANT replication_group TO postgres"
+			"GRANT replication_group TO ybvoyager;"
+			"DO \$CUSTOM\$
+			DECLARE
+			  cur_table text;
+			BEGIN
+			  EXECUTE 'SET search_path TO ${db_schema}';
+			  FOR cur_table IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${db_schema}')
+			  LOOP
+			    EXECUTE 'ALTER TABLE \"' || cur_table || '\" OWNER TO replication_group';
+			  END LOOP;
+			END \$CUSTOM\$;"
+			"GRANT CREATE ON DATABASE ${db_name} TO ybvoyager;"
+		)
+	for command in "${commands[@]}"; do
+		echo "${command}" | psql "${conn_string}" 
+	done
+}
+
 grant_permissions() {
 	db_name=$1
 	db_type=$2
@@ -518,15 +544,15 @@ EOF
 }
 
 set_replica_identity(){
-	
+	db_schema=$1
     cat > alter_replica_identity.sql <<EOF
     DO \$CUSTOM\$ 
     DECLARE
 		r record;
     BEGIN
-        FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = '${SOURCE_DB_SCHEMA}' AND table_type = 'BASE TABLE') 
+        FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = '${db_schema}' AND table_type = 'BASE TABLE') 
         LOOP
-            EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.table_name || ' REPLICA IDENTITY FULL';
+            EXECUTE 'ALTER TABLE ' || r.table_schema || '."' || r.table_name || '" REPLICA IDENTITY FULL';
         END LOOP;
     END \$CUSTOM\$;
 EOF
@@ -537,8 +563,13 @@ grant_permissions_for_live_migration() {
     if [ "${SOURCE_DB_TYPE}" = "mysql" ]; then
         grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
     elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-        set_replica_identity
-        grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+		for schema_name in $(echo ${SOURCE_DB_SCHEMA} | tr "," "\n")
+		do
+			set_replica_identity ${schema_name}
+			grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${schema_name}
+			grant_permissions_for_live_migration_pg ${SOURCE_DB_NAME} ${schema_name}
+		done
+        
     elif [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
         grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
         if [ -n "${SOURCE_REPLICA_DB_NAME}" ]; then
@@ -547,6 +578,20 @@ grant_permissions_for_live_migration() {
     else
         echo "Invalid source database."
     fi
+}
+
+setup_fallback_environment() {
+	if [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
+	elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		cat > alter_user_superuser.sql <<EOF
+    	ALTER ROLE ybvoyager WITH SUPERUSER;
+EOF
+    run_psql ${SOURCE_DB_NAME} "$(cat alter_user_superuser.sql)"
+	
+	fi
+
 }
 
 

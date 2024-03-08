@@ -122,13 +122,16 @@ main() {
 
 	sleep 30 
 
+	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
+	import_schema --post-snapshot-import true --refresh-mviews=true
+
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'
 
 	step "Inserting new events"
 	run_sql_file source_delta.sql
 
-	sleep 2m
+	sleep 120
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -137,7 +140,7 @@ main() {
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back false --yes
 
 	for ((i = 0; i < 5; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 4 ]; then
@@ -150,15 +153,12 @@ main() {
     fi
 	done
 	
-	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import true --refresh-mviews=true
-	run_ysql ${TARGET_DB_NAME} "\di"
-	run_ysql ${TARGET_DB_NAME} "\dft" 
+	
 
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'false'
+	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'false' --fb_enabled 'false'
 	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"

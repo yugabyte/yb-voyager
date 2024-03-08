@@ -4,9 +4,9 @@ CREATE EXTENSION pgcrypto;
 
 drop table if exists ext_test;
 
-create table ext_test(id serial, password text);
+create table ext_test(id serial PRIMARY KEY, password text);
 
-insert into ext_test(password) values (crypt('johnspassword', gen_salt('bf')));
+
 
 select * from ext_test;
 
@@ -23,11 +23,11 @@ where aggfnoid = 'inc_sum'::regproc;
 
 drop table if exists tt;
 
-CREATE TABLE tt (i int);
+CREATE TABLE tt (i int PRIMARY KEY);
 
 drop table if exists audit;
 
-create table audit(id text);
+create table audit(id text PRIMARY KEY);
 
 drop function if exists auditlogfunc();
 
@@ -57,10 +57,7 @@ INSERT INTO "tt" VALUES ("i");
 
 $$;
 
-CALL tt_insert_data(1);
-CALL tt_insert_data(2);
-CALL tt_insert_data(3);
-CALL tt_insert_data(4);
+
 
 CREATE OR REPLACE FUNCTION total ()
 RETURNS integer AS $agg_output$
@@ -146,13 +143,12 @@ ID SERIAL PRIMARY KEY,
     Misc enum_kind  
     );  
     
-insert into Recipients(First_name,Last_name,Misc) values ('abc','xyz','YES');
 
 drop table if exists session_log;
 
 create table session_log 
 ( 
-   userid int not null, 
+   userid int not null PRIMARY KEY, 
    phonenumber int
 ); 
 
@@ -180,23 +176,9 @@ Create table "Mixed_Case_Table_Name_Test" (
 
 -- aut int NOT NULL GENERATED ALWAYS AS ((id*9)+1) stored
 
-insert into "Mixed_Case_Table_Name_Test" (first_name, last_name, email, gender, ip_address) values ('Modestine', 'MacMeeking', 'mmacmeeking0@zimbio.com', 'Female', '208.44.58.185');
-insert into "Mixed_Case_Table_Name_Test" (first_name, last_name, email, gender, ip_address) values ('Genna', 'Kaysor', 'gkaysor1@hibu.com', 'Female', '202.48.51.58');
-insert into "Mixed_Case_Table_Name_Test" (first_name, last_name, email, gender, ip_address) values ('Tess', 'Wesker', 'twesker2@scientificamerican.com', 'Female', '177.153.32.186');
-insert into "Mixed_Case_Table_Name_Test" (first_name, last_name, email, gender, ip_address) values ('Magnum', 'Danzelman', 'mdanzelman3@storify.com', 'Bigender', '192.200.33.56');
-insert into "Mixed_Case_Table_Name_Test" (first_name, last_name, email, gender, ip_address) values ('Mitzi', 'Pidwell', 'mpidwell4@shutterfly.com', 'Female', '216.4.250.71');
-
-\d "Mixed_Case_Table_Name_Test"
-
-Select * from "Mixed_Case_Table_Name_Test";
 
 CREATE TABLE "group" (
     id int PRIMARY KEY,
     name varchar(10)
 );
 
-INSERT into "group" values(1, 'abc');
-INSERT into "group" values(2, 'abc');
-INSERT into "group" values(3, 'abc');
-INSERT into "group" values(4, 'abc');
-INSERT into "group" values(5, 'abc');

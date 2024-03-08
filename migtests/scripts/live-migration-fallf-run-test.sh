@@ -219,7 +219,7 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run final validations."
-	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'true'
+	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'true' --fb_enabled 'false'
 
 	step "End Migration: clearing metainfo about state of migration from everywhere."
 	end_migration --yes

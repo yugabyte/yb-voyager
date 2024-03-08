@@ -146,6 +146,32 @@ func (yb *YugabyteDB) checkSchemasExists() []string {
 	return trimmedList
 }
 
+func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) YB database for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	var tableName string
+
+	for rows.Next() {
+		err = rows.Scan(&tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
+	return tableNames, nil
+}
+
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
@@ -156,7 +182,7 @@ func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 
 	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
+		utils.ErrExit("error in querying(%q) YB database for table names: %v\n", query, err)
 	}
 	defer rows.Close()
 
@@ -210,6 +236,10 @@ func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
 }
 
 func (yb *YugabyteDB) ExportSchema(exportDir string) {
+	panic("not implemented")
+}
+
+func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
 	panic("not implemented")
 }
 
@@ -427,7 +457,13 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		if err != nil {
 			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
 		}
-		partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
+		if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
+			// case sensitive unquoted table name returns unquoted parititons name as well
+			// so we need to add quotes around them
+			partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
+		} else {
+			partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
+		}
 	}
 	if rows.Err() != nil {
 		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
