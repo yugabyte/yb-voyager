@@ -1,0 +1,3 @@
+sed -i 's/(region::text)/region/g' $TEST_DIR/export-dir/schema/tables/table.sql
+
+sed -i 's/(job_id::text)/job_id/g' $TEST_DIR/export-dir/schema/partitions/partition.sql

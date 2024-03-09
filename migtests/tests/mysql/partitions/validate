@@ -15,12 +15,12 @@ EXPECTED_ROW_COUNT = {
 	"public.range_columns_partition_test":	6,       
 	"public.range_partition_test":        	9,        
 	"public.subpartitioning_test":        	9,
-	"public.list_partition_test_pnorth":    2,
-	"public.range_partition_test_p2":       2,
-	"public.range_columns_partition_test_p0": 3,
-	"public.key_partition_test_p1":         3,
-	"public.hash_partition_test_p0":        1,
-	"public.subpartitioning_test_p2_p2sp1": 1
+	"public.list_partition_test_part3":    2,
+	"public.range_partition_test_part3":       2,
+	"public.range_columns_partition_test_part1": 3,
+	"public.key_partition_test_part1":         3,
+	"public.hash_partition_test_part1":        1,
+	"public.subpartitioning_test_part3_subpart2": 1
 }
 
 
@@ -37,32 +37,32 @@ TABLE_NAME_TO_PARTITION_COUNT = {
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"query": "INSERT INTO list_partition_test VALUES (6, '2013-01-02', 'C001', 125.56) ",
-		"partition_table_name": "list_partition_test_pnorth",
+		"partition_table_name": "list_partition_test_part3",
 		"schema_name": "public"
 	},
 	"Range" : {
 		"query": "INSERT INTO range_partition_test VALUES   (6, 'Nike', 'S001', 101, '2015-01-02', 125.56)",
-		"partition_table_name": "range_partition_test_p2",
+		"partition_table_name": "range_partition_test_part3",
 		"schema_name": "public"
 	},
 	"Range_Column" : {
 		"query": "INSERT INTO range_columns_partition_test VALUES (2,2)",
-		"partition_table_name": "range_columns_partition_test_p0",
+		"partition_table_name": "range_columns_partition_test_part1",
 		"schema_name": "public"
 	},
 	"Key" : {
 		"query": "INSERT INTO key_partition_test VALUES (1,1,1)",
-		"partition_table_name": "key_partition_test_p1",
+		"partition_table_name": "key_partition_test_part1",
 		"schema_name": "public"
 	},
 	"Hash" : {
 		"query": "INSERT INTO hash_partition_test VALUES (1,2,1)",
-		"partition_table_name": "hash_partition_test_p0",
+		"partition_table_name": "hash_partition_test_part1",
 		"schema_name": "public"
 	},
 	"Multilevel" : {
 		"query": "INSERT INTO subpartitioning_test VALUES  (6, 'Stephen', 'S743', 100, '2017-05-31', 964.00)",
-		"partition_table_name": "subpartitioning_test_p2_p2sp1",
+		"partition_table_name": "subpartitioning_test_part3_subpart2",
 		"schema_name": "public"
 	}
 }

@@ -103,6 +103,11 @@ main() {
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
+	if [ -x "${TEST_DIR}/add_default_partitions.sql" ]
+	then
+		run_ysql ${TARGET_DB_NAME} "\i $TEST_DIR/add_default_partitions.sql"
+	fi
+
 	step "Import data."
 	import_data
 	
@@ -111,6 +116,12 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
+	if [ -f $TEST_DIR/export-dir/schema/tables/AUTOINCREMENT_table.sql ]
+	then
+		step "Resume Sequences"
+		run_ysql  ${TARGET_DB_NAME} "\i $TEST_DIR/export-dir/schema/tables/AUTOINCREMENT_table.sql" # Not optimal to use this way
+	fi
+	 
 	step "Run validations."
 	if [ -x "${TEST_DIR}/validate" ]
 	then
