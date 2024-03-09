@@ -59,8 +59,6 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	default:
 		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
 	}
-	fmt.Printf("num tables to export: %d\n", len(tableList))
-	utils.PrintAndLog("table list for data export: %v", tableList)
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
 
 	var dbzmTableList, dbzmColumnList []string

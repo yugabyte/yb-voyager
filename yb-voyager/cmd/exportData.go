@@ -181,6 +181,11 @@ func exportData() bool {
 	if err != nil {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
+    renamedTableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
+		return renameTableIfRequired(table.Qualified.MinQuoted)
+	}))
+	fmt.Printf("num tables to export: %d\n", len(renamedTableListToDisplay))
+	utils.PrintAndLog("table list for data export: %v", renamedTableListToDisplay)
 
 	if source.DBType == POSTGRESQL {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
@@ -272,8 +277,6 @@ func exportData() bool {
 		if err != nil {
 			utils.ErrExit("update table list exported from source: update migration status record: %s", err)
 		}
-		fmt.Printf("num tables to export: %d\n", len(finalTableList))
-		utils.PrintAndLog("table list for data export: %v", finalTableList)
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)

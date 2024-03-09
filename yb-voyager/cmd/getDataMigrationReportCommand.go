@@ -142,16 +142,14 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			utils.ErrExit("error while getting exported snapshot rows: %w\n", err)
 		}
 	}
-	renamedTablesNames := make([]string, 0)
-	for _, tableName := range tableList { // In case partitions are changed during the migration, need to change it to root table
-		renameTable := renameTableIfRequired(tableName)
-		if len(strings.Split(renameTable, ".")) < 2 {
+	renamedTablesNames := lo.Uniq(lo.Map(tableList, func (table string, _ int) string {
+		renamedTable := renameTableIfRequired(table)
+		if len(strings.Split(renamedTable, ".")) < 2 {
 			// safe to directly qualify it with public schema as it is not qualified in case of PG by renameTableIfRequired()
-			renameTable = fmt.Sprintf("public.%s", renameTable)
+			renamedTable = fmt.Sprintf("public.%s", renamedTable)
 		}
-		renamedTablesNames = append(renamedTablesNames, renameTable)
-	}
-	renamedTablesNames = lo.Uniq(renamedTablesNames)
+		return renamedTable
+	}))
 
 	targetImportedSnapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList)
 	if err != nil {

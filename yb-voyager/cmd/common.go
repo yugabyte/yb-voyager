@@ -198,7 +198,8 @@ func GetTableRowCount(filePath string) map[string]int64 {
 func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 	tableRowCount := map[string]int64{}
 	for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
-		tableRowCount[fileEntry.TableName] += fileEntry.RowCount
+		renamedTable := renameTableIfRequired(fileEntry.TableName)
+		tableRowCount[renamedTable] += fileEntry.RowCount
 	}
 	return tableRowCount
 }
@@ -230,9 +231,11 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				uitable.AddRow(source.DBName, key, exportedRowCount[key])
 			}
 		}
-		fmt.Print("\n")
-		fmt.Println(uitable)
-		fmt.Print("\n")
+		if len(keys) > 0 {
+			fmt.Print("\n")
+			fmt.Println(uitable)
+			fmt.Print("\n")
+		}
 		return
 	}
 
@@ -273,16 +276,20 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	}
 	uitable := uitable.New()
 
-	snapshotRowCount := make(map[string]int64)
-	for _, tableName := range tableList {
-		tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
-		if err != nil {
-			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
-		}
-		snapshotRowCount[tableName] = tableRowCount
+	dbType := "target"
+	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+		dbType = "source-replica"
 	}
 
-	for i, tableName := range tableList {
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList)
+	if err != nil {
+		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
+	}
+
+	renamedTableList := lo.Uniq(lo.Map(tableList, func(t string, _ int) string {
+		return renameTableIfRequired(t)
+	}))
+	for i, tableName := range renamedTableList {
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
@@ -292,9 +299,11 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		}
 		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
 	}
-	fmt.Printf("\n")
-	fmt.Println(uitable)
-	fmt.Printf("\n")
+	if len(tableList) > 0 {
+		fmt.Printf("\n")
+		fmt.Println(uitable)
+		fmt.Printf("\n")
+	}
 }
 
 // setup a project having subdirs for various database objects IF NOT EXISTS
@@ -644,8 +653,8 @@ func renameTableIfRequired(table string) string {
 	if err != nil {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
-	source = *msr.SourceDBConf
-	if source.DBType != POSTGRESQL {
+	sourceDBType = msr.SourceDBConf.DBType
+	if sourceDBType != POSTGRESQL {
 		return table
 	}
 	if msr.RenameTablesMap == nil {
@@ -697,9 +706,14 @@ func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]i
 
 	snapshotRowsMap := make(map[string]int64)
 	for _, table := range tableList {
-		schemaName := strings.Split(table, ".")[0]
-		tableName := strings.Split(table, ".")[1]
-		if schemaName == "public" {
+		parts := strings.Split(table, ".")
+		schemaName := ""
+		tableName := parts[0]
+		if len(parts) > 1 {
+			schemaName = parts[0]
+			tableName = parts[1]
+		}
+		if schemaName == "public" || schemaName == "" {
 			table = tableName
 		}
 		dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(table)
