@@ -680,13 +680,15 @@ func renameTableIfRequired(table string) string {
 }
 
 
-func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *ExportSnapshotStatus) (map[string]int64, error) {
+func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *ExportSnapshotStatus) (map[string]int64, map[string]string, error) {
 	snapshotRowsMap := make(map[string]int64)
+	snapshotStatusMap := make(map[string]string)
 	for _, table := range tableList {
 		renamedTable := renameTableIfRequired(table)
+		snapshotStatusMap[renamedTable] = exportSnapshotStatus.Tables[table].Status
 		snapshotRowsMap[renamedTable] += exportSnapshotStatus.Tables[table].ExportedRowCountSnapshot
 	}
-	return snapshotRowsMap, nil
+	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
 func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]int64, error) {

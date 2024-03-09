@@ -23,6 +23,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -103,8 +104,6 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 }
 
 func runExportDataStatusCmd() error {
-	tableMap := make(map[string]string)
-	dataDir := filepath.Join(exportDir, "data")
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return fmt.Errorf("error while getting migration status record: %v", err)
@@ -113,9 +112,6 @@ func runExportDataStatusCmd() error {
 	source = *msr.SourceDBConf
 	sqlname.SourceDBType = source.DBType
 	var finalFullTableName string
-	if source.DBType == "postgresql" {
-		tableMap = getMappingForTableNameVsTableFileName(dataDir, true)
-	}
 	var outputRows []*exportTableMigStatusOutputRow
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
@@ -123,26 +119,31 @@ func runExportDataStatusCmd() error {
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 	}
-	for _, tableName := range tableList {
+
+	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(tableList, exportStatusSnapshot)
+	if err != nil {
+		return fmt.Errorf("error while getting exported snapshot rows map: %v", err)
+	}
+
+	renamedTableList := lo.Uniq(lo.Map(tableList, func(table string, _ int) string {
+		renamedTable := renameTableIfRequired(table)
+		if len(strings.Split(renamedTable, ".")) < 2 {
+			// safe to directly qualify it with public schema as it is not qualified in case of PG by renameTableIfRequired()
+			renamedTable = fmt.Sprintf("public.%s", renamedTable)
+		}
+		return renamedTable
+	}))
+
+	for _, tableName := range renamedTableList {
 		sqlTableName := sqlname.NewSourceNameFromQualifiedName(tableName)
 		finalFullTableName = sqlTableName.ObjectName.MinQuoted
 		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted != "public" {
 			finalFullTableName = sqlTableName.Qualified.MinQuoted
 		}
-
-		if source.DBType == POSTGRESQL {
-			//for the cases where partitioned table will not have datafile but we have it in tableList
-			//TODO: fix with partition fix later
-			_, ok := tableMap[sqlTableName.Qualified.MinQuoted]
-			if !ok {
-				continue
-			}
-		}
-		tableStatus := exportStatusSnapshot.Tables[sqlTableName.Qualified.MinQuoted]
 		row := &exportTableMigStatusOutputRow{
 			tableName:     finalFullTableName,
-			status:        tableStatus.Status,
-			exportedCount: tableStatus.ExportedRowCountSnapshot,
+			status:        exportedSnapshotStatus[finalFullTableName],
+			exportedCount: exportedSnapshotRow[finalFullTableName],
 		}
 		outputRows = append(outputRows, row)
 	}

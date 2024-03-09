@@ -214,7 +214,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	row := &tableMigStatusOutputRow{
 		tableName:          dataFile.TableName,
 		schemaName:         getTargetSchemaName(dataFile.TableName),
-		fileName:           path.Base(dataFile.FilePath),
+		fileName:           path.Base(dataFile.FilePath), // TODO for partitions change, what should be the file names
 		status:             status,
 		totalCount:         totalCount,
 		importedCount:      importedCount,

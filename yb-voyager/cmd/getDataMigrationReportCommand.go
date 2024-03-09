@@ -137,7 +137,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 	exportedPGSnapshotRowsMap := make(map[string]int64)
 	if source.DBType == POSTGRESQL {
-		exportedPGSnapshotRowsMap, err = getExportedSnapshotRowsMap(tableList, exportSnapshotStatus)
+		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(tableList, exportSnapshotStatus)
 		if err != nil {
 			utils.ErrExit("error while getting exported snapshot rows: %w\n", err)
 		}
