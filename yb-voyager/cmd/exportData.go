@@ -465,13 +465,13 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 			if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
 				caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
 			}
-			if source.DB().ParentTableOfPartition(table) == "" { //For root tables
-				if len(source.DB().GetPartitions(table)) > 0 {
-					partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
-				}
-			} else {
-				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
-			}
+			// if source.DB().ParentTableOfPartition(table) == "" { //For root tables
+			// 	if len(source.DB().GetPartitions(table)) > 0 {
+			// 		partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			// 	}
+			// } else {
+			// 	partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			// }
 		}
 		if lo.Contains(allNonPKTables, table.Qualified.MinQuoted) {
 			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
@@ -483,13 +483,13 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	if len(caseSensitiveTables) > 0 {
 		utils.PrintAndLog("Case sensitive table names: %s", caseSensitiveTables)
 	}
-	if len(partitionedTables) > 0 {
-		utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
-	}
+	// if len(partitionedTables) > 0 {
+	// 	utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
+	// }
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
 	}
-	utils.ErrExit("This voyager release does not support live-migration for tables without a primary key, tables with case sensitive name and partitioned tables.\n" +
+	utils.ErrExit("This voyager release does not support live-migration for tables without a primary key and tables with case sensitive name.\n" +
 		"You can exclude these tables using the --exclude-table-list argument.")
 }
 

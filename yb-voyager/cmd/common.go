@@ -669,3 +669,54 @@ func renameTableIfRequired(table string) string {
 	}
 	return table
 }
+
+
+func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *ExportSnapshotStatus) (map[string]int64, error) {
+	snapshotRowsMap := make(map[string]int64)
+	for _, table := range tableList {
+		renamedTable := renameTableIfRequired(table)
+		snapshotRowsMap[renamedTable] += exportSnapshotStatus.Tables[table].ExportedRowCountSnapshot
+	}
+	return snapshotRowsMap, nil
+}
+
+func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]int64, error) {
+	switch dbType {
+	case "target":
+		importerRole = TARGET_DB_IMPORTER_ROLE
+	case "source-replica":
+		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
+	}
+	state := NewImportDataState(exportDir)
+	var snapshotDataFileDescriptor *datafile.Descriptor
+
+	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
+	if utils.FileOrFolderExists(dataFileDescriptorPath) {
+		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	}
+
+	snapshotRowsMap := make(map[string]int64)
+	for _, table := range tableList {
+		schemaName := strings.Split(table, ".")[0]
+		tableName := strings.Split(table, ".")[1]
+		if schemaName == "public" {
+			table = tableName
+		}
+		dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(table)
+		if dataFile == nil {
+			dataFile = &datafile.FileEntry{
+				FilePath:  "",
+				TableName: table,
+				FileSize:  0,
+				RowCount:  0,
+			}
+		}
+		snapshotRowCount, err := state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+		if err != nil {
+			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", table, err)
+		}
+		renamedTable := renameTableIfRequired(table)
+		snapshotRowsMap[renamedTable] += snapshotRowCount
+	}
+	return snapshotRowsMap, nil
+}

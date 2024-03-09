@@ -28,6 +28,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -54,7 +55,12 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	tdb.PrepareForStreaming()
-	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
+
+	renamedTables := make([]string, 0)
+	for _, tableName := range tableNames {
+		renamedTables = append(renamedTables, renameTableIfRequired(tableName))
+	}
+	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), renamedTables)
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
