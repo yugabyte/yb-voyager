@@ -654,13 +654,15 @@ func renameTableIfRequired(table string) string {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
 	sourceDBType = msr.SourceDBConf.DBType
+	sourceSchema := msr.SourceDBConf.Schema
+	sqlname.SourceDBType = sourceDBType
 	if sourceDBType != POSTGRESQL {
 		return table
 	}
 	if msr.RenameTablesMap == nil {
 		return table
 	}
-	defaultSchema, noDefaultSchema := getDefaultPGSchema(source.Schema, "|")
+	defaultSchema, noDefaultSchema := getDefaultPGSchema(sourceSchema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
 		utils.ErrExit("no default schema found to qualify table %s", table)
 	}

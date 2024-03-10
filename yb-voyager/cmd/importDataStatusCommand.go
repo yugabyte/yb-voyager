@@ -154,11 +154,45 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		}
 	}
 
+	renamedRowsForPartitions := make(map[string]*tableMigStatusOutputRow, 0)
+
 	for _, dataFile := range dataFileDescriptor.DataFileList {
 		row, err := prepareRowWithDatafile(dataFile, state)
 		if err != nil {
 			return nil, fmt.Errorf("prepare row with datafile: %w", err)
 		}
+		renamedTable := renameTableIfRequired(row.tableName)
+		if renamedTable != row.tableName {
+			ok := renamedRowsForPartitions[renamedTable]
+			if ok == nil {
+				renamedRowsForPartitions[renamedTable] = &tableMigStatusOutputRow{
+					tableName:          renamedTable,
+					schemaName:         getTargetSchemaName(renamedTable),
+					fileName:           "",
+					status:             "NOT_STARTED",
+					totalCount:         0,
+					importedCount:      0,
+					percentageComplete: 0,
+				}
+			}
+			renamedRowsForPartitions[renamedTable].totalCount += row.totalCount
+			renamedRowsForPartitions[renamedTable].importedCount += row.importedCount
+			renamedRowsForPartitions[renamedTable].fileName = fmt.Sprintf("%s, %s", renamedRowsForPartitions[renamedTable].fileName, row.fileName)
+		} else {
+			table = append(table, row)
+		}
+	}
+
+	for _, row := range renamedRowsForPartitions {
+		row.percentageComplete = float64(row.importedCount) * 100.0 / float64(row.totalCount)
+		if row.percentageComplete == 100 {
+			row.status = "DONE"
+		} else if row.percentageComplete == 0 {
+			row.status = "NOT_STARTED"
+		} else {
+			row.status = "MIGRATING"
+		}
+		row.fileName = strings.TrimPrefix(row.fileName, ", ")
 		table = append(table, row)
 	}
 
