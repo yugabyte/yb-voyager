@@ -201,7 +201,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	if yb.tconf.Parallelism == 0 {
+	if yb.tconf.Parallelism <= 0 {
 		yb.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
