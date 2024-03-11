@@ -71,55 +71,42 @@ jobs:
 
       - name: "TEST: mysql-table-list-flags-test (table-list and exclude-table-list)"
         run: migtests/scripts/run-test.sh mysql/table-list-flags-tests
-        continue-on-error: true
 
       - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
         run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh
-        continue-on-error: true
 
       - name: "TEST: mysql-sakila"
         run: migtests/scripts/run-test.sh mysql/sakila
-        continue-on-error: true
 
       - name: "TEST: mysql-datatypes"
         run: migtests/scripts/run-test.sh mysql/datatypes
-        continue-on-error: true
 
       - name: "TEST: mysql-constraints"
         run: migtests/scripts/run-test.sh mysql/constraints
-        continue-on-error: true
 
       - name: "TEST: mysql-case-indexes"
         run: migtests/scripts/run-test.sh mysql/indexes
-        continue-on-error: true
 
       - name: "TEST: mysql-functions"
         run: migtests/scripts/run-test.sh mysql/functions
-        continue-on-error: true
 
       - name: "TEST: mysql-case-sequences"
         run: migtests/scripts/run-test.sh mysql/sequences
-        continue-on-error: true
 
       - name: "TEST: mysql-triggers-procedures"
         run: migtests/scripts/run-test.sh mysql/triggers-procedures
-        continue-on-error: true
 
       - name: "TEST: mysql-case-views"
         run: migtests/scripts/run-test.sh mysql/views
-        continue-on-error: true
 
       - name: "TEST: mysql-partitions"
         run: migtests/scripts/run-test.sh mysql/partitions
-        continue-on-error: true
 
       - name: "TEST: mysql-sample-chinook"
         run: migtests/scripts/run-test.sh mysql/chinook
-        continue-on-error: true
 
       - name: "TEST: mysql-misc-tests"
         run: migtests/scripts/run-test.sh mysql/misc-tests
-        continue-on-error: true
 
       # Placeholder for now so that a basic test can run
       - name: Create the live migration user
@@ -128,4 +115,3 @@ jobs:
 
       - name: "TEST: mysql-live-migration-test"
         run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test
-        continue-on-error: true
