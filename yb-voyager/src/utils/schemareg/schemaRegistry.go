@@ -77,6 +77,7 @@ func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 }
 
 func (sreg *SchemaRegistry) GetColumnTypes(tableName *sqlname.NameTuple, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
+	// TODO:TABLENAME revisit once export side is fixed
 	tableSchema := sreg.TableNameToSchema[tableName.SourceName.MinQualified.MinQuoted]
 	if tableSchema == nil {
 		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableName)
