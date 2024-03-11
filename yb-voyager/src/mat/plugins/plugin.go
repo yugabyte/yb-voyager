@@ -15,6 +15,8 @@ limitations under the License.
 */
 package mat
 
+import "fmt"
+
 type AssessmentPlugin interface {
 	RunAssessment(queryResults map[string]QueryResult, userInput map[string]any) (any, error) // returns the report and error
 	GetHtmlTemplate() string
@@ -27,6 +29,6 @@ func GetPlugin(pluginName string) AssessmentPlugin {
 	case "sharding":
 		return newShardingPlugin()
 	default:
-		panic("Invalid plugin name")
+		panic(fmt.Sprintf("invalid plugin name: %s", pluginName))
 	}
 }

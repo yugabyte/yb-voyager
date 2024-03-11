@@ -103,7 +103,7 @@ func gatherMetadataAndStatsFromPG() {
 		log.Errorf("output of postgres metadata and stats gathering script\n%s", string(stdout))
 		utils.ErrExit("error running metadata and stats gathering script: %v", err)
 	}
-	utils.PrintAndLog("output of postgres metadata and stats gathering script\n%s", string(stdout))
+	log.Infof("output of postgres metadata and stats gathering script\n%s", string(stdout))
 }
 
 // TODOs

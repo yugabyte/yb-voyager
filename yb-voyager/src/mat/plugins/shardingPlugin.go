@@ -29,14 +29,6 @@ func newShardingPlugin() *ShardingPlugin {
 	return &ShardingPlugin{}
 }
 
-/*
-   NUM_IDEAL_OBJ_TABLETS_PER_TSERVER = 'num_ideal_obj_tablets_per_tserver'
-   COLOCATED_MAX_SIZE_BYTES = 'colocated_max_size_bytes'
-   COLOCATED_MAX_ROW_COUNT = 'colocated_max_row_count'
-   COLOCATED_MAX_IOPS = 'colocated_max_iops'
-   MIN_OBJECTS_FOR_COLOCATION = 'min_objects_for_colocation'
-*/
-
 // TODO: sample code, needs to fetch this info from KnowledgeBase
 func (sp *ShardingPlugin) GetConfig() map[string]any {
 	return map[string]any{
@@ -58,48 +50,22 @@ func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, use
 
 	log.Infof("Running sharding plugin")
 
+	// TODO: use Knowledge Base for fetching thresholds based on user input
 	thresholds_for_colocation := sp.GetConfig()
 
 	// TODO: if number of sql objects are less than the MINIMUM_TABLES_TO_COLOCATE then NO COLOCATION
 
 	table_sizes_info := queryResults["table-sizes"]
-	// fmt.Printf("before sorting table_sizes_info: %v\n\n", table_sizes_info)
-	// sort this slice of maps by table size
-	sort.Slice(table_sizes_info, func(i, j int) bool {
-		a, err := strconv.ParseInt(table_sizes_info[i]["table_size"].(string), 10, 64)
-		if err != nil {
-			log.Errorf("error parsing table size: %v", err)
-			return false
-		}
-		b, err := strconv.ParseInt(table_sizes_info[j]["table_size"].(string), 10, 64)
-		if err != nil {
-			log.Errorf("error parsing table size: %v", err)
-			return false
-		}
-		return a > b
-	})
-	// fmt.Printf("after sorting table_sizes_info: %v\n\n", table_sizes_info)
-
-	// similarly sort table_rows_info
 	table_rows_info := queryResults["table-row-counts"]
-	// fmt.Printf("before sorting table_rows_info: %v\n\n", table_rows_info)
-	sort.Slice(table_rows_info, func(i, j int) bool {
-		a, err := strconv.ParseInt(table_rows_info[i]["row_count"].(string), 10, 64)
-		if err != nil {
-			log.Errorf("error parsing table rows: %v", err)
-			return false
-		}
-		b, err := strconv.ParseInt(table_rows_info[j]["row_count"].(string), 10, 64)
-		if err != nil {
-			log.Errorf("error parsing table rows: %v", err)
-			return false
-		}
-		return a > b
-	})
-	// fmt.Printf("after sorting table_rows_info: %v\n", table_rows_info)
-
 	table_iops_info := queryResults["table-iops"]
+
+	sortQueryResult(&table_sizes_info, "table_size")
+	sortQueryResult(&table_rows_info, "row_count")
+
+	// fmt.Printf("after sorting table_sizes_info: %v\n\n", table_sizes_info)
+	// fmt.Printf("after sorting table_rows_info: %v\n", table_rows_info)
 	// fmt.Printf("table_iops_info: %v\n\n", table_iops_info)
+
 	var total_num_colocated_tables, total_colocated_tablet_size, total_colocated_num_rows int64
 	if len(table_sizes_info) > 0 {
 		for _, table_size_info := range table_sizes_info {
@@ -111,12 +77,12 @@ func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, use
 				if total_colocated_tablet_size <= thresholds_for_colocation["colocated_max_size_bytes"].(int64) &&
 					total_colocated_num_rows <= thresholds_for_colocation["colocated_max_row_count"].(int64) {
 
-					read_write_iops := getReadWriteIopsForTable(schema, table, table_iops_info)
+					read_write_iops := getReadWriteIopsForTable(schema, table, &table_iops_info)
 					if read_write_iops <= thresholds_for_colocation["colocated_max_iops"].(int64) {
 						total_num_colocated_tables++
 						table_size, _ := strconv.ParseInt(table_size_info["table_size"].(string), 10, 64)
 						total_colocated_tablet_size += table_size
-						total_colocated_num_rows += getRowCountForTable(schema, table, table_rows_info)
+						total_colocated_num_rows += getRowCountForTable(schema, table, &table_rows_info)
 
 						result["colocated"] = append(result["colocated"], fmt.Sprintf("%s.%s", schema, table))
 					} else {
@@ -133,7 +99,7 @@ func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, use
 			}
 		}
 	} else if len(table_rows_info) > 0 {
-		// same logic as above but using table_rows_info
+		// TODO: similar logic as above if table_sizes_info is empty
 	} else {
 		log.Errorf("no table size or row count info found")
 		return nil, fmt.Errorf("no table size or row count info found")
@@ -143,7 +109,68 @@ func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, use
 }
 
 func (sp *ShardingPlugin) GetHtmlTemplate() string {
-	return ""
+	htmlString := `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Sharding Assessment Report</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                text-align: center;
+            }
+
+            .section {
+                margin-bottom: 20px;
+            }
+
+            .section h2 {
+                font-size: 1.2em;
+                margin-bottom: 5px;
+                text-align: left; /* Align headings to the left */
+            }
+
+            .table-list {
+                list-style: none;
+                padding: 0;
+                text-align: right; /* Align table content to the right */
+                margin: auto;
+                max-width: 600px;		
+            }
+
+            .table-list li {
+                margin-bottom: 5px;
+                text-align: left; /* Align table content to the left */
+                padding-left: 50px; /* Adjust left padding for schema and table */
+            }
+        </style>
+    </head>
+    <body>
+        <h1 style="text-align: left;">Sharding Assessment Report</h1>
+        <div class="section">
+            <h2 style="text-align: left;">Colocated Tables</h2>
+            <ul class="table-list">
+                <li><b>Schema</b>&emsp;&emsp;<b>Table</b></li>
+                {{range .colocated}}
+                {{ $parts := split . "." }}
+                <li>{{index $parts 0}}&emsp;&emsp;{{index $parts 1}}</li>
+                {{end}}
+            </ul>
+        </div>
+        <div class="section">
+            <h2 style="text-align: left;">Sharded Tables</h2>
+            <ul class="table-list">
+                <li><b>Schema</b>&emsp;&emsp;<b>Table</b></li>
+                {{range .sharded}}
+                {{ $parts := split . "." }}
+                <li>{{index $parts 0}}&emsp;&emsp;{{index $parts 1}}</li>
+                {{end}}
+            </ul>
+        </div>
+    </body>
+    </html>
+    `
+	return htmlString
 }
 
 func (sp *ShardingPlugin) ModifySchema(report map[string]any) error {
@@ -154,8 +181,8 @@ func (sp *ShardingPlugin) GetName() string {
 	return "sharding"
 }
 
-func getReadWriteIopsForTable(schema string, table string, tables_iops_info QueryResult) int64 {
-	for _, table_iops_info := range tables_iops_info {
+func getReadWriteIopsForTable(schema string, table string, tables_iops_info *QueryResult) int64 {
+	for _, table_iops_info := range *tables_iops_info {
 		if table_iops_info["table_name"].(string) == table && table_iops_info["schema_name"].(string) == schema {
 			a, _ := strconv.ParseInt(table_iops_info["seq_reads"].(string), 10, 64)
 			b, _ := strconv.ParseInt(table_iops_info["row_writes"].(string), 10, 64)
@@ -165,12 +192,28 @@ func getReadWriteIopsForTable(schema string, table string, tables_iops_info Quer
 	return 0
 }
 
-func getRowCountForTable(schema string, table string, tables_row_count_info QueryResult) int64 {
-	for _, table_row_count_info := range tables_row_count_info {
+func getRowCountForTable(schema string, table string, tables_row_count_info *QueryResult) int64 {
+	for _, table_row_count_info := range *tables_row_count_info {
 		if table_row_count_info["table_name"].(string) == table && table_row_count_info["schema_name"].(string) == schema {
 			a, _ := strconv.ParseInt(table_row_count_info["row_count"].(string), 10, 64)
 			return a
 		}
 	}
 	return 0
+}
+
+func sortQueryResult(queryResult *QueryResult, key string) {
+	sort.Slice(*queryResult, func(i, j int) bool {
+		a, err := strconv.ParseInt((*queryResult)[i][key].(string), 10, 64)
+		if err != nil {
+			log.Errorf("error parsing %s: %v", key, err)
+			return false
+		}
+		b, err := strconv.ParseInt((*queryResult)[j][key].(string), 10, 64)
+		if err != nil {
+			log.Errorf("error parsing %s: %v", key, err)
+			return false
+		}
+		return a > b
+	})
 }

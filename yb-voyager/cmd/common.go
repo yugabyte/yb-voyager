@@ -302,7 +302,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
-		"assessment", "assessment/data",
+		"assessment", "assessment/data", "assessment/reports",
 		"metainfo", "metainfo/data", "metainfo/conf", "metainfo/ssl",
 		"temp", "temp/ora2pg_temp_dir",
 	}

@@ -19,15 +19,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"os"
+	"path/filepath"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	mat "github.com/yugabyte/yb-voyager/yb-voyager/src/mat/plugins"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 )
 
-var supportedPlugins = []string{"sharding", "sizer"}
+var supportedPlugins = []string{"sharding"}
 var supportedMigrationReportFormats = []string{"json", "html"}
 
 var pluginsList []string
@@ -39,6 +42,10 @@ var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
 	Short: "Assess the migration from source database to YugabyteDB.",
 	Long:  `Assess the migration from source database to YugabyteDB.`,
+
+	PreRun: func(cmd *cobra.Command, args []string) {
+		validatePluginsList()
+	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		assessMigration()
@@ -54,9 +61,9 @@ func init() {
 			strings.Join(supportedPlugins, ", ")))
 	assessMigrationCmd.MarkFlagRequired("plugins")
 
-	// TODO: implement Plugin Params flag
+	// TODO: implement Plugin Params flag(user input)
 
-	assessMigrationCmd.Flags().StringVar(&assessmentReportFormat, "output-format", "json",
+	assessMigrationCmd.Flags().StringVar(&assessmentReportFormat, "report-format", "json",
 		fmt.Sprintf("Output format for migration assessment report. Supported formats are: %s.",
 			strings.Join(supportedMigrationReportFormats, ", ")))
 
@@ -68,6 +75,7 @@ func init() {
 }
 
 func assessMigration() {
+	assessmentDirPath := filepath.Join(exportDir, "assessment", "reports")
 	for _, pluginName := range pluginsList {
 		plugin := mat.GetPlugin(pluginName)
 		queryResults, err := mat.LoadQueryResults(pluginName, exportDir)
@@ -89,8 +97,13 @@ func assessMigration() {
 		if err != nil {
 			utils.ErrExit("error generating report output for plugin '%s': %v", pluginName, err)
 		}
-		fmt.Printf("Migration assessment report for plugin '%s':\n%s\n", pluginName, reportOutput)
-		// TODO: save the output in a file
+
+		reportOutputFpath := filepath.Join(assessmentDirPath, fmt.Sprintf("%s.%s", pluginName, assessmentReportFormat))
+		err = os.WriteFile(reportOutputFpath, []byte(reportOutput), 0644)
+		if err != nil {
+			utils.ErrExit("error writing migration assessment report for plugin '%s' to file: %v", pluginName, err)
+		}
+		utils.PrintAndLog("Migration assessment report for plugin '%s' written to file: %s", pluginName, reportOutputFpath)
 	}
 }
 
@@ -98,7 +111,7 @@ func generateReportOutput(report any, plugin mat.AssessmentPlugin) (string, erro
 	pluginName := plugin.GetName()
 	switch assessmentReportFormat {
 	case "json":
-		jsonReport, err := json.MarshalIndent(report, "", " ")
+		jsonReport, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
 			log.Errorf("error converting assessment report to JSON for plugin '%s': %v", pluginName, err)
 			return "", fmt.Errorf("error converting assessment report to JSON for plugin '%s': %w", pluginName, err)
@@ -106,8 +119,8 @@ func generateReportOutput(report any, plugin mat.AssessmentPlugin) (string, erro
 		return string(jsonReport), nil
 	case "html":
 		// TODO: implement GetHtmlTemplate() method for plugins
-		tmplFile := plugin.GetHtmlTemplate()
-		tmpl, err := template.New(pluginName).Parse(tmplFile)
+		tmplHtmlFile := plugin.GetHtmlTemplate()
+		tmpl, err := template.New(pluginName).Funcs(tmplFuncs).Parse(tmplHtmlFile)
 		if err != nil {
 			log.Errorf("error parsing HTML template for plugin '%s': %v", pluginName, err)
 			return "", fmt.Errorf("error parsing HTML template for plugin '%s': %w", pluginName, err)
@@ -122,5 +135,24 @@ func generateReportOutput(report any, plugin mat.AssessmentPlugin) (string, erro
 	default:
 		log.Errorf("unsupported output format '%s' for migration assessment report", assessmentReportFormat)
 		panic(fmt.Sprintf("unsupported output format '%s' for migration assessment report", assessmentReportFormat))
+	}
+}
+
+// Define a custom template function to split a string by a delimiter
+var tmplFuncs = template.FuncMap{
+	"split": func(s, sep string) []string {
+		return strings.Split(s, sep)
+	},
+}
+
+func validatePluginsList() {
+	if len(pluginsList) == 1 && pluginsList[0] == "all" {
+		pluginsList = supportedPlugins
+		return
+	}
+	for _, pluginName := range pluginsList {
+		if !slices.Contains(supportedPlugins, pluginName) {
+			utils.ErrExit("unsupported plugin '%s' specified for migration assessment", pluginName)
+		}
 	}
 }
