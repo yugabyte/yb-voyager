@@ -715,7 +715,6 @@ func renameTableIfRequired(table string) string {
 		if table.SchemaName.MinQuoted == "public" {
 			toTable = table.ObjectName.MinQuoted
 		}
-		log.Infof("renaming table %s to %s for ImportBatchArgs", fromTable, toTable)
 		return toTable
 	}
 	return table

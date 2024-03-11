@@ -176,6 +176,12 @@ func exportData() bool {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
+	if source.DBType == POSTGRESQL {
+		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.RenameTablesMap = partitionsToRootTableMap
+		})
+	}
+
 	leafPartitions := make(map[string][]string)
 	renamedTableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
 		renamedTable := renameTableIfRequired(table.Qualified.MinQuoted)
@@ -199,12 +205,6 @@ func exportData() bool {
 	})
 	fmt.Printf("num tables to export: %d\n", len(renamedTableListToDisplay))
 	utils.PrintAndLog("table list for data export: %v", renamedTableListToDisplay)
-
-	if source.DBType == POSTGRESQL {
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.RenameTablesMap = partitionsToRootTableMap
-		})
-	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList)

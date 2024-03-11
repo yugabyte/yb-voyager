@@ -324,12 +324,9 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		return tableName
 	})
 
-	fmt.Printf("leafPartitionsMap: %v\n", leafPartitionsMap)
-
 	checkUnknownTableNames := func(tableNames []string, listName string) {
 		unknownTableNames := make([]string, 0)
 		for _, tableName := range tableNames {
-			fmt.Printf("tableName: %s\n", tableName)
 			if !slices.Contains(allTables, tableName) && leafPartitionsMap[tableName] == nil {
 				unknownTableNames = append(unknownTableNames, tableName)
 			}
@@ -358,7 +355,6 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		}
 		result = append(result, task)
 	}
-	fmt.Printf("result: %v\n", result)
 	return result
 }
 
@@ -481,7 +477,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				return renameTable
 			}))
 			renamedTableListToDisplay = lo.Map(renamedTableListToDisplay, func(tableName string, _ int) string {
-				if len(leafPartitions[tableName]) > 0 {
+				if len(leafPartitions[tableName]) > 0 && msr.IsExportTableListSet {
 					return fmt.Sprintf("%s (%s)", tableName, strings.Join(leafPartitions[tableName], ", "))
 				}
 				return tableName
