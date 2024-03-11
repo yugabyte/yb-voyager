@@ -165,6 +165,10 @@ func quote2(dbType, name string) string {
 	case POSTGRESQL, YUGABYTEDB, ORACLE:
 		return `"` + name + `"`
 	case MYSQL:
+		// TODO:TABLENAME
+		if IsReservedKeywordPG(name) {
+			return `"` + name + `"`
+		}
 		return name
 	default:
 		panic("unknown source db type")
@@ -180,6 +184,10 @@ func minQuote2(objectName, sourceDBType string) string {
 			return `"` + objectName + `"`
 		}
 	case MYSQL:
+		// TODO:TABLENAME
+		if IsReservedKeywordPG(objectName) {
+			return `"` + objectName + `"`
+		}
 		return objectName
 	case ORACLE:
 		if IsAllUppercase(objectName) && !IsReservedKeywordOracle(objectName) {
