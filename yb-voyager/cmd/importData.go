@@ -84,9 +84,6 @@ var importDataCmd = &cobra.Command{
 		}
 	},
 	Run: importDataCommandFn,
-	PostRun: func(cmd *cobra.Command, args []string) {
-		tdb.Finalize()
-	},
 }
 
 var importDataToCmd = &cobra.Command{
@@ -160,6 +157,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	importData(importFileTasks)
+	tdb.Finalize()
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
 	}
