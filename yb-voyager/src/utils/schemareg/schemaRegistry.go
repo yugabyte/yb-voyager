@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type ColumnSchema struct {
@@ -74,8 +76,8 @@ func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	}
 }
 
-func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
-	tableSchema := sreg.TableNameToSchema[tableName]
+func (sreg *SchemaRegistry) GetColumnTypes(tableName *sqlname.NameTuple, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
+	tableSchema := sreg.TableNameToSchema[tableName.SourceName.MinQualified.MinQuoted]
 	if tableSchema == nil {
 		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableName)
 	}

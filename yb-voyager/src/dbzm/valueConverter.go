@@ -26,11 +26,12 @@ import (
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/stdlibcsv"
 )
 
 type ValueConverter interface {
-	ConvertRow(tableName string, columnNames []string, row string) (string, error)
+	ConvertRow(tableName *sqlname.NameTuple, columnNames []string, row string) (string, error)
 	ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error
 	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
 }
@@ -47,7 +48,7 @@ func NewNoOpValueConverter() (ValueConverter, error) {
 
 type NoOpValueConverter struct{}
 
-func (nvc *NoOpValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {
+func (nvc *NoOpValueConverter) ConvertRow(tableName *sqlname.NameTuple, columnNames []string, row string) (string, error) {
 	return row, nil
 }
 
@@ -67,14 +68,14 @@ type DebeziumValueConverter struct {
 	schemaRegistryTarget   *schemareg.SchemaRegistry
 	targetSchema           string
 	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
-	converterFnCache       map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
-	dbzmColumnSchemasCache map[string][]*schemareg.ColumnSchema
+	converterFnCache       map[*sqlname.NameTuple][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
+	dbzmColumnSchemasCache map[*sqlname.NameTuple][]*schemareg.ColumnSchema
 	targetDBType           string
 	csvReader              *stdlibcsv.Reader
 	bufReader              bufio.Reader
 	bufWriter              bufio.Writer
 	wbuf                   bytes.Buffer
-	prevTableName          string
+	prevTableName          *sqlname.NameTuple
 	sourceDBType           string
 }
 
@@ -99,8 +100,8 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		schemaRegistrySource:   schemaRegistrySource,
 		schemaRegistryTarget:   schemaRegistryTarget,
 		valueConverterSuite:    tdbValueConverterSuite,
-		converterFnCache:       map[string][]tgtdbsuite.ConverterFn{},
-		dbzmColumnSchemasCache: map[string][]*schemareg.ColumnSchema{},
+		converterFnCache:       map[*sqlname.NameTuple][]tgtdbsuite.ConverterFn{},
+		dbzmColumnSchemasCache: map[*sqlname.NameTuple][]*schemareg.ColumnSchema{},
 		targetDBType:           targetConf.TargetDBType,
 		targetSchema:           targetConf.Schema,
 		sourceDBType:           sourceDBType,
@@ -109,7 +110,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 	return conv, nil
 }
 
-func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {
+func (conv *DebeziumValueConverter) ConvertRow(tableName *sqlname.NameTuple, columnNames []string, row string) (string, error) {
 	converterFns, dbzmColumnSchemas, err := conv.getConverterFns(tableName, columnNames)
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
@@ -143,7 +144,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	return transformedRow, nil
 }
 
-func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
+func (conv *DebeziumValueConverter) getConverterFns(tableName *sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
 	result := conv.converterFnCache[tableName]
 	colSchemas := conv.dbzmColumnSchemasCache[tableName]
 	var colTypes []string

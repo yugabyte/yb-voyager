@@ -854,10 +854,10 @@ func splitFilesForTable(state *ImportDataState, filePath string, t *sqlname.Name
 			numLinesTaken += 1
 		}
 		if line != "" {
-			table := batchWriter.tableName
+			// table := batchWriter.tableName
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			// TODO:TABLENAME
-			line, err = valueConverter.ConvertRow(table, TableToColumnNames[t], line)
+			line, err = valueConverter.ConvertRow(t, TableToColumnNames[t], line)
 			if err != nil {
 				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
