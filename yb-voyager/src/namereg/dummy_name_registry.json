@@ -1,0 +1,34 @@
+{
+  "SourceDBType": "oracle",
+  "SourceDBSchemaNames": [
+    "SAKILA"
+  ],
+  "DefaultSourceDBSchemaName": "SAKILA",
+  "SourceDBTableNames": {
+    "SAKILA": [
+      "TABLE1",
+      "TABLE2",
+      "MixedCaps",
+      "lower_caps"
+    ],
+    "SAKILA_FF": [
+      "TABLE1",
+      "TABLE2",
+      "MixedCaps",
+      "lower_caps"
+    ]
+  },
+  "YBSchemaNames": [
+    "ybsakila"
+  ],
+  "DefaultYBSchemaName": "ybsakila",
+  "YBTableNames": {
+    "ybsakila": [
+      "table1",
+      "table2",
+      "mixedcaps",
+      "lower_caps"
+    ]
+  },
+  "DefaultSourceReplicaDBSchemaName": "SAKILA_FF"
+}
