@@ -487,3 +487,20 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	}
 	return list, nil
 }
+
+func ListFilesInDir(dirPath string) {
+	files, err := filepath.Glob(dirPath + "/*")
+	if err != nil {
+		ErrExit("Error while reading %q: %s", dirPath, err)
+	}
+
+	exportDir := filepath.Dir(filepath.Dir(dirPath))
+	for _, file := range files {
+		name := filepath.Base(file)
+		path, err := filepath.Rel(exportDir, file)
+		if err != nil {
+			ErrExit("error while getting relative path for %q: %s", file, err)
+		}
+		fmt.Printf("Name: %-40s Path: %s\n", name, path)
+	}
+}

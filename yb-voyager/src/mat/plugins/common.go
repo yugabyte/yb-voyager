@@ -1,0 +1,79 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package mat
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+)
+
+type Record map[string]any
+type QueryResult []Record
+
+func LoadQueryResults(pluginName string, exportDir string) (map[string]QueryResult, error) {
+	queryResults := make(map[string]QueryResult)
+	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
+	files, err := filepath.Glob(filepath.Join(assessmentDataDir, fmt.Sprintf("%s__*.csv", pluginName)))
+	if err != nil {
+		log.Errorf("error listing files in %s for plugin %s: %v", assessmentDataDir, pluginName, err)
+		return nil, fmt.Errorf("error listing files in %s for plugin %s: %w", assessmentDataDir, pluginName, err)
+	}
+
+	for _, file := range files {
+		baseFileName := filepath.Base(file)
+		queryName := strings.TrimSuffix(strings.TrimPrefix(baseFileName, fmt.Sprintf("%s__", pluginName)), ".csv")
+		// fmt.Printf("baseFileName: %s, queryName: %s\n", baseFileName, queryName)
+		// TODO: read file line by line using a reader or read full file once
+		// Read the file
+		bytes, err := os.ReadFile(file)
+		if err != nil {
+			log.Errorf("error opening file %s: %v", file, err)
+			return nil, fmt.Errorf("error opening file %s: %w", file, err)
+		}
+
+		if len(bytes) == 0 {
+			log.Warnf("file %s is empty", file)
+			continue
+		}
+
+		rows := strings.Split(string(bytes), "\n")
+		columns := strings.Split(rows[0], ",")
+		queryResult := make(QueryResult, 0)
+		for i := 1; i < len(rows); i++ {
+			if len(rows[i]) == 0 {
+				continue
+			}
+			row := strings.Split(rows[i], ",")
+			// fmt.Printf("row: %v\n", row)
+			record := make(Record)
+			for j, column := range columns {
+				record[column] = row[j]
+			}
+			queryResult = append(queryResult, record)
+		}
+		queryResults[queryName] = queryResult
+	}
+
+	return queryResults, nil
+}
+
+func LoadPluginParams(pluginName string) (map[string]any, error) {
+	return nil, nil
+}
