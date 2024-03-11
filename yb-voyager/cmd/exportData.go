@@ -158,12 +158,6 @@ func exportData() bool {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
-		if len(strings.Split(source.Schema, "|")) > 1 {
-			utils.ErrExit("This voyager release does not support live-migration for more than one schema in --source-db-schema.")
-		}
-	}
 	finalTableList, tablesColumnList := getFinalTableColumnList()
 
 	if len(finalTableList) == 0 {
@@ -224,6 +218,10 @@ func exportData() bool {
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
 			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
+			err := source.DB().ValidateTablesReadyForLiveMigration(finalTableList)
+			if err != nil {
+				utils.ErrExit("error: validate if tables are ready for live migration: %v", err)
+			}
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
 				if err != nil {
@@ -724,7 +722,7 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return getDefaultPGSchema(source.Schema, "|")
+		return GetDefaultPGSchema(source.Schema, "|")
 	case ORACLE:
 		return source.Schema, false
 	default:

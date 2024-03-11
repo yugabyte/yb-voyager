@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 
-import argparse
+import common
 import os
 import yb
 import collections
 
 def main():
-	parser = argparse.ArgumentParser(description='Process an argument.')
-	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
-	args = parser.parse_args()
-	ff_fb_enabled = args.ff_fb_enabled
+	test_type_flags = common.valparser()
 
-	if ff_fb_enabled == 'true':
-		change_expected_values()
-		migration_completed_checks_yb()
-		migration_completed_checks_pg()
-	else:
-		migration_completed_checks_yb()
+	migration_completed_checks_yb()
+
+	if test_type_flags['ff_enabled'] == 'true':
+		migration_completed_checks_ff()
+	
+	if test_type_flags['fb_enabled'] == 'true':
+		migration_completed_checks_fb()
 
 EXPECTED_ROW_COUNT = {
-	'x':5,
-	'user_table': 8
+	'x':3,
+ 	'user_table': 8
 }
 
 EXPECTED_DATA_TYPES = {
@@ -37,53 +35,34 @@ EXPECTED_DATA_TYPES = {
 
 EXPECTED_SUM_OF_COLUMN = {
 	'x': {
-		'id': '15',
-		'id2': '20'
+		'id': '6',
+		'id2': '9'
 	},
 	'user_table': {
-		'id': '51',
+		'id': '36',
 	}
 }
-
-EXPECTED_ROW_COUNT_FF = {
-	'x':7,
-	'user_table': 8
-}
-
-EXPECTED_SUM_OF_COLUMN_FF = {
-	'x': {
-		'id': '130',
-		'id2': '44'
-	},
-	'user_table': {
-		'id': '49',
-	}
-}
-
-def change_expected_values():
-	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
-		EXPECTED_ROW_COUNT[table_name] = row_count
-
-	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN_FF.items():
-		for column, sum in column_names_with_sum.items():
-			EXPECTED_SUM_OF_COLUMN[table_name][column] = sum
 
 def migration_completed_checks_yb():
 	print("Running tests on YB")
 	yb.run_checks(migration_completed_checks)
 
-def migration_completed_checks_pg():
-	print("Running tests on PG")
-	yb.run_checks(migration_completed_checks, db_type="postgres")
+def migration_completed_checks_ff():
+	print("Running tests on PG source replica")
+	yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_fb():
+	print("Running tests on PG source")
+	yb.run_checks(migration_completed_checks, db_type="source")
 
 def migration_completed_checks(tgt):
 	# Validation to check for matching row counts
-	got_row_count = tgt.row_count_of_all_tables("non_public")
+	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 #=============================================================================
-	fetched_datatypes_schema = tgt.get_column_to_data_type_mapping("non_public")
+	fetched_datatypes_schema = tgt.get_column_to_data_type_mapping("public")
  
 	print(fetched_datatypes_schema)
 	for table_name, columns in fetched_datatypes_schema.items():
@@ -95,7 +74,7 @@ def migration_completed_checks(tgt):
 	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
 		print(f"table_name: {table_name} ---- ")
 		for column, sum in column_names_with_sum.items():
-			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "non_public")
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
 			print(f"column_name: {column}, sum: {col_sum}")
 			assert sum == str(col_sum)
 

@@ -201,7 +201,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	if yb.tconf.Parallelism == 0 {
+	if yb.tconf.Parallelism <= 0 {
 		yb.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
@@ -213,6 +213,53 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	yb.connPool = NewConnectionPool(params)
 	return nil
+}
+
+func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
+	query := "SELECT schema_name FROM information_schema.schemata"
+	rows, err := yb.conn_.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying YB database for schema names: %w", err)
+	}
+	defer rows.Close()
+
+	var schemaNames []string
+	var schemaName string
+	for rows.Next() {
+		err = rows.Scan(&schemaName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w", err)
+		}
+		schemaNames = append(schemaNames, schemaName)
+	}
+	log.Infof("Query found %d schemas in the YB db: %v", len(schemaNames), schemaNames)
+	return schemaNames, nil
+}
+
+func (yb *TargetYugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+
+	rows, err := yb.conn_.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) YB database for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	var tableName string
+
+	for rows.Next() {
+		err = rows.Scan(&tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	log.Infof("Query found %d tables in the YB db: %v", len(tableNames), tableNames)
+	return tableNames, nil
 }
 
 // The _v2 is appended in the table name so that the import code doesn't
@@ -555,17 +602,25 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 		}
 
-		br := conn.SendBatch(ctx, &ybBatch)
+		br := tx.SendBatch(ctx, &ybBatch)
+		closeBatch := func() error {
+			if closeErr := br.Close(); closeErr != nil {
+				log.Errorf("error closing batch: %v", closeErr)
+				return closeErr
+			}
+			return nil
+		}
 		for i := 0; i < len(batch.Events); i++ {
 			_, err := br.Exec()
 			if err != nil {
 				log.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+				closeBatch()
 				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
 			}
 		}
-		if err = br.Close(); err != nil {
-			log.Errorf("error closing batch: %v", err)
-			return false, fmt.Errorf("error closing batch: %v", err)
+		err = closeBatch()
+		if err != nil {
+			return false, err
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)

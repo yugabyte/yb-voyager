@@ -507,7 +507,7 @@ func qualifyTableName(tableName string) (string, error) {
 	defaultSchema := tconf.Schema
 	noDefaultSchema := false
 	if tconf.TargetDBType == POSTGRESQL {
-		defaultSchema, noDefaultSchema = getDefaultPGSchema(tconf.Schema, ",")
+		defaultSchema, noDefaultSchema = GetDefaultPGSchema(tconf.Schema, ",")
 	}
 	if len(strings.Split(tableName, ".")) != 2 {
 		if noDefaultSchema {

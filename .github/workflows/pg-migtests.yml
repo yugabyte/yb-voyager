@@ -163,22 +163,19 @@ jobs:
       - name: "TEST: pg-hasura-ecommerce"
         run: migtests/scripts/run-test.sh pg/hasura-ecommerce
 
-      # Placeholder for now so that a basic test can run
-      - name: Create the live migration user
-        run: |
-          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "ALTER ROLE ybvoyager WITH SUPERUSER;"
+      - name: "TEST: pg-basic-non-public-live-migration-test"
+        run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test
 
-      - name: "TEST: pg-basic-live-migration-test"
-        run: migtests/scripts/live-migration-run-test.sh pg/basic-live-test
+      # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
+      - name: "TEST: pg-live-migration-multiple-schemas"
+        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
 
-      - name: "TEST: pg-basic-live-migration-fall-forward-test"
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-live-test
+      - name: "TEST: pg-basic-public-fall-forward-test"
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
+
         if: matrix.version != '2.16.7.0-b59'
       
-      - name: "TEST: pg-datatypes-live-migration-test"
-        run: migtests/scripts/live-migration-run-test.sh pg/datatypes
-        if: matrix.version != '2.16.7.0-b59' && matrix.BETA_FAST_DATA_EXPORT == 0 #TODO: fix its validation
+      - name: "TEST: pg-basic-non-public-fall-back-test"
+        run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
+        if: matrix.version != '2.16.7.0-b59'
 
-      - name: "TEST: pg-datatypes-live-migration-fall-forward-test"
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes
-        if: matrix.version == '2.20.1.3-b3' && matrix.BETA_FAST_DATA_EXPORT == 0

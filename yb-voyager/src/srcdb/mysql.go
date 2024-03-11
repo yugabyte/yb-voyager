@@ -106,23 +106,37 @@ func (ms *MySQL) GetVersion() string {
 	return version
 }
 
-func (ms *MySQL) GetAllTableNames() []*sqlname.SourceName {
-	var tableNames []*sqlname.SourceName
+func (ms *MySQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	var tableNames []string
 	query := fmt.Sprintf("SELECT table_name FROM information_schema.tables "+
-		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", ms.source.DBName)
-	log.Infof(`query used to GetAllTableNames(): "%s"`, query)
+		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", schemaName)
+	log.Infof(`query used to GetAllTableNamesRaw(): "%s"`, query)
 
 	rows, err := ms.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for table names: %v\n", err)
+		return nil, fmt.Errorf("error in querying source database for table names: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var tableName string
 		err = rows.Scan(&tableName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
+		tableNames = append(tableNames, tableName)
+	}
+	log.Infof("GetAllTableNamesRaw(): %s", tableNames)
+	return tableNames, nil
+
+}
+
+func (ms *MySQL) GetAllTableNames() []*sqlname.SourceName {
+	var tableNames []*sqlname.SourceName
+	tableNamesRaw, err := ms.GetAllTableNamesRaw(ms.source.DBName)
+	if err != nil {
+		utils.ErrExit("Failed to get all table names: %s", err)
+	}
+	for _, tableName := range tableNamesRaw {
 		tableNames = append(tableNames, sqlname.NewSourceName(ms.source.DBName, tableName))
 	}
 	log.Infof("GetAllTableNames(): %s", tableNames)
@@ -262,6 +276,10 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 }
 
 func (ms *MySQL) ParentTableOfPartition(table *sqlname.SourceName) string {
+	panic("not implemented")
+}
+
+func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
 	panic("not implemented")
 }
 

@@ -170,6 +170,32 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	return trimmedList
 }
 
+func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	var tableName string
+
+	for rows.Next() {
+		err = rows.Scan(&tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
+	return tableNames, nil
+}
+
 func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
@@ -503,7 +529,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		}
 		if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
 			// case sensitive unquoted table name returns unquoted parititons name as well
-			// so we need to add quotes around them 
+			// so we need to add quotes around them
 			partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
 		} else {
 			partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
@@ -668,4 +694,35 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 		}
 	}
 	return nonPKTables, nil
+}
+
+func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
+	var tablesWithReplicaIdentityNotFull []string
+	var qualifiedTableNames []string
+	for _, table := range tableList {
+		qualifiedTableNames = append(qualifiedTableNames, fmt.Sprintf("'%s'", table.Qualified.Unquoted))
+	}
+	query := fmt.Sprintf(`SELECT n.nspname || '.' || c.relname AS table_name_with_schema
+    FROM pg_class AS c
+    JOIN pg_namespace AS n ON c.relnamespace = n.oid
+    WHERE (n.nspname || '.' || c.relname) IN (%s)
+    AND c.relkind = 'r'
+    AND c.relreplident <> 'f';`, strings.Join(qualifiedTableNames, ","))
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return fmt.Errorf("error in querying(%q) source database for replica identity: %v", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tableWithSchema string
+		err := rows.Scan(&tableWithSchema)
+		if err != nil {
+			return fmt.Errorf("error in scanning query rows for replica identity: %v", err)
+		}
+		tablesWithReplicaIdentityNotFull = append(tablesWithReplicaIdentityNotFull, tableWithSchema)
+	}
+	if len(tablesWithReplicaIdentityNotFull) > 0 {
+		return fmt.Errorf("tables %v do not have REPLICA IDENTITY FULL\nPlease ALTER the tables and set their REPLICA IDENTITY to FULL", tablesWithReplicaIdentityNotFull)
+	}
+	return nil
 }

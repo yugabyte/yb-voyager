@@ -560,7 +560,7 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	}
 }
 
-func getDefaultPGSchema(schema string, separator string) (string, bool) {
+func GetDefaultPGSchema(schema string, separator string) (string, bool) {
 	// second return value is true if public is not included in the schema
 	// which indicates that the no default schema
 	schemas := strings.Split(schema, separator)
@@ -675,7 +675,7 @@ func renameTableIfRequired(table string) string {
 	if msr.RenameTablesMap == nil {
 		return table
 	}
-	defaultSchema, noDefaultSchema := getDefaultPGSchema(sourceSchema, "|")
+	defaultSchema, noDefaultSchema := GetDefaultPGSchema(sourceSchema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
 		utils.ErrExit("no default schema found to qualify table %s", table)
 	}

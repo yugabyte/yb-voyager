@@ -107,10 +107,8 @@ func (ora *Oracle) GetVersion() string {
 	return version
 }
 
-func (ora *Oracle) GetAllTableNames() []*sqlname.SourceName {
-	var tableNames []*sqlname.SourceName
-	/* below query will collect all tables under given schema except TEMPORARY tables,
-	Index related tables(start with DR$) and materialized view */
+func (ora *Oracle) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	var tableNames []string
 	query := fmt.Sprintf(`SELECT table_name
 		FROM all_tables
 		WHERE owner = '%s' AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%'
@@ -121,26 +119,39 @@ func (ora *Oracle) GetAllTableNames() []*sqlname.SourceName {
 			UNION ALL
 			SELECT log_owner, log_table
 			FROM all_mview_logs)
-		ORDER BY table_name ASC`, ora.source.Schema)
-	log.Infof(`query used to GetAllTableNames(): "%s"`, query)
+		ORDER BY table_name ASC`, schemaName)
+	log.Infof(`query used to GetAllTableNamesRaw(): "%s"`, query)
 
 	rows, err := ora.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for table names: %v", err)
+		return nil, fmt.Errorf("error in querying source database for table names: %v", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var tableName string
 		err = rows.Scan(&tableName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for table names: %v", err)
+			return nil, fmt.Errorf("error in scanning query rows for table names: %v", err)
 		}
-		tableName = fmt.Sprintf(`"%s"`, tableName)
-		tableNames = append(tableNames, sqlname.NewSourceName(ora.source.Schema, tableName))
+		tableNames = append(tableNames, tableName)
 	}
 
 	log.Infof("Table Name List: %q", tableNames)
 
+	return tableNames, nil
+}
+
+func (ora *Oracle) GetAllTableNames() []*sqlname.SourceName {
+	var tableNames []*sqlname.SourceName
+	tableNamesRaw, err := ora.GetAllTableNamesRaw(ora.source.Schema)
+	if err != nil {
+		utils.ErrExit("error in querying source database for table names: %v", err)
+	}
+	for _, tableName := range tableNamesRaw {
+		tableName = fmt.Sprintf(`"%s"`, tableName)
+		tableNames = append(tableNames, sqlname.NewSourceName(ora.source.Schema, tableName))
+	}
+	log.Infof("Table Name List: %q", tableNames)
 	return tableNames
 }
 
@@ -359,6 +370,10 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 }
 
 func (ora *Oracle) ParentTableOfPartition(table *sqlname.SourceName) string {
+	panic("not implemented")
+}
+
+func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
 	panic("not implemented")
 }
 
