@@ -294,9 +294,21 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "source-replica"
 	}
 
-	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList)
-	if err != nil {
-		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
+	snapshotRowCount := make(map[string]int64)
+
+	if importerRole == IMPORT_FILE_ROLE {
+		for _, tableName := range tableList {
+			tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
+			if err != nil {
+				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+			}
+			snapshotRowCount[tableName] = tableRowCount
+		}
+	} else {
+		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType, tableList)
+		if err != nil {
+			utils.ErrExit("failed to get imported snapshot rows map: %v", err)
+		}
 	}
 
 	renamedTableList := lo.Uniq(lo.Map(tableList, func(t string, _ int) string {
