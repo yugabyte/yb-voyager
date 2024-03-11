@@ -195,21 +195,29 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
+func getExportedRowCountSnapshot(exportDir string) (map[string]int64, map[string][]string) {
 	tableRowCount := map[string]int64{}
+	leafPartitions := map[string][]string{}
 	for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
 		renamedTable := renameTableIfRequired(fileEntry.TableName)
+		if renamedTable != fileEntry.TableName {
+			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], fileEntry.TableName)
+		}
 		tableRowCount[renamedTable] += fileEntry.RowCount
 	}
-	return tableRowCount
+	return tableRowCount, leafPartitions
 }
 
 func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
 
 	if !snapshotViaDebezium {
-		exportedRowCount := getExportedRowCountSnapshot(exportDir)
+		exportedRowCount, leafPartitions := getExportedRowCountSnapshot(exportDir)
 		if source.Schema != "" {
 			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 		} else {
@@ -226,7 +234,12 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 					schema = tableParts[0]
 					table = tableParts[1]
 				}
-				uitable.AddRow(schema, table, exportedRowCount[key])
+				displayTableName := table
+				if source.DBType == POSTGRESQL && leafPartitions[key] != nil && msr.IsExportTableListSet {
+					partitions := strings.Join(leafPartitions[key], ", ")
+					displayTableName = fmt.Sprintf("%s (%s)", table, partitions)
+				}
+				uitable.AddRow(schema, displayTableName, exportedRowCount[key])
 			} else {
 				uitable.AddRow(source.DBName, key, exportedRowCount[key])
 			}

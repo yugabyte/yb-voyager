@@ -125,8 +125,14 @@ func runExportDataStatusCmd() error {
 		return fmt.Errorf("error while getting exported snapshot rows map: %v", err)
 	}
 
+	leafPartitions := make(map[string][]string)
+
 	renamedTableList := lo.Uniq(lo.Map(tableList, func(table string, _ int) string {
 		renamedTable := renameTableIfRequired(table)
+		if renamedTable != table {
+			table = strings.Replace(table, "public.", "", -1)
+			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
+		}
 		if len(strings.Split(renamedTable, ".")) < 2 {
 			// safe to directly qualify it with public schema as it is not qualified in case of PG by renameTableIfRequired()
 			renamedTable = fmt.Sprintf("public.%s", renamedTable)
@@ -140,8 +146,13 @@ func runExportDataStatusCmd() error {
 		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted != "public" {
 			finalFullTableName = sqlTableName.Qualified.MinQuoted
 		}
+		displayTableName := finalFullTableName
+		if source.DBType == POSTGRESQL && leafPartitions[finalFullTableName] != nil && msr.IsExportTableListSet {
+			partitions := strings.Join(leafPartitions[finalFullTableName], ", ")
+			displayTableName = fmt.Sprintf("%s (%s)", finalFullTableName, partitions)
+		}
 		row := &exportTableMigStatusOutputRow{
-			tableName:     finalFullTableName,
+			tableName:     displayTableName,
 			status:        exportedSnapshotStatus[finalFullTableName],
 			exportedCount: exportedSnapshotRow[finalFullTableName],
 		}

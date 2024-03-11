@@ -41,6 +41,7 @@ type MigrationStatusRecord struct {
 	PGPublicationName                               string            `json:"PGPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
 	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump)
 	RenameTablesMap                                 map[string]string `json:"RenameTablesMap"`       // map of table.Qualified.Unquoted -> table.Qualified.MinQuoted for renaming the leaf partitions to root table in case of PG migration
+	IsExportTableListSet							bool              `json:"IsExportTableListSet"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

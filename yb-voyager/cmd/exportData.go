@@ -127,7 +127,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		tableRowCount := getExportedRowCountSnapshot(exportDir)
+		tableRowCount, _ := getExportedRowCountSnapshot(exportDir)
 		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
@@ -181,9 +181,28 @@ func exportData() bool {
 	if err != nil {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
-    renamedTableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
-		return renameTableIfRequired(table.Qualified.MinQuoted)
+
+	leafPartitions := make(map[string][]string)
+	renamedTableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
+		renamedTable := renameTableIfRequired(table.Qualified.MinQuoted)
+		if renamedTable != table.Qualified.MinQuoted {
+			table := strings.TrimPrefix(table.Qualified.MinQuoted, "public.")
+			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
+		}
+		return renamedTable
 	}))
+	//just for display purpose
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	renamedTableListToDisplay = lo.Map(renamedTableListToDisplay, func(table string, _ int) string {
+		if source.DBType == POSTGRESQL && leafPartitions[table] != nil && msr.IsExportTableListSet {
+			partitions := strings.Join(leafPartitions[table], ", ")
+			return fmt.Sprintf("%s (%s)", table, partitions)
+		}
+		return table
+	})
 	fmt.Printf("num tables to export: %d\n", len(renamedTableListToDisplay))
 	utils.PrintAndLog("table list for data export: %v", renamedTableListToDisplay)
 
@@ -508,6 +527,14 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	isTableListModified := len(sqlname.SetDifference(fullTableList, finalTableList)) != 0
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if isTableListModified {
+			record.IsExportTableListSet = true
+		} else {
+			record.IsExportTableListSet = false
+		}
+	})
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
