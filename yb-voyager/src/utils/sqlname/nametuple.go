@@ -56,6 +56,13 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 		},
 	}
 	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)
+	// workaround for test pf/views-and-rules (single schema non-public from postgres.)
+	// nameregistry assumes the single non-public schema to be default, and therefore minqualified does not work.
+	// need to use qualified because datafiledescriptor, schemaRegistry is generated that way.
+	// ultimately, we need to fix datafiledescriptor, schemaRegistry to use ForKey() and we can use the same here.
+	if dbType == POSTGRESQL && defaultSchemaName != "public" {
+		result.MinQualified = result.Qualified
+	}
 	return result
 }
 

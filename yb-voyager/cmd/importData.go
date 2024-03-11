@@ -647,19 +647,7 @@ func getIdentityColumnsForTables(tables []string, identityType string) map[strin
 func getTotalProgressAmount(task *ImportFileTask) int64 {
 	// TODO:TABLENAME revisit.
 	// TODO: can probably get the fileSize and RowCount into importFileTask itself insteaf of searching through dfd again here.
-	tableNameToLookup := task.TableName.SourceName.MinQualified.MinQuoted
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
-	}
-	// workaround for test pf/views-and-rules (single schema non-public from postgres.)
-	// nameregistry assumes the single non-public schema to be default, and therefore minqualified does not work.
-	// need to use qualified because datafiledescriptor is generated that way.
-	// ultimately, we need to fix datafiledescriptor to use ForKey() and we can use the same here.
-	if msr.SourceDBConf.DBType == POSTGRESQL && len(strings.Split(msr.SourceDBConf.Schema, "|")) == 1 && msr.SourceDBConf.Schema != "public" {
-		tableNameToLookup = task.TableName.SourceName.Qualified.MinQuoted
-	}
-	fileEntry := dataFileDescriptor.GetFileEntry(task.FilePath, tableNameToLookup)
+	fileEntry := dataFileDescriptor.GetFileEntry(task.FilePath, task.TableName.SourceName.MinQualified.MinQuoted)
 	if fileEntry == nil {
 		utils.ErrExit("entry not found for file %q and table %s", task.FilePath, task.TableName)
 	}
@@ -1213,7 +1201,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 		var columns []string
 		if dataFileDescriptor.TableNameToExportedColumns != nil {
 			// TODO:TABLENAME revisit this once export-side is also fixed.
-			columns = dataFileDescriptor.TableNameToExportedColumns[table.SourceName.MinQualified.MinQuoted]
+			columns = dataFileDescriptor.TableNameToExportedColumns[task.TableName.SourceName.MinQualified.MinQuoted]
 		} else if dataFileDescriptor.HasHeader {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
