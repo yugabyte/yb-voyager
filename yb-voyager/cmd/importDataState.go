@@ -31,6 +31,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const (
@@ -62,8 +63,8 @@ func NewImportDataState(exportDir string) *ImportDataState {
 	}
 }
 
-func (s *ImportDataState) PrepareForFileImport(filePath, tableName string) error {
-	fileStateDir := s.getFileStateDir(filePath, tableName)
+func (s *ImportDataState) PrepareForFileImport(filePath string, tableName *sqlname.NameTuple) error {
+	fileStateDir := s.getFileStateDir(filePath, tableName.ForKey())
 	log.Infof("Creating %q.", fileStateDir)
 	err := os.MkdirAll(fileStateDir, 0755)
 	if err != nil {

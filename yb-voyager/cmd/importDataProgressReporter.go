@@ -57,7 +57,7 @@ func (pr *ImportDataProgressReporter) ImportFileStarted(task *ImportFileTask, to
 		mpb.BarFillerClearOnComplete(),
 		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
-			decor.Name(task.TableName),
+			decor.Name(task.TableName.ForKey()),
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
