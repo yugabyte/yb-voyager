@@ -67,6 +67,7 @@ type tableMigStatusOutputRow struct {
 	totalCount         int64
 	importedCount      int64
 	percentageComplete float64
+	leafPartitions     string
 }
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
@@ -177,10 +178,16 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			}
 			renamedRowsForPartitions[renamedTable].totalCount += row.totalCount
 			renamedRowsForPartitions[renamedTable].importedCount += row.importedCount
+			renamedRowsForPartitions[renamedTable].leafPartitions = fmt.Sprintf("%s, %s", renamedRowsForPartitions[renamedTable].leafPartitions, row.tableName)
 			renamedRowsForPartitions[renamedTable].fileName = fmt.Sprintf("%s, %s", renamedRowsForPartitions[renamedTable].fileName, row.fileName)
 		} else {
 			table = append(table, row)
 		}
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("error while getting migration status record: %v", err)
 	}
 
 	for _, row := range renamedRowsForPartitions {
@@ -191,6 +198,10 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			row.status = "NOT_STARTED"
 		} else {
 			row.status = "MIGRATING"
+		}
+		if msr.IsExportTableListSet && row.leafPartitions != "" {
+			row.leafPartitions = strings.TrimPrefix(row.leafPartitions, ", ")
+			row.tableName = fmt.Sprintf("%s (%s)", row.tableName, row.leafPartitions)
 		}
 		row.fileName = strings.TrimPrefix(row.fileName, ", ")
 		table = append(table, row)

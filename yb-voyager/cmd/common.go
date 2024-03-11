@@ -311,8 +311,18 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		}
 	}
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+
+	leafPartitions := map[string][]string{}
 	renamedTableList := lo.Uniq(lo.Map(tableList, func(t string, _ int) string {
-		return renameTableIfRequired(t)
+		renamedTable := renameTableIfRequired(t)
+		if renamedTable != t {
+			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], t)
+		}
+		return renamedTable
 	}))
 	for i, tableName := range renamedTableList {
 		if i == 0 {
@@ -322,7 +332,12 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if len(strings.Split(tableName, ".")) == 2 {
 			table = strings.Split(tableName, ".")[1]
 		}
-		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
+		displayTableName := table
+		if source.DBType == POSTGRESQL && leafPartitions[tableName] != nil && msr.IsExportTableListSet {
+			partitions := strings.Join(leafPartitions[tableName], ", ")
+			displayTableName = fmt.Sprintf("%s (%s)", table, partitions)
+		}
+		uitable.AddRow(getTargetSchemaName(tableName), displayTableName, snapshotRowCount[tableName])
 	}
 	if len(tableList) > 0 {
 		fmt.Printf("\n")

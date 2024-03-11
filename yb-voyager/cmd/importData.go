@@ -315,10 +315,22 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	includeList := extractTableList(tconf.TableList, "include")
 	excludeList := extractTableList(tconf.ExcludeTableList, "exclude")
 
+	leafPartitionsMap := make(map[string][]string)
+	lo.Map(allTables, func(tableName string, _ int) string {
+		renameTable := renameTableIfRequired(tableName)
+		if renameTable != tableName {
+			leafPartitionsMap[renameTable] = append(leafPartitionsMap[renameTable], tableName)
+		}
+		return tableName
+	})
+
+	fmt.Printf("leafPartitionsMap: %v\n", leafPartitionsMap)
+
 	checkUnknownTableNames := func(tableNames []string, listName string) {
 		unknownTableNames := make([]string, 0)
 		for _, tableName := range tableNames {
-			if !slices.Contains(allTables, tableName) {
+			fmt.Printf("tableName: %s\n", tableName)
+			if !slices.Contains(allTables, tableName) && leafPartitionsMap[tableName] == nil {
 				unknownTableNames = append(unknownTableNames, tableName)
 			}
 		}
@@ -333,16 +345,20 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 	for _, task := range importFileTasks {
 		table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
-		if len(includeList) > 0 && !slices.Contains(includeList, table) {
+		rootTable := renameTableIfRequired(table)
+		if (len(includeList) > 0 && !slices.Contains(includeList, table)) && 
+				(len(leafPartitionsMap[rootTable]) > 0 && !slices.Contains(includeList, rootTable)) { // if root table is also not included then also skip leaf 
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, table) {
+		if (len(excludeList) > 0 && slices.Contains(excludeList, table)) || 
+		        (len(leafPartitionsMap[rootTable]) > 0 && slices.Contains(excludeList, rootTable)) { // or if root table is excluded then also skip leaf
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}
 		result = append(result, task)
 	}
+	fmt.Printf("result: %v\n", result)
 	return result
 }
 
@@ -456,9 +472,20 @@ func importData(importFileTasks []*ImportFileTask) {
 		if len(pendingTasks) == 0 {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 		} else {
+			leafPartitions := make(map[string][]string)
 			renamedTableListToDisplay := lo.Uniq(lo.Map(importFileTasksToTableNames(pendingTasks), func(tableName string, _ int) string {
-				return renameTableIfRequired(tableName)
+				renameTable := renameTableIfRequired(tableName)
+				if renameTable != tableName {
+					leafPartitions[renameTable] = append(leafPartitions[renameTable], tableName)
+				}
+				return renameTable
 			}))
+			renamedTableListToDisplay = lo.Map(renamedTableListToDisplay, func(tableName string, _ int) string {
+				if len(leafPartitions[tableName]) > 0 {
+					return fmt.Sprintf("%s (%s)", tableName, strings.Join(leafPartitions[tableName], ", "))
+				}
+				return tableName
+			})
 			utils.PrintAndLog("Tables to import: %v", renamedTableListToDisplay)
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
