@@ -84,6 +84,9 @@ var importDataCmd = &cobra.Command{
 		}
 	},
 	Run: importDataCommandFn,
+	PostRun: func(cmd *cobra.Command, args []string) {
+		tdb.Finalize()
+	},
 }
 
 var importDataToCmd = &cobra.Command{
@@ -121,7 +124,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
-	defer tdb.Finalize()
 
 	err = namereg.InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
 	if err != nil {

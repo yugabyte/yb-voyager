@@ -255,7 +255,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 	if schemaName == reg.DefaultSourceSideSchemaName() || schemaName == reg.DefaultYBSchemaName {
 		schemaName = ""
 	}
-	// ntup := &NameTuple{}
+
 	var sourceName *sqlname.ObjectName
 	var targetName *sqlname.ObjectName
 	if reg.SourceDBTableNames != nil { // nil for `import data file` mode.
@@ -299,8 +299,6 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 			}
 		}
 	}
-	// // Set the current table name based on the mode.
-	// ntup.SetMode(reg.role)
 	if sourceName == nil && targetName == nil {
 		return nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
