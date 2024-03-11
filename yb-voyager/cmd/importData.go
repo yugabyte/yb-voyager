@@ -219,7 +219,7 @@ func startExportDataFromTargetIfRequired() {
 type ImportFileTask struct {
 	ID        int
 	FilePath  string
-	TableName string
+	TableName *sqlname.NameTuple
 }
 
 // func quoteTableNameIfRequired() {
@@ -254,10 +254,14 @@ func discoverFilesToImport() []*ImportFileTask {
 			// but pb hangs for empty so skipping empty tables in snapshot import
 			continue
 		}
+		tableName, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+		if err != nil {
+			utils.ErrExit("lookup table name from name registry: %v", err)
+		}
 		task := &ImportFileTask{
 			ID:        i,
 			FilePath:  fileEntry.FilePath,
-			TableName: fileEntry.TableName,
+			TableName: tableName,
 		}
 		result = append(result, task)
 	}
@@ -272,33 +276,35 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		utils.ErrExit("could not fetch migration status record: %w", err)
 	}
 	source = *msr.SourceDBConf
-	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
+	_, noDefaultSchema := getDefaultSourceSchemaName()
 
 	//TODO: handle with case sensitivity later
-	standardizeCaseInsensitiveTableNames := func(tableName string, defaultSourceSchema string) string {
-		parts := strings.Split(tableName, ".")
-		tableName = parts[len(parts)-1]
-		if !utils.IsQuotedString(tableName) {
-			tableName = strings.ToLower(tableName)
-		}
-		if len(parts) > 1 {
-			if parts[0] == defaultSourceSchema {
-				return tableName
-			}
-			return fmt.Sprintf(`%s.%s`, parts[0], tableName)
-		}
-		return tableName
-	}
+	// standardizeCaseInsensitiveTableNames := func(tableName string, defaultSourceSchema string) string {
+	// 	parts := strings.Split(tableName, ".")
+	// 	tableName = parts[len(parts)-1]
+	// 	if !utils.IsQuotedString(tableName) {
+	// 		tableName = strings.ToLower(tableName)
+	// 	}
+	// 	if len(parts) > 1 {
+	// 		if parts[0] == defaultSourceSchema {
+	// 			return tableName
+	// 		}
+	// 		return fmt.Sprintf(`%s.%s`, parts[0], tableName)
+	// 	}
+	// 	return tableName
+	// }
 
-	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
-		return standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
+	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) *sqlname.NameTuple {
+		return task.TableName
 	})
-	slices.Sort(allTables)
+	slices.SortFunc(allTables, func(a, b *sqlname.NameTuple) bool {
+		return a.ForKey() < b.ForKey()
+	})
 	log.Infof("allTables: %v", allTables)
 
-	findPatternMatchingTables := func(pattern string) []string {
-		result := lo.Filter(allTables, func(tableName string, _ int) bool {
-			matched, err := filepath.Match(pattern, tableName)
+	findPatternMatchingTables := func(pattern string) []*sqlname.NameTuple {
+		result := lo.Filter(allTables, func(tableName *sqlname.NameTuple, _ int) bool {
+			matched, err := tableName.MatchesPattern(pattern)
 			if err != nil {
 				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
 			}
@@ -307,19 +313,21 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		return result
 	}
 
-	extractTableList := func(flagTableList, listName string) []string {
+	extractTableList := func(flagTableList, listName string) ([]*sqlname.NameTuple, []string) {
 		tableList := utils.CsvStringToSlice(flagTableList)
-		var result []string
+		var result []*sqlname.NameTuple
 		var unqualifiedTables []string
+		//TODO: handle unknown tables.
+		var unknownTables []string
 		for _, table := range tableList {
 			if noDefaultSchema && len(strings.Split(table, ".")) == 1 {
 				unqualifiedTables = append(unqualifiedTables, table)
 				continue
 			}
-			table = standardizeCaseInsensitiveTableNames(table, defaultSourceSchema)
+
 			matchingTables := findPatternMatchingTables(table)
 			if len(matchingTables) == 0 {
-				result = append(result, table) //so that unknown check can be done later
+				unknownTables = append(unknownTables, table) //so that unknown check can be done later
 			} else {
 				result = append(result, matchingTables...)
 			}
@@ -328,35 +336,41 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			utils.ErrExit("Qualify following table names %v in the %s list with schema-name.", unqualifiedTables, listName)
 		}
 		log.Infof("%s tableList: %v", listName, result)
-		return result
+		return result, unknownTables
 	}
 
-	includeList := extractTableList(tconf.TableList, "include")
-	excludeList := extractTableList(tconf.ExcludeTableList, "exclude")
-
-	checkUnknownTableNames := func(tableNames []string, listName string) {
-		unknownTableNames := make([]string, 0)
-		for _, tableName := range tableNames {
-			if !slices.Contains(allTables, tableName) {
-				unknownTableNames = append(unknownTableNames, tableName)
-			}
-		}
-		if len(unknownTableNames) > 0 {
-			utils.PrintAndLog("Unknown table names in the %s list: %v", listName, unknownTableNames)
-			utils.PrintAndLog("Valid table names are: %v", allTables)
-			utils.ErrExit("Please fix the table names in the %s list and retry.", listName)
-		}
+	includeList, unknownInclude := extractTableList(tconf.TableList, "include")
+	excludeList, unknownExclude := extractTableList(tconf.ExcludeTableList, "exclude")
+	allUnknown := append(unknownInclude, unknownExclude...)
+	if len(allUnknown) > 0 {
+		utils.PrintAndLog("Unknown table names in the table-list: %v", allUnknown)
+		utils.PrintAndLog("Valid table names are: %v", allTables)
+		utils.ErrExit("Please fix the table names in table-list and retry.")
 	}
-	checkUnknownTableNames(includeList, "include")
-	checkUnknownTableNames(excludeList, "exclude")
+
+	// checkUnknownTableNames := func(tableNames []string, listName string) {
+	// 	unknownTableNames := make([]string, 0)
+	// 	for _, tableName := range tableNames {
+	// 		if !slices.Contains(allTables, tableName) {
+	// 			unknownTableNames = append(unknownTableNames, tableName)
+	// 		}
+	// 	}
+	// 	if len(unknownTableNames) > 0 {
+	// 		utils.PrintAndLog("Unknown table names in the %s list: %v", listName, unknownTableNames)
+	// 		utils.PrintAndLog("Valid table names are: %v", allTables)
+	// 		utils.ErrExit("Please fix the table names in the %s list and retry.", listName)
+	// 	}
+	// }
+	// checkUnknownTableNames(includeList, "include")
+	// checkUnknownTableNames(excludeList, "exclude")
 
 	for _, task := range importFileTasks {
-		table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
-		if len(includeList) > 0 && !slices.Contains(includeList, table) {
+		// table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
+		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, table) {
+		if len(excludeList) > 0 && slices.Contains(excludeList, task.TableName) {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}
@@ -449,6 +463,9 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 
+	//TODO:TABLENAME
+	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
+	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
 	sourceTableList := msr.TableListExportedFromSource
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
@@ -667,7 +684,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 	inProgressTasks := []*ImportFileTask{}
 	notStartedTasks := []*ImportFileTask{}
 	for _, task := range tasks {
-		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableName)
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableName.ForKey())
 		if err != nil {
 			return nil, nil, fmt.Errorf("get table import state: %w", err)
 		}
@@ -705,7 +722,8 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 
 	for _, task := range tasks {
-		err := state.Clean(task.FilePath, task.TableName)
+		//TODO:TABLENAME
+		err := state.Clean(task.FilePath, task.TableName.ForKey())
 		if err != nil {
 			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
 		}
