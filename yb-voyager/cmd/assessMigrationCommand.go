@@ -28,13 +28,16 @@ import (
 	mat "github.com/yugabyte/yb-voyager/yb-voyager/src/mat/plugins"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var supportedPlugins = []string{"sharding"}
 var supportedMigrationReportFormats = []string{"json", "html"}
 
 var pluginsList []string
-var pluginParamsFpath string // TODO: clarity required
+
+// var pluginParamsFpath string // TODO: clarity required
 var assessmentReportFormat string
 var metadataAndStatsDir string
 
@@ -50,6 +53,18 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		assessMigration()
 	},
+}
+
+func validatePluginsList() {
+	if len(pluginsList) == 1 && pluginsList[0] == "all" {
+		pluginsList = supportedPlugins
+		return
+	}
+	for _, pluginName := range pluginsList {
+		if !slices.Contains(supportedPlugins, pluginName) {
+			utils.ErrExit("unsupported plugin '%s' specified for migration assessment", pluginName)
+		}
+	}
 }
 
 func init() {
@@ -105,6 +120,13 @@ func assessMigration() {
 		}
 		utils.PrintAndLog("Migration assessment report for plugin '%s' written to file: %s", pluginName, reportOutputFpath)
 	}
+
+	if assessmentReportFormat == "html" {
+		err := generateIndexHtmlFile(assessmentDirPath)
+		if err != nil {
+			utils.ErrExit("error generating index.html file for migration assessment reports: %v", err)
+		}
+	}
 }
 
 func generateReportOutput(report any, plugin mat.AssessmentPlugin) (string, error) {
@@ -145,14 +167,81 @@ var tmplFuncs = template.FuncMap{
 	},
 }
 
-func validatePluginsList() {
-	if len(pluginsList) == 1 && pluginsList[0] == "all" {
-		pluginsList = supportedPlugins
-		return
+func generateIndexHtmlFile(assessmentDirPath string) error {
+	// Open or create the index.html file
+	indexFilePath := filepath.Join(assessmentDirPath, "index.html")
+	indexFile, err := os.Create(indexFilePath)
+	if err != nil {
+		return err
 	}
+	defer indexFile.Close()
+
+	htmlContent := `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Migration Assessment Reports</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+    }
+    .container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+        background-color: #fff;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 20px;
+    }
+    h2 {
+        font-size: 1.2em;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+    ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    li {
+        font-size: 1.2em; /* Adjust font size for plugin reports */
+        margin-bottom: 10px;
+    }
+    a {
+        text-decoration: none;
+        color: #007bff;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>Migration Assessment Reports</h1>
+    <ul>
+`
+
 	for _, pluginName := range pluginsList {
-		if !slices.Contains(supportedPlugins, pluginName) {
-			utils.ErrExit("unsupported plugin '%s' specified for migration assessment", pluginName)
-		}
+		// using relative path for plugins report, as the whole report directory can be shared or moved to different locations
+		pluginReportFileRelpath := fmt.Sprintf("%s.%s", pluginName, assessmentReportFormat)
+		htmlContent += fmt.Sprintf("<li>&#8226 %s Report (<a href=\"%s\">&#x2197;</a>)</li>\n",
+			cases.Title(language.English).String(pluginName), pluginReportFileRelpath)
 	}
+	// Close the <ul> and <div> tags
+	htmlContent += "</ul></div></body></html>"
+
+	if _, err := indexFile.WriteString(htmlContent); err != nil {
+		return err
+	}
+
+	utils.PrintAndLog("Index HTML file for migration assessment reports written to: %s", indexFilePath)
+	return nil
 }

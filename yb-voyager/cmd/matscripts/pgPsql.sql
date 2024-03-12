@@ -62,6 +62,7 @@ ORDER BY
 
 -- Now you can use the temporary table to fetch the data
 \copy temp_table_usage TO 'sharding__table-iops.csv' WITH CSV HEADER;
+
 -- Drop the temporary table
 DROP TABLE temp_table_usage;
 

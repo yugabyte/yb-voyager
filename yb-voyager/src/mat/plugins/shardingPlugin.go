@@ -110,66 +110,118 @@ func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, use
 
 func (sp *ShardingPlugin) GetHtmlTemplate() string {
 	htmlString := `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Sharding Assessment Report</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-            }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sharding Assessment Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
 
-            .section {
-                margin-bottom: 20px;
-            }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
 
-            .section h2 {
-                font-size: 1.2em;
-                margin-bottom: 5px;
-                text-align: left; /* Align headings to the left */
-            }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
 
-            .table-list {
-                list-style: none;
-                padding: 0;
-                text-align: right; /* Align table content to the right */
-                margin: auto;
-                max-width: 600px;		
-            }
+        .section {
+            margin-bottom: 30px;
+            text-align: left;
+        }
 
-            .table-list li {
-                margin-bottom: 5px;
-                text-align: left; /* Align table content to the left */
-                padding-left: 50px; /* Adjust left padding for schema and table */
-            }
-        </style>
-    </head>
-    <body>
-        <h1 style="text-align: left;">Sharding Assessment Report</h1>
-        <div class="section">
-            <h2 style="text-align: left;">Colocated Tables</h2>
-            <ul class="table-list">
-                <li><b>Schema</b>&emsp;&emsp;<b>Table</b></li>
-                {{range .colocated}}
-                {{ $parts := split . "." }}
-                <li>{{index $parts 0}}&emsp;&emsp;{{index $parts 1}}</li>
-                {{end}}
-            </ul>
-        </div>
-        <div class="section">
-            <h2 style="text-align: left;">Sharded Tables</h2>
-            <ul class="table-list">
-                <li><b>Schema</b>&emsp;&emsp;<b>Table</b></li>
-                {{range .sharded}}
-                {{ $parts := split . "." }}
-                <li>{{index $parts 0}}&emsp;&emsp;{{index $parts 1}}</li>
-                {{end}}
-            </ul>
-        </div>
-    </body>
-    </html>
-    `
+        .section h2 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            color: #007bff;
+        }
+
+        .table-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .table-list li {
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        b {
+            font-weight: bold;
+        }
+
+        .schema-column {
+            flex: 1;
+            margin-right: 10px;
+        }
+
+        .table-column {
+            flex: 1;
+            margin-left: 10px;
+        }
+
+        a {
+            text-decoration: none;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Sharding Assessment Report</h1>
+    <div class="section">
+        <h2>Colocated Tables</h2>
+        <ul class="table-list">
+            <li>
+                <span class="schema-column"><b>Schema</b></span>
+                <span class="table-column"><b>Table</b></span>
+            </li>
+            {{range .colocated}}
+            {{ $parts := split . "." }}
+            <li>
+                <span class="schema-column">{{index $parts 0}}</span>
+                <span class="table-column">{{index $parts 1}}</span>
+            </li>
+            {{end}}
+        </ul>
+    </div>
+    <div class="section">
+        <h2>Sharded Tables</h2>
+        <ul class="table-list">
+            <li>
+                <span class="schema-column"><b>Schema</b></span>
+                <span class="table-column"><b>Table</b></span>
+            </li>
+            {{range .sharded}}
+            {{ $parts := split . "." }}
+            <li>
+                <span class="schema-column">{{index $parts 0}}</span>
+                <span class="table-column">{{index $parts 1}}</span>
+            </li>
+            {{end}}
+        </ul>
+    </div>
+</div>
+</body>
+</html>
+`
 	return htmlString
 }
 
