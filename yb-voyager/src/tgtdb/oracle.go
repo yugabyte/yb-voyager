@@ -294,7 +294,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	}
 
 	tableName := batch.GetTableName()
-	sqlldrConfig := args.GetSqlLdrControlFile(tdb.tconf.Schema, tableSchema)
+	sqlldrConfig := args.GetSqlLdrControlFile(tableSchema)
 	fileName := filepath.Base(batch.GetFilePath())
 
 	err = sqlldr.CreateSqlldrDir(exportDir)

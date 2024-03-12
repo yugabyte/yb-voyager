@@ -775,7 +775,8 @@ func getImportBatchArgsProto(tableName *sqlname.NameTuple, filePath string) *tgt
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
 		// TODO:TABLENAME
-		TableName:  renameTableIfRequired(tableName.ForKey()),
+		//renameTableIfRequired(tableName.ForKey())
+		TableName:  tableName,
 		Columns:    columns,
 		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,
