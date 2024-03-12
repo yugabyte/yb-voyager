@@ -109,6 +109,8 @@ func (dfd *Descriptor) Save() {
 
 func (dfd *Descriptor) GetFileEntry(filePath, tableName string) *FileEntry {
 	for _, fileEntry := range dfd.DataFileList {
+		fmt.Printf("checking [%s] == [%s]\n", filePath, fileEntry.FilePath)
+		fmt.Printf("checking [%s] == [%s]\n", tableName, fileEntry.TableName)
 		if fileEntry.FilePath == filePath && fileEntry.TableName == tableName {
 			return fileEntry
 		}

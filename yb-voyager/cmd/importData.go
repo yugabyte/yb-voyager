@@ -220,6 +220,8 @@ type ImportFileTask struct {
 	ID        int
 	FilePath  string
 	TableName *sqlname.NameTuple
+	RowCount  int64
+	FileSize  int64
 }
 
 // func quoteTableNameIfRequired() {
@@ -262,6 +264,8 @@ func discoverFilesToImport() []*ImportFileTask {
 			ID:        i,
 			FilePath:  fileEntry.FilePath,
 			TableName: tableName,
+			RowCount:  fileEntry.RowCount,
+			FileSize:  fileEntry.FileSize,
 		}
 		result = append(result, task)
 	}
@@ -647,14 +651,14 @@ func getIdentityColumnsForTables(tables []string, identityType string) map[strin
 func getTotalProgressAmount(task *ImportFileTask) int64 {
 	// TODO:TABLENAME revisit.
 	// TODO: can probably get the fileSize and RowCount into importFileTask itself insteaf of searching through dfd again here.
-	fileEntry := dataFileDescriptor.GetFileEntry(task.FilePath, task.TableName.SourceName.MinQualified.MinQuoted)
-	if fileEntry == nil {
-		utils.ErrExit("entry not found for file %q and table %s", task.FilePath, task.TableName)
-	}
+	// fileEntry := dataFileDescriptor.GetFileEntry(task.FilePath, task.TableName.SourceName.MinQualified.MinQuoted)
+	// if fileEntry == nil {
+	// 	utils.ErrExit("entry not found for file %q and table %s", task.FilePath, task.TableName)
+	// }
 	if reportProgressInBytes {
-		return fileEntry.FileSize
+		return task.FileSize
 	} else {
-		return fileEntry.RowCount
+		return task.RowCount
 	}
 }
 
