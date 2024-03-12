@@ -34,6 +34,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT"}
+
 type YugabyteDB struct {
 	source *Source
 
@@ -359,11 +361,54 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 }
 
 func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
-	return nil, nil, nil
+	var columns, dataTypes, dataTypesOwner []string
+	query := fmt.Sprintf(`SELECT a.attname AS column_name, t.typname AS data_type, rol.rolname AS data_type_owner 
+						FROM pg_attribute AS a 
+						JOIN pg_type AS t ON t.oid = a.atttypid 
+						JOIN pg_class AS c ON c.oid = a.attrelid 
+						JOIN pg_namespace AS n ON n.oid = c.relnamespace 
+						JOIN pg_roles AS rol ON rol.oid = t.typowner 
+						WHERE c.relname = '%s' AND n.nspname = '%s' AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');`, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for table columns: %v\n", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var column, dataType, dataTypeOwner string
+		err = rows.Scan(&column, &dataType, &dataTypeOwner)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for table columns: %v\n", err)
+		}
+		columns = append(columns, column)
+		dataTypes = append(dataTypes, dataType)
+		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
+	}
+	return columns, dataTypes, dataTypesOwner
 }
 
-func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, []string) {
-	return nil, nil
+func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, []string) {
+	tableColumnMap := make(map[*sqlname.SourceName][]string)
+	var unsupportedColumnNames []string
+	for _, tableName := range tableList {
+		columns, dataTypes, _ := yb.GetTableColumns(tableName)
+		var supportedColumnNames []string
+		for i, column := range columns {
+			if useDebezium || isStreamingEnabled {
+				if utils.ContainsAnySubstringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
+					unsupportedColumnNames = append(unsupportedColumnNames, column)
+				} else {
+					supportedColumnNames = append(supportedColumnNames, column)
+				}
+			}
+		}
+		if len(supportedColumnNames) == len(columns) {
+			tableColumnMap[tableName] = []string{"*"}
+		} else {
+			tableColumnMap[tableName] = supportedColumnNames
+		}
+	}
+	return tableColumnMap, unsupportedColumnNames
 }
 
 func (yb *YugabyteDB) ParentTableOfPartition(table *sqlname.SourceName) string {
@@ -455,7 +500,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		}
 		if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
 			// case sensitive unquoted table name returns unquoted parititons name as well
-			// so we need to add quotes around them 
+			// so we need to add quotes around them
 			partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
 		} else {
 			partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
