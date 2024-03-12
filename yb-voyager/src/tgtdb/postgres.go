@@ -310,13 +310,13 @@ func (pg *TargetPostgreSQL) qualifyTableName(tableName string) (string, error) {
 	return tableName, nil
 }
 
-func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []string) []string {
+func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []*sqlname.NameTuple) []string {
 	result := []string{}
 
 	for _, table := range tables {
 		log.Infof("checking if table %q is empty.", table)
 		tmp := false
-		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
+		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table.ForUserQuery())
 		err := pg.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
 		if err == pgx.ErrNoRows {
 			continue
@@ -324,7 +324,7 @@ func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []string) []string {
 		if err != nil {
 			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
 		}
-		result = append(result, table)
+		result = append(result, table.ForUserQuery())
 	}
 	log.Infof("non empty tables: %v", result)
 	return result
@@ -826,8 +826,8 @@ func (pg *TargetPostgreSQL) isSchemaExists(schema string) bool {
 	return pg.isQueryResultNonEmpty(query)
 }
 
-func (pg *TargetPostgreSQL) isTableExists(qualifiedTableName string) bool {
-	schema, table := pg.splitMaybeQualifiedTableName(qualifiedTableName)
+func (pg *TargetPostgreSQL) isTableExists(tableName *sqlname.NameTuple) bool {
+	schema, table := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
 	return pg.isQueryResultNonEmpty(query)
 }
@@ -855,7 +855,18 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 
 	// clean up all the tables in BATCH_METADATA_TABLE_SCHEMA for given migrationUUID
-	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tableNames := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tables := []*sqlname.NameTuple{}
+	for _, tableName := range tableNames {
+		parts := strings.Split(tableName, ".")
+		objName := sqlname.NewObjectName(sqlname.YUGABYTEDB, "", parts[0], parts[1])
+		nt := sqlname.NameTuple{
+			CurrentName: objName,
+			SourceName:  objName,
+			TargetName:  objName,
+		}
+		tables = append(tables, &nt)
+	}
 	for _, table := range tables {
 		if !pg.isTableExists(table) {
 			log.Infof("table %s does not exist, nothing to clear migration state", table)

@@ -682,6 +682,14 @@ func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	return lo.Uniq(tableNames)
 }
 
+func importFileTasksToTableNameTuples(tasks []*ImportFileTask) []*sqlname.NameTuple {
+	tableNames := []*sqlname.NameTuple{}
+	for _, t := range tasks {
+		tableNames = append(tableNames, t.TableName)
+	}
+	return lo.Uniq(tableNames)
+}
+
 func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
 	inProgressTasks := []*ImportFileTask{}
 	notStartedTasks := []*ImportFileTask{}
@@ -706,13 +714,14 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 }
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
-	tableNames := importFileTasksToTableNames(tasks)
-	renamedTablesNames := make([]string, 0)
-	for _, tableName := range tableNames { //In case partitions are changed during the migration, need to check root table
-		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
-	}
-	renamedTablesNames = lo.Uniq(renamedTablesNames)
-	nonEmptyTableNames := tdb.GetNonEmptyTables(renamedTablesNames)
+	tableNames := importFileTasksToTableNameTuples(tasks)
+	// renamedTablesNames := make([]string, 0)
+	//TODO:TABLENAME comment out for now.
+	// for _, tableName := range tableNames { //In case partitions are changed during the migration, need to check root table
+	// 	renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
+	// }
+	// renamedTablesNames = lo.Uniq(renamedTablesNames)
+	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",

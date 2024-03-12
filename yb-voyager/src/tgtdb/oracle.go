@@ -174,19 +174,19 @@ func (tdb *TargetOracleDB) qualifyTableName(tableName string) string {
 	return tableName
 }
 
-func (tdb *TargetOracleDB) GetNonEmptyTables(tables []string) []string {
+func (tdb *TargetOracleDB) GetNonEmptyTables(tables []*sqlname.NameTuple) []string {
 	result := []string{}
 
 	for _, table := range tables {
-		log.Infof("Checking if table %s.%s is empty", tdb.tconf.Schema, table)
+		log.Infof("Checking if table %s is empty", table.ForUserQuery())
 		rowCount := 0
-		stmt := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", tdb.tconf.Schema, table)
+		stmt := fmt.Sprintf("SELECT COUNT(*) FROM %s", table.ForUserQuery())
 		err := tdb.conn.QueryRowContext(context.Background(), stmt).Scan(&rowCount)
 		if err != nil {
 			utils.ErrExit("run query %q on target: %s", stmt, err)
 		}
 		if rowCount > 0 {
-			result = append(result, table)
+			result = append(result, table.ForUserQuery())
 		}
 	}
 

@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TargetDB interface {
@@ -34,7 +35,7 @@ type TargetDB interface {
 	PrepareForStreaming()
 	GetVersion() string
 	CreateVoyagerSchema() error
-	GetNonEmptyTables(tableNames []string) []string
+	GetNonEmptyTables(tableNames []*sqlname.NameTuple) []string
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
