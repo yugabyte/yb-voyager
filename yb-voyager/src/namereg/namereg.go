@@ -231,7 +231,10 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTuple, error) {
-	if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
+	// TODO: REVISIT. Removing the check for reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE because it's possible that import-data-to-source-replica
+	// starts before import-data-to-target and so , defaultYBSchemaName will not be set.
+	// if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
+	if (reg.role == TARGET_DB_IMPORTER_ROLE) &&
 		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
 		msg := "either both or none of the default schema names should be set"
