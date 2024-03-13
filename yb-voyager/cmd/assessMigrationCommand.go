@@ -36,8 +36,7 @@ var supportedPlugins = []string{"sharding"}
 var supportedMigrationReportFormats = []string{"json", "html"}
 
 var pluginsList []string
-
-// var pluginParamsFpath string // TODO: clarity required
+var userInputFpath string
 var assessmentReportFormat string
 var metadataAndStatsDir string
 
@@ -76,7 +75,9 @@ func init() {
 			strings.Join(supportedPlugins, ", ")))
 	assessMigrationCmd.MarkFlagRequired("plugins")
 
-	// TODO: implement Plugin Params flag(user input)
+	// TODO: clarity on whether this flag should be a mandatory or not
+	assessMigrationCmd.Flags().StringVar(&userInputFpath, "user-input", "",
+		"File path for user input to the plugins. This file should contain the user input for the plugins in TOML format.")
 
 	assessMigrationCmd.Flags().StringVar(&assessmentReportFormat, "report-format", "json",
 		fmt.Sprintf("Output format for migration assessment report. Supported formats are: %s.",
@@ -98,7 +99,7 @@ func assessMigration() {
 			utils.ErrExit("error loading query results for plugin '%s': %v", pluginName, err)
 		}
 
-		pluginParams, err := mat.LoadPluginParams(pluginName)
+		pluginParams, err := mat.LoadUserInput(pluginName, userInputFpath)
 		if err != nil {
 			utils.ErrExit("error loading plugin params for plugin '%s': %v", pluginName, err)
 		}

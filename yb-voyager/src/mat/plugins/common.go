@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pelletier/go-toml"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -74,6 +75,30 @@ func LoadQueryResults(pluginName string, exportDir string) (map[string]QueryResu
 	return queryResults, nil
 }
 
-func LoadPluginParams(pluginName string) (map[string]any, error) {
-	return nil, nil
+func LoadUserInput(pluginName string, userInputFpath string) (map[string]any, error) {
+	tomlData, err := os.ReadFile(userInputFpath)
+	if err != nil {
+		log.Errorf("error reading plugin params file %s: %v", userInputFpath, err)
+		return nil, fmt.Errorf("error reading plugin params file %s: %w", userInputFpath, err)
+	}
+
+	tree, err := toml.LoadBytes(tomlData)
+	if err != nil {
+		log.Errorf("error parsing plugin params file %s: %v", userInputFpath, err)
+		return nil, fmt.Errorf("error parsing plugin params file %s: %w", userInputFpath, err)
+	}
+
+	tableNames := []string{"common", pluginName}
+	userInputParams := make(map[string]any)
+	for _, tableName := range tableNames {
+		if !tree.Has(tableName) {
+			log.Warnf("table '%s' not found in plugin params file %s", tableName, userInputFpath)
+			continue
+		}
+		table := tree.Get(tableName).(*toml.Tree)
+		userInputParams[tableName] = table.ToMap()
+	}
+
+	log.Infof("loaded user input for plugin %s: %v", pluginName, userInputParams)
+	return userInputParams, nil
 }
