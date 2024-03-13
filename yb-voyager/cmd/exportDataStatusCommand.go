@@ -142,9 +142,9 @@ func runExportDataStatusCmd() error {
 
 	for _, tableName := range renamedTableList {
 		sqlTableName := sqlname.NewSourceNameFromQualifiedName(tableName)
-		finalFullTableName = sqlTableName.ObjectName.MinQuoted
-		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted != "public" {
-			finalFullTableName = sqlTableName.Qualified.MinQuoted
+		finalFullTableName = sqlTableName.Qualified.MinQuoted
+		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted == "public" {
+			finalFullTableName = sqlTableName.ObjectName.MinQuoted
 		}
 		displayTableName := finalFullTableName
 		if source.DBType == POSTGRESQL && leafPartitions[finalFullTableName] != nil && msr.IsExportTableListSet {
