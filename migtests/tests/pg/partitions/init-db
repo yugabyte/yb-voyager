@@ -10,7 +10,14 @@ run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
 run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
-psql_import_file ${SOURCE_DB_NAME} partitionTables.sql
 
-echo "Check source database."
-run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM sales_region"
+run_psql ${SOURCE_DB_NAME} "\i schema.sql;"
+run_psql ${SOURCE_DB_NAME} "\i snapshot.sql;"
+
+if [ -n "${SOURCE_REPLICA_DB_NAME}" ] && [ "${SOURCE_REPLICA_DB_NAME}" != "${SOURCE_DB_NAME}" ];
+then
+	echo "Initialising FF database"
+	run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_REPLICA_DB_NAME};"
+    run_psql postgres "CREATE DATABASE ${SOURCE_REPLICA_DB_NAME};"
+    run_psql ${SOURCE_REPLICA_DB_NAME} "\i schema.sql;"
+fi

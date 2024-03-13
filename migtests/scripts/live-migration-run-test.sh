@@ -80,6 +80,11 @@ main() {
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
+	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
+	then
+		"${TEST_DIR}/add-pk-from-alter-to-create"
+	fi
+
 	step "Import schema."
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
@@ -124,6 +129,8 @@ main() {
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-snapshot-import true --refresh-mviews=true
+
+    sleep 120
 
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'

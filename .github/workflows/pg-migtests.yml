@@ -93,6 +93,9 @@ jobs:
       - name: "TEST: pg-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
         run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh
 
+      - name: "TEST: pg-live-migration-partitions" # Just to test for now, will shift it to jenkins
+        run: migtests/scripts/live-migration-run-test.sh pg/partitions
+
       - name: "TEST: pg-case-sensitivity-single-table"
         run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
 
