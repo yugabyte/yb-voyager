@@ -42,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -109,6 +110,23 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	checkExportDataDoneFlag()
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
+
+	if tconf.TargetDBType == YUGABYTEDB {
+		tconf.Schema = strings.ToLower(tconf.Schema)
+	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
+		tconf.Schema = strings.ToUpper(tconf.Schema)
+	}
+	tdb = tgtdb.NewTargetDB(&tconf)
+	err := tdb.Init()
+	if err != nil {
+		utils.ErrExit("Failed to initialize the target DB: %s", err)
+	}
+
+	err = namereg.InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+	if err != nil {
+		utils.ErrExit("initialize name registry: %v", err)
+	}
+
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	// TODO: handle case-sensitive in table names with oracle ff-db
@@ -139,6 +157,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	importData(importFileTasks)
+	tdb.Finalize()
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
 	}
@@ -383,11 +402,7 @@ func updateTargetConfInMigrationStatus() {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	if tconf.TargetDBType == YUGABYTEDB {
-		tconf.Schema = strings.ToLower(tconf.Schema)
-	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
-		tconf.Schema = strings.ToUpper(tconf.Schema)
-	}
+
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
@@ -404,12 +419,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
-	tdb = tgtdb.NewTargetDB(&tconf)
-	err = tdb.Init()
-	if err != nil {
-		utils.ErrExit("Failed to initialize the target DB: %s", err)
-	}
-	defer tdb.Finalize()
+
 	if msr.SnapshotMechanism == "debezium" {
 		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType)
 	} else {

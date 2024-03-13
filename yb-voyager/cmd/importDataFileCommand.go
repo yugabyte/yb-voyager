@@ -29,6 +29,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
@@ -61,24 +63,41 @@ var importDataFileCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
 		importerRole = IMPORT_FILE_ROLE
 		reportProgressInBytes = true
 		validateBatchSizeFlag(batchSize)
 		checkImportDataFileFlags(cmd)
+
+		sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
+		sqlname.SourceDBType = sourceDBType
+		CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
+
+		tconf.Schema = strings.ToLower(tconf.Schema)
+		tdb = tgtdb.NewTargetDB(&tconf)
+		err := tdb.Init()
+		if err != nil {
+			utils.ErrExit("Failed to initialize the target DB: %s", err)
+		}
+		err = namereg.InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+		if err != nil {
+			utils.ErrExit("initialize name registry: %v", err)
+		}
+
+	},
+
+	Run: func(cmd *cobra.Command, args []string) {
 		dataStore = datastore.NewDataStore(dataDir)
 		importFileTasks := prepareImportFileTasks()
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks)
+
+	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		tdb.Finalize()
 	},
 }
 
 func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
-	sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
-	sqlname.SourceDBType = sourceDBType
-	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		source.DBType = POSTGRESQL
 		record.SourceDBConf = source.Clone()
