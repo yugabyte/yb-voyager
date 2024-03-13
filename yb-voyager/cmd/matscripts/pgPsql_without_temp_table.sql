@@ -21,50 +21,20 @@ BEGIN
 END $$;
 
 \echo 'collect stats about size of tables'
--- Create a temporary table to store the query results
-CREATE TEMP TABLE temp_table AS
-SELECT
-    n.nspname AS schema_name,
-    c.relname AS table_name,
-    pg_catalog.pg_table_size(c.oid) AS table_size
-FROM 
-    pg_class c
-JOIN 
-    pg_namespace n ON n.oid = c.relnamespace
-WHERE 
-    c.oid > 16384
-    AND c.relkind IN ('r', 'i')
-    AND n.nspname = ANY(ARRAY[string_to_array(:'schema_list', ',')])
-ORDER BY 
-    pg_catalog.pg_table_size(c.oid) DESC;
+-- refer: https://stackoverflow.com/questions/24671177/variable-substitution-in-psql-copy 
+\set table_sizes_sql 'SELECT n.nspname AS schema_name, c.relname AS table_name, pg_catalog.pg_table_size(c.oid) AS table_size FROM  pg_class c JOIN  pg_namespace n ON n.oid = c.relnamespace WHERE  c.oid > 16384 AND c.relkind IN (''r'', ''i'') AND n.nspname = ANY(ARRAY[string_to_array(':'schema_list'', '','')]) ORDER BY  pg_catalog.pg_table_size(c.oid) DESC'
 
--- TODO: handle storing the info(column names) with schema name(required in case of multi schema migration)
--- Output the contents of the temporary table to a CSV file
-\copy temp_table TO 'sharding__table-sizes.csv' WITH CSV HEADER;
--- Drop the temporary table
-DROP TABLE temp_table;
-
+\set copy_command_table_sizes '\\copy (' :table_sizes_sql ') TO ''sharding__table-sizes.csv'' WITH CSV HEADER'
+:copy_command_table_sizes
 
 \echo 'collect stats about iops of tables'
--- similar gather the IOPS for all the tables in these schemas
-CREATE TEMP TABLE temp_table AS
-SELECT
-    schemaname as schema_name,
-    relname as table_name,
-    seq_tup_read AS seq_reads,
-    n_tup_ins + n_tup_upd + n_tup_del AS row_writes
-FROM
-    pg_stat_user_tables
-WHERE
-    schemaname = ANY(ARRAY[string_to_array(:'schema_list', ',')])
-ORDER BY
-    seq_tup_read DESC;
+-- Build the SQL query dynamically
+\set iops_query 'SELECT schemaname AS schema_name, relname AS table_name, seq_tup_read AS seq_reads, n_tup_ins + n_tup_upd + n_tup_del AS row_writes FROM pg_stat_user_tables WHERE schemaname = ANY(ARRAY[string_to_array(' :'schema_list' ', ',')]) ORDER BY seq_tup_read DESC'
 
--- Now you can use the temporary table to fetch the data
-\copy temp_table_usage TO 'sharding__table-iops.csv' WITH CSV HEADER;
+-- Execute the query and export the data directly to CSV
+\set copy_command_iops '\\copy (' :iops_query ') TO ''sharding__table-iops.csv'' WITH CSV HEADER'
+:copy_command_iops
 
--- Drop the temporary table
-DROP TABLE temp_table;
 
 
 -- TODO: finalize the query, approx count or exact count(any optimization also if possible)
@@ -77,7 +47,7 @@ CREATE TEMP TABLE temp_table (
     row_count INTEGER
 );
 
--- Set the schema_list variable
+-- Set the schema_list variable because DO block does not have access to psql variables
 SET vars.schema_list TO :'schema_list';
 
 DO $$

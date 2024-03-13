@@ -232,7 +232,7 @@ func generateIndexHtmlFile(assessmentDirPath string) error {
 	for _, pluginName := range pluginsList {
 		// using relative path for plugins report, as the whole report directory can be shared or moved to different locations
 		pluginReportFileRelpath := fmt.Sprintf("%s.%s", pluginName, assessmentReportFormat)
-		htmlContent += fmt.Sprintf("<li>&#8226 %s Report (<a href=\"%s\">&#x2197;</a>)</li>\n",
+		htmlContent += fmt.Sprintf("<li>&#8226; %s Report (<a href=\"%s\">&#x2197;</a>)</li>\n",
 			cases.Title(language.English).String(pluginName), pluginReportFileRelpath)
 	}
 	// Close the <ul> and <div> tags

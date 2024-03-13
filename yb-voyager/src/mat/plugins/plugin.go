@@ -21,6 +21,7 @@ type AssessmentPlugin interface {
 	RunAssessment(queryResults map[string]QueryResult, userInput map[string]any) (any, error) // returns the report and error
 	GetHtmlTemplate() string
 	ModifySchema(report map[string]any) error
+	
 	GetName() string
 }
 
