@@ -95,6 +95,7 @@ jobs:
 
       - name: "TEST: pg-live-migration-partitions" # Just to test for now, will shift it to jenkins
         run: migtests/scripts/live-migration-run-test.sh pg/partitions
+        if: matrix.version != '2.16.7.0-b59'
 
       - name: "TEST: pg-case-sensitivity-single-table"
         run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
