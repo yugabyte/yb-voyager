@@ -108,6 +108,10 @@ type NameTuple struct {
 	TargetName  *ObjectName
 }
 
+func (t *NameTuple) Hashcode() string {
+	return t.String()
+}
+
 func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
 	return reflect.DeepEqual(t1, t2)
 }
@@ -205,4 +209,22 @@ func minQuote2(objectName, sourceDBType string) string {
 	default:
 		panic("invalid source db type")
 	}
+}
+
+type Hashable interface {
+	Hashcode() string
+}
+type CustomHashMap[K Hashable, V any] struct {
+	m map[string]V
+}
+
+func (cm *CustomHashMap[K, V]) Put(key Hashable, val V) {
+	if cm.m == nil {
+		cm.m = make(map[string]V)
+	}
+	cm.m[key.Hashcode()] = val
+}
+
+func (cm *CustomHashMap[K, V]) Get(key Hashable) V {
+	return cm.m[key.Hashcode()]
 }
