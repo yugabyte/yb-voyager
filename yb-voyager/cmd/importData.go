@@ -317,8 +317,8 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 	leafPartitionsMap := make(map[string][]string)
 	lo.Map(allTables, func(tableName string, _ int) string {
-		renameTable := renameTableIfRequired(tableName)
-		if renameTable != tableName {
+		renameTable, isRenamed := renameTableIfRequired(tableName)
+		if isRenamed {
 			leafPartitionsMap[renameTable] = append(leafPartitionsMap[renameTable], tableName)
 		}
 		return tableName
@@ -342,7 +342,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 	for _, task := range importFileTasks {
 		table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
-		rootTable := renameTableIfRequired(table)
+		rootTable, _ := renameTableIfRequired(table)
 		if (len(includeList) > 0 && !slices.Contains(includeList, table)) && 
 				(len(leafPartitionsMap[rootTable]) > 0 && !slices.Contains(includeList, rootTable)) { // if root table is also not included then also skip leaf 
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
@@ -470,8 +470,8 @@ func importData(importFileTasks []*ImportFileTask) {
 		} else {
 			leafPartitions := make(map[string][]string)
 			renamedTableListToDisplay := lo.Uniq(lo.Map(importFileTasksToTableNames(pendingTasks), func(tableName string, _ int) string {
-				renameTable := renameTableIfRequired(tableName)
-				if renameTable != tableName {
+				renameTable, isRenamed := renameTableIfRequired(tableName)
+				if isRenamed {
 					leafPartitions[renameTable] = append(leafPartitions[renameTable], tableName)
 				}
 				return renameTable
@@ -706,7 +706,8 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
 	renamedTablesNames := make([]string, 0)
 	for _, tableName := range tableNames {//In case partitions are changed during the migration, need to check root table
-		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
+		renamedTable, _ := renameTableIfRequired(tableName)
+		renamedTablesNames = append(renamedTablesNames, renamedTable)
 	}
 	renamedTablesNames = lo.Uniq(renamedTablesNames)
 	nonEmptyTableNames := tdb.GetNonEmptyTables(renamedTablesNames)
@@ -759,8 +760,9 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 	if fileFormat == datafile.SQL {
 		fileFormat = datafile.TEXT
 	}
+	renamedTable, _ := renameTableIfRequired(tableName)
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableName:  renameTableIfRequired(tableName),
+		TableName:  renamedTable,
 		Columns:    columns,
 		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,

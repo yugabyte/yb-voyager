@@ -128,8 +128,8 @@ func runExportDataStatusCmd() error {
 	leafPartitions := make(map[string][]string)
 
 	renamedTableList := lo.Uniq(lo.Map(tableList, func(table string, _ int) string {
-		renamedTable := renameTableIfRequired(table)
-		if renamedTable != table {
+		renamedTable, isRenamed := renameTableIfRequired(table)
+		if isRenamed {
 			table = strings.Replace(table, "public.", "", -1)
 			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
 		}
@@ -151,9 +151,31 @@ func runExportDataStatusCmd() error {
 			partitions := strings.Join(leafPartitions[finalFullTableName], ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", finalFullTableName, partitions)
 		}
+		finalStatus := exportedSnapshotStatus[finalFullTableName][0]
+		if len(exportedSnapshotStatus[finalFullTableName]) > 1 { // status for root partition wrt leaf partitions
+			exportingLeaf := 0
+			doneLeaf := 0
+			not_started := 0
+			for _, status := range exportedSnapshotStatus[finalFullTableName] {
+				if status == "EXPORTING" {
+					exportingLeaf++
+				} else if status == "DONE" {
+					doneLeaf++
+				} else {
+					not_started++
+				}
+			}
+			if exportingLeaf > 0 {
+				finalStatus = "EXPORTING"
+			} else if doneLeaf == len(exportedSnapshotStatus[finalFullTableName]) {
+				finalStatus = "DONE"
+			} else if not_started == len(exportedSnapshotStatus[finalFullTableName]) {
+				finalStatus = "NOT_STARTED"
+			}
+		}
 		row := &exportTableMigStatusOutputRow{
 			tableName:     displayTableName,
-			status:        exportedSnapshotStatus[finalFullTableName],
+			status:        finalStatus,
 			exportedCount: exportedSnapshotRow[finalFullTableName],
 		}
 		outputRows = append(outputRows, row)

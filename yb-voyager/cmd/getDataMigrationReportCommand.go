@@ -145,12 +145,12 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	}
 	leafPartitions := make(map[string][]string)
 	renamedTablesNames := lo.Uniq(lo.Map(tableList, func (table string, _ int) string {
-		renamedTable := renameTableIfRequired(table)
+		renamedTable, isRenamed := renameTableIfRequired(table)
 		if len(strings.Split(renamedTable, ".")) < 2 {
 			// safe to directly qualify it with public schema as it is not qualified in case of PG by renameTableIfRequired()
 			renamedTable = fmt.Sprintf("public.%s", renamedTable)
 		}
-		if renamedTable != table {
+		if isRenamed {
 			table = strings.TrimPrefix(table, "public.")
 			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
 		}

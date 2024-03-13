@@ -162,8 +162,8 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		if err != nil {
 			return nil, fmt.Errorf("prepare row with datafile: %w", err)
 		}
-		renamedTable := renameTableIfRequired(row.tableName)
-		if renamedTable != row.tableName {
+		renamedTable, isRenamed := renameTableIfRequired(row.tableName)
+		if isRenamed {
 			ok := renamedRowsForPartitions[renamedTable]
 			if ok == nil {
 				renamedRowsForPartitions[renamedTable] = &tableMigStatusOutputRow{

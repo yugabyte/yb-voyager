@@ -199,8 +199,8 @@ func getExportedRowCountSnapshot(exportDir string) (map[string]int64, map[string
 	tableRowCount := map[string]int64{}
 	leafPartitions := map[string][]string{}
 	for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
-		renamedTable := renameTableIfRequired(fileEntry.TableName)
-		if renamedTable != fileEntry.TableName {
+		renamedTable, isRenamed := renameTableIfRequired(fileEntry.TableName)
+		if isRenamed {
 			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], fileEntry.TableName)
 		}
 		tableRowCount[renamedTable] += fileEntry.RowCount
@@ -318,8 +318,8 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 
 	leafPartitions := map[string][]string{}
 	renamedTableList := lo.Uniq(lo.Map(tableList, func(t string, _ int) string {
-		renamedTable := renameTableIfRequired(t)
-		if renamedTable != t {
+		renamedTable, isRenamed := renameTableIfRequired(t)
+		if isRenamed {
 			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], t)
 		}
 		return renamedTable
@@ -686,7 +686,7 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 	}
 }
 
-func renameTableIfRequired(table string) string {
+func renameTableIfRequired(table string) (string, bool) {
 	// required to rename the table name from leaf to root partition in case of pg_dump
 	// to be load data in target using via root table
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -697,10 +697,10 @@ func renameTableIfRequired(table string) string {
 	sourceSchema := msr.SourceDBConf.Schema
 	sqlname.SourceDBType = sourceDBType
 	if sourceDBType != POSTGRESQL {
-		return table
+		return table, false
 	}
 	if msr.RenameTablesMap == nil {
-		return table
+		return table, false
 	}
 	defaultSchema, noDefaultSchema := GetDefaultPGSchema(sourceSchema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
@@ -715,18 +715,18 @@ func renameTableIfRequired(table string) string {
 		if table.SchemaName.MinQuoted == "public" {
 			toTable = table.ObjectName.MinQuoted
 		}
-		return toTable
+		return toTable, true
 	}
-	return table
+	return table, false
 }
 
-
-func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *ExportSnapshotStatus) (map[string]int64, map[string]string, error) {
+func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *ExportSnapshotStatus) (map[string]int64, map[string][]string, error) {
 	snapshotRowsMap := make(map[string]int64)
-	snapshotStatusMap := make(map[string]string)
+	snapshotStatusMap := make(map[string][]string)
 	for _, table := range tableList {
-		renamedTable := renameTableIfRequired(table)
-		snapshotStatusMap[renamedTable] = exportSnapshotStatus.Tables[table].Status
+		renamedTable, _ := renameTableIfRequired(table)
+		renamedTable = strings.TrimPrefix(renamedTable, "public.")
+		snapshotStatusMap[renamedTable] = append(snapshotStatusMap[renamedTable],exportSnapshotStatus.Tables[table].Status)
 		snapshotRowsMap[renamedTable] += exportSnapshotStatus.Tables[table].ExportedRowCountSnapshot
 	}
 	return snapshotRowsMap, snapshotStatusMap, nil
@@ -772,7 +772,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]i
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", table, err)
 		}
-		renamedTable := renameTableIfRequired(table)
+		renamedTable, _ := renameTableIfRequired(table)
 		snapshotRowsMap[renamedTable] += snapshotRowCount
 	}
 	return snapshotRowsMap, nil

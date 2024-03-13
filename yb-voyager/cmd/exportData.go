@@ -184,8 +184,8 @@ func exportData() bool {
 
 	leafPartitions := make(map[string][]string)
 	renamedTableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
-		renamedTable := renameTableIfRequired(table.Qualified.MinQuoted)
-		if renamedTable != table.Qualified.MinQuoted {
+		renamedTable, isRenamed := renameTableIfRequired(table.Qualified.MinQuoted)
+		if isRenamed {
 			table := strings.TrimPrefix(table.Qualified.MinQuoted, "public.")
 			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
 		}

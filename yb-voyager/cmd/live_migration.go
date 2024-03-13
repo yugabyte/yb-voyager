@@ -58,8 +58,11 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 
 	renamedTables := make([]string, 0)
 	for _, tableName := range tableNames {
-		renamedTables = append(renamedTables, renameTableIfRequired(tableName))
+		// because from debezium the events are coming with root tables so need to initialize the renamed tables
+		renamedTable, _ := renameTableIfRequired(tableName) 
+		renamedTables = append(renamedTables, renamedTable)
 	}
+	renamedTables = lo.Uniq(renamedTables)
 	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), renamedTables)
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
