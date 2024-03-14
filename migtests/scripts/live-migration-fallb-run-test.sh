@@ -73,7 +73,7 @@ main() {
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
 	then
-		 "${TEST_DIR}/fix-schema"
+		 "${TEST_DIR}/fix-schema" "is_fall_forward_or_fallback"
 	fi
 
 	step "Analyze schema."
@@ -83,6 +83,11 @@ main() {
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+
+	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
+	then
+		"${TEST_DIR}/add-pk-from-alter-to-create"
+	fi
 
 	step "Import schema."
 	import_schema
@@ -132,7 +137,7 @@ main() {
 	step "Inserting new events"
 	run_sql_file source_delta.sql
 
-	sleep 2m
+	sleep 120
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -141,7 +146,7 @@ main() {
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true --yes
 
 	for ((i = 0; i < 15; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 14 ]; then
@@ -154,12 +159,12 @@ main() {
     fi
 	done
 	
-	sleep 1m
+	sleep 60
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 1m
+	sleep 60
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -168,7 +173,7 @@ main() {
 	yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} --yes
 
 	for ((i = 0; i < 5; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to source status: \K\S+')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 4 ]; then

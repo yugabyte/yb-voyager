@@ -97,6 +97,14 @@ jobs:
         run: migtests/scripts/live-migration-run-test.sh pg/partitions
         if: matrix.version != '2.16.7.0-b59'
 
+      - name: "TEST: pg-live-migration-partitions-fall-forward" # Just to test for now, will shift it to jenkins
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
+        if: matrix.version != '2.16.7.0-b59'
+      
+      - name: "TEST: pg-live-migration-partitions-fall-back" # Just to test for now, will shift it to jenkins
+        run: migtests/scripts/live-migration-fallb-run-test.sh pg/partitions
+        if: matrix.version != '2.16.7.0-b59'
+
       - name: "TEST: pg-case-sensitivity-single-table"
         run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
 

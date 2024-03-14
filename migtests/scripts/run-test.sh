@@ -70,7 +70,7 @@ main() {
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
 	then
-		 "${TEST_DIR}/fix-schema"
+		 "${TEST_DIR}/fix-schema" 'offline_migration'
 	fi
 
 	step "Analyze schema."
