@@ -159,6 +159,9 @@ main() {
 
 	sleep 1m
 
+	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
+	import_schema --post-snapshot-import true --refresh-mviews true
+	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false'
 
@@ -213,8 +216,6 @@ main() {
     fi
 	done
 
-	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import true --refresh-mviews true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
