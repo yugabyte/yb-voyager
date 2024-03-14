@@ -108,7 +108,7 @@ type NameTuple struct {
 	TargetName  *ObjectName
 }
 
-func (t *NameTuple) Hashcode() string {
+func (t *NameTuple) UniqueId() string {
 	return t.String()
 }
 
@@ -211,20 +211,17 @@ func minQuote2(objectName, sourceDBType string) string {
 	}
 }
 
-type Hashable interface {
-	Hashcode() string
-}
-type CustomHashMap[K Hashable, V any] struct {
+type NameTupleMap[V any] struct {
 	m map[string]V
 }
 
-func (cm *CustomHashMap[K, V]) Put(key Hashable, val V) {
+func (cm *NameTupleMap[V]) Put(key *NameTuple, val V) {
 	if cm.m == nil {
 		cm.m = make(map[string]V)
 	}
-	cm.m[key.Hashcode()] = val
+	cm.m[key.UniqueId()] = val
 }
 
-func (cm *CustomHashMap[K, V]) Get(key Hashable) V {
-	return cm.m[key.Hashcode()]
+func (cm *NameTupleMap[V]) Get(key *NameTuple) V {
+	return cm.m[key.UniqueId()]
 }

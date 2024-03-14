@@ -386,7 +386,7 @@ func TestNameTupleUsage(t *testing.T) {
 
 	// assert.Equal(*nt1, *nt2)   // this passes
 
-	cm := CustomHashMap[*NameTuple, int]{}
+	cm := NameTupleMap[int]{}
 	cm.Put(nt1, 100)
 	assert.Equal(cm.Get(nt2), 100)
 	// assert.Equal(cm.Get(nt2), 0)

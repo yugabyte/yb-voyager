@@ -1238,12 +1238,12 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 	}
 }
 
-func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *sqlname.CustomHashMap[*sqlname.NameTuple, []string] {
+func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *sqlname.NameTupleMap[[]string] {
 	if dataFileDescriptor.TableNameToExportedColumns == nil {
 		return nil
 	}
 
-	result := &sqlname.CustomHashMap[*sqlname.NameTuple, []string]{}
+	result := &sqlname.NameTupleMap[[]string]{}
 	for tableNameRaw, columnList := range dataFileDescriptor.TableNameToExportedColumns {
 		nt, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
