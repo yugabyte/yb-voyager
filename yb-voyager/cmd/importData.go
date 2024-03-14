@@ -1215,8 +1215,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 		var columns []string
 		dfdTableToExportedColumns := getDfdTableNameToExportedColumns(dataFileDescriptor)
 		if dfdTableToExportedColumns != nil {
-			// TODO:TABLENAME revisit this once export-side is also fixed.
-			columns = dfdTableToExportedColumns.Get(task.TableName)
+			columns = dfdTableToExportedColumns[task.TableName.ForKey()]
 		} else if dataFileDescriptor.HasHeader {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
@@ -1238,19 +1237,18 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 	}
 }
 
-func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *sqlname.NameTupleMap[[]string] {
+func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) map[string][]string {
 	if dataFileDescriptor.TableNameToExportedColumns == nil {
 		return nil
 	}
 
-	result := &sqlname.NameTupleMap[[]string]{}
+	result := map[string][]string{}
 	for tableNameRaw, columnList := range dataFileDescriptor.TableNameToExportedColumns {
 		nt, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
 			utils.ErrExit("lookup table [%s] in name registry: %v", tableNameRaw, err)
 		}
-		// result[*nt] = columnList
-		result.Put(nt, columnList)
+		result[nt.ForKey()] = columnList
 	}
 	return result
 }

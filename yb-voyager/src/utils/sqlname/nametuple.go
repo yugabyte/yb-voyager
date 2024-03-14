@@ -211,17 +211,17 @@ func minQuote2(objectName, sourceDBType string) string {
 	}
 }
 
-type NameTupleMap[V any] struct {
-	m map[string]V
-}
+// type NameTupleMap[V any] struct {
+// 	m map[string]V
+// }
 
-func (cm *NameTupleMap[V]) Put(key *NameTuple, val V) {
-	if cm.m == nil {
-		cm.m = make(map[string]V)
-	}
-	cm.m[key.UniqueId()] = val
-}
+// func (cm *NameTupleMap[V]) Put(key *NameTuple, val V) {
+// 	if cm.m == nil {
+// 		cm.m = make(map[string]V)
+// 	}
+// 	cm.m[key.UniqueId()] = val
+// }
 
-func (cm *NameTupleMap[V]) Get(key *NameTuple) V {
-	return cm.m[key.UniqueId()]
-}
+// func (cm *NameTupleMap[V]) Get(key *NameTuple) V {
+// 	return cm.m[key.UniqueId()]
+// }
