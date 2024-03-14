@@ -57,9 +57,9 @@ var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits utils.BoolStr                               // to truncate *.D splits after import
-var TableToColumnNames = make(map[*sqlname.NameTuple][]string) // map of table name to columnNames
-var TableToIdentityColumnNames = make(map[string][]string)     // map of table name to generated always as identity column's names
+var truncateSplits utils.BoolStr                           // to truncate *.D splits after import
+var TableToColumnNames = make(map[string][]string)         // map of table name to columnNames
+var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
 var conflictDetectionCache *ConflictDetectionCache
@@ -766,7 +766,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 }
 
 func getImportBatchArgsProto(tableName *sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
-	columns := TableToColumnNames[tableName]
+	columns := TableToColumnNames[tableName.ForKey()]
 	//TODO:TABLENAME revisit.
 	columns, err := tdb.IfRequiredQuoteColumnNames(tableName.ForUserQuery(), columns)
 	if err != nil {
@@ -871,7 +871,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t *sqlname.Name
 			// table := batchWriter.tableName
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			// TODO:TABLENAME
-			line, err = valueConverter.ConvertRow(t, TableToColumnNames[t], line)
+			line, err = valueConverter.ConvertRow(t, TableToColumnNames[t.ForKey()], line)
 			if err != nil {
 				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
@@ -1211,7 +1211,6 @@ func getTargetSchemaName(tableName string) string {
 
 func prepareTableToColumns(tasks []*ImportFileTask) {
 	for _, task := range tasks {
-		table := task.TableName
 		var columns []string
 		dfdTableToExportedColumns := getDfdTableNameToExportedColumns(dataFileDescriptor)
 		if dfdTableToExportedColumns != nil {
@@ -1232,8 +1231,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 			log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
 			df.Close()
 		}
-		// TODO:TABLENAME
-		TableToColumnNames[table] = columns
+		TableToColumnNames[task.TableName.ForKey()] = columns
 	}
 }
 
