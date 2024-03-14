@@ -287,8 +287,11 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 		}
 		tableName = fmt.Sprintf(`"%s"`, tableName)
 		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
-		if slices.Contains(tableList, tableSrcName) {
-			unsupportedTableList = append(unsupportedTableList, tableSrcName)
+
+		for _, table := range tableList {
+			if table.Qualified == tableSrcName.Qualified {
+				unsupportedTableList = append(unsupportedTableList, tableSrcName)
+			}
 		}
 	}
 
