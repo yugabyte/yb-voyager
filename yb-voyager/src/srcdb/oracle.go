@@ -511,8 +511,8 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName
 
 func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("Clearing migration state for migration %q", migrationUUID)
-	log.Infof("Dropping table LOG_MINING_FLUSH")
-	logMiningFlushTableName := "LOG_MINING_FLUSH"
+	logMiningFlushTableName := utils.GetLogMiningFlushTableName(migrationUUID)
+	log.Infof("Dropping table %s", logMiningFlushTableName)
 	_, err := ora.db.Exec(fmt.Sprintf("DROP TABLE %s", logMiningFlushTableName))
 	if err != nil {
 		if strings.Contains(err.Error(), "ORA-00942") {

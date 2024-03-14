@@ -491,8 +491,6 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 
 func GetLogMiningFlushTableName(migrationUUID uuid.UUID) string {
 	// SQL tables doesn't support '-' in the name
-	// Note: Oracle Log Miner supports table name with max length of 30 characters
 	convertedMigUUID := strings.Replace(migrationUUID.String(), "-", "_", -1)
-	convertedMigUUID = convertedMigUUID[:lo.Min([]int{13, len(migrationUUID.String())})]
 	return fmt.Sprintf("LOG_MINING_FLUSH_%s", convertedMigUUID)
 }
