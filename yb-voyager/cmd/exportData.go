@@ -531,13 +531,15 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
 	isTableListModified := len(sqlname.SetDifference(fullTableList, finalTableList)) != 0
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if isTableListModified {
-			record.IsExportTableListSet = true
-		} else {
-			record.IsExportTableListSet = false
-		}
-	})
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			if isTableListModified {
+				record.IsExportTableListSet = true
+			} else {
+				record.IsExportTableListSet = false
+			}
+		})
+	}
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}

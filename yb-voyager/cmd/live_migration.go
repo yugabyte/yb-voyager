@@ -351,6 +351,14 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole 
 	if err != nil {
 		return fmt.Errorf("get table unique key columns map: %w", err)
 	}
+	//for adding a root table as well in the tableToUniqueKeyColumns map because the event in case of parititons 
+	//will be coming with root table
+	for table, uniqueKeyCols := range tableToUniqueKeyColumns {
+		renamedTable, isRenamed := renameTableIfRequired(table)
+		if isRenamed {
+			tableToUniqueKeyColumns[renamedTable] = uniqueKeyCols
+		}
+	}
 	log.Infof("initializing conflict detection cache")
 	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBTypeForConflictCache)
 	return nil
