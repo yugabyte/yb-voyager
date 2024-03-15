@@ -158,7 +158,8 @@ func exportData() bool {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	finalTableList, tablesColumnList := getFinalTableColumnList()
+	var partitionsToRootTableMap map[string]string
+	partitionsToRootTableMap, finalTableList, tablesColumnList := getFinalTableColumnList()
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
@@ -169,11 +170,6 @@ func exportData() bool {
 		}
 		dfd.Save()
 		os.Exit(0)
-	}
-	var partitionsToRootTableMap map[string]string
-	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList)
-	if err != nil {
-		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
 	if source.DBType == POSTGRESQL {
@@ -487,7 +483,7 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 		"You can exclude these tables using the --exclude-table-list argument.")
 }
 
-func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
+func getFinalTableColumnList() (map[string]string, []*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []*sqlname.SourceName
@@ -516,6 +512,13 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 	}
 
+	var partitionsToRootTableMap map[string]string
+	var err error
+	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList)
+	if err != nil {
+		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
+	}
+
 	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
 	if len(unsupportedColumnNames) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
@@ -525,7 +528,7 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		}
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	return finalTableList, tablesColumnList
+	return partitionsToRootTableMap, finalTableList, tablesColumnList
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
