@@ -73,7 +73,7 @@ main() {
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
 	then
-		 "${TEST_DIR}/fix-schema" "is_fall_forward_or_fallback"
+		 "${TEST_DIR}/fix-schema"
 	fi
 
 	step "Analyze schema."
@@ -137,7 +137,7 @@ main() {
 	step "Inserting new events"
 	run_sql_file source_delta.sql
 
-	sleep 120
+	sleep 220
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP

@@ -3,13 +3,10 @@
 set -e
 set -x
 
-if [ $1 != "is_fall_forward_or_fallback" ]; then
-    # skipping this test for fall forward or fall back for as changing partitions name on target is not supported here.
-    sed -i  's/p2\.boston/p2.boston_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
-    sed -i  's/p2\.london/p2.london_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
-    sed -i  's/p2\.sydney/p2.sydney_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
+sed -i  's/p2\.boston/p2.boston_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
+sed -i  's/p2\.london/p2.london_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
+sed -i  's/p2\.sydney/p2.sydney_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
 
-    sed -i  's/p2\.boston/p2.boston_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
-    sed -i  's/p2\.london/p2.london_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
-    sed -i  's/p2\.sydney/p2.sydney_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
-fi
+sed -i  's/p2\.boston/p2.boston_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
+sed -i  's/p2\.london/p2.london_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
+sed -i  's/p2\.sydney/p2.sydney_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
