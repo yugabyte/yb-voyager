@@ -336,7 +336,7 @@ func (yb *YugabyteDB) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (yb *YugabyteDB) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	return tableList, nil
 }
 

@@ -211,7 +211,7 @@ func (ms *MySQL) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	return tableList, nil
 }
 
