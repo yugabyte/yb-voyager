@@ -68,10 +68,13 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Fields = rawEvent.Fields
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
-	e.TableName, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.SchemaName, rawEvent.TableName))
-	if err != nil {
-		return fmt.Errorf("lookup table %s.%s in name registry: %v", rawEvent.SchemaName, rawEvent.TableName, err)
+	if !e.IsCutoverEvent() {
+		e.TableName, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.SchemaName, rawEvent.TableName))
+		if err != nil {
+			return fmt.Errorf("lookup table %s.%s in name registry: %v", rawEvent.SchemaName, rawEvent.TableName, err)
+		}
 	}
+
 	return nil
 }
 
@@ -121,6 +124,10 @@ func (e *Event) IsCutoverToSourceReplica() bool {
 
 func (e *Event) IsCutoverToSource() bool {
 	return e.Op == "cutover.source"
+}
+
+func (e *Event) IsCutoverEvent() bool {
+	return e.IsCutoverToTarget() || e.IsCutoverToSourceReplica() || e.IsCutoverToSource()
 }
 
 func (e *Event) GetSQLStmt() string {
