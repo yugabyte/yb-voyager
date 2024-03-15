@@ -516,13 +516,29 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 	}
 
-	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
-	if len(unsupportedColumnNames) > 0 {
-		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
-		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
-			"\nDo you want to ignore just these columns' data and continue with export") {
+	tablesColumnList, unsupportedTableColumnsMap := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
+	if len(unsupportedTableColumnsMap) > 0 {
+		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
+		fmt.Println("The following columns data export is unsupported:")
+		for k, v := range unsupportedTableColumnsMap {
+			fmt.Printf("%s: %s\n", k, v)
+		}
+		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		}
+		// Put unsupported columns map in metaDB
+		// Transform unsupportedTableColumnsMap to map[string][]string
+		unsupportedTableColumnsMapStr := make(map[string][]string)
+		for k, v := range unsupportedTableColumnsMap {
+			unsupportedTableColumnsMapStr[k.Qualified.MinQuoted] = v
+		}
+		err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.TABLE_TO_UNSUPPORTED_COLUMNS_KEY, func(record *map[string][]string) {
+			*record = unsupportedTableColumnsMapStr
+		})
+		if err != nil {
+			utils.ErrExit("update table to unsupported columns map in metaDB: %v", err)
+		}
+
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
 	return finalTableList, tablesColumnList

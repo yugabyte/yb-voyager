@@ -442,11 +442,12 @@ func (pg *PostgreSQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, 
 	return columns, dataTypes, dataTypesOwner
 }
 
-func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, []string) {
-	tableColumnMap := make(map[*sqlname.SourceName][]string)
-	var unsupportedColumnNames []string
+func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string) {
+	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
+	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
 		columns, dataTypes, _ := pg.GetTableColumns(tableName)
+		var unsupportedColumnNames []string
 		var supportedColumnNames []string
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
@@ -458,12 +459,38 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 			}
 		}
 		if len(supportedColumnNames) == len(columns) {
-			tableColumnMap[tableName] = []string{"*"}
+			supportedTableColumnsMap[tableName] = []string{"*"}
 		} else {
-			tableColumnMap[tableName] = supportedColumnNames
+			supportedTableColumnsMap[tableName] = supportedColumnNames
+			unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
 		}
+		// if len(unsupportedColumnNames) > 0 {
+		// 	// Check if columns are nullable or not
+		// 	// select column_name, is_nullable FROM information_schema.columns where column_name in ('texts') and table_name = 'array_of_text_table' and is_nullable = 'YES';
+		// 	// If any of the columns are not nullable then we should ask the user to remove the NULL constrain and exit
+		// 	query := fmt.Sprintf("SELECT column_name FROM information_schema.columns WHERE table_name = '%s' AND column_name IN ('%s') AND is_nullable = 'NO';", tableName.ObjectName.Unquoted, strings.Join(unsupportedColumnNames, `', '`))
+		// 	rows, err := pg.db.Query(context.Background(), query)
+		// 	if err != nil {
+		// 		utils.ErrExit("error in querying(%q) source database for checking nullable columns: %v\n", query, err)
+		// 	}
+		// 	defer rows.Close()
+		// 	nonNullableColumns := make([]string, 0)
+		// 	for rows.Next() {
+		// 		var column string
+		// 		err = rows.Scan(&column)
+		// 		if err != nil {
+		// 			utils.ErrExit("error in scanning query rows for checking nullable columns: %v\n", err)
+		// 		}
+		// 		nonNullableColumns = append(nonNullableColumns, column)
+		// 	}
+		// 	if len(nonNullableColumns) > 0 {
+		// 		utils.ErrExit("The following columns are not nullable and are of unsupported data type: %v in table %v. Please remove the NOT NULL constraint and try again as these columns will have to be dropped to continue", nonNullableColumns, tableName)
+		// 	}
+		// }
 	}
-	return tableColumnMap, unsupportedColumnNames
+	fmt.Println("Supported Table Columns: ", supportedTableColumnsMap)
+	fmt.Println("Unsupported Table Columns: ", unsupportedTableColumnsMap)
+	return supportedTableColumnsMap, unsupportedTableColumnsMap
 }
 
 func (pg *PostgreSQL) ParentTableOfPartition(table *sqlname.SourceName) string {

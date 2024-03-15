@@ -516,6 +516,13 @@ func importData(importFileTasks []*ImportFileTask) {
 			if importerRole != SOURCE_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
+			// Get tables to unsupported columns json map from metadb
+			unsupportedColumnsMap := make(map[string][]string)
+			_, err := metaDB.GetJsonObject(nil, metadb.TABLE_TO_UNSUPPORTED_COLUMNS_KEY, &unsupportedColumnsMap)
+			if err != nil {
+				utils.ErrExit("failed to get unsupported columns from meta db: %s", err)
+			}
+
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
 			if err != nil {
@@ -679,7 +686,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
 	renamedTablesNames := make([]string, 0)
-	for _, tableName := range tableNames {//In case partitions are changed during the migration, need to check root table
+	for _, tableName := range tableNames { //In case partitions are changed during the migration, need to check root table
 		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
 	}
 	renamedTablesNames = lo.Uniq(renamedTablesNames)

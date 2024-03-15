@@ -251,12 +251,13 @@ func (ms *MySQL) GetAllSequences() []string {
 	return nil
 }
 
-func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, []string) {
-	tableColumnMap := make(map[*sqlname.SourceName][]string)
-	var unsupportedColumnNames []string
+func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string) {
+	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
+	unsupportedTableColumnMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
 		columns, dataTypes, _ := ms.GetTableColumns(tableName)
 		var supportedColumnNames []string
+		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			if utils.ContainsAnySubstringFromSlice(mysqlUnsupportedDataTypes, dataTypes[i]) {
 				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
@@ -267,12 +268,13 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 
 		}
 		if len(supportedColumnNames) == len(columns) {
-			tableColumnMap[tableName] = []string{"*"}
+			supportedTableColumnsMap[tableName] = []string{"*"}
 		} else {
-			tableColumnMap[tableName] = supportedColumnNames
+			supportedTableColumnsMap[tableName] = supportedColumnNames
+			unsupportedTableColumnMap[tableName] = unsupportedColumnNames
 		}
 	}
-	return tableColumnMap, unsupportedColumnNames
+	return supportedTableColumnsMap, unsupportedTableColumnMap
 }
 
 func (ms *MySQL) ParentTableOfPartition(table *sqlname.SourceName) string {

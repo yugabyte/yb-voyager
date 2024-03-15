@@ -424,15 +424,16 @@ func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []s
 	return columns, dataTypes, dataTypesOwner
 }
 
-func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, []string) {
-	tableColumnMap := make(map[*sqlname.SourceName][]string)
-	var unsupportedColumnNames []string
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string) {
+	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
+	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	if isStreamingEnabled {
 		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, "NCHAR", "NVARCHAR2")
 	}
 	for _, tableName := range tableList {
 		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
 		var supportedColumnNames []string
+		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			isUdtWithDebezium := (dataTypesOwner[i] == tableName.SchemaName.Unquoted) && useDebezium // datatype owner check is for UDT type detection as VARRAY are created using UDT
 			if isUdtWithDebezium || utils.ContainsAnySubstringFromSlice(oracleUnsupportedDataTypes, dataTypes[i]) {
@@ -444,13 +445,14 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 
 		}
 		if len(supportedColumnNames) == len(columns) {
-			tableColumnMap[tableName] = []string{"*"}
+			supportedTableColumnsMap[tableName] = []string{"*"}
 		} else {
-			tableColumnMap[tableName] = supportedColumnNames
+			supportedTableColumnsMap[tableName] = supportedColumnNames
+			unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
 		}
 	}
 
-	return tableColumnMap, unsupportedColumnNames
+	return supportedTableColumnsMap, unsupportedTableColumnsMap
 }
 
 func (ora *Oracle) GetServers() []string {
