@@ -228,7 +228,7 @@ func exportData() bool {
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
-		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList)
+		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
 		if err != nil {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
 			return false
@@ -501,13 +501,6 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 			if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
 				caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
 			}
-			// if source.DB().ParentTableOfPartition(table) == "" { //For root tables
-			// 	if len(source.DB().GetPartitions(table)) > 0 {
-			// 		partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
-			// 	}
-			// } else {
-			// 	partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
-			// }
 		}
 		if lo.Contains(allNonPKTables, table.Qualified.MinQuoted) {
 			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
@@ -519,9 +512,6 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	if len(caseSensitiveTables) > 0 {
 		utils.PrintAndLog("Case sensitive table names: %s", caseSensitiveTables)
 	}
-	// if len(partitionedTables) > 0 {
-	// 	utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
-	// }
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
 	}
