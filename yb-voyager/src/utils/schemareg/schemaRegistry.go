@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -77,8 +78,7 @@ func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 }
 
 func (sreg *SchemaRegistry) GetColumnTypes(tableName *sqlname.NameTuple, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
-	// TODO:TABLENAME revisit once export side is fixed
-	tableSchema := sreg.TableNameToSchema[tableName.SourceName.MinQualified.MinQuoted]
+	tableSchema := sreg.TableNameToSchema[tableName.ForKey()]
 	if tableSchema == nil {
 		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableName)
 	}
@@ -94,10 +94,10 @@ func (sreg *SchemaRegistry) GetColumnTypes(tableName *sqlname.NameTuple, columnN
 	return columnTypes, columnSchemas, nil
 }
 
-func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
+func (sreg *SchemaRegistry) GetColumnType(tableName *sqlname.NameTuple, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
 	var tableSchema *TableSchema
 	var err error
-	tableSchema = sreg.TableNameToSchema[tableName]
+	tableSchema = sreg.TableNameToSchema[tableName.ForKey()]
 	if tableSchema == nil {
 		// check on disk
 		tableSchema, err = sreg.getAndStoreTableSchema(tableName)
@@ -125,14 +125,18 @@ func (sreg *SchemaRegistry) Init() error {
 		if err != nil {
 			return fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
 		}
-		table := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
-		sreg.TableNameToSchema[table] = &tableSchema
+		tableName := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
+		table, err := namereg.NameReg.LookupTableName(tableName)
+		if err != nil {
+			return fmt.Errorf("lookup %s from name registry: %v", tableName, err)
+		}
+		sreg.TableNameToSchema[table.ForKey()] = &tableSchema
 		schemaFile.Close()
 	}
 	return nil
 }
 
-func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSchema, error) {
+func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName *sqlname.NameTuple) (*TableSchema, error) {
 	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole, fmt.Sprintf("%s_schema.json", tableName))
 	schemaFile, err := os.Open(schemaFilePath)
 	defer func() {
@@ -146,6 +150,6 @@ func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSche
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
 	}
-	sreg.TableNameToSchema[tableName] = &tableSchema
+	sreg.TableNameToSchema[tableName.ForKey()] = &tableSchema
 	return &tableSchema, nil
 }

@@ -44,7 +44,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -361,6 +363,26 @@ func initMetaDB() {
 		}
 		utils.ErrExit(userFacingMsg)
 	}
+}
+
+func InitNameRegistry(
+	exportDir string, role string,
+	sconf *srcdb.Source, sdb srcdb.SourceDB,
+	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) error {
+
+	var sdbReg namereg.SourceDbRegistry
+	if sdb != nil {
+		sdbReg = sdb.(namereg.SourceDbRegistry)
+	}
+	var ybdb namereg.YBDBRegistry
+	var ok bool
+	if lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
+		ybdb, ok = tdb.(namereg.YBDBRegistry)
+		if !ok {
+			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty.")
+		}
+	}
+	return namereg.InitNameRegistry(exportDir, role, sconf.DBType, sconf.Schema, sconf.DBName, tconf.Schema, sdbReg, ybdb)
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord

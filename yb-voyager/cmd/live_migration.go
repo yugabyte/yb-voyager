@@ -29,6 +29,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -207,10 +208,13 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		return nil
 	}
 	log.Debugf("handling event: %v", event)
-	tableName := event.TableName
-	if sourceDBType == "postgresql" && event.SchemaName != "public" {
-		tableName = event.SchemaName + "." + event.TableName
+	tableName, err := namereg.NameReg.LookupTableName(event.TableName)
+	if err != nil {
+		return fmt.Errorf("lookup table name %s in name registry: %v", event.TableName, err)
 	}
+	// if sourceDBType == "postgresql" && event.SchemaName != "public" {
+	// 	tableName = event.SchemaName + "." + event.TableName
+	// }
 
 	// hash event
 	// Note: hash the event before running the keys/values through the value converter.
@@ -222,11 +226,11 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	tableNameForUniqueKeyColumns := tableName
-	if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
-		tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
-	}
-	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableNameForUniqueKeyColumns]
+	// tableNameForUniqueKeyColumns := tableName
+	// if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
+	// 	tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
+	// }
+	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableName.ForKey()]
 	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
@@ -239,7 +243,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	}
 
 	// preparing value converters for the streaming mode
-	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
+	err = valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}

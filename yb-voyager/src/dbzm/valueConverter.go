@@ -32,7 +32,7 @@ import (
 
 type ValueConverter interface {
 	ConvertRow(tableName *sqlname.NameTuple, columnNames []string, row string) (string, error)
-	ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error
+	ConvertEvent(ev *tgtdb.Event, table *sqlname.NameTuple, formatIfRequired bool) error
 	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
 }
 
@@ -52,7 +52,7 @@ func (nvc *NoOpValueConverter) ConvertRow(tableName *sqlname.NameTuple, columnNa
 	return row, nil
 }
 
-func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
+func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table *sqlname.NameTuple, formatIfRequired bool) error {
 	return nil
 }
 
@@ -93,7 +93,10 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		schemaRegistryTarget = schemareg.NewSchemaRegistry(exportDir, "target_db_exporter_fb")
 	}
 
-	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
+	tdbValueConverterSuite, err := getDebeziumValueConverterSuite(targetConf)
+	if err != nil {
+		return nil, err
+	}
 
 	conv := &DebeziumValueConverter{
 		exportDir:              exportDir,
@@ -108,6 +111,28 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 	}
 
 	return conv, nil
+}
+
+func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsuite.ConverterFn, error) {
+	switch tconf.TargetDBType {
+	case tgtdb.ORACLE:
+		oraValueConverterSuite := tgtdbsuite.OraValueConverterSuite
+		for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+			intervalType := fmt.Sprintf("INTERVAL YEAR(%d) TO MONTH", i) //for all interval year to month types with precision
+			oraValueConverterSuite[intervalType] = oraValueConverterSuite["INTERVAL YEAR TO MONTH"]
+		}
+		for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+			for _, j := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+				intervalType := fmt.Sprintf("INTERVAL DAY(%d) TO SECOND(%d)", i, j) //for all interval day to second types with precision
+				oraValueConverterSuite[intervalType] = oraValueConverterSuite["INTERVAL DAY TO SECOND"]
+			}
+		}
+		return oraValueConverterSuite, nil
+	case tgtdb.YUGABYTEDB, tgtdb.POSTGRESQL:
+		return tgtdbsuite.YBValueConverterSuite, nil
+	default:
+		return nil, fmt.Errorf("no converter suite found for %s", tconf.TargetDBType)
+	}
 }
 
 func (conv *DebeziumValueConverter) ConvertRow(tableName *sqlname.NameTuple, columnNames []string, row string) (string, error) {
@@ -168,7 +193,7 @@ func (conv *DebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
 	return conv.targetDBType == tgtdb.ORACLE
 }
 
-func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
+func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table *sqlname.NameTuple, formatIfRequired bool) error {
 	err := conv.convertMap(ev.SchemaName, table, ev.Key, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event(vsn=%d) key: %w", ev.Vsn, err)
@@ -194,15 +219,15 @@ func checkSourceExporter(exporterRole string) bool {
 	return exporterRole == "source_db_exporter"
 }
 
-func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
+func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName *sqlname.NameTuple, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *schemareg.SchemaRegistry
-	tableNameInSchemaRegistry := tableName
+	// tableNameInSchemaRegistry := tableName
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
-		if conv.sourceDBType != "postgresql" && eventSchema != "public" { // In case of non-PG source and target-db-schema is non-public
-			tableNameInSchemaRegistry = fmt.Sprintf("%s.%s", eventSchema, tableName)
-		}
+		// if conv.sourceDBType != "postgresql" && eventSchema != "public" { // In case of non-PG source and target-db-schema is non-public
+		// 	tableNameInSchemaRegistry = fmt.Sprintf("%s.%s", eventSchema, tableName)
+		// }
 		schemaRegistry = conv.schemaRegistryTarget
 	}
 	for column, value := range m {
@@ -210,12 +235,12 @@ func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName str
 			continue
 		}
 		columnValue := *value
-		colType, colDbzmSchema, err := schemaRegistry.GetColumnType(tableNameInSchemaRegistry, column, conv.shouldFormatAsPerSourceDatatypes())
+		colType, colDbzmSchema, err := schemaRegistry.GetColumnType(tableName, column, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
 		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
-			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(strings.ToUpper(tableName), strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
+			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableName, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
 			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
 			if err != nil {
 				return fmt.Errorf("fetch column schema: %w", err)

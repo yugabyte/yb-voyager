@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
-	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
@@ -572,21 +571,6 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 }
 
 func (tdb *TargetOracleDB) PrepareForStreaming() {}
-
-func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
-	oraValueConverterSuite := tgtdbsuite.OraValueConverterSuite
-	for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
-		intervalType := fmt.Sprintf("INTERVAL YEAR(%d) TO MONTH", i) //for all interval year to month types with precision
-		oraValueConverterSuite[intervalType] = oraValueConverterSuite["INTERVAL YEAR TO MONTH"]
-	}
-	for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
-		for _, j := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
-			intervalType := fmt.Sprintf("INTERVAL DAY(%d) TO SECOND(%d)", i, j) //for all interval day to second types with precision
-			oraValueConverterSuite[intervalType] = oraValueConverterSuite["INTERVAL DAY TO SECOND"]
-		}
-	}
-	return oraValueConverterSuite
-}
 
 func (tdb *TargetOracleDB) getConnectionUri(tconf *TargetConf) string {
 	if tconf.Uri != "" {

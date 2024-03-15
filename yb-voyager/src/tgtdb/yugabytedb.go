@@ -35,7 +35,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -1005,10 +1004,6 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)
 	}
 	return nil
-}
-
-func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
-	return tgtdbsuite.YBValueConverterSuite
 }
 
 func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {

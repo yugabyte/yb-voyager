@@ -41,7 +41,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -156,7 +155,7 @@ func exportData() bool {
 	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
-	err = namereg.InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil)
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}

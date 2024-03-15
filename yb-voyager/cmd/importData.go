@@ -122,7 +122,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 
-	err = namereg.InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
