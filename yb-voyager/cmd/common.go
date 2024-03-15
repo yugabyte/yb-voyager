@@ -749,7 +749,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	fromTable := tableName.Qualified.Unquoted
 
 	if renameTablesMap[fromTable] != "" {
-		table := sqlname.NewSourceNameFromQualifiedName(msr.SourceRenameTablesMap[fromTable])
+		table := sqlname.NewSourceNameFromQualifiedName(renameTablesMap[fromTable])
 		toTable := table.Qualified.MinQuoted
 		if table.SchemaName.MinQuoted == "public" {
 			toTable = table.ObjectName.MinQuoted

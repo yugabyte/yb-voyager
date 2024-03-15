@@ -40,7 +40,7 @@ type MigrationStatusRecord struct {
 	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
 	PGPublicationName                               string            `json:"PGPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
 	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump)
-	SourceRenameTablesMap                           map[string]string `json:"RenameTablesMap"`       // map of table.Qualified.Unquoted -> table.Qualified.MinQuoted for renaming the leaf partitions to root table in case of PG migration
+	SourceRenameTablesMap                           map[string]string `json:"SourceRenameTablesMap"`       // map of table.Qualified.Unquoted -> table.Qualified.MinQuoted for renaming the leaf partitions to root table in case of PG migration
 	TargetRenameTablesMap                           map[string]string `json:"TargetRenameTablesMap"` // map of table.Qualified.Unquoted -> table.Qualified.MinQuoted for renaming the leaf partitions to root table in case of PG migration
 	IsExportTableListSet                            bool              `json:"IsExportTableListSet"`
 }
