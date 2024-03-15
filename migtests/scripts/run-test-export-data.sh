@@ -67,9 +67,8 @@ main() {
 		"${TEST_DIR}/fix-data" ${EXPORT_DIR}
 	fi
 	
-	# reenable later
-	# step "End Migration: clearing metainfo about state of migration from everywhere."
-	# end_migration --yes
+	step "End Migration: clearing metainfo about state of migration from everywhere."
+	end_migration --yes
 
 	step "Clean up"
 	./cleanup-db
