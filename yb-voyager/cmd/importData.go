@@ -849,7 +849,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t *sqlname.Name
 	for readLineErr == nil {
 
 		if batchWriter == nil {
-			batchWriter = state.NewBatchWriter(filePath, t.ForKey(), batchNum)
+			batchWriter = state.NewBatchWriter(filePath, t, batchNum)
 			err := batchWriter.Init()
 			if err != nil {
 				utils.ErrExit("initializing batch writer for table %q: %s", t, err)

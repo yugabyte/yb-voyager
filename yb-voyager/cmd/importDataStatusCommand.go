@@ -28,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -187,13 +188,16 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	var perc float64
 	var status string
 	reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
-
+	dataFileNt, err := namereg.NameReg.LookupTableName(dataFile.TableName)
+	if err != nil {
+		return nil, fmt.Errorf("lookup %s from name registry: %v", dataFile.TableName, err)
+	}
 	if reportProgressInBytes {
 		totalCount = dataFile.FileSize
-		importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFile.TableName)
+		importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFileNt)
 	} else {
 		totalCount = dataFile.RowCount
-		importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+		importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFileNt)
 
 	}
 	if err != nil {
