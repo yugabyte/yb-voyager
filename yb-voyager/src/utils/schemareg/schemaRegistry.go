@@ -99,11 +99,24 @@ func (sreg *SchemaRegistry) GetColumnType(tableName *sqlname.NameTuple, columnNa
 	var err error
 	tableSchema = sreg.TableNameToSchema[tableName.ForKey()]
 	if tableSchema == nil {
-		// check on disk
-		tableSchema, err = sreg.getAndStoreTableSchema(tableName)
+		// reinit
+		for k := range sreg.TableNameToSchema {
+			delete(sreg.TableNameToSchema, k)
+		}
+
+		err = sreg.Init()
+		if err != nil {
+			return "", nil, fmt.Errorf("re-init of registry : %v", err)
+		}
+		tableSchema = sreg.TableNameToSchema[tableName.ForKey()]
 		if err != nil {
 			return "", nil, fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
 		}
+		// check on disk
+		// tableSchema, err = sreg.getAndStoreTableSchema(tableName)
+		// if err != nil {
+		// 	return "", nil, fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
+		// }
 	}
 	return tableSchema.getColumnType(columnName, getSourceDatatype)
 }
@@ -136,20 +149,20 @@ func (sreg *SchemaRegistry) Init() error {
 	return nil
 }
 
-func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName *sqlname.NameTuple) (*TableSchema, error) {
-	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole, fmt.Sprintf("%s_schema.json", tableName))
-	schemaFile, err := os.Open(schemaFilePath)
-	defer func() {
-		_ = schemaFile.Close()
-	}()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open table schema file %s: %w", schemaFilePath, err)
-	}
-	var tableSchema TableSchema
-	err = json.NewDecoder(schemaFile).Decode(&tableSchema)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
-	}
-	sreg.TableNameToSchema[tableName.ForKey()] = &tableSchema
-	return &tableSchema, nil
-}
+// func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName *sqlname.NameTuple) (*TableSchema, error) {
+// 	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole, fmt.Sprintf("%s_schema.json", tableName))
+// 	schemaFile, err := os.Open(schemaFilePath)
+// 	defer func() {
+// 		_ = schemaFile.Close()
+// 	}()
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to open table schema file %s: %w", schemaFilePath, err)
+// 	}
+// 	var tableSchema TableSchema
+// 	err = json.NewDecoder(schemaFile).Decode(&tableSchema)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
+// 	}
+// 	sreg.TableNameToSchema[tableName.ForKey()] = &tableSchema
+// 	return &tableSchema, nil
+// }

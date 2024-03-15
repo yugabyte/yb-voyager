@@ -194,12 +194,12 @@ func (conv *DebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
 }
 
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table *sqlname.NameTuple, formatIfRequired bool) error {
-	err := conv.convertMap(ev.SchemaName, table, ev.Key, ev.ExporterRole, formatIfRequired)
+	err := conv.convertMap(table, ev.Key, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event(vsn=%d) key: %w", ev.Vsn, err)
 	}
 
-	err = conv.convertMap(ev.SchemaName, table, ev.Fields, ev.ExporterRole, formatIfRequired)
+	err = conv.convertMap(table, ev.Fields, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
@@ -207,12 +207,12 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table *sqlname
 	// TODO: handle properly. (maybe as part of targetDBinterface?)
 	// TODO: handle case sensitivity/quoted table names..
 	// TODO: TABLENAME
-	if conv.targetDBType == tgtdb.ORACLE {
-		ev.TableName = strings.ToUpper(ev.TableName)
-	}
-	if conv.sourceDBType != tgtdb.POSTGRESQL {
-		ev.SchemaName = conv.targetSchema
-	}
+	// if conv.targetDBType == tgtdb.ORACLE {
+	// 	ev.TableName = strings.ToUpper(ev.TableName)
+	// }
+	// if conv.sourceDBType != tgtdb.POSTGRESQL {
+	// 	ev.SchemaName = conv.targetSchema
+	// }
 	return nil
 }
 
@@ -220,7 +220,7 @@ func checkSourceExporter(exporterRole string) bool {
 	return exporterRole == "source_db_exporter"
 }
 
-func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName *sqlname.NameTuple, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
+func (conv *DebeziumValueConverter) convertMap(tableName *sqlname.NameTuple, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *schemareg.SchemaRegistry
 	// tableNameInSchemaRegistry := tableName
 	if checkSourceExporter(exportSourceType) {

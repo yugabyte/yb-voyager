@@ -209,10 +209,6 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		return nil
 	}
 	log.Debugf("handling event: %v", event)
-	tableName, err := namereg.NameReg.LookupTableName(event.TableName)
-	if err != nil {
-		return fmt.Errorf("lookup table name %s in name registry: %v", event.TableName, err)
-	}
 	// if sourceDBType == "postgresql" && event.SchemaName != "public" {
 	// 	tableName = event.SchemaName + "." + event.TableName
 	// }
@@ -231,7 +227,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	// if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
 	// 	tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
 	// }
-	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableName.ForKey()]
+	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[event.TableName.ForKey()]
 	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
@@ -244,7 +240,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	}
 
 	// preparing value converters for the streaming mode
-	err = valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
+	err := valueConverter.ConvertEvent(event, event.TableName, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
@@ -257,7 +253,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 // Returns a hash value between 0..NUM_EVENT_CHANNELS
 func hashEvent(e *tgtdb.Event) int {
 	hash := fnv.New64a()
-	hash.Write([]byte(e.SchemaName + e.TableName))
+	hash.Write([]byte(e.TableName.ForKey()))
 
 	keyColumns := make([]string, 0)
 	for k := range e.Key {
@@ -354,16 +350,25 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole 
 
 func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]string, error) {
 	log.Infof("fetching table to unique key columns map from metaDB")
-	var res map[string][]string
+	var metaDbData map[string][]string
+	res := make(map[string][]string)
 
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-	found, err := metaDB.GetJsonObject(nil, key, &res)
+	found, err := metaDB.GetJsonObject(nil, key, &metaDbData)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
 		return nil, fmt.Errorf("table to unique key columns map not found in metaDB")
 	}
-	log.Infof("fetched table to unique key columns map: %v", res)
+	log.Infof("fetched table to unique key columns map: %v", metaDbData)
+
+	for tableNameRaw, columns := range metaDbData {
+		tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
+		}
+		res[tableName.ForKey()] = columns
+	}
 	return res, nil
 }
