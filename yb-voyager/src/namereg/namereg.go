@@ -78,6 +78,7 @@ func InitNameRegistry(
 	sourceDbType string, sourceDbSchema string, sourceDbName string, targetDbSchema string,
 	sdb SourceDbRegistry,
 	ybdb YBDBRegistry) error {
+	log.Infof("Initializing name registry with params - exportDir=%s, role=%s, sourceDbType=%s, sourceDbSchema=%s, sourceDbName=%s, targetDbSchema=%s", exportDir, role, sourceDbType, sourceDbSchema, sourceDbName, targetDbSchema)
 	NameReg = *NewNameRegistry(exportDir, role, sourceDbType, sourceDbSchema, sourceDbName, targetDbSchema, sdb, ybdb)
 	return NameReg.Init()
 }

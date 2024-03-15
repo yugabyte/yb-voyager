@@ -48,6 +48,10 @@ var importDataStatusCmd = &cobra.Command{
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		importerRole = TARGET_DB_IMPORTER_ROLE
+		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+		if err != nil {
+			utils.ErrExit("initialize name registry: %v", err)
+		}
 		err = runImportDataStatusCmd()
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
