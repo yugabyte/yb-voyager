@@ -371,18 +371,30 @@ func InitNameRegistry(
 	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) error {
 
 	var sdbReg namereg.SourceDbRegistry
+	var ybdb namereg.YBDBRegistry
+	var sourceDbType, sourceDbSchema, sourceDbName string
+	var targetDBSchema string
+
+	if sconf != nil {
+		sourceDbType = sconf.DBType
+		sourceDbName = sconf.DBName
+		sourceDbSchema = sconf.Schema
+	}
 	if sdb != nil {
 		sdbReg = sdb.(namereg.SourceDbRegistry)
 	}
-	var ybdb namereg.YBDBRegistry
+
+	if tconf != nil {
+		targetDBSchema = tconf.Schema
+	}
 	var ok bool
-	if lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
+	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
 		ybdb, ok = tdb.(namereg.YBDBRegistry)
 		if !ok {
 			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty.")
 		}
 	}
-	return namereg.InitNameRegistry(exportDir, role, sconf.DBType, sconf.Schema, sconf.DBName, tconf.Schema, sdbReg, ybdb)
+	return namereg.InitNameRegistry(exportDir, role, sourceDbType, sourceDbSchema, sourceDbName, targetDBSchema, sdbReg, ybdb)
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord

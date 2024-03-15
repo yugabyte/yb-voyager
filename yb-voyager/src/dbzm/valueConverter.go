@@ -206,6 +206,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table *sqlname
 	// setting tableName and schemaName as per target
 	// TODO: handle properly. (maybe as part of targetDBinterface?)
 	// TODO: handle case sensitivity/quoted table names..
+	// TODO
 	if conv.targetDBType == tgtdb.ORACLE {
 		ev.TableName = strings.ToUpper(ev.TableName)
 	}
