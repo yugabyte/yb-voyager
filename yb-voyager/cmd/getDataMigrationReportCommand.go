@@ -105,9 +105,9 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	uitbl.MaxColWidth = 50
 	uitbl.Separator = " | "
 
-	maxTablesInOnePage := 10 
+	maxTablesInOnePage := 10
 
-	addHeader(uitbl,firstHeader... )
+	addHeader(uitbl, firstHeader...)
 	addHeader(uitbl, secondHeader...)
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
@@ -144,7 +144,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		updateExportedSnapshotRowsInTheRow(msr, &row, tableName, schemaName, dbzmStatus, exportSnapshotStatus)
 		row.ImportedSnapshotRows = 0
 		row.TableName = table
-		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case 
+		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case
 			schemaName = ""
 			row.TableName = tableName
 		}
@@ -270,13 +270,17 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	}
 
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+		// TODO:TABLENAME fix
+		// row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+		row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, nil)
 		if err != nil {
 			return fmt.Errorf("get imported row count for table %q for DB type %s: %w", tableName, row.DBType, err)
 		}
 	}
 
-	eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
+	// TODO:TABLENAME fix!
+	// eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
+	eventCounter, err := state.GetImportedEventsStatsForTable(nil, migrationUUID)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot assign NULL to *int64") &&
 			!strings.Contains(err.Error(), "converting NULL to int64") { //TODO: handle better in GetImportedEventsStatsForTable() itself later
@@ -308,7 +312,7 @@ func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
 		}
 	}
-	if len(strings.Split(source.Schema, "|")) <=1 {
+	if len(strings.Split(source.Schema, "|")) <= 1 {
 		schemaName = ""
 	}
 	eventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(exporterRole, schemaName, tableName)

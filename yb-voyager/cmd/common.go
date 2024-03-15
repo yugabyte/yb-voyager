@@ -268,7 +268,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	} else {
 		fmt.Printf("snapshot import report\n")
 	}
-	tableList := importFileTasksToTableNames(tasks)
+	tableList := importFileTasksToTableNameTuples(tasks)
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
@@ -281,18 +281,19 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if err != nil {
 			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
 		}
-		snapshotRowCount[tableName] = tableRowCount
+		snapshotRowCount[tableName.ForKey()] = tableRowCount
 	}
 
 	for i, tableName := range tableList {
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
-		table := tableName
-		if len(strings.Split(tableName, ".")) == 2 {
-			table = strings.Split(tableName, ".")[1]
-		}
-		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
+		s, t := tableName.ForCatalogQuery()
+		// table := tableName
+		// if len(strings.Split(tableName, ".")) == 2 {
+		// 	table = strings.Split(tableName, ".")[1]
+		// }
+		uitable.AddRow(s, t, snapshotRowCount[tableName.ForKey()])
 	}
 	fmt.Printf("\n")
 	fmt.Println(uitable)
@@ -533,22 +534,27 @@ func validateMetaDBCreated() {
 	}
 }
 
-func getImportTableList(sourceTableList []string) []string {
+func getImportTableList(sourceTableList []string) ([]*sqlname.NameTuple, error) {
 	if importerRole == IMPORT_FILE_ROLE {
-		return nil
+		return nil, nil
 	}
-	var tableList []string
+	var tableList []*sqlname.NameTuple
 	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
-		// TODO: handle case sensitivity?
-		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
-		table := tableName.ObjectName.MinQuoted
-		if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
-			table = tableName.Qualified.MinQuoted
+
+		// // TODO: handle case sensitivity?
+		// tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
+		// table := tableName.ObjectName.MinQuoted
+		// if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
+		// 	table = tableName.Qualified.MinQuoted
+		// }
+		table, err := namereg.NameReg.LookupTableName(qualifiedTableName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
 		}
 		tableList = append(tableList, table)
 	}
-	return tableList
+	return tableList, nil
 }
 
 func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {

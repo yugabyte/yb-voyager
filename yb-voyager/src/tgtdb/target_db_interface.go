@@ -128,7 +128,7 @@ const (
 type Batch interface {
 	Open() (*os.File, error)
 	GetFilePath() string
-	GetTableName() string
+	GetTableName() *sqlname.NameTuple
 	GetQueryIsBatchAlreadyImported() string
 	GetQueryToRecordEntryInDB(rowsAffected int64) string
 }
