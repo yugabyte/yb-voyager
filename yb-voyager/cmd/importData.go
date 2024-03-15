@@ -290,9 +290,9 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		return tableName
 	}
 
-	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
+	allTables := lo.Uniq(lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
 		return standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
-	})
+	}))
 	slices.Sort(allTables)
 	log.Infof("allTables: %v", allTables)
 
@@ -334,19 +334,10 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	includeList := extractTableList(tconf.TableList, "include")
 	excludeList := extractTableList(tconf.ExcludeTableList, "exclude")
 
-	leafPartitionsMap := make(map[string][]string)
-	lo.Map(allTables, func(tableName string, _ int) string {
-		renameTable, isRenamed := renameTableIfRequired(tableName)
-		if isRenamed {
-			leafPartitionsMap[renameTable] = append(leafPartitionsMap[renameTable], tableName)
-		}
-		return tableName
-	})
-
 	checkUnknownTableNames := func(tableNames []string, listName string) {
 		unknownTableNames := make([]string, 0)
 		for _, tableName := range tableNames {
-			if !slices.Contains(allTables, tableName) && leafPartitionsMap[tableName] == nil {
+			if !slices.Contains(allTables, tableName) {
 				unknownTableNames = append(unknownTableNames, tableName)
 			}
 		}
@@ -361,14 +352,11 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 	for _, task := range importFileTasks {
 		table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
-		rootTable, _ := renameTableIfRequired(table)
-		if (len(includeList) > 0 && !slices.Contains(includeList, table)) && 
-				(len(leafPartitionsMap[rootTable]) > 0 && !slices.Contains(includeList, rootTable)) { // if root table is also not included then also skip leaf 
+		if len(includeList) > 0 && !slices.Contains(includeList, table) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if (len(excludeList) > 0 && slices.Contains(excludeList, table)) || 
-		        (len(leafPartitionsMap[rootTable]) > 0 && slices.Contains(excludeList, rootTable)) { // or if root table is excluded then also skip leaf
+		if len(excludeList) > 0 && slices.Contains(excludeList, table) {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}
@@ -478,21 +466,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		if len(pendingTasks) == 0 {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 		} else {
-			leafPartitions := make(map[string][]string)
-			renamedTableListToDisplay := lo.Uniq(lo.Map(importFileTasksToTableNames(pendingTasks), func(tableName string, _ int) string {
-				renameTable, isRenamed := renameTableIfRequired(tableName)
-				if isRenamed {
-					leafPartitions[renameTable] = append(leafPartitions[renameTable], tableName)
-				}
-				return renameTable
-			}))
-			renamedTableListToDisplay = lo.Map(renamedTableListToDisplay, func(tableName string, _ int) string {
-				if len(leafPartitions[tableName]) > 0 && msr.IsExportTableListSet {
-					return fmt.Sprintf("%s (%s)", tableName, strings.Join(leafPartitions[tableName], ", "))
-				}
-				return tableName
-			})
-			utils.PrintAndLog("Tables to import: %v", renamedTableListToDisplay)
+			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
@@ -714,13 +688,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
-	renamedTablesNames := make([]string, 0)
-	for _, tableName := range tableNames {//In case partitions are changed during the migration, need to check root table
-		renamedTable, _ := renameTableIfRequired(tableName)
-		renamedTablesNames = append(renamedTablesNames, renamedTable)
-	}
-	renamedTablesNames = lo.Uniq(renamedTablesNames)
-	nonEmptyTableNames := tdb.GetNonEmptyTables(renamedTablesNames)
+	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
@@ -770,9 +738,8 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 	if fileFormat == datafile.SQL {
 		fileFormat = datafile.TEXT
 	}
-	renamedTable, _ := renameTableIfRequired(tableName)
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableName:  renamedTable,
+		TableName:  tableName,
 		Columns:    columns,
 		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,

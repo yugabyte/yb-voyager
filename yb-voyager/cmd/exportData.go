@@ -128,7 +128,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		tableRowCount, _ := getExportedRowCountSnapshot(exportDir)
+		tableRowCount := getExportedRowCountSnapshot(exportDir)
 		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
@@ -181,35 +181,51 @@ func exportData() bool {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
-	if source.DBType == POSTGRESQL {
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.RenameTablesMap = partitionsToRootTableMap
-		})
-	}
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch source.DBType {
+		case POSTGRESQL:
+			record.SourceRenameTablesMap = partitionsToRootTableMap
+		case YUGABYTEDB:
+			//Need to keep this as separate field as we have to rename tables in case of partitions for export from target as we do for source but
+			//partitions can change on target during migration so need to handle that case
+			record.TargetRenameTablesMap = partitionsToRootTableMap
+		}
+	})
 
 	leafPartitions := make(map[string][]string)
-	renamedTableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
+	tableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
 		renamedTable, isRenamed := renameTableIfRequired(table.Qualified.MinQuoted)
 		if isRenamed {
+			//TODO: it is ok to do this right now will fix but will fix everything with Name Registry
 			table := strings.TrimPrefix(table.Qualified.MinQuoted, "public.")
 			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
 		}
 		return renamedTable
 	}))
-	//just for display purpose
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
-	renamedTableListToDisplay = lo.Map(renamedTableListToDisplay, func(table string, _ int) string {
+
+	//handle case of display in case user is filtering few partitions in table-list
+	tableListToDisplay = lo.Map(tableListToDisplay, func(table string, _ int) string {
 		if source.DBType == POSTGRESQL && leafPartitions[table] != nil && msr.IsExportTableListSet {
 			partitions := strings.Join(leafPartitions[table], ", ")
 			return fmt.Sprintf("%s (%s)", table, partitions)
 		}
 		return table
 	})
-	fmt.Printf("num tables to export: %d\n", len(renamedTableListToDisplay))
-	utils.PrintAndLog("table list for data export: %v", renamedTableListToDisplay)
+	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
+	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
+
+	//add root tables in the list for catalog queries to work fine with both leaf and root tables
+	defaultSchema, _ := GetDefaultPGSchema(source.Schema, "|")
+	for _, k := range lo.Keys(leafPartitions) {
+		sqlnameTable := sqlname.NewSourceNameFromMaybeQualifiedName(k, defaultSchema)
+		finalTableList = append(finalTableList, sqlnameTable)
+	}
+
+	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList)
@@ -290,14 +306,9 @@ func exportData() bool {
 		}
 		return true
 	} else {
-		minQuotedTableList := lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
-			return table.Qualified.MinQuoted //Case sensitivity
-		})
-		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.TableListExportedFromSource = minQuotedTableList
-		})
+		err = storeTableListInMSR(finalTableList)
 		if err != nil {
-			utils.ErrExit("update table list exported from source: update migration status record: %s", err)
+			utils.ErrExit("store table list in MSR: %v", err)
 		}
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
@@ -637,6 +648,15 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
+	if source.DBType == POSTGRESQL {
+		//Make leaf partitions data files entry under the name of root table
+		renameDatafileDescriptor(exportDir)
+		//Similarly for the export snapshot status file
+		err = renameExportSnapshotStatus(exportSnapshotStatusFile)
+		if err != nil {
+			return fmt.Errorf("rename export snapshot status: %w", err)
+		}
+	}
 	displayExportedRowCountSnapshot(false)
 
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {

@@ -23,7 +23,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -125,29 +124,16 @@ func runExportDataStatusCmd() error {
 		return fmt.Errorf("error while getting exported snapshot rows map: %v", err)
 	}
 
-	leafPartitions := make(map[string][]string)
+	leafPartitions := getLeafPartitionsFromRootTable(tableList)
 
-	renamedTableList := lo.Uniq(lo.Map(tableList, func(table string, _ int) string {
-		renamedTable, isRenamed := renameTableIfRequired(table)
-		if isRenamed {
-			table = strings.Replace(table, "public.", "", -1)
-			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
-		}
-		if len(strings.Split(renamedTable, ".")) < 2 {
-			// safe to directly qualify it with public schema as it is not qualified in case of PG by renameTableIfRequired()
-			renamedTable = fmt.Sprintf("public.%s", renamedTable)
-		}
-		return renamedTable
-	}))
-
-	for _, tableName := range renamedTableList {
+	for _, tableName := range tableList {
 		sqlTableName := sqlname.NewSourceNameFromQualifiedName(tableName)
 		finalFullTableName = sqlTableName.Qualified.MinQuoted
 		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted == "public" {
 			finalFullTableName = sqlTableName.ObjectName.MinQuoted
 		}
 		displayTableName := finalFullTableName
-		if source.DBType == POSTGRESQL && leafPartitions[finalFullTableName] != nil && msr.IsExportTableListSet {
+		if source.DBType == POSTGRESQL && leafPartitions[finalFullTableName] != nil {
 			partitions := strings.Join(leafPartitions[finalFullTableName], ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", finalFullTableName, partitions)
 		}

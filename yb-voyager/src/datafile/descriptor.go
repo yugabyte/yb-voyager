@@ -122,3 +122,9 @@ func (dfd *Descriptor) GetDataFileEntryByTableName(tableName string) *FileEntry 
 	})
 	return result
 }
+
+func (dfd *Descriptor) GetDataFileEntriesByTableName(tableName string) []*FileEntry {
+	return lo.Filter(dfd.DataFileList, func(fileEntry *FileEntry, _ int) bool {
+		return fileEntry.TableName == tableName
+	})
+}

@@ -25,7 +25,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -143,19 +142,6 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			utils.ErrExit("error while getting exported snapshot rows: %w\n", err)
 		}
 	}
-	leafPartitions := make(map[string][]string)
-	renamedTablesNames := lo.Uniq(lo.Map(tableList, func (table string, _ int) string {
-		renamedTable, isRenamed := renameTableIfRequired(table)
-		if len(strings.Split(renamedTable, ".")) < 2 {
-			// safe to directly qualify it with public schema as it is not qualified in case of PG by renameTableIfRequired()
-			renamedTable = fmt.Sprintf("public.%s", renamedTable)
-		}
-		if isRenamed {
-			table = strings.TrimPrefix(table, "public.")
-			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
-		}
-		return renamedTable
-	}))
 
 	var targetImportedSnapshotRowsMap map[string]int64
 	if msr.TargetDBConf != nil {
@@ -173,7 +159,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
-	for i, table := range renamedTablesNames {
+	for i, table := range tableList {
 		uitbl.AddRow() // blank row
 
 		row := rowData{}
@@ -182,9 +168,6 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		updateExportedSnapshotRowsInTheRow(msr, &row, tableName, schemaName, dbzmStatus, exportedPGSnapshotRowsMap)
 		row.ImportedSnapshotRows = 0
 		row.TableName = table
-		if source.DBType == POSTGRESQL && leafPartitions[table] != nil && msr.IsExportTableListSet {
-			row.TableName = fmt.Sprintf("%s (%s)", table, strings.Join(leafPartitions[table], ", "))
-		}
 		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case
 			schemaName = ""
 			row.TableName = tableName

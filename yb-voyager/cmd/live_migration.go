@@ -55,15 +55,7 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	tdb.PrepareForStreaming()
-
-	renamedTables := make([]string, 0)
-	for _, tableName := range tableNames {
-		// because from debezium the events are coming with root tables so need to initialize the renamed tables
-		renamedTable, _ := renameTableIfRequired(tableName) 
-		renamedTables = append(renamedTables, renamedTable)
-	}
-	renamedTables = lo.Uniq(renamedTables)
-	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), renamedTables)
+	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
@@ -350,14 +342,6 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole 
 	tableToUniqueKeyColumns, err := getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole)
 	if err != nil {
 		return fmt.Errorf("get table unique key columns map: %w", err)
-	}
-	//for adding a root table as well in the tableToUniqueKeyColumns map because the event in case of parititons 
-	//will be coming with root table
-	for table, uniqueKeyCols := range tableToUniqueKeyColumns {
-		renamedTable, isRenamed := renameTableIfRequired(table)
-		if isRenamed {
-			tableToUniqueKeyColumns[renamedTable] = uniqueKeyCols
-		}
 	}
 	log.Infof("initializing conflict detection cache")
 	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBTypeForConflictCache)

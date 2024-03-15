@@ -66,14 +66,9 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
-		minQuotedTableList := lo.Map(tableList, func(table *sqlname.SourceName, _ int) string {
-			return table.Qualified.MinQuoted //Case sensitivity
-		})
-		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.TableListExportedFromSource = minQuotedTableList
-		})
+		err = storeTableListInMSR(tableList)
 		if err != nil {
-			utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
+			utils.ErrExit("error while storing the table-list in msr: %v", err)
 		}
 	}
 

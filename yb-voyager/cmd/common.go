@@ -46,6 +46,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -195,29 +196,49 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func getExportedRowCountSnapshot(exportDir string) (map[string]int64, map[string][]string) {
+func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 	tableRowCount := map[string]int64{}
-	leafPartitions := map[string][]string{}
 	for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
-		renamedTable, isRenamed := renameTableIfRequired(fileEntry.TableName)
-		if isRenamed {
-			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], fileEntry.TableName)
-		}
-		tableRowCount[renamedTable] += fileEntry.RowCount
+		tableRowCount[fileEntry.TableName] += fileEntry.RowCount
 	}
-	return tableRowCount, leafPartitions
+	return tableRowCount
+}
+
+func getLeafPartitionsFromRootTable(tables []string) map[string][]string {
+	leafPartitions := make(map[string][]string)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if !msr.IsExportTableListSet || msr.SourceDBConf.DBType != POSTGRESQL {
+		return leafPartitions
+	}
+	for leaf, root := range msr.SourceRenameTablesMap {
+		leafTable := sqlname.NewSourceNameFromQualifiedName(leaf)
+		rootTable := sqlname.NewSourceNameFromQualifiedName(root)
+		leaf = leafTable.Qualified.MinQuoted
+		if leafTable.SchemaName.MinQuoted == "public" {
+			leaf = leafTable.ObjectName.MinQuoted
+		}
+		root = rootTable.Qualified.MinQuoted
+		if rootTable.SchemaName.MinQuoted == "public" {
+			root = rootTable.ObjectName.MinQuoted
+		}
+		if !lo.Contains(tables, root) {
+			continue
+		}
+		leafPartitions[root] = append(leafPartitions[root], leaf)
+	}
+
+	return leafPartitions
 }
 
 func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
-	}
 
 	if !snapshotViaDebezium {
-		exportedRowCount, leafPartitions := getExportedRowCountSnapshot(exportDir)
+		exportedRowCount := getExportedRowCountSnapshot(exportDir)
 		if source.Schema != "" {
 			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 		} else {
@@ -225,6 +246,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		}
 		keys := lo.Keys(exportedRowCount)
 		sort.Strings(keys)
+		leafPartitions := getLeafPartitionsFromRootTable(keys)
 		for _, key := range keys {
 			if source.Schema != "" {
 				tableParts := strings.Split(key, ".")
@@ -235,7 +257,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 					table = tableParts[1]
 				}
 				displayTableName := table
-				if source.DBType == POSTGRESQL && leafPartitions[key] != nil && msr.IsExportTableListSet {
+				if source.DBType == POSTGRESQL && leafPartitions[key] != nil {
 					partitions := strings.Join(leafPartitions[key], ", ")
 					displayTableName = fmt.Sprintf("%s (%s)", table, partitions)
 				}
@@ -276,6 +298,35 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	fmt.Print("\n")
 }
 
+func renameDatafileDescriptor(exportDir string) {
+	datafileDescriptor := datafile.OpenDescriptor(exportDir)
+	for _, fileEntry := range datafileDescriptor.DataFileList {
+		renamedTable, isRenamed := renameTableIfRequired(fileEntry.TableName)
+		if isRenamed {
+			fileEntry.TableName = renamedTable
+		}
+	}
+	datafileDescriptor.Save()
+}
+
+func renameExportSnapshotStatus(exportSnapshotStatusFile *jsonfile.JsonFile[ExportSnapshotStatus]) error {
+	err := exportSnapshotStatusFile.Update(func(exportSnapshotStatus *ExportSnapshotStatus) {
+		for i, tableStatus := range exportSnapshotStatus.Tables {
+			renamedTable, isRenamed := renameTableIfRequired(tableStatus.TableName)
+			if isRenamed {
+				if len(strings.Split(renamedTable, ".")) == 1 {
+					renamedTable = fmt.Sprintf("public.%s", renamedTable)
+				}
+				exportSnapshotStatus.Tables[i].TableName = renamedTable
+			}
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("update export snapshot status: %w", err)
+	}
+	return nil
+}
+
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
 	if importerRole == IMPORT_FILE_ROLE {
 		fmt.Printf("import report\n")
@@ -311,20 +362,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		}
 	}
 
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
-	}
-
-	leafPartitions := map[string][]string{}
-	renamedTableList := lo.Uniq(lo.Map(tableList, func(t string, _ int) string {
-		renamedTable, isRenamed := renameTableIfRequired(t)
-		if isRenamed {
-			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], t)
-		}
-		return renamedTable
-	}))
-	for i, tableName := range renamedTableList {
+	for i, tableName := range tableList {
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
@@ -332,12 +370,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if len(strings.Split(tableName, ".")) == 2 {
 			table = strings.Split(tableName, ".")[1]
 		}
-		displayTableName := table
-		if source.DBType == POSTGRESQL && leafPartitions[tableName] != nil && msr.IsExportTableListSet {
-			partitions := strings.Join(leafPartitions[tableName], ", ")
-			displayTableName = fmt.Sprintf("%s (%s)", table, partitions)
-		}
-		uitable.AddRow(getTargetSchemaName(tableName), displayTableName, snapshotRowCount[tableName])
+		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
 	}
 	if len(tableList) > 0 {
 		fmt.Printf("\n")
@@ -696,11 +729,17 @@ func renameTableIfRequired(table string) (string, bool) {
 	sourceDBType = msr.SourceDBConf.DBType
 	sourceSchema := msr.SourceDBConf.Schema
 	sqlname.SourceDBType = sourceDBType
+
 	if sourceDBType != POSTGRESQL {
 		return table, false
 	}
-	if msr.RenameTablesMap == nil {
+	if source.DBType == POSTGRESQL && msr.SourceRenameTablesMap == nil ||
+		source.DBType == YUGABYTEDB && msr.TargetRenameTablesMap == nil {
 		return table, false
+	}
+	renameTablesMap := msr.SourceRenameTablesMap
+	if source.DBType == YUGABYTEDB {
+		renameTablesMap = msr.TargetRenameTablesMap
 	}
 	defaultSchema, noDefaultSchema := GetDefaultPGSchema(sourceSchema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
@@ -709,8 +748,8 @@ func renameTableIfRequired(table string) (string, bool) {
 	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
 	fromTable := tableName.Qualified.Unquoted
 
-	if msr.RenameTablesMap[fromTable] != "" {
-		table := sqlname.NewSourceNameFromQualifiedName(msr.RenameTablesMap[fromTable])
+	if renameTablesMap[fromTable] != "" {
+		table := sqlname.NewSourceNameFromQualifiedName(msr.SourceRenameTablesMap[fromTable])
 		toTable := table.Qualified.MinQuoted
 		if table.SchemaName.MinQuoted == "public" {
 			toTable = table.ObjectName.MinQuoted
@@ -724,10 +763,16 @@ func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *Export
 	snapshotRowsMap := make(map[string]int64)
 	snapshotStatusMap := make(map[string][]string)
 	for _, table := range tableList {
-		renamedTable, _ := renameTableIfRequired(table)
-		renamedTable = strings.TrimPrefix(renamedTable, "public.")
-		snapshotStatusMap[renamedTable] = append(snapshotStatusMap[renamedTable],exportSnapshotStatus.Tables[table].Status)
-		snapshotRowsMap[renamedTable] += exportSnapshotStatus.Tables[table].ExportedRowCountSnapshot
+		tableStatus := exportSnapshotStatus.GetTableStatusByTableName(table)
+		table = strings.TrimPrefix(table, "public.") //safely can remove it for now. TODO: fix with NameRegistry all such occurrences
+		for _, status := range tableStatus {
+			if status.FileName == "" {
+				//in case of root table as well in the tablelist during export an entry with empty file name is there
+				continue
+			}
+			snapshotRowsMap[table] += status.ExportedRowCountSnapshot
+			snapshotStatusMap[table] = append(snapshotStatusMap[table], status.Status)
+		}
 	}
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
@@ -759,21 +804,44 @@ func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]i
 		if schemaName == "public" || schemaName == "" {
 			table = tableName
 		}
-		dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(table)
-		if dataFile == nil {
-			dataFile = &datafile.FileEntry{
+		//Now multiple files can be there for a table in case of partitions
+		dataFiles := snapshotDataFileDescriptor.GetDataFileEntriesByTableName(table)
+		if len(dataFiles) == 0 {
+			dataFile := &datafile.FileEntry{
 				FilePath:  "",
 				TableName: table,
-				FileSize:  0,
 				RowCount:  0,
+				FileSize:  0,
 			}
+			dataFiles = append(dataFiles, dataFile)
 		}
-		snapshotRowCount, err := state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
-		if err != nil {
-			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", table, err)
+		for _, dataFile := range dataFiles {
+			snapshotRowCount, err := state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+			if err != nil {
+				return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", table, err)
+			}
+			snapshotRowsMap[table] += snapshotRowCount
 		}
-		renamedTable, _ := renameTableIfRequired(table)
-		snapshotRowsMap[renamedTable] += snapshotRowCount
 	}
 	return snapshotRowsMap, nil
+}
+
+func storeTableListInMSR(tableList []*sqlname.SourceName) error {
+	minQuotedTableList := lo.Uniq(lo.Map(tableList, func(table *sqlname.SourceName, _ int) string {
+		// Store list of tables in MSR with root table in case of partitions
+		renamedTable, isRenamed := renameTableIfRequired(table.Qualified.MinQuoted)
+		if isRenamed {
+			if len(strings.Split(renamedTable, ".")) == 1 {
+				renamedTable = fmt.Sprintf("public.%s", renamedTable)
+			}
+		}
+		return renamedTable
+	}))
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.TableListExportedFromSource = minQuotedTableList
+	})
+	if err != nil {
+		return fmt.Errorf("update migration status record: %v", err)
+	}
+	return nil
 }
