@@ -14,8 +14,10 @@ import (
 )
 
 var oracleToYBNameRegistry = &NameRegistry{
-	SourceDBType:              ORACLE,
-	role:                      TARGET_DB_IMPORTER_ROLE,
+	SourceDBType: ORACLE,
+	params: NameRegistryParams{
+		Role: TARGET_DB_IMPORTER_ROLE,
+	},
 	SourceDBSchemaNames:       []string{"SAKILA"},
 	YBSchemaNames:             []string{"public"},
 	DefaultSourceDBSchemaName: "SAKILA",
@@ -38,7 +40,7 @@ func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, 
 	if targetSchema != "" && targetTable != "" {
 		targetName = sqlname.NewObjectName(YUGABYTEDB, targetSchema, targetSchema, targetTable)
 	}
-	return NewNameTuple(reg.role, sourceName, targetName)
+	return NewNameTuple(reg.params.Role, sourceName, targetName)
 }
 
 func TestNameTuple(t *testing.T) {
@@ -210,7 +212,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica1(t *testing.T) {
 
 	regCopy := *oracleToYBNameRegistry // Copy the registry.
 	reg := &regCopy
-	reg.role = SOURCE_REPLICA_DB_IMPORTER_ROLE
+	reg.params.Role = SOURCE_REPLICA_DB_IMPORTER_ROLE
 
 	// Set the default source replica schema name.
 	reg.setDefaultSourceReplicaDBSchemaName("SAKILA_FF")
@@ -273,7 +275,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 	assert.ErrorAs(err, &errNameNotFound)
 	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "SAKILA_FF"}, errNameNotFound)
 
-	reg.role = SOURCE_REPLICA_DB_IMPORTER_ROLE
+	reg.params.Role = SOURCE_REPLICA_DB_IMPORTER_ROLE
 	table1FF := buildNameTuple(reg, "SAKILA_FF", "TABLE1", "public", "table1")
 	reg.setDefaultSourceReplicaDBSchemaName("SAKILA_FF")
 	ntup, err = reg.LookupTableName("table1")
@@ -350,14 +352,14 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	// Create a NameRegistry using the dummy DBs.
 	currentMode := SOURCE_DB_EXPORTER_ROLE
 	newNameRegistry := func() *NameRegistry {
-		reg := NewNameRegistry("", currentMode, sconf, dummySdb, tconf, dummyTdb)
-		reg.filePath = "dummy_name_registry.json"
+		reg := NewNameRegistry("", currentMode, sconf.DBType, sconf.Schema, sconf.DBName, tconf.Schema, dummySdb, dummyTdb)
+		reg.params.FilePath = "dummy_name_registry.json"
 		return reg
 	}
 	reg := newNameRegistry()
 
 	// Delete the dummy_name_registry.json file if it exists.
-	_ = os.Remove(reg.filePath)
+	_ = os.Remove(reg.params.FilePath)
 
 	err := reg.Init()
 	require.Nil(err)
