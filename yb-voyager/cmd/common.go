@@ -727,21 +727,24 @@ func renameTableIfRequired(table string) (string, bool) {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
 	sourceDBType = msr.SourceDBConf.DBType
-	sourceSchema := msr.SourceDBConf.Schema
-	sqlname.SourceDBType = sourceDBType
-
-	if sourceDBType != POSTGRESQL {
+	sourceDBTypeInMigration := msr.SourceDBConf.DBType
+	schema := msr.SourceDBConf.Schema
+	sqlname.SourceDBType = source.DBType
+	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
 		return table, false
 	}
 	if source.DBType == POSTGRESQL && msr.SourceRenameTablesMap == nil ||
 		source.DBType == YUGABYTEDB && msr.TargetRenameTablesMap == nil {
 		return table, false
 	}
+	if sourceDBTypeInMigration != POSTGRESQL && source.DBType == YUGABYTEDB {
+		schema = source.Schema
+	}
 	renameTablesMap := msr.SourceRenameTablesMap
 	if source.DBType == YUGABYTEDB {
 		renameTablesMap = msr.TargetRenameTablesMap
 	}
-	defaultSchema, noDefaultSchema := GetDefaultPGSchema(sourceSchema, "|")
+	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
 		utils.ErrExit("no default schema found to qualify table %s", table)
 	}
@@ -792,6 +795,12 @@ func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]i
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	}
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("get migration status record: %w", err)
+	}
+	sourceSchemaCount := len(strings.Split(msr.SourceDBConf.Schema, "|"))
+
 	snapshotRowsMap := make(map[string]int64)
 	for _, table := range tableList {
 		parts := strings.Split(table, ".")
@@ -800,6 +809,9 @@ func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]i
 		if len(parts) > 1 {
 			schemaName = parts[0]
 			tableName = parts[1]
+		}
+		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case
+			schemaName = ""
 		}
 		if schemaName == "public" || schemaName == "" {
 			table = tableName
