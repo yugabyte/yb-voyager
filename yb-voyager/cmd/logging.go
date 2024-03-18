@@ -43,7 +43,7 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 	// Example log line:
 	// 2022-03-23 12:16:42 INFO main.go:27 Logging initialised.
 	msg := fmt.Sprintf("%s %s %s:%d %s\n",
-		entry.Time.Format("2006-01-02 15:04:05"), level,
+		entry.Time.Format("2006-01-02 15:04:05.000000"), level,
 		fileName, entry.Caller.Line, entry.Message)
 	return []byte(msg), nil
 }
