@@ -108,10 +108,6 @@ type NameTuple struct {
 	TargetName  *ObjectName
 }
 
-func (t *NameTuple) UniqueId() string {
-	return t.String()
-}
-
 func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
 	return reflect.DeepEqual(t1, t2)
 }
@@ -211,17 +207,32 @@ func minQuote2(objectName, sourceDBType string) string {
 	}
 }
 
-// type NameTupleMap[V any] struct {
-// 	m map[string]V
-// }
+type NameTupleMap[V any] struct {
+	m    map[string]V
+	keys map[string]*NameTuple
+}
 
-// func (cm *NameTupleMap[V]) Put(key *NameTuple, val V) {
-// 	if cm.m == nil {
-// 		cm.m = make(map[string]V)
-// 	}
-// 	cm.m[key.UniqueId()] = val
-// }
+func (cm *NameTupleMap[V]) Put(nt *NameTuple, val V) {
+	if cm.m == nil {
+		cm.m = make(map[string]V)
+	}
+	cm.m[nt.ForKey()] = val
+	cm.keys[nt.ForKey()] = nt
+}
 
-// func (cm *NameTupleMap[V]) Get(key *NameTuple) V {
-// 	return cm.m[key.UniqueId()]
-// }
+func (cm *NameTupleMap[V]) Get(key *NameTuple) V {
+	return cm.m[key.ForKey()]
+}
+
+func (cm *NameTupleMap[V]) Delete(key *NameTuple) {
+	delete(cm.m, key.ForKey())
+	delete(cm.keys, key.ForKey())
+}
+
+func (cm *NameTupleMap[V]) GetKeys() []*NameTuple {
+	res := make([]*NameTuple, len(cm.keys))
+	for _, v := range cm.keys {
+		res = append(res, v)
+	}
+	return res
+}

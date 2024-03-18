@@ -66,19 +66,19 @@ func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequi
 type SchemaRegistry struct {
 	exportDir         string
 	exporterRole      string
-	TableNameToSchema map[string]*TableSchema
+	TableNameToSchema sqlname.NameTupleMap[*TableSchema]
 }
 
 func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	return &SchemaRegistry{
 		exportDir:         exportDir,
 		exporterRole:      exporterRole,
-		TableNameToSchema: make(map[string]*TableSchema),
+		TableNameToSchema: sqlname.NameTupleMap[*TableSchema]{},
 	}
 }
 
 func (sreg *SchemaRegistry) GetColumnTypes(tableName *sqlname.NameTuple, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
-	tableSchema := sreg.TableNameToSchema[tableName.ForKey()]
+	tableSchema := sreg.TableNameToSchema.Get(tableName)
 	if tableSchema == nil {
 		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableName)
 	}
@@ -97,18 +97,19 @@ func (sreg *SchemaRegistry) GetColumnTypes(tableName *sqlname.NameTuple, columnN
 func (sreg *SchemaRegistry) GetColumnType(tableName *sqlname.NameTuple, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
 	var tableSchema *TableSchema
 	var err error
-	tableSchema = sreg.TableNameToSchema[tableName.ForKey()]
+	tableSchema = sreg.TableNameToSchema.Get(tableName)
 	if tableSchema == nil {
 		// reinit
-		for k := range sreg.TableNameToSchema {
-			delete(sreg.TableNameToSchema, k)
+		tableNametoSchemaKeys := sreg.TableNameToSchema.GetKeys()
+		for _, key := range tableNametoSchemaKeys {
+			sreg.TableNameToSchema.Delete(key)
 		}
 
 		err = sreg.Init()
 		if err != nil {
 			return "", nil, fmt.Errorf("re-init of registry : %v", err)
 		}
-		tableSchema = sreg.TableNameToSchema[tableName.ForKey()]
+		tableSchema = sreg.TableNameToSchema.Get(tableName)
 		if err != nil {
 			return "", nil, fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
 		}
@@ -143,7 +144,7 @@ func (sreg *SchemaRegistry) Init() error {
 		if err != nil {
 			return fmt.Errorf("lookup %s from name registry: %v", tableName, err)
 		}
-		sreg.TableNameToSchema[table.ForKey()] = &tableSchema
+		sreg.TableNameToSchema.Put(table, &tableSchema)
 		schemaFile.Close()
 	}
 	return nil

@@ -57,11 +57,11 @@ var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits utils.BoolStr                           // to truncate *.D splits after import
-var TableToColumnNames = make(map[string][]string)         // map of table name to columnNames
-var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
+var truncateSplits utils.BoolStr                               // to truncate *.D splits after import
+var TableToColumnNames = sqlname.NameTupleMap[[]string]{}      // map of table name to columnNames
+var TableToIdentityColumnNames *sqlname.NameTupleMap[[]string] // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
-var TableNameToSchema map[string]map[string]map[string]string
+var TableNameToSchema *sqlname.NameTupleMap[map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
 
 var importDataCmd = &cobra.Command{
@@ -641,8 +641,9 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []*sqlname.NameTuple) {
 	}
 }
 
-func getIdentityColumnsForTables(tables []*sqlname.NameTuple, identityType string) map[string][]string {
-	var result = make(map[string][]string)
+func getIdentityColumnsForTables(tables []*sqlname.NameTuple, identityType string) *sqlname.NameTupleMap[[]string] {
+	// var result = make(map[string][]string)
+	var result = sqlname.NameTupleMap[[]string]{}
 	log.Infof("getting identity(%s) columns for tables: %v", identityType, tables)
 	for _, table := range tables {
 		identityColumns, err := tdb.GetIdentityColumnNamesForTable(table.ForKey(), identityType)
@@ -651,10 +652,11 @@ func getIdentityColumnsForTables(tables []*sqlname.NameTuple, identityType strin
 		}
 		if len(identityColumns) > 0 {
 			log.Infof("identity(%s) columns for table %s: %v", identityType, table, identityColumns)
-			result[table.ForKey()] = identityColumns
+			// result[table.ForKey()] = identityColumns
+			result.Put(table, identityColumns)
 		}
 	}
-	return result
+	return &result
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {
@@ -775,7 +777,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 }
 
 func getImportBatchArgsProto(tableName *sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
-	columns := TableToColumnNames[tableName.ForKey()]
+	columns := TableToColumnNames.Get(tableName)
 	//TODO:TABLENAME revisit.
 	columns, err := tdb.IfRequiredQuoteColumnNames(tableName.ForUserQuery(), columns)
 	if err != nil {
@@ -880,7 +882,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t *sqlname.Name
 			// table := batchWriter.tableName
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			// TODO:TABLENAME
-			line, err = valueConverter.ConvertRow(t, TableToColumnNames[t.ForKey()], line)
+			line, err = valueConverter.ConvertRow(t, TableToColumnNames.Get(t), line)
 			if err != nil {
 				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
@@ -954,7 +956,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	var rowsAffected int64
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, TableNameToSchema[batch.TableName.ForKey()])
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, TableNameToSchema.Get(batch.TableName))
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
@@ -1223,7 +1225,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 		var columns []string
 		dfdTableToExportedColumns := getDfdTableNameToExportedColumns(dataFileDescriptor)
 		if dfdTableToExportedColumns != nil {
-			columns = dfdTableToExportedColumns[task.TableName.ForKey()]
+			columns = dfdTableToExportedColumns.Get(task.TableName)
 		} else if dataFileDescriptor.HasHeader {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
@@ -1240,24 +1242,25 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 			log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
 			df.Close()
 		}
-		TableToColumnNames[task.TableName.ForKey()] = columns
+		TableToColumnNames.Put(task.TableName, columns)
 	}
 }
 
-func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) map[string][]string {
+func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *sqlname.NameTupleMap[[]string] {
 	if dataFileDescriptor.TableNameToExportedColumns == nil {
 		return nil
 	}
 
-	result := map[string][]string{}
+	result := sqlname.NameTupleMap[[]string]{}
 	for tableNameRaw, columnList := range dataFileDescriptor.TableNameToExportedColumns {
 		nt, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
 			utils.ErrExit("lookup table [%s] in name registry: %v", tableNameRaw, err)
 		}
-		result[nt.ForKey()] = columnList
+		// result[nt.ForKey()] = columnList
+		result.Put(nt, columnList)
 	}
-	return result
+	return &result
 }
 
 func quoteIdentifierIfRequired(identifier string) string {

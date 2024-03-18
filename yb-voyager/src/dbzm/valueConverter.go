@@ -33,7 +33,7 @@ import (
 type ValueConverter interface {
 	ConvertRow(tableName *sqlname.NameTuple, columnNames []string, row string) (string, error)
 	ConvertEvent(ev *tgtdb.Event, table *sqlname.NameTuple, formatIfRequired bool) error
-	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
+	GetTableNameToSchema() *sqlname.NameTupleMap[map[string]map[string]string] //returns table name to schema mapping
 }
 
 func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (ValueConverter, error) {
@@ -56,7 +56,7 @@ func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table *sqlname.Name
 	return nil
 }
 
-func (nvc *NoOpValueConverter) GetTableNameToSchema() map[string]map[string]map[string]string {
+func (nvc *NoOpValueConverter) GetTableNameToSchema() *sqlname.NameTupleMap[map[string]map[string]string] {
 	return nil
 }
 
@@ -259,17 +259,24 @@ func (conv *DebeziumValueConverter) convertMap(tableName *sqlname.NameTuple, m m
 	return nil
 }
 
-func (conv *DebeziumValueConverter) GetTableNameToSchema() map[string]map[string]map[string]string {
+func (conv *DebeziumValueConverter) GetTableNameToSchema() *sqlname.NameTupleMap[map[string]map[string]string] {
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
 	//TODO: fix this cyclic dependency maybe using DataFileDescriptor
-	var tableToSchema = make(map[string]map[string]map[string]string)
+	// var tableToSchema = make(map[string]map[string]map[string]string)
+	var tableToSchema = sqlname.NameTupleMap[map[string]map[string]string]{}
 	// tableToSchema {<table>: {<column>:<parameters>}}
-	for table, col := range conv.schemaRegistrySource.TableNameToSchema {
-		tableToSchema[table] = make(map[string]map[string]string)
-		for _, col := range col.Columns {
-			tableToSchema[table][col.Name] = col.Schema.Parameters
+	// for table, col := range conv.schemaRegistrySource.TableNameToSchema {
+	for _, tbl := range conv.schemaRegistrySource.TableNameToSchema.GetKeys() {
+		tblSchema := conv.schemaRegistrySource.TableNameToSchema.Get(tbl)
+		// tableToSchema[table] = make(map[string]map[string]string)
+		colSchemaMap := make(map[string]map[string]string)
+		// tableToSchema.
+		for _, col := range tblSchema.Columns {
+			// tableToSchema[table][col.Name] = col.Schema.Parameters
+			colSchemaMap[col.Name] = col.Schema.Parameters
 		}
+		tableToSchema.Put(tbl, colSchemaMap)
 	}
-	return tableToSchema
+	return &tableToSchema
 }
