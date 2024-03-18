@@ -29,9 +29,11 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var NUM_EVENT_CHANNELS int
@@ -50,7 +52,7 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
-func streamChanges(state *ImportDataState, tableNames []string) error {
+func streamChanges(state *ImportDataState, tableNames []*sqlname.NameTuple) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	tdb.PrepareForStreaming()
@@ -202,15 +204,14 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	return false
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	if event.IsCutoverToTarget() || event.IsCutoverToSourceReplica() || event.IsCutoverToSource() {
+	if event.IsCutoverEvent() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
 	}
 	log.Debugf("handling event: %v", event)
-	tableName := event.TableName
-	if sourceDBType == "postgresql" && event.SchemaName != "public" {
-		tableName = event.SchemaName + "." + event.TableName
-	}
+	// if sourceDBType == "postgresql" && event.SchemaName != "public" {
+	// 	tableName = event.SchemaName + "." + event.TableName
+	// }
 
 	// hash event
 	// Note: hash the event before running the keys/values through the value converter.
@@ -222,11 +223,11 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	tableNameForUniqueKeyColumns := tableName
-	if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
-		tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
-	}
-	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableNameForUniqueKeyColumns]
+	// tableNameForUniqueKeyColumns := tableName
+	// if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
+	// 	tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
+	// }
+	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[event.TableName.ForKey()]
 	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
@@ -239,7 +240,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	}
 
 	// preparing value converters for the streaming mode
-	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
+	err := valueConverter.ConvertEvent(event, event.TableName, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
@@ -252,7 +253,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 // Returns a hash value between 0..NUM_EVENT_CHANNELS
 func hashEvent(e *tgtdb.Event) int {
 	hash := fnv.New64a()
-	hash.Write([]byte(e.SchemaName + e.TableName))
+	hash.Write([]byte(e.TableName.ForKey()))
 
 	keyColumns := make([]string, 0)
 	for k := range e.Key {
@@ -349,16 +350,25 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole 
 
 func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]string, error) {
 	log.Infof("fetching table to unique key columns map from metaDB")
-	var res map[string][]string
+	var metaDbData map[string][]string
+	res := make(map[string][]string)
 
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-	found, err := metaDB.GetJsonObject(nil, key, &res)
+	found, err := metaDB.GetJsonObject(nil, key, &metaDbData)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
 		return nil, fmt.Errorf("table to unique key columns map not found in metaDB")
 	}
-	log.Infof("fetched table to unique key columns map: %v", res)
+	log.Infof("fetched table to unique key columns map: %v", metaDbData)
+
+	for tableNameRaw, columns := range metaDbData {
+		tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
+		}
+		res[tableName.ForKey()] = columns
+	}
 	return res, nil
 }

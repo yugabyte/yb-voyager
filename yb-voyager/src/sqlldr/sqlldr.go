@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 func CreateSqlldrDir(exportDir string) error {
@@ -32,8 +34,8 @@ func CreateSqlldrDir(exportDir string) error {
 	return nil
 }
 
-func CreateSqlldrControlFile(exportDir string, tableName string, sqlldrConfig string, fileName string) (sqlldrControlFilePath string, err error) {
-	sqlldrControlFileName := fmt.Sprintf("%s-%s.ctl", tableName, fileName)
+func CreateSqlldrControlFile(exportDir string, tableName *sqlname.NameTuple, sqlldrConfig string, fileName string) (sqlldrControlFilePath string, err error) {
+	sqlldrControlFileName := fmt.Sprintf("%s-%s.ctl", tableName.ForKey(), fileName)
 	sqlldrControlFilePath = fmt.Sprintf("%s/sqlldr/%s", exportDir, sqlldrControlFileName)
 	sqlldrControlFile, err := os.Create(sqlldrControlFilePath)
 	if err != nil {
@@ -47,8 +49,8 @@ func CreateSqlldrControlFile(exportDir string, tableName string, sqlldrConfig st
 	return sqlldrControlFilePath, nil
 }
 
-func CreateSqlldrLogFile(exportDir string, tableName string) (sqlldrLogFilePath string, sqlldrLogFile *os.File, err error) {
-	sqlldrLogFileName := fmt.Sprintf("%s.log", tableName)
+func CreateSqlldrLogFile(exportDir string, tableName *sqlname.NameTuple) (sqlldrLogFilePath string, sqlldrLogFile *os.File, err error) {
+	sqlldrLogFileName := fmt.Sprintf("%s.log", tableName.ForKey())
 	sqlldrLogFilePath = fmt.Sprintf("%s/sqlldr/%s", exportDir, sqlldrLogFileName)
 	sqlldrLogFile, err = os.Create(sqlldrLogFilePath)
 	if err != nil {

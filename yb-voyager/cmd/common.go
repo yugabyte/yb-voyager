@@ -44,7 +44,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -266,7 +268,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	} else {
 		fmt.Printf("snapshot import report\n")
 	}
-	tableList := importFileTasksToTableNames(tasks)
+	tableList := importFileTasksToTableNameTuples(tasks)
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
@@ -279,18 +281,19 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if err != nil {
 			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
 		}
-		snapshotRowCount[tableName] = tableRowCount
+		snapshotRowCount[tableName.ForKey()] = tableRowCount
 	}
 
 	for i, tableName := range tableList {
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
-		table := tableName
-		if len(strings.Split(tableName, ".")) == 2 {
-			table = strings.Split(tableName, ".")[1]
-		}
-		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
+		s, t := tableName.ForCatalogQuery()
+		// table := tableName
+		// if len(strings.Split(tableName, ".")) == 2 {
+		// 	table = strings.Split(tableName, ".")[1]
+		// }
+		uitable.AddRow(s, t, snapshotRowCount[tableName.ForKey()])
 	}
 	fmt.Printf("\n")
 	fmt.Println(uitable)
@@ -361,6 +364,38 @@ func initMetaDB() {
 		}
 		utils.ErrExit(userFacingMsg)
 	}
+}
+
+func InitNameRegistry(
+	exportDir string, role string,
+	sconf *srcdb.Source, sdb srcdb.SourceDB,
+	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) error {
+
+	var sdbReg namereg.SourceDbRegistry
+	var ybdb namereg.YBDBRegistry
+	var sourceDbType, sourceDbSchema, sourceDbName string
+	var targetDBSchema string
+
+	if sconf != nil {
+		sourceDbType = sconf.DBType
+		sourceDbName = sconf.DBName
+		sourceDbSchema = sconf.Schema
+	}
+	if sdb != nil {
+		sdbReg = sdb.(namereg.SourceDbRegistry)
+	}
+
+	if tconf != nil {
+		targetDBSchema = tconf.Schema
+	}
+	var ok bool
+	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
+		ybdb, ok = tdb.(namereg.YBDBRegistry)
+		if !ok {
+			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty.")
+		}
+	}
+	return namereg.InitNameRegistry(exportDir, role, sourceDbType, sourceDbSchema, sourceDbName, targetDBSchema, sdbReg, ybdb)
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
@@ -499,22 +534,27 @@ func validateMetaDBCreated() {
 	}
 }
 
-func getImportTableList(sourceTableList []string) []string {
+func getImportTableList(sourceTableList []string) ([]*sqlname.NameTuple, error) {
 	if importerRole == IMPORT_FILE_ROLE {
-		return nil
+		return nil, nil
 	}
-	var tableList []string
+	var tableList []*sqlname.NameTuple
 	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
-		// TODO: handle case sensitivity?
-		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
-		table := tableName.ObjectName.MinQuoted
-		if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
-			table = tableName.Qualified.MinQuoted
+
+		// // TODO: handle case sensitivity?
+		// tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
+		// table := tableName.ObjectName.MinQuoted
+		// if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
+		// 	table = tableName.Qualified.MinQuoted
+		// }
+		table, err := namereg.NameReg.LookupTableName(qualifiedTableName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
 		}
 		tableList = append(tableList, table)
 	}
-	return tableList
+	return tableList, nil
 }
 
 func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
@@ -637,35 +677,35 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 	}
 }
 
-func renameTableIfRequired(table string) string {
-	// required to rename the table name from leaf to root partition in case of pg_dump
-	// to be load data in target using via root table
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
-	}
-	source = *msr.SourceDBConf
-	if source.DBType != POSTGRESQL {
-		return table
-	}
-	if msr.RenameTablesMap == nil {
-		return table
-	}
-	defaultSchema, noDefaultSchema := GetDefaultPGSchema(source.Schema, "|")
-	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
-		utils.ErrExit("no default schema found to qualify table %s", table)
-	}
-	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
-	fromTable := tableName.Qualified.Unquoted
+// func renameTableIfRequired(table string) string {
+// 	// required to rename the table name from leaf to root partition in case of pg_dump
+// 	// to be load data in target using via root table
+// 	msr, err := metaDB.GetMigrationStatusRecord()
+// 	if err != nil {
+// 		utils.ErrExit("Failed to get migration status record: %s", err)
+// 	}
+// 	source = *msr.SourceDBConf
+// 	if source.DBType != POSTGRESQL {
+// 		return table
+// 	}
+// 	if msr.RenameTablesMap == nil {
+// 		return table
+// 	}
+// 	defaultSchema, noDefaultSchema := GetDefaultPGSchema(source.Schema, "|")
+// 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
+// 		utils.ErrExit("no default schema found to qualify table %s", table)
+// 	}
+// 	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
+// 	fromTable := tableName.Qualified.Unquoted
 
-	if msr.RenameTablesMap[fromTable] != "" {
-		table := sqlname.NewSourceNameFromQualifiedName(msr.RenameTablesMap[fromTable])
-		toTable := table.Qualified.MinQuoted
-		if table.SchemaName.MinQuoted == "public" {
-			toTable = table.ObjectName.MinQuoted
-		}
-		log.Infof("renaming table %s to %s for ImportBatchArgs", fromTable, toTable)
-		return toTable
-	}
-	return table
-}
+// 	if msr.RenameTablesMap[fromTable] != "" {
+// 		table := sqlname.NewSourceNameFromQualifiedName(msr.RenameTablesMap[fromTable])
+// 		toTable := table.Qualified.MinQuoted
+// 		if table.SchemaName.MinQuoted == "public" {
+// 			toTable = table.ObjectName.MinQuoted
+// 		}
+// 		log.Infof("renaming table %s to %s for ImportBatchArgs", fromTable, toTable)
+// 		return toTable
+// 	}
+// 	return table
+// }

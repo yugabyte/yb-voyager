@@ -165,6 +165,10 @@ func quote2(dbType, name string) string {
 	case POSTGRESQL, YUGABYTEDB, ORACLE:
 		return `"` + name + `"`
 	case MYSQL:
+		// TODO:TABLENAME
+		if IsReservedKeywordPG(name) {
+			return `"` + name + `"`
+		}
 		return name
 	default:
 		panic("unknown source db type")
@@ -180,6 +184,10 @@ func minQuote2(objectName, sourceDBType string) string {
 			return `"` + objectName + `"`
 		}
 	case MYSQL:
+		// TODO:TABLENAME
+		if IsReservedKeywordPG(objectName) {
+			return `"` + objectName + `"`
+		}
 		return objectName
 	case ORACLE:
 		if IsAllUppercase(objectName) && !IsReservedKeywordOracle(objectName) {
@@ -190,4 +198,37 @@ func minQuote2(objectName, sourceDBType string) string {
 	default:
 		panic("invalid source db type")
 	}
+}
+
+type NameTupleMap[V any] struct {
+	m    map[string]V
+	keys map[string]*NameTuple
+}
+
+func (cm *NameTupleMap[V]) Put(nt *NameTuple, val V) {
+	if cm.m == nil {
+		cm.m = make(map[string]V)
+	}
+	if cm.keys == nil {
+		cm.keys = make(map[string]*NameTuple)
+	}
+	cm.m[nt.ForKey()] = val
+	cm.keys[nt.ForKey()] = nt
+}
+
+func (cm *NameTupleMap[V]) Get(key *NameTuple) V {
+	return cm.m[key.ForKey()]
+}
+
+func (cm *NameTupleMap[V]) Delete(key *NameTuple) {
+	delete(cm.m, key.ForKey())
+	delete(cm.keys, key.ForKey())
+}
+
+func (cm *NameTupleMap[V]) GetKeys() []*NameTuple {
+	res := []*NameTuple{}
+	for _, v := range cm.keys {
+		res = append(res, v)
+	}
+	return res
 }
