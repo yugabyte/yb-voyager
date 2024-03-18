@@ -382,10 +382,13 @@ func (s *ImportDataState) GetTotalNumOfEventsImportedByType(migrationUUID uuid.U
 }
 
 func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []*sqlname.NameTuple) error {
-
 	if startClean {
 		// TODO: common definition for these batch metadata name tuples
-		parts := strings.Split(EVENT_CHANNELS_METADATA_TABLE_NAME, ".")
+		evChanMetadataTbl := EVENT_CHANNELS_METADATA_TABLE_NAME
+		if tconf.TargetDBType == ORACLE {
+			evChanMetadataTbl = strings.ToUpper(evChanMetadataTbl)
+		}
+		parts := strings.Split(evChanMetadataTbl, ".")
 		evChanMetadataTblName := sqlname.NewObjectName(tconf.TargetDBType, "public", parts[0], parts[1])
 		evChanNt := &sqlname.NameTuple{
 			CurrentName: evChanMetadataTblName,
@@ -397,7 +400,11 @@ func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numCha
 			return fmt.Errorf("error clearing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
 		}
 
-		parts = strings.Split(EVENTS_PER_TABLE_METADATA_TABLE_NAME, ".")
+		evTblMetadataTbl := EVENTS_PER_TABLE_METADATA_TABLE_NAME
+		if tconf.TargetDBType == ORACLE {
+			evTblMetadataTbl = strings.ToUpper(evTblMetadataTbl)
+		}
+		parts = strings.Split(evTblMetadataTbl, ".")
 		evTblMetadataTblName := sqlname.NewObjectName(tconf.TargetDBType, "public", parts[0], parts[1])
 		evTblNt := &sqlname.NameTuple{
 			CurrentName: evTblMetadataTblName,
