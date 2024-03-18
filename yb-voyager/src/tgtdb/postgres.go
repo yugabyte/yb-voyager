@@ -309,8 +309,8 @@ func (pg *TargetPostgreSQL) qualifyTableName(tableName string) (string, error) {
 	return tableName, nil
 }
 
-func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []*sqlname.NameTuple) []string {
-	result := []string{}
+func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []*sqlname.NameTuple) []*sqlname.NameTuple {
+	result := []*sqlname.NameTuple{}
 
 	for _, table := range tables {
 		log.Infof("checking if table %q is empty.", table)
@@ -323,7 +323,7 @@ func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []*sqlname.NameTuple) []str
 		if err != nil {
 			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
 		}
-		result = append(result, table.ForUserQuery())
+		result = append(result, table)
 	}
 	log.Infof("non empty tables: %v", result)
 	return result
@@ -405,7 +405,7 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	return res.RowsAffected(), err
 }
 
-func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
+func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName *sqlname.NameTuple, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
 	// FAST PATH.
 	fastPathSuccessful := true
@@ -429,13 +429,13 @@ func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName string, columns
 		return result, nil
 	}
 	// SLOW PATH.
-	var schemaName string
-	schemaName, tableName = pg.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := pg.getListOfTableAttributes(schemaName, tableName)
+	// var schemaName string
+	// schemaName, tableName = pg.splitMaybeQualifiedTableName(tableName)
+	targetColumns, err := pg.getListOfTableAttributes(tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	log.Infof("columns of table %s in target db: %v", tableName.ForUserQuery(), targetColumns)
 
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
@@ -455,19 +455,20 @@ func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName string, columns
 			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
 		}
 	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
+	log.Infof("columns of table %s.%s after quoting: %v", tableName.ForUserQuery(), result)
 	return result, nil
 }
 
-func (pg *TargetPostgreSQL) getListOfTableAttributes(schemaName, tableName string) ([]string, error) {
+func (pg *TargetPostgreSQL) getListOfTableAttributes(nt *sqlname.NameTuple) ([]string, error) {
 	var result []string
-	if tableName[0] == '"' {
-		// Remove the double quotes around the table name.
-		tableName = tableName[1 : len(tableName)-1]
-	}
+	// if tableName[0] == '"' {
+	// 	// Remove the double quotes around the table name.
+	// 	tableName = tableName[1 : len(tableName)-1]
+	// }
+	sname, tname := nt.ForCatalogQuery()
 	query := fmt.Sprintf(
 		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
-		schemaName, tableName)
+		sname, tname)
 	rows, err := pg.Conn().Query(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("run [%s] on target: %w", query, err)
@@ -685,16 +686,17 @@ func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
 	return 200 * 1024 * 1024 // 200 MB //TODO
 }
 
-func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error) {
-	schema := pg.getTargetSchemaName(table)
+func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(table *sqlname.NameTuple, identityType string) ([]string, error) {
+	// schema := pg.getTargetSchemaName(table)
 	// TODO: handle case-sensitivity correctly
-	if utils.IsQuotedString(table) {
-		table = table[1 : len(table)-1]
-	} else {
-		table = strings.ToLower(table)
-	}
+	// if utils.IsQuotedString(table) {
+	// 	table = table[1 : len(table)-1]
+	// } else {
+	// 	table = strings.ToLower(table)
+	// }
+	sname, tname := table.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, schema, table, identityType)
+		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
 	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, table, query)
 	var identityColumns []string
 	err := pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {

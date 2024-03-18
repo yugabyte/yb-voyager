@@ -173,8 +173,8 @@ func (tdb *TargetOracleDB) qualifyTableName(tableName string) string {
 	return tableName
 }
 
-func (tdb *TargetOracleDB) GetNonEmptyTables(tables []*sqlname.NameTuple) []string {
-	result := []string{}
+func (tdb *TargetOracleDB) GetNonEmptyTables(tables []*sqlname.NameTuple) []*sqlname.NameTuple {
+	result := []*sqlname.NameTuple{}
 
 	for _, table := range tables {
 		log.Infof("Checking if table %s is empty", table.ForUserQuery())
@@ -185,7 +185,7 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []*sqlname.NameTuple) []stri
 			utils.ErrExit("run query %q on target: %s", stmt, err)
 		}
 		if rowCount > 0 {
-			result = append(result, table.ForUserQuery())
+			result = append(result, table)
 		}
 	}
 
@@ -412,7 +412,7 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 	}
 }
 
-func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
+func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName *sqlname.NameTuple, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
 	// FAST PATH.
 	fastPathSuccessful := true
@@ -436,13 +436,13 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 		return result, nil
 	}
 	// SLOW PATH.
-	var schemaName string
-	schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := tdb.getListOfTableAttributes(schemaName, tableName)
+	// var schemaName string
+	// schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
+	targetColumns, err := tdb.getListOfTableAttributes(tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	log.Infof("columns of table %s in target db: %v", tableName, targetColumns)
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
 			colName = colName[1 : len(colName)-1]
@@ -461,13 +461,15 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
 		}
 	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
+	log.Infof("columns of table %s after quoting: %v", tableName, result)
 	return result, nil
 }
 
-func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
+func (tdb *TargetOracleDB) getListOfTableAttributes(tableName *sqlname.NameTuple) ([]string, error) {
 	// TODO: handle case-sensitivity properly
-	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE UPPER(table_name) = UPPER('%s') AND owner = '%s'", tableName, schemaName)
+	// query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE UPPER(table_name) = UPPER('%s') AND owner = '%s'", tableName, schemaName)
+	sname, tname := tableName.ForCatalogQuery()
+	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE table_name = '%s' AND owner = '%s'", tname, sname)
 	rows, err := tdb.conn.QueryContext(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
@@ -603,10 +605,10 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 	return 2 * 1024 * 1024 * 1024 // 2GB
 }
 
-func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error) {
-	schema := tdb.getTargetSchemaName(table)
+func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(table *sqlname.NameTuple, identityType string) ([]string, error) {
+	sname, tname := table.ForCatalogQuery()
 	query := fmt.Sprintf(`Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '%s'
-	AND TABLE_NAME = '%s' AND GENERATION_TYPE='%s'`, schema, table, identityType)
+	AND TABLE_NAME = '%s' AND GENERATION_TYPE='%s'`, sname, tname, identityType)
 	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, table, query)
 	var identityColumns []string
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
