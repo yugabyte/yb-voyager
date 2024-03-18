@@ -137,6 +137,41 @@ func (yb *TargetYugabyteDB) reconnect() error {
 	return fmt.Errorf("reconnect to target db: %w", err)
 }
 
+func (yb *TargetYugabyteDB) CheckIfUnsupportedColumnsHaveNotNullConstraint(tableToColumnsMap map[string][]string) error {
+	notNullUnsupportedColumnTableMap := map[string][]string{}
+	log.Infof("checking if unsupported columns have not null constraint")
+	for table, columns := range tableToColumnsMap {
+		query := fmt.Sprintf("SELECT column_name FROM information_schema.columns WHERE table_name = '%s' AND column_name IN ('%s') AND is_nullable = 'NO';", table, strings.Join(columns, `', '`))
+		rows, err := yb.conn_.Query(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+		}
+		defer rows.Close()
+		notNullColumns := []string{}
+		for rows.Next() {
+			var notNullColumn string
+			err = rows.Scan(&notNullColumn)
+			if err != nil {
+				return fmt.Errorf("scan not null column: %w", err)
+			}
+			notNullColumns = append(notNullColumns, notNullColumn)
+		}
+		if len(notNullColumns) > 0 {
+			notNullUnsupportedColumnTableMap[table] = notNullColumns
+		}
+	}
+	if len(notNullUnsupportedColumnTableMap) > 0 {
+		fmt.Println("Unsupported columns have not null constraint:")
+		// Print all the tables and columns that have not null constraint.
+		for table, columns := range notNullUnsupportedColumnTableMap {
+			fmt.Printf("%s : %v\n", table, columns)
+		}
+		utils.ErrExit("Please remove the not null constraint from the columns and try again.")
+
+	}
+	return nil
+}
+
 func (yb *TargetYugabyteDB) connect() error {
 	if yb.conn_ != nil {
 		// Already connected.

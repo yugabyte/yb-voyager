@@ -60,6 +60,40 @@ func (pg *TargetPostgreSQL) QueryRow(query string) Row {
 	return row
 }
 
+func (pg *TargetPostgreSQL) CheckIfUnsupportedColumnsHaveNotNullConstraint(tableToColumnsMap map[string][]string) error {
+	notNullUnsupportedColumnTableMap := map[string][]string{}
+	log.Infof("checking if unsupported columns have not null constraint")
+	for table, columns := range tableToColumnsMap {
+		query := fmt.Sprintf("SELECT column_name FROM information_schema.columns WHERE table_name = '%s' AND column_name IN ('%s') AND is_nullable = 'NO';", table, strings.Join(columns, `', '`))
+		rows, err := pg.conn_.Query(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+		}
+		defer rows.Close()
+		notNullColumns := []string{}
+		for rows.Next() {
+			var notNullColumn string
+			err = rows.Scan(&notNullColumn)
+			if err != nil {
+				return fmt.Errorf("scan not null column: %w", err)
+			}
+			notNullColumns = append(notNullColumns, notNullColumn)
+		}
+		if len(notNullColumns) > 0 {
+			notNullUnsupportedColumnTableMap[table] = notNullColumns
+		}
+	}
+	if len(notNullUnsupportedColumnTableMap) > 0 {
+		fmt.Println("Unsupported columns have not null constraint:")
+		// Print all the tables and columns that have not null constraint.
+		for table, columns := range notNullUnsupportedColumnTableMap {
+			fmt.Printf("%s : %v\n", table, columns)
+		}
+		utils.ErrExit("Please remove the not null constraint from the columns and try again.")
+	}
+	return nil
+}
+
 func (pg *TargetPostgreSQL) Exec(query string) (int64, error) {
 	res, err := pg.conn_.Exec(context.Background(), query)
 	if err != nil {

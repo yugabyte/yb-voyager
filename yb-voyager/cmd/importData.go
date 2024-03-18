@@ -523,6 +523,11 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to get unsupported columns from meta db: %s", err)
 			}
 
+			err = tdb.CheckIfUnsupportedColumnsHaveNotNullConstraint(unsupportedColumnsMap)
+			if err != nil {
+				utils.ErrExit("failed to check if unsupported columns have not null constraint: %s", err)
+			}
+
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
 			if err != nil {

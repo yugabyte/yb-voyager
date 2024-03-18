@@ -397,18 +397,20 @@ func (yb *YugabyteDB) FilterUnsupportedTables(tableList []*sqlname.SourceName, u
 		}
 
 	}
-	unsupportedTablesStringList := make([]string, len(unsupportedTables))
-	for i, table := range unsupportedTables {
-		unsupportedTablesStringList[i] = table.String()
-	}
+	if len(unsupportedTables) > 0 {
+		unsupportedTablesStringList := make([]string, len(unsupportedTables))
+		for i, table := range unsupportedTables {
+			unsupportedTablesStringList[i] = table.String()
+		}
 
-	if !utils.AskPrompt("\nThe following tables are unsupported since they contains an array of enums:\n" + strings.Join(unsupportedTablesStringList, "\n") +
-		"\nDo you want to skip these tables' data and continue with export") {
-		utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		if !utils.AskPrompt("\nThe following tables are unsupported since they contains an array of enums:\n" + strings.Join(unsupportedTablesStringList, "\n") +
+			"\nDo you want to skip these tables' data and continue with export") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		}
 	}
 
 	for _, table := range tableList {
-		if !slices.Contains(unsupportedTables, table) && table.ObjectName.MinQuoted != "LOG_MINING_FLUSH" {
+		if !slices.Contains(unsupportedTables, table) {
 			filteredTableList = append(filteredTableList, table)
 		}
 	}

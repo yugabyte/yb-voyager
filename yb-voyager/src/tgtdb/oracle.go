@@ -82,6 +82,10 @@ func (tdb *TargetOracleDB) Init() error {
 	return err
 }
 
+func (tdb *TargetOracleDB) CheckIfUnsupportedColumnsHaveNotNullConstraint(tableToColumnsMap map[string][]string) error {
+	return nil
+}
+
 func (tdb *TargetOracleDB) Query(query string) (Rows, error) {
 	rows, err := tdb.conn.QueryContext(context.Background(), query)
 	if err != nil {
