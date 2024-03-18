@@ -233,7 +233,7 @@ func (cm *NameTupleMap[V]) Delete(key *NameTuple) {
 }
 
 func (cm *NameTupleMap[V]) GetKeys() []*NameTuple {
-	res := make([]*NameTuple, len(cm.keys))
+	res := []*NameTuple{}
 	for _, v := range cm.keys {
 		res = append(res, v)
 	}
