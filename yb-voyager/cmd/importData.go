@@ -57,11 +57,11 @@ var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits utils.BoolStr                               // to truncate *.D splits after import
-var TableToColumnNames = sqlname.NameTupleMap[[]string]{}      // map of table name to columnNames
-var TableToIdentityColumnNames *sqlname.NameTupleMap[[]string] // map of table name to generated always as identity column's names
+var truncateSplits utils.BoolStr                              // to truncate *.D splits after import
+var TableToColumnNames = sqlname.NameTupleMap[[]string]{}     // map of table name to columnNames
+var TableToIdentityColumnNames sqlname.NameTupleMap[[]string] // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
-var TableNameToSchema *sqlname.NameTupleMap[map[string]map[string]string]
+var TableNameToSchema sqlname.NameTupleMap[map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
 
 var importDataCmd = &cobra.Command{
@@ -641,7 +641,7 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []*sqlname.NameTuple) {
 	}
 }
 
-func getIdentityColumnsForTables(tables []*sqlname.NameTuple, identityType string) *sqlname.NameTupleMap[[]string] {
+func getIdentityColumnsForTables(tables []*sqlname.NameTuple, identityType string) sqlname.NameTupleMap[[]string] {
 	// var result = make(map[string][]string)
 	var result = sqlname.NameTupleMap[[]string]{}
 	log.Infof("getting identity(%s) columns for tables: %v", identityType, tables)
@@ -656,7 +656,7 @@ func getIdentityColumnsForTables(tables []*sqlname.NameTuple, identityType strin
 			result.Put(table, identityColumns)
 		}
 	}
-	return &result
+	return result
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {

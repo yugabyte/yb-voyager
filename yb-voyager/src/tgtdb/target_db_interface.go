@@ -42,9 +42,9 @@ type TargetDB interface {
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
 	GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error)
-	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
-	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
-	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error
+	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap sqlname.NameTupleMap[[]string]) error
+	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap sqlname.NameTupleMap[[]string]) error
+	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap sqlname.NameTupleMap[[]string]) error
 	GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	InvalidIndexes() (map[string]bool, error)

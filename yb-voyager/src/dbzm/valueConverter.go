@@ -33,7 +33,7 @@ import (
 type ValueConverter interface {
 	ConvertRow(tableName *sqlname.NameTuple, columnNames []string, row string) (string, error)
 	ConvertEvent(ev *tgtdb.Event, table *sqlname.NameTuple, formatIfRequired bool) error
-	GetTableNameToSchema() *sqlname.NameTupleMap[map[string]map[string]string] //returns table name to schema mapping
+	GetTableNameToSchema() sqlname.NameTupleMap[map[string]map[string]string] //returns table name to schema mapping
 }
 
 func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (ValueConverter, error) {
@@ -56,8 +56,8 @@ func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table *sqlname.Name
 	return nil
 }
 
-func (nvc *NoOpValueConverter) GetTableNameToSchema() *sqlname.NameTupleMap[map[string]map[string]string] {
-	return nil
+func (nvc *NoOpValueConverter) GetTableNameToSchema() sqlname.NameTupleMap[map[string]map[string]string] {
+	return sqlname.NameTupleMap[map[string]map[string]string]{}
 }
 
 //============================================================================
@@ -259,7 +259,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName *sqlname.NameTuple, m m
 	return nil
 }
 
-func (conv *DebeziumValueConverter) GetTableNameToSchema() *sqlname.NameTupleMap[map[string]map[string]string] {
+func (conv *DebeziumValueConverter) GetTableNameToSchema() sqlname.NameTupleMap[map[string]map[string]string] {
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
 	//TODO: fix this cyclic dependency maybe using DataFileDescriptor
@@ -278,5 +278,5 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() *sqlname.NameTupleMap
 		}
 		tableToSchema.Put(tbl, colSchemaMap)
 	}
-	return &tableToSchema
+	return tableToSchema
 }

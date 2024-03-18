@@ -216,6 +216,9 @@ func (cm *NameTupleMap[V]) Put(nt *NameTuple, val V) {
 	if cm.m == nil {
 		cm.m = make(map[string]V)
 	}
+	if cm.keys == nil {
+		cm.keys = make(map[string]*NameTuple)
+	}
 	cm.m[nt.ForKey()] = val
 	cm.keys[nt.ForKey()] = nt
 }
