@@ -646,7 +646,7 @@ func getIdentityColumnsForTables(tables []*sqlname.NameTuple, identityType strin
 	var result = sqlname.NameTupleMap[[]string]{}
 	log.Infof("getting identity(%s) columns for tables: %v", identityType, tables)
 	for _, table := range tables {
-		identityColumns, err := tdb.GetIdentityColumnNamesForTable(table.ForKey(), identityType)
+		identityColumns, err := tdb.GetIdentityColumnNamesForTable(table, identityType)
 		if err != nil {
 			utils.ErrExit("error in getting identity(%s) columns for table %s: %w", identityType, table, err)
 		}
@@ -736,8 +736,11 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	// 	renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
 	// }
 	// renamedTablesNames = lo.Uniq(renamedTablesNames)
-	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
-	if len(nonEmptyTableNames) > 0 {
+	nonEmptyNts := tdb.GetNonEmptyTables(tableNames)
+	if len(nonEmptyNts) > 0 {
+		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt *sqlname.NameTuple, _ int) string {
+			return nt.ForUserQuery()
+		})
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
 			strings.Join(nonEmptyTableNames, ", "))
@@ -779,7 +782,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 func getImportBatchArgsProto(tableName *sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
 	columns := TableToColumnNames.Get(tableName)
 	//TODO:TABLENAME revisit.
-	columns, err := tdb.IfRequiredQuoteColumnNames(tableName.ForUserQuery(), columns)
+	columns, err := tdb.IfRequiredQuoteColumnNames(tableName, columns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
 	}
