@@ -273,7 +273,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 	default:
 		return nil, fmt.Errorf("invalid table name: %s", tableNameArg)
 	}
-	if schemaName == reg.DefaultSourceSideSchemaName() || schemaName == reg.DefaultYBSchemaName {
+	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultSourceReplicaDBSchemaName || schemaName == reg.DefaultYBSchemaName {
 		schemaName = ""
 	}
 
