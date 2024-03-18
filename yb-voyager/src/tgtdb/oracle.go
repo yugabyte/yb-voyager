@@ -724,10 +724,11 @@ func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
 	return tdb.isQueryResultNonEmpty(query)
 }
 
-func (tdb *TargetOracleDB) isTableExists(qualifiedTableName string) bool {
-	schema, table := tdb.splitMaybeQualifiedTableName(qualifiedTableName)
+func (tdb *TargetOracleDB) isTableExists(nt *sqlname.NameTuple) bool {
+	// schema, table := tdb.splitMaybeQualifiedTableName(qualifiedTableName)
 	// TODO: handle case-sensitivity properly
-	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = UPPER('%s') AND OWNER = UPPER('%s')", table, schema)
+	sname, tname := nt.ForCatalogQuery()
+	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = '%s' AND OWNER = '%s'", tname, sname)
 	return tdb.isQueryResultNonEmpty(query)
 }
 
@@ -755,7 +756,18 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 	}
 
 	// clean up all the tables in BATCH_METADATA_TABLE_SCHEMA
-	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tableNames := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tables := []*sqlname.NameTuple{}
+	for _, tableName := range tableNames {
+		parts := strings.Split(tableName, ".")
+		objName := sqlname.NewObjectName(sqlname.YUGABYTEDB, "", parts[0], parts[1])
+		nt := sqlname.NameTuple{
+			CurrentName: objName,
+			SourceName:  objName,
+			TargetName:  objName,
+		}
+		tables = append(tables, &nt)
+	}
 	for _, table := range tables {
 		if !tdb.isTableExists(table) {
 			log.Infof("table %s does not exist, nothing to clear for migration state", table)
