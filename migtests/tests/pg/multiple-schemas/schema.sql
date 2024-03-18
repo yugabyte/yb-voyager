@@ -6,8 +6,6 @@ drop table if exists ext_test;
 
 create table ext_test(id serial PRIMARY KEY, password text);
 
-
-
 select * from ext_test;
 
 drop aggregate if exists inc_sum(int);
@@ -43,8 +41,6 @@ drop trigger if exists audit_trigger on tt;
 CREATE TRIGGER audit_trigger AFTER INSERT ON tt
 FOR EACH ROW EXECUTE PROCEDURE auditlogfunc();
 
-
-
 drop procedure if exists tt_insert_data;
 
 CREATE OR REPLACE PROCEDURE tt_insert_data("i" integer)
@@ -56,8 +52,6 @@ AS $$
 INSERT INTO "tt" VALUES ("i");
 
 $$;
-
-
 
 CREATE OR REPLACE FUNCTION total ()
 RETURNS integer AS $agg_output$
@@ -107,8 +101,6 @@ $agg_output$ LANGUAGE plpgsql;
 select total();
 SELECT * from audit;
 
-
-
 -- contains Types, Domains, Comments, Mixed Cases
 
 DROP type IF EXISTS enum_kind cascade; 
@@ -137,7 +129,7 @@ VARCHAR NOT NULL CHECK (value!~ '\s');
 drop table if exists Recipients;
 
 CREATE TABLE Recipients (  
-ID SERIAL PRIMARY KEY,  
+    ID SERIAL PRIMARY KEY,  
     First_name person_name,  
     Last_name person_name,  
     Misc enum_kind  

@@ -147,13 +147,13 @@ main() {
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
+			exit 1
         fi
     else
         break
     fi
 	done
-	
-	
+
 
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
