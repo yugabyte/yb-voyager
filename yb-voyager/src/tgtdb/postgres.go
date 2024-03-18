@@ -600,10 +600,10 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			tableName, err := pg.qualifyTableName(tableName)
-			if err != nil {
-				return false, fmt.Errorf("qualify table name: %w", err)
-			}
+			// tableName, err := pg.qualifyTableName(tableName)
+			// if err != nil {
+			// return false, fmt.Errorf("qualify table name: %w", err)
+			// }
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {

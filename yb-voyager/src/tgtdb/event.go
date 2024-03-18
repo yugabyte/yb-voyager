@@ -362,7 +362,7 @@ type EventBatch struct {
 	Events             []*Event
 	ChanNo             int
 	EventCounts        *EventCounter
-	EventCountsByTable map[string]*EventCounter
+	EventCountsByTable sqlname.NameTupleMap[*EventCounter] //map[string]*EventCounter
 }
 
 func NewEventBatch(events []*Event, chanNo int) *EventBatch {
@@ -370,7 +370,7 @@ func NewEventBatch(events []*Event, chanNo int) *EventBatch {
 		Events:             events,
 		ChanNo:             chanNo,
 		EventCounts:        &EventCounter{},
-		EventCountsByTable: make(map[string]*EventCounter),
+		EventCountsByTable: sqlname.NameTupleMap[*EventCounter]{},
 	}
 	batch.updateCounts()
 	return batch
@@ -399,7 +399,7 @@ func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) str
 		migrationUUID, eb.ChanNo)
 }
 
-func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName string) string {
+func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName *sqlname.NameTuple) string {
 	queryTemplate := `UPDATE %s 
 	SET 
 		total_events = total_events + %d, 
@@ -411,37 +411,41 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 	`
 	return fmt.Sprintf(queryTemplate,
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME,
-		eb.EventCountsByTable[tableName].TotalEvents,
-		eb.EventCountsByTable[tableName].NumInserts,
-		eb.EventCountsByTable[tableName].NumUpdates,
-		eb.EventCountsByTable[tableName].NumDeletes,
-		migrationUUID, tableName, eb.ChanNo)
+		eb.EventCountsByTable.Get(tableName).TotalEvents,
+		eb.EventCountsByTable.Get(tableName).NumInserts,
+		eb.EventCountsByTable.Get(tableName).NumUpdates,
+		eb.EventCountsByTable.Get(tableName).NumDeletes,
+		migrationUUID, tableName.ForKey(), eb.ChanNo)
 }
 
-func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUID, tableName string) string {
+func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUID, tableName *sqlname.NameTuple) string {
 	queryTemplate := `INSERT INTO %s 
 	(migration_uuid, table_name, channel_no, total_events, num_inserts, num_updates, num_deletes) 
 	VALUES ('%s', '%s', %d, %d, %d, %d, %d)
 	`
 	return fmt.Sprintf(queryTemplate,
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME,
-		migrationUUID, tableName, eb.ChanNo,
-		eb.EventCountsByTable[tableName].TotalEvents,
-		eb.EventCountsByTable[tableName].NumInserts,
-		eb.EventCountsByTable[tableName].NumUpdates,
-		eb.EventCountsByTable[tableName].NumDeletes)
+		migrationUUID, tableName.ForKey(), eb.ChanNo,
+		eb.EventCountsByTable.Get(tableName).TotalEvents,
+		eb.EventCountsByTable.Get(tableName).NumInserts,
+		eb.EventCountsByTable.Get(tableName).NumUpdates,
+		eb.EventCountsByTable.Get(tableName).NumDeletes)
 }
 
-func (eb *EventBatch) GetTableNames() []string {
-	return lo.Keys(eb.EventCountsByTable)
+func (eb *EventBatch) GetTableNames() []*sqlname.NameTuple {
+	return eb.EventCountsByTable.GetKeys()
 }
 
 func (eb *EventBatch) updateCounts() {
 	for _, event := range eb.Events {
-		if _, ok := eb.EventCountsByTable[event.TableName.ForKey()]; !ok {
-			eb.EventCountsByTable[event.TableName.ForKey()] = &EventCounter{}
+
+		if eb.EventCountsByTable.Get(event.TableName) == nil {
+			eb.EventCountsByTable.Put(event.TableName, &EventCounter{})
 		}
-		eb.EventCountsByTable[event.TableName.ForKey()].CountEvent(event)
+		// if _, ok := eb.EventCountsByTable[event.TableName.ForKey()]; !ok {
+		// 	eb.EventCountsByTable[event.TableName.ForKey()] = &EventCounter{}
+		// }
+		eb.EventCountsByTable.Get(event.TableName).CountEvent(event)
 		eb.EventCounts.CountEvent(event)
 	}
 }

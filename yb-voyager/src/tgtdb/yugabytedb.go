@@ -630,7 +630,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			tableName := yb.qualifyTableName(tableName)
+			// tableName := yb.qualifyTableName(tableName)
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
