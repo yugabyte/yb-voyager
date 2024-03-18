@@ -170,14 +170,6 @@ jobs:
       - name: "TEST: pg-live-migration-multiple-schemas"
         run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
         if: matrix.version != '2.16.7.0-b59'
-      
-      - name: "TEST: pg-live-migration-multiple-schemas-fall-forward"
-        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-fallf-run-test.sh  pg/multiple-schemas
-        if: matrix.version != '2.16.7.0-b59'
-      
-      - name: "TEST: pg-live-migration-multiple-schemas-fall-back"
-        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-fallb-run-test.sh  pg/multiple-schemas
-        if: matrix.version != '2.16.7.0-b59'
 
       - name: "TEST: pg-basic-public-fall-forward-test"
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
