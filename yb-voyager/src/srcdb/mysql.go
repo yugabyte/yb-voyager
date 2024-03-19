@@ -310,7 +310,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []*sqlname.NameTuple) map[stri
 			if err != nil {
 				utils.ErrExit("Failed to scan %q for auto increment column of %q: %s", query, table.String(), err)
 			}
-			qualifiedColumeName := fmt.Sprintf("%s.%s", table.ForKey(), columnName)
+			qualifiedColumeName := fmt.Sprintf("%s.%s", table.CurrentName.Qualified.Unquoted, columnName)
 			// sequence name as per PG naming convention for bigserial datatype's sequence
 			sequenceName := fmt.Sprintf("%s_%s_seq", tname, columnName)
 			columnToSequenceMap[qualifiedColumeName] = sequenceName

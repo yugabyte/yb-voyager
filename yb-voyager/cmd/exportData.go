@@ -601,11 +601,15 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
-		// sequenceList := source.DB().GetAllSequences()
-		// for _, seq := range sequenceList {
-		// 	// name := sqlname.Loo
-		// 	finalTableList = append(finalTableList, name)
-		// }
+		sequenceList := source.DB().GetAllSequences()
+		defaultSchema, _ := getDefaultSourceSchemaName()
+		for _, seq := range sequenceList {
+			schema, seqName := strings.Split(seq, ".")[0], strings.Split(seq, ".")[1]
+			obj := sqlname.NewObjectName(POSTGRESQL, defaultSchema, schema, seqName)
+			finalTableList = append(finalTableList, &sqlname.NameTuple{
+				SourceName: obj,
+			})
+		}
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
