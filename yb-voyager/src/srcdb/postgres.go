@@ -112,7 +112,7 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 func (pg *PostgreSQL) GetTableApproxRowCount(tableName *sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	sname, tname := tableName.ForCatalogQuery()
-	table := fmt.Sprintf("%s.%s", sname, tname)
+	table := fmt.Sprintf(`%s."%s"`, sname, tname)
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
 		"where oid = '%s'::regclass", table)
 
@@ -432,7 +432,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table *sqlname.NameTuple) string {
 	sname, tname := table.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s.%s'::regclass::oid`, sname, tname) //TODO : CHECK MINQUOTED
+	WHERE c.oid = '%s."%s"'::regclass::oid`, sname, tname) //TODO : CHECK MINQUOTED
 
 	err := pg.db.QueryRow(context.Background(), query).Scan(&parentTable)
 	if err != pgx.ErrNoRows && err != nil {

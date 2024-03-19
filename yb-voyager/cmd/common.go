@@ -67,7 +67,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
 			fullTableName := tableName.ForKey()
-			table := tableName.ForUserQuery()
+			table := tableName.CurrentName.MinQualified.MinQuoted
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
 				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
 				// if schema == "public" {
@@ -223,18 +223,23 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		keys := lo.Keys(exportedRowCount)
 		sort.Strings(keys)
 		for _, key := range keys {
-			if source.Schema != "" {
-				tableParts := strings.Split(key, ".")
-				table := tableParts[0]
-				schema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schema
-				if len(tableParts) > 1 {
-					schema = tableParts[0]
-					table = tableParts[1]
+			// if source.Schema != "" {
+				// tableParts := strings.Split(key, ".")
+				// table := tableParts[0]
+				// schema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schema
+				// if len(tableParts) > 1 {
+				// 	schema = tableParts[0]
+				// 	table = tableParts[1]
+				// }
+				table, err := namereg.NameReg.LookupTableName(key)
+				if err != nil {
+					utils.ErrExit("lookup table %s in name registry : %v", key, err)
 				}
-				uitable.AddRow(schema, table, exportedRowCount[key])
-			} else {
-				uitable.AddRow(source.DBName, key, exportedRowCount[key])
-			}
+				schema := table.SourceName.SchemaName 
+				uitable.AddRow(schema, table.CurrentName.Unqualified.MinQuoted, exportedRowCount[key])
+			// } else {
+				// uitable.AddRow(source.DBName, key, exportedRowCount[key])
+			// }
 		}
 		fmt.Print("\n")
 		fmt.Println(uitable)
@@ -255,11 +260,16 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
 			}
 		}
-		if tableStatus.SchemaName != "" {
-			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
-		} else {
-			uitable.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
+		table, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
+		if err != nil {
+			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
 		}
+		schema := table.CurrentName.SchemaName
+		// if tableStatus.SchemaName != "" {
+			uitable.AddRow(schema, table.CurrentName.Unqualified.MinQuoted, tableStatus.ExportedRowCountSnapshot)
+		// } else {
+		// 	uitable.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
+		// }
 	}
 	fmt.Print("\n")
 	fmt.Println(uitable)
