@@ -455,7 +455,7 @@ func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName *sqlname.NameTu
 			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
 		}
 	}
-	log.Infof("columns of table %s.%s after quoting: %v", tableName.ForUserQuery(), result)
+	log.Infof("columns of table %s after quoting: %v", tableName.ForUserQuery(), result)
 	return result, nil
 }
 
