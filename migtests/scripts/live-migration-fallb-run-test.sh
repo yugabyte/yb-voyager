@@ -56,9 +56,6 @@ main() {
 	step "Grant source database user permissions for live migration"	
 	grant_permissions_for_live_migration
 
-	step "Setup Fall Back environment"
-	setup_fallback_environment
-
 	step "Check the Voyager version installed"
 	yb-voyager version
 
@@ -139,6 +136,9 @@ main() {
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
+
+	step "Setup Fall Back environment"
+	setup_fallback_environment
 
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true --yes
