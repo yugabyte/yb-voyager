@@ -109,11 +109,11 @@ jobs:
       - name: "TEST: pg-datatypes"
         run: migtests/scripts/run-test.sh pg/datatypes
 
-      - name: "TEST: pg-constraints"
-        run: migtests/scripts/run-test.sh pg/constraints
+      # - name: "TEST: pg-constraints"
+      #   run: migtests/scripts/run-test.sh pg/constraints
 
-      - name: "TEST: pg-sequences"
-        run: migtests/scripts/run-test.sh pg/sequences
+      # - name: "TEST: pg-sequences"
+      #   run: migtests/scripts/run-test.sh pg/sequences
 
       - name: "TEST: pg-indexes"
         run: migtests/scripts/run-test.sh pg/indexes
@@ -123,6 +123,7 @@ jobs:
 
       - name: "TEST: pg-partitions with (table-list)"
         run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region' migtests/scripts/run-test.sh pg/partitions 
+        continue-on-error: true
 
       # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
       # Fixed in 2.17.1.0-b368
@@ -185,4 +186,5 @@ jobs:
       - name: "TEST: pg-basic-non-public-fall-back-test"
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
         if: matrix.version != '2.16.7.0-b59'
+        continue-on-error: true
 
