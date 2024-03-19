@@ -196,9 +196,14 @@ func exportData() bool {
 	tableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
 		renamedTable, isRenamed := renameTableIfRequired(table.Qualified.MinQuoted)
 		if isRenamed {
-			//TODO: it is ok to do this right now will fix but will fix everything with Name Registry
+			//TODO: it is ok to do this right now but will fix everything with Name Registry
 			table := strings.TrimPrefix(table.Qualified.MinQuoted, "public.")
 			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
+			if len(strings.Split(renamedTable, ".")) == 1 {
+				//TODD: just for now, hack to display unique table list as we are already
+				// adding qualified root table in addLeafParititonsInTableList func
+				return fmt.Sprintf("public.%s", renamedTable)
+			}
 		}
 		return renamedTable
 	}))
@@ -217,13 +222,6 @@ func exportData() bool {
 	})
 	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
 	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
-
-	//add root tables in the list for catalog queries to work fine with both leaf and root tables
-	defaultSchema, _ := GetDefaultPGSchema(source.Schema, "|")
-	for _, k := range lo.Keys(leafPartitions) {
-		sqlnameTable := sqlname.NewSourceNameFromMaybeQualifiedName(k, defaultSchema)
-		finalTableList = append(finalTableList, sqlnameTable)
-	}
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
@@ -360,6 +358,8 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) (map[string]s
 				partitionsToRootTableMap[leafPartition.Qualified.Unquoted] = rootTable.Qualified.MinQuoted
 			}
 		}
+		// will be keeping root in the list as it might be required by some of the catalog queries
+		modifiedTableList = append(modifiedTableList, rootTable)
 	}
 	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table *sqlname.SourceName) string {
 		return table.Qualified.MinQuoted
