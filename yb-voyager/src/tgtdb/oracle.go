@@ -33,8 +33,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/slices"
 )
 
 type TargetOracleDB struct {
@@ -415,28 +413,6 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 
 func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
-	// FAST PATH.
-	fastPathSuccessful := true
-	for i, colName := range columns {
-		if strings.ToUpper(colName) == colName {
-			if sqlname.IsReservedKeywordOracle(colName) && colName[0:1] != `"` {
-				result[i] = fmt.Sprintf(`"%s"`, colName)
-			} else {
-				result[i] = colName
-			}
-		} else {
-			// Go to slow path.
-			log.Infof("column name (%s) is not all upper-case. Going to slow path.", colName)
-			result = make([]string, len(columns))
-			fastPathSuccessful = false
-			break
-		}
-	}
-	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
-		return result, nil
-	}
-	// SLOW PATH.
 	var schemaName string
 	schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
 	targetColumns, err := tdb.getListOfTableAttributes(schemaName, tableName)
@@ -444,23 +420,17 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
 	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
 			colName = colName[1 : len(colName)-1]
 		}
-		switch true {
-		// TODO: Move sqlname.IsReservedKeywordOracle() in this file.
-		case sqlname.IsReservedKeywordOracle(colName):
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case colName == strings.ToUpper(colName): // Name is all Upper case.
-			result[i] = colName
-		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all uppercase.
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case slices.Contains(targetColumns, strings.ToUpper(colName)): // Case insensitive name given with mixed case.
-			result[i] = strings.ToUpper(colName)
-		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
+		colName, err = findBestMatchingColumnName(ORACLE, colName, targetColumns)
+		if err != nil {
+			return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
+				colName, schemaName, tableName, err)
 		}
+		result[i] = fmt.Sprintf("%q", colName)
 	}
 	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
 	return result, nil

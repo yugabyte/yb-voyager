@@ -33,7 +33,6 @@ import (
 
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TargetPostgreSQL struct {
@@ -408,28 +407,6 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 
 func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
-	// FAST PATH.
-	fastPathSuccessful := true
-	for i, colName := range columns {
-		if strings.ToLower(colName) == colName {
-			if sqlname.IsReservedKeywordPG(colName) && colName[0:1] != `"` {
-				result[i] = fmt.Sprintf(`"%s"`, colName)
-			} else {
-				result[i] = colName
-			}
-		} else {
-			// Go to slow path.
-			log.Infof("column name (%s) is not all lower-case. Going to slow path.", colName)
-			result = make([]string, len(columns))
-			fastPathSuccessful = false
-			break
-		}
-	}
-	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
-		return result, nil
-	}
-	// SLOW PATH.
 	var schemaName string
 	schemaName, tableName = pg.splitMaybeQualifiedTableName(tableName)
 	targetColumns, err := pg.getListOfTableAttributes(schemaName, tableName)
@@ -442,22 +419,45 @@ func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName string, columns
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
 			colName = colName[1 : len(colName)-1]
 		}
-		switch true {
-		// TODO: Move sqlname.IsReservedKeyword() in this file.
-		case sqlname.IsReservedKeywordPG(colName):
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case colName == strings.ToLower(colName): // Name is all lowercase.
-			result[i] = colName
-		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all lowercase.
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case slices.Contains(targetColumns, strings.ToLower(colName)): // Case insensitive name given with mixed case.
-			result[i] = strings.ToLower(colName)
-		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
+		colName, err = findBestMatchingColumnName(POSTGRESQL, colName, targetColumns)
+		if err != nil {
+			return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
+				colName, schemaName, tableName, err)
 		}
+		result[i] = fmt.Sprintf("%q", colName)
 	}
 	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
 	return result, nil
+}
+
+func findBestMatchingColumnName(sourceDBType string, colName string, targetColumns []string) (string, error) {
+	if slices.Contains(targetColumns, colName) { // Exact match.
+		return colName, nil
+	}
+	// Case insensitive match.
+	candidates := []string{}
+	for _, targetCol := range targetColumns {
+		if strings.EqualFold(targetCol, colName) {
+			candidates = append(candidates, targetCol)
+		}
+	}
+	if len(candidates) == 1 {
+		return candidates[0], nil
+	}
+	if len(candidates) > 1 {
+		if sourceDBType == POSTGRESQL || sourceDBType == YUGABYTEDB {
+			if slices.Contains(candidates, strings.ToLower(colName)) {
+				return strings.ToLower(colName), nil
+			}
+		} else if sourceDBType == ORACLE {
+			if slices.Contains(candidates, strings.ToUpper(colName)) {
+				return strings.ToUpper(colName), nil
+			}
+		}
+		return "", fmt.Errorf("ambiguous column name %q in target table: found column names: %s",
+			colName, strings.Join(candidates, ", "))
+	}
+	return "", fmt.Errorf("column %q not found", colName)
 }
 
 func (pg *TargetPostgreSQL) getListOfTableAttributes(schemaName, tableName string) ([]string, error) {
