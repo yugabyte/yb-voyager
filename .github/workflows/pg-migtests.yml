@@ -109,11 +109,11 @@ jobs:
       - name: "TEST: pg-datatypes"
         run: migtests/scripts/run-test.sh pg/datatypes
 
-      # - name: "TEST: pg-constraints"
-      #   run: migtests/scripts/run-test.sh pg/constraints
+      - name: "TEST: pg-constraints"
+        run: migtests/scripts/run-test.sh pg/constraints
 
-      # - name: "TEST: pg-sequences"
-      #   run: migtests/scripts/run-test.sh pg/sequences
+      - name: "TEST: pg-sequences"
+        run: migtests/scripts/run-test.sh pg/sequences
 
       - name: "TEST: pg-indexes"
         run: migtests/scripts/run-test.sh pg/indexes
