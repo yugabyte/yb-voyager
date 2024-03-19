@@ -85,10 +85,12 @@ func (yb *YugabyteDB) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (yb *YugabyteDB) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
+func (yb *YugabyteDB) GetTableApproxRowCount(tableName *sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
+	sname, tname := tableName.ForCatalogQuery()
+	table := fmt.Sprintf("%s.%s", sname, tname)
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
-		"where oid = '%s'::regclass", tableName.Qualified.MinQuoted)
+		"where oid = '%s'::regclass", table)
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := yb.conn.QueryRow(context.Background(), query).Scan(&approxRowCount)
@@ -175,7 +177,7 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	query := fmt.Sprintf(`SELECT table_schema, table_name
+	query := fmt.Sprintf(`SELECT table_sname, tnameable_name
 			  FROM information_schema.tables
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema IN (%s);`, querySchemaList)
@@ -195,7 +197,7 @@ func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
 		}
 		tableName = fmt.Sprintf("\"%s\"", tableName)
-		tableNames = append(tableNames, sqlname.NewSourceName(tableSchema, tableName))
+		tableNames = append(tableNames, sqlname.NewSourceName(tableName, tableSchema))
 	}
 	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
 	return tableNames
@@ -239,7 +241,7 @@ func (yb *YugabyteDB) ExportSchema(exportDir string) {
 	panic("not implemented")
 }
 
-func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
+func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []*sqlname.NameTuple) error {
 	panic("not implemented")
 }
 
@@ -247,7 +249,7 @@ func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
 	pgdumpExportDataOffline(ctx, yb.source, yb.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
 }
 
@@ -336,14 +338,14 @@ func (yb *YugabyteDB) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.NameTuple, useDebezium bool) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
 	return tableList, nil
 }
 
-func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
-	var nonEmptyTableList, emptyTableList []*sqlname.SourceName
+func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
+	var nonEmptyTableList, emptyTableList []*sqlname.NameTuple
 	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.Qualified.MinQuoted)
+		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.ForUserQuery())
 		var empty bool
 		err := yb.conn.QueryRow(context.Background(), query).Scan(&empty)
 		if err != nil {
@@ -362,20 +364,22 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	return nonEmptyTableList, emptyTableList
 }
 
-func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.NameTuple) ([]string, []string, []string) {
 	return nil, nil, nil
 }
 
-func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, []string) {
-	return nil, nil
+func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.NameTuple, useDebezium bool, _ bool) (sqlname.NameTupleMap[[]string], []string) {
+	dummy := sqlname.NameTupleMap[[]string]{} // empty map
+	return dummy, nil
 }
 
-func (yb *YugabyteDB) ParentTableOfPartition(table *sqlname.SourceName) string {
+func (yb *YugabyteDB) ParentTableOfPartition(table *sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
+	sname, tname := table.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table.Qualified.MinQuoted)
+	WHERE c.oid = '%s.%s'::regclass::oid`, sname, tname) //TODO: CHECK MINQUOTED
 
 	err := yb.conn.QueryRow(context.Background(), query).Scan(&parentTable)
 	if err != pgx.ErrNoRows && err != nil {
@@ -385,12 +389,13 @@ func (yb *YugabyteDB) ParentTableOfPartition(table *sqlname.SourceName) string {
 	return parentTable
 }
 
-func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
+func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
 		// this query also covers the case of identity columns
-		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, table.SchemaName.Unquoted, table.ObjectName.Unquoted)
+		sname, tname := table.ForCatalogQuery()
+		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, sname, tname)
 
 		var columeName, sequenceName, schemaName string
 		rows, err := yb.conn.Query(context.Background(), query)
@@ -403,7 +408,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 			if err != nil {
 				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
 			}
-			qualifiedColumnName := fmt.Sprintf("%s.%s", table.Qualified.Unquoted, columeName)
+			qualifiedColumnName := fmt.Sprintf("%s.%s", table.ForKey(), columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
 		}
@@ -433,8 +438,9 @@ func (yb *YugabyteDB) GetServers() []string {
 	return ybServers
 }
 
-func (yb *YugabyteDB) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
-	partitions := make([]*sqlname.SourceName, 0)
+func (yb *YugabyteDB) GetPartitions(tableName *sqlname.NameTuple) []string {
+	partitions := make([]string, 0)
+	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT
     nmsp_child.nspname  AS child_schema,
     child.relname       AS child
@@ -443,7 +449,7 @@ FROM pg_inherits
     JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
     JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
     JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
-WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 
 	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
@@ -457,13 +463,14 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		if err != nil {
 			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
 		}
-		if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
-			// case sensitive unquoted table name returns unquoted parititons name as well
-			// so we need to add quotes around them
-			partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
-		} else {
-			partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
-		}
+		// if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
+		// 	// case sensitive unquoted table name returns unquoted parititons name as well
+		// 	// so we need to add quotes around them
+		// 	partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
+		// } else {
+		// 	partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
+		// }
+		partitions = append(partitions, fmt.Sprintf("%s.%s", childSchema, childTable))
 	}
 	if rows.Err() != nil {
 		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
@@ -481,14 +488,14 @@ JOIN information_schema.key_column_usage kcu
 WHERE tc.table_schema = ANY('{%s}') AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
 `
 
-func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.NameTuple) (map[string][]string, error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
 	result := make(map[string][]string)
 	var querySchemaList, queryTableList []string
 	for i := 0; i < len(tableList); i++ {
-		schema, table := tableList[i].SchemaName.Unquoted, tableList[i].ObjectName.Unquoted
-		querySchemaList = append(querySchemaList, schema)
-		queryTableList = append(queryTableList, table)
+		sname, tname := tableList[i].ForCatalogQuery()
+		querySchemaList = append(querySchemaList, sname)
+		queryTableList = append(queryTableList, tname)
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
@@ -544,7 +551,7 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 		}
 		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
 		if pkCount == 0 {
-			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
 	}
 	return nonPKTables, nil

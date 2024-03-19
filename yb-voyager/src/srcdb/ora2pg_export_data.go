@@ -32,14 +32,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []*sqlname.SourceName,
+func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []*sqlname.NameTuple,
 	tablesColumnList map[*sqlname.SourceName][]string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
 	tableList := []string{}
 	for _, tableName := range tableNameList {
-		tableList = append(tableList, tableName.ObjectName.Unquoted)
+		tableList = append(tableList, tableName.ForKey())
 	}
 	conf := getDefaultOra2pgConfig(source)
 	conf.DisablePartition = "1"
@@ -63,7 +63,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	//Exporting all the tables in the schema
 	log.Infof("Executing command: %s", exportDataCommandString)
 	exportDataCommand := exec.CommandContext(ctx, "/bin/bash", "-c", exportDataCommandString)
-    exportDataCommand.Env = append(os.Environ(), "ORA2PG_PASSWD="+source.Password)
+	exportDataCommand.Env = append(os.Environ(), "ORA2PG_PASSWD="+source.Password)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	exportDataCommand.Stdout = &outbuf
@@ -166,7 +166,7 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	log.Infof("renaming data files for tables with reserved words in them")
 	for _, tableProgressMetadata := range tablesProgressMetadata {
-		tblNameUnquoted := tableProgressMetadata.TableName.ObjectName.Unquoted
+		tblNameUnquoted := tableProgressMetadata.TableName.ForKey()
 		if !sqlname.IsReservedKeywordPG(tblNameUnquoted) {
 			continue
 		}

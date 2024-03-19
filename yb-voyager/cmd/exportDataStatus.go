@@ -27,15 +27,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
+	"github.com/vbauerster/mpb/v8"
+
 	pbreporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/pb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-
-	"github.com/fatih/color"
-	"github.com/vbauerster/mpb/v8"
 )
 
 //=====================================================================================
@@ -62,7 +62,7 @@ func NewExportSnapshotStatus() *ExportSnapshotStatus {
 
 var exportSnapshotStatusFile *jsonfile.JsonFile[ExportSnapshotStatus]
 
-func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
+func initializeExportTableMetadata(tableList []*sqlname.NameTuple) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	numTables := len(tableList)
 
@@ -73,7 +73,7 @@ func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 
 	for i := 0; i < numTables; i++ {
 		tableName := tableList[i]
-		key := tableName.Qualified.MinQuoted
+		key := tableName.ForKey()
 		tablesProgressMetadata[key] = &utils.TableProgressMetadata{} //initialzing with struct
 
 		// Initializing all the members of struct
@@ -186,9 +186,9 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
-		actualRowCount := source.DB().GetTableRowCount(tableMetadata.TableName.Qualified.MinQuoted)
+		actualRowCount := source.DB().GetTableRowCount(tableMetadata.TableName.ForUserQuery())
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
-			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.Qualified.MinQuoted)
+			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.ForUserQuery())
 		pbr.SetTotalRowCount(actualRowCount, false)
 		tableMetadata.CountTotalRows = actualRowCount
 	}()

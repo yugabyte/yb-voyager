@@ -30,7 +30,7 @@ const (
 )
 
 type TableProgressMetadata struct {
-	TableName            *sqlname.SourceName
+	TableName            *sqlname.NameTuple
 	InProgressFilePath   string
 	FinalFilePath        string
 	Status               int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)
@@ -43,9 +43,9 @@ type TableProgressMetadata struct {
 }
 
 var TableMetadataStatusMap = map[int]string{
-	0: "NOT-STARTED", 
-	1: "EXPORTING", 
-	2: "DONE", 
+	0: "NOT-STARTED",
+	1: "EXPORTING",
+	2: "DONE",
 	3: "DONE",
 }
 

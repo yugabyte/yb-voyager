@@ -41,7 +41,7 @@ import (
 
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []*sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -65,14 +65,15 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 
 	var dbzmTableList, dbzmColumnList []string
 	for _, table := range tableList {
-		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
+		sname, tname := table.ForCatalogQuery()
+		dbzmTableList = append(dbzmTableList, fmt.Sprintf("%s.%s", sname, tname))
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
-		minQuotedTableList := lo.Map(tableList, func(table *sqlname.SourceName, _ int) string {
-			return table.Qualified.MinQuoted //Case sensitivity
-		})
+		// minQuotedTableList := lo.Map(tableList, func(table *sqlname.NameTuple, _ int) string {
+		// 	return table.F //Case sensitivity
+		// })
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.TableListExportedFromSource = minQuotedTableList
+			record.TableListExportedFromSource = dbzmTableList
 		})
 		if err != nil {
 			utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)

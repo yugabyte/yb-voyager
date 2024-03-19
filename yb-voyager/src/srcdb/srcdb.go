@@ -30,29 +30,29 @@ type SourceDB interface {
 	Connect() error
 	Disconnect()
 	GetTableRowCount(tableName string) int64
-	GetTableApproxRowCount(tableName *sqlname.SourceName) int64
+	GetTableApproxRowCount(tableName *sqlname.NameTuple) int64
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
 	ExportSchema(exportDir string)
 	GetIndexesInfo() []utils.IndexInfo
-	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string)
+	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.NameTuple, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
-	FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName)
-	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
-	GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, []string)
-	GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string)
-	ParentTableOfPartition(table *sqlname.SourceName) string
-	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
+	FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.NameTuple, useDebezium bool) ([]*sqlname.NameTuple, []*sqlname.NameTuple)
+	FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqlname.NameTuple, []*sqlname.NameTuple)
+	GetColumnsWithSupportedTypes(tableList []*sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (sqlname.NameTupleMap[[]string], []string)
+	GetTableColumns(tableName *sqlname.NameTuple) ([]string, []string, []string)
+	ParentTableOfPartition(table *sqlname.NameTuple) string
+	GetColumnToSequenceMap(tableList []*sqlname.NameTuple) map[string]string
 	GetAllSequences() []string
 	GetServers() []string
-	GetPartitions(table *sqlname.SourceName) []*sqlname.SourceName
-	GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error)
+	GetPartitions(table *sqlname.NameTuple) []string
+	GetTableToUniqueKeyColumnsMap(tableList []*sqlname.NameTuple) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
-	ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error
+	ValidateTablesReadyForLiveMigration(tableList []*sqlname.NameTuple) error
 }
 
 func newSourceDB(source *Source) SourceDB {

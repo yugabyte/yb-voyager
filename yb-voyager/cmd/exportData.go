@@ -41,6 +41,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -265,8 +266,8 @@ func exportData() bool {
 		}
 		return true
 	} else {
-		minQuotedTableList := lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
-			return table.Qualified.MinQuoted //Case sensitivity
+		minQuotedTableList := lo.Map(finalTableList, func(table *sqlname.NameTuple, _ int) string {
+			return table.ForKey() //TODO: check Case sensitivitydbxm
 		})
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.TableListExportedFromSource = minQuotedTableList
@@ -286,7 +287,7 @@ func exportData() bool {
 }
 
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
-func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) (map[string]string, []*sqlname.SourceName, error) {
+func addLeafPartitionsInTableList(tableList []*sqlname.NameTuple) (map[string]string, []*sqlname.NameTuple, error) {
 	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
 	if !requiredForSource {
 		return nil, tableList, nil
@@ -301,7 +302,7 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) (map[string]s
 	// using the dbzm we are renaming these events coming from yb to root_table for oracle.
 	// not required for pg to rename them.
 
-	modifiedTableList := []*sqlname.SourceName{}
+	modifiedTableList := []*sqlname.NameTuple{}
 	var partitionsToRootTableMap = make(map[string]string)
 
 	//TODO: optimisation to avoid multiple calls to DB with one call in the starting to fetch TablePartitionTree map.
@@ -309,48 +310,58 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) (map[string]s
 	//TODO: test when we upgrade to PG13+ as partitions are handled with root table
 	//Refer- https://debezium.zulipchat.com/#narrow/stream/302529-community-general/topic/Connector.20not.20working.20with.20partitions
 	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		qualifiedCatalogName := fmt.Sprintf("%s.%s", sname, tname)
 		rootTable, err := GetRootTableOfPartition(table)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get root table of partition %s: %v", table.Qualified.MinQuoted, err)
+			return nil, nil, fmt.Errorf("failed to get root table of partition %s: %v", table.ForKey(), err)
 		}
 		allLeafPartitions := GetAllLeafPartitions(table)
 		switch true {
 		case len(allLeafPartitions) == 0 && rootTable != table: //leaf partition
-			partitionsToRootTableMap[table.Qualified.Unquoted] = rootTable.Qualified.MinQuoted // Unquoted->MinQuoted map as debezium uses Unquoted table name
+			partitionsToRootTableMap[qualifiedCatalogName] = rootTable.ForKey() // Unquoted->MinQuoted map as debezium uses Unquoted table name
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
-				partitionsToRootTableMap[leafPartition.Qualified.Unquoted] = rootTable.Qualified.MinQuoted
+				partitionsToRootTableMap[qualifiedCatalogName] = rootTable.ForKey()
 			}
 		}
 	}
-	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table *sqlname.SourceName) string {
-		return table.Qualified.MinQuoted
+	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table *sqlname.NameTuple) string {
+		return table.ForKey()
 	}), nil
 }
 
-func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, error) {
+func GetRootTableOfPartition(table *sqlname.NameTuple) (*sqlname.NameTuple, error) {
 	parentTable := source.DB().ParentTableOfPartition(table)
 	if parentTable == "" {
 		return table, nil
 	}
-	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
-	if noDefaultSchema {
-		return nil, fmt.Errorf("default schema not found")
+	// defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
+	// if noDefaultSchema {
+	// 	return nil, fmt.Errorf("default schema not found")
+	// }
+	tuple, err := namereg.NameReg.LookupTableName(parentTable)
+	if err != nil {
+		return nil, fmt.Errorf("lookup table name %s: %v", parentTable, err)
 	}
-	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, defaultSourceSchema))
+	return GetRootTableOfPartition(tuple)
 }
 
-func GetAllLeafPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
-	allLeafPartitions := []*sqlname.SourceName{}
+func GetAllLeafPartitions(table *sqlname.NameTuple) []*sqlname.NameTuple {
+	allLeafPartitions := []*sqlname.NameTuple{}
 	childPartitions := source.DB().GetPartitions(table)
 	for _, childPartition := range childPartitions {
-		leafPartitions := GetAllLeafPartitions(childPartition)
+		parititon, err := namereg.NameReg.LookupTableName(childPartition)
+		if err != nil {
+			utils.ErrExit("lookup table name %s: %v", childPartition, err)
+		}
+		leafPartitions := GetAllLeafPartitions(parititon)
 		if len(leafPartitions) == 0 {
-			allLeafPartitions = append(allLeafPartitions, childPartition)
+			allLeafPartitions = append(allLeafPartitions, parititon)
 		} else {
 			allLeafPartitions = append(allLeafPartitions, leafPartitions...)
 		}
@@ -358,7 +369,7 @@ func GetAllLeafPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
 	return allLeafPartitions
 }
 
-func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string) error {
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
@@ -453,7 +464,7 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 	return result, nil
 }
 
-func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
+func reportUnsupportedTables(finalTableList []*sqlname.NameTuple) {
 	//report Partitions or case sensitive tables
 	var caseSensitiveTables []string
 	var partitionedTables []string
@@ -464,19 +475,22 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	var nonPKTables []string
 	for _, table := range finalTableList {
 		if source.DBType == POSTGRESQL {
-			if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
-				caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
-			}
-			if source.DB().ParentTableOfPartition(table) == "" { //For root tables
-				if len(source.DB().GetPartitions(table)) > 0 {
-					partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
-				}
-			} else {
-				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
-			}
+			sname, tname := table.ForCatalogQuery()
+			t := sqlname.NewSourceName(sname, tname)
+			//TODO FIX
+			if t.ObjectName.MinQuoted != t.ObjectName.Unquoted {
+				caseSensitiveTables = append(caseSensitiveTables, t.Qualified.MinQuoted)
+			} //TODO
+			// if source.DB().ParentTableOfPartition(table) == "" { //For root tables
+			// 	if len(source.DB().GetPartitions(table)) > 0 {
+			// 		partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			// 	}
+			// } else {
+			// 	partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			// }
 		}
-		if lo.Contains(allNonPKTables, table.Qualified.MinQuoted) {
-			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		if lo.Contains(allNonPKTables, table.ForKey()) {
+			nonPKTables = append(nonPKTables, table.ForKey())
 		}
 	}
 	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 && len(nonPKTables) == 0 {
@@ -495,18 +509,30 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 		"You can exclude these tables using the --exclude-table-list argument.")
 }
 
-func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
-	var tableList []*sqlname.SourceName
+func getFinalTableColumnList() ([]*sqlname.NameTuple, map[*sqlname.SourceName][]string) {
+	var tableList []*sqlname.NameTuple
 	// store table list after filtering unsupported or unnecessary tables
-	var finalTableList, skippedTableList []*sqlname.SourceName
-	fullTableList := source.DB().GetAllTableNames()
+	var finalTableList, skippedTableList []*sqlname.NameTuple
+	// fullTableList := source.DB().GetAllTableNames() // SEE TODO IF THIS FINE
+	tableNameFromNameReg := namereg.NameReg.SourceDBTableNames
+	var fullTableList []*sqlname.NameTuple
+	for schema, tables := range tableNameFromNameReg {
+		for _, table := range tables {
+			table = fmt.Sprintf("%s.%s", schema, table)
+			t, err := namereg.NameReg.LookupTableName(table)
+			if err != nil {
+				utils.ErrExit("lookup table name: %v", err)
+			}
+			fullTableList = append(fullTableList, t)
+		}
+	}
 	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
 	if source.TableList != "" {
 		tableList = extractTableListFromString(fullTableList, source.TableList, "include")
 	} else {
 		tableList = fullTableList
 	}
-	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	finalTableList = sqlname.SetDifferenceNameTuples(tableList, excludeTableList)
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
@@ -533,10 +559,10 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		}
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	return finalTableList, tablesColumnList
+	return finalTableList, nil //TODO: tablesColumnList
 }
 
-func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
+func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
 		controlPlane.SnapshotExportStarted(&exportDataStartEvent)
@@ -575,11 +601,11 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
-		sequenceList := source.DB().GetAllSequences()
-		for _, seq := range sequenceList {
-			name := sqlname.NewSourceNameFromQualifiedName(seq)
-			finalTableList = append(finalTableList, name)
-		}
+		// sequenceList := source.DB().GetAllSequences()
+		// for _, seq := range sequenceList {
+		// 	// name := sqlname.Loo
+		// 	finalTableList = append(finalTableList, name)
+		// }
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
@@ -674,6 +700,11 @@ func checkDataDirs() {
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			utils.ErrExit("Failed to remove export snapshot status file: %s", err)
 		}
+		nameregFile := filepath.Join(exportDir, "metainfo", "name_registry.json")
+		err = os.Remove(nameregFile)
+		if err != nil && !os.IsNotExist(err) {
+			utils.ErrExit("Failed to remove name registry file: %s", err)
+		}
 
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {
@@ -704,34 +735,39 @@ func getDefaultSourceSchemaName() (string, bool) {
 	}
 }
 
-func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableList string, listName string) []*sqlname.SourceName {
-	result := []*sqlname.SourceName{}
+func extractTableListFromString(fullTableList []*sqlname.NameTuple, flagTableList string, listName string) []*sqlname.NameTuple {
+	result := []*sqlname.NameTuple{}
 	if flagTableList == "" {
 		return result
 	}
-	findPatternMatchingTables := func(pattern string, defaultSourceSchema string) []*sqlname.SourceName {
-		result := lo.Filter(fullTableList, func(tableName *sqlname.SourceName, _ int) bool {
-			table := tableName.Qualified.MinQuoted
-			sqlNamePattern := sqlname.NewSourceNameFromMaybeQualifiedName(pattern, defaultSourceSchema)
-			pattern = sqlNamePattern.Qualified.MinQuoted
-			matched, err := filepath.Match(pattern, table)
+	findPatternMatchingTables := func(pattern string) []*sqlname.NameTuple {
+		result := lo.Filter(fullTableList, func(tableName *sqlname.NameTuple, _ int) bool {
+			// table := tableName.Qualified.MinQuoted
+			// sqlNamePattern := sqlname.NewSourceNameFromMaybeQualifiedName(pattern, defaultSourceSchema)
+			// pattern = sqlNamePattern.Qualified.MinQuoted
+			// matched, err := filepath.Match(pattern, table)
+			// if err != nil {
+			// 	utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+			// }
+			// return matched
+			ok, err := tableName.MatchesPattern(pattern)
 			if err != nil {
-				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+				utils.ErrExit("Invalid table name pattern %q: %s", err)
 			}
-			return matched
+			return ok
 		})
 		return result
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
 	var unqualifiedTables []string
-	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
+	// defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
 	var unknownTableNames []string
 	for _, pattern := range tableList {
-		if noDefaultSchema && len(strings.Split(pattern, ".")) == 1 {
-			unqualifiedTables = append(unqualifiedTables, pattern)
-			continue
-		}
-		tables := findPatternMatchingTables(pattern, defaultSourceSchema)
+		// if noDefaultSchema && len(strings.Split(pattern, ".")) == 1 {
+		// 	unqualifiedTables = append(unqualifiedTables, pattern)
+		// 	continue
+		// }
+		tables := findPatternMatchingTables(pattern)
 		if len(tables) == 0 {
 			unknownTableNames = append(unknownTableNames, pattern)
 		}
@@ -744,8 +780,8 @@ func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableLi
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
 		utils.ErrExit("Valid table names are %v", fullTableList)
 	}
-	return lo.UniqBy(result, func(tableName *sqlname.SourceName) string {
-		return tableName.Qualified.MinQuoted
+	return lo.UniqBy(result, func(tableName *sqlname.NameTuple) string {
+		return tableName.ForKey()
 	})
 }
 
@@ -771,17 +807,17 @@ func changeStreamingIsEnabled(s string) bool {
 	return (s == CHANGES_ONLY || s == SNAPSHOT_AND_CHANGES)
 }
 
-func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
+func getTableNameToApproxRowCountMap(tableList []*sqlname.NameTuple) map[string]int64 {
 	tableNameToApproxRowCountMap := make(map[string]int64)
 	for _, table := range tableList {
-		tableNameToApproxRowCountMap[table.Qualified.Unquoted] = source.DB().GetTableApproxRowCount(table)
+		tableNameToApproxRowCountMap[table.ForKey()] = source.DB().GetTableApproxRowCount(table)
 	}
 	return tableNameToApproxRowCountMap
 }
 
-func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
-	filteredTableList := lo.Reject(finalTableList, func(tableName *sqlname.SourceName, _ int) bool {
-		return len(tablesColumnList[tableName]) == 0
+func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.NameTuple, tablesColumnList sqlname.NameTupleMap[[]string]) []*sqlname.NameTuple {
+	filteredTableList := lo.Reject(finalTableList, func(tableName *sqlname.NameTuple, _ int) bool {
+		return len(tablesColumnList.Get(tableName)) == 0
 	})
 	return filteredTableList
 }
@@ -909,7 +945,7 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	return result
 }
 
-func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []*sqlname.SourceName) {
+func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []*sqlname.NameTuple) {
 	res, err := source.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		utils.ErrExit("get table to unique key columns map: %v", err)

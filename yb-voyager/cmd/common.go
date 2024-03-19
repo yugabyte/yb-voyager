@@ -66,15 +66,15 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"), false)
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
-			fullTableName := tableName.Qualified.MinQuoted
-
+			fullTableName := tableName.ForKey()
+			table := tableName.ForUserQuery()
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
 				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
-				if tablesProgressMetadata[key].TableName.SchemaName.Unquoted == "public" {
-					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", tableName.ObjectName.MinQuoted+"_data.sql")
-				} else {
-					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", fullTableName+"_data.sql")
-				}
+				// if schema == "public" {
+				// 	tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", t+"_data.sql")
+				// } else {
+				tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", table+"_data.sql")
+				// }
 			} else {
 				log.Infof("deleting an entry %q from tablesProgressMetadata: ", key)
 				delete(tablesProgressMetadata, key)
@@ -82,7 +82,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		}
 	} else if source.DBType == "oracle" || source.DBType == "mysql" {
 		for _, key := range sortedKeys {
-			targetTableName := tablesProgressMetadata[key].TableName.ObjectName.Unquoted
+			targetTableName := tablesProgressMetadata[key].TableName.ForKey()
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
 			if tablesProgressMetadata[key].IsPartition {
 				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
@@ -139,7 +139,11 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 				tableName = fmt.Sprintf("\"%s\"", tableName)
 			}
 			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-			tableNameVsFileNameMap[fullTableName] = fileName
+			table, err := namereg.NameReg.LookupTableName(fullTableName)
+			if err != nil {
+				utils.ErrExit("lookup table %s in name registry : %v", fullTableName, err)
+			}
+			tableNameVsFileNameMap[table.ForKey()] = fileName
 		}
 	}
 
@@ -288,12 +292,12 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
-		s, t := tableName.ForCatalogQuery()
+		sname, tname := tableName.ForCatalogQuery()
 		// table := tableName
 		// if len(strings.Split(tableName, ".")) == 2 {
 		// 	table = strings.Split(tableName, ".")[1]
 		// }
-		uitable.AddRow(s, t, snapshotRowCount[tableName.ForKey()])
+		uitable.AddRow(sname, tname, snapshotRowCount[tableName.ForKey()])
 	}
 	fmt.Printf("\n")
 	fmt.Println(uitable)
