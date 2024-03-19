@@ -2,9 +2,9 @@ name: "MySQL: Migration Tests"
 
 on:
   push:
-    branches: [main]
+    branches: ['name-registry-integration', 'main']
   pull_request:
-    branches: [main]
+    branches: ['name-registry-integration', 'main']
 
 jobs:
   run-mysql-migration-tests:
