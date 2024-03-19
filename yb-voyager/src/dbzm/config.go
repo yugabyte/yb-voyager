@@ -25,11 +25,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Config struct {
+	MigrationUUID  uuid.UUID
 	RunId          string
 	SourceDBType   string
 	ExporterRole   string
@@ -162,6 +164,7 @@ debezium.source.log.mining.batch.size.default=10000
 debezium.source.log.mining.query.filter.mode=in
 debezium.source.log.mining.sleep.time.default.ms=200
 debezium.source.log.mining.sleep.time.max.ms=400
+debezium.source.log.mining.flush.table.name=%s
 debezium.source.provide.transaction.metadata=true
 debezium.source.max.batch.size=10000
 debezium.source.max.queue.size=50000
@@ -249,6 +252,8 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
+	logMiningFlushTable := utils.GetLogMiningFlushTableName(c.MigrationUUID)
+	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
 	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
 	if err != nil {
 		// defaults to 1GB
@@ -331,6 +336,7 @@ func (c *Config) String() string {
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
+			logMiningFlushTable,
 
 			dataDir,
 			c.ColumnSequenceMapping,

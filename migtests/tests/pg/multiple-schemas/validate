@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 
 import yb
-import argparse
 import common
 
 live_migration = 'false'
 def main():
+	global test_type_flags
 	test_type_flags = common.valparser()
 	global live_migration
 	live_migration = test_type_flags['live_migration']
 	if live_migration == 'true':
 		change_expected_values_for_live_migration()
-	yb.run_checks(migration_completed_checks)
+	migration_completed_checks_yb()
 
+	if test_type_flags['ff_enabled'] == 'true':
+		migration_completed_checks_ff()
+	
+	if test_type_flags['fb_enabled'] == 'true':
+		migration_completed_checks_fb()
 
 #=============================================================================
 
@@ -25,6 +30,18 @@ EXPECTED_ROW_COUNT = {
 	'Mixed_Case_Table_Name_Test': 5,
 	'group':5
 }
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_ff():
+	print("Running tests on PG source replica")
+	yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_fb():
+	print("Running tests on PG source")
+	yb.run_checks(migration_completed_checks, db_type="source")
 
 def check_validations_per_schema(tgt,schema_name):
 	table_list = tgt.get_table_names(schema_name)
@@ -81,7 +98,7 @@ def check_validations_per_schema(tgt,schema_name):
 
 
 def migration_completed_checks(tgt):
-
+	global test_type_flags
 	check_validations_per_schema(tgt, "public")
 
 	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('enum_kind', 'item_details', 'person_name');"
@@ -116,23 +133,24 @@ def migration_completed_checks(tgt):
 	print(f"id returned for password(johnspassword) - {id_returned_ext_test}")
 	assert id_returned_ext_test == 1
 	
-	print("Validating the yb supported extensions list:")
-	expectedExtensions = ["adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
-		"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
-		"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",
-		"orafce", "pageinspect", "pg_buffercache", "pg_cron", "pg_freespacemap", "pg_hint_plan", "pg_prewarm", "pg_stat_monitor",
-		"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
-		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
-		"tsm_system_time", "unaccent", "uuid-ossp", "yb_pg_metrics", "yb_test_extension" ]
-	extensions = tgt.get_available_extensions()
-	print(f"expected extensions: {expectedExtensions}")
-	print(f"reported extensions: {extensions}")
-	tgtVersion = tgt.get_target_version()
-	print(f"target version: {tgtVersion}")
-	if "2.16" in tgtVersion:
-		expectedExtensions.remove("hll")
-	for extension in expectedExtensions:
-		assert extension in extensions, f"expected extension is not reported: {extension}"
+	if not test_type_flags['ff_enabled'] == 'true' and not test_type_flags['fb_enabled'] == 'true':
+		print("Validating the yb supported extensions list:")
+		expectedExtensions = ["adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
+			"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
+			"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",
+			"orafce", "pageinspect", "pg_buffercache", "pg_cron", "pg_freespacemap", "pg_hint_plan", "pg_prewarm", "pg_stat_monitor",
+			"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
+			"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
+			"tsm_system_time", "unaccent", "uuid-ossp", "yb_pg_metrics", "yb_test_extension" ]
+		extensions = tgt.get_available_extensions()
+		print(f"expected extensions: {expectedExtensions}")
+		print(f"reported extensions: {extensions}")
+		tgtVersion = tgt.get_target_version()
+		print(f"target version: {tgtVersion}")
+		if "2.16" in tgtVersion:
+			expectedExtensions.remove("hll")
+		for extension in expectedExtensions:
+			assert extension in extensions, f"expected extension is not reported: {extension}"
 	
 def change_expected_values_for_live_migration():
 	del EXPECTED_ROW_COUNT["Mixed_Case_Table_Name_Test"]

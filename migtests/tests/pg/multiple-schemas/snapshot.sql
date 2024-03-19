@@ -1,4 +1,4 @@
-insert into ext_test(password) values (crypt('johnspassword', gen_salt('bf')));
+insert into ext_test(password) values (schema2.crypt('johnspassword', schema2.gen_salt('bf')));
 
 
 CALL tt_insert_data(1);

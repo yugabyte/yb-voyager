@@ -553,7 +553,7 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		}
 	}
 
-	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
+	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
 	if len(skippedTableList) != 0 {
 		utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 	}

@@ -164,6 +164,9 @@ main() {
 
 	sleep 120
 
+	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
+	import_schema --post-snapshot-import true --refresh-mviews true
+	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false'
 
@@ -185,6 +188,7 @@ main() {
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
+			exit 1
         fi
     else
         break
@@ -208,18 +212,17 @@ main() {
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source-replica status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
-        if [ "$i" -eq 14 ]; then
+        if [ "$i" -eq 9 ]; then
             tail_log_file "yb-voyager-import-data-to-source-replica.log"
             tail_log_file "yb-voyager-export-data-from-target.log"
 			tail_log_file "debezium-target_db_exporter_ff.log"
+			exit 1
         fi
     else
         break
     fi
 	done
 
-	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import true --refresh-mviews true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
