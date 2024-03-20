@@ -192,21 +192,18 @@ func (yb *YugabyteDB) getConnectionUri() string {
 	return source.Uri
 }
 
-func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
+func (yb *YugabyteDB) GetConnectionUriWithoutPassword() string {
 	source := yb.source
-	if source.Uri == "" {
-		hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
-		sourceUrl := &url.URL{
-			Scheme:   "postgresql",
-			User:     url.User(source.User),
-			Host:     hostAndPort,
-			Path:     source.DBName,
-			RawQuery: generateSSLQueryStringIfNotExists(source),
-		}
-
-		source.Uri = sourceUrl.String()
+	hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
+	sourceUrl := &url.URL{
+		Scheme:   "postgresql",
+		User:     url.User(source.User),
+		Host:     hostAndPort,
+		Path:     source.DBName,
+		RawQuery: generateSSLQueryStringIfNotExists(source),
 	}
-	return source.Uri
+
+	return sourceUrl.String()
 }
 
 func (yb *YugabyteDB) ExportSchema(exportDir string) {
@@ -218,7 +215,7 @@ func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 }
 
 func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
-	pgdumpExportDataOffline(ctx, yb.source, yb.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
+	pgdumpExportDataOffline(ctx, yb.source, yb.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
 }
 
 func (yb *YugabyteDB) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -429,7 +426,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		}
 		if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
 			// case sensitive unquoted table name returns unquoted parititons name as well
-			// so we need to add quotes around them 
+			// so we need to add quotes around them
 			partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
 		} else {
 			partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))

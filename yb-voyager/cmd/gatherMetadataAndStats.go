@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -50,7 +50,7 @@ var gatherMetadataAndStatsCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(gatherMetadataAndStatsCmd)
 	registerCommonGlobalFlags(gatherMetadataAndStatsCmd)
-	registerCommonSourceDBConnFlags(gatherMetadataAndStatsCmd)
+	registerSourceDBConnFlags(gatherMetadataAndStatsCmd, false)
 	BoolVar(gatherMetadataAndStatsCmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
@@ -86,13 +86,10 @@ func gatherMetadataAndStats() error {
 }
 
 func gatherMetadataAndStatsFromPG() error {
-	// TODO: fetch pg_dump from path(with supported version check)
-	cmdArgs := []string{
-		"-h", source.Host,
-		"-p", strconv.Itoa(source.Port),
-		"-U", source.User,
-		"-d", source.DBName,
-		"-v", fmt.Sprintf("schema_list=%s", source.Schema),
+	psqlBinPath, err := srcdb.GetAbsPathOfPGCommand("psql")
+	if err != nil {
+		log.Errorf("could not get absolute path of psql command: %v", err)
+		return fmt.Errorf("could not get absolute path of psql command: %w", err)
 	}
 
 	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
@@ -101,7 +98,6 @@ func gatherMetadataAndStatsFromPG() error {
 		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
 		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
 	}
-
 	psqlScriptPath := ""
 	for _, path := range possiblePathsForPsqlScript {
 		if utils.FileOrFolderExists(path) {
@@ -113,22 +109,30 @@ func gatherMetadataAndStatsFromPG() error {
 	if psqlScriptPath == "" {
 		log.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
 		return fmt.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
-	} else {
-		log.Infof("using psql script: %s", psqlScriptPath)
-		cmdArgs = append(cmdArgs, "-f", psqlScriptPath)
 	}
 
-	sourcePassword, err := askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-	if err != nil {
-		log.Errorf("error getting source DB password: %v", err)
-		return err
+	log.Infof("using psql script: %s", psqlScriptPath)
+	if source.Password == "" {
+		sourcePassword, err := askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		if err != nil {
+			log.Errorf("error getting source DB password: %v", err)
+			return err
+		}
+		source.Password = sourcePassword
 	}
 
-	cmd := exec.Command("psql", cmdArgs...)
-	cmd.Env = append(cmd.Env, "PGPASSWORD="+sourcePassword)
-	cmd.Dir = filepath.Join(exportDir, "assessment", "data")
+	args := []string{
+		fmt.Sprintf("%s", source.DB().GetConnectionUriWithoutPassword()),
+		"-f", psqlScriptPath,
+		"-v", "schema_list=" + source.Schema,
+	}
 
-	stdout, err := cmd.CombinedOutput()
+	preparedPsqlCmd := exec.Command(psqlBinPath, args...)
+	log.Infof("running psql command: %s", preparedPsqlCmd.String())
+	preparedPsqlCmd.Env = append(preparedPsqlCmd.Env, "PGPASSWORD="+source.Password)
+	preparedPsqlCmd.Dir = filepath.Join(exportDir, "assessment", "data")
+
+	stdout, err := preparedPsqlCmd.CombinedOutput()
 	if err != nil {
 		log.Errorf("output of postgres metadata and stats gathering script\n%s", string(stdout))
 		return err
