@@ -272,7 +272,7 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
 		// TODO:TABLENAME fix
 		// row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
-		row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, nil)
+		row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, sqlname.NameTuple{})
 		if err != nil {
 			return fmt.Errorf("get imported row count for table %q for DB type %s: %w", tableName, row.DBType, err)
 		}
@@ -280,7 +280,7 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 
 	// TODO:TABLENAME fix!
 	// eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
-	eventCounter, err := state.GetImportedEventsStatsForTable(nil, migrationUUID)
+	eventCounter, err := state.GetImportedEventsStatsForTable(sqlname.NameTuple{}, migrationUUID)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot assign NULL to *int64") &&
 			!strings.Contains(err.Error(), "converting NULL to int64") { //TODO: handle better in GetImportedEventsStatsForTable() itself later

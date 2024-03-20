@@ -52,11 +52,15 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
-func streamChanges(state *ImportDataState, tableNames []*sqlname.NameTuple) error {
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
+	err := namereg.NameReg.Init()
+	if err != nil {
+		return fmt.Errorf("init name registry again: %v", err)
+	}
 	tdb.PrepareForStreaming()
-	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
+	err = state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}

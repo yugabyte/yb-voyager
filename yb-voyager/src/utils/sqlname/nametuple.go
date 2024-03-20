@@ -101,7 +101,7 @@ type NameTuple struct {
 	TargetName  *ObjectName
 }
 
-func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
+func (t1 NameTuple) Equals(t2 NameTuple) bool {
 	return reflect.DeepEqual(t1, t2)
 }
 
@@ -123,11 +123,11 @@ func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
 // 	}
 // }
 
-func (t *NameTuple) String() string {
+func (t NameTuple) String() string {
 	return t.CurrentName.String()
 }
 
-func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
+func (t NameTuple) MatchesPattern(pattern string) (bool, error) {
 	for _, tableName := range []*ObjectName{t.SourceName, t.TargetName} {
 		if tableName == nil {
 			continue
@@ -143,15 +143,15 @@ func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
 	return false, nil
 }
 
-func (t *NameTuple) ForUserQuery() string {
+func (t NameTuple) ForUserQuery() string {
 	return t.CurrentName.Qualified.Quoted
 }
 
-func (t *NameTuple) ForCatalogQuery() (string, string) {
+func (t NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
 }
 
-func (t *NameTuple) ForKey() string {
+func (t NameTuple) ForKey() string {
 	if t.SourceName != nil {
 		return t.SourceName.Qualified.Quoted
 	}
@@ -170,6 +170,10 @@ func SetDifferenceNameTuples(a, b []*NameTuple) []*NameTuple {
 		}
 	}
 	return res
+}
+
+func (t NameTuple) Key() string {
+	return t.ForKey()
 }
 
 //================================================
