@@ -290,9 +290,9 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		return tableName
 	}
 
-	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
+	allTables := lo.Uniq(lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
 		return standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
-	})
+	}))
 	slices.Sort(allTables)
 	log.Infof("allTables: %v", allTables)
 
@@ -688,12 +688,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
-	renamedTablesNames := make([]string, 0)
-	for _, tableName := range tableNames { //In case partitions are changed during the migration, need to check root table
-		renamedTablesNames = append(renamedTablesNames, renameTableIfRequired(tableName))
-	}
-	renamedTablesNames = lo.Uniq(renamedTablesNames)
-	nonEmptyTableNames := tdb.GetNonEmptyTables(renamedTablesNames)
+	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
@@ -744,7 +739,7 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableName:  renameTableIfRequired(tableName),
+		TableName:  tableName,
 		Columns:    columns,
 		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,

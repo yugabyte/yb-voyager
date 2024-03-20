@@ -6,6 +6,9 @@ import common
 def main():
 	test_type_flags = common.valparser()
 
+	if test_type_flags['ff_enabled'] == 'true' or test_type_flags['fb_enabled'] == 'true':
+		change_expected_values()
+
 	migration_completed_checks_yb()
 	global EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS
 	EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS = {}
@@ -32,51 +35,66 @@ def migration_completed_checks_fb():
 	print("Running tests on PG source")
 	yb.run_checks(migration_completed_checks, db_type="source")
 
+
 #=============================================================================
 
 EXPECTED_ROW_COUNT = {
 	"public.boston":       		334,
- 	"public.cust_active":		750, 
-  	"public.cust_arr_small":	500,
-	"public.cust_arr_large":	250,
- 	"public.cust_other":   		250,
+ 	"public.cust_active":		751, 
+  	"public.cust_arr_small":	499,
+	"public.cust_arr_large":	252,
+ 	"public.cust_other":   		251,
 	"public.cust_part11":  		272,
-	"public.cust_part12":  		228,
-	"public.cust_part21":  		125,
-	"public.cust_part22":  		125,
-	"public.customers": 		1000,
+	"public.cust_part12":  		227,
+	"public.cust_part21":  		126,
+	"public.cust_part22":  		126,
+	"public.customers": 		1002,
 	"public.emp":        		1000,
  	"public.emp_0":        		324,
-	"public.emp_1":        		333,
-	"public.emp_2":        		343,
-	"public.london":       		333,
- 	"public.sales":        		1000,	
-  	"public.sales_2019_q4":		333,
+	"public.emp_1":        		334,
+	"public.emp_2":        		342,
+	"public.london":       		334,
+ 	"public.sales":        		1001,	
+  	"public.sales_2019_q4":		334,
 	"public.sales_2020_q1":		334,
 	"public.sales_2020_q2":		333,
  	"public.sales_region":		1000,
-  	"public.sydney": 			333,
+  	"public.sydney": 			332,
 	"p1.sales_region":			1000,
-	"public.range_columns_partition_test": 6,
+	"public.range_columns_partition_test": 8,
 	"public.range_columns_partition_test_p0": 3,
-	"public.range_columns_partition_test_p1": 3
+	"public.range_columns_partition_test_p1": 5
 }
 
-# This is for the case when partitions are changed on target, for YB and PG this table is with different partition names
 
-EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS = {}
-
-EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB = {
-	"p2.boston_region":    			334,
-	"p2.london_region":    			333,
-	"p2.sydney_region":    			333,
+EXPECTED_ROW_COUNT_FF = {
+	"public.boston":       		335,
+ 	"public.cust_active":		752, 
+  	"public.cust_arr_small":	498,
+	"public.cust_arr_large":	254,
+ 	"public.cust_other":   		252,
+	"public.cust_part11":  		271,
+	"public.cust_part12":  		227,
+	"public.cust_part21":  		127,
+	"public.cust_part22":  		127,
+	"public.customers": 		1004,
+	"public.emp":        		1000,
+ 	"public.emp_0":        		323,
+	"public.emp_1":        		335,
+	"public.emp_2":        		342,
+	"public.london":       		333,
+ 	"public.sales":        		1002,	
+  	"public.sales_2019_q4":		335,
+	"public.sales_2020_q1":		334,
+	"public.sales_2020_q2":		333,
+ 	"public.sales_region":		1000,
+  	"public.sydney": 			332,
+	"p1.sales_region":			1000,
+	"public.range_columns_partition_test": 10,
+	"public.range_columns_partition_test_p0": 3,
+	"public.range_columns_partition_test_p1": 7
 }
 
-EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG = {
-	"p2.boston":    			334,
-	"p2.london":    			333,
-	"p2.sydney":    			333,
-}
 
 TABLE_NAME_TO_PARTITION_COUNT = {
 	"public.sales_region": 3,
@@ -90,35 +108,63 @@ TABLE_NAME_TO_PARTITION_COUNT = {
 
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
-		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
+		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
 		"partition_table_name": "sydney",
 		"schema_name": "public"
 	},
 	"List_partitions_in_different_schema" : {
-		"query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
+		"query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
 		"partition_table_name": "sydney_region",
 		"schema_name": "p2"
 	},
 	"Range" : {
-		"query": "INSERT INTO sales(id, p_name, amount, sale_date) VALUES (1001, 'Person 1001', 5000, '2020-01-04 00:00:00')",
+		"query": "INSERT INTO sales(id, p_name, amount, sale_date) VALUES (1005, 'Person 1001', 5000, '2020-01-04 00:00:00')",
 		"partition_table_name": "sales_2020_q1",
 		"schema_name": "public"
 	},
 	"Range_Column" : {
-		"query": "INSERT INTO range_columns_partition_test VALUES (5,3)",
-		"partition_table_name": "range_columns_partition_test_p0",
+		"query": "INSERT INTO range_columns_partition_test VALUES (7,7)",
+		"partition_table_name": "range_columns_partition_test_p1",
 		"schema_name": "public"
 	},
 	"Hash" : {
-		"query": "INSERT INTO emp VALUES(1001, 'user_1001', 49)",
+		"query": "INSERT INTO emp VALUES(1021, 'user_1001', 49)",
 		"partition_table_name": "emp_1",
 		"schema_name": "public"
 	},
 	"Multilevel" : {
-		"query": "INSERT INTO customers (id, statuses, arr) VALUES(1001, 'RECURRING', 282)",
+		"query": "INSERT INTO customers (id, statuses, arr) VALUES(1011, 'RECURRING', 282)",
 		"partition_table_name": "cust_part21",
 		"schema_name": "public"
 	}
+}
+
+# This is for the case when partitions are changed on target, for YB and PG this table is with different partition names
+
+EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS = {}
+
+EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB = {
+	"p2.boston_region":    			334,
+	"p2.london_region":    			334,
+	"p2.sydney_region":    			332,
+}
+
+EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG = {
+	"p2.boston":    			334,
+	"p2.london":    			334,
+	"p2.sydney":    			332,
+}
+
+EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB_FF = {
+	"p2.boston_region":    			335,
+	"p2.london_region":    			334,
+	"p2.sydney_region":    			331,
+}
+
+EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG_FF = {
+	"p2.boston":    			335,
+	"p2.london":    			334,
+	"p2.sydney":    			331,
 }
 
 def change_expected_values_for_pg():
@@ -128,6 +174,16 @@ def change_expected_values_for_pg():
 	for _, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		if query_and_partition_name['schema_name'] == 'p2':
 			query_and_partition_name['partition_table_name'] = 'sydney'
+
+def change_expected_values():
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
+
+	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB_FF.items():
+		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB[table_name] = row_count
+
+	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG_FF.items():
+		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG[table_name] = row_count
 
 def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name):
 	chk_error_returned = tgt.run_query_and_chk_error(query, None)
@@ -177,6 +233,7 @@ def migration_completed_checks(tgt):
 		print(f"checking all indexes valid on table: {table_name} are valid")
 		assert tgt.invalid_index_present(table, schema) == False
 		
+
 	for parent_table, count_partitions in TABLE_NAME_TO_PARTITION_COUNT.items():
 		schema = parent_table.split(".")[0]
 		table = parent_table.split(".")[1]
