@@ -516,17 +516,6 @@ func importData(importFileTasks []*ImportFileTask) {
 			if importerRole != SOURCE_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
-			// Get tables to unsupported columns json map from metadb
-			unsupportedColumnsMap := make(map[string][]string)
-			_, err := metaDB.GetJsonObject(nil, metadb.TABLE_TO_UNSUPPORTED_COLUMNS_KEY, &unsupportedColumnsMap)
-			if err != nil {
-				utils.ErrExit("failed to get unsupported columns from meta db: %s", err)
-			}
-
-			err = tdb.CheckIfUnsupportedColumnsHaveNotNullConstraint(unsupportedColumnsMap)
-			if err != nil {
-				utils.ErrExit("failed to check if unsupported columns have not null constraint: %s", err)
-			}
 
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 

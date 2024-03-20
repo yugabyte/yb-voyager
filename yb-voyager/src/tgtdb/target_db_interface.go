@@ -49,7 +49,6 @@ type TargetDB interface {
 	GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	InvalidIndexes() (map[string]bool, error)
-	CheckIfUnsupportedColumnsHaveNotNullConstraint(map[string][]string) error
 	// NOTE: The following four methods should not be used for arbitrary query
 	// execution on TargetDB. The should be only used from higher level
 	// abstractions like ImportDataState.

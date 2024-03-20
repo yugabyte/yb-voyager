@@ -529,18 +529,6 @@ func getFinalTableColumnList() (map[string]string, []*sqlname.SourceName, map[*s
 		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		}
-		// Put unsupported columns map in metaDB
-		// Transform unsupportedTableColumnsMap to map[string][]string
-		unsupportedTableColumnsMapStr := make(map[string][]string)
-		for k, v := range unsupportedTableColumnsMap {
-			unsupportedTableColumnsMapStr[k.ObjectName.Unquoted] = v
-		}
-		err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.TABLE_TO_UNSUPPORTED_COLUMNS_KEY, func(record *map[string][]string) {
-			*record = unsupportedTableColumnsMapStr
-		})
-		if err != nil {
-			utils.ErrExit("update table to unsupported columns map in metaDB: %v", err)
-		}
 
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
