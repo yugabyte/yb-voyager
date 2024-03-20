@@ -534,11 +534,11 @@ func validateMetaDBCreated() {
 	}
 }
 
-func getImportTableList(sourceTableList []string) ([]*sqlname.NameTuple, error) {
+func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	if importerRole == IMPORT_FILE_ROLE {
 		return nil, nil
 	}
-	var tableList []*sqlname.NameTuple
+	var tableList []sqlname.NameTuple
 	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
 

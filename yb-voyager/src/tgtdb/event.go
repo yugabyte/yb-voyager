@@ -34,7 +34,7 @@ type Event struct {
 	Vsn int64 // Voyager Sequence Number
 	Op  string
 	// SchemaName   string
-	TableName    *sqlname.NameTuple
+	TableName    sqlname.NameTuple
 	Key          map[string]*string
 	Fields       map[string]*string
 	BeforeFields map[string]*string
@@ -362,7 +362,7 @@ type EventBatch struct {
 	Events             []*Event
 	ChanNo             int
 	EventCounts        *EventCounter
-	EventCountsByTable sqlname.NameTupleMap[*EventCounter] //map[string]*EventCounter
+	EventCountsByTable *utils.StructMap[sqlname.NameTuple, *EventCounter] //map[string]*EventCounter
 }
 
 func NewEventBatch(events []*Event, chanNo int) *EventBatch {
@@ -370,7 +370,7 @@ func NewEventBatch(events []*Event, chanNo int) *EventBatch {
 		Events:             events,
 		ChanNo:             chanNo,
 		EventCounts:        &EventCounter{},
-		EventCountsByTable: sqlname.NameTupleMap[*EventCounter]{},
+		EventCountsByTable: utils.NewStructMap[sqlname.NameTuple, *EventCounter](),
 	}
 	batch.updateCounts()
 	return batch
@@ -399,7 +399,7 @@ func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) str
 		migrationUUID, eb.ChanNo)
 }
 
-func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName *sqlname.NameTuple) string {
+func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName sqlname.NameTuple) string {
 	queryTemplate := `UPDATE %s 
 	SET 
 		total_events = total_events + %d, 
@@ -409,43 +409,56 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 	where 
 		migration_uuid='%s' AND table_name='%s' AND channel_no=%d
 	`
+
+	eventCounter, _ := eb.EventCountsByTable.Get(tableName)
+
 	return fmt.Sprintf(queryTemplate,
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME,
-		eb.EventCountsByTable.Get(tableName).TotalEvents,
-		eb.EventCountsByTable.Get(tableName).NumInserts,
-		eb.EventCountsByTable.Get(tableName).NumUpdates,
-		eb.EventCountsByTable.Get(tableName).NumDeletes,
+		eventCounter.TotalEvents,
+		eventCounter.NumInserts,
+		eventCounter.NumUpdates,
+		eventCounter.NumDeletes,
 		migrationUUID, tableName.ForKey(), eb.ChanNo)
 }
 
-func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUID, tableName *sqlname.NameTuple) string {
+func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUID, tableName sqlname.NameTuple) string {
 	queryTemplate := `INSERT INTO %s 
 	(migration_uuid, table_name, channel_no, total_events, num_inserts, num_updates, num_deletes) 
 	VALUES ('%s', '%s', %d, %d, %d, %d, %d)
 	`
+
+	eventCounter, _ := eb.EventCountsByTable.Get(tableName)
 	return fmt.Sprintf(queryTemplate,
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME,
 		migrationUUID, tableName.ForKey(), eb.ChanNo,
-		eb.EventCountsByTable.Get(tableName).TotalEvents,
-		eb.EventCountsByTable.Get(tableName).NumInserts,
-		eb.EventCountsByTable.Get(tableName).NumUpdates,
-		eb.EventCountsByTable.Get(tableName).NumDeletes)
+		eventCounter.TotalEvents,
+		eventCounter.NumInserts,
+		eventCounter.NumUpdates,
+		eventCounter.NumDeletes)
 }
 
-func (eb *EventBatch) GetTableNames() []*sqlname.NameTuple {
-	return eb.EventCountsByTable.GetKeys()
+func (eb *EventBatch) GetTableNames() []sqlname.NameTuple {
+	tablenames := []sqlname.NameTuple{}
+	eb.EventCountsByTable.IterKV(func(nt sqlname.NameTuple, ec *EventCounter) (bool, error) {
+		tablenames = append(tablenames, nt)
+		return true, nil
+	})
+	return tablenames
 }
 
 func (eb *EventBatch) updateCounts() {
 	for _, event := range eb.Events {
-
-		if eb.EventCountsByTable.Get(event.TableName) == nil {
+		var eventCounter *EventCounter
+		var found bool
+		eventCounter, found = eb.EventCountsByTable.Get(event.TableName)
+		if !found {
 			eb.EventCountsByTable.Put(event.TableName, &EventCounter{})
+			eventCounter, _ = eb.EventCountsByTable.Get(event.TableName)
 		}
 		// if _, ok := eb.EventCountsByTable[event.TableName.ForKey()]; !ok {
 		// 	eb.EventCountsByTable[event.TableName.ForKey()] = &EventCounter{}
 		// }
-		eb.EventCountsByTable.Get(event.TableName).CountEvent(event)
+		eventCounter.CountEvent(event)
 		eb.EventCounts.CountEvent(event)
 	}
 }

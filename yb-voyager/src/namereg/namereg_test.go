@@ -29,7 +29,7 @@ var oracleToYBNameRegistry = &NameRegistry{
 	},
 }
 
-func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, targetTable string) *sqlname.NameTuple {
+func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, targetTable string) sqlname.NameTuple {
 	var sourceName *sqlname.ObjectName
 	var targetName *sqlname.ObjectName
 	if sourceSchema != "" && sourceTable != "" {
@@ -117,7 +117,7 @@ func TestNameRegistrySuccessfulLookup(t *testing.T) {
 
 	var testCases = []struct {
 		tableNames []string
-		expected   *sqlname.NameTuple
+		expected   sqlname.NameTuple
 	}{
 		{[]string{
 			// YB side variants:
@@ -223,7 +223,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica1(t *testing.T) {
 
 	var testCases = []struct {
 		tableNames []string
-		expected   *sqlname.NameTuple
+		expected   sqlname.NameTuple
 	}{
 		{[]string{
 			// YB side variants:
