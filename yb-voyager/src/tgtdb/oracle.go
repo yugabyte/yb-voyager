@@ -421,8 +421,6 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTupl
 		return result, nil
 	}
 	// SLOW PATH.
-	// var schemaName string
-	// schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
 	targetColumns, err := tdb.getListOfTableAttributes(tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
@@ -451,8 +449,6 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTupl
 }
 
 func (tdb *TargetOracleDB) getListOfTableAttributes(tableName sqlname.NameTuple) ([]string, error) {
-	// TODO: handle case-sensitivity properly
-	// query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE UPPER(table_name) = UPPER('%s') AND owner = '%s'", tableName, schemaName)
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE table_name = '%s' AND owner = '%s'", tname, sname)
 	rows, err := tdb.conn.QueryContext(context.Background(), query)
@@ -512,7 +508,6 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			// tableName := tdb.qualifyTableName(tableName)
 			updatePerTableEvents := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(updatePerTableEvents)
 			if err != nil {
@@ -655,26 +650,6 @@ func (tdb *TargetOracleDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname
 		}
 		return true, nil
 	})
-	// for _, table := range tableColumnsMap.GetKeys() {
-	// 	columns := tableColumnsMap.Get(table)
-	// 	// qualifiedTblName := tdb.qualifyTableName(table)
-	// 	for _, column := range columns {
-	// 		// LIMIT VALUE - ensures that start it is set to the current value of the sequence
-	// 		query := fmt.Sprintf(`ALTER TABLE %s MODIFY %s %s`, table.ForUserQuery(), column, alterAction)
-	// 		err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
-	// 			_, err := conn.ExecContext(context.Background(), query)
-	// 			if err != nil {
-	// 				log.Errorf("executing query-%s to alter column(%s) for table(%s): %v", query, column, table.ForUserQuery(), err)
-	// 				return false, fmt.Errorf("executing query to alter column for table(%s): %w", table.ForUserQuery(), err)
-	// 			}
-	// 			return false, nil
-	// 		})
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 	}
-	// }
-	// return nil
 }
 
 func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
@@ -684,8 +659,6 @@ func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
 }
 
 func (tdb *TargetOracleDB) isTableExists(nt sqlname.NameTuple) bool {
-	// schema, table := tdb.splitMaybeQualifiedTableName(qualifiedTableName)
-	// TODO: handle case-sensitivity properly
 	sname, tname := nt.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = '%s' AND OWNER = '%s'", tname, sname)
 	return tdb.isQueryResultNonEmpty(query)

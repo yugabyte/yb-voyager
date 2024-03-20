@@ -297,8 +297,6 @@ type dummySourceDB struct {
 	tableNames map[string][]string // schemaName -> tableNames
 }
 
-// var _ srcdb.SourceDB = &dummySourceDB{}
-
 func (db *dummySourceDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 	tableNames, ok := db.tableNames[schemaName]
 	if !ok {
@@ -310,8 +308,6 @@ func (db *dummySourceDB) GetAllTableNamesRaw(schemaName string) ([]string, error
 type dummyTargetDB struct {
 	tableNames map[string][]string // schemaName -> tableNames
 }
-
-// var _ tgtdb.TargetDB = &dummyTargetDB{}
 
 func (db *dummyTargetDB) GetAllSchemaNamesRaw() ([]string, error) {
 	return lo.Keys(db.tableNames), nil
@@ -329,13 +325,6 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	// sconf := &srcdb.Source{
-	// 	DBType: ORACLE,
-	// 	Schema: "SAKILA",
-	// }
-	// tconf := &tgtdb.TargetConf{
-	// 	Schema: "ybsakila",
-	// }
 	// Create a dummy source DB.
 	dummySdb := &dummySourceDB{
 		tableNames: map[string][]string{

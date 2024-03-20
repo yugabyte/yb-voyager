@@ -185,10 +185,6 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	if reg.params.YBDBReg == nil {
 		return false, fmt.Errorf("target db is nil")
 	}
-	// yb, ok := reg.tdb.(YBDB)
-	// if !ok {
-	// 	return false, fmt.Errorf("target db is not YugabyteDB")
-	// }
 	yb := reg.params.YBDBReg
 
 	m := make(map[string][]string)
@@ -273,6 +269,12 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 	default:
 		return sqlname.NameTuple{}, fmt.Errorf("invalid table name: %s", tableNameArg)
 	}
+	// Consider a case of oracle data migration: source table name is SAKILA.TABLE1 and it is being imported in ybsakila.table1.
+	// When a name lookup comes for ybsakila.table1 we have to pair it with SAKILA.TABLE1.
+	// Consider the case of fall-forward import-data to source-replica (with different schema for source-replica SAKILA_REPLICA
+	// During the snapshot and event data in the beginning before cutover, lookup will be for SAKILA.TABLE1,
+	// but we want to get the SourceName to be SAKILA_REPLICA.TABLE1.
+	// Therefore, we unqualify the input in case it is equal to the default.
 	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultSourceReplicaDBSchemaName || schemaName == reg.DefaultYBSchemaName {
 		schemaName = ""
 	}

@@ -216,9 +216,6 @@ func (conv *DebeziumValueConverter) convertMap(tableName sqlname.NameTuple, m ma
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
-		// if conv.sourceDBType != "postgresql" && eventSchema != "public" { // In case of non-PG source and target-db-schema is non-public
-		// 	tableNameInSchemaRegistry = fmt.Sprintf("%s.%s", eventSchema, tableName)
-		// }
 		schemaRegistry = conv.schemaRegistryTarget
 	}
 	for column, value := range m {
@@ -253,17 +250,12 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() *utils.StructMap[sqln
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
 	//TODO: fix this cyclic dependency maybe using DataFileDescriptor
-	// var tableToSchema = make(map[string]map[string]map[string]string)
-	// var tableToSchema = sqlname.NameTupleMap[map[string]map[string]string]{}
 	var tableToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
 
-	// tableToSchema {<table>: {<column>:<parameters>}}
-	// for table, col := range conv.schemaRegistrySource.TableNameToSchema {
 	err := conv.schemaRegistrySource.TableNameToSchema.IterKV(func(tbl sqlname.NameTuple, tblSchema *schemareg.TableSchema) (bool, error) {
 		colSchemaMap := make(map[string]map[string]string)
-		// tableToSchema.
+
 		for _, col := range tblSchema.Columns {
-			// tableToSchema[table][col.Name] = col.Schema.Parameters
 			colSchemaMap[col.Name] = col.Schema.Parameters
 		}
 		tableToSchema.Put(tbl, colSchemaMap)
@@ -272,16 +264,5 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() *utils.StructMap[sqln
 	if err != nil {
 		utils.ErrExit("error getting table name to schema : %v", err)
 	}
-	// for _, tbl := range conv.schemaRegistrySource.TableNameToSchema.GetKeys() {
-	// 	tblSchema, _ := conv.schemaRegistrySource.TableNameToSchema.Get(tbl)
-	// 	// tableToSchema[table] = make(map[string]map[string]string)
-	// 	colSchemaMap := make(map[string]map[string]string)
-	// 	// tableToSchema.
-	// 	for _, col := range tblSchema.Columns {
-	// 		// tableToSchema[table][col.Name] = col.Schema.Parameters
-	// 		colSchemaMap[col.Name] = col.Schema.Parameters
-	// 	}
-	// 	tableToSchema.Put(tbl, colSchemaMap)
-	// }
 	return tableToSchema
 }

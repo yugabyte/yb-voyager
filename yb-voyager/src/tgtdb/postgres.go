@@ -428,8 +428,6 @@ func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName sqlname.NameTup
 		return result, nil
 	}
 	// SLOW PATH.
-	// var schemaName string
-	// schemaName, tableName = pg.splitMaybeQualifiedTableName(tableName)
 	targetColumns, err := pg.getListOfTableAttributes(tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
@@ -460,10 +458,6 @@ func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName sqlname.NameTup
 
 func (pg *TargetPostgreSQL) getListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
 	var result []string
-	// if tableName[0] == '"' {
-	// 	// Remove the double quotes around the table name.
-	// 	tableName = tableName[1 : len(tableName)-1]
-	// }
 	sname, tname := nt.ForCatalogQuery()
 	query := fmt.Sprintf(
 		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
@@ -599,10 +593,6 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			// tableName, err := pg.qualifyTableName(tableName)
-			// if err != nil {
-			// return false, fmt.Errorf("qualify table name: %w", err)
-			// }
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
@@ -678,13 +668,6 @@ func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
 }
 
 func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(table sqlname.NameTuple, identityType string) ([]string, error) {
-	// schema := pg.getTargetSchemaName(table)
-	// TODO: handle case-sensitivity correctly
-	// if utils.IsQuotedString(table) {
-	// 	table = table[1 : len(table)-1]
-	// } else {
-	// 	table = strings.ToLower(table)
-	// }
 	sname, tname := table.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
 		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
@@ -756,38 +739,6 @@ func (pg *TargetPostgreSQL) alterColumns(tableColumnsMap *utils.StructMap[sqlnam
 		}
 		return true, nil
 	})
-	// for _, table := range tableColumnsMap.GetKeys() {
-	// 	columns := tableColumnsMap.Get(table)
-	// 	// qualifiedTableName, err := pg.qualifyTableName(table)
-	// 	// if err != nil {
-	// 	// 	return fmt.Errorf("qualify table name: %w", err)
-	// 	// }
-	// 	batch := pgx.Batch{}
-	// 	for _, column := range columns {
-	// 		query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
-	// 		batch.Queue(query)
-	// 	}
-
-	// 	err := pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-	// 		br := conn.SendBatch(context.Background(), &batch)
-	// 		for i := 0; i < batch.Len(); i++ {
-	// 			_, err := br.Exec()
-	// 			if err != nil {
-	// 				log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
-	// 				return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
-	// 			}
-	// 		}
-	// 		if err := br.Close(); err != nil {
-	// 			log.Errorf("closing batch of queries to alter columns for table(%s): %v", table.ForUserQuery(), err)
-	// 			return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", table.ForUserQuery(), err)
-	// 		}
-	// 		return false, nil
-	// 	})
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-	// return nil
 }
 
 func (pg *TargetPostgreSQL) isSchemaExists(schema string) bool {

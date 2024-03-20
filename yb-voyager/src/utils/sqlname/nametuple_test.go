@@ -358,36 +358,3 @@ func TestMySQLNonDefaultSchemaCaseSensitiveUpperCaseTableName(t *testing.T) {
 	assert.Equal(expectedTableName, tableName)
 	assert.Equal(tableName.MinQualified, tableName.Qualified)
 }
-
-//=====================================================
-
-// func TestNameTupleUsage(t *testing.T) {
-// 	assert := assert.New(t)
-// 	tableName := NewObjectName(POSTGRESQL, "public", "public", "foo")
-// 	tableName2 := NewObjectName(POSTGRESQL, "public", "public", "foo")
-// 	nt1 := &NameTuple{
-// 		CurrentName: tableName,
-// 		SourceName:  tableName,
-// 		TargetName:  tableName,
-// 	}
-// 	nt2 := &NameTuple{
-// 		CurrentName: tableName2,
-// 		SourceName:  tableName2,
-// 		TargetName:  tableName2,
-// 	}
-// 	// m := map[NameTuple]int{}
-// 	// m[*nt1] = 100
-// 	// assert.Equal(m[*nt2], 100) // this does not pass
-// 	// assert.Equal(nt1, nt2) // this passes
-// 	// assert.Equal(true, nt1 == nt2) // this does not pass
-
-// 	// assert.Equal(*nt1, *nt2)         // this passes
-// 	// assert.Equal(true, *nt1 == *nt2) // this does not pass
-
-// 	// assert.Equal(*nt1, *nt2)   // this passes
-
-// 	cm := NameTupleMap[int]{}
-// 	cm.Put(nt1, 100)
-// 	assert.Equal(cm.Get(nt2), 100)
-// 	// assert.Equal(cm.Get(nt2), 0)
-// }

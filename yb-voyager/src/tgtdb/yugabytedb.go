@@ -456,8 +456,6 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTup
 		return result, nil
 	}
 	// SLOW PATH.
-	// var schemaName string
-	// schemaName, tableName = yb.splitMaybeQualifiedTableName(tableName)
 	targetColumns, err := yb.getListOfTableAttributes(tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
@@ -629,7 +627,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			// tableName := yb.qualifyTableName(tableName)
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
@@ -999,13 +996,6 @@ func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 }
 
 func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(table sqlname.NameTuple, identityType string) ([]string, error) {
-	// schema := yb.getTargetSchemaName(table)
-	// // TODO: handle case-sensitivity correctly
-	// if utils.IsQuotedString(table) {
-	// 	table = table[1 : len(table)-1]
-	// } else {
-	// 	table = strings.ToLower(table)
-	// }
 	sname, tname := table.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
 		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
@@ -1086,43 +1076,6 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap *utils.StructMap[sqlnam
 		}
 		return true, nil
 	})
-	// for _, table := range tableColumnsMap.GetKeys() {
-	// 	columns := tableColumnsMap.Get(table)
-	// 	batch := pgx.Batch{}
-	// 	for _, column := range columns {
-	// 		query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
-	// 		batch.Queue(query)
-	// 	}
-	// 	sleepIntervalSec := 10
-	// 	for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
-	// 		err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-	// 			br := conn.SendBatch(context.Background(), &batch)
-	// 			for i := 0; i < batch.Len(); i++ {
-	// 				_, err := br.Exec()
-	// 				if err != nil {
-	// 					log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
-	// 					return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
-	// 				}
-	// 			}
-	// 			if err := br.Close(); err != nil {
-	// 				log.Errorf("closing batch of queries to alter columns for table(%s): %v", table.ForUserQuery(), err)
-	// 				return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", table.ForUserQuery(), err)
-	// 			}
-	// 			return false, nil
-	// 		})
-	// 		if err != nil {
-	// 			log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
-	// 			if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
-	// 				return err
-	// 			}
-	// 			log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
-	// 			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-	// 			continue
-	// 		}
-	// 		break
-	// 	}
-	// }
-	// return nil
 }
 
 func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
