@@ -203,16 +203,6 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table sqlname.
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
-	// setting tableName and schemaName as per target
-	// TODO: handle properly. (maybe as part of targetDBinterface?)
-	// TODO: handle case sensitivity/quoted table names..
-	// TODO: TABLENAME
-	// if conv.targetDBType == tgtdb.ORACLE {
-	// 	ev.TableName = strings.ToUpper(ev.TableName)
-	// }
-	// if conv.sourceDBType != tgtdb.POSTGRESQL {
-	// 	ev.SchemaName = conv.targetSchema
-	// }
 	return nil
 }
 

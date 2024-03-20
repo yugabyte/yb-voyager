@@ -182,9 +182,8 @@ func prepareImportFileTasks() []*ImportFileTask {
 		}
 		for _, filePath := range filePaths {
 			task := &ImportFileTask{
-				ID:       i,
-				FilePath: filePath,
-				// TODO:TABLENAME
+				ID:        i,
+				FilePath:  filePath,
 				TableName: tableNameTuple,
 			}
 			result = append(result, task)
