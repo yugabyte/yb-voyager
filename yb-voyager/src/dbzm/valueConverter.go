@@ -68,8 +68,8 @@ type DebeziumValueConverter struct {
 	schemaRegistryTarget   *schemareg.SchemaRegistry
 	targetSchema           string
 	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
-	converterFnCache       map[sqlname.NameTuple][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
-	dbzmColumnSchemasCache map[sqlname.NameTuple][]*schemareg.ColumnSchema
+	converterFnCache       *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
+	dbzmColumnSchemasCache *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
 	targetDBType           string
 	csvReader              *stdlibcsv.Reader
 	bufReader              bufio.Reader
@@ -103,8 +103,8 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		schemaRegistrySource:   schemaRegistrySource,
 		schemaRegistryTarget:   schemaRegistryTarget,
 		valueConverterSuite:    tdbValueConverterSuite,
-		converterFnCache:       map[sqlname.NameTuple][]tgtdbsuite.ConverterFn{},
-		dbzmColumnSchemasCache: map[sqlname.NameTuple][]*schemareg.ColumnSchema{},
+		converterFnCache:       utils.NewStructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn](),
+		dbzmColumnSchemasCache: utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
 		targetDBType:           targetConf.TargetDBType,
 		targetSchema:           targetConf.Schema,
 		sourceDBType:           sourceDBType,
@@ -170,8 +170,8 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName sqlname.NameTuple, colu
 }
 
 func (conv *DebeziumValueConverter) getConverterFns(tableName sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
-	result := conv.converterFnCache[tableName]
-	colSchemas := conv.dbzmColumnSchemasCache[tableName]
+	result, _ := conv.converterFnCache.Get(tableName)
+	colSchemas, _ := conv.dbzmColumnSchemasCache.Get(tableName)
 	var colTypes []string
 	var err error
 	if result == nil {
@@ -183,8 +183,8 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName sqlname.NameTuple,
 		for i, colType := range colTypes {
 			result[i] = conv.valueConverterSuite[colType]
 		}
-		conv.converterFnCache[tableName] = result
-		conv.dbzmColumnSchemasCache[tableName] = colSchemas
+		conv.converterFnCache.Put(tableName, result)
+		conv.dbzmColumnSchemasCache.Put(tableName, colSchemas)
 	}
 	return result, colSchemas, nil
 }
