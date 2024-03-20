@@ -39,7 +39,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
 	tableList := []string{}
 	for _, tableName := range tableNameList {
-		tableList = append(tableList, tableName.ForKey())
+		tableList = append(tableList, tableName.CurrentName.Unqualified.Unquoted)
 	}
 	conf := getDefaultOra2pgConfig(source)
 	conf.DisablePartition = "1"
