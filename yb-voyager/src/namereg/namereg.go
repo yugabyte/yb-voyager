@@ -248,7 +248,7 @@ foobar, "foobar", FooBar, "FooBar", FOOBAR, "FOOBAR",
 schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOBAR, schema1."FOOBAR",
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
-func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTuple, error) {
+func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple, error) {
 	// TODO: REVISIT. Removing the check for reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE because it's possible that import-data-to-source-replica
 	// starts before import-data-to-target and so , defaultYBSchemaName will not be set.
 	// if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
@@ -256,7 +256,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
 		msg := "either both or none of the default schema names should be set"
-		return nil, fmt.Errorf("%s: [%s], [%s]", msg,
+		return sqlname.NameTuple{}, fmt.Errorf("%s: [%s], [%s]", msg,
 			reg.DefaultSourceSideSchemaName(), reg.DefaultYBSchemaName)
 	}
 	var err error
@@ -271,9 +271,9 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 		schemaName = parts[0]
 		tableName = parts[1]
 	default:
-		return nil, fmt.Errorf("invalid table name: %s", tableNameArg)
+		return sqlname.NameTuple{}, fmt.Errorf("invalid table name: %s", tableNameArg)
 	}
-	if schemaName == reg.DefaultSourceSideSchemaName() || schemaName == reg.DefaultYBSchemaName {
+	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultSourceReplicaDBSchemaName || schemaName == reg.DefaultYBSchemaName {
 		schemaName = ""
 	}
 
@@ -299,7 +299,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 			}
 			if err != nil {
 				// `err` can be: no default schema, no matching name, multiple matching names.
-				return nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
+				return sqlname.NameTuple{}, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
 			}
 		}
 	}
@@ -316,12 +316,12 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 				}
 			}
 			if err != nil {
-				return nil, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
+				return sqlname.NameTuple{}, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
 			}
 		}
 	}
 	if sourceName == nil && targetName == nil {
-		return nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
+		return sqlname.NameTuple{}, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
 
 	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
@@ -391,7 +391,7 @@ func matchName(objType string, names []string, name string) (string, error) {
 	return "", &ErrNameNotFound{ObjectType: objType, Name: name}
 }
 
-func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName) *sqlname.NameTuple {
+func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName) sqlname.NameTuple {
 	t := sqlname.NameTuple{SourceName: sourceName, TargetName: targetName}
 	switch role {
 	case TARGET_DB_IMPORTER_ROLE:
@@ -407,5 +407,5 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 	default:
 		t.CurrentName = nil
 	}
-	return &t
+	return t
 }

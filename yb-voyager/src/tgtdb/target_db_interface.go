@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -34,18 +35,17 @@ type TargetDB interface {
 	PrepareForStreaming()
 	GetVersion() string
 	CreateVoyagerSchema() error
-	GetNonEmptyTables(tableNames []*sqlname.NameTuple) []*sqlname.NameTuple //
+	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple //
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
-	IfRequiredQuoteColumnNames(tableName *sqlname.NameTuple, columns []string) ([]string, error) //
+	IfRequiredQuoteColumnNames(tableName sqlname.NameTuple, columns []string) ([]string, error) //
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
-	GetIdentityColumnNamesForTable(table *sqlname.NameTuple, identityType string) ([]string, error) //
-	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap sqlname.NameTupleMap[[]string]) error
-	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap sqlname.NameTupleMap[[]string]) error
-	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap sqlname.NameTupleMap[[]string]) error
-	GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error)
+	GetIdentityColumnNamesForTable(table sqlname.NameTuple, identityType string) ([]string, error) //
+	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
+	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
+	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	InvalidIndexes() (map[string]bool, error)
 	// NOTE: The following four methods should not be used for arbitrary query
@@ -128,7 +128,7 @@ const (
 type Batch interface {
 	Open() (*os.File, error)
 	GetFilePath() string
-	GetTableName() *sqlname.NameTuple
+	GetTableName() sqlname.NameTuple
 	GetQueryIsBatchAlreadyImported() string
 	GetQueryToRecordEntryInDB(rowsAffected int64) string
 }
@@ -147,7 +147,7 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 
 type ImportBatchArgs struct {
 	FilePath  string
-	TableName *sqlname.NameTuple
+	TableName sqlname.NameTuple
 	Columns   []string
 
 	FileFormat string

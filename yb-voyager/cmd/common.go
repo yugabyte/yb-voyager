@@ -392,7 +392,7 @@ func InitNameRegistry(
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
 		ybdb, ok = tdb.(namereg.YBDBRegistry)
 		if !ok {
-			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty.")
+			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty")
 		}
 	}
 	return namereg.InitNameRegistry(exportDir, role, sourceDbType, sourceDbSchema, sourceDbName, targetDBSchema, sdbReg, ybdb)
@@ -534,11 +534,11 @@ func validateMetaDBCreated() {
 	}
 }
 
-func getImportTableList(sourceTableList []string) ([]*sqlname.NameTuple, error) {
+func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	if importerRole == IMPORT_FILE_ROLE {
 		return nil, nil
 	}
-	var tableList []*sqlname.NameTuple
+	var tableList []sqlname.NameTuple
 	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
 
