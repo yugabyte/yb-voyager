@@ -260,7 +260,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
 			}
 		}
-		table, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
+		table, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 		if err != nil {
 			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
 		}
