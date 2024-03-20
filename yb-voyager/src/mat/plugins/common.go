@@ -16,6 +16,7 @@ limitations under the License.
 package mat
 
 import (
+	"encoding/csv"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,38 +41,52 @@ func LoadQueryResults(pluginName string, exportDir string) (map[string]QueryResu
 		return nil, fmt.Errorf("error listing files in %s for plugin %s: %w", assessmentDataDir, pluginName, err)
 	}
 
-	for _, file := range files {
-		baseFileName := filepath.Base(file)
+	for _, filePath := range files {
+		baseFileName := filepath.Base(filePath)
 		queryName := strings.TrimSuffix(strings.TrimPrefix(baseFileName, fmt.Sprintf("%s__", pluginName)), ".csv")
-		// TODO: use csv reader
-		bytes, err := os.ReadFile(file)
+		log.Infof("loading query result for plugin %s, query %s from file %s", pluginName, queryName, filePath)
+
+		file, err := os.Open(filePath)
 		if err != nil {
-			log.Errorf("error opening file %s: %v", file, err)
-			return nil, fmt.Errorf("error opening file %s: %w", file, err)
+			log.Errorf("error opening file %s: %v", filePath, err)
+			return nil, fmt.Errorf("error opening file %s: %w", filePath, err)
+		}
+		csvReader := csv.NewReader(file)
+		csvReader.ReuseRecord = true
+		rows, err := csvReader.ReadAll()
+		if err != nil {
+			log.Errorf("error reading csv file %s: %v", filePath, err)
+			return nil, fmt.Errorf("error reading csv file %s: %w", filePath, err)
 		}
 
-		if len(bytes) == 0 {
-			log.Warnf("file %s is empty", file)
+		if len(rows) == 0 {
+			log.Warnf("file %s is empty, no records", filePath)
 			continue
 		}
 
-		rows := strings.Split(string(bytes), "\n")
-		columnNames := strings.Split(rows[0], ",")
+		columnNames := rows[0]
 		queryResult := make(QueryResult, len(rows)-1)
+		log.Infof("column names for query '%s': %v", queryName, columnNames)
 		for i := 1; i < len(rows); i++ {
 			if len(rows[i]) == 0 {
 				continue
 			}
-			row := strings.Split(rows[i], ",")
+			row := rows[i]
 			record := make(Record)
 			for j, columnName := range columnNames {
 				record[columnName] = row[j]
 			}
-			queryResult = append(queryResult, record)
+			queryResult[i-1] = record
 		}
 		queryResults[queryName] = queryResult
-	}
 
+		err = file.Close()
+		if err != nil {
+			log.Errorf("error closing file %s: %v", filePath, err)
+			return nil, fmt.Errorf("error closing file %s: %w", filePath, err)
+
+		}
+	}
 	return queryResults, nil
 }
 

@@ -262,6 +262,7 @@ func getSizeForTable(schema string, table string, tables_size_info *QueryResult)
 }
 
 func sortQueryResult(queryResult *QueryResult, key string) {
+	log.Infof("sorting query result by key: %s", key)
 	sort.Slice(*queryResult, func(i, j int) bool {
 		a, err := strconv.ParseInt((*queryResult)[i][key].(string), 10, 64)
 		if err != nil {
