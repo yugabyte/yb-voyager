@@ -137,7 +137,7 @@ main() {
 	step "Inserting new events"
 	run_sql_file source_delta.sql
 
-	sleep 220
+	sleep 120
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -176,7 +176,7 @@ main() {
 	step "Initiating cutover to source"
 	yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} --yes
 
-	for ((i = 0; i < 5; i++)); do
+	for ((i = 0; i < 10; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
