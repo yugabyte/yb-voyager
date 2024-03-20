@@ -32,7 +32,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []*sqlname.NameTuple,
+func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []sqlname.NameTuple,
 	tablesColumnList map[*sqlname.SourceName][]string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 

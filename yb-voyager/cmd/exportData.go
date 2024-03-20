@@ -266,7 +266,7 @@ func exportData() bool {
 		}
 		return true
 	} else {
-		minQuotedTableList := lo.Map(finalTableList, func(table *sqlname.NameTuple, _ int) string {
+		minQuotedTableList := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) string {
 			return table.ForKey() //TODO: check Case sensitivitydbxm
 		})
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
@@ -287,7 +287,7 @@ func exportData() bool {
 }
 
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
-func addLeafPartitionsInTableList(tableList []*sqlname.NameTuple) (map[string]string, []*sqlname.NameTuple, error) {
+func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]string, []sqlname.NameTuple, error) {
 	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
 	if !requiredForSource {
 		return nil, tableList, nil
@@ -302,7 +302,7 @@ func addLeafPartitionsInTableList(tableList []*sqlname.NameTuple) (map[string]st
 	// using the dbzm we are renaming these events coming from yb to root_table for oracle.
 	// not required for pg to rename them.
 
-	modifiedTableList := []*sqlname.NameTuple{}
+	modifiedTableList := []sqlname.NameTuple{}
 	var partitionsToRootTableMap = make(map[string]string)
 
 	//TODO: optimisation to avoid multiple calls to DB with one call in the starting to fetch TablePartitionTree map.
@@ -330,12 +330,12 @@ func addLeafPartitionsInTableList(tableList []*sqlname.NameTuple) (map[string]st
 			}
 		}
 	}
-	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table *sqlname.NameTuple) string {
+	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table sqlname.NameTuple) string {
 		return table.ForKey()
 	}), nil
 }
 
-func GetRootTableOfPartition(table *sqlname.NameTuple) (*sqlname.NameTuple, error) {
+func GetRootTableOfPartition(table sqlname.NameTuple) (sqlname.NameTuple, error) {
 	parentTable := source.DB().ParentTableOfPartition(table)
 	if parentTable == "" {
 		return table, nil
@@ -346,13 +346,13 @@ func GetRootTableOfPartition(table *sqlname.NameTuple) (*sqlname.NameTuple, erro
 	// }
 	tuple, err := namereg.NameReg.LookupTableName(parentTable)
 	if err != nil {
-		return nil, fmt.Errorf("lookup table name %s: %v", parentTable, err)
+		return sqlname.NameTuple{}, fmt.Errorf("lookup table name %s: %v", parentTable, err)
 	}
 	return GetRootTableOfPartition(tuple)
 }
 
-func GetAllLeafPartitions(table *sqlname.NameTuple) []*sqlname.NameTuple {
-	allLeafPartitions := []*sqlname.NameTuple{}
+func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
+	allLeafPartitions := []sqlname.NameTuple{}
 	childPartitions := source.DB().GetPartitions(table)
 	for _, childPartition := range childPartitions {
 		parititon, err := namereg.NameReg.LookupTableName(childPartition)
@@ -369,7 +369,7 @@ func GetAllLeafPartitions(table *sqlname.NameTuple) []*sqlname.NameTuple {
 	return allLeafPartitions
 }
 
-func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string) error {
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string) error {
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
@@ -464,7 +464,7 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 	return result, nil
 }
 
-func reportUnsupportedTables(finalTableList []*sqlname.NameTuple) {
+func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	//report Partitions or case sensitive tables
 	var caseSensitiveTables []string
 	var partitionedTables []string
@@ -509,13 +509,13 @@ func reportUnsupportedTables(finalTableList []*sqlname.NameTuple) {
 		"You can exclude these tables using the --exclude-table-list argument.")
 }
 
-func getFinalTableColumnList() ([]*sqlname.NameTuple, map[*sqlname.SourceName][]string) {
-	var tableList []*sqlname.NameTuple
+func getFinalTableColumnList() ([]sqlname.NameTuple, map[*sqlname.SourceName][]string) {
+	var tableList []sqlname.NameTuple
 	// store table list after filtering unsupported or unnecessary tables
-	var finalTableList, skippedTableList []*sqlname.NameTuple
+	var finalTableList, skippedTableList []sqlname.NameTuple
 	// fullTableList := source.DB().GetAllTableNames() // SEE TODO IF THIS FINE
 	tableNameFromNameReg := namereg.NameReg.SourceDBTableNames
-	var fullTableList []*sqlname.NameTuple
+	var fullTableList []sqlname.NameTuple
 	for schema, tables := range tableNameFromNameReg {
 		for _, table := range tables {
 			table = fmt.Sprintf("%s.%s", schema, table)
@@ -562,7 +562,7 @@ func getFinalTableColumnList() ([]*sqlname.NameTuple, map[*sqlname.SourceName][]
 	return finalTableList, nil //TODO: tablesColumnList
 }
 
-func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
+func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
 		controlPlane.SnapshotExportStarted(&exportDataStartEvent)
@@ -606,7 +606,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		for _, seq := range sequenceList {
 			schema, seqName := strings.Split(seq, ".")[0], strings.Split(seq, ".")[1]
 			obj := sqlname.NewObjectName(POSTGRESQL, defaultSchema, schema, seqName)
-			finalTableList = append(finalTableList, &sqlname.NameTuple{
+			finalTableList = append(finalTableList, sqlname.NameTuple{
 				SourceName: obj,
 			})
 		}
@@ -739,13 +739,13 @@ func getDefaultSourceSchemaName() (string, bool) {
 	}
 }
 
-func extractTableListFromString(fullTableList []*sqlname.NameTuple, flagTableList string, listName string) []*sqlname.NameTuple {
-	result := []*sqlname.NameTuple{}
+func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList string, listName string) []sqlname.NameTuple {
+	result := []sqlname.NameTuple{}
 	if flagTableList == "" {
 		return result
 	}
-	findPatternMatchingTables := func(pattern string) []*sqlname.NameTuple {
-		result := lo.Filter(fullTableList, func(tableName *sqlname.NameTuple, _ int) bool {
+	findPatternMatchingTables := func(pattern string) []sqlname.NameTuple {
+		result := lo.Filter(fullTableList, func(tableName sqlname.NameTuple, _ int) bool {
 			// table := tableName.Qualified.MinQuoted
 			// sqlNamePattern := sqlname.NewSourceNameFromMaybeQualifiedName(pattern, defaultSourceSchema)
 			// pattern = sqlNamePattern.Qualified.MinQuoted
@@ -784,7 +784,7 @@ func extractTableListFromString(fullTableList []*sqlname.NameTuple, flagTableLis
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
 		utils.ErrExit("Valid table names are %v", fullTableList)
 	}
-	return lo.UniqBy(result, func(tableName *sqlname.NameTuple) string {
+	return lo.UniqBy(result, func(tableName sqlname.NameTuple) string {
 		return tableName.ForKey()
 	})
 }
@@ -811,7 +811,7 @@ func changeStreamingIsEnabled(s string) bool {
 	return (s == CHANGES_ONLY || s == SNAPSHOT_AND_CHANGES)
 }
 
-func getTableNameToApproxRowCountMap(tableList []*sqlname.NameTuple) map[string]int64 {
+func getTableNameToApproxRowCountMap(tableList []sqlname.NameTuple) map[string]int64 {
 	tableNameToApproxRowCountMap := make(map[string]int64)
 	for _, table := range tableList {
 		tableNameToApproxRowCountMap[table.ForKey()] = source.DB().GetTableApproxRowCount(table)
@@ -819,9 +819,10 @@ func getTableNameToApproxRowCountMap(tableList []*sqlname.NameTuple) map[string]
 	return tableNameToApproxRowCountMap
 }
 
-func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.NameTuple, tablesColumnList sqlname.NameTupleMap[[]string]) []*sqlname.NameTuple {
-	filteredTableList := lo.Reject(finalTableList, func(tableName *sqlname.NameTuple, _ int) bool {
-		return len(tablesColumnList.Get(tableName)) == 0
+func filterTableWithEmptySupportedColumnList(finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string]) []sqlname.NameTuple {
+	filteredTableList := lo.Reject(finalTableList, func(tableName sqlname.NameTuple, _ int) bool {
+		column, ok := tablesColumnList.Get(tableName)
+		return len(column) == 0 || !ok
 	})
 	return filteredTableList
 }
@@ -949,7 +950,7 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	return result
 }
 
-func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []*sqlname.NameTuple) {
+func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple) {
 	res, err := source.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		utils.ErrExit("get table to unique key columns map: %v", err)

@@ -30,7 +30,7 @@ const (
 )
 
 type TableProgressMetadata struct {
-	TableName            *sqlname.NameTuple
+	TableName            sqlname.NameTuple
 	InProgressFilePath   string
 	FinalFilePath        string
 	Status               int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)

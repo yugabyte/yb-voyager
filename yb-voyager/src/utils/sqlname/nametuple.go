@@ -158,12 +158,12 @@ func (t NameTuple) ForKey() string {
 	return t.TargetName.Qualified.Quoted
 }
 
-func SetDifferenceNameTuples(a, b []*NameTuple) []*NameTuple {
+func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {
 	m := make(map[string]bool)
 	for _, x := range b {
 		m[x.String()] = true
 	}
-	var res []*NameTuple
+	var res []NameTuple
 	for _, x := range a {
 		if !m[x.String()] {
 			res = append(res, x)

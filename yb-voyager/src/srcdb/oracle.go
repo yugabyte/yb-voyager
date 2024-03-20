@@ -79,7 +79,7 @@ func (ora *Oracle) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (ora *Oracle) GetTableApproxRowCount(tableName *sqlname.NameTuple) int64 {
+func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TABLES "+
@@ -230,7 +230,7 @@ func (ora *Oracle) GetIndexesInfo() []utils.IndexInfo {
 	return indexesInfo
 }
 
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -270,8 +270,8 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.NameTuple, useDebezium bool) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
-	var filteredTableList, unsupportedTableList []*sqlname.NameTuple
+func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 
 	// query to find unsupported queue tables
 	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schema)
@@ -316,9 +316,9 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 	return filteredTableList, unsupportedTableList
 }
 
-func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
-	nonEmptyTableList := make([]*sqlname.NameTuple, 0)
-	skippedTableList := make([]*sqlname.NameTuple, 0)
+func (ora *Oracle) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	nonEmptyTableList := make([]sqlname.NameTuple, 0)
+	skippedTableList := make([]sqlname.NameTuple, 0)
 	for _, tableName := range tableList {
 		sname, tname := tableName.ForCatalogQuery()
 		query := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM=1", tableName.ForUserQuery())
@@ -338,7 +338,7 @@ func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqlname
 	return nonEmptyTableList, skippedTableList
 }
 
-func (ora *Oracle) IsNestedTable(tableName *sqlname.NameTuple) bool {
+func (ora *Oracle) IsNestedTable(tableName sqlname.NameTuple) bool {
 	// sql query to find out if it is oracle nested table
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND TABLE_NAME = '%s'",
@@ -351,7 +351,7 @@ func (ora *Oracle) IsNestedTable(tableName *sqlname.NameTuple) bool {
 	return isNestedTable == 1
 }
 
-func (ora *Oracle) IsParentOfNestedTable(tableName *sqlname.NameTuple) bool {
+func (ora *Oracle) IsParentOfNestedTable(tableName sqlname.NameTuple) bool {
 	// sql query to find out if it is parent of oracle nested table
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND PARENT_TABLE_NAME= '%s'",
@@ -378,11 +378,11 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
 }
 
-func (ora *Oracle) ParentTableOfPartition(table *sqlname.NameTuple) string {
+func (ora *Oracle) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }
 
-func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.NameTuple) error {
+func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
 	panic("not implemented")
 }
 
@@ -390,7 +390,7 @@ func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.Name
 GetColumnToSequenceMap returns a map of column name to sequence name for all identity columns in the given list of tables.
 Note: There can be only one identity column per table in Oracle
 */
-func (ora *Oracle) GetColumnToSequenceMap(tableList []*sqlname.NameTuple) map[string]string {
+func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out if table has a identity column
@@ -418,7 +418,7 @@ func (ora *Oracle) GetAllSequences() []string {
 	return nil
 }
 
-func (ora *Oracle) GetTableColumns(tableName *sqlname.NameTuple) ([]string, []string, []string) {
+func (ora *Oracle) GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string) {
 	var columns, dataTypes, dataTypesOwner []string
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", sname, tname)
@@ -439,8 +439,8 @@ func (ora *Oracle) GetTableColumns(tableName *sqlname.NameTuple) ([]string, []st
 	return columns, dataTypes, dataTypesOwner
 }
 
-func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (sqlname.NameTupleMap[[]string], []string) {
-	tableColumnMap := sqlname.NameTupleMap[[]string]{}
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
+	tableColumnMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var unsupportedColumnNames []string
 	if isStreamingEnabled {
 		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, "NCHAR", "NVARCHAR2")
@@ -473,11 +473,11 @@ func (ora *Oracle) GetServers() []string {
 	return []string{ora.source.Host}
 }
 
-func (ora *Oracle) GetPartitions(tableName *sqlname.NameTuple) []string {
+func (ora *Oracle) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
-func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.NameTuple) (map[string][]string, error) {
+func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
 	result := make(map[string][]string)
 	queryTemplate := `
 		SELECT TABLE_NAME, COLUMN_NAME

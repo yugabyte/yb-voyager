@@ -62,7 +62,7 @@ func NewExportSnapshotStatus() *ExportSnapshotStatus {
 
 var exportSnapshotStatusFile *jsonfile.JsonFile[ExportSnapshotStatus]
 
-func initializeExportTableMetadata(tableList []*sqlname.NameTuple) {
+func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	numTables := len(tableList)
 

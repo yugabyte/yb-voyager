@@ -85,7 +85,7 @@ func (yb *YugabyteDB) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (yb *YugabyteDB) GetTableApproxRowCount(tableName *sqlname.NameTuple) int64 {
+func (yb *YugabyteDB) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	sname, tname := tableName.ForCatalogQuery()
 	table := fmt.Sprintf(`%s."%s"`, sname, tname)
@@ -241,7 +241,7 @@ func (yb *YugabyteDB) ExportSchema(exportDir string) {
 	panic("not implemented")
 }
 
-func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []*sqlname.NameTuple) error {
+func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
 	panic("not implemented")
 }
 
@@ -249,7 +249,7 @@ func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
 	pgdumpExportDataOffline(ctx, yb.source, yb.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
 }
 
@@ -338,12 +338,12 @@ func (yb *YugabyteDB) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.NameTuple, useDebezium bool) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
+func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
 
-func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
-	var nonEmptyTableList, emptyTableList []*sqlname.NameTuple
+func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
 	for _, tableName := range tableList {
 		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.ForUserQuery())
 		var empty bool
@@ -364,16 +364,16 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqln
 	return nonEmptyTableList, emptyTableList
 }
 
-func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.NameTuple) ([]string, []string, []string) {
+func (yb *YugabyteDB) GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string) {
 	return nil, nil, nil
 }
 
-func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.NameTuple, useDebezium bool, _ bool) (sqlname.NameTupleMap[[]string], []string) {
-	dummy := sqlname.NameTupleMap[[]string]{} // empty map
+func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, _ bool) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
+	dummy := utils.NewStructMap[sqlname.NameTuple, []string]() // empty map
 	return dummy, nil
 }
 
-func (yb *YugabyteDB) ParentTableOfPartition(table *sqlname.NameTuple) string {
+func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
 	sname, tname := table.ForCatalogQuery()
@@ -389,7 +389,7 @@ func (yb *YugabyteDB) ParentTableOfPartition(table *sqlname.NameTuple) string {
 	return parentTable
 }
 
-func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.NameTuple) map[string]string {
+func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
@@ -438,7 +438,7 @@ func (yb *YugabyteDB) GetServers() []string {
 	return ybServers
 }
 
-func (yb *YugabyteDB) GetPartitions(tableName *sqlname.NameTuple) []string {
+func (yb *YugabyteDB) GetPartitions(tableName sqlname.NameTuple) []string {
 	partitions := make([]string, 0)
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT
@@ -488,7 +488,7 @@ JOIN information_schema.key_column_usage kcu
 WHERE tc.table_schema = ANY('{%s}') AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
 `
 
-func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.NameTuple) (map[string][]string, error) {
+func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
 	result := make(map[string][]string)
 	var querySchemaList, queryTableList []string

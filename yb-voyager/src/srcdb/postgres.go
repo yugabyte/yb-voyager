@@ -109,7 +109,7 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (pg *PostgreSQL) GetTableApproxRowCount(tableName *sqlname.NameTuple) int64 {
+func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	sname, tname := tableName.ForCatalogQuery()
 	table := fmt.Sprintf(`%s."%s"`, sname, tname)
@@ -267,7 +267,7 @@ func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
 	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
 }
 
@@ -390,12 +390,12 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.NameTuple, useDebezium bool) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
+func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
 
-func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
-	var nonEmptyTableList, emptyTableList []*sqlname.NameTuple
+func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
 
 	for _, tableName := range tableList {
 		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.ForUserQuery())
@@ -417,16 +417,16 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqln
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) GetTableColumns(tableName *sqlname.NameTuple) ([]string, []string, []string) {
+func (pg *PostgreSQL) GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string) {
 	return nil, nil, nil
 }
 
-func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.NameTuple, useDebezium bool, _ bool) (sqlname.NameTupleMap[[]string], []string) {
-	dummy := sqlname.NameTupleMap[[]string]{}
+func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, _ bool) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
+	dummy := utils.NewStructMap[sqlname.NameTuple, []string]()
 	return dummy, nil
 }
 
-func (pg *PostgreSQL) ParentTableOfPartition(table *sqlname.NameTuple) string {
+func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
 	sname, tname := table.ForCatalogQuery()
@@ -442,7 +442,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table *sqlname.NameTuple) string {
 	return parentTable
 }
 
-func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.NameTuple) map[string]string {
+func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
@@ -509,7 +509,7 @@ func (pg *PostgreSQL) GetServers() []string {
 	return []string{pg.source.Host}
 }
 
-func (pg *PostgreSQL) GetPartitions(tableName *sqlname.NameTuple) []string {
+func (pg *PostgreSQL) GetPartitions(tableName sqlname.NameTuple) []string {
 	partitions := make([]string, 0)
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT
@@ -549,7 +549,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
-func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.NameTuple) (map[string][]string, error) {
+func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
 	result := make(map[string][]string)
 	var querySchemaList, queryTableList []string
@@ -636,7 +636,7 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []*sqlname.NameTuple, dropIfAlreadyExists bool) error {
+func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool) error {
 	if dropIfAlreadyExists {
 		err := pg.DropPublication(publicationName)
 		if err != nil {
@@ -704,7 +704,7 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
-func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.NameTuple) error {
+func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
 	var tablesWithReplicaIdentityNotFull []string
 	var qualifiedTableNames []string
 	for _, table := range tableList {

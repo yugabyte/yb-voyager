@@ -41,7 +41,7 @@ import (
 
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []*sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -69,7 +69,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		dbzmTableList = append(dbzmTableList, fmt.Sprintf("%s.%s", sname, tname))
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
-		// minQuotedTableList := lo.Map(tableList, func(table *sqlname.NameTuple, _ int) string {
+		// minQuotedTableList := lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
 		// 	return table.F //Case sensitivity
 		// })
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {

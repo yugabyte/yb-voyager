@@ -79,7 +79,7 @@ func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (ms *MySQL) GetTableApproxRowCount(tableName *sqlname.NameTuple) int64 {
+func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT table_rows from information_schema.tables "+
@@ -184,7 +184,7 @@ func (ms *MySQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -212,12 +212,12 @@ func (ms *MySQL) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.NameTuple, useDebezium bool) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
+func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
 
-func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqlname.NameTuple, []*sqlname.NameTuple) {
-	var nonEmptyTableList, emptyTableList []*sqlname.NameTuple
+func (ms *MySQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
 	for _, tableName := range tableList {
 		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.ForUserQuery())
 		if !IsTableEmpty(ms.db, query) {
@@ -229,7 +229,7 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.NameTuple) ([]*sqlname.N
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) GetTableColumns(tableName *sqlname.NameTuple) ([]string, []string, []string) {
+func (ms *MySQL) GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string) {
 	var columns, dataTypes []string
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", sname, tname)
@@ -253,8 +253,8 @@ func (ms *MySQL) GetAllSequences() []string {
 	return nil
 }
 
-func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.NameTuple, useDebezium bool, _ bool) (sqlname.NameTupleMap[[]string], []string) {
-	tableColumnMap := sqlname.NameTupleMap[[]string]{}
+func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, _ bool) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
+	tableColumnMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
 		columns, dataTypes, _ := ms.GetTableColumns(tableName)
@@ -278,11 +278,11 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.NameTuple, us
 	return tableColumnMap, unsupportedColumnNames
 }
 
-func (ms *MySQL) ParentTableOfPartition(table *sqlname.NameTuple) string {
+func (ms *MySQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }
 
-func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.NameTuple) error {
+func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
 	panic("not implemented")
 }
 
@@ -290,7 +290,7 @@ func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.NameTu
 Only valid case is when the table has a auto increment column
 Note: a mysql table can have only one auto increment column
 */
-func (ms *MySQL) GetColumnToSequenceMap(tableList []*sqlname.NameTuple) map[string]string {
+func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out auto increment column
@@ -365,11 +365,11 @@ func (ms *MySQL) GetServers() []string {
 	return []string{ms.source.Host}
 }
 
-func (ms *MySQL) GetPartitions(tableName *sqlname.NameTuple) []string {
+func (ms *MySQL) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
-func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.NameTuple) (map[string][]string, error) {
+func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
 	return nil, nil
 }
 
