@@ -101,7 +101,7 @@ func assessMigration() {
 
 		pluginParams, err := mat.LoadUserInput(pluginName, userInputFpath)
 		if err != nil {
-			utils.ErrExit("error loading plugin params for plugin '%s': %v", pluginName, err)
+			utils.ErrExit("error loading user input for plugin '%s': %v", pluginName, err)
 		}
 
 		report, err := plugin.RunAssessment(queryResults, pluginParams)

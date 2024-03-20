@@ -84,7 +84,6 @@ func LoadQueryResults(pluginName string, exportDir string) (map[string]QueryResu
 		if err != nil {
 			log.Errorf("error closing file %s: %v", filePath, err)
 			return nil, fmt.Errorf("error closing file %s: %w", filePath, err)
-
 		}
 	}
 	return queryResults, nil
@@ -93,21 +92,21 @@ func LoadQueryResults(pluginName string, exportDir string) (map[string]QueryResu
 func LoadUserInput(pluginName string, userInputFpath string) (map[string]any, error) {
 	tomlData, err := os.ReadFile(userInputFpath)
 	if err != nil {
-		log.Errorf("error reading plugin params file %s: %v", userInputFpath, err)
-		return nil, fmt.Errorf("error reading plugin params file %s: %w", userInputFpath, err)
+		log.Errorf("error reading user input file %s: %v", userInputFpath, err)
+		return nil, fmt.Errorf("error reading user input file %s: %w", userInputFpath, err)
 	}
 
 	tree, err := toml.LoadBytes(tomlData)
 	if err != nil {
-		log.Errorf("error parsing plugin params file %s: %v", userInputFpath, err)
-		return nil, fmt.Errorf("error parsing plugin params file %s: %w", userInputFpath, err)
+		log.Errorf("error parsing user input file %s: %v", userInputFpath, err)
+		return nil, fmt.Errorf("error parsing user input file %s: %w", userInputFpath, err)
 	}
 
 	tableNames := []string{"common", pluginName}
 	userInputParams := make(map[string]any)
 	for _, tableName := range tableNames {
 		if !tree.Has(tableName) {
-			log.Warnf("table '%s' not found in plugin params file %s", tableName, userInputFpath)
+			log.Warnf("table '%s' not found in user input file %s", tableName, userInputFpath)
 			continue
 		}
 		table := tree.Get(tableName).(*toml.Tree)
