@@ -352,10 +352,10 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole 
 	return nil
 }
 
-func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]string, error) {
+func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	log.Infof("fetching table to unique key columns map from metaDB")
 	var metaDbData map[string][]string
-	res := make(map[string][]string)
+	res := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
 	found, err := metaDB.GetJsonObject(nil, key, &metaDbData)
@@ -372,7 +372,7 @@ func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]
 		if err != nil {
 			return nil, fmt.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
 		}
-		res[tableName.ForKey()] = columns
+		res.Put(tableName, columns)
 	}
 	return res, nil
 }
