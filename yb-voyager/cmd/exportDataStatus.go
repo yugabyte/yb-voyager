@@ -27,15 +27,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
+	"github.com/vbauerster/mpb/v8"
+
 	pbreporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/pb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-
-	"github.com/fatih/color"
-	"github.com/vbauerster/mpb/v8"
 )
 
 //=====================================================================================
@@ -50,6 +50,16 @@ type TableExportStatus struct {
 
 type ExportSnapshotStatus struct {
 	Tables map[string]*TableExportStatus `json:"tables"`
+}
+
+func (e *ExportSnapshotStatus) GetTableStatusByTableName(tableName string) []*TableExportStatus {
+	var tableStatus []*TableExportStatus
+	for _, v := range e.Tables {
+		if v.TableName == tableName {
+			tableStatus = append(tableStatus, v)
+		}
+	}
+	return tableStatus
 }
 
 func NewExportSnapshotStatus() *ExportSnapshotStatus {
@@ -307,6 +317,7 @@ func printExportedTables(exportedTables []string) {
 	output := "Exported tables:- {"
 	nt := len(exportedTables)
 	for i := 0; i < nt; i++ {
+		//It is fine to print the leaf partititons here exported from pg_dump.
 		output += exportedTables[i]
 		if i < nt-1 {
 			output += ",  "

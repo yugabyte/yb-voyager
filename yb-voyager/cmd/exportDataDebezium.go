@@ -41,7 +41,7 @@ import (
 
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, leafPartitions map[string][]string) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -59,23 +59,24 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	default:
 		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
 	}
-	fmt.Printf("num tables to export: %d\n", len(tableList))
-	utils.PrintAndLog("table list for data export: %v", tableList)
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
 
 	var dbzmTableList, dbzmColumnList []string
 	for _, table := range tableList {
+		t := table.Qualified.MinQuoted
+		if source.DBType == POSTGRESQL && table.SchemaName.MinQuoted == "public" {
+			t = table.ObjectName.MinQuoted
+		}
+		if leafPartitions[t] != nil {
+			//In case of debezium offline migration of PG, tablelist should not have root and leaf both so not adding root table in table list
+			continue
+		}
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
-		minQuotedTableList := lo.Map(tableList, func(table *sqlname.SourceName, _ int) string {
-			return table.Qualified.MinQuoted //Case sensitivity
-		})
-		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.TableListExportedFromSource = minQuotedTableList
-		})
+		err = storeTableListInMSR(tableList)
 		if err != nil {
-			utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
+			utils.ErrExit("error while storing the table-list in msr: %v", err)
 		}
 	}
 

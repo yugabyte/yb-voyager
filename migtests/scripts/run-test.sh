@@ -70,7 +70,7 @@ main() {
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
 	then
-		 "${TEST_DIR}/fix-schema"
+		 "${TEST_DIR}/fix-schema" 'offline_migration'
 	fi
 
 	step "Analyze schema."
@@ -98,6 +98,11 @@ main() {
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+
+	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
+	then
+		"${TEST_DIR}/add-pk-from-alter-to-create"
+	fi
 
 	step "Import schema."
 	import_schema
