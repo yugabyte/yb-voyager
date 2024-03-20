@@ -22,11 +22,14 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 )
 
 type Record map[string]any
 type QueryResult []Record
+
+type Report any
 
 func LoadQueryResults(pluginName string, exportDir string) (map[string]QueryResult, error) {
 	queryResults := make(map[string]QueryResult)
@@ -40,9 +43,7 @@ func LoadQueryResults(pluginName string, exportDir string) (map[string]QueryResu
 	for _, file := range files {
 		baseFileName := filepath.Base(file)
 		queryName := strings.TrimSuffix(strings.TrimPrefix(baseFileName, fmt.Sprintf("%s__", pluginName)), ".csv")
-		// fmt.Printf("baseFileName: %s, queryName: %s\n", baseFileName, queryName)
-		// TODO: read file line by line using a reader or read full file once
-		// Read the file
+		// TODO: use csv reader
 		bytes, err := os.ReadFile(file)
 		if err != nil {
 			log.Errorf("error opening file %s: %v", file, err)
@@ -55,17 +56,16 @@ func LoadQueryResults(pluginName string, exportDir string) (map[string]QueryResu
 		}
 
 		rows := strings.Split(string(bytes), "\n")
-		columns := strings.Split(rows[0], ",")
-		queryResult := make(QueryResult, 0)
+		columnNames := strings.Split(rows[0], ",")
+		queryResult := make(QueryResult, len(rows)-1)
 		for i := 1; i < len(rows); i++ {
 			if len(rows[i]) == 0 {
 				continue
 			}
 			row := strings.Split(rows[i], ",")
-			// fmt.Printf("row: %v\n", row)
 			record := make(Record)
-			for j, column := range columns {
-				record[column] = row[j]
+			for j, columnName := range columnNames {
+				record[columnName] = row[j]
 			}
 			queryResult = append(queryResult, record)
 		}
@@ -96,7 +96,7 @@ func LoadUserInput(pluginName string, userInputFpath string) (map[string]any, er
 			continue
 		}
 		table := tree.Get(tableName).(*toml.Tree)
-		userInputParams[tableName] = table.ToMap()
+		userInputParams = lo.Assign(userInputParams, table.ToMap())
 	}
 
 	log.Infof("loaded user input for plugin %s: %v", pluginName, userInputParams)

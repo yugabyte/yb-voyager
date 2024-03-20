@@ -42,7 +42,7 @@ func (sp *ShardingPlugin) GetConfig() map[string]any {
 	}
 }
 
-func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, userInput map[string]any) (any, error) {
+func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, userInput map[string]any) (Report, error) {
 	result := map[string][]string{
 		"colocated": {},
 		"sharded":   {},
@@ -69,7 +69,6 @@ func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, use
 	var total_num_colocated_tables, total_colocated_tablet_size, total_colocated_num_rows int64
 	if len(table_sizes_info) > 0 {
 		for _, table_size_info := range table_sizes_info {
-			// fmt.Printf("table_size_info: %v\n", table_size_info)
 			schema := table_size_info["schema_name"].(string)
 			table := table_size_info["table_name"].(string)
 
@@ -80,10 +79,8 @@ func (sp *ShardingPlugin) RunAssessment(queryResults map[string]QueryResult, use
 					read_write_iops := getReadWriteIopsForTable(schema, table, &table_iops_info)
 					if read_write_iops <= thresholds_for_colocation["colocated_max_iops"].(int64) {
 						total_num_colocated_tables++
-						table_size, _ := strconv.ParseInt(table_size_info["table_size"].(string), 10, 64)
-						total_colocated_tablet_size += table_size
+						total_colocated_tablet_size += getSizeForTable(schema, table, &table_sizes_info)
 						total_colocated_num_rows += getRowCountForTable(schema, table, &table_rows_info)
-
 						result["colocated"] = append(result["colocated"], fmt.Sprintf("%s.%s", schema, table))
 					} else {
 						log.Infof("table %s.%s has more read/write iops than the threshold", schema, table)
@@ -225,7 +222,7 @@ func (sp *ShardingPlugin) GetHtmlTemplate() string {
 	return htmlString
 }
 
-func (sp *ShardingPlugin) ModifySchema(report map[string]any) error {
+func (sp *ShardingPlugin) ModifySchema(report Report) error {
 	return nil
 }
 
@@ -248,6 +245,16 @@ func getRowCountForTable(schema string, table string, tables_row_count_info *Que
 	for _, table_row_count_info := range *tables_row_count_info {
 		if table_row_count_info["table_name"].(string) == table && table_row_count_info["schema_name"].(string) == schema {
 			a, _ := strconv.ParseInt(table_row_count_info["row_count"].(string), 10, 64)
+			return a
+		}
+	}
+	return 0
+}
+
+func getSizeForTable(schema string, table string, tables_size_info *QueryResult) int64 {
+	for _, table_size_info := range *tables_size_info {
+		if table_size_info["table_name"].(string) == table && table_size_info["schema_name"].(string) == schema {
+			a, _ := strconv.ParseInt(table_size_info["table_size"].(string), 10, 64)
 			return a
 		}
 	}

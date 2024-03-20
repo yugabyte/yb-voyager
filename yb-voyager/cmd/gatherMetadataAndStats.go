@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"bytes"
 	_ "embed"
 	"fmt"
 	"os/exec"
@@ -40,7 +39,11 @@ var gatherMetadataAndStatsCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO: metadb is also initialized which is not requried at this stage
 		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-		gatherMetadataAndStats()
+
+		err := gatherMetadataAndStats()
+		if err != nil {
+			utils.ErrExit("error gathering metadata and stats: %v", err)
+		}
 	},
 }
 
@@ -55,35 +58,34 @@ func init() {
 	gatherMetadataAndStatsCmd.MarkFlagRequired("source-db-schema")
 }
 
-// TODO: figure out how to access if this file is in other package of same project
-//
-//go:embed matscripts/pgPsql.sql
-var pgScript []byte
-
-func gatherMetadataAndStats() {
+func gatherMetadataAndStats() error {
 	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
-	matchingFiles := filepath.Join(assessmentDataDir, "*.csv")
-	if utils.FileOrFolderExistsWithGlobPattern(matchingFiles) {
+	dataFilesPattern := filepath.Join(assessmentDataDir, "*.csv")
+	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) {
 		if startClean {
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
 		} else {
-			utils.ErrExit("metadata and stats files already exist in assessment/data directory. Use --start-clean flag to start fresh")
+			utils.ErrExit("metadata and stats files already exist in '%s' directory. Use --start-clean flag to start fresh", assessmentDataDir)
 		}
 	}
 
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
 	switch source.DBType {
 	case POSTGRESQL:
-		gatherMetadataAndStatsFromPG()
+		err := gatherMetadataAndStatsFromPG()
+		if err != nil {
+			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
+		}
 	default:
-		utils.ErrExit("Source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
 	utils.PrintAndLog("gathering metadata and stats completed")
 	utils.PrintAndLog("metadata and stats files are available in '%s' directory", assessmentDataDir)
 	utils.ListFilesInDir(assessmentDataDir)
+	return nil
 }
 
-func gatherMetadataAndStatsFromPG() {
+func gatherMetadataAndStatsFromPG() error {
 	// TODO: fetch pg_dump from path(with supported version check)
 	cmdArgs := []string{
 		"-h", source.Host,
@@ -93,20 +95,44 @@ func gatherMetadataAndStatsFromPG() {
 		"-v", fmt.Sprintf("schema_list=%s", source.Schema),
 	}
 
+	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
+	possiblePathsForPsqlScript := []string{
+		filepath.Join("/", "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
+		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
+		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
+	}
+
+	psqlScriptPath := ""
+	for _, path := range possiblePathsForPsqlScript {
+		if utils.FileOrFolderExists(path) {
+			psqlScriptPath = path
+			break
+		}
+	}
+
+	if psqlScriptPath == "" {
+		log.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
+		return fmt.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
+	} else {
+		log.Infof("using psql script: %s", psqlScriptPath)
+		cmdArgs = append(cmdArgs, "-f", psqlScriptPath)
+	}
+
+	sourcePassword, err := askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+	if err != nil {
+		log.Errorf("error getting source DB password: %v", err)
+		return err
+	}
+
 	cmd := exec.Command("psql", cmdArgs...)
-	cmd.Env = append(cmd.Env, "PGPASSWORD="+source.Password)
-	cmd.Stdin = bytes.NewReader(pgScript) // other option is to use -f flag with filepath
+	cmd.Env = append(cmd.Env, "PGPASSWORD="+sourcePassword)
 	cmd.Dir = filepath.Join(exportDir, "assessment", "data")
 
 	stdout, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Errorf("output of postgres metadata and stats gathering script\n%s", string(stdout))
-		utils.ErrExit("error running metadata and stats gathering script: %v", err)
+		return err
 	}
 	log.Infof("output of postgres metadata and stats gathering script\n%s", string(stdout))
+	return nil
 }
-
-// TODOs
-// 1. implement call home for this command
-// 2. ssl connectivity for gathering metadata and stats
-// 3. implement start clean functionality

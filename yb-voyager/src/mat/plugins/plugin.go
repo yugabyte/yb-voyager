@@ -18,10 +18,10 @@ package mat
 import "fmt"
 
 type AssessmentPlugin interface {
-	RunAssessment(queryResults map[string]QueryResult, userInput map[string]any) (any, error) // returns the report and error
+	RunAssessment(queryResults map[string]QueryResult, userInput map[string]any) (Report, error) // returns the report and error
 	GetHtmlTemplate() string
-	ModifySchema(report map[string]any) error
-	
+	ModifySchema(report Report) error
+
 	GetName() string
 }
 
