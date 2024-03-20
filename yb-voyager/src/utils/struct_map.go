@@ -17,6 +17,7 @@ type Keyer interface {
 }
 
 // Map is a generic map data structure that allows using custom objects as keys.
+// Note that every instance of the object should have a unique value for the Key()
 type StructMap[K Keyer, V any] struct {
 	kmap map[string]K
 	vmap map[string]V

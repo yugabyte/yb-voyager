@@ -392,7 +392,7 @@ func InitNameRegistry(
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
 		ybdb, ok = tdb.(namereg.YBDBRegistry)
 		if !ok {
-			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty.")
+			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty")
 		}
 	}
 	return namereg.InitNameRegistry(exportDir, role, sourceDbType, sourceDbSchema, sourceDbName, targetDBSchema, sdbReg, ybdb)

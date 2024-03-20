@@ -273,7 +273,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 	require.Nil(err)
 	assert.Equal(table1, ntup)
 
-	ntup, err = reg.LookupTableName("SAKILA_FF.table1")
+	_, err = reg.LookupTableName("SAKILA_FF.table1")
 	require.NotNil(err)
 	// assert.Nil(ntup)
 	errNameNotFound := &ErrNameNotFound{}

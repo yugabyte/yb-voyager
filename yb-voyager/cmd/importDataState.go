@@ -535,21 +535,6 @@ func (s *ImportDataState) cleanFileImportStateFromDB(filePath string, tableName 
 	return nil
 }
 
-func qualifyTableName(tableName string) (string, error) {
-	defaultSchema := tconf.Schema
-	noDefaultSchema := false
-	if tconf.TargetDBType == POSTGRESQL {
-		defaultSchema, noDefaultSchema = GetDefaultPGSchema(tconf.Schema, ",")
-	}
-	if len(strings.Split(tableName, ".")) != 2 {
-		if noDefaultSchema {
-			return "", fmt.Errorf("table name %s does not have schema name", tableName)
-		}
-		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
-	}
-	return tableName, nil
-}
-
 func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableName sqlname.NameTuple) (int64, error) {
 	var snapshotRowCount int64
 	sname, tname := tableName.ForCatalogQuery()
