@@ -296,12 +296,15 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 		}
 	}
 
-	if useDebezium {
-		for _, tableName := range tableList {
-			if ora.IsNestedTable(tableName) || ora.IsParentOfNestedTable(tableName) {
-				//In case of nested tables there are two tables created in the oracle one is this main parent table created by user and other is nested table for a column which is created by oracle
-				unsupportedTableList = append(unsupportedTableList, tableName)
-			}
+	for _, tableName := range tableList {
+		//In case of nested tables there are two tables created in the oracle one is this main parent table created by user and other is nested table for a column which is created by oracle
+		if ora.IsNestedTable(tableName) {
+			// nested table is not supported in dbzm, and in ora2pg, it works even  if you only specify the parent table in the list.
+			unsupportedTableList = append(unsupportedTableList, tableName)
+		}
+		if useDebezium && ora.IsParentOfNestedTable(tableName) {
+			// nested table not supported in dbzm
+			unsupportedTableList = append(unsupportedTableList, tableName)
 		}
 	}
 

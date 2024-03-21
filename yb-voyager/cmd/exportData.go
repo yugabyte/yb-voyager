@@ -341,8 +341,7 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]str
 	//TODO: test when we upgrade to PG13+ as partitions are handled with root table
 	//Refer- https://debezium.zulipchat.com/#narrow/stream/302529-community-general/topic/Connector.20not.20working.20with.20partitions
 	for _, table := range tableList {
-		sname, tname := table.ForCatalogQuery()
-		qualifiedCatalogName := fmt.Sprintf("%s.%s", sname, tname)
+		qualifiedCatalogName := table.CurrentName.Qualified.Unquoted
 		rootTable, err := GetRootTableOfPartition(table)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get root table of partition %s: %v", table.ForKey(), err)
@@ -357,7 +356,7 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]str
 		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
-				partitionsToRootTableMap[qualifiedCatalogName] = rootTable.ForKey()
+				partitionsToRootTableMap[leafPartition.CurrentName.Qualified.Unquoted] = rootTable.ForKey()
 			}
 		}
 		// will be keeping root in the list as it might be required by some of the catalog queries
@@ -537,7 +536,12 @@ func getFinalTableColumnList() ([]sqlname.NameTuple, *utils.StructMap[sqlname.Na
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []sqlname.NameTuple
 	// fullTableList := source.DB().GetAllTableNames() // SEE TODO IF THIS FINE
-	tableNameFromNameReg := namereg.NameReg.SourceDBTableNames
+	var tableNameFromNameReg map[string][]string
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		tableNameFromNameReg = namereg.NameReg.SourceDBTableNames
+	} else {
+		tableNameFromNameReg = namereg.NameReg.YBTableNames
+	}
 	var fullTableList []sqlname.NameTuple
 	for schema, tables := range tableNameFromNameReg {
 		for _, table := range tables {
