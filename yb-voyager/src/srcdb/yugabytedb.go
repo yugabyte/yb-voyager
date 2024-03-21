@@ -406,8 +406,8 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 			continue
 		}
 
-		// If any of the udt_types of the arrays are in the enum types then add the table to the unsupported tables list
-		// udt_type looks like status_enum[] whereas enum_type looks like status_enum
+		// If any of the data types of the arrays are in the enum types then add the table to the unsupported tables list
+		// udt_type/data_type looks like status_enum[] whereas enum_type looks like status_enum
 	outer:
 		for _, arrayType := range tableColumnArrayTypes {
 			for _, udt := range userDefinedTypes {
