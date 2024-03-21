@@ -339,13 +339,21 @@ func (yb *YugabyteDB) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (yb *YugabyteDB) getAllEnumTypesInSchema(schemaName string) []string {
-	query := fmt.Sprintf(`SELECT t.typname AS enum_type 
-						FROM pg_enum e 
-						JOIN pg_type t ON e.enumtypid = t.oid 
-						JOIN pg_namespace n ON t.typnamespace = n.oid 
-						WHERE n.nspname = '%s' 
-						GROUP BY n.nspname, t.typname;`, schemaName)
+func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
+	query := fmt.Sprintf(`SELECT typname
+						FROM pg_type t
+						JOIN pg_namespace n ON t.typnamespace = n.oid
+						WHERE n.nspname = '%s'
+						AND t.typcategory <> 'A'
+						AND t.typname NOT IN (
+							SELECT table_name
+							FROM information_schema.tables
+							WHERE table_schema = '%s'
+							UNION
+							SELECT sequence_name
+							FROM information_schema.sequences
+							WHERE sequence_schema = '%s'
+						);`, schemaName, schemaName, schemaName)
 	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for enum types: %v\n", query, err)
@@ -363,8 +371,11 @@ func (yb *YugabyteDB) getAllEnumTypesInSchema(schemaName string) []string {
 	return enumTypes
 }
 
-func (yb *YugabyteDB) getUdtTypesOfAllArraysInATable(schemaName, tableName string) []string {
-	query := fmt.Sprintf(`SELECT udt_name::regtype FROM information_schema.columns WHERE table_schema = '%s' AND table_name='%s' AND data_type = 'ARRAY';`, schemaName, tableName)
+func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) []string {
+	query := fmt.Sprintf(`SELECT udt_name::regtype FROM information_schema.columns 
+						WHERE table_schema = '%s' 
+						AND table_name='%s' 
+						AND data_type = 'ARRAY';`, schemaName, tableName)
 	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for array types: %v\n", query, err)
@@ -386,22 +397,23 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 	var unsupportedTables []*sqlname.SourceName
 	var filteredTableList []*sqlname.SourceName
 	for _, table := range tableList {
-		enumTypes := yb.getAllEnumTypesInSchema(table.SchemaName.Unquoted)
-		if len(enumTypes) == 0 {
+		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(table.SchemaName.Unquoted)
+		if len(userDefinedTypes) == 0 {
 			continue
 		}
-		tableColumnUdtTypes := yb.getUdtTypesOfAllArraysInATable(table.SchemaName.Unquoted, table.ObjectName.Unquoted)
-		if len(tableColumnUdtTypes) == 0 {
+		tableColumnArrayTypes := yb.getTypesOfAllArraysInATable(table.SchemaName.Unquoted, table.ObjectName.Unquoted)
+		if len(tableColumnArrayTypes) == 0 {
 			continue
 		}
 
 		// If any of the udt_types of the arrays are in the enum types then add the table to the unsupported tables list
 		// udt_type looks like status_enum[] whereas enum_type looks like status_enum
-		for _, udtType := range tableColumnUdtTypes {
-			for _, enumType := range enumTypes {
-				if strings.Contains(udtType, enumType) {
+	outer:
+		for _, arrayType := range tableColumnArrayTypes {
+			for _, udt := range userDefinedTypes {
+				if strings.Contains(arrayType, udt) {
 					unsupportedTables = append(unsupportedTables, table)
-					break
+					break outer
 				}
 			}
 		}
