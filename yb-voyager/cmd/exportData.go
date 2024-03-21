@@ -574,7 +574,6 @@ func getFinalTableColumnList() (map[string]string, []*sqlname.SourceName, map[*s
 		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		} else {
-			// Print this in yellow color to make it more visible
 			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the target database."))
 		}
 
