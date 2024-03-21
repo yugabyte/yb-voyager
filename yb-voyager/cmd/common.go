@@ -377,6 +377,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
 		s, t := tableName.ForCatalogQuery()
+
 		rowCount, _ := snapshotRowCount.Get(tableName)
 		uitable.AddRow(s, t, rowCount)
 	}
