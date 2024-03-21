@@ -50,7 +50,7 @@ func newTargetPostgreSQL(tconf *TargetConf) *TargetPostgreSQL {
 		tconf:     tconf,
 		attrNames: make(map[string][]string),
 	}
-	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tconf.TargetDBType, tdb)
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
 	return tdb
 }
 
@@ -411,61 +411,6 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 	}
 	return res.RowsAffected(), err
-}
-
-func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
-	result := make([]string, len(columns))
-	var schemaName string
-	schemaName, tableName = pg.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := pg.GetListOfTableAttributes(schemaName, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("get list of table attributes: %w", err)
-	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-
-	for i, colName := range columns {
-		if colName[0] == '"' && colName[len(colName)-1] == '"' {
-			colName = colName[1 : len(colName)-1]
-		}
-		colName, err = findBestMatchingColumnName(POSTGRESQL, colName, targetColumns)
-		if err != nil {
-			return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
-				colName, schemaName, tableName, err)
-		}
-		result[i] = fmt.Sprintf("%q", colName)
-	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
-	return result, nil
-}
-
-func findBestMatchingColumnName(sourceDBType string, colName string, targetColumns []string) (string, error) {
-	if slices.Contains(targetColumns, colName) { // Exact match.
-		return colName, nil
-	}
-	// Case insensitive match.
-	candidates := []string{}
-	for _, targetCol := range targetColumns {
-		if strings.EqualFold(targetCol, colName) {
-			candidates = append(candidates, targetCol)
-		}
-	}
-	if len(candidates) == 1 {
-		return candidates[0], nil
-	}
-	if len(candidates) > 1 {
-		if sourceDBType == POSTGRESQL || sourceDBType == YUGABYTEDB {
-			if slices.Contains(candidates, strings.ToLower(colName)) {
-				return strings.ToLower(colName), nil
-			}
-		} else if sourceDBType == ORACLE {
-			if slices.Contains(candidates, strings.ToUpper(colName)) {
-				return strings.ToUpper(colName), nil
-			}
-		}
-		return "", fmt.Errorf("ambiguous column name %q in target table: found column names: %s",
-			colName, strings.Join(candidates, ", "))
-	}
-	return "", fmt.Errorf("column %q not found", colName)
 }
 
 func (pg *TargetPostgreSQL) GetListOfTableAttributes(schemaName, tableName string) ([]string, error) {

@@ -2,20 +2,25 @@ package tgtdb
 
 import (
 	"fmt"
+	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 )
 
 type AttributeNameRegistry struct {
 	dbType    string
 	tdb       TargetDB
+	tconf     *TargetConf
 	attrNames map[string][]string
 }
 
-func NewAttributeNameRegistry(dbType string, tdb TargetDB) *AttributeNameRegistry {
+func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameRegistry {
 	return &AttributeNameRegistry{
-		dbType:    dbType,
+		dbType:    tconf.TargetDBType,
 		tdb:       tdb,
+		tconf:     tconf,
 		attrNames: make(map[string][]string),
 	}
 }
@@ -31,9 +36,72 @@ func (reg *AttributeNameRegistry) QuoteIdentifier(schemaName, tableName, columnN
 		}
 		reg.attrNames[qualifiedTableName] = targetColumns
 	}
-	c, err := findBestMatchingColumnName(reg.dbType, columnName, targetColumns)
+	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
 		utils.ErrExit("find best matching column name for %q in table %s.%s: %w", columnName, schemaName, tableName, err)
 	}
 	return fmt.Sprintf("%q", c)
+}
+
+func (reg *AttributeNameRegistry) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
+	result := make([]string, len(columns))
+	var schemaName string
+	schemaName, tableName = reg.splitMaybeQualifiedTableName(tableName)
+	targetColumns, err := reg.tdb.GetListOfTableAttributes(schemaName, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("get list of table attributes: %w", err)
+	}
+	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+
+	for i, colName := range columns {
+		if colName[0] == '"' && colName[len(colName)-1] == '"' {
+			colName = colName[1 : len(colName)-1]
+		}
+		colName, err = reg.findBestMatchingColumnName(colName, targetColumns)
+		if err != nil {
+			return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
+				colName, schemaName, tableName, err)
+		}
+		result[i] = fmt.Sprintf("%q", colName)
+	}
+	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
+	return result, nil
+}
+
+func (reg *AttributeNameRegistry) splitMaybeQualifiedTableName(tableName string) (string, string) {
+	if strings.Contains(tableName, ".") {
+		parts := strings.Split(tableName, ".")
+		return parts[0], parts[1]
+	}
+	return reg.tconf.Schema, tableName
+}
+
+func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
+	if slices.Contains(targetColumns, colName) { // Exact match.
+		return colName, nil
+	}
+	// Case insensitive match.
+	candidates := []string{}
+	for _, targetCol := range targetColumns {
+		if strings.EqualFold(targetCol, colName) {
+			candidates = append(candidates, targetCol)
+		}
+	}
+	if len(candidates) == 1 {
+		return candidates[0], nil
+	}
+	if len(candidates) > 1 {
+		if reg.dbType == POSTGRESQL || reg.dbType == YUGABYTEDB {
+			if slices.Contains(candidates, strings.ToLower(colName)) {
+				return strings.ToLower(colName), nil
+			}
+		} else if reg.dbType == ORACLE {
+			if slices.Contains(candidates, strings.ToUpper(colName)) {
+				return strings.ToUpper(colName), nil
+			}
+		}
+		return "", fmt.Errorf("ambiguous column name %q in target table: found column names: %s",
+			colName, strings.Join(candidates, ", "))
+	}
+	return "", fmt.Errorf("column %q not found", colName)
 }

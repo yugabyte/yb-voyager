@@ -50,7 +50,7 @@ func newTargetOracleDB(tconf *TargetConf) *TargetOracleDB {
 		tconf:     tconf,
 		attrNames: make(map[string][]string),
 	}
-	tdb.AttributeNameRegistry = NewAttributeNameRegistry(ORACLE, tdb)
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
 	return tdb
 }
 
@@ -417,31 +417,6 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 	if err != nil {
 		utils.ErrExit("run query %q on target %q to set schema: %s", setSchemaQuery, tdb.tconf.Host, err)
 	}
-}
-
-func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
-	result := make([]string, len(columns))
-	var schemaName string
-	schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := tdb.GetListOfTableAttributes(schemaName, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("get list of table attributes: %w", err)
-	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-
-	for i, colName := range columns {
-		if colName[0] == '"' && colName[len(colName)-1] == '"' {
-			colName = colName[1 : len(colName)-1]
-		}
-		colName, err = findBestMatchingColumnName(ORACLE, colName, targetColumns)
-		if err != nil {
-			return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
-				colName, schemaName, tableName, err)
-		}
-		result[i] = fmt.Sprintf("%q", colName)
-	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
-	return result, nil
 }
 
 func (tdb *TargetOracleDB) GetListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
