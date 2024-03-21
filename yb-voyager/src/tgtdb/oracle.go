@@ -40,6 +40,8 @@ type TargetOracleDB struct {
 	tconf *TargetConf
 	oraDB *sql.DB
 	conn  *sql.Conn
+
+	attrNames map[string][]string
 }
 
 func newTargetOracleDB(tconf *TargetConf) *TargetOracleDB {
@@ -468,11 +470,11 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt := event.GetSQLStmt()
+			stmt := event.GetSQLStmt(tdb)
 			if event.Op == "c" && tdb.tconf.EnableUpsert {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt := event.GetSQLStmt()
+				updateStmt := event.GetSQLStmt(tdb)
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				event.Op = "c" // reverting state
 			}
@@ -529,6 +531,24 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 	}
 
 	return nil
+}
+
+func (tdb *TargetOracleDB) QuoteIdentifier(schemaName, tableName, columnName string) string {
+	var err error
+	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
+	targetColumns, ok := tdb.attrNames[qualifiedTableName]
+	if !ok {
+		targetColumns, err = tdb.getListOfTableAttributes(schemaName, tableName)
+		if err != nil {
+			utils.ErrExit("get list of table attributes: %w", err)
+		}
+		tdb.attrNames[qualifiedTableName] = targetColumns
+	}
+	c, err := findBestMatchingColumnName(ORACLE, columnName, targetColumns)
+	if err != nil {
+		utils.ErrExit("find best matching column name for %q in table %s.%s: %w", columnName, schemaName, tableName, err)
+	}
+	return fmt.Sprintf("%q", c)
 }
 
 func (tdb *TargetOracleDB) InitConnPool() error {

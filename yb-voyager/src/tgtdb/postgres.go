@@ -40,6 +40,8 @@ type TargetPostgreSQL struct {
 	tconf    *TargetConf
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
+
+	attrNames map[string][]string
 }
 
 func newTargetPostgreSQL(tconf *TargetConf) *TargetPostgreSQL {
@@ -540,10 +542,10 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt := event.GetSQLStmt()
+			stmt := event.GetSQLStmt(pg)
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(pg.tconf.TargetDBType)
+			stmt := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType)
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
 				stmtToPrepare[event.GetPreparedStmtName()] = stmt
@@ -640,6 +642,24 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
 
 	return nil
+}
+
+func (pg *TargetPostgreSQL) QuoteIdentifier(schemaName, tableName, columnName string) string {
+	var err error
+	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
+	targetColumns, ok := pg.attrNames[qualifiedTableName]
+	if !ok {
+		targetColumns, err = pg.getListOfTableAttributes(schemaName, tableName)
+		if err != nil {
+			utils.ErrExit("get list of table attributes: %w", err)
+		}
+		pg.attrNames[qualifiedTableName] = targetColumns
+	}
+	c, err := findBestMatchingColumnName(POSTGRESQL, columnName, targetColumns)
+	if err != nil {
+		utils.ErrExit("find best matching column name for %q in table %s.%s: %w", columnName, schemaName, tableName, err)
+	}
+	return fmt.Sprintf("%q", c)
 }
 
 func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {

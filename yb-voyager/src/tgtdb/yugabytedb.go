@@ -45,6 +45,8 @@ type TargetYugabyteDB struct {
 	tconf    *TargetConf
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
+
+	attrNames map[string][]string
 }
 
 func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
@@ -573,10 +575,10 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt := event.GetSQLStmt()
+			stmt := event.GetSQLStmt(yb)
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(yb.tconf.TargetDBType)
+			stmt := event.GetPreparedSQLStmt(yb, yb.tconf.TargetDBType)
 			psName := event.GetPreparedStmtName()
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[psName]; !ok {
@@ -671,6 +673,24 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
 
 	return nil
+}
+
+func (yb *TargetYugabyteDB) QuoteIdentifier(schemaName, tableName, columnName string) string {
+	var err error
+	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
+	targetColumns, ok := yb.attrNames[qualifiedTableName]
+	if !ok {
+		targetColumns, err = yb.getListOfTableAttributes(schemaName, tableName)
+		if err != nil {
+			utils.ErrExit("get list of table attributes: %w", err)
+		}
+		yb.attrNames[qualifiedTableName] = targetColumns
+	}
+	c, err := findBestMatchingColumnName(YUGABYTEDB, columnName, targetColumns)
+	if err != nil {
+		utils.ErrExit("find best matching column name for %q in table %s.%s: %w", columnName, schemaName, tableName, err)
+	}
+	return fmt.Sprintf("%q", c)
 }
 
 //==============================================================================
