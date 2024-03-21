@@ -57,13 +57,11 @@ var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits utils.BoolStr // to truncate *.D splits after import
-// var TableToColumnNames = sqlname.NameTupleMap[[]string]{}     // map of table name to columnNames
+var truncateSplits utils.BoolStr                                             // to truncate *.D splits after import
 var TableToColumnNames = utils.NewStructMap[sqlname.NameTuple, []string]()   // map of table name to columnNames
 var TableToIdentityColumnNames *utils.StructMap[sqlname.NameTuple, []string] // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 
-// var TableNameToSchema sqlname.NameTupleMap[*utils.StructMap[sqlname.NameTuple, []string]]
 var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
 
@@ -291,22 +289,6 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	source = *msr.SourceDBConf
 	_, noDefaultSchema := getDefaultSourceSchemaName()
 
-	//TODO: handle with case sensitivity later
-	// standardizeCaseInsensitiveTableNames := func(tableName string, defaultSourceSchema string) string {
-	// 	parts := strings.Split(tableName, ".")
-	// 	tableName = parts[len(parts)-1]
-	// 	if !utils.IsQuotedString(tableName) {
-	// 		tableName = strings.ToLower(tableName)
-	// 	}
-	// 	if len(parts) > 1 {
-	// 		if parts[0] == defaultSourceSchema {
-	// 			return tableName
-	// 		}
-	// 		return fmt.Sprintf(`%s.%s`, parts[0], tableName)
-	// 	}
-	// 	return tableName
-	// }
-
 	allTables := lo.Uniq(lo.Map(importFileTasks, func(task *ImportFileTask, _ int) sqlname.NameTuple {
 		return task.TableName
 	}))
@@ -361,24 +343,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		utils.ErrExit("Please fix the table names in table-list and retry.")
 	}
 
-	// checkUnknownTableNames := func(tableNames []string, listName string) {
-	// 	unknownTableNames := make([]string, 0)
-	// 	for _, tableName := range tableNames {
-	// 		if !slices.Contains(allTables, tableName) {
-	// 			unknownTableNames = append(unknownTableNames, tableName)
-	// 		}
-	// 	}
-	// 	if len(unknownTableNames) > 0 {
-	// 		utils.PrintAndLog("Unknown table names in the %s list: %v", listName, unknownTableNames)
-	// 		utils.PrintAndLog("Valid table names are: %v", allTables)
-	// 		utils.ErrExit("Please fix the table names in the %s list and retry.", listName)
-	// 	}
-	// }
-	// checkUnknownTableNames(includeList, "include")
-	// checkUnknownTableNames(excludeList, "exclude")
-
 	for _, task := range importFileTasks {
-		// table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
 		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
@@ -645,9 +610,6 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) {
 }
 
 func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string) *utils.StructMap[sqlname.NameTuple, []string] {
-	// var result = make(map[string][]string)
-	// var result = sqlname.NameTupleMap[[]string]{}
-	// sqlname.NameTupleMap[[]string]
 	var result = utils.NewStructMap[sqlname.NameTuple, []string]()
 	log.Infof("getting identity(%s) columns for tables: %v", identityType, tables)
 	for _, table := range tables {
@@ -657,7 +619,6 @@ func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string
 		}
 		if len(identityColumns) > 0 {
 			log.Infof("identity(%s) columns for table %s: %v", identityType, table, identityColumns)
-			// result[table.ForKey()] = identityColumns
 			result.Put(table, identityColumns)
 		}
 	}
@@ -665,12 +626,6 @@ func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {
-	// TODO:TABLENAME revisit.
-	// TODO: can probably get the fileSize and RowCount into importFileTask itself insteaf of searching through dfd again here.
-	// fileEntry := dataFileDescriptor.GetFileEntry(task.FilePath, task.TableName.SourceName.MinQualified.MinQuoted)
-	// if fileEntry == nil {
-	// 	utils.ErrExit("entry not found for file %q and table %s", task.FilePath, task.TableName)
-	// }
 	if reportProgressInBytes {
 		return task.FileSize
 	} else {
@@ -735,7 +690,6 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNameTuples(tasks)
-	//TODO:TABLENAME comment out for now.
 	nonEmptyNts := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyNts) > 0 {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
@@ -751,7 +705,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 
 	for _, task := range tasks {
-		//TODO:TABLENAME
 		err := state.Clean(task.FilePath, task.TableName)
 		if err != nil {
 			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
@@ -781,7 +734,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 
 func getImportBatchArgsProto(tableName sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
 	columns, _ := TableToColumnNames.Get(tableName)
-	//TODO:TABLENAME revisit.
 	columns, err := tdb.IfRequiredQuoteColumnNames(tableName, columns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
@@ -880,9 +832,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			numLinesTaken += 1
 		}
 		if line != "" {
-			// table := batchWriter.tableName
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
-			// TODO:TABLENAME
 			columnNames, _ := TableToColumnNames.Get(t)
 			line, err = valueConverter.ConvertRow(t, columnNames, line)
 			if err != nil {
@@ -1260,7 +1210,6 @@ func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *
 		if err != nil {
 			utils.ErrExit("lookup table [%s] in name registry: %v", tableNameRaw, err)
 		}
-		// result[nt.ForKey()] = columnList
 		result.Put(nt, columnList)
 	}
 	return result
@@ -1344,11 +1293,6 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 		var schemaName, tableName string
 		// TODO:TABLENAME revisit
 		schemaName, tableName = cp.SplitTableNameForPG(task.TableName.ForKey())
-		// if strings.Count(task.TableName.ForKey(), ".") == 1 {
-		// 	schemaName, tableName = cp.SplitTableNameForPG(task.TableName.ForKey())
-		// } else {
-		// 	schemaName, tableName = tconf.Schema, task.TableName
-		// }
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{

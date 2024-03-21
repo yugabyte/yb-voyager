@@ -483,10 +483,6 @@ func (s *ImportDataState) getEventChannelsRowCount(migrationUUID uuid.UUID) (int
 func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID, tableNames []sqlname.NameTuple, numChans int) error {
 	return tdb.WithTx(func(tx tgtdb.Tx) error {
 		for _, tableName := range tableNames {
-			// tableName, err := qualifyTableName(tableName)
-			// if err != nil {
-			// return fmt.Errorf("error qualifying table name %s: %w", tableName, err)
-			// }
 			rowCount, err := s.getLiveMigrationMetaInfoByTable(migrationUUID, tableName)
 			if err != nil {
 				return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
@@ -577,10 +573,6 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 
 func (s *ImportDataState) GetImportedEventsStatsForTable(tableName sqlname.NameTuple, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
 	var eventCounter tgtdb.EventCounter
-	// // tableName, err := qualifyTableName(tableName)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error in qualifying table name: %w", err)
-	// }
 	query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
 		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
 	log.Infof("query to get import stats for table %s: %s", tableName.ForKey(), query)
@@ -762,7 +754,6 @@ func (batch *Batch) MarkDone() error {
 }
 
 func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
-	// schemaName := getTargetSchemaName(batch.TableName)
 	schemaName, tableName := batch.TableName.ForCatalogQuery()
 	query := fmt.Sprintf(
 		"SELECT rows_imported FROM %s "+
@@ -774,7 +765,6 @@ func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
 
 func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
 	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
-	// schemaName := getTargetSchemaName(batch.TableName)
 	schemaName, tableName := batch.TableName.ForCatalogQuery()
 	cmd := fmt.Sprintf(
 		`INSERT INTO %s (migration_uuid, data_file_name, batch_number, schema_name, table_name, rows_imported)

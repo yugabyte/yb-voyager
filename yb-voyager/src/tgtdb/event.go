@@ -31,9 +31,8 @@ import (
 )
 
 type Event struct {
-	Vsn int64 // Voyager Sequence Number
-	Op  string
-	// SchemaName   string
+	Vsn          int64 // Voyager Sequence Number
+	Op           string
 	TableName    sqlname.NameTuple
 	Key          map[string]*string
 	Fields       map[string]*string
@@ -103,9 +102,8 @@ func (e *Event) Copy() *Event {
 		return k, v
 	}
 	return &Event{
-		Vsn: e.Vsn,
-		Op:  e.Op,
-		// SchemaName:   e.SchemaName,
+		Vsn:          e.Vsn,
+		Op:           e.Op,
 		TableName:    e.TableName, // TODO: TABLENAME do we need to deepcopy?
 		Key:          lo.MapEntries(e.Key, idFn),
 		Fields:       lo.MapEntries(e.Fields, idFn),
@@ -317,11 +315,6 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 	return values
 }
 
-// func (event *Event) getTableName() string {
-// 	tableName := strings.Join([]string{event.SchemaName, event.TableName}, ".")
-// 	return tableName
-// }
-
 func (event *Event) IsUniqueKeyChanged(uniqueKeyCols []string) bool {
 	return event.Op == "u" &&
 		len(uniqueKeyCols) > 0 &&
@@ -455,9 +448,6 @@ func (eb *EventBatch) updateCounts() {
 			eb.EventCountsByTable.Put(event.TableName, &EventCounter{})
 			eventCounter, _ = eb.EventCountsByTable.Get(event.TableName)
 		}
-		// if _, ok := eb.EventCountsByTable[event.TableName.ForKey()]; !ok {
-		// 	eb.EventCountsByTable[event.TableName.ForKey()] = &EventCounter{}
-		// }
 		eventCounter.CountEvent(event)
 		eb.EventCounts.CountEvent(event)
 	}
