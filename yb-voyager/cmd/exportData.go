@@ -519,7 +519,10 @@ func getFinalTableColumnList() (map[string]string, []*sqlname.SourceName, map[*s
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
-	tablesColumnList, unsupportedTableColumnsMap := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
+	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
+	if err != nil {
+		utils.ErrExit("get columns with supported types: %v", err)
+	}
 	if len(unsupportedTableColumnsMap) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
 		fmt.Println("The following columns data export is unsupported:")
@@ -528,6 +531,9 @@ func getFinalTableColumnList() (map[string]string, []*sqlname.SourceName, map[*s
 		}
 		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		} else {
+			// Print this in yellow color to make it more visible
+			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the target database."))
 		}
 
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)

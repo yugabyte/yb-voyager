@@ -35,7 +35,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT"}
+var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
 
 type YugabyteDB struct {
 	source *Source
@@ -385,6 +385,7 @@ func (yb *YugabyteDB) FilterUnsupportedTables(tableList []*sqlname.SourceName, u
 		if len(tableColumnUdtTypes) == 0 {
 			continue
 		}
+
 		// If any of the udt_types of the arrays are in the enum types then add the table to the unsupported tables list
 		// udt_type looks like status_enum[] whereas enum_type looks like status_enum
 		for _, udtType := range tableColumnUdtTypes {
@@ -415,8 +416,6 @@ func (yb *YugabyteDB) FilterUnsupportedTables(tableList []*sqlname.SourceName, u
 		}
 	}
 
-	fmt.Println("filteredTableList: ", filteredTableList)
-
 	return filteredTableList, unsupportedTables
 }
 
@@ -442,31 +441,25 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	return nonEmptyTableList, emptyTableList
 }
 
-func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
-	query := fmt.Sprintf(`SELECT a.attname AS column_name, t.typname::regtype AS data_type, rol.rolname AS data_type_owner 
-						FROM pg_attribute AS a 
-						JOIN pg_type AS t ON t.oid = a.atttypid 
-						JOIN pg_class AS c ON c.oid = a.attrelid 
-						JOIN pg_namespace AS n ON n.oid = c.relnamespace 
-						JOIN pg_roles AS rol ON rol.oid = t.typowner 
-						WHERE c.relname = '%s' AND n.nspname = '%s' AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');`, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
 	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for table columns: %v\n", query, err)
+		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var column, dataType, dataTypeOwner string
 		err = rows.Scan(&column, &dataType, &dataTypeOwner)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for table columns: %v\n", err)
+			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
 		}
 		columns = append(columns, column)
 		dataTypes = append(dataTypes, dataType)
 		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
 	}
-	return columns, dataTypes, dataTypesOwner
+	return columns, dataTypes, dataTypesOwner, nil
 }
 
 func (yb *YugabyteDB) getDatatypesThatAreUserDefinedTypesOtherThanEnumOrDomain(columns, dataTypes []string) []string {
@@ -495,11 +488,14 @@ func (yb *YugabyteDB) getDatatypesThatAreUserDefinedTypesOtherThanEnumOrDomain(c
 	return userDefinedDataTypes
 }
 
-func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string) {
+func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error) {
 	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
-		columns, dataTypes, _ := yb.GetTableColumns(tableName)
+		columns, dataTypes, _, err := yb.GetTableColumns(tableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
+		}
 		userDefinedDataTypes := yb.getDatatypesThatAreUserDefinedTypesOtherThanEnumOrDomain(columns, dataTypes)
 		yugabyteUnsupportedDataTypesForDbzm = append(yugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
 		var supportedColumnNames []string
@@ -519,33 +515,9 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 			supportedTableColumnsMap[tableName] = supportedColumnNames
 			unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
 		}
-		// if len(unsupportedColumnNames) > 0 {
-		// 	// Check if columns are nullable or not
-		// 	// select column_name, is_nullable FROM information_schema.columns where column_name in ('texts') and table_name = 'array_of_text_table' and is_nullable = 'YES';
-		// 	// If any of the columns are not nullable then we should ask the user to remove the NULL constrain and exit
-		// 	query := fmt.Sprintf("SELECT column_name FROM information_schema.columns WHERE table_name = '%s' AND column_name IN ('%s') AND is_nullable = 'NO';", tableName.ObjectName.Unquoted, strings.Join(unsupportedColumnNames, `', '`))
-		// 	rows, err := yb.conn.Query(context.Background(), query)
-		// 	if err != nil {
-		// 		utils.ErrExit("error in querying(%q) source database for checking nullable columns: %v\n", query, err)
-		// 	}
-		// 	defer rows.Close()
-		// 	nonNullableColumns := make([]string, 0)
-		// 	for rows.Next() {
-		// 		var column string
-		// 		err = rows.Scan(&column)
-		// 		if err != nil {
-		// 			utils.ErrExit("error in scanning query rows for checking nullable columns: %v\n", err)
-		// 		}
-		// 		nonNullableColumns = append(nonNullableColumns, column)
-		// 	}
-		// 	if len(nonNullableColumns) > 0 {
-		// 		utils.ErrExit("The following columns are not nullable and are of unsupported data type: %v in table %v. Please remove the NOT NULL constraint and try again as these columns will have to be dropped to continue", nonNullableColumns, tableName)
-		// 	}
-		// }
 	}
-	fmt.Println("tableColumnMap: ", supportedTableColumnsMap)
-	fmt.Println("unsupportedColumnNames: ", unsupportedTableColumnsMap)
-	return supportedTableColumnsMap, unsupportedTableColumnsMap
+
+	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
 func (yb *YugabyteDB) ParentTableOfPartition(table *sqlname.SourceName) string {

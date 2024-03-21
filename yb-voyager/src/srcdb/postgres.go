@@ -60,6 +60,14 @@ AND NOT a.attisdropped
 AND t.relkind IN ('r', 'P')
 AND seq.relkind = 'S';`
 
+const GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB = `SELECT a.attname AS column_name, t.typname::regtype AS data_type, rol.rolname AS data_type_owner 
+FROM pg_attribute AS a 
+JOIN pg_type AS t ON t.oid = a.atttypid 
+JOIN pg_class AS c ON c.oid = a.attrelid 
+JOIN pg_namespace AS n ON n.oid = c.relnamespace 
+JOIN pg_roles AS rol ON rol.oid = t.typowner 
+WHERE c.relname = '%s' AND n.nspname = '%s' AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');`
+
 type PostgreSQL struct {
 	source *Source
 
@@ -416,37 +424,35 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+func (pg *PostgreSQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
-	query := fmt.Sprintf(`SELECT a.attname AS column_name, t.typname AS data_type, rol.rolname AS data_type_owner 
-						FROM pg_attribute AS a JOIN pg_type AS t ON t.oid = a.atttypid 
-						JOIN pg_class AS c ON c.oid = a.attrelid 
-						JOIN pg_namespace AS n ON n.oid = c.relnamespace 
-						JOIN pg_roles AS rol ON rol.oid = t.typowner 
-						WHERE c.relname = '%s' AND n.nspname = '%s' AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');`, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for table columns: %v\n", query, err)
+		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var column, dataType, dataTypeOwner string
 		err = rows.Scan(&column, &dataType, &dataTypeOwner)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for table columns: %v\n", err)
+			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
 		}
 		columns = append(columns, column)
 		dataTypes = append(dataTypes, dataType)
 		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
 	}
-	return columns, dataTypes, dataTypesOwner
+	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string) {
+func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error) {
 	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
-		columns, dataTypes, _ := pg.GetTableColumns(tableName)
+		columns, dataTypes, _, err := pg.GetTableColumns(tableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
+		}
 		var unsupportedColumnNames []string
 		var supportedColumnNames []string
 		for i, column := range columns {
@@ -464,33 +470,9 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 			supportedTableColumnsMap[tableName] = supportedColumnNames
 			unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
 		}
-		// if len(unsupportedColumnNames) > 0 {
-		// 	// Check if columns are nullable or not
-		// 	// select column_name, is_nullable FROM information_schema.columns where column_name in ('texts') and table_name = 'array_of_text_table' and is_nullable = 'YES';
-		// 	// If any of the columns are not nullable then we should ask the user to remove the NULL constrain and exit
-		// 	query := fmt.Sprintf("SELECT column_name FROM information_schema.columns WHERE table_name = '%s' AND column_name IN ('%s') AND is_nullable = 'NO';", tableName.ObjectName.Unquoted, strings.Join(unsupportedColumnNames, `', '`))
-		// 	rows, err := pg.db.Query(context.Background(), query)
-		// 	if err != nil {
-		// 		utils.ErrExit("error in querying(%q) source database for checking nullable columns: %v\n", query, err)
-		// 	}
-		// 	defer rows.Close()
-		// 	nonNullableColumns := make([]string, 0)
-		// 	for rows.Next() {
-		// 		var column string
-		// 		err = rows.Scan(&column)
-		// 		if err != nil {
-		// 			utils.ErrExit("error in scanning query rows for checking nullable columns: %v\n", err)
-		// 		}
-		// 		nonNullableColumns = append(nonNullableColumns, column)
-		// 	}
-		// 	if len(nonNullableColumns) > 0 {
-		// 		utils.ErrExit("The following columns are not nullable and are of unsupported data type: %v in table %v. Please remove the NOT NULL constraint and try again as these columns will have to be dropped to continue", nonNullableColumns, tableName)
-		// 	}
-		// }
 	}
-	fmt.Println("Supported Table Columns: ", supportedTableColumnsMap)
-	fmt.Println("Unsupported Table Columns: ", unsupportedTableColumnsMap)
-	return supportedTableColumnsMap, unsupportedTableColumnsMap
+
+	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
 func (pg *PostgreSQL) ParentTableOfPartition(table *sqlname.SourceName) string {

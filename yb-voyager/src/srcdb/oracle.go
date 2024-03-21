@@ -404,34 +404,37 @@ func (ora *Oracle) GetAllSequences() []string {
 	return nil
 }
 
-func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	rows, err := ora.db.Query(query)
 	if err != nil {
-		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
+		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
 	}
 	for rows.Next() {
 		var column, dataType, dataTypeOwner string
 		err := rows.Scan(&column, &dataType, &dataTypeOwner)
 		if err != nil {
-			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
+			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
 		}
 		columns = append(columns, column)
 		dataTypes = append(dataTypes, dataType)
 		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
 	}
-	return columns, dataTypes, dataTypesOwner
+	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string) {
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error) {
 	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	if isStreamingEnabled {
 		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, "NCHAR", "NVARCHAR2")
 	}
 	for _, tableName := range tableList {
-		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
+		columns, dataTypes, dataTypesOwner, err := ora.GetTableColumns(tableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
+		}
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
@@ -452,7 +455,7 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 		}
 	}
 
-	return supportedTableColumnsMap, unsupportedTableColumnsMap
+	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
 func (ora *Oracle) GetServers() []string {
