@@ -1151,7 +1151,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 			continue
 		}
 		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
-		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table.ForUserQuery(), migrationUUID)
 		_, err := yb.Exec(query)
 		if err != nil {
 			log.Errorf("error cleaning up table %s for migrationUUID=%s: %v", table, migrationUUID, err)

@@ -706,7 +706,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 			continue
 		}
 		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
-		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table.ForUserQuery(), migrationUUID)
 		_, err := tdb.conn.ExecContext(context.Background(), query)
 		if err != nil {
 			log.Errorf("error cleaning up table %s: %v", table, err)
