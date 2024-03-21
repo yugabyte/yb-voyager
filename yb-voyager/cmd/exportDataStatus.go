@@ -52,6 +52,16 @@ type ExportSnapshotStatus struct {
 	Tables map[string]*TableExportStatus `json:"tables"`
 }
 
+func (e *ExportSnapshotStatus) GetTableStatusByTableName(tableName string) []*TableExportStatus {
+	var tableStatus []*TableExportStatus
+	for _, v := range e.Tables {
+		if v.TableName == tableName {
+			tableStatus = append(tableStatus, v)
+		}
+	}
+	return tableStatus
+}
+
 func NewExportSnapshotStatus() *ExportSnapshotStatus {
 	return &ExportSnapshotStatus{
 		Tables: make(map[string]*TableExportStatus),
@@ -307,6 +317,7 @@ func printExportedTables(exportedTables []string) {
 	output := "Exported tables:- {"
 	nt := len(exportedTables)
 	for i := 0; i < nt; i++ {
+		//It is fine to print the leaf partititons here exported from pg_dump.
 		output += exportedTables[i]
 		if i < nt-1 {
 			output += ",  "

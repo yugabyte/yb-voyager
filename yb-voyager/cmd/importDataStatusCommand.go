@@ -72,6 +72,7 @@ type tableMigStatusOutputRow struct {
 	totalCount         int64
 	importedCount      int64
 	percentageComplete float64
+	// leafPartitions     []string
 }
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
@@ -98,10 +99,10 @@ func runImportDataStatusCmd() error {
 			uiTable.AddRow(row.tableName, row.fileName, row.status, totalCount, importedCount, perc)
 		} else {
 			if i == 0 {
-				addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
+				addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
 			}
 			// case of importData where row counts is available
-			uiTable.AddRow(row.tableName, row.fileName, row.status, row.totalCount, row.importedCount, perc)
+			uiTable.AddRow(row.tableName, row.status, row.totalCount, row.importedCount, perc)
 		}
 	}
 
@@ -159,10 +160,33 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		}
 	}
 
+	outputRows := make(map[string]*tableMigStatusOutputRow)
+
 	for _, dataFile := range dataFileDescriptor.DataFileList {
 		row, err := prepareRowWithDatafile(dataFile, state)
 		if err != nil {
 			return nil, fmt.Errorf("prepare row with datafile: %w", err)
+		}
+		if importerRole == IMPORT_FILE_ROLE {
+			table = append(table, row)
+		} else {
+			if outputRows[row.tableName] == nil {
+				outputRows[row.tableName] = &tableMigStatusOutputRow{}
+			}
+			outputRows[row.tableName].tableName = row.tableName
+			outputRows[row.tableName].schemaName = row.schemaName
+			outputRows[row.tableName].totalCount += row.totalCount
+			outputRows[row.tableName].importedCount += row.importedCount
+		}
+	}
+	for _, row := range outputRows {
+		row.percentageComplete = float64(row.importedCount) * 100.0 / float64(row.totalCount)
+		if row.percentageComplete == 100 {
+			row.status = "DONE"
+		} else if row.percentageComplete == 0 {
+			row.status = "NOT_STARTED"
+		} else {
+			row.status = "MIGRATING"
 		}
 		table = append(table, row)
 	}

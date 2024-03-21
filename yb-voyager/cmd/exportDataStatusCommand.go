@@ -103,8 +103,6 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 }
 
 func runExportDataStatusCmd() error {
-	tableMap := make(map[string]string)
-	dataDir := filepath.Join(exportDir, "data")
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return fmt.Errorf("error while getting migration status record: %v", err)
@@ -113,9 +111,6 @@ func runExportDataStatusCmd() error {
 	source = *msr.SourceDBConf
 	sqlname.SourceDBType = source.DBType
 	var finalFullTableName string
-	if source.DBType == "postgresql" {
-		tableMap = getMappingForTableNameVsTableFileName(dataDir, true)
-	}
 	var outputRows []*exportTableMigStatusOutputRow
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
@@ -123,26 +118,51 @@ func runExportDataStatusCmd() error {
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 	}
+
+	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(tableList, exportStatusSnapshot)
+	if err != nil {
+		return fmt.Errorf("error while getting exported snapshot rows map: %v", err)
+	}
+
+	leafPartitions := getLeafPartitionsFromRootTable(tableList)
+
 	for _, tableName := range tableList {
 		sqlTableName := sqlname.NewSourceNameFromQualifiedName(tableName)
-		finalFullTableName = sqlTableName.ObjectName.MinQuoted
-		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted != "public" {
-			finalFullTableName = sqlTableName.Qualified.MinQuoted
+		finalFullTableName = sqlTableName.Qualified.MinQuoted
+		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted == "public" {
+			finalFullTableName = sqlTableName.ObjectName.MinQuoted
 		}
-
-		if source.DBType == POSTGRESQL {
-			//for the cases where partitioned table will not have datafile but we have it in tableList
-			//TODO: fix with partition fix later
-			_, ok := tableMap[sqlTableName.Qualified.MinQuoted]
-			if !ok {
-				continue
+		displayTableName := finalFullTableName
+		if source.DBType == POSTGRESQL && leafPartitions[finalFullTableName] != nil {
+			partitions := strings.Join(leafPartitions[finalFullTableName], ", ")
+			displayTableName = fmt.Sprintf("%s (%s)", finalFullTableName, partitions)
+		}
+		finalStatus := exportedSnapshotStatus[finalFullTableName][0]
+		if len(exportedSnapshotStatus[finalFullTableName]) > 1 { // status for root partition wrt leaf partitions
+			exportingLeaf := 0
+			doneLeaf := 0
+			not_started := 0
+			for _, status := range exportedSnapshotStatus[finalFullTableName] {
+				if status == "EXPORTING" {
+					exportingLeaf++
+				} else if status == "DONE" {
+					doneLeaf++
+				} else {
+					not_started++
+				}
+			}
+			if exportingLeaf > 0 {
+				finalStatus = "EXPORTING"
+			} else if doneLeaf == len(exportedSnapshotStatus[finalFullTableName]) {
+				finalStatus = "DONE"
+			} else if not_started == len(exportedSnapshotStatus[finalFullTableName]) {
+				finalStatus = "NOT_STARTED"
 			}
 		}
-		tableStatus := exportStatusSnapshot.Tables[sqlTableName.Qualified.MinQuoted]
 		row := &exportTableMigStatusOutputRow{
-			tableName:     finalFullTableName,
-			status:        tableStatus.Status,
-			exportedCount: tableStatus.ExportedRowCountSnapshot,
+			tableName:     displayTableName,
+			status:        finalStatus,
+			exportedCount: exportedSnapshotRow[finalFullTableName],
 		}
 		outputRows = append(outputRows, row)
 	}
