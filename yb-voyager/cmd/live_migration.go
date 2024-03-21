@@ -28,6 +28,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"

@@ -80,6 +80,11 @@ main() {
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
+	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
+	then
+		"${TEST_DIR}/add-pk-from-alter-to-create"
+	fi
+
 	step "Import schema."
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
@@ -140,20 +145,20 @@ main() {
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back false --yes
 
 	for ((i = 0; i < 5; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
+			exit 1
         fi
     else
         break
     fi
 	done
-	
-	
+
 
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]

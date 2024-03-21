@@ -269,7 +269,7 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	var filteredTableList, unsupportedTableList []*sqlname.SourceName
 
 	// query to find unsupported queue tables
@@ -287,8 +287,11 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useD
 		}
 		tableName = fmt.Sprintf(`"%s"`, tableName)
 		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
-		if slices.Contains(tableList, tableSrcName) {
-			unsupportedTableList = append(unsupportedTableList, tableSrcName)
+
+		for _, table := range tableList {
+			if table.Qualified == tableSrcName.Qualified {
+				unsupportedTableList = append(unsupportedTableList, tableSrcName)
+			}
 		}
 	}
 
@@ -301,8 +304,9 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useD
 		}
 	}
 
+	logMiningFlushTable := utils.GetLogMiningFlushTableName(migrationUUID)
 	for _, table := range tableList {
-		if !slices.Contains(unsupportedTableList, table) && table.ObjectName.MinQuoted != "LOG_MINING_FLUSH" {
+		if !slices.Contains(unsupportedTableList, table) && table.ObjectName.MinQuoted != logMiningFlushTable {
 			filteredTableList = append(filteredTableList, table)
 		}
 	}
@@ -370,6 +374,10 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 }
 
 func (ora *Oracle) ParentTableOfPartition(table *sqlname.SourceName) string {
+	panic("not implemented")
+}
+
+func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
 	panic("not implemented")
 }
 
@@ -511,8 +519,8 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName
 
 func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("Clearing migration state for migration %q", migrationUUID)
-	log.Infof("Dropping table LOG_MINING_FLUSH")
-	logMiningFlushTableName := "LOG_MINING_FLUSH"
+	logMiningFlushTableName := utils.GetLogMiningFlushTableName(migrationUUID)
+	log.Infof("Dropping table %s", logMiningFlushTableName)
 	_, err := ora.db.Exec(fmt.Sprintf("DROP TABLE %s", logMiningFlushTableName))
 	if err != nil {
 		if strings.Contains(err.Error(), "ORA-00942") {

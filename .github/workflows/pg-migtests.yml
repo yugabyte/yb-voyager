@@ -38,6 +38,13 @@ jobs:
           distribution: "temurin"
           java-version: "11"
           check-latest: true
+      - name: Cache local Maven repository
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
       - name: "Enable postgres with wal_level as logical"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
@@ -113,9 +120,12 @@ jobs:
 
       - name: "TEST: pg-partitions"
         run: migtests/scripts/run-test.sh pg/partitions
+        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
+
 
       - name: "TEST: pg-partitions with (table-list)"
         run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region' migtests/scripts/run-test.sh pg/partitions 
+        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
 
       # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
       # Fixed in 2.17.1.0-b368
@@ -169,13 +179,17 @@ jobs:
       # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
       - name: "TEST: pg-live-migration-multiple-schemas"
         run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
+        if: matrix.version != '2.16.7.0-b59'
 
       - name: "TEST: pg-basic-public-fall-forward-test"
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
-
         if: matrix.version != '2.16.7.0-b59'
       
       - name: "TEST: pg-basic-non-public-fall-back-test"
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
         if: matrix.version != '2.16.7.0-b59'
+
+      - name: "TEST: pg-live-migration-partitions-fall-forward"
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
+        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
 

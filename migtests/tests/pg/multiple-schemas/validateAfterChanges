@@ -1,9 +1,23 @@
 #!/usr/bin/env python3
 
 import yb
+import common
 
 def main():
-	yb.run_checks(migration_completed_checks)
+	test_type_flags = common.valparser()
+
+	if test_type_flags['ff_enabled'] == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		change_expected_values()
+		migration_completed_checks_ff()
+	elif test_type_flags['fb_enabled'] == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		change_expected_values()
+		migration_completed_checks_fb()
+	else:
+		migration_completed_checks_yb()
 
 
 #=============================================================================
@@ -26,6 +40,48 @@ EXPECTED_ROW_COUNT_SCHEMA2 = {
 }
 EXPECTED_TOTAL_SCHEMA2=25
 
+EXPECTED_ROW_COUNT_FF = {
+	'ext_test': 1,    
+	'tt': 1,
+	'audit': 6,
+	'recipients': 2,    
+	'session_log': 0
+}
+EXPECTED_TOTAL_FF=20
+
+EXPECTED_ROW_COUNT_SCHEMA2_FF = {
+	'ext_test': 1,    
+	'tt': 6,
+	'audit': 6,
+	'recipients': 3,    
+	'session_log': 0
+}
+EXPECTED_TOTAL_SCHEMA2_FF=35
+
+def change_expected_values():
+
+	global EXPECTED_TOTAL, EXPECTED_TOTAL_SCHEMA2
+
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
+
+	for table_name, row_count in EXPECTED_ROW_COUNT_SCHEMA2_FF.items():
+		EXPECTED_ROW_COUNT_SCHEMA2[table_name] = row_count
+	
+	EXPECTED_TOTAL = EXPECTED_TOTAL_FF
+	EXPECTED_TOTAL_SCHEMA2 = EXPECTED_TOTAL_SCHEMA2_FF
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_ff():
+	print("Running tests on PG source replica")
+	yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_fb():
+	print("Running tests on PG source")
+	yb.run_checks(migration_completed_checks, db_type="source")
 
 def check_validations_per_schema(tgt,schema_name):
 	table_list = tgt.get_table_names(schema_name)
@@ -77,7 +133,6 @@ def check_validations_per_schema(tgt,schema_name):
 	assert res_total_proc == EXPECTED_TOTAL+6
 
 
-
 def migration_completed_checks(tgt):
 
 	check_validations_per_schema(tgt, "public")
@@ -96,10 +151,13 @@ def migration_completed_checks(tgt):
 	print(f"schema set in search_path - {schema_set}")
 	assert schema_set == 'schema2'
 
-	global EXPECTED_ROW_COUNT
 	global EXPECTED_TOTAL
-	EXPECTED_ROW_COUNT = EXPECTED_ROW_COUNT_SCHEMA2
-	EXPECTED_TOTAL=EXPECTED_TOTAL_SCHEMA2
+
+	for table_name, row_count in EXPECTED_ROW_COUNT_SCHEMA2.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
+	
+	EXPECTED_TOTAL = EXPECTED_TOTAL_SCHEMA2
+
 	check_validations_per_schema(tgt, "schema2")
 
 	INSERT_QUERY_EXT_TEST = "insert into ext_test(password) values (crypt('tomspassword', gen_salt('bf')));"

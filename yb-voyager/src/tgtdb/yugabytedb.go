@@ -201,7 +201,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	if yb.tconf.Parallelism == 0 {
+	if yb.tconf.Parallelism <= 0 {
 		yb.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
@@ -577,12 +577,12 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			ybBatch.Queue(stmt)
 		} else {
 			stmt := event.GetPreparedSQLStmt(yb.tconf.TargetDBType)
-
+			psName := event.GetPreparedStmtName()
 			params := event.GetParams()
-			if _, ok := stmtToPrepare[stmt]; !ok {
-				stmtToPrepare[event.GetPreparedStmtName()] = stmt
+			if _, ok := stmtToPrepare[psName]; !ok {
+				stmtToPrepare[psName] = stmt
 			}
-			ybBatch.Queue(stmt, params...)
+			ybBatch.Queue(psName, params...)
 		}
 	}
 

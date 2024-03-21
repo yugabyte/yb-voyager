@@ -211,7 +211,7 @@ func (ms *MySQL) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	return tableList, nil
 }
 
@@ -281,6 +281,10 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 }
 
 func (ms *MySQL) ParentTableOfPartition(table *sqlname.SourceName) string {
+	panic("not implemented")
+}
+
+func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
 	panic("not implemented")
 }
 
