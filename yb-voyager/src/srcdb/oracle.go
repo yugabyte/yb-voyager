@@ -412,7 +412,7 @@ func (ora *Oracle) GetAllSequences() []string {
 	return nil
 }
 
-func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
+func (ora *Oracle) getTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	rows, err := ora.db.Query(query)
@@ -439,7 +439,7 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, "NCHAR", "NVARCHAR2")
 	}
 	for _, tableName := range tableList {
-		columns, dataTypes, dataTypesOwner, err := ora.GetTableColumns(tableName)
+		columns, dataTypes, dataTypesOwner, err := ora.getTableColumns(tableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}

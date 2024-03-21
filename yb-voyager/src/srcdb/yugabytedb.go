@@ -340,7 +340,12 @@ func (yb *YugabyteDB) GetCharset() (string, error) {
 }
 
 func (yb *YugabyteDB) getAllEnumTypesInSchema(schemaName string) []string {
-	query := fmt.Sprintf(`SELECT t.typname AS enum_type FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid JOIN pg_namespace n ON t.typnamespace = n.oid WHERE n.nspname = '%s' GROUP BY n.nspname, t.typname;`, schemaName)
+	query := fmt.Sprintf(`SELECT t.typname AS enum_type 
+						FROM pg_enum e 
+						JOIN pg_type t ON e.enumtypid = t.oid 
+						JOIN pg_namespace n ON t.typnamespace = n.oid 
+						WHERE n.nspname = '%s' 
+						GROUP BY n.nspname, t.typname;`, schemaName)
 	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for enum types: %v\n", query, err)
@@ -445,7 +450,7 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	return nonEmptyTableList, emptyTableList
 }
 
-func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
+func (yb *YugabyteDB) getTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
 	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
 	rows, err := yb.conn.Query(context.Background(), query)
@@ -466,7 +471,8 @@ func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, 
 	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (yb *YugabyteDB) getDatatypesThatAreUserDefinedTypesOtherThanEnumOrDomain(columns, dataTypes []string) []string {
+func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(dataTypes []string) []string {
+	// Currently all UDTs other than enums and domain are unsupported
 	query := fmt.Sprintf(`SELECT typname AS data_type, 
 						CASE WHEN n.nspname NOT IN ('pg_catalog', 'information_schema') 
 						AND t.typtype <> 'e' AND t.typtype <> 'd' THEN 'Yes' 
@@ -496,11 +502,11 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
-		columns, dataTypes, _, err := yb.GetTableColumns(tableName)
+		columns, dataTypes, _, err := yb.getTableColumns(tableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}
-		userDefinedDataTypes := yb.getDatatypesThatAreUserDefinedTypesOtherThanEnumOrDomain(columns, dataTypes)
+		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(dataTypes)
 		yugabyteUnsupportedDataTypesForDbzm = append(yugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string

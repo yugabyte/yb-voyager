@@ -228,7 +228,7 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
+func (ms *MySQL) getTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
 	var columns, dataTypes []string
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	rows, err := ms.db.Query(query)
@@ -255,7 +255,7 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
-		columns, dataTypes, _, err := ms.GetTableColumns(tableName)
+		columns, dataTypes, _, err := ms.getTableColumns(tableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get columns of table %q: %w", tableName.String(), err)
 		}

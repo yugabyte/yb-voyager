@@ -424,7 +424,7 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
+func (pg *PostgreSQL) getTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
 	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
 	rows, err := pg.db.Query(context.Background(), query)
@@ -449,7 +449,7 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
-		columns, dataTypes, _, err := pg.GetTableColumns(tableName)
+		columns, dataTypes, _, err := pg.getTableColumns(tableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}

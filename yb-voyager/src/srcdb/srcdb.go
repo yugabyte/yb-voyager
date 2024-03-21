@@ -43,7 +43,6 @@ type SourceDB interface {
 	FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error)
-	GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error)
 	ParentTableOfPartition(table *sqlname.SourceName) string
 	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
 	GetAllSequences() []string

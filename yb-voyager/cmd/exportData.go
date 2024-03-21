@@ -578,7 +578,14 @@ func getFinalTableColumnList() (map[string]string, []*sqlname.SourceName, map[*s
 		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		} else {
-			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the target database."))
+			var importingDatabase string
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				importingDatabase = "target"
+			} else {
+				importingDatabase = "source/source-replica"
+			}
+
+			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the %s database.", importingDatabase))
 		}
 
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
