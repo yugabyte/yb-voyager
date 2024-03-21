@@ -208,7 +208,7 @@ main() {
 	step "Initiating cutover to source-replica"
 	yb-voyager initiate cutover to source-replica --export-dir ${EXPORT_DIR} --yes
 
-	for ((i = 0; i < 15; i++)); do
+	for ((i = 0; i < 10; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source-replica status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
