@@ -289,9 +289,9 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	source = *msr.SourceDBConf
 	_, noDefaultSchema := getDefaultSourceSchemaName()
 
-	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) sqlname.NameTuple {
+	allTables := lo.Uniq(lo.Map(importFileTasks, func(task *ImportFileTask, _ int) sqlname.NameTuple {
 		return task.TableName
-	})
+	}))
 	slices.SortFunc(allTables, func(a, b sqlname.NameTuple) bool {
 		return a.ForKey() < b.ForKey()
 	})
