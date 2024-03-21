@@ -354,7 +354,8 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "source-replica"
 	}
 
-	snapshotRowCount := make(map[string]int64)
+	// snapshotRowCount := make(map[string]int64)
+	snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
 
 	if importerRole == IMPORT_FILE_ROLE {
 		for _, tableName := range tableList {
@@ -362,10 +363,10 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 			if err != nil {
 				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
 			}
-			snapshotRowCount[tableName.ForKey()] = tableRowCount
+			snapshotRowCount.Put(tableName, tableRowCount) // [tableName.ForKey()] = tableRowCount
 		}
 	} else {
-		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType, []string{}) //TODO: FIX WITH STATS
+		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType, tableList) //TODO: FIX WITH STATS
 		if err != nil {
 			utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 		}
@@ -376,7 +377,8 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
 		s, t := tableName.ForCatalogQuery()
-		uitable.AddRow(s, t, snapshotRowCount[tableName.ForKey()])
+		rowCount, _ := snapshotRowCount.Get(tableName)
+		uitable.AddRow(s, t, rowCount)
 	}
 	if len(tableList) > 0 {
 		fmt.Printf("\n")
@@ -816,8 +818,8 @@ func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *Export
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-//TODO: FIX WITH STATS
-func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]int64, error) {
+// TODO: FIX WITH STATS
+func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -832,45 +834,23 @@ func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]i
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	}
 
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return nil, fmt.Errorf("get migration status record: %w", err)
+	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+	dataFilePathNtMap := map[string]sqlname.NameTuple{}
+	for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+		}
+		dataFilePathNtMap[fileEntry.FilePath] = nt
 	}
-	sourceSchemaCount := len(strings.Split(msr.SourceDBConf.Schema, "|"))
 
-	snapshotRowsMap := make(map[string]int64)
-	for _, table := range tableList {
-		parts := strings.Split(table, ".")
-		schemaName := ""
-		tableName := parts[0]
-		if len(parts) > 1 {
-			schemaName = parts[0]
-			tableName = parts[1]
+	for dataFilePath, nt := range dataFilePathNtMap {
+		snapshotRowCount, err := state.GetImportedRowCount(dataFilePath, nt) //TODO: FIX
+		if err != nil {
+			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
 		}
-		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case
-			schemaName = ""
-		}
-		if schemaName == "public" || schemaName == "" {
-			table = tableName
-		}
-		//Now multiple files can be there for a table in case of partitions
-		dataFiles := snapshotDataFileDescriptor.GetDataFileEntriesByTableName(table)
-		if len(dataFiles) == 0 {
-			dataFile := &datafile.FileEntry{
-				FilePath:  "",
-				TableName: table,
-				RowCount:  0,
-				FileSize:  0,
-			}
-			dataFiles = append(dataFiles, dataFile)
-		}
-		for _, dataFile := range dataFiles {
-			snapshotRowCount, err := state.GetImportedRowCount(dataFile.FilePath, sqlname.NameTuple{}) //TODO: FIX
-			if err != nil {
-				return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", table, err)
-			}
-			snapshotRowsMap[table] += snapshotRowCount
-		}
+		existingRows, _ := snapshotRowsMap.Get(nt)
+		snapshotRowsMap.Put(nt, existingRows+snapshotRowCount)
 	}
 	return snapshotRowsMap, nil
 }

@@ -100,6 +100,10 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
 	tableList := msr.TableListExportedFromSource
+	tableNts, err := getImportTableList(tableList)
+	if err != nil {
+		utils.ErrExit("getting name tuples from table list: %v", err)
+	}
 	uitbl := uitable.New()
 	uitbl.MaxColWidth = 50
 	uitbl.Wrap = true
@@ -136,19 +140,19 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
-	var targetImportedSnapshotRowsMap map[string]int64
+	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if msr.TargetDBConf != nil {
 		//TODO: FIX WITH STATS
-		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableList)
+		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableNts)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for target DB: %w\n", err)
 		}
 	}
 
-	replicaImportedSnapshotRowsMap := make(map[string]int64)
+	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if fFEnabled {
 		//TODO: FIX WITH STATS
-		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableList)
+		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableNts)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for source-replica DB: %w\n", err)
 		}
@@ -252,7 +256,7 @@ func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *
 	}
 }
 
-func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf, snapshotImportedRowsMap map[string]int64) error {
+func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
 	switch row.DBType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -280,7 +284,7 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	}
 
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		row.ImportedSnapshotRows = snapshotImportedRowsMap[tableName] // TODO: FIX table.ForKey()
+		row.ImportedSnapshotRows, _ = snapshotImportedRowsMap.Get(sqlname.NameTuple{}) // TODO: FIX table.ForKey()
 	}
 
 	// TODO:TABLENAME fix!
