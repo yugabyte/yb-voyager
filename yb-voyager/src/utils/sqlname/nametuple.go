@@ -105,26 +105,18 @@ func (t1 NameTuple) Equals(t2 NameTuple) bool {
 	return reflect.DeepEqual(t1, t2)
 }
 
-// func (t *NameTuple) SetMode(mode string) {
-// 	t.Mode = mode
-// 	switch mode {
-// 	case TARGET_DB_IMPORTER_ROLE:
-// 		t.CurrentName = t.TargetName
-// 	case SOURCE_DB_IMPORTER_ROLE:
-// 		t.CurrentName = t.SourceName
-// 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-// 		t.CurrentName = t.SourceName
-// 	case SOURCE_DB_EXPORTER_ROLE:
-// 		t.CurrentName = t.SourceName
-// 	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
-// 		t.CurrentName = t.TargetName
-// 	default:
-// 		t.CurrentName = nil
-// 	}
-// }
-
 func (t NameTuple) String() string {
-	return t.CurrentName.String()
+	var curname, tname, sname string
+	if t.CurrentName != nil {
+		curname = t.CurrentName.String()
+	}
+	if t.SourceName != nil {
+		sname = t.SourceName.String()
+	}
+	if t.TargetName != nil {
+		tname = t.TargetName.String()
+	}
+	return fmt.Sprintf("[CurrentName=(%s) SourceName=(%s) TargetName=(%s)]", curname, sname, tname)
 }
 
 func (t NameTuple) MatchesPattern(pattern string) (bool, error) {

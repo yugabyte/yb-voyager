@@ -152,11 +152,11 @@ jobs:
           GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
         run: migtests/scripts/gcs/create_gcs_credentials_file
 
-      # - name: "TEST: import-data-file"
-      #   env:
-      #     AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
-      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
-      #   run: migtests/tests/import-file/run-import-file-test
+      - name: "TEST: import-data-file"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
+        run: migtests/tests/import-file/run-import-file-test
 
       - name: "TEST: analyze-schema"
         run: migtests/tests/analyze-schema/run-analyze-schema-test

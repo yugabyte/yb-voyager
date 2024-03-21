@@ -406,8 +406,10 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 		t.CurrentName = t.SourceName
 	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
 		t.CurrentName = t.TargetName
+	case IMPORT_FILE_ROLE:
+		t.CurrentName = t.TargetName
 	default:
-		t.CurrentName = nil
+		panic(fmt.Errorf("unknown role %s", role))
 	}
 	return t
 }

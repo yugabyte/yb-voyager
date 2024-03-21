@@ -178,7 +178,7 @@ func prepareImportFileTasks() []*ImportFileTask {
 		}
 		tableNameTuple, err := namereg.NameReg.LookupTableName(table)
 		if err != nil {
-			utils.ErrExit("err: %v", err)
+			utils.ErrExit("lookup table name in name registry: %v", err)
 		}
 		for _, filePath := range filePaths {
 			task := &ImportFileTask{
