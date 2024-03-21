@@ -68,8 +68,8 @@ type DebeziumValueConverter struct {
 	schemaRegistryTarget   *schemareg.SchemaRegistry
 	targetSchema           string
 	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
-	converterFnCache       map[sqlname.NameTuple][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
-	dbzmColumnSchemasCache map[sqlname.NameTuple][]*schemareg.ColumnSchema
+	converterFnCache       *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
+	dbzmColumnSchemasCache *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
 	targetDBType           string
 	csvReader              *stdlibcsv.Reader
 	bufReader              bufio.Reader
@@ -103,8 +103,8 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		schemaRegistrySource:   schemaRegistrySource,
 		schemaRegistryTarget:   schemaRegistryTarget,
 		valueConverterSuite:    tdbValueConverterSuite,
-		converterFnCache:       map[sqlname.NameTuple][]tgtdbsuite.ConverterFn{},
-		dbzmColumnSchemasCache: map[sqlname.NameTuple][]*schemareg.ColumnSchema{},
+		converterFnCache:       utils.NewStructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn](),
+		dbzmColumnSchemasCache: utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
 		targetDBType:           targetConf.TargetDBType,
 		targetSchema:           targetConf.Schema,
 		sourceDBType:           sourceDBType,
@@ -170,8 +170,8 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName sqlname.NameTuple, colu
 }
 
 func (conv *DebeziumValueConverter) getConverterFns(tableName sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
-	result := conv.converterFnCache[tableName]
-	colSchemas := conv.dbzmColumnSchemasCache[tableName]
+	result, _ := conv.converterFnCache.Get(tableName)
+	colSchemas, _ := conv.dbzmColumnSchemasCache.Get(tableName)
 	var colTypes []string
 	var err error
 	if result == nil {
@@ -183,8 +183,8 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName sqlname.NameTuple,
 		for i, colType := range colTypes {
 			result[i] = conv.valueConverterSuite[colType]
 		}
-		conv.converterFnCache[tableName] = result
-		conv.dbzmColumnSchemasCache[tableName] = colSchemas
+		conv.converterFnCache.Put(tableName, result)
+		conv.dbzmColumnSchemasCache.Put(tableName, colSchemas)
 	}
 	return result, colSchemas, nil
 }
@@ -203,16 +203,6 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table sqlname.
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
-	// setting tableName and schemaName as per target
-	// TODO: handle properly. (maybe as part of targetDBinterface?)
-	// TODO: handle case sensitivity/quoted table names..
-	// TODO: TABLENAME
-	// if conv.targetDBType == tgtdb.ORACLE {
-	// 	ev.TableName = strings.ToUpper(ev.TableName)
-	// }
-	// if conv.sourceDBType != tgtdb.POSTGRESQL {
-	// 	ev.SchemaName = conv.targetSchema
-	// }
 	return nil
 }
 
@@ -226,9 +216,6 @@ func (conv *DebeziumValueConverter) convertMap(tableName sqlname.NameTuple, m ma
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
-		// if conv.sourceDBType != "postgresql" && eventSchema != "public" { // In case of non-PG source and target-db-schema is non-public
-		// 	tableNameInSchemaRegistry = fmt.Sprintf("%s.%s", eventSchema, tableName)
-		// }
 		schemaRegistry = conv.schemaRegistryTarget
 	}
 	for column, value := range m {
@@ -263,17 +250,12 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() *utils.StructMap[sqln
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
 	//TODO: fix this cyclic dependency maybe using DataFileDescriptor
-	// var tableToSchema = make(map[string]map[string]map[string]string)
-	// var tableToSchema = sqlname.NameTupleMap[map[string]map[string]string]{}
 	var tableToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
 
-	// tableToSchema {<table>: {<column>:<parameters>}}
-	// for table, col := range conv.schemaRegistrySource.TableNameToSchema {
 	err := conv.schemaRegistrySource.TableNameToSchema.IterKV(func(tbl sqlname.NameTuple, tblSchema *schemareg.TableSchema) (bool, error) {
 		colSchemaMap := make(map[string]map[string]string)
-		// tableToSchema.
+
 		for _, col := range tblSchema.Columns {
-			// tableToSchema[table][col.Name] = col.Schema.Parameters
 			colSchemaMap[col.Name] = col.Schema.Parameters
 		}
 		tableToSchema.Put(tbl, colSchemaMap)
@@ -282,16 +264,5 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() *utils.StructMap[sqln
 	if err != nil {
 		utils.ErrExit("error getting table name to schema : %v", err)
 	}
-	// for _, tbl := range conv.schemaRegistrySource.TableNameToSchema.GetKeys() {
-	// 	tblSchema, _ := conv.schemaRegistrySource.TableNameToSchema.Get(tbl)
-	// 	// tableToSchema[table] = make(map[string]map[string]string)
-	// 	colSchemaMap := make(map[string]map[string]string)
-	// 	// tableToSchema.
-	// 	for _, col := range tblSchema.Columns {
-	// 		// tableToSchema[table][col.Name] = col.Schema.Parameters
-	// 		colSchemaMap[col.Name] = col.Schema.Parameters
-	// 	}
-	// 	tableToSchema.Put(tbl, colSchemaMap)
-	// }
 	return tableToSchema
 }

@@ -56,6 +56,7 @@ func init() {
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
+	// re-initilizing name registry in case it hadn't picked up the names registered on source/target/source-replica
 	err := namereg.NameReg.Init()
 	if err != nil {
 		return fmt.Errorf("init name registry again: %v", err)
@@ -214,9 +215,6 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		return nil
 	}
 	log.Debugf("handling event: %v", event)
-	// if sourceDBType == "postgresql" && event.SchemaName != "public" {
-	// 	tableName = event.SchemaName + "." + event.TableName
-	// }
 
 	// hash event
 	// Note: hash the event before running the keys/values through the value converter.
@@ -228,11 +226,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	// tableNameForUniqueKeyColumns := tableName
-	// if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
-	// 	tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
-	// }
-	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[event.TableName.ForKey()]
+	uniqueKeyCols, _ := conflictDetectionCache.tableToUniqueKeyColumns.Get(event.TableName)
 	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
@@ -353,10 +347,10 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole 
 	return nil
 }
 
-func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]string, error) {
+func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	log.Infof("fetching table to unique key columns map from metaDB")
 	var metaDbData map[string][]string
-	res := make(map[string][]string)
+	res := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
 	found, err := metaDB.GetJsonObject(nil, key, &metaDbData)
@@ -373,7 +367,7 @@ func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]
 		if err != nil {
 			return nil, fmt.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
 		}
-		res[tableName.ForKey()] = columns
+		res.Put(tableName, columns)
 	}
 	return res, nil
 }

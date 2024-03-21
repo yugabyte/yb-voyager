@@ -376,10 +376,6 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
 		s, t := tableName.ForCatalogQuery()
-		// table := tableName
-		// if len(strings.Split(tableName, ".")) == 2 {
-		// 	table = strings.Split(tableName, ".")[1]
-		// }
 		uitable.AddRow(s, t, snapshotRowCount[tableName.ForKey()])
 	}
 	if len(tableList) > 0 {
@@ -630,13 +626,6 @@ func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	var tableList []sqlname.NameTuple
 	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
-
-		// // TODO: handle case sensitivity?
-		// tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
-		// table := tableName.ObjectName.MinQuoted
-		// if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
-		// 	table = tableName.Qualified.MinQuoted
-		// }
 		table, err := namereg.NameReg.LookupTableName(qualifiedTableName)
 		if err != nil {
 			return nil, fmt.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)

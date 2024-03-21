@@ -284,7 +284,6 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	}
 
 	// TODO:TABLENAME fix!
-	// eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
 	eventCounter, err := state.GetImportedEventsStatsForTable(sqlname.NameTuple{}, migrationUUID)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot assign NULL to *int64") &&
