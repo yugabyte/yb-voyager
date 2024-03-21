@@ -369,7 +369,7 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 	return allLeafPartitions
 }
 
-func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string) error {
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string]) error {
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
@@ -509,7 +509,7 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 		"You can exclude these tables using the --exclude-table-list argument.")
 }
 
-func getFinalTableColumnList() ([]sqlname.NameTuple, map[*sqlname.SourceName][]string) {
+func getFinalTableColumnList() ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
 	var tableList []sqlname.NameTuple
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []sqlname.NameTuple
@@ -559,10 +559,10 @@ func getFinalTableColumnList() ([]sqlname.NameTuple, map[*sqlname.SourceName][]s
 		}
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	return finalTableList, nil //TODO: tablesColumnList
+	return finalTableList, tablesColumnList
 }
 
-func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
+func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
 		controlPlane.SnapshotExportStarted(&exportDataStartEvent)

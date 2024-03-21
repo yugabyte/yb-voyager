@@ -41,7 +41,7 @@ import (
 
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string]) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -80,16 +80,27 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 	}
 
-	for tableName, columns := range tablesColumnList {
-		for _, column := range columns {
-			columnName := fmt.Sprintf("%s.%s", tableName.Qualified.Unquoted, column)
+	// for tableName, columns := range tablesColumnList {
+	// 	for _, column := range columns {
+	// 		columnName := fmt.Sprintf("%s.%s", tableName.Qualified.Unquoted, column)
+	// 		if column == "*" {
+	// 			dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
+	// 			break
+	// 		}
+	// 		dbzmColumnList = append(dbzmColumnList, columnName) // if column is PK, then data for it will come from debezium
+	// 	}
+	// }
+	tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+		for _, column := range v {
+			columnName := fmt.Sprintf("%s.%s", k.CurrentName.Qualified.Unquoted, column)
 			if column == "*" {
 				dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
 				break
 			}
 			dbzmColumnList = append(dbzmColumnList, columnName) // if column is PK, then data for it will come from debezium
 		}
-	}
+		return true, nil
+	})
 
 	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
 	columnSequenceMapping := strings.Join(lo.MapToSlice(colToSeqMap, func(k, v string) string {

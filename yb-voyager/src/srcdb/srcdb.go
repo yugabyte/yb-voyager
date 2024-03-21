@@ -37,12 +37,12 @@ type SourceDB interface {
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
 	ExportSchema(exportDir string)
 	GetIndexesInfo() []utils.IndexInfo
-	ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string)
+	ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
 	FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple)
 	FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple)
-	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple,[]string], []string)
+	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], []string)
 	GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string)
 	ParentTableOfPartition(table sqlname.NameTuple) string
 	GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string

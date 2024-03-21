@@ -33,7 +33,7 @@ import (
 )
 
 func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []sqlname.NameTuple,
-	tablesColumnList map[*sqlname.SourceName][]string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+	tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
@@ -45,14 +45,23 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	conf.DisablePartition = "1"
 	conf.Allow = fmt.Sprintf("TABLE%v", tableList)
 	// providing column list for tables having unsupported column types
-	for tableName, columnList := range tablesColumnList {
+	// for tableName, columnList := range tablesColumnList {
+	// 	allColumns := "*"
+	// 	if len(columnList) == 1 && columnList[0] == allColumns {
+	// 		continue
+	// 	}
+	// 	log.Infof("Modifying struct for table %s, columnList: %v\n", tableName.ObjectName.Unquoted, columnList)
+	// 	conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.ObjectName.Unquoted, strings.Join(columnList, ","))
+	// }
+	tablesColumnList.IterKV(func(tableName sqlname.NameTuple, columnList []string) (bool, error) {
 		allColumns := "*"
 		if len(columnList) == 1 && columnList[0] == allColumns {
-			continue
+			return true, nil
 		}
-		log.Infof("Modifying struct for table %s, columnList: %v\n", tableName.ObjectName.Unquoted, columnList)
-		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.ObjectName.Unquoted, strings.Join(columnList, ","))
-	}
+		log.Infof("Modifying struct for table %s, columnList: %v\n", tableName.CurrentName.Unqualified.Unquoted, columnList)
+		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.CurrentName.Unqualified.Unquoted, strings.Join(columnList, ","))
+		return true, nil
+	})
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	populateOra2pgConfigFile(configFilePath, conf)
 
