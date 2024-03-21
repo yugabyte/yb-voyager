@@ -517,7 +517,9 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 			supportedTableColumnsMap[tableName] = []string{"*"}
 		} else {
 			supportedTableColumnsMap[tableName] = supportedColumnNames
-			unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+			if len(unsupportedColumnNames) > 0 {
+				unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+			}
 		}
 	}
 

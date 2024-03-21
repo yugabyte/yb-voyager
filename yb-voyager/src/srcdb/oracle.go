@@ -459,7 +459,9 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 			supportedTableColumnsMap[tableName] = []string{"*"}
 		} else {
 			supportedTableColumnsMap[tableName] = supportedColumnNames
-			unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+			if len(unsupportedColumnNames) > 0 {
+				unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+			}
 		}
 	}
 

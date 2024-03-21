@@ -565,11 +565,15 @@ func getFinalTableColumnList() (map[string]string, []*sqlname.SourceName, map[*s
 	if err != nil {
 		utils.ErrExit("get columns with supported types: %v", err)
 	}
+	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
+
 	if len(unsupportedTableColumnsMap) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
 		fmt.Println("The following columns data export is unsupported:")
 		for k, v := range unsupportedTableColumnsMap {
-			fmt.Printf("%s: %s\n", k, v)
+			if len(v) != 0 {
+				fmt.Printf("%s: %s\n", k, v)
+			}
 		}
 		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")

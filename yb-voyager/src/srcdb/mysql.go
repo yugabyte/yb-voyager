@@ -253,7 +253,7 @@ func (ms *MySQL) GetAllSequences() []string {
 
 func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error) {
 	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
-	unsupportedTableColumnMap := make(map[*sqlname.SourceName][]string)
+	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
 		columns, dataTypes, _, err := ms.GetTableColumns(tableName)
 		if err != nil {
@@ -274,10 +274,12 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 			supportedTableColumnsMap[tableName] = []string{"*"}
 		} else {
 			supportedTableColumnsMap[tableName] = supportedColumnNames
-			unsupportedTableColumnMap[tableName] = unsupportedColumnNames
+			if len(unsupportedColumnNames) > 0 {
+				unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+			}
 		}
 	}
-	return supportedTableColumnsMap, unsupportedTableColumnMap, nil
+	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
 func (ms *MySQL) ParentTableOfPartition(table *sqlname.SourceName) string {
