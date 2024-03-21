@@ -37,6 +37,7 @@ import (
 
 type TargetOracleDB struct {
 	sync.Mutex
+	*AttributeNameRegistry
 	tconf *TargetConf
 	oraDB *sql.DB
 	conn  *sql.Conn
@@ -45,7 +46,12 @@ type TargetOracleDB struct {
 }
 
 func newTargetOracleDB(tconf *TargetConf) *TargetOracleDB {
-	return &TargetOracleDB{tconf: tconf}
+	tdb := &TargetOracleDB{
+		tconf:     tconf,
+		attrNames: make(map[string][]string),
+	}
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(ORACLE, tdb)
+	return tdb
 }
 
 func (tdb *TargetOracleDB) connect() error {
@@ -417,7 +423,7 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 	result := make([]string, len(columns))
 	var schemaName string
 	schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := tdb.getListOfTableAttributes(schemaName, tableName)
+	targetColumns, err := tdb.GetListOfTableAttributes(schemaName, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
@@ -438,7 +444,7 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 	return result, nil
 }
 
-func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
+func (tdb *TargetOracleDB) GetListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
 	// TODO: handle case-sensitivity properly
 	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE UPPER(table_name) = UPPER('%s') AND owner = '%s'", tableName, schemaName)
 	rows, err := tdb.conn.QueryContext(context.Background(), query)
@@ -531,24 +537,6 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 	}
 
 	return nil
-}
-
-func (tdb *TargetOracleDB) QuoteIdentifier(schemaName, tableName, columnName string) string {
-	var err error
-	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-	targetColumns, ok := tdb.attrNames[qualifiedTableName]
-	if !ok {
-		targetColumns, err = tdb.getListOfTableAttributes(schemaName, tableName)
-		if err != nil {
-			utils.ErrExit("get list of table attributes: %w", err)
-		}
-		tdb.attrNames[qualifiedTableName] = targetColumns
-	}
-	c, err := findBestMatchingColumnName(ORACLE, columnName, targetColumns)
-	if err != nil {
-		utils.ErrExit("find best matching column name for %q in table %s.%s: %w", columnName, schemaName, tableName, err)
-	}
-	return fmt.Sprintf("%q", c)
 }
 
 func (tdb *TargetOracleDB) InitConnPool() error {

@@ -37,6 +37,7 @@ import (
 
 type TargetPostgreSQL struct {
 	sync.Mutex
+	*AttributeNameRegistry
 	tconf    *TargetConf
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
@@ -45,7 +46,12 @@ type TargetPostgreSQL struct {
 }
 
 func newTargetPostgreSQL(tconf *TargetConf) *TargetPostgreSQL {
-	return &TargetPostgreSQL{tconf: tconf}
+	tdb := &TargetPostgreSQL{
+		tconf:     tconf,
+		attrNames: make(map[string][]string),
+	}
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tconf.TargetDBType, tdb)
+	return tdb
 }
 
 func (pg *TargetPostgreSQL) Query(query string) (Rows, error) {
@@ -411,7 +417,7 @@ func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName string, columns
 	result := make([]string, len(columns))
 	var schemaName string
 	schemaName, tableName = pg.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := pg.getListOfTableAttributes(schemaName, tableName)
+	targetColumns, err := pg.GetListOfTableAttributes(schemaName, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
@@ -462,7 +468,7 @@ func findBestMatchingColumnName(sourceDBType string, colName string, targetColum
 	return "", fmt.Errorf("column %q not found", colName)
 }
 
-func (pg *TargetPostgreSQL) getListOfTableAttributes(schemaName, tableName string) ([]string, error) {
+func (pg *TargetPostgreSQL) GetListOfTableAttributes(schemaName, tableName string) ([]string, error) {
 	var result []string
 	if tableName[0] == '"' {
 		// Remove the double quotes around the table name.
@@ -642,24 +648,6 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
 
 	return nil
-}
-
-func (pg *TargetPostgreSQL) QuoteIdentifier(schemaName, tableName, columnName string) string {
-	var err error
-	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-	targetColumns, ok := pg.attrNames[qualifiedTableName]
-	if !ok {
-		targetColumns, err = pg.getListOfTableAttributes(schemaName, tableName)
-		if err != nil {
-			utils.ErrExit("get list of table attributes: %w", err)
-		}
-		pg.attrNames[qualifiedTableName] = targetColumns
-	}
-	c, err := findBestMatchingColumnName(POSTGRESQL, columnName, targetColumns)
-	if err != nil {
-		utils.ErrExit("find best matching column name for %q in table %s.%s: %w", columnName, schemaName, tableName, err)
-	}
-	return fmt.Sprintf("%q", c)
 }
 
 func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {

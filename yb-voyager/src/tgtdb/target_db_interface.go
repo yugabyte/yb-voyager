@@ -39,6 +39,7 @@ type TargetDB interface {
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
+	GetListOfTableAttributes(schemaName, tableName string) ([]string, error)
 	QuoteIdentifier(schemaName, tableName, columnName string) string
 	GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn
 	MaxBatchSizeInBytes() int64

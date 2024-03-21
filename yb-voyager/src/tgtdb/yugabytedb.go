@@ -42,6 +42,7 @@ import (
 
 type TargetYugabyteDB struct {
 	sync.Mutex
+	*AttributeNameRegistry
 	tconf    *TargetConf
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
@@ -50,7 +51,12 @@ type TargetYugabyteDB struct {
 }
 
 func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
-	return &TargetYugabyteDB{tconf: tconf}
+	tdb := &TargetYugabyteDB{
+		tconf:     tconf,
+		attrNames: make(map[string][]string),
+	}
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tconf.TargetDBType, tdb)
+	return tdb
 }
 
 func (yb *TargetYugabyteDB) Query(query string) (Rows, error) {
@@ -462,7 +468,7 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 	// SLOW PATH.
 	var schemaName string
 	schemaName, tableName = yb.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := yb.getListOfTableAttributes(schemaName, tableName)
+	targetColumns, err := yb.GetListOfTableAttributes(schemaName, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
@@ -490,7 +496,7 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 	return result, nil
 }
 
-func (yb *TargetYugabyteDB) getListOfTableAttributes(schemaName, tableName string) ([]string, error) {
+func (yb *TargetYugabyteDB) GetListOfTableAttributes(schemaName, tableName string) ([]string, error) {
 	var result []string
 	if tableName[0] == '"' {
 		// Remove the double quotes around the table name.
@@ -673,24 +679,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
 
 	return nil
-}
-
-func (yb *TargetYugabyteDB) QuoteIdentifier(schemaName, tableName, columnName string) string {
-	var err error
-	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-	targetColumns, ok := yb.attrNames[qualifiedTableName]
-	if !ok {
-		targetColumns, err = yb.getListOfTableAttributes(schemaName, tableName)
-		if err != nil {
-			utils.ErrExit("get list of table attributes: %w", err)
-		}
-		yb.attrNames[qualifiedTableName] = targetColumns
-	}
-	c, err := findBestMatchingColumnName(YUGABYTEDB, columnName, targetColumns)
-	if err != nil {
-		utils.ErrExit("find best matching column name for %q in table %s.%s: %w", columnName, schemaName, tableName, err)
-	}
-	return fmt.Sprintf("%q", c)
 }
 
 //==============================================================================
