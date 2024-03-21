@@ -306,6 +306,13 @@ func renameDatafileDescriptor(exportDir string) {
 			fileEntry.TableName = renamedTable
 		}
 	}
+	for k, v := range datafileDescriptor.TableNameToExportedColumns {
+		renamedTable, isRenamed := renameTableIfRequired(k)
+		if isRenamed {
+			datafileDescriptor.TableNameToExportedColumns[renamedTable] = v
+			delete(datafileDescriptor.TableNameToExportedColumns, k)
+		}
+	}
 	datafileDescriptor.Save()
 }
 
