@@ -377,7 +377,7 @@ func (yb *YugabyteDB) getUdtTypesOfAllArraysInATable(schemaName, tableName strin
 	return tableColumnUdtTypes
 }
 
-func (yb *YugabyteDB) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	var unsupportedTables []*sqlname.SourceName
 	var filteredTableList []*sqlname.SourceName
 	for _, table := range tableList {
