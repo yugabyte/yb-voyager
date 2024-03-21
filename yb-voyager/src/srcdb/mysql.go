@@ -68,7 +68,7 @@ func (ms *MySQL) CheckRequiredToolsAreInstalled() {
 
 func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 	var rowCount int64
-	query := fmt.Sprintf("select count(*) from %s", tableName.CurrentName.Unqualified.Unquoted)
+	query := fmt.Sprintf("select count(*) from %s", tableName.CurrentName.Qualified.Unquoted)
 
 	log.Infof("Querying row count of table %s", tableName)
 	err := ms.db.QueryRow(query).Scan(&rowCount)

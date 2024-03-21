@@ -175,12 +175,12 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	log.Infof("renaming data files for tables with reserved words in them")
 	for _, tableProgressMetadata := range tablesProgressMetadata {
-		tblNameUnquoted := tableProgressMetadata.TableName.ForKey()
+		tblNameUnquoted := tableProgressMetadata.TableName.CurrentName.Unqualified.Unquoted
 		if !sqlname.IsReservedKeywordPG(tblNameUnquoted) {
 			continue
 		}
 
-		tblNameQuoted := fmt.Sprintf(`"%s"`, tblNameUnquoted)
+		tblNameQuoted := tableProgressMetadata.TableName.CurrentName.Unqualified.Quoted
 		oldFilePath := tableProgressMetadata.FinalFilePath
 		newFilePath := filepath.Join(filepath.Dir(oldFilePath), tblNameQuoted+"_data.sql")
 		if utils.FileOrFolderExists(oldFilePath) {
