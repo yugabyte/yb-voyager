@@ -90,7 +90,7 @@ func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
 }
 
-func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
+func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 	// new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
 	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
 	if err != nil {
@@ -99,7 +99,7 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	defer conn.Close(context.Background())
 
 	var rowCount int64
-	query := fmt.Sprintf("select count(*) from %s", tableName)
+	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 	log.Infof("Querying row count of table %q", tableName)
 	err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
 	if err != nil {

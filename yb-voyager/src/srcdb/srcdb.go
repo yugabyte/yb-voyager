@@ -29,7 +29,7 @@ import (
 type SourceDB interface {
 	Connect() error
 	Disconnect()
-	GetTableRowCount(tableName string) int64
+	GetTableRowCount(tableName sqlname.NameTuple) int64
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string

@@ -66,9 +66,9 @@ func (ora *Oracle) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg", "sqlplus")
 }
 
-func (ora *Oracle) GetTableRowCount(tableName string) int64 {
+func (ora *Oracle) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 	var rowCount int64
-	query := fmt.Sprintf("select count(*) from %s", tableName)
+	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 
 	log.Infof("Querying row count of table %q", tableName)
 	err := ora.db.QueryRow(query).Scan(&rowCount)

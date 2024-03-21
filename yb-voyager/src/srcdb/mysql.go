@@ -66,9 +66,9 @@ func (ms *MySQL) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg")
 }
 
-func (ms *MySQL) GetTableRowCount(tableName string) int64 {
+func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 	var rowCount int64
-	query := fmt.Sprintf("select count(*) from %s", tableName)
+	query := fmt.Sprintf("select count(*) from %s", tableName.CurrentName.Unqualified.Unquoted)
 
 	log.Infof("Querying row count of table %s", tableName)
 	err := ms.db.QueryRow(query).Scan(&rowCount)
@@ -219,7 +219,7 @@ func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sq
 func (ms *MySQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
 	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.ForUserQuery())
+		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.CurrentName.Qualified.Unquoted)
 		if !IsTableEmpty(ms.db, query) {
 			nonEmptyTableList = append(nonEmptyTableList, tableName)
 		} else {
