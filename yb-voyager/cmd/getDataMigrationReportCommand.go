@@ -30,6 +30,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -122,6 +123,17 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
+	ntRowCountMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+
+	for _, tableExportStatus := range dbzmStatus.Tables {
+		tableName := fmt.Sprintf("%s.%s", tableExportStatus.SchemaName, tableExportStatus.TableName)
+		nt, err := namereg.NameReg.LookupTableName(tableName)
+		if err != nil {
+			utils.ErrExit("lookup %s in name registry: %v", tableName, err)
+		}
+		ntRowCountMap.Put(nt, tableExportStatus.ExportedRowCountSnapshot)
+	}
+
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	var exportSnapshotStatus *ExportSnapshotStatus
@@ -136,9 +148,9 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 
 	sqlname.SourceDBType = source.DBType
 	// sourceSchemaCount := len(strings.Split(source.Schema, "|"))
-	exportedPGSnapshotRowsMap := make(map[string]int64)
+	var exportedPGSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if source.DBType == POSTGRESQL {
-		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(tableList, exportSnapshotStatus)
+		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(exportSnapshotStatus)
 		if err != nil {
 			utils.ErrExit("error while getting exported snapshot rows: %w\n", err)
 		}
@@ -168,7 +180,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row := rowData{}
 		// tableName := strings.Split(table, ".")[1]
 		// schemaName := strings.Split(table, ".")[0]
-		updateExportedSnapshotRowsInTheRow(msr, &row, nt.SourceName.Unqualified.Unquoted, nt.SourceName.SchemaName, dbzmStatus, exportedPGSnapshotRowsMap)
+		updateExportedSnapshotRowsInTheRow(msr, &row, nt, ntRowCountMap, exportedPGSnapshotRowsMap)
 		row.ImportedSnapshotRows = 0
 		row.TableName = nt.ForKey()
 		// if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case
@@ -239,25 +251,14 @@ func addRowInTheTable(uitbl *uitable.Table, row rowData) {
 	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
 
-func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, tableName string, schemaName string, dbzmStatus *dbzm.ExportStatus, exportedSnapshotPGRowsMap map[string]int64) {
+func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, nt sqlname.NameTuple, dbzmSnapshotRowCount *utils.StructMap[sqlname.NameTuple, int64], exportedSnapshotPGRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
 	// TODO: read only from one place(data file descriptor). Right now, data file descriptor does not store schema names.
 	if msr.SnapshotMechanism == "debezium" {
-		tableExportStatus := dbzmStatus.GetTableExportStatus(tableName, schemaName)
-		if tableExportStatus == nil {
-			tableExportStatus = &dbzm.TableExportStatus{
-				TableName:                tableName,
-				SchemaName:               schemaName,
-				ExportedRowCountSnapshot: 0,
-				FileName:                 "",
-			}
-		}
-		row.ExportedSnapshotRows = tableExportStatus.ExportedRowCountSnapshot
+		row.ExportedSnapshotRows, _ = dbzmSnapshotRowCount.Get(nt)
 	} else {
-		if schemaName != "public" {
-			tableName = schemaName + "." + tableName
-		}
-		row.ExportedSnapshotRows = exportedSnapshotPGRowsMap[tableName]
+		row.ExportedSnapshotRows, _ = exportedSnapshotPGRowsMap.Get(nt)
 	}
+	return nil
 }
 
 func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sqlname.NameTuple, targetConf *tgtdb.TargetConf, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {

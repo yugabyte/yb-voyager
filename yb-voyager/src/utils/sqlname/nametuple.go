@@ -144,6 +144,7 @@ func (t NameTuple) ForCatalogQuery() (string, string) {
 }
 
 func (t NameTuple) ForKey() string {
+	// sourcename will be nil only in the case of import-data-file
 	if t.SourceName != nil {
 		return t.SourceName.Qualified.Quoted
 	}

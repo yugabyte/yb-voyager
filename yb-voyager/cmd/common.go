@@ -801,21 +801,37 @@ func renameTableIfRequired(table string) (string, bool) {
 	return table, false
 }
 
-func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *ExportSnapshotStatus) (map[string]int64, map[string][]string, error) {
-	snapshotRowsMap := make(map[string]int64)
-	snapshotStatusMap := make(map[string][]string)
-	for _, table := range tableList {
-		tableStatus := exportSnapshotStatus.GetTableStatusByTableName(table)
-		table = strings.TrimPrefix(table, "public.") //safely can remove it for now. TODO: fix with NameRegistry all such occurrences
-		for _, status := range tableStatus {
-			if status.FileName == "" {
-				//in case of root table as well in the tablelist during export an entry with empty file name is there
-				continue
-			}
-			snapshotRowsMap[table] += status.ExportedRowCountSnapshot
-			snapshotStatusMap[table] = append(snapshotStatusMap[table], status.Status)
+func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*utils.StructMap[sqlname.NameTuple, int64], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	for tableName, tableStatus := range exportSnapshotStatus.Tables {
+		if tableStatus.FileName == "" {
+			//in case of root table as well in the tablelist during export an entry with empty file name is there
+			continue
 		}
+		nt, err := namereg.NameReg.LookupTableName(tableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableName)
+		}
+		existingSnapshotRows, _ := snapshotRowsMap.Get(nt)
+		snapshotRowsMap.Put(nt, existingSnapshotRows+tableStatus.ExportedRowCountSnapshot)
+		existingStatuses, _ := snapshotStatusMap.Get(nt)
+		existingStatuses = append(existingStatuses, tableStatus.Status)
+		snapshotStatusMap.Put(nt, existingStatuses)
 	}
+	// for _, table := range tableList {
+	// 	tableStatus := exportSnapshotStatus.GetTableStatusByTableName(table)
+	// 	table = strings.TrimPrefix(table, "public.") //safely can remove it for now. TODO: fix with NameRegistry all such occurrences
+	// 	for _, status := range tableStatus {
+	// 		if status.FileName == "" {
+	// 			//in case of root table as well in the tablelist during export an entry with empty file name is there
+	// 			continue
+	// 		}
+	// 		snapshotRowsMap[table] += status.ExportedRowCountSnapshot
+	// 		snapshotStatusMap[table] = append(snapshotStatusMap[table], status.Status)
+	// 	}
+	// }
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
