@@ -559,7 +559,10 @@ func getFinalTableColumnList() ([]sqlname.NameTuple, *utils.StructMap[sqlname.Na
 				SourceName: obj,
 				CurrentName: obj,
 			}
-			parent := source.DB().ParentTableOfPartition(tuple)
+			parent := ""
+			if source.DBType == POSTGRESQL && source.DBType == YUGABYTEDB {
+				parent = source.DB().ParentTableOfPartition(tuple)
+			}
 			if parent == "" {  
 				var err error 
 				tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s",schema,table))
