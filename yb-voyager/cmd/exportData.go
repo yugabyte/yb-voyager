@@ -560,7 +560,7 @@ func getFinalTableColumnList() ([]sqlname.NameTuple, *utils.StructMap[sqlname.Na
 				CurrentName: obj,
 			}
 			parent := ""
-			if source.DBType == POSTGRESQL && source.DBType == YUGABYTEDB {
+			if source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB {
 				parent = source.DB().ParentTableOfPartition(tuple)
 			}
 			if parent == "" {  
