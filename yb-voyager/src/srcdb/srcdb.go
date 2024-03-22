@@ -29,6 +29,7 @@ import (
 type SourceDB interface {
 	Connect() error
 	Disconnect()
+	GetConnectionUriWithoutPassword() string
 	GetTableRowCount(tableName sqlname.NameTuple) int64
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	CheckRequiredToolsAreInstalled()
