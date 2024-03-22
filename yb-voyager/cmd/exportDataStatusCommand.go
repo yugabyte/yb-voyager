@@ -47,6 +47,10 @@ var exportDataStatusCmd = &cobra.Command{
 			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
+		err = InitNameRegistry(exportDir, SOURCE_DB_EXPORTER_ROLE, nil, nil, nil, nil)
+		if err != nil {
+			utils.ErrExit("initializing name registry: %v", err)
+		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
 		if useDebezium {
 			err = runExportDataStatusCmdDbzm(streamChanges)
