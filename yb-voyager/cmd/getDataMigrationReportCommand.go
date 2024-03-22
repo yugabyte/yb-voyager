@@ -40,6 +40,7 @@ import (
 var targetDbPassword string
 var sourceReplicaDbPassword string
 var sourceDbPassword string
+var sourceReplicaNameRegistry *namereg.NameRegistry
 
 var getDataMigrationReportCmd = &cobra.Command{
 	Use:   "data-migration-report",
@@ -109,6 +110,11 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("getting name tuples from table list: %v", err)
 	}
+	sourceReplicaNameRegistry = namereg.NewNameRegistry(exportDir, SOURCE_REPLICA_DB_IMPORTER_ROLE, "", "", "", "", nil, nil)
+	err = sourceReplicaNameRegistry.Init()
+	if err != nil {
+		utils.ErrExit("initializing name registry for source replica: %v", err)
+	}
 	uitbl := uitable.New()
 	uitbl.MaxColWidth = 50
 	uitbl.Wrap = true
@@ -168,10 +174,13 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if fFEnabled {
 		//TODO: FIX WITH STATS
+		oldNameReg := namereg.NameReg
+		namereg.NameReg = *sourceReplicaNameRegistry
 		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableNts)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for source-replica DB: %w\n", err)
 		}
+		namereg.NameReg = oldNameReg
 	}
 
 	// source:oracle: x.foo
@@ -294,6 +303,15 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sq
 	case "source":
 		importerRole = SOURCE_DB_IMPORTER_ROLE
 	}
+	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+		var err error
+		tblName := nt.ForKey()
+		nt, err = sourceReplicaNameRegistry.LookupTableName(tblName)
+		if err != nil {
+			return fmt.Errorf("lookup %s in source replica name registry: %v", tblName, err)
+		}
+	}
+
 	//reinitialise targetDB
 	tconf = *targetConf
 	tdb = tgtdb.NewTargetDB(&tconf)
