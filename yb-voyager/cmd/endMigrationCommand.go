@@ -302,7 +302,7 @@ func backupLogFilesFn() {
 
 func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 	var err error
-	if msr.TargetDBConf == nil {
+	if msr.TargetDBConf != nil {
 		targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting target db password: %v", err)
