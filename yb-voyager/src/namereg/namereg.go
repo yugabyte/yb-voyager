@@ -216,20 +216,25 @@ func (reg *NameRegistry) setDefaultSourceReplicaDBSchemaName(defaultSourceReplic
 }
 
 func (reg *NameRegistry) DefaultSourceSideSchemaName() string {
-	originalSourceModes := []string{
-		SOURCE_DB_EXPORTER_ROLE,
-		SOURCE_DB_IMPORTER_ROLE,
-		TARGET_DB_IMPORTER_ROLE,
-		TARGET_DB_EXPORTER_FF_ROLE,
-		TARGET_DB_EXPORTER_FB_ROLE,
-	}
-	if lo.Contains(originalSourceModes, reg.params.Role) {
-		return reg.DefaultSourceDBSchemaName
-	} else if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+	if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		return reg.DefaultSourceReplicaDBSchemaName
 	} else {
-		return ""
+		return reg.DefaultSourceDBSchemaName
 	}
+	// originalSourceModes := []string{
+	// 	SOURCE_DB_EXPORTER_ROLE,
+	// 	SOURCE_DB_IMPORTER_ROLE,
+	// 	TARGET_DB_IMPORTER_ROLE,
+	// 	TARGET_DB_EXPORTER_FF_ROLE,
+	// 	TARGET_DB_EXPORTER_FB_ROLE,
+	// }
+	// if lo.Contains(originalSourceModes, reg.params.Role) {
+	// 	return reg.DefaultSourceDBSchemaName
+	// } else if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+	// 	return reg.DefaultSourceReplicaDBSchemaName
+	// } else {
+	// 	return ""
+	// }
 }
 
 //================================================

@@ -72,7 +72,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 				getSourceDBPassword(cmd)
 				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
 			}
-			err = InitNameRegistry(exportDir, SOURCE_DB_EXPORTER_ROLE, nil, nil, nil, nil)
+			err = InitNameRegistry(exportDir, "", nil, nil, nil, nil)
 			if err != nil {
 				utils.ErrExit("initializing name registry: %v", err)
 			}
