@@ -805,14 +805,14 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
-	for tableName, tableStatus := range exportSnapshotStatus.Tables {
+	for _, tableStatus := range exportSnapshotStatus.Tables {
 		if tableStatus.FileName == "" {
 			//in case of root table as well in the tablelist during export an entry with empty file name is there
 			continue
 		}
-		nt, err := namereg.NameReg.LookupTableName(tableName)
+		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
 		if err != nil {
-			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableName, err)
+			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
 		existingSnapshotRows, _ := snapshotRowsMap.Get(nt)
 		snapshotRowsMap.Put(nt, existingSnapshotRows+tableStatus.ExportedRowCountSnapshot)

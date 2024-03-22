@@ -118,20 +118,20 @@ jobs:
       - name: "TEST: pg-indexes"
         run: migtests/scripts/run-test.sh pg/indexes
 
-      # - name: "TEST: pg-partitions"
-      #   run: migtests/scripts/run-test.sh pg/partitions
-      #   if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
+      - name: "TEST: pg-partitions"
+        run: migtests/scripts/run-test.sh pg/partitions
+        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
 
 
-      # - name: "TEST: pg-partitions with (table-list)"
-      #   run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region' migtests/scripts/run-test.sh pg/partitions 
-      #   if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
+      - name: "TEST: pg-partitions with (table-list)"
+        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region' migtests/scripts/run-test.sh pg/partitions 
+        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
 
-      # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
-      # Fixed in 2.17.1.0-b368
-      # - name: "TEST: pg-partitions-with-indexes"
-      #   run: migtests/scripts/run-test.sh pg/partitions-with-indexes
-      #   if: matrix.version != '2.16.7.0-b59'
+      Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
+      Fixed in 2.17.1.0-b368
+      - name: "TEST: pg-partitions-with-indexes"
+        run: migtests/scripts/run-test.sh pg/partitions-with-indexes
+        if: matrix.version != '2.16.7.0-b59'
 
       - name: "TEST: pg-views-and-rules"
         run: migtests/scripts/run-test.sh pg/views-and-rules
@@ -189,7 +189,7 @@ jobs:
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
         if: matrix.version != '2.16.7.0-b59'
 
-      # - name: "TEST: pg-live-migration-partitions-fall-forward"
-      #   run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
-      #   if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
+      - name: "TEST: pg-live-migration-partitions-fall-forward"
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
+        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
 
