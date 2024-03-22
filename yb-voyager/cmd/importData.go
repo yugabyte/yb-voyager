@@ -526,6 +526,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			if importerRole != SOURCE_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
+
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
 			if err != nil {
@@ -689,6 +690,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
 	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
+
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",

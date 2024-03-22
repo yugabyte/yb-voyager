@@ -163,7 +163,8 @@ func exportData() bool {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	finalTableList, tablesColumnList := getFinalTableColumnList()
+	var partitionsToRootTableMap map[string]string
+	partitionsToRootTableMap, finalTableList, tablesColumnList := getFinalTableColumnList()
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
@@ -174,11 +175,6 @@ func exportData() bool {
 		}
 		dfd.Save()
 		os.Exit(0)
-	}
-	var partitionsToRootTableMap map[string]string
-	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList)
-	if err != nil {
-		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
@@ -519,7 +515,7 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 		"You can exclude these tables using the --exclude-table-list argument.")
 }
 
-func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
+func getFinalTableColumnList() (map[string]string, []*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []*sqlname.SourceName
@@ -558,16 +554,43 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 	}
 
-	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
-	if len(unsupportedColumnNames) > 0 {
-		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
-		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
-			"\nDo you want to ignore just these columns' data and continue with export") {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+	var partitionsToRootTableMap map[string]string
+	var err error
+	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList)
+	if err != nil {
+		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
+	}
+
+	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
+	if err != nil {
+		utils.ErrExit("get columns with supported types: %v", err)
+	}
+	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
+
+	if len(unsupportedTableColumnsMap) > 0 {
+		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
+		fmt.Println("The following columns data export is unsupported:")
+		for k, v := range unsupportedTableColumnsMap {
+			if len(v) != 0 {
+				fmt.Printf("%s: %s\n", k, v)
+			}
 		}
+		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		} else {
+			var importingDatabase string
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				importingDatabase = "target"
+			} else {
+				importingDatabase = "source/source-replica"
+			}
+
+			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the %s database.", importingDatabase))
+		}
+
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	return finalTableList, tablesColumnList
+	return partitionsToRootTableMap, finalTableList, tablesColumnList
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
