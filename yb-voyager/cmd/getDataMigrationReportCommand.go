@@ -174,6 +174,30 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
+	// source:oracle: x.foo
+	// target:yb: public.foo
+	// sourcereplica:oracle: y.foo
+
+	// source - target
+	// source - source-replica
+	// target - source-replica
+	// target - source
+
+	// source
+	// exported - snapshot : NR:SOURCE_DB_EXPORTERN
+	// exported - events : NR:SOURCE_DB_EXPORTER
+	// imported - events : NR:SOURCE_DB_IMPORTER
+
+	// target
+	// imported - snapshot: NR:TARGET_DB_IMPORTER
+	// imported - events: NR:TARGET_DB_IMPORTER
+	// exported - events: NR:TARGET_DB_EXPORTER_FF/FB
+
+	// soruce replica
+	// imported - snapshot: NR:SOURCE_REPLICA_DB_IMPORTER
+	// imported - events 1:  NR:SOURCE_REPLICA_DB_IMPORTER
+	// imported - events 2:  NR:SOURCE_REPLICA_DB_IMPORTER
+
 	for i, nt := range tableNts {
 		uitbl.AddRow() // blank row
 
