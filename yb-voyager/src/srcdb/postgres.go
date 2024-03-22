@@ -541,7 +541,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 		// } else {
 		// 	partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
 		// }
-		partitions = append(partitions, fmt.Sprintf(`%s."%s"`, childSchema, childTable))
+		partitions = append(partitions, fmt.Sprintf(`%s.%s`, childSchema, childTable))
 	}
 	if rows.Err() != nil {
 		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
