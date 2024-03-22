@@ -84,7 +84,6 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
 	cleanupTargetDB(msr)
-
 	cleanupSourceReplicaDB(msr)
 	cleanupFallBackDB(msr)
 
