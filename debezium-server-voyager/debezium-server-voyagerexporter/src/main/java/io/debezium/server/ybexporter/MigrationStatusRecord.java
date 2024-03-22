@@ -24,14 +24,14 @@ public class MigrationStatusRecord {
     public boolean EndMigrationRequested;
     public boolean ExportSchemaDone;
     public boolean ExportDataDone;
+    public boolean ImportDataIntoTargetStarted;
 
     public static MigrationStatusRecord fromJsonString(String jsonString) {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         try {
             return objectMapper.readValue(jsonString, MigrationStatusRecord.class);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }

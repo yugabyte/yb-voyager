@@ -35,6 +35,7 @@ type MigrationStatusRecord struct {
 	CutoverToSourceProcessedBySourceImporter        bool              `json:"CutoverToSourceProcessedBySourceImporter"`
 	ExportSchemaDone                                bool              `json:"ExportSchemaDone"`
 	ExportDataDone                                  bool              `json:"ExportDataDone"`
+	ImportDataIntoTargetStarted                     bool              `json:"ImportDataStarted"`
 	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
 	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
 	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")

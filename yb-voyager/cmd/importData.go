@@ -390,6 +390,9 @@ func updateTargetConfInMigrationStatus() {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		setImportDataIntoTargetStarted()
+	}
 
 	err := retrieveMigrationUUID()
 	if err != nil {
@@ -1319,4 +1322,13 @@ func createImportDataTableMetrics(tableName string, countLiveRows int64, countTo
 	}
 
 	return result
+}
+
+func setImportDataIntoTargetStarted() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ImportDataIntoTargetStarted = true
+	})
+	if err != nil {
+		utils.ErrExit("set import data started: update migration status record: %s", err)
+	}
 }
