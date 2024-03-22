@@ -20,22 +20,22 @@ DELETE FROM sales_region WHERE id = 99;
 INSERT INTO p1.sales_region (id, amount, branch, region) VALUES (1011, 1000, 'Branch 1011', 'Sydney');
 
 -- Insert into a specific partition of target
--- INSERT INTO p2.boston_region (id, amount, branch, region) VALUES (1012, 2000, 'Branch 1012', 'Boston');
-INSERT INTO p2.boston (id, amount, branch, region) VALUES (1012, 2000, 'Branch 1012', 'Boston');
+INSERT INTO p2.boston_region (id, amount, branch, region) VALUES (1012, 2000, 'Branch 1012', 'Boston');
+-- INSERT INTO p2.boston (id, amount, branch, region) VALUES (1012, 2000, 'Branch 1012', 'Boston');
 
 -- Update the p1.sales_region table
 UPDATE p1.sales_region SET amount = 1500 WHERE id = 16;
 
 -- Update a specific partition
--- UPDATE p2.sydney_region SET amount = 2500 WHERE id = 1011 AND region = 'Sydney';
-UPDATE p2.sydney SET amount = 2500 WHERE id = 1011 AND region = 'Sydney';
+UPDATE p2.sydney_region SET amount = 2500 WHERE id = 1011 AND region = 'Sydney';
+-- UPDATE p2.sydney SET amount = 2500 WHERE id = 1011 AND region = 'Sydney';
 
 -- Delete from the p1.sales_region table
 DELETE FROM p1.sales_region WHERE id = 17;
 
 -- Delete from a specific partition
--- DELETE FROM p2.sydney_region WHERE id = 200;
-DELETE FROM p2.sydney WHERE id = 200;
+DELETE FROM p2.sydney_region WHERE id = 200;
+-- DELETE FROM p2.sydney WHERE id = 200;
 
 
 -- Insert into the sales table

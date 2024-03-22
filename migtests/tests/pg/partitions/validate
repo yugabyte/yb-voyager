@@ -66,16 +66,16 @@ EXPECTED_ROW_COUNT = {
 
 EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS = {}
 
-# EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB = {
-# 	"p2.boston_region":    			334,
-# 	"p2.london_region":    			333,
-# 	"p2.sydney_region":    			333,
-# }
 EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB = {
-	"p2.boston":    			334,
-	"p2.london":    			333,
-	"p2.sydney":    			333,
+	"p2.boston_region":    			334,
+	"p2.london_region":    			333,
+	"p2.sydney_region":    			333,
 }
+# EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB = {
+# 	"p2.boston":    			334,
+# 	"p2.london":    			333,
+# 	"p2.sydney":    			333,
+# }
 
 EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG = {
 	"p2.boston":    			334,
@@ -101,8 +101,8 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	},
 	"List_partitions_in_different_schema" : {
 		"query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
-		# "partition_table_name": "sydney_region",
-		"partition_table_name": "sydney",
+		"partition_table_name": "sydney_region",
+		# "partition_table_name": "sydney",
 		"schema_name": "p2"
 	},
 	"Range" : {

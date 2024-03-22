@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -105,6 +106,42 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 	}
 }
 
+func TestNameTupleMatchesPatternMySQL(t *testing.T) {
+    assert := assert.New(t)
+    sourceName := sqlname.NewObjectName(MYSQL, "test", "test", "Table1")
+    targetName := sqlname.NewObjectName(YUGABYTEDB, "public", "test", "table1")
+    ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
+    testCases := []struct {
+        pattern string
+        match   bool
+    }{
+        {"table1", false}, // effectively: <defaultSchema>.table1 i.e. public.table1
+        {"table2", false},
+        {"table", false},
+        {`"Table1"`, true},
+		{"Table1", true},
+        {"TABLE2", false},
+        {"TABLE", false},
+        {"TABLE*", false}, // Case-sensitive, so "TABLE*" does not match "Table1"
+        {`"Table*"`, true},
+		{"Table*", true},
+        // {"TEST.TABLE1", true}, //This is same as Oracle matching issue with case insensitivity//TODO
+		{"table1", false},  // defaultSchema is "public", so "table1" can't "test.table1"
+        {"test.TABLE2", false},
+        {"test.TABLE", false},
+        {"test.TABLE*", false}, // Case-sensitive, so "SAKILA.TABLE*" does not match "test.Table1"
+        {"test.table1", true}, // Case-sensitive, so "sakila.table1" does not match "test.Table1"
+        {"test.table2", false},
+        {"test.table", false},
+        {"test.table*", true}, // Case-sensitive, so "sakila.table*" does not match "test.Table1"
+    }
+
+    for _, tc := range testCases {
+        match, err := ntup.MatchesPattern(tc.pattern)
+        assert.Nil(err)
+        assert.Equal(tc.match, match, "pattern: %s, expected: %b, got: %b", tc.pattern, tc.match, match)
+    }
+}
 func TestNameRegistrySuccessfulLookup(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)

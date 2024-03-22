@@ -369,28 +369,36 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]str
 
 func GetRootTableOfPartition(table sqlname.NameTuple) (sqlname.NameTuple, error) {
 	parentTable := source.DB().ParentTableOfPartition(table)
-	if parentTable == "" {
+	if parentTable == "" { 
 		return table, nil
 	}
-	// defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
-	// if noDefaultSchema {
-	// 	return nil, fmt.Errorf("default schema not found")
-	// }
-	tuple, err := namereg.NameReg.LookupTableName(parentTable)
-	if err != nil {
-		return sqlname.NameTuple{}, fmt.Errorf("lookup table name %s: %v", parentTable, err)
-	}
+	
+	// non-root table
+	tuple := getNameTupleForNonRoot(parentTable)
 	return GetRootTableOfPartition(tuple)
+}
+
+func getNameTupleForNonRoot(table string) sqlname.NameTuple {
+	parts := strings.Split(table, ".")
+	defaultSchemaName, _ := getDefaultSourceSchemaName()
+	schema := defaultSchemaName
+	tableName := parts[0]
+	if len(parts) > 1 {
+		schema = parts[0]
+		tableName = parts[1]
+	}
+	obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, tableName)
+	return sqlname.NameTuple{
+		SourceName: obj,
+		CurrentName: obj,
+	} 
 }
 
 func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 	allLeafPartitions := []sqlname.NameTuple{}
 	childPartitions := source.DB().GetPartitions(table)
 	for _, childPartition := range childPartitions {
-		parititon, err := namereg.NameReg.LookupTableName(childPartition)
-		if err != nil {
-			utils.ErrExit("lookup table name %s: %v", childPartition, err)
-		}
+		parititon := getNameTupleForNonRoot(childPartition)
 		leafPartitions := GetAllLeafPartitions(parititon)
 		if len(leafPartitions) == 0 {
 			allLeafPartitions = append(allLeafPartitions, parititon)
@@ -545,12 +553,21 @@ func getFinalTableColumnList() ([]sqlname.NameTuple, *utils.StructMap[sqlname.Na
 	var fullTableList []sqlname.NameTuple
 	for schema, tables := range tableNameFromNameReg {
 		for _, table := range tables {
-			table = fmt.Sprintf("%s.%s", schema, table)
-			t, err := namereg.NameReg.LookupTableName(table)
-			if err != nil {
-				utils.ErrExit("lookup table name: %v", err)
+			defaultSchemaName, _ := getDefaultSourceSchemaName()
+			obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, table)
+			tuple := sqlname.NameTuple{
+				SourceName: obj,
+				CurrentName: obj,
 			}
-			fullTableList = append(fullTableList, t)
+			parent := source.DB().ParentTableOfPartition(tuple)
+			if parent == "" {  
+				var err error 
+				tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s",schema,table))
+				if err != nil {
+					utils.ErrExit("lookup for table name %s failed err: %v", table, err)
+				}
+			}
+			fullTableList = append(fullTableList, tuple)
 		}
 	}
 	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
@@ -828,7 +845,9 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 	}
 	if len(unknownTableNames) > 0 {
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
-		utils.ErrExit("Valid table names are %v", fullTableList)
+		utils.ErrExit("Valid table names are %v", lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
+			return tableName.CurrentName.Qualified.MinQuoted 
+		}))
 	}
 	return lo.UniqBy(result, func(tableName sqlname.NameTuple) string {
 		return tableName.ForKey()

@@ -3,5 +3,5 @@
 "group"
 "check"
 reserved_column
-*Case*
+"*Case*"
 session_log*
