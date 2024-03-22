@@ -242,7 +242,7 @@ func saveDataImportReport(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	if !msr.ImportDataIntoTargetStarted {
+	if msr.TargetDBConf == nil {
 		utils.PrintAndLog("data import is not started. skipping data import report")
 		return
 	}
@@ -303,7 +303,7 @@ func backupLogFilesFn() {
 
 func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 	var err error
-	if msr.ImportDataIntoTargetStarted {
+	if msr.TargetDBConf == nil {
 		targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting target db password: %v", err)
@@ -408,11 +408,6 @@ func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source
 }
 
 func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
-	if !msr.ImportDataIntoTargetStarted {
-		utils.PrintAndLog("nothing to clean up in target db")
-		return
-	}
-
 	utils.PrintAndLog("cleaning up voyager state from target db...")
 	if msr.TargetDBConf == nil {
 		log.Info("target db conf is not set. skipping cleanup")

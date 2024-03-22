@@ -24,7 +24,6 @@ public class MigrationStatusRecord {
     public boolean EndMigrationRequested;
     public boolean ExportSchemaDone;
     public boolean ExportDataDone;
-    public boolean ImportDataIntoTargetStarted;
 
     public static MigrationStatusRecord fromJsonString(String jsonString) {
         ObjectMapper objectMapper = new ObjectMapper();
