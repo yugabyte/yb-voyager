@@ -253,19 +253,19 @@ func TestMySQLDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 		SchemaName:        "sakila",
 		FromDefaultSchema: true,
 		Qualified: identifier{
-			Quoted:    `sakila.table1`,
+			Quoted:    `sakila."table1"`,
 			Unquoted:  `sakila.table1`,
-			MinQuoted: `sakila.table1`,
+			MinQuoted: `sakila."table1"`,
 		},
 		Unqualified: identifier{
-			Quoted:    `table1`,
+			Quoted:    `"table1"`,
 			Unquoted:  `table1`,
-			MinQuoted: `table1`,
+			MinQuoted: `"table1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `table1`,
+			Quoted:    `"table1"`,
 			Unquoted:  `table1`,
-			MinQuoted: `table1`,
+			MinQuoted: `"table1"`,
 		},
 	}
 	assert.Equal(expectedTableName, tableName)
@@ -282,19 +282,19 @@ func TestMySQLNonDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 		SchemaName:        "schema1",
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `schema1.table1`,
+			Quoted:    `schema1."table1"`,
 			Unquoted:  `schema1.table1`,
-			MinQuoted: `schema1.table1`,
+			MinQuoted: `schema1."table1"`,
 		},
 		Unqualified: identifier{
-			Quoted:    `table1`,
+			Quoted:    `"table1"`,
 			Unquoted:  `table1`,
-			MinQuoted: `table1`,
+			MinQuoted: `"table1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `schema1.table1`,
+			Quoted:    `schema1."table1"`,
 			Unquoted:  `schema1.table1`,
-			MinQuoted: `schema1.table1`,
+			MinQuoted: `schema1."table1"`,
 		},
 	}
 	assert.Equal(expectedTableName, tableName)
@@ -311,19 +311,19 @@ func TestMySQLDefaultSchemaCaseSensitiveMixedCaseTableName(t *testing.T) {
 		SchemaName:        "sakila",
 		FromDefaultSchema: true,
 		Qualified: identifier{
-			Quoted:    `sakila.Table1`,
+			Quoted:    `sakila."Table1"`,
 			Unquoted:  `sakila.Table1`,
-			MinQuoted: `sakila.Table1`,
+			MinQuoted: `sakila."Table1"`,
 		},
 		Unqualified: identifier{
-			Quoted:    `Table1`,
+			Quoted:    `"Table1"`,
 			Unquoted:  `Table1`,
-			MinQuoted: `Table1`,
+			MinQuoted: `"Table1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `Table1`,
+			Quoted:    `"Table1"`,
 			Unquoted:  `Table1`,
-			MinQuoted: `Table1`,
+			MinQuoted: `"Table1"`,
 		},
 	}
 	assert.Equal(expectedTableName, tableName)
@@ -340,19 +340,19 @@ func TestMySQLNonDefaultSchemaCaseSensitiveUpperCaseTableName(t *testing.T) {
 		SchemaName:        "schema1",
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `schema1.TABLE1`,
+			Quoted:    `schema1."TABLE1"`,
 			Unquoted:  `schema1.TABLE1`,
-			MinQuoted: `schema1.TABLE1`,
+			MinQuoted: `schema1."TABLE1"`,
 		},
 		Unqualified: identifier{
-			Quoted:    `TABLE1`,
+			Quoted:    `"TABLE1"`,
 			Unquoted:  `TABLE1`,
-			MinQuoted: `TABLE1`,
+			MinQuoted: `"TABLE1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `schema1.TABLE1`,
+			Quoted:    `schema1."TABLE1"`,
 			Unquoted:  `schema1.TABLE1`,
-			MinQuoted: `schema1.TABLE1`,
+			MinQuoted: `schema1."TABLE1"`,
 		},
 	}
 	assert.Equal(expectedTableName, tableName)
