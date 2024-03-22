@@ -408,6 +408,11 @@ func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source
 }
 
 func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
+	if !msr.ImportDataIntoTargetStarted {
+		utils.PrintAndLog("nothing to clean up in target db")
+		return
+	}
+
 	utils.PrintAndLog("cleaning up voyager state from target db...")
 	if msr.TargetDBConf == nil {
 		log.Info("target db conf is not set. skipping cleanup")
