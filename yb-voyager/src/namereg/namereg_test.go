@@ -79,14 +79,14 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 		pattern string
 		match   bool
 	}{
-		{"table1", false}, // effectively: <defaultSchema>.table1 i.e. public.table1
+		{"table1", true}, // effectively: <defaultSchema>.table1 i.e. public.table1
 		{"table2", false},
 		{"table", false},
 		{"TABLE1", true},
 		{"TABLE2", false},
 		{"TABLE", false},
 		{"TABLE*", true},
-		{"table*", false},
+		{"table*", true},
 		{"SAKILA.TABLE1", true},
 		{"SAKILA.TABLE2", false},
 		{"SAKILA.TABLE", false},
@@ -102,6 +102,58 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 		match, err := ntup.MatchesPattern(tc.pattern)
 		assert.Nil(err)
 		assert.Equal(tc.match, match, "pattern: %s, expected: %b, got: %b", tc.pattern, tc.match, match)
+	}
+}
+
+func TestNameMatchesPattern(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	reg := &NameRegistry{
+		SourceDBType:              ORACLE,
+		role:                      SOURCE_DB_EXPORTER_ROLE,
+		SourceDBSchemaNames:       []string{"TEST_SCHEMA"},
+		DefaultSourceDBSchemaName: "TEST_SCHEMA",
+		SourceDBTableNames: map[string][]string{
+			"TEST_SCHEMA": {
+				"C", "C1", "C2", "Case_Sensitive_Columns", "EMPLOYEES", "FOO", "Mixed_Case_Table_Name_Test",
+				"RESERVED_COLUMN", "SESSION_LOG", "SESSION_LOG1", "SESSION_LOG2", "SESSION_LOG3", "SESSION_LOG4",
+				"TEST_TIMEZONE", "TRUNC_TEST", "check", "group",
+			},
+		},
+	}
+	// Prepare a list of all NamedTuples.
+	ntups := make([]*sqlname.NameTuple, 0)
+	for _, tableName := range reg.SourceDBTableNames["TEST_SCHEMA"] {
+		ntup, err := reg.LookupTableName(tableName)
+		require.Nil(err)
+		ntups = append(ntups, ntup)
+	}
+	// Write a table-driven test to test the MatchesPattern() method using following patterns:
+	// session_log,session_log?,"group","check",test*,"*Case*",c*
+	var testCases = []struct {
+		pattern  string
+		expected []string
+	}{
+		{"session_log", []string{"TEST_SCHEMA.SESSION_LOG"}},
+		{"session_log?", []string{"TEST_SCHEMA.SESSION_LOG1", "TEST_SCHEMA.SESSION_LOG2", "TEST_SCHEMA.SESSION_LOG3", "TEST_SCHEMA.SESSION_LOG4"}},
+		{"group", []string{"TEST_SCHEMA.group"}},
+		{"check", []string{"TEST_SCHEMA.check"}},
+		{"test*", []string{"TEST_SCHEMA.TEST_TIMEZONE"}},
+		{"*Case*", []string{"TEST_SCHEMA.Case_Sensitive_Columns", "TEST_SCHEMA.Mixed_Case_Table_Name_Test"}},
+		{"c*", []string{"TEST_SCHEMA.C", "TEST_SCHEMA.C1", "TEST_SCHEMA.C2", "TEST_SCHEMA.Case_Sensitive_Columns", "TEST_SCHEMA.check"}},
+	}
+	for _, tc := range testCases {
+		for _, ntup := range ntups {
+			match, err := ntup.MatchesPattern(tc.pattern)
+			require.Nil(err)
+			tableName := ntup.CurrentName.Qualified.Unquoted
+			if match {
+				assert.Contains(tc.expected, tableName, "pattern: %s, tableName: %s", tc.pattern, tableName)
+			} else {
+				assert.NotContains(tc.expected, tableName, "pattern: %s, tableName: %s", tc.pattern, tableName)
+			}
+		}
 	}
 }
 
