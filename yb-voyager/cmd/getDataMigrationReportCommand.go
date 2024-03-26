@@ -16,8 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -162,6 +160,25 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
+	var sourceExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
+	var targetExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
+	sourceExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(SOURCE_DB_EXPORTER_ROLE)
+	if err != nil {
+		utils.ErrExit("getting exported events from source stats: %v", err)
+	}
+	if fFEnabled {
+		targetExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(TARGET_DB_EXPORTER_FF_ROLE)
+		if err != nil {
+			utils.ErrExit("getting exported events from target stats: %v", err)
+		}
+	}
+	if fBEnabled {
+		targetExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(TARGET_DB_EXPORTER_FB_ROLE)
+		if err != nil {
+			utils.ErrExit("getting exported events from target stats: %v", err)
+		}
+	}
+
 	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if msr.TargetDBConf != nil {
 		//TODO: FIX WITH STATS
@@ -221,7 +238,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		// 	row.TableName = tableName
 		// }
 		row.DBType = "source"
-		err := updateExportedEventsCountsInTheRow(&row, nt.SourceName.Unqualified.Unquoted, nt.SourceName.SchemaName) //source OUT counts
+		err := updateExportedEventsCountsInTheRow(&row, nt, sourceExportedEventsMap, targetExportedEventsMap) //source OUT counts
 		if err != nil {
 			utils.ErrExit("error while getting exported events counts for source DB: %w\n", err)
 		}
@@ -243,7 +260,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			}
 		}
 		if fFEnabled || fBEnabled {
-			err = updateExportedEventsCountsInTheRow(&row, nt.SourceName.Unqualified.Unquoted, nt.SourceName.SchemaName) // target OUT counts
+			err = updateExportedEventsCountsInTheRow(&row, nt, sourceExportedEventsMap, targetExportedEventsMap) // target OUT counts
 			if err != nil {
 				utils.ErrExit("error while getting exported events for target DB: %w\n", err)
 			}
@@ -356,27 +373,37 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sq
 	return nil
 }
 
-func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string) error {
+func updateExportedEventsCountsInTheRow(row *rowData, nt sqlname.NameTuple, sourceExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter], targetExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]) error {
+	var exportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	switch row.DBType {
 	case "source":
-		exporterRole = SOURCE_DB_EXPORTER_ROLE
+		exportedEventsMap = sourceExportedEventsMap
 	case "target":
-		if fFEnabled {
-			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
-		} else if fBEnabled {
-			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
-		}
+		exportedEventsMap = targetExportedEventsMap
+		// if fFEnabled {
+		// 	exporterRole = TARGET_DB_EXPORTER_FF_ROLE
+		// } else if fBEnabled {
+		// 	exporterRole = TARGET_DB_EXPORTER_FB_ROLE
+		// }
 	}
-	if len(strings.Split(source.Schema, "|")) <= 1 {
-		schemaName = ""
+
+	// if len(strings.Split(source.Schema, "|")) <= 1 {
+	// 	schemaName = ""
+	// }
+	// eventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(exporterRole, schemaName, tableName)
+	// if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	// 	return fmt.Errorf("could not fetch table stats from meta DB: %w", err)
+	// }
+	eventCounter, _ := exportedEventsMap.Get(nt)
+	// if !found || eventCounter == nil {
+	// 	return fmt.Errorf("could not find %s in map %v", nt.ForKey(), exportedEventsMap)
+	// }
+	if eventCounter != nil {
+		row.ExportedInserts = eventCounter.NumInserts
+		row.ExportedUpdates = eventCounter.NumUpdates
+		row.ExportedDeletes = eventCounter.NumDeletes
 	}
-	eventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(exporterRole, schemaName, tableName)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("could not fetch table stats from meta DB: %w", err)
-	}
-	row.ExportedInserts = eventCounter.NumInserts
-	row.ExportedUpdates = eventCounter.NumUpdates
-	row.ExportedDeletes = eventCounter.NumDeletes
+
 	return nil
 }
 

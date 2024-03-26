@@ -27,8 +27,10 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var (
@@ -433,6 +435,72 @@ func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole stri
 		NumUpdates:  updates,
 		NumDeletes:  deletes,
 	}, nil
+}
+
+func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter], error) {
+	res := utils.NewStructMap[sqlname.NameTuple, *tgtdb.EventCounter]()
+	// Using SUM + LOWER case comparison here to deal with case sensitivity across stats published by source (ORACLE) and target (YB) (in ff workflow)
+	query := fmt.Sprintf(`select schema_name, table_name, COALESCE(SUM(num_total), 0), COALESCE(SUM(num_inserts),0),
+	 	COALESCE(SUM(num_updates),0), COALESCE(SUM(num_deletes),0)
+	  	from %s WHERE exporter_role='%s' GROUP BY schema_name, table_name`,
+		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, exporterRole)
+
+	rows, err := m.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("run query on meta db -%s :%v", query, err)
+	}
+	// err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	// }
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("failed to close rows while fetching exported events stats from query %s : %v", query, err)
+		}
+	}()
+	for rows.Next() {
+		var schemaName string
+		var tableName string
+		var totalCount int64
+		var inserts int64
+		var updates int64
+		var deletes int64
+		err := rows.Scan(&schemaName, &tableName, &totalCount, &inserts, &updates, &deletes)
+		if err != nil {
+			return nil, fmt.Errorf("scan rows while fetching exported events stats from query %s : %v", query, err)
+		}
+		if schemaName == "null" && tableName == "null" {
+			continue
+		}
+		lookupName := tableName
+		if schemaName != "" {
+			lookupName = fmt.Sprintf("%s.%s", schemaName, lookupName)
+		}
+		nt, err := namereg.NameReg.LookupTableName(lookupName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup %s from name registry: %v", lookupName, err)
+		}
+
+		var ec *tgtdb.EventCounter
+		var found bool
+		ec, found = res.Get(nt)
+		if !found {
+			ec = &tgtdb.EventCounter{
+				TotalEvents: 0,
+				NumInserts:  0,
+				NumUpdates:  0,
+				NumDeletes:  0,
+			}
+			res.Put(nt, ec)
+		}
+		ec.TotalEvents += totalCount
+		ec.NumInserts += inserts
+		ec.NumUpdates += updates
+		ec.NumDeletes += deletes
+	}
+
+	return res, nil
 }
 
 func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, error) {
