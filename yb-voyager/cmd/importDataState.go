@@ -574,7 +574,7 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 func (s *ImportDataState) GetImportedEventsStatsForTable(tableName sqlname.NameTuple, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
 	var eventCounter tgtdb.EventCounter
 	query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
-		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
+		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName.ForKey(), migrationUUID)
 	log.Infof("query to get import stats for table %s: %s", tableName.ForKey(), query)
 	err := tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
 		&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)

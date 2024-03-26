@@ -492,11 +492,6 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	}
 	var nonPKTables []string
 	for _, table := range finalTableList {
-		if source.DBType == POSTGRESQL {
-			if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
-				caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
-			}
-		}
 		if lo.Contains(allNonPKTables, table.Qualified.MinQuoted) {
 			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
 		}
