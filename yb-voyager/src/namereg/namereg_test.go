@@ -110,8 +110,10 @@ func TestNameMatchesPattern(t *testing.T) {
 	require := require.New(t)
 
 	reg := &NameRegistry{
-		SourceDBType:              ORACLE,
-		role:                      SOURCE_DB_EXPORTER_ROLE,
+		SourceDBType: ORACLE,
+		params: NameRegistryParams{
+			Role: SOURCE_DB_EXPORTER_ROLE,
+		},
 		SourceDBSchemaNames:       []string{"TEST_SCHEMA"},
 		DefaultSourceDBSchemaName: "TEST_SCHEMA",
 		SourceDBTableNames: map[string][]string{
@@ -123,7 +125,7 @@ func TestNameMatchesPattern(t *testing.T) {
 		},
 	}
 	// Prepare a list of all NamedTuples.
-	ntups := make([]*sqlname.NameTuple, 0)
+	ntups := make([]sqlname.NameTuple, 0)
 	for _, tableName := range reg.SourceDBTableNames["TEST_SCHEMA"] {
 		ntup, err := reg.LookupTableName(tableName)
 		require.Nil(err)
