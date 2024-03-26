@@ -33,19 +33,25 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/slices"
 )
 
 type TargetOracleDB struct {
 	sync.Mutex
+	*AttributeNameRegistry
 	tconf *TargetConf
 	oraDB *sql.DB
 	conn  *sql.Conn
+
+	attrNames map[string][]string
 }
 
 func newTargetOracleDB(tconf *TargetConf) *TargetOracleDB {
-	return &TargetOracleDB{tconf: tconf}
+	tdb := &TargetOracleDB{
+		tconf:     tconf,
+		attrNames: make(map[string][]string),
+	}
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
+	return tdb
 }
 
 func (tdb *TargetOracleDB) connect() error {
@@ -413,60 +419,7 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 	}
 }
 
-func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
-	result := make([]string, len(columns))
-	// FAST PATH.
-	fastPathSuccessful := true
-	for i, colName := range columns {
-		if strings.ToUpper(colName) == colName {
-			if sqlname.IsReservedKeywordOracle(colName) && colName[0:1] != `"` {
-				result[i] = fmt.Sprintf(`"%s"`, colName)
-			} else {
-				result[i] = colName
-			}
-		} else {
-			// Go to slow path.
-			log.Infof("column name (%s) is not all upper-case. Going to slow path.", colName)
-			result = make([]string, len(columns))
-			fastPathSuccessful = false
-			break
-		}
-	}
-	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
-		return result, nil
-	}
-	// SLOW PATH.
-	var schemaName string
-	schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := tdb.getListOfTableAttributes(schemaName, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("get list of table attributes: %w", err)
-	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-	for i, colName := range columns {
-		if colName[0] == '"' && colName[len(colName)-1] == '"' {
-			colName = colName[1 : len(colName)-1]
-		}
-		switch true {
-		// TODO: Move sqlname.IsReservedKeywordOracle() in this file.
-		case sqlname.IsReservedKeywordOracle(colName):
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case colName == strings.ToUpper(colName): // Name is all Upper case.
-			result[i] = colName
-		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all uppercase.
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case slices.Contains(targetColumns, strings.ToUpper(colName)): // Case insensitive name given with mixed case.
-			result[i] = strings.ToUpper(colName)
-		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
-		}
-	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
-	return result, nil
-}
-
-func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
+func (tdb *TargetOracleDB) GetListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
 	// TODO: handle case-sensitivity properly
 	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE UPPER(table_name) = UPPER('%s') AND owner = '%s'", tableName, schemaName)
 	rows, err := tdb.conn.QueryContext(context.Background(), query)
@@ -498,11 +451,11 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt := event.GetSQLStmt()
+			stmt := event.GetSQLStmt(tdb)
 			if event.Op == "c" && tdb.tconf.EnableUpsert {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt := event.GetSQLStmt()
+				updateStmt := event.GetSQLStmt(tdb)
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				event.Op = "c" // reverting state
 			}

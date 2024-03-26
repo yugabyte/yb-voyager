@@ -86,20 +86,20 @@ func (e *Event) IsCutoverToSource() bool {
 	return e.Op == "cutover.source"
 }
 
-func (e *Event) GetSQLStmt() string {
+func (e *Event) GetSQLStmt(tdb TargetDB) string {
 	switch e.Op {
 	case "c":
-		return e.getInsertStmt()
+		return e.getInsertStmt(tdb)
 	case "u":
-		return e.getUpdateStmt()
+		return e.getUpdateStmt(tdb)
 	case "d":
-		return e.getDeleteStmt()
+		return e.getDeleteStmt(tdb)
 	default:
 		panic("unknown op: " + e.Op)
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt(targetDBType string) string {
+func (e *Event) GetPreparedSQLStmt(tdb TargetDB, targetDBType string) string {
 	psName := e.GetPreparedStmtName()
 	if stmt, ok := cachePreparedStmt.Load(psName); ok {
 		return stmt.(string)
@@ -107,12 +107,12 @@ func (e *Event) GetPreparedSQLStmt(targetDBType string) string {
 	var ps string
 	switch e.Op {
 	case "c":
-		ps = e.getPreparedInsertStmt(targetDBType)
+		ps = e.getPreparedInsertStmt(tdb, targetDBType)
 
 	case "u":
-		ps = e.getPreparedUpdateStmt()
+		ps = e.getPreparedUpdateStmt(tdb)
 	case "d":
-		ps = e.getPreparedDeleteStmt()
+		ps = e.getPreparedDeleteStmt(tdb)
 	default:
 		panic("unknown op: " + e.Op)
 	}
@@ -151,11 +151,12 @@ const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
 const updateTemplate = "UPDATE %s SET %s WHERE %s"
 const deleteTemplate = "DELETE FROM %s WHERE %s"
 
-func (event *Event) getInsertStmt() string {
+func (event *Event) getInsertStmt(tdb TargetDB) string {
 	tableName := event.getTableName()
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
+		column = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
 		columnList = append(columnList, column)
 		if value == nil {
 			valueList = append(valueList, "NULL")
@@ -169,10 +170,11 @@ func (event *Event) getInsertStmt() string {
 	return stmt
 }
 
-func (event *Event) getUpdateStmt() string {
+func (event *Event) getUpdateStmt(tdb TargetDB) string {
 	tableName := event.getTableName()
 	setClauses := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
+		column = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
 		if value == nil {
 			setClauses = append(setClauses, fmt.Sprintf("%s = NULL", column))
 		} else {
@@ -186,32 +188,35 @@ func (event *Event) getUpdateStmt() string {
 		if value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
+		column = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
 }
 
-func (event *Event) getDeleteStmt() string {
+func (event *Event) getDeleteStmt(tdb TargetDB) string {
 	tableName := event.getTableName()
 	whereClauses := make([]string, 0, len(event.Key))
 	for column, value := range event.Key {
 		if value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
+		column = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
 }
 
-func (event *Event) getPreparedInsertStmt(targetDBType string) string {
+func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) string {
 	tableName := event.getTableName()
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
-		columnList = append(columnList, key)
+		column := tdb.QuoteIdentifier(event.SchemaName, event.TableName, key)
+		columnList = append(columnList, column)
 		valueList = append(valueList, fmt.Sprintf("$%d", pos+1))
 	}
 	columns := strings.Join(columnList, ", ")
@@ -219,17 +224,21 @@ func (event *Event) getPreparedInsertStmt(targetDBType string) string {
 	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
 	if targetDBType == POSTGRESQL {
 		keyColumns := utils.GetMapKeysSorted(event.Key)
+		for i, column := range keyColumns {
+			keyColumns[i] = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
+		}
 		stmt = fmt.Sprintf("%s ON CONFLICT (%s) DO NOTHING", stmt, strings.Join(keyColumns, ","))
 	}
 	return stmt
 }
 
 // NOTE: PS for each event of same table can be different as it depends on columns being updated
-func (event *Event) getPreparedUpdateStmt() string {
+func (event *Event) getPreparedUpdateStmt(tdb TargetDB) string {
 	tableName := event.getTableName()
 	setClauses := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
+		key = tdb.QuoteIdentifier(event.SchemaName, event.TableName, key)
 		setClauses = append(setClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	setClause := strings.Join(setClauses, ", ")
@@ -237,6 +246,7 @@ func (event *Event) getPreparedUpdateStmt() string {
 	whereClauses := make([]string, 0, len(event.Key))
 	keys = utils.GetMapKeysSorted(event.Key)
 	for i, key := range keys {
+		key = tdb.QuoteIdentifier(event.SchemaName, event.TableName, key)
 		pos := i + 1 + len(event.Fields)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos))
 	}
@@ -244,11 +254,12 @@ func (event *Event) getPreparedUpdateStmt() string {
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
 }
 
-func (event *Event) getPreparedDeleteStmt() string {
+func (event *Event) getPreparedDeleteStmt(tdb TargetDB) string {
 	tableName := event.getTableName()
 	whereClauses := make([]string, 0, len(event.Key))
 	keys := utils.GetMapKeysSorted(event.Key)
 	for pos, key := range keys {
+		key = tdb.QuoteIdentifier(event.SchemaName, event.TableName, key)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")

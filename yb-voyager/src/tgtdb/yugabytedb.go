@@ -37,18 +37,25 @@ import (
 
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TargetYugabyteDB struct {
 	sync.Mutex
+	*AttributeNameRegistry
 	tconf    *TargetConf
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
+
+	attrNames map[string][]string
 }
 
 func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
-	return &TargetYugabyteDB{tconf: tconf}
+	tdb := &TargetYugabyteDB{
+		tconf:     tconf,
+		attrNames: make(map[string][]string),
+	}
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
+	return tdb
 }
 
 func (yb *TargetYugabyteDB) Query(query string) (Rows, error) {
@@ -434,61 +441,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	return res.RowsAffected(), err
 }
 
-func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
-	result := make([]string, len(columns))
-	// FAST PATH.
-	fastPathSuccessful := true
-	for i, colName := range columns {
-		if strings.ToLower(colName) == colName {
-			if sqlname.IsReservedKeywordPG(colName) && colName[0:1] != `"` {
-				result[i] = fmt.Sprintf(`"%s"`, colName)
-			} else {
-				result[i] = colName
-			}
-		} else {
-			// Go to slow path.
-			log.Infof("column name (%s) is not all lower-case. Going to slow path.", colName)
-			result = make([]string, len(columns))
-			fastPathSuccessful = false
-			break
-		}
-	}
-	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
-		return result, nil
-	}
-	// SLOW PATH.
-	var schemaName string
-	schemaName, tableName = yb.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := yb.getListOfTableAttributes(schemaName, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("get list of table attributes: %w", err)
-	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-
-	for i, colName := range columns {
-		if colName[0] == '"' && colName[len(colName)-1] == '"' {
-			colName = colName[1 : len(colName)-1]
-		}
-		switch true {
-		// TODO: Move sqlname.IsReservedKeyword() in this file.
-		case sqlname.IsReservedKeywordPG(colName):
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case colName == strings.ToLower(colName): // Name is all lowercase.
-			result[i] = colName
-		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all lowercase.
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case slices.Contains(targetColumns, strings.ToLower(colName)): // Case insensitive name given with mixed case.
-			result[i] = strings.ToLower(colName)
-		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
-		}
-	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
-	return result, nil
-}
-
-func (yb *TargetYugabyteDB) getListOfTableAttributes(schemaName, tableName string) ([]string, error) {
+func (yb *TargetYugabyteDB) GetListOfTableAttributes(schemaName, tableName string) ([]string, error) {
 	var result []string
 	if tableName[0] == '"' {
 		// Remove the double quotes around the table name.
@@ -573,10 +526,10 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt := event.GetSQLStmt()
+			stmt := event.GetSQLStmt(yb)
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(yb.tconf.TargetDBType)
+			stmt := event.GetPreparedSQLStmt(yb, yb.tconf.TargetDBType)
 			psName := event.GetPreparedStmtName()
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[psName]; !ok {
