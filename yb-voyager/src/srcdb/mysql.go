@@ -228,35 +228,39 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+func (ms *MySQL) getTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
 	var columns, dataTypes []string
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	rows, err := ms.db.Query(query)
 	if err != nil {
-		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
+		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
 	}
 	for rows.Next() {
 		var column, dataType string
 		err := rows.Scan(&column, &dataType)
 		if err != nil {
-			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
+			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
 		}
 		columns = append(columns, column)
 		dataTypes = append(dataTypes, dataType)
 	}
-	return columns, dataTypes, nil
+	return columns, dataTypes, nil, nil
 }
 
 func (ms *MySQL) GetAllSequences() []string {
 	return nil
 }
 
-func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, []string) {
-	tableColumnMap := make(map[*sqlname.SourceName][]string)
-	var unsupportedColumnNames []string
+func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error) {
+	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
+	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
 	for _, tableName := range tableList {
-		columns, dataTypes, _ := ms.GetTableColumns(tableName)
+		columns, dataTypes, _, err := ms.getTableColumns(tableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get columns of table %q: %w", tableName.String(), err)
+		}
 		var supportedColumnNames []string
+		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			if utils.ContainsAnySubstringFromSlice(mysqlUnsupportedDataTypes, dataTypes[i]) {
 				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
@@ -267,12 +271,15 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 
 		}
 		if len(supportedColumnNames) == len(columns) {
-			tableColumnMap[tableName] = []string{"*"}
+			supportedTableColumnsMap[tableName] = []string{"*"}
 		} else {
-			tableColumnMap[tableName] = supportedColumnNames
+			supportedTableColumnsMap[tableName] = supportedColumnNames
+			if len(unsupportedColumnNames) > 0 {
+				unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+			}
 		}
 	}
-	return tableColumnMap, unsupportedColumnNames
+	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
 func (ms *MySQL) ParentTableOfPartition(table *sqlname.SourceName) string {
