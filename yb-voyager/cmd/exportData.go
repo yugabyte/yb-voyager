@@ -192,14 +192,15 @@ func exportData() bool {
 	tableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) string {
 		renamedTable, isRenamed := renameTableIfRequired(table.CurrentName.Qualified.MinQuoted)
 		if isRenamed {
-			//TODO: it is ok to do this right now but will fix everything with Name Registry
-			table := strings.TrimPrefix(table.CurrentName.Qualified.MinQuoted, "public.")
-			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], table)
-			if len(strings.Split(renamedTable, ".")) == 1 {
-				//TODD: just for now, hack to display unique table list as we are already
-				// adding qualified root table in addLeafParititonsInTableList func
-				return fmt.Sprintf("public.%s", renamedTable)
+			t := table.CurrentName.MinQualified.MinQuoted
+			//Fine to lookup directly as this will root table in case of partitions
+			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
+			if err != nil {
+				utils.ErrExit("lookup table name %s: %v", renamedTable, err)
 			}
+			renamedTable = tuple.CurrentName.Qualified.MinQuoted
+			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], t)
+			return renamedTable
 		}
 		return renamedTable
 	}))
@@ -365,10 +366,10 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]str
 
 func GetRootTableOfPartition(table sqlname.NameTuple) (sqlname.NameTuple, error) {
 	parentTable := source.DB().ParentTableOfPartition(table)
-	if parentTable == "" { 
+	if parentTable == "" {
 		return table, nil
 	}
-	
+
 	// non-root table
 	tuple := getNameTupleForNonRoot(parentTable)
 	return GetRootTableOfPartition(tuple)
@@ -385,9 +386,9 @@ func getNameTupleForNonRoot(table string) sqlname.NameTuple {
 	}
 	obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, tableName)
 	return sqlname.NameTuple{
-		SourceName: obj,
+		SourceName:  obj,
 		CurrentName: obj,
-	} 
+	}
 }
 
 func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
@@ -459,6 +460,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 
 func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 	result := map[*sqlname.SourceName]int64{}
+	//TODO: fix later to handle sequences indexes in nameregistry
 	path := filepath.Join(exportDir, "data", "postdata.sql")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -501,73 +503,50 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 }
 
 func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
-	//report Partitions or case sensitive tables
-	var caseSensitiveTables []string
-	var partitionedTables []string
+	//report non-pk tables
 	allNonPKTables, err := source.DB().GetNonPKTables()
 	if err != nil {
 		utils.ErrExit("get non-pk tables: %v", err)
 	}
 	var nonPKTables []string
 	for _, table := range finalTableList {
-		if source.DBType == POSTGRESQL {
-			sname, tname := table.ForCatalogQuery()
-			t := sqlname.NewSourceName(sname, tname)
-			//TODO FIX
-			if t.ObjectName.MinQuoted != t.ObjectName.Unquoted {
-				caseSensitiveTables = append(caseSensitiveTables, t.Qualified.MinQuoted)
-			}
-		}
 		if lo.Contains(allNonPKTables, table.ForKey()) {
-			nonPKTables = append(nonPKTables, table.ForKey())
+			nonPKTables = append(nonPKTables, table.CurrentName.MinQualified.MinQuoted)
 		}
-	}
-	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 && len(nonPKTables) == 0 {
-		return
-	}
-	if len(caseSensitiveTables) > 0 {
-		utils.PrintAndLog("Case sensitive table names: %s", caseSensitiveTables)
 	}
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
-	}
-	utils.ErrExit("This voyager release does not support live-migration for tables without a primary key and tables with case sensitive name.\n" +
+		utils.ErrExit("This voyager release does not support live-migration for tables without a primary key.\n" +
 		"You can exclude these tables using the --exclude-table-list argument.")
+	}
 }
 
 func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
 	var tableList []sqlname.NameTuple
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []sqlname.NameTuple
-	// fullTableList := source.DB().GetAllTableNames() // SEE TODO IF THIS FINE
-	var tableNameFromNameReg map[string][]string
-	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		tableNameFromNameReg = namereg.NameReg.SourceDBTableNames
-	} else {
-		tableNameFromNameReg = namereg.NameReg.YBTableNames
-	}
+	tableListFromDB := source.DB().GetAllTableNames()
 	var fullTableList []sqlname.NameTuple
-	for schema, tables := range tableNameFromNameReg {
-		for _, table := range tables {
-			defaultSchemaName, _ := getDefaultSourceSchemaName()
-			obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, table)
-			tuple := sqlname.NameTuple{
-				SourceName: obj,
-				CurrentName: obj,
-			}
-			parent := ""
-			if source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB {
-				parent = source.DB().ParentTableOfPartition(tuple)
-			}
-			if parent == "" {  
-				var err error 
-				tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s",schema,table))
-				if err != nil {
-					utils.ErrExit("lookup for table name %s failed err: %v", table, err)
-				}
-			}
-			fullTableList = append(fullTableList, tuple)
+	for _, table := range tableListFromDB {
+		schema, table := table.SchemaName.MinQuoted, table.ObjectName.MinQuoted
+		defaultSchemaName, _ := getDefaultSourceSchemaName()
+		obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, table)
+		tuple := sqlname.NameTuple{
+			SourceName:  obj,
+			CurrentName: obj,
 		}
+		parent := ""
+		if source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB {
+			parent = source.DB().ParentTableOfPartition(tuple)
+		}
+		if parent == "" {
+			var err error
+			tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", schema, table))
+			if err != nil {
+				utils.ErrExit("lookup for table name %s failed err: %v", table, err)
+			}
+		}
+		fullTableList = append(fullTableList, tuple)
 	}
 	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
 	if source.TableList != "" {
@@ -873,7 +852,7 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 	if len(unknownTableNames) > 0 {
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
 		utils.ErrExit("Valid table names are %v", lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
-			return tableName.CurrentName.Qualified.MinQuoted 
+			return tableName.CurrentName.Qualified.MinQuoted
 		}))
 	}
 	return lo.UniqBy(result, func(tableName sqlname.NameTuple) string {

@@ -290,7 +290,6 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	if err != nil {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
-	//TODO: report table with case-sensitiveness
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
 			if tableStatus.SchemaName != "" {
@@ -304,11 +303,8 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
 		}
 		schema := table.CurrentName.SchemaName
-		// if tableStatus.SchemaName != "" {
-			uitable.AddRow(schema, table.CurrentName.Unqualified.MinQuoted, tableStatus.ExportedRowCountSnapshot)
-		// } else {
-		// 	uitable.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
-		// }
+		uitable.AddRow(schema, table.CurrentName.Unqualified.MinQuoted, tableStatus.ExportedRowCountSnapshot)
+		
 	}
 	fmt.Print("\n")
 	fmt.Println(uitable)
@@ -893,12 +889,13 @@ func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]i
 func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	minQuotedTableList := lo.Uniq(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
 		// Store list of tables in MSR with root table in case of partitions
-		//TODO: FIX WITH NAMETUPLE
 		renamedTable, isRenamed := renameTableIfRequired(table.CurrentName.Qualified.MinQuoted)
 		if isRenamed {
-			if len(strings.Split(renamedTable, ".")) == 1 {
-				renamedTable = fmt.Sprintf("public.%s", renamedTable)
+			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
+			if err != nil {
+				return fmt.Sprintf("lookup table %s in name registry : %v", renamedTable, err)
 			}
+			return tuple.CurrentName.Qualified.MinQuoted
 		}
 		return renamedTable
 	}))

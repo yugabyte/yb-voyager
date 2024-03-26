@@ -180,7 +180,7 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	query := fmt.Sprintf(`SELECT table_sname, tnameable_name
+	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema IN (%s);`, querySchemaList)
@@ -200,7 +200,7 @@ func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
 		}
 		tableName = fmt.Sprintf("\"%s\"", tableName)
-		tableNames = append(tableNames, sqlname.NewSourceName(tableName, tableSchema))
+		tableNames = append(tableNames, sqlname.NewSourceName(tableSchema, tableName))
 	}
 	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
 	return tableNames
