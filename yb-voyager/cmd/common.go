@@ -354,7 +354,6 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "source-replica"
 	}
 
-	// snapshotRowCount := make(map[string]int64)
 	snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
 
 	if importerRole == IMPORT_FILE_ROLE {
@@ -363,10 +362,10 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 			if err != nil {
 				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
 			}
-			snapshotRowCount.Put(tableName, tableRowCount) // [tableName.ForKey()] = tableRowCount
+			snapshotRowCount.Put(tableName, tableRowCount)
 		}
 	} else {
-		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType, tableList) //TODO: FIX WITH STATS
+		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType, tableList)
 		if err != nil {
 			utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 		}
@@ -820,22 +819,10 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 		existingStatuses = append(existingStatuses, tableStatus.Status)
 		snapshotStatusMap.Put(nt, existingStatuses)
 	}
-	// for _, table := range tableList {
-	// 	tableStatus := exportSnapshotStatus.GetTableStatusByTableName(table)
-	// 	table = strings.TrimPrefix(table, "public.") //safely can remove it for now. TODO: fix with NameRegistry all such occurrences
-	// 	for _, status := range tableStatus {
-	// 		if status.FileName == "" {
-	// 			//in case of root table as well in the tablelist during export an entry with empty file name is there
-	// 			continue
-	// 		}
-	// 		snapshotRowsMap[table] += status.ExportedRowCountSnapshot
-	// 		snapshotStatusMap[table] = append(snapshotStatusMap[table], status.Status)
-	// 	}
-	// }
+
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-// TODO: FIX WITH STATS
 func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	switch dbType {
 	case "target":
@@ -862,7 +849,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*
 	}
 
 	for dataFilePath, nt := range dataFilePathNtMap {
-		snapshotRowCount, err := state.GetImportedRowCount(dataFilePath, nt) //TODO: FIX
+		snapshotRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
 		}

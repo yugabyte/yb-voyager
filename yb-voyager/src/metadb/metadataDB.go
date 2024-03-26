@@ -449,10 +449,6 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 	if err != nil {
 		return nil, fmt.Errorf("run query on meta db -%s :%v", query, err)
 	}
-	// err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
-	// }
 	defer func() {
 		err := rows.Close()
 		if err != nil {

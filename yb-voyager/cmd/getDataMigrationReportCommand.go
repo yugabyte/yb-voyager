@@ -151,7 +151,6 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	}
 
 	sqlname.SourceDBType = source.DBType
-	// sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 	var exportedPGSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if source.DBType == POSTGRESQL {
 		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(exportSnapshotStatus)
@@ -200,43 +199,13 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		namereg.NameReg = oldNameReg
 	}
 
-	// source:oracle: x.foo
-	// target:yb: public.foo
-	// sourcereplica:oracle: y.foo
-
-	// source - target
-	// source - source-replica
-	// target - source-replica
-	// target - source
-
-	// source
-	// exported - snapshot : NR:SOURCE_DB_EXPORTERN
-	// exported - events : NR:SOURCE_DB_EXPORTER
-	// imported - events : NR:SOURCE_DB_IMPORTER
-
-	// target
-	// imported - snapshot: NR:TARGET_DB_IMPORTER
-	// imported - events: NR:TARGET_DB_IMPORTER
-	// exported - events: NR:TARGET_DB_EXPORTER_FF/FB
-
-	// soruce replica
-	// imported - snapshot: NR:SOURCE_REPLICA_DB_IMPORTER
-	// imported - events 1:  NR:SOURCE_REPLICA_DB_IMPORTER
-	// imported - events 2:  NR:SOURCE_REPLICA_DB_IMPORTER
-
 	for i, nt := range tableNts {
 		uitbl.AddRow() // blank row
 
 		row := rowData{}
-		// tableName := strings.Split(table, ".")[1]
-		// schemaName := strings.Split(table, ".")[0]
 		updateExportedSnapshotRowsInTheRow(msr, &row, nt, ntRowCountMap, exportedPGSnapshotRowsMap)
 		row.ImportedSnapshotRows = 0
 		row.TableName = nt.ForKey()
-		// if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case
-		// 	schemaName = ""
-		// 	row.TableName = tableName
-		// }
 		row.DBType = "source"
 		err := updateExportedEventsCountsInTheRow(&row, nt, sourceExportedEventsMap, targetExportedEventsMap) //source OUT counts
 		if err != nil {
@@ -343,15 +312,10 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sq
 	}
 	state := NewImportDataState(exportDir)
 
-	// if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" { //multiple schema specific
-	// 	tableName = schemaName + "." + tableName
-	// }
-
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		row.ImportedSnapshotRows, _ = snapshotImportedRowsMap.Get(nt) // TODO: FIX table.ForKey()
+		row.ImportedSnapshotRows, _ = snapshotImportedRowsMap.Get(nt)
 	}
 
-	// TODO:TABLENAME fix!
 	eventCounter, err := state.GetImportedEventsStatsForTable(nt, migrationUUID)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot assign NULL to *int64") &&
@@ -380,24 +344,9 @@ func updateExportedEventsCountsInTheRow(row *rowData, nt sqlname.NameTuple, sour
 		exportedEventsMap = sourceExportedEventsMap
 	case "target":
 		exportedEventsMap = targetExportedEventsMap
-		// if fFEnabled {
-		// 	exporterRole = TARGET_DB_EXPORTER_FF_ROLE
-		// } else if fBEnabled {
-		// 	exporterRole = TARGET_DB_EXPORTER_FB_ROLE
-		// }
 	}
 
-	// if len(strings.Split(source.Schema, "|")) <= 1 {
-	// 	schemaName = ""
-	// }
-	// eventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(exporterRole, schemaName, tableName)
-	// if err != nil && !errors.Is(err, sql.ErrNoRows) {
-	// 	return fmt.Errorf("could not fetch table stats from meta DB: %w", err)
-	// }
 	eventCounter, _ := exportedEventsMap.Get(nt)
-	// if !found || eventCounter == nil {
-	// 	return fmt.Errorf("could not find %s in map %v", nt.ForKey(), exportedEventsMap)
-	// }
 	if eventCounter != nil {
 		row.ExportedInserts = eventCounter.NumInserts
 		row.ExportedUpdates = eventCounter.NumUpdates

@@ -102,13 +102,13 @@ func runImportDataStatusCmd() error {
 			// case of importDataFileCommand where file size is available not row counts
 			totalCount := utils.HumanReadableByteCount(row.totalCount)
 			importedCount := utils.HumanReadableByteCount(row.importedCount)
-			uiTable.AddRow(row.tableName.ForKey(), row.fileName, row.status, totalCount, importedCount, perc)
+			uiTable.AddRow(row.tableName.ForUserQuery(), row.fileName, row.status, totalCount, importedCount, perc)
 		} else {
 			if i == 0 {
 				addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
 			}
 			// case of importData where row counts is available
-			uiTable.AddRow(row.tableName.ForKey(), row.status, row.totalCount, row.importedCount, perc)
+			uiTable.AddRow(row.tableName.ForUserQuery(), row.status, row.totalCount, row.importedCount, perc)
 		}
 	}
 
@@ -184,15 +184,6 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 				existingRow = &tableMigStatusOutputRow{}
 				outputRows.Put(row.tableName, existingRow)
 			}
-
-			// if outputRows[row.tableName] == nil {
-			// 	outputRows[row.tableName] = &tableMigStatusOutputRow{}
-			// }
-			// outputRows[row.tableName].tableName = row.tableName
-			// outputRows[row.tableName].schemaName = row.schemaName
-			// outputRows[row.tableName].totalCount += row.totalCount
-			// outputRows[row.tableName].importedCount += row.importedCount
-
 			existingRow.tableName = row.tableName
 			existingRow.totalCount += row.totalCount
 			existingRow.importedCount += row.importedCount
@@ -212,9 +203,6 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		table = append(table, row)
 		return true, nil
 	})
-	// for _, row := range outputRows {
-
-	// }
 
 	// First sort by status and then by table-name.
 	sort.Slice(table, func(i, j int) bool {
