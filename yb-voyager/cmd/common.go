@@ -206,7 +206,8 @@ func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 	return tableRowCount
 }
 
-func getLeafPartitionsFromRootTable(tables []string) map[string][]string {
+func getLeafPartitionsFromRootTable() map[string][]string {
+	
 	leafPartitions := make(map[string][]string)
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -215,6 +216,7 @@ func getLeafPartitionsFromRootTable(tables []string) map[string][]string {
 	if !msr.IsExportTableListSet || msr.SourceDBConf.DBType != POSTGRESQL {
 		return leafPartitions
 	}
+	tables := msr.TableListExportedFromSource
 	for leaf, root := range msr.SourceRenameTablesMap {
 		leafTable := sqlname.NewSourceNameFromQualifiedName(leaf)
 		rootTable := sqlname.NewSourceNameFromQualifiedName(root)
@@ -223,9 +225,6 @@ func getLeafPartitionsFromRootTable(tables []string) map[string][]string {
 			leaf = leafTable.ObjectName.MinQuoted
 		}
 		root = rootTable.Qualified.MinQuoted
-		if rootTable.SchemaName.MinQuoted == "public" {
-			root = rootTable.ObjectName.MinQuoted
-		}
 		if !lo.Contains(tables, root) {
 			continue
 		}
@@ -239,6 +238,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
 
+	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
 		if source.Schema != "" {
@@ -248,15 +248,15 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		}
 		keys := lo.Keys(exportedRowCount)
 		sort.Strings(keys)
-		leafPartitions := getLeafPartitionsFromRootTable(keys)
 		for _, key := range keys {
 			table, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
 				utils.ErrExit("lookup table %s in name registry : %v", key, err)
 			}
 			displayTableName := table.CurrentName.Unqualified.MinQuoted
-			if source.DBType == POSTGRESQL && leafPartitions[key] != nil {
-				partitions := strings.Join(leafPartitions[key], ", ")
+			partitions := leafPartitions[table.CurrentName.Qualified.MinQuoted]
+			if source.DBType == POSTGRESQL && partitions != nil {
+				partitions := strings.Join(partitions, ", ")
 				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
 			}
 			schema := table.SourceName.SchemaName
@@ -286,8 +286,14 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		if err != nil {
 			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
 		}
+		displayTableName := table.CurrentName.Unqualified.MinQuoted
+		partitions := leafPartitions[table.CurrentName.Qualified.MinQuoted]
+		if source.DBType == POSTGRESQL && partitions != nil {
+			partitions := strings.Join(partitions, ", ")
+			displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
+		}
 		schema := table.CurrentName.SchemaName
-		uitable.AddRow(schema, table.CurrentName.Unqualified.MinQuoted, tableStatus.ExportedRowCountSnapshot)
+		uitable.AddRow(schema, displayTableName, tableStatus.ExportedRowCountSnapshot)
 
 	}
 	fmt.Print("\n")

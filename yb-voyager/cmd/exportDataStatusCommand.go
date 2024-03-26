@@ -96,8 +96,12 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 }
 
 func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTableMigStatusOutputRow {
+	nt, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
+	if err != nil {
+		utils.ErrExit("lookup %s in name registry: %v", tableStatus.TableName, err)
+	}
 	row := &exportTableMigStatusOutputRow{
-		tableName:     tableStatus.TableName,
+		tableName:     nt.CurrentName.MinQualified.MinQuoted,
 		status:        "DONE",
 		exportedCount: tableStatus.ExportedRowCountSnapshot,
 	}
@@ -115,7 +119,6 @@ func runExportDataStatusCmd() error {
 	tableList := msr.TableListExportedFromSource
 	source = *msr.SourceDBConf
 	sqlname.SourceDBType = source.DBType
-	var finalFullTableName string
 	var outputRows []*exportTableMigStatusOutputRow
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
@@ -129,24 +132,20 @@ func runExportDataStatusCmd() error {
 		return fmt.Errorf("error while getting exported snapshot rows map: %v", err)
 	}
 
-	leafPartitions := getLeafPartitionsFromRootTable(tableList)
+	leafPartitions := getLeafPartitionsFromRootTable()
 
 	for _, tableName := range tableList {
-		sqlTableName := sqlname.NewSourceNameFromQualifiedName(tableName)
-		finalFullTableName = sqlTableName.Qualified.MinQuoted
-		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted == "public" {
-			finalFullTableName = sqlTableName.ObjectName.MinQuoted
-		}
-		displayTableName := finalFullTableName
-		if source.DBType == POSTGRESQL && leafPartitions[finalFullTableName] != nil {
-			partitions := strings.Join(leafPartitions[finalFullTableName], ", ")
-			displayTableName = fmt.Sprintf("%s (%s)", finalFullTableName, partitions)
-		}
-		nt, err := namereg.NameReg.LookupTableName(finalFullTableName)
+		finalFullTableName, err := namereg.NameReg.LookupTableName(tableName)
 		if err != nil {
-			return fmt.Errorf("lookup %s in name registry: %v", finalFullTableName, err)
+			return fmt.Errorf("lookup %s in name registry: %v", tableName, err)
 		}
-		snapshotStatus, _ := exportedSnapshotStatus.Get(nt)
+		displayTableName := finalFullTableName.CurrentName.MinQualified.MinQuoted
+		partitions := leafPartitions[finalFullTableName.CurrentName.Qualified.MinQuoted]
+		if source.DBType == POSTGRESQL && partitions != nil {
+			partitions := strings.Join(partitions, ", ")
+			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
+		}
+		snapshotStatus, _ := exportedSnapshotStatus.Get(finalFullTableName)
 		finalStatus := snapshotStatus[0]
 		if len(snapshotStatus) > 1 { // status for root partition wrt leaf partitions
 			exportingLeaf := 0
@@ -169,7 +168,7 @@ func runExportDataStatusCmd() error {
 				finalStatus = "NOT_STARTED"
 			}
 		}
-		exportedCount, _ := exportedSnapshotRow.Get(nt)
+		exportedCount, _ := exportedSnapshotRow.Get(finalFullTableName)
 		row := &exportTableMigStatusOutputRow{
 			tableName:     displayTableName,
 			status:        finalStatus,
