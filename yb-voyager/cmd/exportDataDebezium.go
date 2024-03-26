@@ -63,8 +63,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 
 	var dbzmTableList, dbzmColumnList []string
 	for _, table := range tableList {
-		t := table.CurrentName.MinQualified.MinQuoted
-		if leafPartitions[t] != nil {
+		if leafPartitions[table.CurrentName.Qualified.MinQuoted] != nil {
 			//In case of debezium offline migration of PG, tablelist should not have root and leaf both so not adding root table in table list
 			continue
 		}
