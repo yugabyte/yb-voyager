@@ -79,7 +79,7 @@ func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
 	default:
 		return false, fmt.Errorf("invalid pattern: %s", pattern)
 	}
-	match1, err := filepath.Match(pattern, nv.Unqualified.Unquoted)
+	match1, err := filepath.Match(strings.ToLower(pattern), strings.ToLower(nv.Unqualified.Unquoted))
 	if err != nil {
 		return false, fmt.Errorf("invalid pattern: %s", pattern)
 	}

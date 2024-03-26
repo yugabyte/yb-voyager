@@ -167,7 +167,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		if msr.SnapshotMechanism != "" {
 			saveDataExportReport()
 		}
-		saveDataImportReport()
+		saveDataImportReport(msr)
 	}
 }
 
@@ -235,9 +235,14 @@ func saveDataExportReport() {
 	saveCommandOutput(exportDataStatusCmd, "export data status", exportDataStatusMsg, exportDataReportFilePath)
 }
 
-func saveDataImportReport() {
+func saveDataImportReport(msr *metadb.MigrationStatusRecord) {
 	if !dataIsExported() {
 		utils.PrintAndLog("data is not exported. skipping data import report")
+		return
+	}
+
+	if msr.TargetDBConf == nil {
+		utils.PrintAndLog("data import is not started. skipping data import report")
 		return
 	}
 
@@ -297,9 +302,11 @@ func backupLogFilesFn() {
 
 func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 	var err error
-	targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
-	if err != nil {
-		utils.ErrExit("getting target db password: %v", err)
+	if msr.TargetDBConf != nil {
+		targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("getting target db password: %v", err)
+		}
 	}
 	if msr.FallForwardEnabled {
 		sourceReplicaDBPassword, err = askPassword("source-replica DB", "", "SOURCE_REPLICA_DB_PASSWORD")

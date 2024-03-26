@@ -42,8 +42,7 @@ type SourceDB interface {
 	GetCharset() (string, error)
 	FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple)
 	FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple)
-	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], []string)
-	GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string)
+	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error)
 	ParentTableOfPartition(table sqlname.NameTuple) string
 	GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string
 	GetAllSequences() []string

@@ -73,3 +73,12 @@ func (m *StructMap[K, V]) Clear() {
 		delete(m.vmap, k)
 	}
 }
+
+func (m *StructMap[K, V]) Keys() []string {
+	keys := make([]string, 0, len(m.kmap))
+	m.IterKV(func(key K, _ V) (bool, error) {
+		keys = append(keys, key.Key())
+		return true, nil
+	})
+	return keys
+}

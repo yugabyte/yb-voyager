@@ -421,37 +421,41 @@ func (ora *Oracle) GetAllSequences() []string {
 	return nil
 }
 
-func (ora *Oracle) GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string) {
+func (ora *Oracle) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", sname, tname)
 	rows, err := ora.db.Query(query)
 	if err != nil {
-		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
+		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
 	}
 	for rows.Next() {
 		var column, dataType, dataTypeOwner string
 		err := rows.Scan(&column, &dataType, &dataTypeOwner)
 		if err != nil {
-			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
+			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
 		}
 		columns = append(columns, column)
 		dataTypes = append(dataTypes, dataType)
 		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
 	}
-	return columns, dataTypes, dataTypesOwner
+	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
-	tableColumnMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-	var unsupportedColumnNames []string
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if isStreamingEnabled {
 		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, "NCHAR", "NVARCHAR2")
 	}
 	for _, tableName := range tableList {
-		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
+		columns, dataTypes, dataTypesOwner, err := ora.getTableColumns(tableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
+		}
 		var supportedColumnNames []string
 		sname, tname := tableName.ForCatalogQuery()
+		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			isUdtWithDebezium := (dataTypesOwner[i] == sname) && useDebezium // datatype owner check is for UDT type detection as VARRAY are created using UDT
 			if isUdtWithDebezium || utils.ContainsAnySubstringFromSlice(oracleUnsupportedDataTypes, dataTypes[i]) {
@@ -463,13 +467,16 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, u
 
 		}
 		if len(supportedColumnNames) == len(columns) {
-			tableColumnMap.Put(tableName, []string{"*"})
+			supportedTableColumnsMap.Put(tableName, []string{"*"})
 		} else {
-			tableColumnMap.Put(tableName, supportedColumnNames)
+			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
+			if len(unsupportedColumnNames) > 0 {
+				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
+			}
 		}
 	}
 
-	return tableColumnMap, unsupportedColumnNames
+	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
 func (ora *Oracle) GetServers() []string {

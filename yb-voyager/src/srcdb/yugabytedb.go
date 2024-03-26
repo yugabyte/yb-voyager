@@ -28,11 +28,14 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
+
+var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
 
 type YugabyteDB struct {
 	source *Source
@@ -338,8 +341,106 @@ func (yb *YugabyteDB) GetCharset() (string, error) {
 	return encoding, nil
 }
 
+func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
+	query := fmt.Sprintf(`SELECT typname
+						FROM pg_type t
+						JOIN pg_namespace n ON t.typnamespace = n.oid
+						WHERE n.nspname = '%s'
+						AND t.typcategory <> 'A'
+						AND t.typname NOT IN (
+							SELECT table_name
+							FROM information_schema.tables
+							WHERE table_schema = '%s'
+							UNION
+							SELECT sequence_name
+							FROM information_schema.sequences
+							WHERE sequence_schema = '%s'
+						);`, schemaName, schemaName, schemaName)
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for enum types: %v\n", query, err)
+	}
+	defer rows.Close()
+	var enumTypes []string
+	for rows.Next() {
+		var enumType string
+		err = rows.Scan(&enumType)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for enum types: %v\n", err)
+		}
+		enumTypes = append(enumTypes, enumType)
+	}
+	return enumTypes
+}
+
+func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) []string {
+	query := fmt.Sprintf(`SELECT udt_name::regtype FROM information_schema.columns 
+						WHERE table_schema = '%s' 
+						AND table_name='%s' 
+						AND data_type = 'ARRAY';`, schemaName, tableName)
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for array types: %v\n", query, err)
+	}
+	defer rows.Close()
+	var tableColumnUdtTypes []string
+	for rows.Next() {
+		var udtType string
+		err = rows.Scan(&udtType)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for array types: %v\n", err)
+		}
+		tableColumnUdtTypes = append(tableColumnUdtTypes, udtType)
+	}
+	return tableColumnUdtTypes
+}
+
 func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
-	return tableList, nil
+	var unsupportedTables []sqlname.NameTuple
+	var filteredTableList []sqlname.NameTuple
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(sname)
+		if len(userDefinedTypes) == 0 {
+			continue
+		}
+		tableColumnArrayTypes := yb.getTypesOfAllArraysInATable(sname, tname)
+		if len(tableColumnArrayTypes) == 0 {
+			continue
+		}
+
+		// If any of the data types of the arrays are in the enum types then add the table to the unsupported tables list
+		// udt_type/data_type looks like status_enum[] whereas enum_type looks like status_enum
+	outer:
+		for _, arrayType := range tableColumnArrayTypes {
+			for _, udt := range userDefinedTypes {
+				if strings.Contains(arrayType, udt) {
+					unsupportedTables = append(unsupportedTables, table)
+					break outer
+				}
+			}
+		}
+
+	}
+	if len(unsupportedTables) > 0 {
+		unsupportedTablesStringList := make([]string, len(unsupportedTables))
+		for i, table := range unsupportedTables {
+			unsupportedTablesStringList[i] = table.String()
+		}
+
+		if !utils.AskPrompt("\nThe following tables are unsupported since they contains an array of enums:\n" + strings.Join(unsupportedTablesStringList, "\n") +
+			"\nDo you want to skip these tables' data and continue with export") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		}
+	}
+
+	for _, table := range tableList {
+		if !slices.Contains(unsupportedTables, table) {
+			filteredTableList = append(filteredTableList, table)
+		}
+	}
+
+	return filteredTableList, unsupportedTables
 }
 
 func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
@@ -364,13 +465,87 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 	return nonEmptyTableList, emptyTableList
 }
 
-func (yb *YugabyteDB) GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string) {
-	return nil, nil, nil
+func (yb *YugabyteDB) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
+	var columns, dataTypes, dataTypesOwner []string
+	sname, tname := tableName.ForCatalogQuery()
+	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, sname, tname)
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var column, dataType, dataTypeOwner string
+		err = rows.Scan(&column, &dataType, &dataTypeOwner)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
+		}
+		columns = append(columns, column)
+		dataTypes = append(dataTypes, dataType)
+		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
+	}
+	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, _ bool) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
-	dummy := utils.NewStructMap[sqlname.NameTuple, []string]() // empty map
-	return dummy, nil
+func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(dataTypes []string) []string {
+	// Currently all UDTs other than enums and domain are unsupported
+	query := fmt.Sprintf(`SELECT typname AS data_type, 
+						CASE WHEN n.nspname NOT IN ('pg_catalog', 'information_schema') 
+						AND t.typtype <> 'e' AND t.typtype <> 'd' THEN 'Yes' 
+						ELSE 'No' END AS is_user_defined 
+						FROM pg_type t JOIN pg_namespace n 
+						ON t.typnamespace = n.oid WHERE typname IN ('%s');`, strings.Join(dataTypes, `', '`))
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for user defined columns: %v\n", query, err)
+	}
+	defer rows.Close()
+	var userDefinedDataTypes []string
+	for rows.Next() {
+		var dataType, isUserDefined string
+		err = rows.Scan(&dataType, &isUserDefined)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for user defined columns: %v\n", err)
+		}
+		if isUserDefined == "Yes" {
+			userDefinedDataTypes = append(userDefinedDataTypes, dataType)
+		}
+	}
+	return userDefinedDataTypes
+}
+
+func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for _, tableName := range tableList {
+		columns, dataTypes, _, err := yb.getTableColumns(tableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
+		}
+		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(dataTypes)
+		yugabyteUnsupportedDataTypesForDbzm = append(yugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
+		var supportedColumnNames []string
+		var unsupportedColumnNames []string
+		for i, column := range columns {
+			if useDebezium || isStreamingEnabled {
+				if utils.ContainsAnySubstringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
+					unsupportedColumnNames = append(unsupportedColumnNames, column)
+				} else {
+					supportedColumnNames = append(supportedColumnNames, column)
+				}
+			}
+		}
+		if len(supportedColumnNames) == len(columns) {
+			supportedTableColumnsMap.Put(tableName, []string{"*"})
+		} else {
+			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
+			if len(unsupportedColumnNames) > 0 {
+				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
+			}
+		}
+	}
+
+	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
 func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {

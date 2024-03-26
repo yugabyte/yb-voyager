@@ -2,6 +2,8 @@ package utils
 
 import (
 	"testing"
+
+	"github.com/samber/lo"
 )
 
 // Define a struct to use as keys in the map
@@ -46,15 +48,11 @@ func TestStructMap(t *testing.T) {
 	m.Put(CustomKey{ID: 3, Name: "key3"}, "value3")
 	m.Put(CustomKey{ID: 4, Name: "key4"}, "value4")
 
-	keys := make(map[string]bool)
-	m.IterKV(func(key CustomKey, value string) (bool, error) {
-		keys[key.Key()] = true
-		return true, nil
-	})
+	keys := m.Keys()
 
 	expectedKeys := map[string]bool{"key2": true, "key3": true, "key4": true}
 	for key := range expectedKeys {
-		if !keys[key] {
+		if !lo.Contains(keys, CustomKey{Name: key}.Key()) {
 			t.Errorf("Expected key %s not found in IterKV result", key)
 		}
 	}

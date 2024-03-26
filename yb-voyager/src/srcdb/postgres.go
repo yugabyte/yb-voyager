@@ -38,6 +38,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var postgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT"}
+
 const PG_COMMAND_VERSION string = "14.0"
 const FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE = `SELECT
 a.attname AS column_name,
@@ -57,6 +59,14 @@ AND a.attnum > 0
 AND NOT a.attisdropped
 AND t.relkind IN ('r', 'P')
 AND seq.relkind = 'S';`
+
+const GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB = `SELECT a.attname AS column_name, t.typname::regtype AS data_type, rol.rolname AS data_type_owner 
+FROM pg_attribute AS a 
+JOIN pg_type AS t ON t.oid = a.atttypid 
+JOIN pg_class AS c ON c.oid = a.attrelid 
+JOIN pg_namespace AS n ON n.oid = c.relnamespace 
+JOIN pg_roles AS rol ON rol.oid = t.typowner 
+WHERE c.relname = '%s' AND n.nspname = '%s' AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');`
 
 type PostgreSQL struct {
 	source *Source
@@ -417,13 +427,58 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) GetTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string) {
-	return nil, nil, nil
+func (pg *PostgreSQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
+	var columns, dataTypes, dataTypesOwner []string
+	sname, tname := tableName.ForCatalogQuery()
+	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, sname, tname)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var column, dataType, dataTypeOwner string
+		err = rows.Scan(&column, &dataType, &dataTypeOwner)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
+		}
+		columns = append(columns, column)
+		dataTypes = append(dataTypes, dataType)
+		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
+	}
+	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, _ bool) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
-	dummy := utils.NewStructMap[sqlname.NameTuple, []string]()
-	return dummy, nil
+func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for _, tableName := range tableList {
+		columns, dataTypes, _, err := pg.getTableColumns(tableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
+		}
+		var unsupportedColumnNames []string
+		var supportedColumnNames []string
+		for i, column := range columns {
+			if useDebezium || isStreamingEnabled {
+				if utils.ContainsAnySubstringFromSlice(postgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
+					unsupportedColumnNames = append(unsupportedColumnNames, column)
+				} else {
+					supportedColumnNames = append(supportedColumnNames, column)
+				}
+			}
+		}
+		if len(supportedColumnNames) == len(columns) {
+			supportedTableColumnsMap.Put(tableName, []string{"*"})
+		} else {
+			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
+			if len(unsupportedColumnNames) > 0 {
+				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
+			}
+		}
+	}
+
+	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
 func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
