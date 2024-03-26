@@ -48,7 +48,13 @@ var importDataStatusCmd = &cobra.Command{
 			utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
-		importerRole = TARGET_DB_IMPORTER_ROLE
+		dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
+		if utils.FileOrFolderExists(dataFileDescriptorPath) {
+			importerRole = TARGET_DB_IMPORTER_ROLE
+		} else {
+			importerRole = IMPORT_FILE_ROLE
+		}
+
 		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
 		if err != nil {
 			utils.ErrExit("initialize name registry: %v", err)
