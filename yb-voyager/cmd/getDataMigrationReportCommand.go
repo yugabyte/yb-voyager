@@ -16,8 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -30,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -39,6 +38,7 @@ import (
 var targetDbPassword string
 var sourceReplicaDbPassword string
 var sourceDbPassword string
+var sourceReplicaNameRegistry *namereg.NameRegistry
 
 var getDataMigrationReportCmd = &cobra.Command{
 	Use:   "data-migration-report",
@@ -71,6 +71,10 @@ var getDataMigrationReportCmd = &cobra.Command{
 				getSourceDBPassword(cmd)
 				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
 			}
+			err = InitNameRegistry(exportDir, "", nil, nil, nil, nil)
+			if err != nil {
+				utils.ErrExit("initializing name registry: %v", err)
+			}
 			color.Yellow("Generating data migration report for migration UUID: %s...\n", migrationStatus.MigrationUUID)
 			getDataMigrationReportCmdFn(migrationStatus)
 		} else {
@@ -100,6 +104,15 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
 	tableList := msr.TableListExportedFromSource
+	tableNts, err := getImportTableList(tableList)
+	if err != nil {
+		utils.ErrExit("getting name tuples from table list: %v", err)
+	}
+	sourceReplicaNameRegistry = namereg.NewNameRegistry(exportDir, SOURCE_REPLICA_DB_IMPORTER_ROLE, "", "", "", "", nil, nil)
+	err = sourceReplicaNameRegistry.Init()
+	if err != nil {
+		utils.ErrExit("initializing name registry for source replica: %v", err)
+	}
 	uitbl := uitable.New()
 	uitbl.MaxColWidth = 50
 	uitbl.Wrap = true
@@ -114,6 +127,17 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
+	ntRowCountMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+
+	for _, tableExportStatus := range dbzmStatus.Tables {
+		tableName := fmt.Sprintf("%s.%s", tableExportStatus.SchemaName, tableExportStatus.TableName)
+		nt, err := namereg.NameReg.LookupTableName(tableName)
+		if err != nil {
+			utils.ErrExit("lookup %s in name registry: %v", tableName, err)
+		}
+		ntRowCountMap.Put(nt, tableExportStatus.ExportedRowCountSnapshot)
+	}
+
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	var exportSnapshotStatus *ExportSnapshotStatus
@@ -127,53 +151,68 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	}
 
 	sqlname.SourceDBType = source.DBType
-	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
-	exportedPGSnapshotRowsMap := make(map[string]int64)
+	var exportedPGSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if source.DBType == POSTGRESQL {
-		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(tableList, exportSnapshotStatus)
+		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(exportSnapshotStatus)
 		if err != nil {
 			utils.ErrExit("error while getting exported snapshot rows: %w\n", err)
 		}
 	}
 
-	var targetImportedSnapshotRowsMap map[string]int64
+	var sourceExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
+	var targetExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
+	sourceExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(SOURCE_DB_EXPORTER_ROLE)
+	if err != nil {
+		utils.ErrExit("getting exported events from source stats: %v", err)
+	}
+	if fFEnabled {
+		targetExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(TARGET_DB_EXPORTER_FF_ROLE)
+		if err != nil {
+			utils.ErrExit("getting exported events from target stats: %v", err)
+		}
+	}
+	if fBEnabled {
+		targetExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(TARGET_DB_EXPORTER_FB_ROLE)
+		if err != nil {
+			utils.ErrExit("getting exported events from target stats: %v", err)
+		}
+	}
+
+	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if msr.TargetDBConf != nil {
 		//TODO: FIX WITH STATS
-		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableList)
+		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableNts)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for target DB: %w\n", err)
 		}
 	}
 
-	replicaImportedSnapshotRowsMap := make(map[string]int64)
+	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if fFEnabled {
 		//TODO: FIX WITH STATS
-		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableList)
+		oldNameReg := namereg.NameReg
+		namereg.NameReg = *sourceReplicaNameRegistry
+		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableNts)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for source-replica DB: %w\n", err)
 		}
+		namereg.NameReg = oldNameReg
 	}
 
-	for i, table := range tableList {
+	for i, nt := range tableNts {
 		uitbl.AddRow() // blank row
 
 		row := rowData{}
-		tableName := strings.Split(table, ".")[1]
-		schemaName := strings.Split(table, ".")[0]
-		updateExportedSnapshotRowsInTheRow(msr, &row, tableName, schemaName, dbzmStatus, exportedPGSnapshotRowsMap)
+		updateExportedSnapshotRowsInTheRow(msr, &row, nt, ntRowCountMap, exportedPGSnapshotRowsMap)
 		row.ImportedSnapshotRows = 0
-		row.TableName = table
-		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case
-			schemaName = ""
-			row.TableName = tableName
-		}
+		row.TableName = nt.ForKey()
 		row.DBType = "source"
-		err := updateExportedEventsCountsInTheRow(&row, tableName, schemaName) //source OUT counts
+		err := updateExportedEventsCountsInTheRow(&row, nt, sourceExportedEventsMap, targetExportedEventsMap) //source OUT counts
 		if err != nil {
 			utils.ErrExit("error while getting exported events counts for source DB: %w\n", err)
 		}
 		if fBEnabled {
-			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.SourceDBAsTargetConf, nil) //fall back IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, nt, msr.SourceDBAsTargetConf, nil) //fall back IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
@@ -184,13 +223,13 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row.DBType = "target"
 		row.ExportedSnapshotRows = 0
 		if msr.TargetDBConf != nil { // In case import is not started yet, target DB conf will be nil
-			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.TargetDBConf, targetImportedSnapshotRowsMap) //target IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, nt, msr.TargetDBConf, targetImportedSnapshotRowsMap) //target IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for target DB: %w\n", err)
 			}
 		}
 		if fFEnabled || fBEnabled {
-			err = updateExportedEventsCountsInTheRow(&row, tableName, schemaName) // target OUT counts
+			err = updateExportedEventsCountsInTheRow(&row, nt, sourceExportedEventsMap, targetExportedEventsMap) // target OUT counts
 			if err != nil {
 				utils.ErrExit("error while getting exported events for target DB: %w\n", err)
 			}
@@ -201,7 +240,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			row.TableName = ""
 			row.DBType = "source-replica"
 			row.ExportedSnapshotRows = 0
-			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.SourceReplicaDBConf, replicaImportedSnapshotRowsMap) //fall forward IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, nt, msr.SourceReplicaDBConf, replicaImportedSnapshotRowsMap) //fall forward IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
@@ -231,28 +270,17 @@ func addRowInTheTable(uitbl *uitable.Table, row rowData) {
 	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
 
-func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, tableName string, schemaName string, dbzmStatus *dbzm.ExportStatus, exportedSnapshotPGRowsMap map[string]int64) {
+func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, nt sqlname.NameTuple, dbzmSnapshotRowCount *utils.StructMap[sqlname.NameTuple, int64], exportedSnapshotPGRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
 	// TODO: read only from one place(data file descriptor). Right now, data file descriptor does not store schema names.
 	if msr.SnapshotMechanism == "debezium" {
-		tableExportStatus := dbzmStatus.GetTableExportStatus(tableName, schemaName)
-		if tableExportStatus == nil {
-			tableExportStatus = &dbzm.TableExportStatus{
-				TableName:                tableName,
-				SchemaName:               schemaName,
-				ExportedRowCountSnapshot: 0,
-				FileName:                 "",
-			}
-		}
-		row.ExportedSnapshotRows = tableExportStatus.ExportedRowCountSnapshot
+		row.ExportedSnapshotRows, _ = dbzmSnapshotRowCount.Get(nt)
 	} else {
-		if schemaName != "public" {
-			tableName = schemaName + "." + tableName
-		}
-		row.ExportedSnapshotRows = exportedSnapshotPGRowsMap[tableName]
+		row.ExportedSnapshotRows, _ = exportedSnapshotPGRowsMap.Get(nt)
 	}
+	return nil
 }
 
-func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf, snapshotImportedRowsMap map[string]int64) error {
+func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sqlname.NameTuple, targetConf *tgtdb.TargetConf, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
 	switch row.DBType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -261,6 +289,15 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	case "source":
 		importerRole = SOURCE_DB_IMPORTER_ROLE
 	}
+	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+		var err error
+		tblName := nt.ForKey()
+		nt, err = sourceReplicaNameRegistry.LookupTableName(tblName)
+		if err != nil {
+			return fmt.Errorf("lookup %s in source replica name registry: %v", tblName, err)
+		}
+	}
+
 	//reinitialise targetDB
 	tconf = *targetConf
 	tdb = tgtdb.NewTargetDB(&tconf)
@@ -275,23 +312,18 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	}
 	state := NewImportDataState(exportDir)
 
-	if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" { //multiple schema specific
-		tableName = schemaName + "." + tableName
-	}
-
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		row.ImportedSnapshotRows = snapshotImportedRowsMap[tableName] // TODO: FIX table.ForKey()
+		row.ImportedSnapshotRows, _ = snapshotImportedRowsMap.Get(nt)
 	}
 
-	// TODO:TABLENAME fix!
-	eventCounter, err := state.GetImportedEventsStatsForTable(sqlname.NameTuple{}, migrationUUID)
+	eventCounter, err := state.GetImportedEventsStatsForTable(nt, migrationUUID)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot assign NULL to *int64") &&
 			!strings.Contains(err.Error(), "converting NULL to int64") { //TODO: handle better in GetImportedEventsStatsForTable() itself later
-			return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableName, row.DBType, err)
+			return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", nt, row.DBType, err)
 		} else {
 			//in case import streaming is not started yet, metadata will not be initialized
-			log.Warnf("stream ingestion is not started yet for table %q for DB type %s", tableName, row.DBType)
+			log.Warnf("stream ingestion is not started yet for table %q for DB type %s", nt, row.DBType)
 			eventCounter = &tgtdb.EventCounter{
 				NumInserts: 0,
 				NumUpdates: 0,
@@ -305,27 +337,22 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	return nil
 }
 
-func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string) error {
+func updateExportedEventsCountsInTheRow(row *rowData, nt sqlname.NameTuple, sourceExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter], targetExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]) error {
+	var exportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	switch row.DBType {
 	case "source":
-		exporterRole = SOURCE_DB_EXPORTER_ROLE
+		exportedEventsMap = sourceExportedEventsMap
 	case "target":
-		if fFEnabled {
-			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
-		} else if fBEnabled {
-			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
-		}
+		exportedEventsMap = targetExportedEventsMap
 	}
-	if len(strings.Split(source.Schema, "|")) <= 1 {
-		schemaName = ""
+
+	eventCounter, _ := exportedEventsMap.Get(nt)
+	if eventCounter != nil {
+		row.ExportedInserts = eventCounter.NumInserts
+		row.ExportedUpdates = eventCounter.NumUpdates
+		row.ExportedDeletes = eventCounter.NumDeletes
 	}
-	eventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(exporterRole, schemaName, tableName)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("could not fetch table stats from meta DB: %w", err)
-	}
-	row.ExportedInserts = eventCounter.NumInserts
-	row.ExportedUpdates = eventCounter.NumUpdates
-	row.ExportedDeletes = eventCounter.NumDeletes
+
 	return nil
 }
 
