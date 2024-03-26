@@ -176,7 +176,6 @@ func exportData() bool {
 		dfd.Save()
 		os.Exit(0)
 	}
-
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch source.DBType {
 		case POSTGRESQL:
@@ -375,6 +374,7 @@ func GetRootTableOfPartition(table sqlname.NameTuple) (sqlname.NameTuple, error)
 	return GetRootTableOfPartition(tuple)
 }
 
+// For partitions case there is no defined mapping and hence lookup will fail for need to create nametuple for non-root table by hand
 func getNameTupleForNonRoot(table string) sqlname.NameTuple {
 	parts := strings.Split(table, ".")
 	defaultSchemaName, _ := getDefaultSourceSchemaName()
@@ -384,6 +384,8 @@ func getNameTupleForNonRoot(table string) sqlname.NameTuple {
 		schema = parts[0]
 		tableName = parts[1]
 	}
+	//remove quotes if present to pass raw table name to objecName
+	tableName = strings.Trim(tableName, "\"")
 	obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, tableName)
 	return sqlname.NameTuple{
 		SourceName:  obj,
@@ -517,7 +519,7 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
 		utils.ErrExit("This voyager release does not support live-migration for tables without a primary key.\n" +
-		"You can exclude these tables using the --exclude-table-list argument.")
+			"You can exclude these tables using the --exclude-table-list argument.")
 	}
 }
 
@@ -527,9 +529,11 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	var finalTableList, skippedTableList []sqlname.NameTuple
 	tableListFromDB := source.DB().GetAllTableNames()
 	var fullTableList []sqlname.NameTuple
-	for _, table := range tableListFromDB {
-		schema, table := table.SchemaName.MinQuoted, table.ObjectName.MinQuoted
+	for _, t := range tableListFromDB {
+		schema, table := t.SchemaName.Unquoted, t.ObjectName.Unquoted
 		defaultSchemaName, _ := getDefaultSourceSchemaName()
+		//For partitions case there is no defined mapping and
+		//hence lookup will fail, need to create nametuple for non-root table by hand
 		obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, table)
 		tuple := sqlname.NameTuple{
 			SourceName:  obj,
@@ -573,13 +577,17 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	if !changeStreamingIsEnabled(exportType) {
 		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
+			utils.PrintAndLog("skipping empty tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
+				return table.CurrentName.MinQualified.MinQuoted
+			}))
 		}
 	}
 
 	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
 	if len(skippedTableList) != 0 {
-		utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
+		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
+			return table.CurrentName.MinQualified.MinQuoted
+		}))
 	}
 
 	var partitionsToRootTableMap map[string]string
@@ -664,10 +672,12 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		sequenceList := source.DB().GetAllSequences()
 		defaultSchema, _ := getDefaultSourceSchemaName()
 		for _, seq := range sequenceList {
+			//TODO: handle in nameregistry lookup
 			schema, seqName := strings.Split(seq, ".")[0], strings.Split(seq, ".")[1]
 			obj := sqlname.NewObjectName(POSTGRESQL, defaultSchema, schema, seqName)
 			finalTableList = append(finalTableList, sqlname.NameTuple{
-				SourceName: obj,
+				SourceName:  obj,
+				CurrentName: obj,
 			})
 		}
 	}
@@ -815,14 +825,6 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 	}
 	findPatternMatchingTables := func(pattern string) []sqlname.NameTuple {
 		result := lo.Filter(fullTableList, func(tableName sqlname.NameTuple, _ int) bool {
-			// table := tableName.Qualified.MinQuoted
-			// sqlNamePattern := sqlname.NewSourceNameFromMaybeQualifiedName(pattern, defaultSourceSchema)
-			// pattern = sqlNamePattern.Qualified.MinQuoted
-			// matched, err := filepath.Match(pattern, table)
-			// if err != nil {
-			// 	utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
-			// }
-			// return matched
 			ok, err := tableName.MatchesPattern(pattern)
 			if err != nil {
 				utils.ErrExit("Invalid table name pattern %q: %s", err)
@@ -833,13 +835,8 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
 	var unqualifiedTables []string
-	// defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
 	var unknownTableNames []string
 	for _, pattern := range tableList {
-		// if noDefaultSchema && len(strings.Split(pattern, ".")) == 1 {
-		// 	unqualifiedTables = append(unqualifiedTables, pattern)
-		// 	continue
-		// }
 		tables := findPatternMatchingTables(pattern)
 		if len(tables) == 0 {
 			unknownTableNames = append(unknownTableNames, pattern)

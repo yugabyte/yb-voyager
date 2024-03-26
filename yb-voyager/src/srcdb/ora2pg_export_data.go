@@ -44,15 +44,6 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	conf := getDefaultOra2pgConfig(source)
 	conf.DisablePartition = "1"
 	conf.Allow = fmt.Sprintf("TABLE%v", tableList)
-	// providing column list for tables having unsupported column types
-	// for tableName, columnList := range tablesColumnList {
-	// 	allColumns := "*"
-	// 	if len(columnList) == 1 && columnList[0] == allColumns {
-	// 		continue
-	// 	}
-	// 	log.Infof("Modifying struct for table %s, columnList: %v\n", tableName.ObjectName.Unquoted, columnList)
-	// 	conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.ObjectName.Unquoted, strings.Join(columnList, ","))
-	// }
 	tablesColumnList.IterKV(func(tableName sqlname.NameTuple, columnList []string) (bool, error) {
 		allColumns := "*"
 		if len(columnList) == 1 && columnList[0] == allColumns {

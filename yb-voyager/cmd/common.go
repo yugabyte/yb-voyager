@@ -71,11 +71,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 			table := tableName.CurrentName.MinQualified.MinQuoted
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
 				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
-				// if schema == "public" {
-				// 	tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", t+"_data.sql")
-				// } else {
 				tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", table+"_data.sql")
-				// }
 			} else {
 				log.Infof("deleting an entry %q from tablesProgressMetadata: ", key)
 				delete(tablesProgressMetadata, key)
@@ -254,29 +250,17 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		sort.Strings(keys)
 		leafPartitions := getLeafPartitionsFromRootTable(keys)
 		for _, key := range keys {
-			// if source.Schema != "" {
-				// tableParts := strings.Split(key, ".")
-				// table := tableParts[0]
-				// schema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schema
-				// if len(tableParts) > 1 {
-				// 	schema = tableParts[0]
-				// 	table = tableParts[1]
-				// }
-
-				table, err := namereg.NameReg.LookupTableName(key)
-				if err != nil {
-					utils.ErrExit("lookup table %s in name registry : %v", key, err)
-				}
-				displayTableName := table.CurrentName.Unqualified.MinQuoted
-				if source.DBType == POSTGRESQL && leafPartitions[key] != nil {
-					partitions := strings.Join(leafPartitions[key], ", ")
-					displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
-				}
-				schema := table.SourceName.SchemaName 
-				uitable.AddRow(schema, displayTableName, exportedRowCount[key])
-			// } else {
-				// uitable.AddRow(source.DBName, key, exportedRowCount[key])
-			// }
+			table, err := namereg.NameReg.LookupTableName(key)
+			if err != nil {
+				utils.ErrExit("lookup table %s in name registry : %v", key, err)
+			}
+			displayTableName := table.CurrentName.Unqualified.MinQuoted
+			if source.DBType == POSTGRESQL && leafPartitions[key] != nil {
+				partitions := strings.Join(leafPartitions[key], ", ")
+				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
+			}
+			schema := table.SourceName.SchemaName
+			uitable.AddRow(schema, displayTableName, exportedRowCount[key])
 		}
 		if len(keys) > 0 {
 			fmt.Print("\n")
@@ -304,7 +288,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		}
 		schema := table.CurrentName.SchemaName
 		uitable.AddRow(schema, table.CurrentName.Unqualified.MinQuoted, tableStatus.ExportedRowCountSnapshot)
-		
+
 	}
 	fmt.Print("\n")
 	fmt.Println(uitable)

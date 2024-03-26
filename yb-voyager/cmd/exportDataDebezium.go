@@ -77,16 +77,6 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 	}
 
-	// for tableName, columns := range tablesColumnList {
-	// 	for _, column := range columns {
-	// 		columnName := fmt.Sprintf("%s.%s", tableName.Qualified.Unquoted, column)
-	// 		if column == "*" {
-	// 			dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
-	// 			break
-	// 		}
-	// 		dbzmColumnList = append(dbzmColumnList, columnName) // if column is PK, then data for it will come from debezium
-	// 	}
-	// }
 	tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 		for _, column := range v {
 			columnName := fmt.Sprintf("%s.%s", k.CurrentName.Qualified.Unquoted, column)

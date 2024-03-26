@@ -121,10 +121,8 @@ func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 
 func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
-	sname, tname := tableName.ForCatalogQuery()
-	table := fmt.Sprintf(`%s."%s"`, sname, tname)
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
-		"where oid = '%s'::regclass", table)
+		"where oid = '%s'::regclass", tableName.CurrentName.Qualified.MinQuoted)
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
@@ -484,10 +482,9 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
-	sname, tname := table.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s."%s"'::regclass::oid`, sname, tname) //TODO : CHECK MINQUOTED
+	WHERE c.oid = '%s'::regclass::oid`, table.CurrentName.Qualified.MinQuoted)
 
 	err := pg.db.QueryRow(context.Background(), query).Scan(&parentTable)
 	if err != pgx.ErrNoRows && err != nil {
@@ -589,13 +586,6 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 		if err != nil {
 			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
 		}
-		// if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
-		// 	// case sensitive unquoted table name returns unquoted parititons name as well
-		// 	// so we need to add quotes around them
-		// 	partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
-		// } else {
-		// 	partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
-		// }
 		partitions = append(partitions, fmt.Sprintf(`%s.%s`, childSchema, childTable))
 	}
 	if rows.Err() != nil {
