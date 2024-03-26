@@ -470,7 +470,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 		if err != nil {
 			return nil, fmt.Errorf("scan rows while fetching exported events stats from query %s : %v", query, err)
 		}
-		if schemaName == "null" && tableName == "null" {
+		if tableName == "null" {
 			continue
 		}
 		lookupName := tableName
