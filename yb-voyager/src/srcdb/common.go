@@ -27,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -35,6 +36,10 @@ func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetad
 	for key := range tablesMetadata {
 		tableMetadata := tablesMetadata[key]
 		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
+		table, err := namereg.NameReg.LookupTableName(targetTableName)
+		if err != nil {
+			utils.ErrExit("error while looking up table name %q: %v", targetTableName, err)
+		}
 		if !utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
 			// This can happen in case of nested tables in Oracle.
 			log.Infof("File %q does not exist. Not including table %q in the descriptor.",
@@ -43,7 +48,7 @@ func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetad
 		}
 		fileEntry := &datafile.FileEntry{
 			FilePath:  filepath.Base(tableMetadata.FinalFilePath),
-			TableName: targetTableName,
+			TableName: table.ForKey(),
 			RowCount:  tableMetadata.CountLiveRows,
 			FileSize:  -1, // Not available.
 		}
