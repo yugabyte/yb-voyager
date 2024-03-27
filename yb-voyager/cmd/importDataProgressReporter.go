@@ -93,4 +93,3 @@ func (pr *ImportDataProgressReporter) FileImportDone(task *ImportFileTask) {
 	progressBar := pr.progressBars[task.ID]
 	progressBar.SetCurrent(pr.totalProgressAmount[task.ID])
 }
-I
