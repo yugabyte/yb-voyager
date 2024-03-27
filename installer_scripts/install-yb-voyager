@@ -136,6 +136,7 @@ centos_main() {
 	$YUM postgresql14 1>&2
 	$YUM sqlite 1>&2
 	create_pg_dump_args_file
+	create_gather_metadata_and_stats_scripts_file
 	install_golang linux
 	if [ $ONLY_PG == "false" ] ; then
 		$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -171,6 +172,7 @@ ubuntu_main() {
 	install_golang linux
 	ubuntu_install_postgres
 	create_pg_dump_args_file
+	create_gather_metadata_and_stats_scripts_file
 	if [ $ONLY_PG == "false" ] ; then
 		sudo apt-get -y install perl  1>&2
 		sudo apt-get -y install libdbi-perl 1>&2
@@ -205,6 +207,7 @@ macos_main() {
 	macos_install_brew
 	macos_install_pg_dump
 	create_pg_dump_args_file
+	create_gather_metadata_and_stats_scripts_file
 	brew install wget
 	brew install sqlite
 	install_golang darwin
@@ -744,6 +747,31 @@ create_pg_dump_args_file() {
 		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
 		popd > /dev/null
 	fi	
+}
+
+create_gather_metadata_and_stats_scripts_file() {
+	scripts_dir="/etc/yb-voyager/scripts"
+	sudo mkdir -p $scripts_dir
+
+	psql_script_file_name="yb-voyager-gather-metadata-and-stats.psql"
+	psql_script_file_path="${scripts_dir}/${psql_script_file_name}"
+	if [ -f "${psql_script_file_path}" ]
+	then
+		curr_date=$(date "+%Y.%m.%d-%H.%M.%S")
+		backup_file_path="${psql_script_file_path}.${curr_date}"
+		sudo mv ${psql_script_file_path} ${backup_file_path}
+		output "Overwriting ${psql_script_file_path}. Existing contents are backed up in ${backup_file_path}"
+	fi
+
+	output "Installing the latest yb-voyager-gather-metadata-and-stats.psql"
+	if [ "${VERSION}" == "latest" ]
+	then
+		sudo wget -nv -O $psql_script_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/${psql_script_file_name}
+	else
+		pushd $REPO_ROOT > /dev/null
+		sudo cp ./yb-voyager/src/srcdb/data/${psql_script_file_name} $psql_script_file_path
+		popd > /dev/null
+	fi
 }
 
 #=============================================================================

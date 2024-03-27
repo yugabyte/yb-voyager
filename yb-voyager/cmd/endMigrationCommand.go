@@ -539,7 +539,7 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 
 func cleanupExportDir() {
 	utils.PrintAndLog("cleaning up export dir...")
-	subdirs := []string{"schema", "data", "logs", "reports", "temp", "metainfo", "sqlldr"}
+	subdirs := []string{"schema", "assessment", "data", "logs", "reports", "temp", "metainfo", "sqlldr"}
 	for _, subdir := range subdirs {
 		err := os.RemoveAll(filepath.Join(exportDir, subdir))
 		if err != nil {

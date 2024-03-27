@@ -221,7 +221,7 @@ func (yb *YugabyteDB) getConnectionUri() string {
 	return source.Uri
 }
 
-func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
+func (yb *YugabyteDB) GetConnectionUriWithoutPassword() string {
 	source := yb.source
 	if source.Uri == "" {
 		hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
@@ -251,7 +251,7 @@ func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 }
 
 func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
-	pgdumpExportDataOffline(ctx, yb.source, yb.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
+	pgdumpExportDataOffline(ctx, yb.source, yb.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
 }
 
 func (yb *YugabyteDB) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

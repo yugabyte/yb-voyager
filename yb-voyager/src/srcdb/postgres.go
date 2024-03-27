@@ -40,7 +40,12 @@ import (
 
 var postgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT"}
 
-const PG_COMMAND_VERSION string = "14.0"
+var PG_COMMAND_VERSION = map[string]string{
+	"pg_dump":    "14.0",
+	"pg_restore": "14.0",
+	"psql":       "9.0", //psql features we need are available in 7.1 onwards, keeping it to 9.0 for safety
+}
+
 const FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE = `SELECT
 a.attname AS column_name,
 COALESCE(seq.relname, '') AS sequence_name,
@@ -253,7 +258,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 	return source.Uri
 }
 
-func (pg *PostgreSQL) getConnectionUriWithoutPassword() string {
+func (pg *PostgreSQL) GetConnectionUriWithoutPassword() string {
 	source := pg.source
 	hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
 	sourceUrl := &url.URL{
@@ -268,7 +273,7 @@ func (pg *PostgreSQL) getConnectionUriWithoutPassword() string {
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pg.checkSchemasExists()
-	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
+	pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir)
 }
 
 func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
@@ -276,7 +281,7 @@ func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
+	pgdumpExportDataOffline(ctx, pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -332,7 +337,7 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 }
 
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
-// the executable file having version >= `PG_COMMAND_VERSION`.
+// the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
 func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
@@ -345,10 +350,10 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	}
 
 	for _, path := range paths {
-		cmd := exec.Command(path, "--version")
-		stdout, err := cmd.Output()
+		checkVersiomCmd := exec.Command(path, "--version")
+		stdout, err := checkVersiomCmd.Output()
 		if err != nil {
-			err = fmt.Errorf("error in finding version of %v from path %v: %w", cmd, path, err)
+			err = fmt.Errorf("error in finding version of %v from path %v: %w", checkVersiomCmd, path, err)
 			return "", err
 		}
 
@@ -356,7 +361,7 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
 		currVersion := strings.Fields(string(stdout))[2]
 
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION) >= 0 {
+		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 {
 			return path, nil
 		}
 	}
