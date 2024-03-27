@@ -16,6 +16,13 @@ limitations under the License.
 
 package migassessment
 
+import (
+	"fmt"
+	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"path/filepath"
+)
+
 type SizingReport struct {
 	NodeCount        int
 	VcpuCountPerNode int
@@ -27,15 +34,33 @@ type SizingParams struct {
 	// add any sizing specific parameters required from user here
 }
 
+type SizingTableCountRecord struct {
+	Count string `json:"count"`
+}
+
 func SizingAssessment() error {
-	// Can read user input from `params.SizingParams`
-	// If sizing algorithm requires output of sharding,
-	// it can directly read the input from
-	// the `report.ShardingReport`
+	// load the assessment data
+	assessmentDataDir := filepath.Join(ExportDir, "assessment", "data")
+	tableCountFile := filepath.Join(assessmentDataDir, "sizing__num-tables-count.csv")
 
-	// Load CSV data files.
-	// Run/call sizer.
-	// Populate `FinalReport.SizingReport`
+	log.Infof("loading metadata files for sharding assessment")
+	tableCount, err := loadCSVDataFile[SizingTableCountRecord](tableCountFile)
+	if err != nil {
+		log.Errorf("failed to load table count file: %v", err)
+		return fmt.Errorf("failed to load table count file: %w", err)
+	}
 
+	utils.PrintAndLog("performing sizing assessment...")
+	for _, tableC := range tableCount {
+		log.Infof("count: %+v", tableC)
+	}
+	// core assessment logic goes here - maybe call some external package APIs to perform the assessment
+	FinalReport.SizingReport = &SizingReport{
+		// replace with actual assessment results
+		NodeCount:        3,
+		VcpuCountPerNode: 8,
+		MemGBPerNode:     16,
+		StorageGBPerNode: 250,
+	}
 	return nil
 }

@@ -82,7 +82,11 @@ func assessMigration() error {
 		return fmt.Errorf("failed to perform sharding assessment: %w", err)
 	}
 
-	// err := migassessment.SizingAssessment()
+	err = migassessment.SizingAssessment()
+	if err != nil {
+		log.Errorf("failed to perform sizing assessment: %v", err)
+		return fmt.Errorf("failed to perform sizing assessment: %w", err)
+	}
 
 	reportFilePath := filepath.Join(exportDir, "assessment", "reports", "report."+assessmentReportFormat)
 	var assessmentReportContent bytes.Buffer
