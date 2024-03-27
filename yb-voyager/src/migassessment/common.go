@@ -40,7 +40,7 @@ type Report struct {
 var params *AssessmentParams
 
 type AssessmentParams struct {
-	TargetYBVersion string `json:target_yb_version`
+	TargetYBVersion string `json:"target_yb_version"`
 	ShardingParams  `json:"sharding_params"`
 	SizingParams    `json:"sizing_params"`
 }
