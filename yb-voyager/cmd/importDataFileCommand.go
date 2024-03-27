@@ -139,7 +139,6 @@ func getFileSizeInfo(importFileTasks []*ImportFileTask) []*datafile.FileEntry {
 			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
 		}
 		fileEntry := &datafile.FileEntry{
-			//TODO:TABLENAME
 			TableName: tableName.ForKey(),
 			FilePath:  filePath,
 			FileSize:  fileSize,

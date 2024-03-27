@@ -212,7 +212,6 @@ func checkSourceExporter(exporterRole string) bool {
 
 func (conv *DebeziumValueConverter) convertMap(tableName sqlname.NameTuple, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *schemareg.SchemaRegistry
-	// tableNameInSchemaRegistry := tableName
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {

@@ -518,7 +518,6 @@ func (s *ImportDataState) getLiveMigrationMetaInfoByTable(migrationUUID uuid.UUI
 
 func (s *ImportDataState) cleanFileImportStateFromDB(filePath string, tableName sqlname.NameTuple) error {
 	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
-	// schemaName := getTargetSchemaName(tableName)
 	sname, tname := tableName.ForCatalogQuery()
 	cmd := fmt.Sprintf(
 		`DELETE FROM %s WHERE migration_uuid = '%s' AND data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,

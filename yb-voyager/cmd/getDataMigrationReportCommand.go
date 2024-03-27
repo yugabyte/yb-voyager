@@ -180,7 +180,6 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 
 	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if msr.TargetDBConf != nil {
-		//TODO: FIX WITH STATS
 		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableNts)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for target DB: %w\n", err)
@@ -189,7 +188,6 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 
 	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	if fFEnabled {
-		//TODO: FIX WITH STATS
 		oldNameReg := namereg.NameReg
 		namereg.NameReg = *sourceReplicaNameRegistry
 		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableNts)

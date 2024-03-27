@@ -312,7 +312,6 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		tableList := utils.CsvStringToSlice(flagTableList)
 		var result []sqlname.NameTuple
 		var unqualifiedTables []string
-		//TODO: handle unknown tables.
 		var unknownTables []string
 		for _, table := range tableList {
 			if noDefaultSchema && len(strings.Split(table, ".")) == 1 {
@@ -440,7 +439,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 
-	//TODO:TABLENAME
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
 	sourceTableList := msr.TableListExportedFromSource
@@ -1291,7 +1289,6 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 	for _, task := range tasks {
 
 		var schemaName, tableName string
-		// TODO:TABLENAME revisit
 		schemaName, tableName = cp.SplitTableNameForPG(task.TableName.ForKey())
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
