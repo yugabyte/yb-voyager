@@ -121,7 +121,7 @@ func gatherMetadataAndStatsFromPG() error {
 	}
 
 	args := []string{
-		fmt.Sprintf("%s", source.DB().GetConnectionUriWithoutPassword()),
+		source.DB().GetConnectionUriWithoutPassword(),
 		"-f", psqlScriptPath,
 		"-v", "schema_list=" + source.Schema,
 	}

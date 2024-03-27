@@ -37,7 +37,7 @@ type Report struct {
 	*SizingReport   `json:"sizing"`
 }
 
-var params *AssessmentParams
+// var params *AssessmentParams
 
 type AssessmentParams struct {
 	TargetYBVersion string `json:"target_yb_version"`
