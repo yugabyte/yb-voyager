@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	_ "embed"
 	"fmt"
 	"os/exec"
 	"path/filepath"
