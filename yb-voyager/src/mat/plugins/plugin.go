@@ -29,6 +29,8 @@ func GetPlugin(pluginName string) AssessmentPlugin {
 	switch pluginName {
 	case "sharding":
 		return newShardingPlugin()
+	case "sizing":
+		return newSizingPlugin()
 	default:
 		panic(fmt.Sprintf("invalid plugin name: %s", pluginName))
 	}

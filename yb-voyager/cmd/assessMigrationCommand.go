@@ -32,7 +32,7 @@ import (
 	"golang.org/x/text/language"
 )
 
-var supportedPlugins = []string{"sharding"}
+var supportedPlugins = []string{"sharding", "sizing"}
 var supportedMigrationReportFormats = []string{"json", "html"}
 
 var pluginsList []string

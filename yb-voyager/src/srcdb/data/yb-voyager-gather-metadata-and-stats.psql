@@ -113,5 +113,19 @@ END $$;
 -- Drop the temporary table
 DROP TABLE temp_table;
 
+-- TODO: finalize the query, approx count or exact count(any optimization also if possible)
+\echo 'collect stats about the number of tables'
+
+-- Create a temporary table to store the row counts
+CREATE TEMP TABLE temp_table (
+    num_of_tables INT
+);
+intsert into temp (num_of_tables) values (select count(*) from information_schema.tables where table_schema = 'public');
+
+-- Export the data from the temporary table to a CSV file
+\copy temp_table TO 'sizing__num-tables-counts.csv' WITH CSV HEADER;
+
+-- Drop the temporary table
+DROP TABLE temp_table;
 
 -- TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
