@@ -31,7 +31,7 @@ import (
 )
 
 var supportedMigrationReportFormats = []string{"json", "html"}
-var userInputFpath string
+var assessmentParamsFpath string
 var assessmentReportFormat string
 var metadataAndStatsDir string
 
@@ -53,8 +53,8 @@ func init() {
 	registerCommonGlobalFlags(assessMigrationCmd)
 
 	// TODO: clarity on whether this flag should be a mandatory or not
-	assessMigrationCmd.Flags().StringVar(&userInputFpath, "user-input", "",
-		"File path for user input to the plugins. This file should contain the user input for the plugins in TOML format.")
+	assessMigrationCmd.Flags().StringVar(&assessmentParamsFpath, "assessment-params", "",
+		"TOML file path to the user provided assessment params.")
 
 	assessMigrationCmd.Flags().StringVar(&assessmentReportFormat, "report-format", "json",
 		fmt.Sprintf("Output format for migration assessment report. Supported formats are: %s.",
@@ -72,11 +72,21 @@ var bytesTemplate []byte
 
 func assessMigration() error {
 	log.Infof("Assessing migration from source database to YugabyteDB...")
-	migassessment.ExportDir = exportDir
+	if metadataAndStatsDir != "" {
+		migassessment.AssessmentDataDir = metadataAndStatsDir
+	} else {
+		migassessment.AssessmentDataDir = filepath.Join(exportDir, "assessment", "data")
+	}
 
-	// err := loadAssessmentParams() // Sets `params`
+	// load and sets 'assessmentParams' from the user input file
+	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
+	if err != nil {
+		log.Errorf("failed to load assessment parameters: %v", err)
+		return fmt.Errorf("failed to load assessment parameters: %w", err)
 
-	err := migassessment.ShardingAssessment()
+	}
+
+	err = migassessment.ShardingAssessment()
 	if err != nil {
 		log.Errorf("failed to perform sharding assessment: %v", err)
 		return fmt.Errorf("failed to perform sharding assessment: %w", err)
