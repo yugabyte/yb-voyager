@@ -358,5 +358,3 @@ func TestMySQLNonDefaultSchemaCaseSensitiveUpperCaseTableName(t *testing.T) {
 	assert.Equal(expectedTableName, tableName)
 	assert.Equal(tableName.MinQualified, tableName.Qualified)
 }
-
-//=====================================================

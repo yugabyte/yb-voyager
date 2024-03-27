@@ -21,6 +21,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type ColumnSchema struct {
@@ -63,19 +67,19 @@ func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequi
 type SchemaRegistry struct {
 	exportDir         string
 	exporterRole      string
-	TableNameToSchema map[string]*TableSchema
+	TableNameToSchema *utils.StructMap[sqlname.NameTuple, *TableSchema]
 }
 
 func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	return &SchemaRegistry{
 		exportDir:         exportDir,
 		exporterRole:      exporterRole,
-		TableNameToSchema: make(map[string]*TableSchema),
+		TableNameToSchema: utils.NewStructMap[sqlname.NameTuple, *TableSchema](),
 	}
 }
 
-func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
-	tableSchema := sreg.TableNameToSchema[tableName]
+func (sreg *SchemaRegistry) GetColumnTypes(tableName sqlname.NameTuple, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
+	tableSchema, _ := sreg.TableNameToSchema.Get(tableName)
 	if tableSchema == nil {
 		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableName)
 	}
@@ -91,14 +95,21 @@ func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []strin
 	return columnTypes, columnSchemas, nil
 }
 
-func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
+func (sreg *SchemaRegistry) GetColumnType(tableName sqlname.NameTuple, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
 	var tableSchema *TableSchema
+	var found bool
 	var err error
-	tableSchema = sreg.TableNameToSchema[tableName]
+	tableSchema, _ = sreg.TableNameToSchema.Get(tableName)
 	if tableSchema == nil {
-		// check on disk
-		tableSchema, err = sreg.getAndStoreTableSchema(tableName)
+		// reinit
+		sreg.TableNameToSchema.Clear()
+
+		err = sreg.Init()
 		if err != nil {
+			return "", nil, fmt.Errorf("re-init of registry : %v", err)
+		}
+		tableSchema, found = sreg.TableNameToSchema.Get(tableName)
+		if !found || tableSchema == nil {
 			return "", nil, fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
 		}
 	}
@@ -122,27 +133,13 @@ func (sreg *SchemaRegistry) Init() error {
 		if err != nil {
 			return fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
 		}
-		table := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
-		sreg.TableNameToSchema[table] = &tableSchema
+		tableName := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
+		table, err := namereg.NameReg.LookupTableName(tableName)
+		if err != nil {
+			return fmt.Errorf("lookup %s from name registry: %v", tableName, err)
+		}
+		sreg.TableNameToSchema.Put(table, &tableSchema)
 		schemaFile.Close()
 	}
 	return nil
-}
-
-func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSchema, error) {
-	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole, fmt.Sprintf("%s_schema.json", tableName))
-	schemaFile, err := os.Open(schemaFilePath)
-	defer func() {
-		_ = schemaFile.Close()
-	}()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open table schema file %s: %w", schemaFilePath, err)
-	}
-	var tableSchema TableSchema
-	err = json.NewDecoder(schemaFile).Decode(&tableSchema)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
-	}
-	sreg.TableNameToSchema[tableName] = &tableSchema
-	return &tableSchema, nil
 }
