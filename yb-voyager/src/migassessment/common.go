@@ -21,11 +21,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var ExportDir string
+var AssessmentDataDir string
 
 type Record map[string]any
 
@@ -37,12 +38,12 @@ type Report struct {
 	*SizingReport   `json:"sizing"`
 }
 
-// var params *AssessmentParams
+var assessmentParams = &AssessmentParams{}
 
 type AssessmentParams struct {
-	TargetYBVersion string `json:"target_yb_version"`
-	ShardingParams  `json:"sharding_params"`
-	SizingParams    `json:"sizing_params"`
+	TargetYBVersion string `toml:"target_yb_version"`
+	ShardingParams  `toml:"sharding_params"`
+	SizingParams    `toml:"sizing_params"`
 }
 
 func loadCSVDataFile[T any](filePath string) ([]*T, error) {
@@ -53,18 +54,13 @@ func loadCSVDataFile[T any](filePath string) ([]*T, error) {
 		return nil, fmt.Errorf("error loading csv data file %s: %w", filePath, err)
 	}
 
-	utils.PrintAndLog("records: %+v", records)
-
 	for _, record := range records {
 		var tmplRec T
-		utils.PrintAndLog("record before marshalling: %+v", record)
-		utils.PrintAndLog("type of tmplRec: %T", tmplRec)
 		bs, err := json.Marshal(record)
 		if err != nil {
 			log.Errorf("error marshalling record: %v", err)
 			return nil, fmt.Errorf("error marshalling record: %w", err)
 		}
-		utils.PrintAndLog("record after marshalling: %s", string(bs))
 		err = json.Unmarshal(bs, &tmplRec)
 		if err != nil {
 			log.Errorf("error unmarshalling record: %v", err)
@@ -116,4 +112,22 @@ func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
 		result[rowNum-1] = record
 	}
 	return result, nil
+}
+
+func LoadAssessmentParams(userInputFpath string) error {
+	log.Infof("loading assessment parameters from file %s", userInputFpath)
+	tomlData, err := os.ReadFile(userInputFpath)
+	if err != nil {
+		log.Errorf("error reading toml file %s: %v", userInputFpath, err)
+		return fmt.Errorf("error reading toml file %s: %w", userInputFpath, err)
+	}
+
+	err = toml.Unmarshal(tomlData, &assessmentParams)
+	if err != nil {
+		log.Errorf("error unmarshalling toml file's data: %v", err)
+		return fmt.Errorf("error unmarshalling toml file's data: %w", err)
+	}
+
+	utils.PrintAndLog("assessment params: %+v", assessmentParams)
+	return nil
 }

@@ -44,13 +44,14 @@ type ShardingTableIOPSRecord struct {
 
 type ShardingParams struct {
 	// add any sharding specific parameters required from user here
+	NumNodes        int `toml:"num_nodes"`
+	NumCoresPerNode int `toml:"num_cores_per_node"`
 }
 
 func ShardingAssessment() error {
 	// load the assessment data
-	assessmentDataDir := filepath.Join(ExportDir, "assessment", "data")
-	tableSizesFpath := filepath.Join(assessmentDataDir, "sharding__table-sizes.csv")
-	tableIOPSFpath := filepath.Join(assessmentDataDir, "sharding__table-iops.csv")
+	tableSizesFpath := filepath.Join(AssessmentDataDir, "sharding__table-sizes.csv")
+	tableIOPSFpath := filepath.Join(AssessmentDataDir, "sharding__table-iops.csv")
 
 	log.Infof("loading metadata files for sharding assessment")
 	tableSizes, err := loadCSVDataFile[ShardingTableSizesRecord](tableSizesFpath)

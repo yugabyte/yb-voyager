@@ -25,6 +25,9 @@ type SizingReport struct {
 
 type SizingParams struct {
 	// add any sizing specific parameters required from user here
+	// dummy params for now
+	UseNvme           bool `toml:"use_nvme"`
+	MultiAzDeployment bool `toml:"multi_az_deployment"`
 }
 
 func SizingAssessment() error {
