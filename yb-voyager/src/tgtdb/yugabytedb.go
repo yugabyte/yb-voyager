@@ -568,11 +568,6 @@ and needs to be prepared again
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch of %d events", len(batch.Events))
 	ybBatch := pgx.Batch{}
-	// This is an additional safety net to workaround
-	// issue in YB where in batched execution, transactions can be retried partially, breaking atomicity.
-	// SELECT 1 causes the ysql layer to record that data was sent back to the user, thereby, preventing retries
-	// https://yugabyte.slack.com/archives/CAR5BCH29/p1708320808330589
-	ybBatch.Queue("SELECT 1")
 	stmtToPrepare := make(map[string]string)
 	// processing batch events to convert into prepared or unprepared statements based on Op type
 	for i := 0; i < len(batch.Events); i++ {
@@ -607,6 +602,16 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 		}
 
+		// This is an additional safety net to workaround
+		// issue in YB where in batched execution, transactions can be retried partially, breaking atomicity.
+		// SELECT 1 causes the ysql layer to record that data was sent back to the user, thereby, preventing retries
+		// https://yugabyte.slack.com/archives/CAR5BCH29/p1708320808330589
+		res, err := tx.Exec(ctx, "SELECT 1")
+		if err != nil || res.RowsAffected() == 0 {
+			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
+			return false, fmt.Errorf("failed to run SELECT 1 query: %w, rowsAffected: %v",
+				err, res.RowsAffected())
+		}
 		br := tx.SendBatch(ctx, &ybBatch)
 		closeBatch := func() error {
 			if closeErr := br.Close(); closeErr != nil {
@@ -629,7 +634,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
-		res, err := tx.Exec(context.Background(), updateVsnQuery)
+		res, err = tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
 			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
 			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w, rowsAffected: %v",
