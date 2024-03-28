@@ -104,7 +104,7 @@ func exportSchema() error {
 
 	source.DB().ExportSchema(exportDir)
 	updateIndexesInfoInMetaDB()
-	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
+	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.SourceDBType = source.DBType
@@ -123,7 +123,7 @@ func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 	registerCommonGlobalFlags(exportSchemaCmd)
 	registerCommonExportFlags(exportSchemaCmd)
-	registerSourceDBConnFlags(exportSchemaCmd, false)
+	registerSourceDBConnFlags(exportSchemaCmd, false, true)
 	BoolVar(exportSchemaCmd.Flags(), &source.UseOrafce, "use-orafce", true,
 		"enable using orafce extension in export schema")
 

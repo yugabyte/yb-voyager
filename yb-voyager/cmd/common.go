@@ -393,7 +393,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		"schema", "data", "reports",
 		"assessment", "assessment/data", "assessment/reports",
 		"metainfo", "metainfo/data", "metainfo/conf", "metainfo/ssl",
-		"temp", "temp/ora2pg_temp_dir",
+		"temp", "temp/ora2pg_temp_dir", "temp/schema",
 	}
 
 	log.Info("Creating a project directory if not exists...")
