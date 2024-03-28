@@ -568,6 +568,11 @@ and needs to be prepared again
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch of %d events", len(batch.Events))
 	ybBatch := pgx.Batch{}
+	// This is an additional safety net to workaround
+	// issue in YB where in batched execution, transactions can be retried partially, breaking atomicity.
+	// SELECT 1 causes the ysql layer to record that data was sent back to the user, thereby, preventing retries
+	// https://yugabyte.slack.com/archives/CAR5BCH29/p1708320808330589
+	ybBatch.Queue("SELECT 1")
 	stmtToPrepare := make(map[string]string)
 	// processing batch events to convert into prepared or unprepared statements based on Op type
 	for i := 0; i < len(batch.Events); i++ {
