@@ -253,6 +253,10 @@ func (ms *MySQL) GetAllSequences() []string {
 	return nil
 }
 
+func (ms *MySQL) GetAllSequencesRaw(_ string) ([]string, error) {
+	return nil, nil
+}
+
 func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, _ bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()

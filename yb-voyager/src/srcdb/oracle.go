@@ -421,6 +421,11 @@ func (ora *Oracle) GetAllSequences() []string {
 	return nil
 }
 
+func (ora *Oracle) GetAllSequencesRaw(_ string) ([]string, error) {
+	return nil, nil
+}
+
+
 func (ora *Oracle) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
 	sname, tname := tableName.ForCatalogQuery()

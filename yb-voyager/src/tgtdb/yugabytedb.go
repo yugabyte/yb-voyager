@@ -34,6 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -259,6 +260,31 @@ func (yb *TargetYugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, er
 	log.Infof("Query found %d tables in the YB db: %v", len(tableNames), tableNames)
 	return tableNames, nil
 }
+
+// GetAllSequencesRaw returns all the sequence names in the database for the schema
+func (yb *TargetYugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	var sequenceNames []string
+	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema = '%s';`, schemaName)
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceName string
+	for rows.Next() {
+		err = rows.Scan(&sequenceName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v\n", rows.Err())
+	}
+	return sequenceNames, nil
+}
+
 
 // The _v2 is appended in the table name so that the import code doesn't
 // try to use the similar table created by the voyager 1.3 and earlier.
@@ -528,7 +554,12 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) 
 			continue
 		}
 		// same function logic will work for sequences as well
-		sequenceName = yb.qualifyTableName(sequenceName)
+		// sequenceName = yb.qualifyTableName(sequenceName)
+		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
+		if err != nil {
+			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
+		}
+		sequenceName = seqName.ForUserQuery()
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
 	}

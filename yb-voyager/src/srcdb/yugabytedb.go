@@ -329,6 +329,31 @@ func (yb *YugabyteDB) GetAllSequences() []string {
 	return sequenceNames
 }
 
+// GetAllSequencesRaw returns all the sequence names in the database for the schema
+func (yb *YugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	var sequenceNames []string
+	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema = '%s';`, schemaName)
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceName string
+	for rows.Next() {
+		err = rows.Scan(&sequenceName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for sequence names: %v", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
+	}
+	return sequenceNames, nil
+}
+
+
 func (yb *YugabyteDB) GetCharset() (string, error) {
 	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", yb.source.DBName)
 	encoding := ""
