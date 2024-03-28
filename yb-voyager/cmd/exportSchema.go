@@ -49,18 +49,21 @@ var exportSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		source.ApplyExportSchemaObjectListFilter()
-		exportSchema()
+		err := exportSchema()
+		if err != nil {
+			utils.ErrExit("failed to export schema: %v", err)
+		}
 	},
 }
 
-func exportSchema() {
+func exportSchema() error {
 	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the " +
 					"exported schema. Do you want to proceed")
 			if !proceed {
-				return
+				return nil
 			}
 
 			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
@@ -71,7 +74,7 @@ func exportSchema() {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the exported schema.\n")
-			return
+			return nil
 		}
 	} else if startClean {
 		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
@@ -82,7 +85,8 @@ func exportSchema() {
 	// Check connection with source database.
 	err := source.DB().Connect()
 	if err != nil {
-		utils.ErrExit("Failed to connect to the source db: %s", err)
+		log.Errorf("failed to connect to the source db: %s", err)
+		return fmt.Errorf("failed to connect to the source db: %w", err)
 	}
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
@@ -91,7 +95,8 @@ func exportSchema() {
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
 	err = retrieveMigrationUUID()
 	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
+		log.Errorf("failed to get migration UUID: %v", err)
+		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
@@ -111,6 +116,7 @@ func exportSchema() {
 
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
+	return nil
 }
 
 func init() {
