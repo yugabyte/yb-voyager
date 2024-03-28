@@ -264,7 +264,7 @@ func (yb *TargetYugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, er
 // GetAllSequencesRaw returns all the sequence names in the database for the schema
 func (yb *TargetYugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	var sequenceNames []string
-	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema = '%s';`, schemaName)
+	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences where schemaname = '%s';`, schemaName)
 	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)

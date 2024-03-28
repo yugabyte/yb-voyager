@@ -421,8 +421,27 @@ func (ora *Oracle) GetAllSequences() []string {
 	return nil
 }
 
-func (ora *Oracle) GetAllSequencesRaw(_ string) ([]string, error) {
-	return nil, nil
+func (ora *Oracle) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s'", schemaName)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %q for finding identity column: %v", query, err)
+	}
+	var sequences []string
+	for rows.Next() {
+		var columnName, tableName string
+		err := rows.Scan(&tableName, &columnName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan columnName from output of query %q: %v", query, err)
+		}
+		// sequence name as per PG naming convention for bigserial datatype's sequence
+		sequenceName := fmt.Sprintf("%s_%s_seq", tableName, columnName)
+		sequences = append(sequences, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("Failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
+	}
+	return sequences, nil
 }
 
 
