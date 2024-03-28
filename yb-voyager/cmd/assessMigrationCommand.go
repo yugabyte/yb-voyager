@@ -40,7 +40,13 @@ var assessMigrationCmd = &cobra.Command{
 	Short: "Assess the migration from source database to YugabyteDB.",
 	Long:  `Assess the migration from source database to YugabyteDB.`,
 
+	PreRun: func(cmd *cobra.Command, args []string) {
+		setSourceDefaultPort()
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
+		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
 		err := assessMigration()
 		if err != nil {
 			utils.ErrExit("failed to assess migration: %v", err)
@@ -51,26 +57,32 @@ var assessMigrationCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(assessMigrationCmd)
 	registerCommonGlobalFlags(assessMigrationCmd)
+	registerSourceDBConnFlags(assessMigrationCmd, false)
 
 	// TODO: clarity on whether this flag should be a mandatory or not
 	assessMigrationCmd.Flags().StringVar(&assessmentParamsFpath, "assessment-params", "",
 		"TOML file path to the user provided assessment params.")
 
-	// assessMigrationCmd.Flags().StringVar(&assessmentReportFormat, "report-format", "json",
-	// 	fmt.Sprintf("Output format for migration assessment report. Supported formats are: %s.",
-	// 		strings.Join(supportedAssessmentReportFormats, ", ")))
+	BoolVar(assessMigrationCmd.Flags(), &startClean, "start-clean", false,
+		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
 	// optional flag to take metadata and stats directory path in case it is not in exportDir
 	assessMigrationCmd.Flags().StringVar(&metadataAndStatsDir, "metadata-and-stats-dir", "",
 		"Directory path where metadata and stats are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
-
 }
 
 //go:embed report.template
 var bytesTemplate []byte
 
 func assessMigration() error {
+	checkStartCleanForAssessMigration()
+
+	err := gatherMetadataAndStats()
+	if err != nil {
+		return fmt.Errorf("failed to gather metadata and stats: %w", err)
+	}
+
 	log.Infof("Assessing migration from source database to YugabyteDB...")
 	if metadataAndStatsDir != "" {
 		migassessment.AssessmentDataDir = metadataAndStatsDir
@@ -79,7 +91,7 @@ func assessMigration() error {
 	}
 
 	// load and sets 'assessmentParams' from the user input file
-	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
+	err = migassessment.LoadAssessmentParams(assessmentParamsFpath)
 	if err != nil {
 		log.Errorf("failed to load assessment parameters: %v", err)
 		return fmt.Errorf("failed to load assessment parameters: %w", err)
@@ -99,14 +111,16 @@ func assessMigration() error {
 		log.Errorf("failed to generate assessment report: %v", err)
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
-	utils.PrintAndLog("Generated assessment reports at '%s'", filepath.Join(exportDir, "assessment", "reports"))
+
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	return nil
 }
 
 func generateAssessmentReport() error {
+	utils.PrintAndLog("Generating assessment reports...")
+	reportsDir := filepath.Join(exportDir, "assessment", "reports")
 	for _, assessmentReportFormat := range supportedAssessmentReportFormats {
-		reportFilePath := filepath.Join(exportDir, "assessment", "reports", "report."+assessmentReportFormat)
+		reportFilePath := filepath.Join(reportsDir, "report."+assessmentReportFormat)
 		var assessmentReportContent bytes.Buffer
 		switch assessmentReportFormat {
 		case "json":
@@ -122,7 +136,6 @@ func generateAssessmentReport() error {
 				return fmt.Errorf("failed to write assessment report to buffer: %w", err)
 			}
 		case "html":
-			fmt.Printf("bytesTemplate: %s\n", bytesTemplate)
 			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
 			err := templ.Execute(&assessmentReportContent, migassessment.FinalReport)
 			if err != nil {
@@ -131,8 +144,6 @@ func generateAssessmentReport() error {
 			}
 		}
 
-		fmt.Printf("assessmentReportContent: %s\n", assessmentReportContent.String())
-
 		log.Infof("writing assessment report to file: %s", reportFilePath)
 		err := os.WriteFile(reportFilePath, assessmentReportContent.Bytes(), 0644)
 		if err != nil {
@@ -140,5 +151,21 @@ func generateAssessmentReport() error {
 			return fmt.Errorf("failed to write the assessment report: %w", err)
 		}
 	}
+	utils.PrintAndLog("Generated assessment reports at '%s'", reportsDir)
 	return nil
+}
+
+func checkStartCleanForAssessMigration() {
+	assessmentDir := filepath.Join(exportDir, "assessment")
+	dataFilesPattern := filepath.Join(assessmentDir, "data", "*.csv")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
+
+	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) || utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) {
+		if startClean {
+			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
+			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
+		} else {
+			utils.ErrExit("metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
+		}
+	}
 }

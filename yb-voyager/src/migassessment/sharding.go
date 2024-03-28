@@ -66,6 +66,12 @@ func ShardingAssessment() error {
 		return fmt.Errorf("failed to load table IOPS file: %w", err)
 	}
 
+	var tableList []string
+	for _, record := range tableSizes {
+		tableName := record.SchemaName + "." + record.TableName
+		tableList = append(tableList, tableName)
+	}
+
 	for _, tableSize := range tableSizes {
 		log.Infof("table size: %+v", tableSize)
 	}
@@ -78,9 +84,9 @@ func ShardingAssessment() error {
 	// core assessment logic goes here - maybe call some external package APIs to perform the assessment
 
 	FinalReport.ShardingReport = &ShardingReport{
-		// replace with actual assessment results
-		ColocatedTables: []string{"table1", "table2"},
-		ShardedTables:   []string{"table3", "table4"},
+		// replace this with actual assessment results
+		ColocatedTables: tableList[:len(tableList)/2],
+		ShardedTables:   tableList[len(tableList)/2:],
 	}
 
 	return nil

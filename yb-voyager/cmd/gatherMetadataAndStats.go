@@ -21,52 +21,12 @@ import (
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var gatherMetadataAndStatsCmd = &cobra.Command{
-	Use:   "gather-metadata-and-stats",
-	Short: "Gather metadata and stats from the source database for migration assessment report generation.",
-	Long:  `Gather metadata and stats from the source database for migration assessment report generation.`,
-
-	PreRun: func(cmd *cobra.Command, args []string) {
-		setSourceDefaultPort()
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: metadb is also initialized which is not requried at this stage
-		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-		err := gatherMetadataAndStats()
-		if err != nil {
-			utils.ErrExit("error gathering metadata and stats: %v", err)
-		}
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(gatherMetadataAndStatsCmd)
-	registerCommonGlobalFlags(gatherMetadataAndStatsCmd)
-	registerSourceDBConnFlags(gatherMetadataAndStatsCmd, false)
-	BoolVar(gatherMetadataAndStatsCmd.Flags(), &startClean, "start-clean", false,
-		"cleans up the project directory for schema or data files depending on the export command (default false)")
-
-	// mark schema flag as mandatory
-	gatherMetadataAndStatsCmd.MarkFlagRequired("source-db-schema")
-}
-
 func gatherMetadataAndStats() error {
 	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
-	dataFilesPattern := filepath.Join(assessmentDataDir, "*.csv")
-	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) {
-		if startClean {
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
-		} else {
-			utils.ErrExit("metadata and stats files already exist in '%s' directory. Use --start-clean flag to start fresh", assessmentDataDir)
-		}
-	}
 
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
 	switch source.DBType {
@@ -78,8 +38,7 @@ func gatherMetadataAndStats() error {
 	default:
 		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
-	utils.PrintAndLog("gathering metadata and stats completed")
-	utils.PrintAndLog("metadata and stats files are available in '%s' directory", assessmentDataDir)
+	utils.PrintAndLog("gathered metadata and stats files at '%s'", assessmentDataDir)
 	return nil
 }
 
