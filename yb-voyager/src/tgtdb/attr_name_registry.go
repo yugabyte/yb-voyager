@@ -31,6 +31,7 @@ func (reg *AttributeNameRegistry) QuoteIdentifier(schemaName, tableName, columnN
 	targetColumns, ok := reg.attrNames[qualifiedTableName]
 	if !ok {
 		targetColumns, err = reg.tdb.GetListOfTableAttributes(schemaName, tableName)
+		utils.PrintAndLog("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
 		if err != nil {
 			utils.ErrExit("get list of table attributes: %w", err)
 		}
