@@ -51,18 +51,18 @@ func (reg *AttributeNameRegistry) IfRequiredQuoteColumnNames(tableName string, c
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	utils.PrintAndLog("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
 
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
 			colName = colName[1 : len(colName)-1]
 		}
-		colName, err = reg.findBestMatchingColumnName(colName, targetColumns)
+		matchCol, err := reg.findBestMatchingColumnName(colName, targetColumns)
 		if err != nil {
 			return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
 				colName, schemaName, tableName, err)
 		}
-		result[i] = fmt.Sprintf("%q", colName)
+		result[i] = fmt.Sprintf("%q", matchCol)
 	}
 	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
 	return result, nil
@@ -103,5 +103,5 @@ func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, tar
 		return "", fmt.Errorf("ambiguous column name %q in target table: found column names: %s",
 			colName, strings.Join(candidates, ", "))
 	}
-	return "", fmt.Errorf("column %q not found", colName)
+	return "", fmt.Errorf("column %q not found amongst table columns %v", colName, targetColumns)
 }
