@@ -21,12 +21,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"text/template"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -41,12 +43,14 @@ var assessMigrationCmd = &cobra.Command{
 	Long:  `Assess the migration from source database to YugabyteDB.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		setSourceDefaultPort()
+		validateSourceDBTypeForAssessMigration()
+		setExportFlagsDefaults()
+		validateSourceSchema()
+		validatePortRange()
+		validateSSLMode()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
 		err := assessMigration()
 		if err != nil {
 			utils.ErrExit("failed to assess migration: %v", err)
@@ -57,10 +61,10 @@ var assessMigrationCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(assessMigrationCmd)
 	registerCommonGlobalFlags(assessMigrationCmd)
-	registerSourceDBConnFlags(assessMigrationCmd, false)
+	registerSourceDBConnFlags(assessMigrationCmd, false, false)
 
 	// TODO: clarity on whether this flag should be a mandatory or not
-	assessMigrationCmd.Flags().StringVar(&assessmentParamsFpath, "assessment-params", "",
+	assessMigrationCmd.Flags().StringVar(&assessmentParamsFpath, "assessment-params-file", "",
 		"TOML file path to the user provided assessment params.")
 
 	BoolVar(assessMigrationCmd.Flags(), &startClean, "start-clean", false,
@@ -78,12 +82,36 @@ var bytesTemplate []byte
 func assessMigration() error {
 	checkStartCleanForAssessMigration()
 
-	err := gatherMetadataAndStats()
+	err := exportSchemaForAssessMigration()
+	if err != nil {
+		log.Errorf("failed to export schema: %v", err)
+		return fmt.Errorf("failed to export schema: %w", err)
+
+	}
+
+	err = gatherMetadataAndStats()
 	if err != nil {
 		return fmt.Errorf("failed to gather metadata and stats: %w", err)
 	}
 
-	log.Infof("Assessing migration from source database to YugabyteDB...")
+	err = runAssessment()
+	if err != nil {
+		log.Infof("failed to run assessment: %v", err)
+		return fmt.Errorf("failed to run assessment: %w", err)
+	}
+
+	err = generateAssessmentReport()
+	if err != nil {
+		log.Errorf("failed to generate assessment report: %v", err)
+		return fmt.Errorf("failed to generate assessment report: %w", err)
+	}
+
+	utils.PrintAndLog("Migration assessment completed successfully.")
+	return nil
+}
+
+func runAssessment() error {
+	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
 	if metadataAndStatsDir != "" {
 		migassessment.AssessmentDataDir = metadataAndStatsDir
 	} else {
@@ -91,7 +119,7 @@ func assessMigration() error {
 	}
 
 	// load and sets 'assessmentParams' from the user input file
-	err = migassessment.LoadAssessmentParams(assessmentParamsFpath)
+	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
 	if err != nil {
 		log.Errorf("failed to load assessment parameters: %v", err)
 		return fmt.Errorf("failed to load assessment parameters: %w", err)
@@ -104,15 +132,127 @@ func assessMigration() error {
 		return fmt.Errorf("failed to perform sharding assessment: %w", err)
 	}
 
-	// err := migassessment.SizingAssessment()
+	// migassessment.SizingAssessment()
 
-	err = generateAssessmentReport()
-	if err != nil {
-		log.Errorf("failed to generate assessment report: %v", err)
-		return fmt.Errorf("failed to generate assessment report: %w", err)
+	return nil
+}
+
+func checkStartCleanForAssessMigration() {
+	assessmentDir := filepath.Join(exportDir, "assessment")
+	dataFilesPattern := filepath.Join(assessmentDir, "data", "*.csv")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
+
+	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) || utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) {
+		if startClean {
+			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
+			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
+		} else {
+			utils.ErrExit("metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
+		}
+	}
+}
+
+func exportSchemaForAssessMigration() (err error) {
+	if source.Password == "" {
+		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("getting source db password: %v", err)
+		}
 	}
 
-	utils.PrintAndLog("Migration assessment completed successfully.")
+	// setting schema objects types to export before creating the project directories
+	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
+	err = source.DB().Connect()
+	if err != nil {
+		log.Errorf("failed to connect to the source db: %s", err)
+		return fmt.Errorf("failed to connect to the source db: %w", err)
+	}
+	defer source.DB().Disconnect()
+
+	checkSourceDBCharset()
+	source.DB().CheckRequiredToolsAreInstalled()
+	err = retrieveMigrationUUID()
+	if err != nil {
+		log.Errorf("failed to get migration UUID: %v", err)
+		return fmt.Errorf("failed to get migration UUID: %w", err)
+	}
+	log.Infof("exporting schema for assess migration")
+	source.DB().ExportSchema(exportDir)
+	return nil
+}
+
+func gatherMetadataAndStats() error {
+	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
+
+	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
+	switch source.DBType {
+	case POSTGRESQL:
+		err := gatherMetadataAndStatsFromPG()
+		if err != nil {
+			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
+		}
+	default:
+		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+	}
+	utils.PrintAndLog("gathered metadata and stats files at '%s'", assessmentDataDir)
+	return nil
+}
+
+func gatherMetadataAndStatsFromPG() error {
+	psqlBinPath, err := srcdb.GetAbsPathOfPGCommand("psql")
+	if err != nil {
+		log.Errorf("could not get absolute path of psql command: %v", err)
+		return fmt.Errorf("could not get absolute path of psql command: %w", err)
+	}
+
+	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
+	possiblePathsForPsqlScript := []string{
+		filepath.Join("/", "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
+		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
+		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
+	}
+	psqlScriptPath := ""
+	for _, path := range possiblePathsForPsqlScript {
+		if utils.FileOrFolderExists(path) {
+			psqlScriptPath = path
+			break
+		}
+	}
+
+	if psqlScriptPath == "" {
+		log.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
+		return fmt.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
+	}
+
+	log.Infof("using psql script: %s", psqlScriptPath)
+	if source.Password == "" {
+		sourcePassword, err := askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		if err != nil {
+			log.Errorf("error getting source DB password: %v", err)
+			return err
+		}
+		source.Password = sourcePassword
+	}
+
+	args := []string{
+		source.DB().GetConnectionUriWithoutPassword(),
+		"-f", psqlScriptPath,
+		"-v", "schema_list=" + source.Schema,
+	}
+
+	preparedPsqlCmd := exec.Command(psqlBinPath, args...)
+	log.Infof("running psql command: %s", preparedPsqlCmd.String())
+	preparedPsqlCmd.Env = append(preparedPsqlCmd.Env, "PGPASSWORD="+source.Password)
+	preparedPsqlCmd.Dir = filepath.Join(exportDir, "assessment", "data")
+
+	stdout, err := preparedPsqlCmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("output of postgres metadata and stats gathering script\n%s", string(stdout))
+		return err
+	}
+	log.Infof("output of postgres metadata and stats gathering script\n%s", string(stdout))
 	return nil
 }
 
@@ -155,17 +295,11 @@ func generateAssessmentReport() error {
 	return nil
 }
 
-func checkStartCleanForAssessMigration() {
-	assessmentDir := filepath.Join(exportDir, "assessment")
-	dataFilesPattern := filepath.Join(assessmentDir, "data", "*.csv")
-	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
-
-	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) || utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) {
-		if startClean {
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
-		} else {
-			utils.ErrExit("metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
-		}
+func validateSourceDBTypeForAssessMigration() {
+	switch source.DBType {
+	case POSTGRESQL:
+		return
+	default:
+		utils.ErrExit("source DB Type %q is not yet supported for migration assessment", source.DBType)
 	}
 }
