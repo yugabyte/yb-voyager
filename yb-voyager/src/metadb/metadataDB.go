@@ -482,12 +482,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 		var found bool
 		ec, found = res.Get(nt)
 		if !found {
-			ec = &tgtdb.EventCounter{
-				TotalEvents: 0,
-				NumInserts:  0,
-				NumUpdates:  0,
-				NumDeletes:  0,
-			}
+			ec = &tgtdb.EventCounter{}
 			res.Put(nt, ec)
 		}
 		ec.TotalEvents += totalCount
