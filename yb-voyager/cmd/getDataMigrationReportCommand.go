@@ -108,7 +108,13 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("getting name tuples from table list: %v", err)
 	}
-	sourceReplicaNameRegistry = namereg.NewNameRegistry(exportDir, SOURCE_REPLICA_DB_IMPORTER_ROLE, "", "", "", "", nil, nil)
+	params := namereg.NameRegistryParams{
+		FilePath: fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
+		Role:     SOURCE_REPLICA_DB_IMPORTER_ROLE,
+		SDB:      nil,
+		YBDB:     nil,
+	}
+	sourceReplicaNameRegistry = namereg.NewNameRegistry(params)
 	err = sourceReplicaNameRegistry.Init()
 	if err != nil {
 		utils.ErrExit("initializing name registry for source replica: %v", err)
