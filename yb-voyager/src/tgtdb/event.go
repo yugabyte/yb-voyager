@@ -57,7 +57,6 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		ExporterRole string             `json:"exporter_role"`
 	}
 
-	// Unmarshal the json into the realTicker struct.
 	if err = json.Unmarshal(data, &rawEvent); err != nil {
 		return err
 	}
@@ -70,7 +69,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	if !e.IsCutoverEvent() {
 		e.TableName, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.SchemaName, rawEvent.TableName))
 		if err != nil {
-			return fmt.Errorf("lookup table %s.%s in name registry: %v", rawEvent.SchemaName, rawEvent.TableName, err)
+			return fmt.Errorf("lookup table %s.%s in name registry: %w", rawEvent.SchemaName, rawEvent.TableName, err)
 		}
 	}
 
@@ -104,7 +103,7 @@ func (e *Event) Copy() *Event {
 	return &Event{
 		Vsn:          e.Vsn,
 		Op:           e.Op,
-		TableName:    e.TableName, // TODO: TABLENAME do we need to deepcopy?
+		TableName:    e.TableName,
 		Key:          lo.MapEntries(e.Key, idFn),
 		Fields:       lo.MapEntries(e.Fields, idFn),
 		BeforeFields: lo.MapEntries(e.BeforeFields, idFn),
@@ -355,7 +354,7 @@ type EventBatch struct {
 	Events             []*Event
 	ChanNo             int
 	EventCounts        *EventCounter
-	EventCountsByTable *utils.StructMap[sqlname.NameTuple, *EventCounter] //map[string]*EventCounter
+	EventCountsByTable *utils.StructMap[sqlname.NameTuple, *EventCounter]
 }
 
 func NewEventBatch(events []*Event, chanNo int) *EventBatch {

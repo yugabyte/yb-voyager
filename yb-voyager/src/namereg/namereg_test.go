@@ -214,14 +214,12 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	reg := oracleToYBNameRegistry
 	_, err := reg.LookupTableName("table3")
 	require.NotNil(err)
-	// assert.Nil(ntup)
 	assert.ErrorAs(err, &errNameNotFound)
 	assert.Equal(&ErrNameNotFound{ObjectType: "table", Name: "table3"}, errNameNotFound)
 
 	// Missing schema name.
 	_, err = reg.LookupTableName("schema1.table1")
 	require.NotNil(err)
-	// assert.Nil(ntup)
 	assert.ErrorAs(err, &errNameNotFound)
 	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "schema1"}, errNameNotFound)
 	assert.Contains(err.Error(), "schema1.table1")
@@ -229,7 +227,6 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	// Missing schema and table name.
 	_, err = reg.LookupTableName("schema1.table3")
 	require.NotNil(err)
-	// assert.Nil(ntup)
 	assert.ErrorAs(err, &errNameNotFound)
 	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "schema1"}, errNameNotFound)
 	assert.Contains(err.Error(), "schema1.table3")
@@ -237,7 +234,6 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	// Multiple matches.
 	_, err = reg.LookupTableName("mixedCaps1")
 	require.NotNil(err)
-	// assert.Nil(ntup)
 	assert.ErrorAs(err, &errMultipleMatchingNames)
 	assert.Equal(&ErrMultipleMatchingNames{ObjectType: "table", Names: []string{"MixedCaps1", "MixedCAPS1"}},
 		errMultipleMatchingNames)
@@ -247,12 +243,10 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	_, err = reg.LookupTableName("table1")
 	require.NotNil(err)
 
-	// assert.Nil(ntup)
 	assert.Contains(err.Error(), "either both or none of the default schema")
 	reg.DefaultYBSchemaName = ""
 	_, err = reg.LookupTableName("table1")
 	require.NotNil(err)
-	// assert.Nil(ntup)
 	assert.Contains(err.Error(), "no default schema name")
 	reg.DefaultSourceDBSchemaName = "SAKILA"
 	reg.DefaultYBSchemaName = "public"
@@ -329,7 +323,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 
 	_, err = reg.LookupTableName("SAKILA_FF.table1")
 	require.NotNil(err)
-	// assert.Nil(ntup)
+
 	errNameNotFound := &ErrNameNotFound{}
 	assert.ErrorAs(err, &errNameNotFound)
 	assert.Equal(&ErrNameNotFound{ObjectType: "schema", Name: "SAKILA_FF"}, errNameNotFound)

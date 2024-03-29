@@ -35,14 +35,14 @@ type TargetDB interface {
 	PrepareForStreaming()
 	GetVersion() string
 	CreateVoyagerSchema() error
-	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple //
+	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
-	IfRequiredQuoteColumnNames(tableName sqlname.NameTuple, columns []string) ([]string, error) //
+	IfRequiredQuoteColumnNames(tableName sqlname.NameTuple, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
-	GetIdentityColumnNamesForTable(table sqlname.NameTuple, identityType string) ([]string, error) //
+	GetIdentityColumnNamesForTable(table sqlname.NameTuple, identityType string) ([]string, error)
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error

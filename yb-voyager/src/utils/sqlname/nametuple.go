@@ -151,6 +151,7 @@ func (t NameTuple) ForKey() string {
 	return t.TargetName.Qualified.Quoted
 }
 
+// Implements: utils.Keyer.Key()
 func (t NameTuple) Key() string {
 	return t.ForKey()
 }
@@ -168,7 +169,7 @@ func quote2(dbType, name string) string {
 		}
 		return name
 	default:
-		panic("unknown source db type")
+		panic("unknown source db type " + dbType)
 	}
 }
 
