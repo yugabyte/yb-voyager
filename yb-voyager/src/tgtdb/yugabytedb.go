@@ -602,6 +602,16 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 		}
 
+		// This is an additional safety net to workaround
+		// issue in YB where in batched execution, transactions can be retried partially, breaking atomicity.
+		// SELECT 1 causes the ysql layer to record that data was sent back to the user, thereby, preventing retries
+		// https://yugabyte.slack.com/archives/CAR5BCH29/p1708320808330589
+		res, err := tx.Exec(ctx, "SELECT 1")
+		if err != nil || res.RowsAffected() == 0 {
+			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
+			return false, fmt.Errorf("failed to run SELECT 1 query: %w, rowsAffected: %v",
+				err, res.RowsAffected())
+		}
 		br := tx.SendBatch(ctx, &ybBatch)
 		closeBatch := func() error {
 			if closeErr := br.Close(); closeErr != nil {
@@ -624,7 +634,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
-		res, err := tx.Exec(context.Background(), updateVsnQuery)
+		res, err = tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
 			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
 			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w, rowsAffected: %v",
@@ -884,6 +894,8 @@ const (
 	SET_SESSION_REPLICATE_ROLE_TO_REPLICA = "SET session_replication_role TO replica" //Disable triggers or fkeys constraint checks.
 	SET_YB_ENABLE_UPSERT_MODE             = "SET yb_enable_upsert_mode to true"
 	SET_YB_DISABLE_TRANSACTIONAL_WRITES   = "SET yb_disable_transactional_writes to true" // Disable transactions to improve ingestion throughput.
+	// The "SELECT 1" workaround introduced in ExecuteBatch does not work if isolation level is read_committed. Therefore, for now, we are forcing REPEATABLE READ.
+	SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ = "SET default_transaction_isolation = 'repeatable read'"
 )
 
 func getYBSessionInitScript(tconf *TargetConf) []string {
@@ -893,6 +905,9 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 	}
 	if checkSessionVariableSupport(tconf, SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
 		sessionVars = append(sessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
+	}
+	if checkSessionVariableSupport(tconf, SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ) {
+		sessionVars = append(sessionVars, SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ)
 	}
 
 	if tconf.EnableUpsert {
