@@ -439,11 +439,10 @@ func (ora *Oracle) GetAllSequencesRaw(schemaName string) ([]string, error) {
 		sequences = append(sequences, sequenceName)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("Failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
+		return nil, fmt.Errorf("failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
 	}
 	return sequences, nil
 }
-
 
 func (ora *Oracle) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string

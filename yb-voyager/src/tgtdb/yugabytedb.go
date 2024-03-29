@@ -355,12 +355,12 @@ outer:
 	return nil
 }
 
-func (yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
-	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableName)
-	}
-	return tableName
-}
+// func (yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
+// 	if len(strings.Split(tableName, ".")) != 2 {
+// 		tableName = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableName)
+// 	}
+// 	return tableName
+// }
 
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}

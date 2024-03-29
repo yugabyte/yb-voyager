@@ -262,20 +262,20 @@ func (ms *MySQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	var sequences []string
 	rows, err := ms.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to query %q for auto increment columns in tables: %s", query, err)
+		return nil, fmt.Errorf("failed to query %q for auto increment columns in tables: %s", query, err)
 	}
 	for rows.Next() {
 		var columnName, tableName string
 		err = rows.Scan(&tableName, &columnName)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to scan %q for auto increment columns in tables: %s", query, err)
+			return nil, fmt.Errorf("failed to scan %q for auto increment columns in tables: %s", query, err)
 		}
 		// sequence name as per PG naming convention for bigserial datatype's sequence
 		sequenceName := fmt.Sprintf("%s_%s_seq", tableName, columnName)
 		sequences = append(sequences, sequenceName)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("Failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
+		return nil, fmt.Errorf("failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
 	}
 	return sequences, nil
 }
