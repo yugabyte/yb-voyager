@@ -32,11 +32,11 @@ const (
 
 var NameReg NameRegistry
 
-type SourceDbRegistry interface {
+type SourceDBInterface interface {
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
 }
 
-type YBDBRegistry interface {
+type YBDBInterface interface {
 	GetAllSchemaNamesRaw() ([]string, error)
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
 } // Only implemented by TargetYugabyteDB and dummyTargetDB.
@@ -48,10 +48,10 @@ type NameRegistryParams struct {
 	SourceDBType   string
 	SourceDBSchema string
 	SourceDBName   string
-	SDBReg         SourceDbRegistry
+	SDB            SourceDBInterface
 
 	TargetDBSchema string
-	YBDBReg        YBDBRegistry
+	YBDB           YBDBInterface
 }
 
 type NameRegistry struct {
@@ -73,33 +73,16 @@ type NameRegistry struct {
 	params NameRegistryParams
 }
 
-func InitNameRegistry(
-	exportDir string, role string,
-	sourceDbType string, sourceDbSchema string, sourceDbName string, targetDbSchema string,
-	sdb SourceDbRegistry,
-	ybdb YBDBRegistry) error {
-	log.Infof("Initializing name registry with params - exportDir=%s, role=%s, sourceDbType=%s, sourceDbSchema=%s, sourceDbName=%s, targetDbSchema=%s", exportDir, role, sourceDbType, sourceDbSchema, sourceDbName, targetDbSchema)
-	NameReg = *NewNameRegistry(exportDir, role, sourceDbType, sourceDbSchema, sourceDbName, targetDbSchema, sdb, ybdb)
+func InitNameRegistry(params NameRegistryParams) error {
+	log.Infof("Initializing name registry with params - %v", params)
+	NameReg = *NewNameRegistry(params)
 	return NameReg.Init()
 }
 
-func NewNameRegistry(
-	exportDir string, role string,
-	sourceDbType string, sourceDbSchema string, sourceDbName string, targetDbSchema string,
-	sdb SourceDbRegistry,
-	ybdb YBDBRegistry) *NameRegistry {
+func NewNameRegistry(params NameRegistryParams) *NameRegistry {
 
 	return &NameRegistry{
-		params: NameRegistryParams{
-			FilePath:       fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
-			Role:           role,
-			SourceDBType:   sourceDbType,
-			SourceDBSchema: sourceDbSchema,
-			SourceDBName:   sourceDbName,
-			TargetDBSchema: targetDbSchema,
-			SDBReg:         sdb,
-			YBDBReg:        ybdb,
-		},
+		params: params,
 	}
 }
 
@@ -151,7 +134,7 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 	reg.initSourceDBSchemaNames()
 	m := make(map[string][]string)
 	for _, schemaName := range reg.SourceDBSchemaNames {
-		tableNames, err := reg.params.SDBReg.GetAllTableNamesRaw(schemaName)
+		tableNames, err := reg.params.SDB.GetAllTableNamesRaw(schemaName)
 		if err != nil {
 			return false, fmt.Errorf("get all table names: %w", err)
 		}
@@ -182,10 +165,10 @@ func (reg *NameRegistry) initSourceDBSchemaNames() {
 }
 
 func (reg *NameRegistry) registerYBNames() (bool, error) {
-	if reg.params.YBDBReg == nil {
+	if reg.params.YBDB == nil {
 		return false, fmt.Errorf("target db is nil")
 	}
-	yb := reg.params.YBDBReg
+	yb := reg.params.YBDB
 
 	m := make(map[string][]string)
 	reg.DefaultYBSchemaName = reg.params.TargetDBSchema

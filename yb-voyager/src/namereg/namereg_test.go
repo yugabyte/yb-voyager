@@ -390,7 +390,17 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	// Create a NameRegistry using the dummy DBs.
 	currentMode := SOURCE_DB_EXPORTER_ROLE
 	newNameRegistry := func(tSchema string) *NameRegistry {
-		reg := NewNameRegistry("", currentMode, ORACLE, "SAKILA", "ORCLPDB1", tSchema, dummySdb, dummyTdb)
+		params := NameRegistryParams{
+			FilePath:       "",
+			Role:           currentMode,
+			SourceDBType:   ORACLE,
+			SourceDBSchema: "SAKILA",
+			SourceDBName:   "ORCLPDB1",
+			TargetDBSchema: tSchema,
+			SDB:            dummySdb,
+			YBDB:           dummyTdb,
+		}
+		reg := NewNameRegistry(params)
 		reg.params.FilePath = "dummy_name_registry.json"
 		return reg
 	}
