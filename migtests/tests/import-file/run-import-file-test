@@ -224,7 +224,7 @@ main() {
 
 	# Test larger import from GCS buckets
 	step "Import large data file from GCS: volume1.csv-> gcs_volume"
-	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
+	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
 			--file-table-map "volume1.csv:gcs_volume" --has-header yes --batch-size 10000 --null-string "\N"
 
 	# Test import from GCS buckets with escape/quote characters
