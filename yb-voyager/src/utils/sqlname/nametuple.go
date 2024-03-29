@@ -160,14 +160,8 @@ func (t NameTuple) Key() string {
 
 func quote2(dbType, name string) string {
 	switch dbType {
-	case POSTGRESQL, YUGABYTEDB, ORACLE:
+	case POSTGRESQL, YUGABYTEDB, ORACLE, MYSQL:
 		return `"` + name + `"`
-	case MYSQL:
-		// TODO:TABLENAME
-		if IsReservedKeywordPG(name) {
-			return `"` + name + `"`
-		}
-		return name
 	default:
 		panic("unknown source db type " + dbType)
 	}
@@ -182,11 +176,7 @@ func minQuote2(objectName, sourceDBType string) string {
 			return `"` + objectName + `"`
 		}
 	case MYSQL:
-		// TODO:TABLENAME
-		if IsReservedKeywordPG(objectName) {
-			return `"` + objectName + `"`
-		}
-		return objectName
+		return `"` + objectName + `"`
 	case ORACLE:
 		if IsAllUppercase(objectName) && !IsReservedKeywordOracle(objectName) {
 			return objectName
