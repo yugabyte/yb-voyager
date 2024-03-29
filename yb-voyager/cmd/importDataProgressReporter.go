@@ -57,7 +57,7 @@ func (pr *ImportDataProgressReporter) ImportFileStarted(task *ImportFileTask, to
 		mpb.BarFillerClearOnComplete(),
 		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
-			decor.Name(task.TableName.ForUserQuery()),
+			decor.Name(task.TableNameTup.ForUserQuery()),
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
@@ -87,7 +87,7 @@ func (pr *ImportDataProgressReporter) FileImportDone(task *ImportFileTask) {
 	pr.Lock()
 	defer pr.Unlock()
 	if pr.disablePb {
-		utils.PrintAndLog("Table %s: import completed", task.TableName.ForUserQuery())
+		utils.PrintAndLog("Table %s: import completed", task.TableNameTup.ForUserQuery())
 		return
 	}
 	progressBar := pr.progressBars[task.ID]

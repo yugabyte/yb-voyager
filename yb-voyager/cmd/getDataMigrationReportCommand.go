@@ -284,7 +284,7 @@ func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *
 	return nil
 }
 
-func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sqlname.NameTuple, targetConf *tgtdb.TargetConf, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
+func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, tableNameTup sqlname.NameTuple, targetConf *tgtdb.TargetConf, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
 	switch row.DBType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -295,8 +295,8 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sq
 	}
 	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		var err error
-		tblName := nt.ForKey()
-		nt, err = sourceReplicaNameRegistry.LookupTableName(tblName)
+		tblName := tableNameTup.ForKey()
+		tableNameTup, err = sourceReplicaNameRegistry.LookupTableName(tblName)
 		if err != nil {
 			return fmt.Errorf("lookup %s in source replica name registry: %v", tblName, err)
 		}
@@ -317,17 +317,17 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sq
 	state := NewImportDataState(exportDir)
 
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		row.ImportedSnapshotRows, _ = snapshotImportedRowsMap.Get(nt)
+		row.ImportedSnapshotRows, _ = snapshotImportedRowsMap.Get(tableNameTup)
 	}
 
-	eventCounter, err := state.GetImportedEventsStatsForTable(nt, migrationUUID)
+	eventCounter, err := state.GetImportedEventsStatsForTable(tableNameTup, migrationUUID)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot assign NULL to *int64") &&
 			!strings.Contains(err.Error(), "converting NULL to int64") { //TODO: handle better in GetImportedEventsStatsForTable() itself later
-			return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", nt, row.DBType, err)
+			return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableNameTup, row.DBType, err)
 		} else {
 			//in case import streaming is not started yet, metadata will not be initialized
-			log.Warnf("stream ingestion is not started yet for table %q for DB type %s", nt, row.DBType)
+			log.Warnf("stream ingestion is not started yet for table %q for DB type %s", tableNameTup, row.DBType)
 			eventCounter = &tgtdb.EventCounter{
 				NumInserts: 0,
 				NumUpdates: 0,
@@ -341,7 +341,7 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, nt sq
 	return nil
 }
 
-func updateExportedEventsCountsInTheRow(row *rowData, nt sqlname.NameTuple, sourceExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter], targetExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]) error {
+func updateExportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameTuple, sourceExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter], targetExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]) error {
 	var exportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	switch row.DBType {
 	case "source":
@@ -350,7 +350,7 @@ func updateExportedEventsCountsInTheRow(row *rowData, nt sqlname.NameTuple, sour
 		exportedEventsMap = targetExportedEventsMap
 	}
 
-	eventCounter, _ := exportedEventsMap.Get(nt)
+	eventCounter, _ := exportedEventsMap.Get(tableNameTup)
 	if eventCounter != nil {
 		row.ExportedInserts = eventCounter.NumInserts
 		row.ExportedUpdates = eventCounter.NumUpdates

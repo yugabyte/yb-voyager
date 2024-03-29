@@ -64,8 +64,8 @@ func NewImportDataState(exportDir string) *ImportDataState {
 	}
 }
 
-func (s *ImportDataState) PrepareForFileImport(filePath string, tableName sqlname.NameTuple) error {
-	fileStateDir := s.getFileStateDir(filePath, tableName)
+func (s *ImportDataState) PrepareForFileImport(filePath string, tableNameTup sqlname.NameTuple) error {
+	fileStateDir := s.getFileStateDir(filePath, tableNameTup)
 	log.Infof("Creating %q.", fileStateDir)
 	err := os.MkdirAll(fileStateDir, 0755)
 	if err != nil {
@@ -82,16 +82,16 @@ func (s *ImportDataState) PrepareForFileImport(filePath string, tableName sqlnam
 	return nil
 }
 
-func (s *ImportDataState) GetPendingBatches(filePath string, tableName sqlname.NameTuple) ([]*Batch, error) {
-	return s.getBatches(filePath, tableName, "CP")
+func (s *ImportDataState) GetPendingBatches(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, error) {
+	return s.getBatches(filePath, tableNameTup, "CP")
 }
 
-func (s *ImportDataState) GetCompletedBatches(filePath string, tableName sqlname.NameTuple) ([]*Batch, error) {
-	return s.getBatches(filePath, tableName, "D")
+func (s *ImportDataState) GetCompletedBatches(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, error) {
+	return s.getBatches(filePath, tableNameTup, "D")
 }
 
-func (s *ImportDataState) GetAllBatches(filePath string, tableName sqlname.NameTuple) ([]*Batch, error) {
-	return s.getBatches(filePath, tableName, "CPD")
+func (s *ImportDataState) GetAllBatches(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, error) {
+	return s.getBatches(filePath, tableNameTup, "CPD")
 }
 
 type FileImportState string
@@ -103,10 +103,10 @@ const (
 	FILE_IMPORT_COMPLETED     FileImportState = "FILE_IMPORT_COMPLETED"
 )
 
-func (s *ImportDataState) GetFileImportState(filePath string, tableName sqlname.NameTuple) (FileImportState, error) {
-	batches, err := s.GetAllBatches(filePath, tableName)
+func (s *ImportDataState) GetFileImportState(filePath string, tableNameTup sqlname.NameTuple) (FileImportState, error) {
+	batches, err := s.GetAllBatches(filePath, tableNameTup)
 	if err != nil {
-		return FILE_IMPORT_STATE_UNKNOWN, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
+		return FILE_IMPORT_STATE_UNKNOWN, fmt.Errorf("error while getting all batches for %s: %w", tableNameTup, err)
 	}
 	if len(batches) == 0 {
 		return FILE_IMPORT_NOT_STARTED, nil
@@ -132,16 +132,16 @@ func (s *ImportDataState) GetFileImportState(filePath string, tableName sqlname.
 	return FILE_IMPORT_IN_PROGRESS, nil
 }
 
-func (s *ImportDataState) Recover(filePath string, tableName sqlname.NameTuple) ([]*Batch, int64, int64, bool, error) {
+func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, int64, int64, bool, error) {
 	var pendingBatches []*Batch
 
 	lastBatchNumber := int64(0)
 	lastOffset := int64(0)
 	fileFullySplit := false
 
-	batches, err := s.GetAllBatches(filePath, tableName)
+	batches, err := s.GetAllBatches(filePath, tableNameTup)
 	if err != nil {
-		return nil, 0, 0, false, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
+		return nil, 0, 0, false, fmt.Errorf("error while getting all batches for %s: %w", tableNameTup, err)
 	}
 	for _, batch := range batches {
 		/*
@@ -165,26 +165,26 @@ func (s *ImportDataState) Recover(filePath string, tableName sqlname.NameTuple) 
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
 }
 
-func (s *ImportDataState) Clean(filePath string, tableName sqlname.NameTuple) error {
-	log.Infof("Cleaning import data state for table %q.", tableName)
-	fileStateDir := s.getFileStateDir(filePath, tableName)
+func (s *ImportDataState) Clean(filePath string, tableNameTup sqlname.NameTuple) error {
+	log.Infof("Cleaning import data state for table %q.", tableNameTup)
+	fileStateDir := s.getFileStateDir(filePath, tableNameTup)
 	log.Infof("Removing %q.", fileStateDir)
 	err := os.RemoveAll(fileStateDir)
 	if err != nil {
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
 
-	err = s.cleanFileImportStateFromDB(filePath, tableName)
+	err = s.cleanFileImportStateFromDB(filePath, tableNameTup)
 	if err != nil {
-		return fmt.Errorf("error while cleaning file import state for %q: %w", tableName, err)
+		return fmt.Errorf("error while cleaning file import state for %q: %w", tableNameTup, err)
 	}
 	return nil
 }
 
-func (s *ImportDataState) GetImportedRowCount(filePath string, tableName sqlname.NameTuple) (int64, error) {
-	batches, err := s.GetCompletedBatches(filePath, tableName)
+func (s *ImportDataState) GetImportedRowCount(filePath string, tableNameTup sqlname.NameTuple) (int64, error) {
+	batches, err := s.GetCompletedBatches(filePath, tableNameTup)
 	if err != nil {
-		return -1, fmt.Errorf("error while getting completed batches for %s: %w", tableName, err)
+		return -1, fmt.Errorf("error while getting completed batches for %s: %w", tableNameTup, err)
 	}
 	result := int64(0)
 	for _, batch := range batches {
@@ -193,10 +193,10 @@ func (s *ImportDataState) GetImportedRowCount(filePath string, tableName sqlname
 	return result, nil
 }
 
-func (s *ImportDataState) GetImportedByteCount(filePath string, tableName sqlname.NameTuple) (int64, error) {
-	batches, err := s.GetCompletedBatches(filePath, tableName)
+func (s *ImportDataState) GetImportedByteCount(filePath string, tableNameTup sqlname.NameTuple) (int64, error) {
+	batches, err := s.GetCompletedBatches(filePath, tableNameTup)
 	if err != nil {
-		return -1, fmt.Errorf("error while getting completed batches for %s: %w", tableName, err)
+		return -1, fmt.Errorf("error while getting completed batches for %s: %w", tableNameTup, err)
 	}
 	result := int64(0)
 	for _, batch := range batches {
@@ -222,21 +222,21 @@ func (s *ImportDataState) DiscoverTableToFilesMapping() (map[string][]string, er
 	return result, nil
 }
 
-func (s *ImportDataState) NewBatchWriter(filePath string, tableName sqlname.NameTuple, batchNumber int64) *BatchWriter {
+func (s *ImportDataState) NewBatchWriter(filePath string, tableNameTup sqlname.NameTuple, batchNumber int64) *BatchWriter {
 	return &BatchWriter{
 		state:       s,
 		filePath:    filePath,
-		tableName:   tableName,
+		tableName:   tableNameTup,
 		batchNumber: batchNumber,
 	}
 }
 
-func (s *ImportDataState) getBatches(filePath string, tableName sqlname.NameTuple, states string) ([]*Batch, error) {
+func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameTuple, states string) ([]*Batch, error) {
 	// result == nil: import not started.
 	// empty result: import started but no batches created yet.
 	result := []*Batch{}
 
-	fileStateDir := s.getFileStateDir(filePath, tableName)
+	fileStateDir := s.getFileStateDir(filePath, tableNameTup)
 	// Check if the fileStateDir exists.
 	_, err := os.Stat(fileStateDir)
 	if err != nil {
@@ -263,7 +263,7 @@ func (s *ImportDataState) getBatches(filePath string, tableName sqlname.NameTupl
 			}
 			batch := &Batch{
 				SchemaName:   "",
-				TableName:    tableName,
+				TableNameTup: tableNameTup,
 				FilePath:     filepath.Join(fileStateDir, file.Name()),
 				BaseFilePath: filePath,
 				Number:       batchNum,
@@ -309,15 +309,15 @@ func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byte
 
 //============================================================================
 
-func (s *ImportDataState) getTableStateDir(tableName sqlname.NameTuple) string {
-	return fmt.Sprintf("%s/table::%s", s.stateDir, tableName.ForKey())
+func (s *ImportDataState) getTableStateDir(tableNameTup sqlname.NameTuple) string {
+	return fmt.Sprintf("%s/table::%s", s.stateDir, tableNameTup.ForKey())
 }
 
-func (s *ImportDataState) getFileStateDir(filePath string, tableName sqlname.NameTuple) string {
+func (s *ImportDataState) getFileStateDir(filePath string, tableNameTup sqlname.NameTuple) string {
 	// NOTE: filePath must be absolute.
 	hash := computePathHash(filePath, s.exportDir)
 	baseName := filepath.Base(filePath)
-	return fmt.Sprintf("%s/file::%s::%s", s.getTableStateDir(tableName), baseName, hash)
+	return fmt.Sprintf("%s/file::%s::%s", s.getTableStateDir(tableNameTup), baseName, hash)
 }
 
 func computePathHash(filePath, exportDir string) string {
@@ -350,8 +350,8 @@ func (s *ImportDataState) discoverTableNames() ([]sqlname.NameTuple, error) {
 	return result, nil
 }
 
-func (s *ImportDataState) discoverTableFiles(tableName sqlname.NameTuple) ([]string, error) {
-	tableStateDir := s.getTableStateDir(tableName)
+func (s *ImportDataState) discoverTableFiles(tableNameTup sqlname.NameTuple) ([]string, error) {
+	tableStateDir := s.getTableStateDir(tableNameTup)
 	dirEntries, err := os.ReadDir(tableStateDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir %q: %s", tableStateDir, err)
@@ -381,7 +381,7 @@ func (s *ImportDataState) GetTotalNumOfEventsImportedByType(migrationUUID uuid.U
 	return numInserts, numUpdates, numDeletes, nil
 }
 
-func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []sqlname.NameTuple) error {
+func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNameTups []sqlname.NameTuple) error {
 	if startClean {
 		// TODO: common definition for these batch metadata name tuples
 		evChanMetadataTbl := EVENT_CHANNELS_METADATA_TABLE_NAME
@@ -421,15 +421,15 @@ func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numCha
 		return fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
 	}
 
-	err = s.initEventStatsByTableMetainfo(migrationUUID, tableNames, numChans)
+	err = s.initEventStatsByTableMetainfo(migrationUUID, tableNameTups, numChans)
 	if err != nil {
 		return fmt.Errorf("error initializing event stats by table meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
 	}
 	return nil
 }
 
-func (s *ImportDataState) clearMigrationStateFromTable(tableName sqlname.NameTuple, migrationUUID uuid.UUID) error {
-	stmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", tableName.ForUserQuery(), migrationUUID)
+func (s *ImportDataState) clearMigrationStateFromTable(tableNameTup sqlname.NameTuple, migrationUUID uuid.UUID) error {
+	stmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", tableNameTup.ForUserQuery(), migrationUUID)
 	rowsAffected, err := tdb.Exec(stmt)
 	if err != nil {
 		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
@@ -504,10 +504,10 @@ func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID,
 	})
 }
 
-func (s *ImportDataState) getLiveMigrationMetaInfoByTable(migrationUUID uuid.UUID, tableName sqlname.NameTuple) (int64, error) {
+func (s *ImportDataState) getLiveMigrationMetaInfoByTable(migrationUUID uuid.UUID, tableNameTup sqlname.NameTuple) (int64, error) {
 	rowsStmt := fmt.Sprintf(
 		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'",
-		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName.ForKey())
+		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableNameTup.ForKey())
 	var rowCount int64
 	err := tdb.QueryRow(rowsStmt).Scan(&rowCount)
 	if err != nil {
@@ -516,32 +516,32 @@ func (s *ImportDataState) getLiveMigrationMetaInfoByTable(migrationUUID uuid.UUI
 	return rowCount, nil
 }
 
-func (s *ImportDataState) cleanFileImportStateFromDB(filePath string, tableName sqlname.NameTuple) error {
+func (s *ImportDataState) cleanFileImportStateFromDB(filePath string, tableNameTup sqlname.NameTuple) error {
 	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
-	sname, tname := tableName.ForCatalogQuery()
+	sname, tname := tableNameTup.ForCatalogQuery()
 	cmd := fmt.Sprintf(
 		`DELETE FROM %s WHERE migration_uuid = '%s' AND data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
 		BATCH_METADATA_TABLE_NAME, migrationUUID, filePath, sname, tname)
 	rowsAffected, err := tdb.Exec(cmd)
 	if err != nil {
-		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
+		return fmt.Errorf("remove %q related entries from %s: %w", tableNameTup, BATCH_METADATA_TABLE_NAME, err)
 	}
 	log.Infof("query: [%s] => rows affected %v", cmd, rowsAffected)
 	return nil
 }
 
-func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableName sqlname.NameTuple) (int64, error) {
+func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableNameTup sqlname.NameTuple) (int64, error) {
 	var snapshotRowCount int64
-	sname, tname := tableName.ForCatalogQuery()
+	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT COALESCE(SUM(rows_imported),0) FROM %s where migration_uuid='%s' AND schema_name='%s' AND table_name='%s'`,
 		BATCH_METADATA_TABLE_NAME, migrationUUID, sname, tname)
-	log.Infof("query to get total row count for snapshot import of table %s: %s", tableName, query)
+	log.Infof("query to get total row count for snapshot import of table %s: %s", tableNameTup, query)
 	err := tdb.QueryRow(query).Scan(&snapshotRowCount)
 	if err != nil {
-		log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
-		return 0, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableName, err)
+		log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableNameTup, err)
+		return 0, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableNameTup, err)
 	}
-	log.Infof("total row count for snapshot import of table %s: %d", tableName, snapshotRowCount)
+	log.Infof("total row count for snapshot import of table %s: %d", tableNameTup, snapshotRowCount)
 	return snapshotRowCount, nil
 }
 
@@ -570,18 +570,18 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 	return metainfo, nil
 }
 
-func (s *ImportDataState) GetImportedEventsStatsForTable(tableName sqlname.NameTuple, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
+func (s *ImportDataState) GetImportedEventsStatsForTable(tableNameTup sqlname.NameTuple, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
 	var eventCounter tgtdb.EventCounter
 	query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
-		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName.ForKey(), migrationUUID)
-	log.Infof("query to get import stats for table %s: %s", tableName.ForKey(), query)
+		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableNameTup.ForKey(), migrationUUID)
+	log.Infof("query to get import stats for table %s: %s", tableNameTup.ForKey(), query)
 	err := tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
 		&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
 	if err != nil {
 		log.Errorf("error in getting import stats from target db: %v", err)
 		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
-	log.Infof("import stats for table %s: %v", tableName, eventCounter)
+	log.Infof("import stats for table %s: %v", tableNameTup, eventCounter)
 	return &eventCounter, nil
 }
 
@@ -667,7 +667,7 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 	}
 	batch := &Batch{
 		SchemaName:   "",
-		TableName:    bw.tableName,
+		TableNameTup: bw.tableName,
 		FilePath:     batchFilePath,
 		BaseFilePath: bw.filePath,
 		Number:       batchNumber,
@@ -683,7 +683,7 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 
 type Batch struct {
 	Number              int64
-	TableName           sqlname.NameTuple
+	TableNameTup        sqlname.NameTuple
 	SchemaName          string
 	FilePath            string // Path of the batch file.
 	BaseFilePath        string // Path of the original data file.
@@ -753,7 +753,7 @@ func (batch *Batch) MarkDone() error {
 }
 
 func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
-	schemaName, tableName := batch.TableName.ForCatalogQuery()
+	schemaName, tableName := batch.TableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf(
 		"SELECT rows_imported FROM %s "+
 			"WHERE migration_uuid = '%s' AND data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s'",
@@ -764,7 +764,7 @@ func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
 
 func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
 	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
-	schemaName, tableName := batch.TableName.ForCatalogQuery()
+	schemaName, tableName := batch.TableNameTup.ForCatalogQuery()
 	cmd := fmt.Sprintf(
 		`INSERT INTO %s (migration_uuid, data_file_name, batch_number, schema_name, table_name, rows_imported)
 			VALUES ('%s', '%s', %d, '%s', '%s', %v)`,
@@ -778,7 +778,7 @@ func (batch *Batch) GetFilePath() string {
 }
 
 func (batch *Batch) GetTableName() sqlname.NameTuple {
-	return batch.TableName
+	return batch.TableNameTup
 }
 
 func (batch *Batch) getInProgressFilePath() string {
