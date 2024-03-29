@@ -3,6 +3,7 @@ package tgtdb
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -14,6 +15,7 @@ type AttributeNameRegistry struct {
 	tdb       TargetDB
 	tconf     *TargetConf
 	attrNames map[string][]string
+	mu        sync.Mutex
 }
 
 func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameRegistry {
@@ -30,12 +32,19 @@ func (reg *AttributeNameRegistry) QuoteIdentifier(schemaName, tableName, columnN
 	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
 	targetColumns, ok := reg.attrNames[qualifiedTableName]
 	if !ok {
-		targetColumns, err = reg.tdb.GetListOfTableAttributes(schemaName, tableName)
-		utils.PrintAndLog("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-		if err != nil {
-			utils.ErrExit("get list of table attributes: %w", err)
+		reg.mu.Lock()
+		// try again in case it's now available
+		targetColumns, ok = reg.attrNames[qualifiedTableName]
+		if !ok {
+			targetColumns, err = reg.tdb.GetListOfTableAttributes(schemaName, tableName)
+			log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+			if err != nil {
+				utils.ErrExit("get list of table attributes: %w", err)
+			}
+			reg.attrNames[qualifiedTableName] = targetColumns
 		}
-		reg.attrNames[qualifiedTableName] = targetColumns
+
+		reg.mu.Unlock()
 	}
 	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
@@ -52,7 +61,9 @@ func (reg *AttributeNameRegistry) IfRequiredQuoteColumnNames(tableName string, c
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
-	utils.PrintAndLog("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
+	reg.attrNames[qualifiedTableName] = targetColumns
 
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
