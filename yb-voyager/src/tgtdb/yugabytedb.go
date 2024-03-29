@@ -280,7 +280,7 @@ func (yb *TargetYugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, err
 		sequenceNames = append(sequenceNames, sequenceName)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v\n", rows.Err())
+		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
 	}
 	return sequenceNames, nil
 }
