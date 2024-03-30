@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -492,10 +493,12 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) 
 			continue
 		}
 		// same function logic will work for sequences as well
-		sequenceName, err := pg.qualifyTableName(sequenceName)
+		// sequenceName, err := pg.qualifyTableName(sequenceName)
+		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
 		if err != nil {
-			return fmt.Errorf("qualify sequence name: %w", err)
+			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 		}
+		sequenceName := seqName.ForUserQuery()
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
 	}

@@ -559,7 +559,7 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) 
 		if err != nil {
 			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 		}
-		sequenceName = seqName.ForUserQuery()
+		sequenceName := seqName.ForUserQuery()
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
 	}
