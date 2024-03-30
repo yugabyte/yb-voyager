@@ -1,0 +1,155 @@
+[
+    {
+      "schem_name": "",
+      "table_name": "bar",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "",
+      "table_name": "foo",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "",
+      "table_name": "multiple_identity_columns",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "",
+      "table_name": "multiple_serial_columns",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema1",
+      "table_name": "schema1.multiple_identity_columns",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema1",
+      "table_name": "schema1.multiple_serial_columns",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema1",
+      "table_name": "schema1.sequence_check1",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 1,
+      "imported_count": 1,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema1",
+      "table_name": "schema1.sequence_check2",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 6,
+      "imported_count": 6,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema1",
+      "table_name": "schema1.sequence_check3",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema2",
+      "table_name": "schema2.bar",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema2",
+      "table_name": "schema2.foo",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema3",
+      "table_name": "schema3.foo",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "schema4",
+      "table_name": "schema4.bar",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "",
+      "table_name": "sequence_check1",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "",
+      "table_name": "sequence_check2",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 7,
+      "imported_count": 7,
+      "percentage_complete": 100
+    },
+    {
+      "schem_name": "",
+      "table_name": "sequence_check3",
+      "file_name": "",
+      "status": "DONE",
+      "total_count": 3,
+      "imported_count": 3,
+      "percentage_complete": 100
+    },
+    {
+        "schem_name": "",
+        "table_name": "foo_bar",
+        "file_name": "",
+        "status": "DONE",
+        "total_count": 2,
+        "imported_count": 2,
+        "percentage_complete": 100
+    }
+  ]

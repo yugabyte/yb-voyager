@@ -16,7 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -56,18 +58,18 @@ var importDataStatusCmd = &cobra.Command{
 
 func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
+	BoolVar(importDataStatusCmd.Flags(), &jsonReport, "json-report", false, "Print the status in JSON format.")
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 type tableMigStatusOutputRow struct {
-	schemaName         string
-	tableName          string
-	fileName           string
-	status             string
-	totalCount         int64
-	importedCount      int64
-	percentageComplete float64
-	// leafPartitions     []string
+	SchemaName         string  `json:"schem_name"`
+	TableName          string  `json:"table_name"`
+	FileName           string  `json:"file_name"`
+	Status             string  `json:"status"`
+	TotalCount         int64   `json:"total_count"`
+	ImportedCount      int64   `json:"imported_count"`
+	PercentageComplete float64 `json:"percentage_complete"`
 }
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
@@ -80,24 +82,41 @@ func runImportDataStatusCmd() error {
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
+	if jsonReport {
+		jsonBytes, err := json.MarshalIndent(table, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal json: %w", err)
+		}
+		reportFilePath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
+		reportFile, err := os.Create(reportFilePath)
+		if err != nil {
+			return fmt.Errorf("create report file: %w", err)
+		}
+		defer reportFile.Close()
+		_, err = reportFile.Write(jsonBytes)
+		if err != nil {
+			return fmt.Errorf("write to report file: %w", err)
+		}
+		return nil
+	}
 	color.Cyan(importDataStatusMsg)
 	uiTable := uitable.New()
 	for i, row := range table {
-		perc := fmt.Sprintf("%.2f", row.percentageComplete)
+		perc := fmt.Sprintf("%.2f", row.PercentageComplete)
 		if reportProgressInBytes {
 			if i == 0 {
 				addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL SIZE", "IMPORTED SIZE", "PERCENTAGE")
 			}
 			// case of importDataFileCommand where file size is available not row counts
-			totalCount := utils.HumanReadableByteCount(row.totalCount)
-			importedCount := utils.HumanReadableByteCount(row.importedCount)
-			uiTable.AddRow(row.tableName, row.fileName, row.status, totalCount, importedCount, perc)
+			totalCount := utils.HumanReadableByteCount(row.TotalCount)
+			importedCount := utils.HumanReadableByteCount(row.ImportedCount)
+			uiTable.AddRow(row.TableName, row.FileName, row.Status, totalCount, importedCount, perc)
 		} else {
 			if i == 0 {
 				addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
 			}
 			// case of importData where row counts is available
-			uiTable.AddRow(row.tableName, row.status, row.totalCount, row.importedCount, perc)
+			uiTable.AddRow(row.TableName, row.Status, row.TotalCount, row.ImportedCount, perc)
 		}
 	}
 
@@ -165,23 +184,23 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		if importerRole == IMPORT_FILE_ROLE {
 			table = append(table, row)
 		} else {
-			if outputRows[row.tableName] == nil {
-				outputRows[row.tableName] = &tableMigStatusOutputRow{}
+			if outputRows[row.TableName] == nil {
+				outputRows[row.TableName] = &tableMigStatusOutputRow{}
 			}
-			outputRows[row.tableName].tableName = row.tableName
-			outputRows[row.tableName].schemaName = row.schemaName
-			outputRows[row.tableName].totalCount += row.totalCount
-			outputRows[row.tableName].importedCount += row.importedCount
+			outputRows[row.TableName].TableName = row.TableName
+			outputRows[row.TableName].SchemaName = row.SchemaName
+			outputRows[row.TableName].TotalCount += row.TotalCount
+			outputRows[row.TableName].ImportedCount += row.ImportedCount
 		}
 	}
 	for _, row := range outputRows {
-		row.percentageComplete = float64(row.importedCount) * 100.0 / float64(row.totalCount)
-		if row.percentageComplete == 100 {
-			row.status = "DONE"
-		} else if row.percentageComplete == 0 {
-			row.status = "NOT_STARTED"
+		row.PercentageComplete = float64(row.ImportedCount) * 100.0 / float64(row.TotalCount)
+		if row.PercentageComplete == 100 {
+			row.Status = "DONE"
+		} else if row.PercentageComplete == 0 {
+			row.Status = "NOT_STARTED"
 		} else {
-			row.status = "MIGRATING"
+			row.Status = "MIGRATING"
 		}
 		table = append(table, row)
 	}
@@ -191,14 +210,14 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		ordStates := map[string]int{"MIGRATING": 1, "DONE": 2, "NOT_STARTED": 3, "STREAMING": 4}
 		row1 := table[i]
 		row2 := table[j]
-		if row1.status == row2.status {
-			if row1.tableName == row2.tableName {
-				return strings.Compare(row1.fileName, row2.fileName) < 0
+		if row1.Status == row2.Status {
+			if row1.TableName == row2.TableName {
+				return strings.Compare(row1.FileName, row2.FileName) < 0
 			} else {
-				return strings.Compare(row1.tableName, row2.tableName) < 0
+				return strings.Compare(row1.TableName, row2.TableName) < 0
 			}
 		} else {
-			return ordStates[row1.status] < ordStates[row2.status]
+			return ordStates[row1.Status] < ordStates[row2.Status]
 		}
 	})
 
@@ -236,13 +255,13 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		status = "MIGRATING"
 	}
 	row := &tableMigStatusOutputRow{
-		tableName:          dataFile.TableName,
-		schemaName:         getTargetSchemaName(dataFile.TableName),
-		fileName:           path.Base(dataFile.FilePath),
-		status:             status,
-		totalCount:         totalCount,
-		importedCount:      importedCount,
-		percentageComplete: perc,
+		TableName:          dataFile.TableName,
+		SchemaName:         getTargetSchemaName(dataFile.TableName),
+		FileName:           path.Base(dataFile.FilePath),
+		Status:             status,
+		TotalCount:         totalCount,
+		ImportedCount:      importedCount,
+		PercentageComplete: perc,
 	}
 	return row, nil
 }
