@@ -189,15 +189,15 @@ func exportData() bool {
 
 	leafPartitions := make(map[string][]string)
 	tableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) string {
-		renamedTable, isRenamed := renameTableIfRequired(table.CurrentName.Qualified.MinQuoted)
+		renamedTable, isRenamed := renameTableIfRequired(table.ForOutput())
 		if isRenamed {
-			t := table.CurrentName.MinQualified.MinQuoted
+			t := table.ForMinOutput()
 			//Fine to lookup directly as this will root table in case of partitions
 			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
 			if err != nil {
 				utils.ErrExit("lookup table name %s: %v", renamedTable, err)
 			}
-			renamedTable = tuple.CurrentName.Qualified.MinQuoted
+			renamedTable = tuple.ForOutput()
 			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], t)
 			return renamedTable
 		}
@@ -338,7 +338,7 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]str
 	//TODO: test when we upgrade to PG13+ as partitions are handled with root table
 	//Refer- https://debezium.zulipchat.com/#narrow/stream/302529-community-general/topic/Connector.20not.20working.20with.20partitions
 	for _, table := range tableList {
-		qualifiedCatalogName := table.CurrentName.Qualified.Unquoted
+		qualifiedCatalogName := table.AsQualifiedCatalogName()
 		rootTable, err := GetRootTableOfPartition(table)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get root table of partition %s: %v", table.ForKey(), err)
@@ -353,7 +353,7 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]str
 		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
-				partitionsToRootTableMap[leafPartition.CurrentName.Qualified.Unquoted] = rootTable.ForKey()
+				partitionsToRootTableMap[leafPartition.AsQualifiedCatalogName()] = rootTable.ForKey()
 			}
 		}
 		// will be keeping root in the list as it might be required by some of the catalog queries
@@ -516,7 +516,7 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	var nonPKTables []string
 	for _, table := range finalTableList {
 		if lo.Contains(allNonPKTables, table.ForKey()) {
-			nonPKTables = append(nonPKTables, table.CurrentName.MinQualified.MinQuoted)
+			nonPKTables = append(nonPKTables, table.ForMinOutput())
 		}
 	}
 	if len(nonPKTables) > 0 {
@@ -581,7 +581,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
 			utils.PrintAndLog("skipping empty tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
-				return table.CurrentName.MinQualified.MinQuoted
+				return table.ForMinOutput()
 			}))
 		}
 	}
@@ -589,7 +589,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
 	if len(skippedTableList) != 0 {
 		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
-			return table.CurrentName.MinQualified.MinQuoted
+			return table.ForMinOutput()
 		}))
 	}
 
@@ -849,7 +849,7 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 	if len(unknownTableNames) > 0 {
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
 		utils.ErrExit("Valid table names are %v", lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
-			return tableName.CurrentName.Qualified.MinQuoted
+			return tableName.ForOutput()
 		}))
 	}
 	return lo.UniqBy(result, func(tableName sqlname.NameTuple) string {

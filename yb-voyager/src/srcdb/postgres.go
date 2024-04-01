@@ -122,7 +122,7 @@ func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
-		"where oid = '%s'::regclass", tableName.CurrentName.Qualified.MinQuoted)
+		"where oid = '%s'::regclass", tableName.ForOutput())
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
@@ -508,7 +508,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	// For this query in case of case sensitive tables, minquoting is required
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table.CurrentName.Qualified.MinQuoted)
+	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
 
 	err := pg.db.QueryRow(context.Background(), query).Scan(&parentTable)
 	if err != pgx.ErrNoRows && err != nil {
@@ -537,7 +537,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 			if err != nil {
 				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
 			}
-			qualifiedColumnName := fmt.Sprintf("%s.%s", table.CurrentName.Qualified.Unquoted, columeName)
+			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
 		}

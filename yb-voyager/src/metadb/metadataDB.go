@@ -27,6 +27,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -482,12 +483,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 		var found bool
 		ec, found = res.Get(nt)
 		if !found {
-			ec = &tgtdb.EventCounter{
-				TotalEvents: 0,
-				NumInserts:  0,
-				NumUpdates:  0,
-				NumDeletes:  0,
-			}
+			ec = &tgtdb.EventCounter{}
 			res.Put(nt, ec)
 		}
 		ec.TotalEvents += totalCount

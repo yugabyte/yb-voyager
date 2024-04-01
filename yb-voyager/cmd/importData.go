@@ -224,11 +224,11 @@ func startExportDataFromTargetIfRequired() {
 }
 
 type ImportFileTask struct {
-	ID        int
-	FilePath  string
-	TableName sqlname.NameTuple
-	RowCount  int64
-	FileSize  int64
+	ID           int
+	FilePath     string
+	TableNameTup sqlname.NameTuple
+	RowCount     int64
+	FileSize     int64
 }
 
 // func quoteTableNameIfRequired() {
@@ -268,11 +268,11 @@ func discoverFilesToImport() []*ImportFileTask {
 			utils.ErrExit("lookup table name from name registry: %v", err)
 		}
 		task := &ImportFileTask{
-			ID:        i,
-			FilePath:  fileEntry.FilePath,
-			TableName: tableName,
-			RowCount:  fileEntry.RowCount,
-			FileSize:  fileEntry.FileSize,
+			ID:           i,
+			FilePath:     fileEntry.FilePath,
+			TableNameTup: tableName,
+			RowCount:     fileEntry.RowCount,
+			FileSize:     fileEntry.FileSize,
 		}
 		result = append(result, task)
 	}
@@ -290,7 +290,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	_, noDefaultSchema := getDefaultSourceSchemaName()
 
 	allTables := lo.Uniq(lo.Map(importFileTasks, func(task *ImportFileTask, _ int) sqlname.NameTuple {
-		return task.TableName
+		return task.TableNameTup
 	}))
 	slices.SortFunc(allTables, func(a, b sqlname.NameTuple) bool {
 		return a.ForKey() < b.ForKey()
@@ -298,8 +298,8 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	log.Infof("allTables: %v", allTables)
 
 	findPatternMatchingTables := func(pattern string) []sqlname.NameTuple {
-		result := lo.Filter(allTables, func(tableName sqlname.NameTuple, _ int) bool {
-			matched, err := tableName.MatchesPattern(pattern)
+		result := lo.Filter(allTables, func(tableNameTup sqlname.NameTuple, _ int) bool {
+			matched, err := tableNameTup.MatchesPattern(pattern)
 			if err != nil {
 				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
 			}
@@ -312,7 +312,6 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		tableList := utils.CsvStringToSlice(flagTableList)
 		var result []sqlname.NameTuple
 		var unqualifiedTables []string
-		//TODO: handle unknown tables.
 		var unknownTables []string
 		for _, table := range tableList {
 			if noDefaultSchema && len(strings.Split(table, ".")) == 1 {
@@ -344,12 +343,12 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	}
 
 	for _, task := range importFileTasks {
-		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
-			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
+		if len(includeList) > 0 && !slices.Contains(includeList, task.TableNameTup) {
+			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableNameTup, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, task.TableName) {
-			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
+		if len(excludeList) > 0 && slices.Contains(excludeList, task.TableNameTup) {
+			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableNameTup, task.FilePath)
 			continue
 		}
 		result = append(result, task)
@@ -440,7 +439,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 
-	//TODO:TABLENAME
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
 	sourceTableList := msr.TableListExportedFromSource
@@ -489,7 +487,7 @@ func importData(importFileTasks []*ImportFileTask) {
 					progressReporter.AddProgressAmount(task, progressAmount)
 
 					if importerRole == TARGET_DB_IMPORTER_ROLE && totalProgressAmount > currentProgress {
-						importDataTableMetrics := createImportDataTableMetrics(task.TableName.ForKey(),
+						importDataTableMetrics := createImportDataTableMetrics(task.TableNameTup.ForKey(),
 							currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_IN_PROGRESS)
 						// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
 						controlPlane.UpdateImportedRowCount(
@@ -501,7 +499,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				batchImportPool.Wait() // Wait for the file import to finish.
 
 				if importerRole == TARGET_DB_IMPORTER_ROLE {
-					importDataTableMetrics := createImportDataTableMetrics(task.TableName.ForKey(),
+					importDataTableMetrics := createImportDataTableMetrics(task.TableNameTup.ForKey(),
 						currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_COMPLETED)
 					controlPlane.UpdateImportedRowCount(
 						[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
@@ -635,15 +633,15 @@ func getTotalProgressAmount(task *ImportFileTask) int64 {
 
 func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int64 {
 	if reportProgressInBytes {
-		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableName)
+		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported byte count for table %s: %s", task.TableName, err)
+			utils.ErrExit("Failed to get imported byte count for table %s: %s", task.TableNameTup, err)
 		}
 		return byteCount
 	} else {
-		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableName)
+		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableName, err)
+			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableNameTup, err)
 		}
 		return rowCount
 	}
@@ -652,7 +650,7 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}
 	for _, t := range tasks {
-		tableNames = append(tableNames, t.TableName.ForKey())
+		tableNames = append(tableNames, t.TableNameTup.ForKey())
 	}
 	return lo.Uniq(tableNames)
 }
@@ -660,7 +658,7 @@ func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 func importFileTasksToTableNameTuples(tasks []*ImportFileTask) []sqlname.NameTuple {
 	tableNames := []sqlname.NameTuple{}
 	for _, t := range tasks {
-		tableNames = append(tableNames, t.TableName)
+		tableNames = append(tableNames, t.TableNameTup)
 	}
 	return lo.UniqBy(tableNames, func(t sqlname.NameTuple) string {
 		return t.ForKey()
@@ -671,7 +669,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 	inProgressTasks := []*ImportFileTask{}
 	notStartedTasks := []*ImportFileTask{}
 	for _, task := range tasks {
-		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableName)
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
 		if err != nil {
 			return nil, nil, fmt.Errorf("get table import state: %w", err)
 		}
@@ -695,7 +693,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	nonEmptyNts := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyNts) > 0 {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
-			return nt.ForUserQuery()
+			return nt.ForOutput()
 		})
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
@@ -707,9 +705,9 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 
 	for _, task := range tasks {
-		err := state.Clean(task.FilePath, task.TableName)
+		err := state.Clean(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
+			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableNameTup, err)
 		}
 	}
 
@@ -734,9 +732,9 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 }
 
-func getImportBatchArgsProto(tableName sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
-	columns, _ := TableToColumnNames.Get(tableName)
-	columns, err := tdb.IfRequiredQuoteColumnNames(tableName, columns)
+func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
+	columns, _ := TableToColumnNames.Get(tableNameTup)
+	columns, err := tdb.IfRequiredQuoteColumnNames(tableNameTup, columns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
 	}
@@ -746,14 +744,14 @@ func getImportBatchArgsProto(tableName sqlname.NameTuple, filePath string) *tgtd
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableName:  tableName,
-		Columns:    columns,
-		FileFormat: fileFormat,
-		Delimiter:  dataFileDescriptor.Delimiter,
-		HasHeader:  dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
-		QuoteChar:  dataFileDescriptor.QuoteChar,
-		EscapeChar: dataFileDescriptor.EscapeChar,
-		NullString: dataFileDescriptor.NullString,
+		TableNameTup: tableNameTup,
+		Columns:      columns,
+		FileFormat:   fileFormat,
+		Delimiter:    dataFileDescriptor.Delimiter,
+		HasHeader:    dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
+		QuoteChar:    dataFileDescriptor.QuoteChar,
+		EscapeChar:   dataFileDescriptor.EscapeChar,
+		NullString:   dataFileDescriptor.NullString,
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto
@@ -762,23 +760,23 @@ func getImportBatchArgsProto(tableName sqlname.NameTuple, filePath string) *tgtd
 func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn func(int64)) {
 
 	origDataFile := task.FilePath
-	importBatchArgsProto := getImportBatchArgsProto(task.TableName, task.FilePath)
-	log.Infof("Start splitting table %q: data-file: %q", task.TableName, origDataFile)
+	importBatchArgsProto := getImportBatchArgsProto(task.TableNameTup, task.FilePath)
+	log.Infof("Start splitting table %q: data-file: %q", task.TableNameTup, origDataFile)
 
-	err := state.PrepareForFileImport(task.FilePath, task.TableName)
+	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
 	if err != nil {
 		utils.ErrExit("preparing for file import: %s", err)
 	}
 	log.Infof("Collect all interrupted/remaining splits.")
-	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableName)
+	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
-		utils.ErrExit("recovering state for table %q: %s", task.TableName, err)
+		utils.ErrExit("recovering state for table %q: %s", task.TableNameTup, err)
 	}
 	for _, batch := range pendingBatches {
 		submitBatch(batch, updateProgressFn, importBatchArgsProto)
 	}
 	if !fileFullySplit {
-		splitFilesForTable(state, origDataFile, task.TableName, lastBatchNumber, lastOffset, updateProgressFn, importBatchArgsProto)
+		splitFilesForTable(state, origDataFile, task.TableNameTup, lastBatchNumber, lastOffset, updateProgressFn, importBatchArgsProto)
 	}
 }
 
@@ -910,7 +908,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	var rowsAffected int64
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		tableSchema, _ := TableNameToSchema.Get(batch.TableName)
+		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
 		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
@@ -926,7 +924,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		utils.ErrExit("import %q into %s: %s", batch.FilePath, batch.TableName, err)
+		utils.ErrExit("import %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 	}
 	err = batch.MarkDone()
 	if err != nil {
@@ -1180,7 +1178,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 		var columns []string
 		dfdTableToExportedColumns := getDfdTableNameToExportedColumns(dataFileDescriptor)
 		if dfdTableToExportedColumns != nil {
-			columns, _ = dfdTableToExportedColumns.Get(task.TableName)
+			columns, _ = dfdTableToExportedColumns.Get(task.TableNameTup)
 		} else if dataFileDescriptor.HasHeader {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
@@ -1197,7 +1195,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 			log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
 			df.Close()
 		}
-		TableToColumnNames.Put(task.TableName, columns)
+		TableToColumnNames.Put(task.TableNameTup, columns)
 	}
 }
 
@@ -1293,8 +1291,7 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 	for _, task := range tasks {
 
 		var schemaName, tableName string
-		// TODO:TABLENAME revisit
-		schemaName, tableName = cp.SplitTableNameForPG(task.TableName.ForKey())
+		schemaName, tableName = cp.SplitTableNameForPG(task.TableNameTup.ForKey())
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{

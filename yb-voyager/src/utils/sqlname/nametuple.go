@@ -139,8 +139,20 @@ func (t NameTuple) ForUserQuery() string {
 	return t.CurrentName.Qualified.Quoted
 }
 
+func (t NameTuple) ForOutput() string {
+	return t.CurrentName.Qualified.MinQuoted
+}
+
 func (t NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
+}
+
+func (t NameTuple) AsQualifiedCatalogName() string {
+	return t.CurrentName.Qualified.Unquoted
+}
+
+func (t NameTuple) ForMinOutput() string {
+	return t.CurrentName.MinQualified.MinQuoted
 }
 
 func (t NameTuple) ForKey() string {
@@ -165,21 +177,19 @@ func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {
 	return res
 }
 
+// Implements: utils.Keyer.Key()
 func (t NameTuple) Key() string {
 	return t.ForKey()
 }
 
-//================================================
+// ================================================
 func quote2(dbType, name string) string {
-	// switch dbType {
-	// case POSTGRESQL, YUGABYTEDB, ORACLE:
-	return `"` + name + `"`
-	// case MYSQL:
-	// 	// TODO:TABLENAME
-	// 	return `"` + name + `"`
-	// default:
-	// 	panic("unknown source db type")
-	// }
+	switch dbType {
+	case POSTGRESQL, YUGABYTEDB, ORACLE, MYSQL:
+		return `"` + name + `"`
+	default:
+		panic("unknown source db type " + dbType)
+	}
 }
 
 func minQuote2(objectName, sourceDBType string) string {
@@ -191,7 +201,6 @@ func minQuote2(objectName, sourceDBType string) string {
 			return `"` + objectName + `"`
 		}
 	case MYSQL:
-		// TODO:TABLENAME
 		return `"` + objectName + `"`
 	case ORACLE:
 		if IsAllUppercase(objectName) && !IsReservedKeywordOracle(objectName) {

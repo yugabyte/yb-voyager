@@ -63,11 +63,11 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 
 	var dbzmTableList, dbzmColumnList []string
 	for _, table := range tableList {
-		if leafPartitions[table.CurrentName.Qualified.MinQuoted] != nil {
+		if leafPartitions[table.ForOutput()] != nil {
 			//In case of debezium offline migration of PG, tablelist should not have root and leaf both so not adding root table in table list
 			continue
 		}
-		dbzmTableList = append(dbzmTableList, table.CurrentName.Qualified.Unquoted)
+		dbzmTableList = append(dbzmTableList, table.AsQualifiedCatalogName())
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
 		err = storeTableListInMSR(tableList)
@@ -78,7 +78,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 
 	tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 		for _, column := range v {
-			columnName := fmt.Sprintf("%s.%s", k.CurrentName.Qualified.Unquoted, column)
+			columnName := fmt.Sprintf("%s.%s", k.AsQualifiedCatalogName(), column)
 			if column == "*" {
 				dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
 				break

@@ -1,5 +1,7 @@
 package utils
 
+import "github.com/samber/lo"
+
 // This file provides a generic map data structure that allows using custom structs as keys.
 // In golang, by default, you can use structs as keys as long as the fields of the structs themselves are comparable.
 // If the struct has pointer fields, this becomes problematic because when comparing for equality in the map,
@@ -66,19 +68,10 @@ func (m *StructMap[K, V]) IterKV(f func(key K, value V) (bool, error)) error {
 }
 
 func (m *StructMap[K, V]) Clear() {
-	for k := range m.kmap {
-		delete(m.kmap, k)
-	}
-	for k := range m.vmap {
-		delete(m.vmap, k)
-	}
+	m.kmap = make(map[string]K)
+	m.vmap = make(map[string]V)
 }
 
 func (m *StructMap[K, V]) Keys() []string {
-	keys := make([]string, 0, len(m.kmap))
-	m.IterKV(func(key K, _ V) (bool, error) {
-		keys = append(keys, key.Key())
-		return true, nil
-	})
-	return keys
+	return lo.Keys(m.kmap)
 }

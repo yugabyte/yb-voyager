@@ -31,8 +31,8 @@ import (
 )
 
 type ValueConverter interface {
-	ConvertRow(tableName sqlname.NameTuple, columnNames []string, row string) (string, error)
-	ConvertEvent(ev *tgtdb.Event, table sqlname.NameTuple, formatIfRequired bool) error
+	ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error)
+	ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error
 	GetTableNameToSchema() *utils.StructMap[sqlname.NameTuple, map[string]map[string]string] //returns table name to schema mapping
 }
 
@@ -135,12 +135,12 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 	}
 }
 
-func (conv *DebeziumValueConverter) ConvertRow(tableName sqlname.NameTuple, columnNames []string, row string) (string, error) {
-	converterFns, dbzmColumnSchemas, err := conv.getConverterFns(tableName, columnNames)
+func (conv *DebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error) {
+	converterFns, dbzmColumnSchemas, err := conv.getConverterFns(tableNameTup, columnNames)
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
-	if conv.prevTableName != tableName {
+	if conv.prevTableName != tableNameTup {
 		conv.csvReader = stdlibcsv.NewReader(&conv.bufReader)
 		conv.csvReader.ReuseRecord = true
 	}
@@ -155,7 +155,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName sqlname.NameTuple, colu
 		}
 		transformedValue, err := converterFns[i](columnValue, false, dbzmColumnSchemas[i])
 		if err != nil {
-			return "", fmt.Errorf("converting value for %s, column %d and value %s : %w", tableName, i, columnValue, err)
+			return "", fmt.Errorf("converting value for %s, column %d and value %s : %w", tableNameTup, i, columnValue, err)
 		}
 		columnValues[i] = transformedValue
 	}
@@ -165,26 +165,26 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName sqlname.NameTuple, colu
 	csvWriter.Flush()
 	transformedRow := strings.TrimSuffix(conv.wbuf.String(), "\n")
 	conv.wbuf.Reset()
-	conv.prevTableName = tableName
+	conv.prevTableName = tableNameTup
 	return transformedRow, nil
 }
 
-func (conv *DebeziumValueConverter) getConverterFns(tableName sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
-	result, _ := conv.converterFnCache.Get(tableName)
-	colSchemas, _ := conv.dbzmColumnSchemasCache.Get(tableName)
+func (conv *DebeziumValueConverter) getConverterFns(tableNameTup sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
+	result, _ := conv.converterFnCache.Get(tableNameTup)
+	colSchemas, _ := conv.dbzmColumnSchemasCache.Get(tableNameTup)
 	var colTypes []string
 	var err error
 	if result == nil {
-		colTypes, colSchemas, err = conv.schemaRegistrySource.GetColumnTypes(tableName, columnNames, conv.shouldFormatAsPerSourceDatatypes())
+		colTypes, colSchemas, err = conv.schemaRegistrySource.GetColumnTypes(tableNameTup, columnNames, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
-			return nil, nil, fmt.Errorf("get types of columns of table %s: %w", tableName, err)
+			return nil, nil, fmt.Errorf("get types of columns of table %s: %w", tableNameTup, err)
 		}
 		result = make([]tgtdbsuite.ConverterFn, len(columnNames))
 		for i, colType := range colTypes {
 			result[i] = conv.valueConverterSuite[colType]
 		}
-		conv.converterFnCache.Put(tableName, result)
-		conv.dbzmColumnSchemasCache.Put(tableName, colSchemas)
+		conv.converterFnCache.Put(tableNameTup, result)
+		conv.dbzmColumnSchemasCache.Put(tableNameTup, colSchemas)
 	}
 	return result, colSchemas, nil
 }
@@ -193,13 +193,13 @@ func (conv *DebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
 	return conv.targetDBType == tgtdb.ORACLE
 }
 
-func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table sqlname.NameTuple, formatIfRequired bool) error {
-	err := conv.convertMap(table, ev.Key, ev.ExporterRole, formatIfRequired)
+func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error {
+	err := conv.convertMap(tableNameTup, ev.Key, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event(vsn=%d) key: %w", ev.Vsn, err)
 	}
 
-	err = conv.convertMap(table, ev.Fields, ev.ExporterRole, formatIfRequired)
+	err = conv.convertMap(tableNameTup, ev.Fields, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
@@ -210,9 +210,8 @@ func checkSourceExporter(exporterRole string) bool {
 	return exporterRole == "source_db_exporter"
 }
 
-func (conv *DebeziumValueConverter) convertMap(tableName sqlname.NameTuple, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
+func (conv *DebeziumValueConverter) convertMap(tableNameTup sqlname.NameTuple, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *schemareg.SchemaRegistry
-	// tableNameInSchemaRegistry := tableName
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
@@ -223,12 +222,12 @@ func (conv *DebeziumValueConverter) convertMap(tableName sqlname.NameTuple, m ma
 			continue
 		}
 		columnValue := *value
-		colType, colDbzmSchema, err := schemaRegistry.GetColumnType(tableName, column, conv.shouldFormatAsPerSourceDatatypes())
+		colType, colDbzmSchema, err := schemaRegistry.GetColumnType(tableNameTup, column, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
 		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
-			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableName, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
+			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
 			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
 			if err != nil {
 				return fmt.Errorf("fetch column schema: %w", err)
@@ -238,7 +237,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName sqlname.NameTuple, m ma
 		if converterFn != nil {
 			columnValue, err = converterFn(columnValue, formatIfRequired, colDbzmSchema)
 			if err != nil {
-				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
+				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableNameTup, column, colType, err) // TODO - add event id in log msg
 			}
 		}
 		m[column] = &columnValue

@@ -30,10 +30,11 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/slices"
 )
 
 type TargetOracleDB struct {
@@ -397,7 +398,7 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 	}
 }
 
-func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTuple, columns []string) ([]string, error) {
+func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
 	// FAST PATH.
 	fastPathSuccessful := true
@@ -417,15 +418,15 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTupl
 		}
 	}
 	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
+		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableNameTup, result)
 		return result, nil
 	}
 	// SLOW PATH.
-	targetColumns, err := tdb.getListOfTableAttributes(tableName)
+	targetColumns, err := tdb.getListOfTableAttributes(tableNameTup)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
-	log.Infof("columns of table %s in target db: %v", tableName, targetColumns)
+	log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
 			colName = colName[1 : len(colName)-1]
@@ -441,15 +442,15 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTupl
 		case slices.Contains(targetColumns, strings.ToUpper(colName)): // Case insensitive name given with mixed case.
 			result[i] = strings.ToUpper(colName)
 		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
+			return nil, fmt.Errorf("column %q not found in table %s", colName, tableNameTup)
 		}
 	}
-	log.Infof("columns of table %s after quoting: %v", tableName, result)
+	log.Infof("columns of table %s after quoting: %v", tableNameTup, result)
 	return result, nil
 }
 
-func (tdb *TargetOracleDB) getListOfTableAttributes(tableName sqlname.NameTuple) ([]string, error) {
-	sname, tname := tableName.ForCatalogQuery()
+func (tdb *TargetOracleDB) getListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error) {
+	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE table_name = '%s' AND owner = '%s'", tname, sname)
 	rows, err := tdb.conn.QueryContext(context.Background(), query)
 	if err != nil {
@@ -585,11 +586,11 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 	return 2 * 1024 * 1024 * 1024 // 2GB
 }
 
-func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(table sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := table.ForCatalogQuery()
+func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
+	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf(`Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '%s'
 	AND TABLE_NAME = '%s' AND GENERATION_TYPE='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, table, query)
+	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
 	var identityColumns []string
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
 		rows, err := conn.QueryContext(context.Background(), query)

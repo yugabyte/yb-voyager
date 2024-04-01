@@ -39,18 +39,20 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
 	tableList := []string{}
 	for _, tableName := range tableNameList {
-		tableList = append(tableList, tableName.CurrentName.Unqualified.Unquoted)
+		_, tname := tableName.ForCatalogQuery()
+		tableList = append(tableList, tname)
 	}
 	conf := getDefaultOra2pgConfig(source)
 	conf.DisablePartition = "1"
 	conf.Allow = fmt.Sprintf("TABLE%v", tableList)
 	tablesColumnList.IterKV(func(tableName sqlname.NameTuple, columnList []string) (bool, error) {
+		_, tname := tableName.ForCatalogQuery()
 		allColumns := "*"
 		if len(columnList) == 1 && columnList[0] == allColumns {
 			return true, nil
 		}
-		log.Infof("Modifying struct for table %s, columnList: %v\n", tableName.CurrentName.Unqualified.Unquoted, columnList)
-		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.CurrentName.Unqualified.Unquoted, strings.Join(columnList, ","))
+		log.Infof("Modifying struct for table %s, columnList: %v\n", tname, columnList)
+		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tname, strings.Join(columnList, ","))
 		return true, nil
 	})
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
@@ -166,7 +168,7 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	log.Infof("renaming data files for tables with reserved words in them")
 	for _, tableProgressMetadata := range tablesProgressMetadata {
-		tblNameUnquoted := tableProgressMetadata.TableName.CurrentName.Unqualified.Unquoted
+		_, tblNameUnquoted := tableProgressMetadata.TableName.ForCatalogQuery()
 		if !sqlname.IsReservedKeywordPG(tblNameUnquoted) {
 			continue
 		}
