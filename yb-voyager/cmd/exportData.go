@@ -257,11 +257,8 @@ func exportData() bool {
 			}
 
 			var sequenceInitValues strings.Builder
-			// for seqName, seqValue := range sequenceValueMap {
-			// 	sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.Qualified.Quoted, seqValue))
-			// }
 			sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
-				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.CurrentName.Qualified.Quoted, seqValue))
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForUserQuery(), seqValue))
 				return true, nil
 			})
 
@@ -676,15 +673,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
 		sequenceList := source.DB().GetAllSequences()
-		// defaultSchema, _ := getDefaultSourceSchemaName()
 		for _, seq := range sequenceList {
-			// //TODO: handle in nameregistry lookup
-			// schema, seqName := strings.Split(seq, ".")[0], strings.Split(seq, ".")[1]
-			// obj := sqlname.NewObjectName(POSTGRESQL, defaultSchema, schema, seqName)
-			// finalTableList = append(finalTableList, sqlname.NameTuple{
-			// 	SourceName:  obj,
-			// 	CurrentName: obj,
-			// })
 			seqTuple, err := namereg.NameReg.LookupTableName(seq)
 			if err != nil {
 				utils.ErrExit("lookup for sequence %s failed err: %v", seq, err)

@@ -285,30 +285,6 @@ outer:
 	return nil
 }
 
-func getDefaultPGSchema(schema string) (string, bool) {
-	// second return value is true if public is not included in schema list
-	// which indicates noDefaultSchema
-	schemas := strings.Split(schema, ",")
-	if len(schemas) == 1 {
-		return schema, false
-	} else if slices.Contains(schemas, "public") {
-		return "public", false
-	} else {
-		return "", true
-	}
-}
-
-func (pg *TargetPostgreSQL) qualifyTableName(tableName string) (string, error) {
-	defaultSchema, noDefaultSchema := getDefaultPGSchema(pg.tconf.Schema)
-	if len(strings.Split(tableName, ".")) != 2 {
-		if noDefaultSchema {
-			return "", fmt.Errorf("object name %q does not have schema name and public schema is not included in the schema list", tableName)
-		}
-		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
-	}
-	return tableName, nil
-}
-
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 

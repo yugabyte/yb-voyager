@@ -355,13 +355,6 @@ outer:
 	return nil
 }
 
-// func (yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
-// 	if len(strings.Split(tableName, ".")) != 2 {
-// 		tableName = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableName)
-// 	}
-// 	return tableName
-// }
-
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -554,7 +547,6 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) 
 			continue
 		}
 		// same function logic will work for sequences as well
-		// sequenceName = yb.qualifyTableName(sequenceName)
 		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
 		if err != nil {
 			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
