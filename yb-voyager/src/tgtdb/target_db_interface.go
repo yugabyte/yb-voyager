@@ -24,7 +24,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
-	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TargetDB interface {
@@ -34,21 +35,19 @@ type TargetDB interface {
 	PrepareForStreaming()
 	GetVersion() string
 	CreateVoyagerSchema() error
-	GetNonEmptyTables(tableNames []string) []string
+	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
-	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
+	IfRequiredQuoteColumnNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
-	GetListOfTableAttributes(schemaName, tableName string) ([]string, error)
-	QuoteIdentifier(schemaName, tableName, columnName string) string
-	GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn
+	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
+	QuoteIdentifier(tableNameTup sqlname.NameTuple, columnName string) string
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
-	GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error)
-	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
-	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
-	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error
-	GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error)
+	GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error)
+	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
+	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
+	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	InvalidIndexes() (map[string]bool, error)
 	// NOTE: The following four methods should not be used for arbitrary query
@@ -131,7 +130,7 @@ const (
 type Batch interface {
 	Open() (*os.File, error)
 	GetFilePath() string
-	GetTableName() string
+	GetTableName() sqlname.NameTuple
 	GetQueryIsBatchAlreadyImported() string
 	GetQueryToRecordEntryInDB(rowsAffected int64) string
 }
@@ -149,9 +148,9 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 }
 
 type ImportBatchArgs struct {
-	FilePath  string
-	TableName string
-	Columns   []string
+	FilePath     string
+	TableNameTup sqlname.NameTuple
+	Columns      []string
 
 	FileFormat string
 	HasHeader  bool
@@ -170,7 +169,7 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
-	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 
 func (args *ImportBatchArgs) GetPGCopyStatement() string {
@@ -179,7 +178,7 @@ func (args *ImportBatchArgs) GetPGCopyStatement() string {
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
-	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 
 func (args *ImportBatchArgs) copyOptions() []string {
@@ -213,7 +212,7 @@ func (args *ImportBatchArgs) copyOptions() []string {
 	return options
 }
 
-func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map[string]map[string]string) string {
+func (args *ImportBatchArgs) GetSqlLdrControlFile(tableSchema map[string]map[string]string) string {
 	var columns string
 	if len(args.Columns) > 0 {
 		var columnsList []string
@@ -252,7 +251,7 @@ REENABLE DISABLED_CONSTRAINTS
 FIELDS CSV WITH EMBEDDED 
 TRAILING NULLCOLS
 %s`
-	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, columns)
+	return fmt.Sprintf(configTemplate, args.FilePath, args.TableNameTup.ForUserQuery(), columns)
 	/*
 	   reference for sqlldr control file
 	   https://docs.oracle.com/en/database/oracle/oracle-database/19/sutil/oracle-sql-loader-control-file-contents.html#GUID-D1762699-8154-40F6-90DE-EFB8EB6A9AB0

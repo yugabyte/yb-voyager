@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
 )
 
@@ -27,7 +28,7 @@ func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameReg
 	}
 }
 
-func (reg *AttributeNameRegistry) QuoteIdentifier(schemaName, tableName, columnName string) string {
+func (reg *AttributeNameRegistry) QuoteIdentifier(tableNameTup sqlname.NameTuple, columnName string) string {
 	var err error
 	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
 	targetColumns, ok := reg.attrNames[qualifiedTableName]
