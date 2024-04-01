@@ -82,13 +82,13 @@ func (reg *AttributeNameRegistry) IfRequiredQuoteColumnNames(tableNameTup sqlnam
 	return result, nil
 }
 
-func (reg *AttributeNameRegistry) splitMaybeQualifiedTableName(tableName string) (string, string) {
-	if strings.Contains(tableName, ".") {
-		parts := strings.Split(tableName, ".")
-		return parts[0], parts[1]
-	}
-	return reg.tconf.Schema, tableName
-}
+// func (reg *AttributeNameRegistry) splitMaybeQualifiedTableName(tableName string) (string, string) {
+// 	if strings.Contains(tableName, ".") {
+// 		parts := strings.Split(tableName, ".")
+// 		return parts[0], parts[1]
+// 	}
+// 	return reg.tconf.Schema, tableName
+// }
 
 func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
 	if slices.Contains(targetColumns, colName) { // Exact match.
