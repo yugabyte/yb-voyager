@@ -461,12 +461,12 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	return nil
 }
 
-func getPGDumpSequencesAndValues() (utils.StructMap[sqlname.NameTuple, int64], error) {
-	result := *utils.NewStructMap[sqlname.NameTuple, int64]()
+func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, int64]()
 	path := filepath.Join(exportDir, "data", "postdata.sql")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		utils.ErrExit("read file %q: %v", path, err)
+		return nil, fmt.Errorf("read file %q: %v", path, err)
 	}
 
 	lines := strings.Split(string(data), "\n")
@@ -481,19 +481,19 @@ func getPGDumpSequencesAndValues() (utils.StructMap[sqlname.NameTuple, int64], e
 		}
 		argsIdx := setvalRegex.SubexpIndex("args")
 		if argsIdx > len(matches) {
-			return utils.StructMap[sqlname.NameTuple, int64]{}, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
+			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
 		}
 		args := strings.Split(matches[argsIdx], ",")
 
 		seqNameRaw := args[0][1 : len(args[0])-1]
 		seqName, err := namereg.NameReg.LookupTableName(seqNameRaw)
 		if err != nil {
-			return utils.StructMap[sqlname.NameTuple, int64]{}, fmt.Errorf("lookup for sequence name %s: %v", seqNameRaw, err)
+			return nil, fmt.Errorf("lookup for sequence name %s: %v", seqNameRaw, err)
 		}
 
 		seqVal, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
 		if err != nil {
-			return utils.StructMap[sqlname.NameTuple, int64]{}, fmt.Errorf("parse %s to int in line - %s: %v", args[1], line, err)
+			return nil, fmt.Errorf("parse %s to int in line - %s: %v", args[1], line, err)
 		}
 
 		isCalled := strings.TrimSpace(args[2])
