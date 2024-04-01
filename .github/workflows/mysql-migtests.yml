@@ -4,7 +4,7 @@ on:
   push:
     branches: ['name-registry-integration', 'main']
   pull_request:
-    branches: [main]
+    branches: ['name-registry-integration', 'main']
 
 jobs:
   run-mysql-migration-tests:
