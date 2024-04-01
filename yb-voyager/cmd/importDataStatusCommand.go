@@ -102,13 +102,13 @@ func runImportDataStatusCmd() error {
 			// case of importDataFileCommand where file size is available not row counts
 			totalCount := utils.HumanReadableByteCount(row.totalCount)
 			importedCount := utils.HumanReadableByteCount(row.importedCount)
-			uiTable.AddRow(row.tableName.ForUserQuery(), row.fileName, row.status, totalCount, importedCount, perc)
+			uiTable.AddRow(row.tableName.ForOutput(), row.fileName, row.status, totalCount, importedCount, perc)
 		} else {
 			if i == 0 {
 				addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
 			}
 			// case of importData where row counts is available
-			uiTable.AddRow(row.tableName.ForUserQuery(), row.status, row.totalCount, row.importedCount, perc)
+			uiTable.AddRow(row.tableName.ForOutput(), row.status, row.totalCount, row.importedCount, perc)
 		}
 	}
 

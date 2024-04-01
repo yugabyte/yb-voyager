@@ -691,7 +691,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	nonEmptyNts := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyNts) > 0 {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
-			return nt.ForUserQuery()
+			return nt.ForOutput()
 		})
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",

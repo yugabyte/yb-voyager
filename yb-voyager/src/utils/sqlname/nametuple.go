@@ -139,6 +139,10 @@ func (t NameTuple) ForUserQuery() string {
 	return t.CurrentName.Qualified.Quoted
 }
 
+func (t NameTuple) ForOutput() string {
+	return t.CurrentName.Qualified.MinQuoted
+}
+
 func (t NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
 }
