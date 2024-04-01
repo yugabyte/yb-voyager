@@ -151,6 +151,7 @@ func (pg *PostgreSQL) GetVersion() string {
 }
 
 func (pg *PostgreSQL) checkSchemasExists() []string {
+	log.Infof("checking if the mentioned schema(s) exist in the source database")
 	list := strings.Split(pg.source.Schema, "|")
 	var trimmedList []string
 	for _, schema := range list {
@@ -271,9 +272,9 @@ func (pg *PostgreSQL) GetConnectionUriWithoutPassword() string {
 	return sourceUrl.String()
 }
 
-func (pg *PostgreSQL) ExportSchema(exportDir string) {
+func (pg *PostgreSQL) ExportSchema(printFunc utils.PrintFunc, exportDir string) {
 	pg.checkSchemasExists()
-	pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir)
+	pgdumpExtractSchema(printFunc, pg.source, pg.GetConnectionUriWithoutPassword(), exportDir)
 }
 
 func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {

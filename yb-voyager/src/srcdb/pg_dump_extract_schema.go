@@ -31,10 +31,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string) {
-	fmt.Printf("exporting the schema %10s", "")
-	go utils.Wait("done\n", "")
-
+func pgdumpExtractSchema(printFunc utils.PrintFunc, source *Source, connectionUri string, exportDir string) {
+	printFunc("exporting the schema %10s", "")
+	go utils.Wait(printFunc, "done\n", "")
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)

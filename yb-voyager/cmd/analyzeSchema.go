@@ -33,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -112,10 +113,10 @@ func parenth(s string) string {
 }
 
 var (
-	analyzeSchemaReportFormat  string
-	sourceObjList []string
-	reportStruct  utils.Report
-	tblParts      = make(map[string]string)
+	analyzeSchemaReportFormat string
+	sourceObjList             []string
+	analyzeSchemaReport       utils.Report
+	tblParts                  = make(map[string]string)
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
@@ -201,6 +202,14 @@ var (
 	jsonFuncRegex              = re("CREATE", opt("OR REPLACE"), capture(unqualifiedIdent), capture(ident), anything, "JSON_ARRAYAGG")
 )
 
+const (
+	COMPOUND_TRIGGER_ISSUE_REASON = "Compound Triggers are not supported in YugabyteDB."
+	GIST_INDEX_ISSUE_REASON       = "GIST index is not supported in YugabyteDB."
+	BRIN_INDEX_ISSUE_REASON       = "index method 'brin' not supported yet."
+	SPGIST_INDEX_ISSUE_REASON     = "index method 'spgist' not supported yet."
+	RTREE_INDEX_ISSUE_REASON      = "index method 'rtree' is superceded by 'gist' which is not supported yet."
+)
+
 // Reports one case in JSON
 func reportCase(filePath string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string) {
 	var issue utils.Issue
@@ -212,7 +221,7 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	issue.ObjectName = objName
 	issue.SqlStatement = sqlStmt
 
-	reportStruct.Issues = append(reportStruct.Issues, issue)
+	analyzeSchemaReport.Issues = append(analyzeSchemaReport.Issues, issue)
 }
 
 func reportAddingPrimaryKey(fpath string, tbl string, line string) {
@@ -236,17 +245,12 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 }
 
 // adding migration summary info to reportStruct from summaryMap
-func reportSummary() {
-	//reading source db metainfo from msr
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
-	}
-
-	if !tconf.ImportMode { // this info is available only if we are exporting from source
-		reportStruct.Summary.DBName = msr.SourceDBConf.DBName
-		reportStruct.Summary.SchemaName = msr.SourceDBConf.Schema
-		reportStruct.Summary.DBVersion = msr.SourceDBConf.DBVersion
+func reportSummary(source *srcdb.Source) utils.SchemaSummary {
+	var summary utils.SchemaSummary
+	if !tconf.ImportMode && (source.DBName != "" && source.Schema != "" && source.DBVersion != "") { // this info is available only if we are exporting from source
+		summary.DBName = source.DBName
+		summary.SchemaName = source.Schema
+		summary.DBVersion = source.DBVersion
 	}
 
 	addSummaryDetailsForIndexes()
@@ -261,13 +265,14 @@ func reportSummary() {
 		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
 		dbObject.ObjectNames = getMapKeysString(summaryMap[objType].objSet)
 		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
-		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
+		summary.DBObjects = append(summary.DBObjects, dbObject)
 	}
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
-		reportStruct.Summary.Notes = append(reportStruct.Summary.Notes, note)
+		summary.Notes = append(summary.Notes, note)
 	}
+	return summary
 }
 
 func addSummaryDetailsForIndexes() {
@@ -327,16 +332,16 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			reportCase(fpath, "Schema contains gist index which is not supported.",
+			reportCase(fpath, GIST_INDEX_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			reportCase(fpath, "index method 'brin' not supported yet.",
+			reportCase(fpath, BRIN_INDEX_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := spgistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			reportCase(fpath, "index method 'spgist' not supported yet.",
+			reportCase(fpath, SPGIST_INDEX_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := rtreeRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			reportCase(fpath, "index method 'rtree' is superceded by 'gist' which is not supported yet.",
+			reportCase(fpath, RTREE_INDEX_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		}
 	}
@@ -427,7 +432,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 
 // Checks unsupported DDL statements
 func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
-
 	for _, sqlInfo := range sqlInfoArr {
 		if am := amRegex.FindStringSubmatch(sqlInfo.stmt); am != nil {
 			reportCase(fpath, "CREATE ACCESS METHOD is not supported.",
@@ -636,7 +640,7 @@ func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if trig := compoundTrigRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			reportCase(fpath, "Compound Triggers are not supported in YugabyteDB.",
+			reportCase(fpath, COMPOUND_TRIGGER_ISSUE_REASON,
 				"", "", "TRIGGER", trig[2], sqlInfo.formattedStmt)
 			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
 		}
@@ -900,15 +904,15 @@ func generateHTMLReport(Report utils.Report) string {
 
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
-	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
-	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr>"
-	htmlstring += "<tr><th>" + strings.ToUpper(msr.SourceDBConf.DBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
+	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.SchemaSummary.DBName + "</td></tr>"
+	htmlstring += "<tr><th>Schema Name</th><td>" + Report.SchemaSummary.SchemaName + "</td></tr>"
+	htmlstring += "<tr><th>" + strings.ToUpper(msr.SourceDBConf.DBType) + " Version</th><td>" + Report.SchemaSummary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Valid Count</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
-	for i := 0; i < len(Report.Summary.DBObjects); i++ {
-		if Report.Summary.DBObjects[i].TotalCount != 0 {
-			htmlstring += "<tr><th>" + Report.Summary.DBObjects[i].ObjectType + "</th><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].InvalidCount) + "</td><td width='40%'>" + Report.Summary.DBObjects[i].ObjectNames + "</td><td width='30%'>" + Report.Summary.DBObjects[i].Details + "</td></tr>"
+	for i := 0; i < len(Report.SchemaSummary.DBObjects); i++ {
+		if Report.SchemaSummary.DBObjects[i].TotalCount != 0 {
+			htmlstring += "<tr><th>" + Report.SchemaSummary.DBObjects[i].ObjectType + "</th><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount-Report.SchemaSummary.DBObjects[i].InvalidCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].InvalidCount) + "</td><td width='40%'>" + Report.SchemaSummary.DBObjects[i].ObjectNames + "</td><td width='30%'>" + Report.SchemaSummary.DBObjects[i].Details + "</td></tr>"
 		}
 	}
 	htmlstring += "</table><br>"
@@ -942,11 +946,11 @@ func generateHTMLReport(Report utils.Report) string {
 		htmlstring += "</ul>"
 	}
 	htmlstring += "</ul>"
-	if len(Report.Summary.Notes) > 0 {
+	if len(Report.SchemaSummary.Notes) > 0 {
 		htmlstring += "<h3>Notes</h3>"
 		htmlstring += "<ul list-style-type='disc'>"
-		for i := 0; i < len(Report.Summary.Notes); i++ {
-			htmlstring += "<li>" + Report.Summary.Notes[i] + "</li>"
+		for i := 0; i < len(Report.SchemaSummary.Notes); i++ {
+			htmlstring += "<li>" + Report.SchemaSummary.Notes[i] + "</li>"
 		}
 		htmlstring += "</ul>"
 	}
@@ -959,20 +963,20 @@ func generateTxtReport(Report utils.Report) string {
 	txtstring := "+---------------------------+\n"
 	txtstring += "| Database Migration Report |\n"
 	txtstring += "+---------------------------+\n"
-	txtstring += "Database Name\t" + Report.Summary.DBName + "\n"
-	txtstring += "Schema Name\t" + Report.Summary.SchemaName + "\n"
-	txtstring += "DB Version\t" + Report.Summary.DBVersion + "\n\n"
+	txtstring += "Database Name\t" + Report.SchemaSummary.DBName + "\n"
+	txtstring += "Schema Name\t" + Report.SchemaSummary.SchemaName + "\n"
+	txtstring += "DB Version\t" + Report.SchemaSummary.DBVersion + "\n\n"
 	txtstring += "Objects:\n\n"
 	//if names for json objects need to be changed make sure to change the tab spaces accordingly as well.
-	for i := 0; i < len(Report.Summary.DBObjects); i++ {
-		if Report.Summary.DBObjects[i].TotalCount != 0 {
-			txtstring += fmt.Sprintf("%-16s", "Object:") + Report.Summary.DBObjects[i].ObjectType + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Total Count:") + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Valid Count:") + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Invalid Count:") + strconv.Itoa(Report.Summary.DBObjects[i].InvalidCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Object Names:") + Report.Summary.DBObjects[i].ObjectNames + "\n"
-			if Report.Summary.DBObjects[i].Details != "" {
-				txtstring += fmt.Sprintf("%-16s", "Details:") + Report.Summary.DBObjects[i].Details + "\n"
+	for i := 0; i < len(Report.SchemaSummary.DBObjects); i++ {
+		if Report.SchemaSummary.DBObjects[i].TotalCount != 0 {
+			txtstring += fmt.Sprintf("%-16s", "Object:") + Report.SchemaSummary.DBObjects[i].ObjectType + "\n"
+			txtstring += fmt.Sprintf("%-16s", "Total Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount) + "\n"
+			txtstring += fmt.Sprintf("%-16s", "Valid Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount-Report.SchemaSummary.DBObjects[i].InvalidCount) + "\n"
+			txtstring += fmt.Sprintf("%-16s", "Invalid Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].InvalidCount) + "\n"
+			txtstring += fmt.Sprintf("%-16s", "Object Names:") + Report.SchemaSummary.DBObjects[i].ObjectNames + "\n"
+			if Report.SchemaSummary.DBObjects[i].Details != "" {
+				txtstring += fmt.Sprintf("%-16s", "Details:") + Report.SchemaSummary.DBObjects[i].Details + "\n"
 			}
 			txtstring += "\n"
 		}
@@ -994,25 +998,20 @@ func generateTxtReport(Report utils.Report) string {
 		}
 		txtstring += "\n"
 	}
-	if len(Report.Summary.Notes) > 0 {
+	if len(Report.SchemaSummary.Notes) > 0 {
 		txtstring += "Notes:\n\n"
-		for i := 0; i < len(Report.Summary.Notes); i++ {
-			txtstring += strconv.Itoa(i+1) + ". " + Report.Summary.Notes[i] + "\n"
+		for i := 0; i < len(Report.SchemaSummary.Notes); i++ {
+			txtstring += strconv.Itoa(i+1) + ". " + Report.SchemaSummary.Notes[i] + "\n"
 		}
 	}
 	return txtstring
 }
 
 // add info to the 'reportStruct' variable and return
-func analyzeSchemaInternal() utils.Report {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("analyze schema : load migration status record: %s", err)
-	}
-
-	reportStruct = utils.Report{}
+func analyzeSchemaInternal(source *srcdb.Source) (utils.Report, error) {
+	analyzeSchemaReport = utils.Report{}
 	schemaDir := filepath.Join(exportDir, "schema")
-	sourceObjList = utils.GetSchemaObjectList(msr.SourceDBConf.DBType)
+	sourceObjList = utils.GetSchemaObjectList(source.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
 		var sqlInfoArr []sqlInfo
@@ -1032,8 +1031,8 @@ func analyzeSchemaInternal() utils.Report {
 		checker(sqlInfoArr, filePath)
 	}
 
-	reportSummary()
-	return reportStruct
+	analyzeSchemaReport.SchemaSummary = reportSummary(source)
+	return analyzeSchemaReport, nil
 }
 
 func analyzeSchema() {
@@ -1052,25 +1051,30 @@ func analyzeSchema() {
 		utils.ErrExit("run export schema before running analyze-schema")
 	}
 
-	analyzeSchemaInternal()
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+
+	}
+	analyzeSchemaInternal(msr.SourceDBConf)
 
 	var finalReport string
 
 	switch analyzeSchemaReportFormat {
 	case "html":
-		htmlReport := generateHTMLReport(reportStruct)
+		htmlReport := generateHTMLReport(analyzeSchemaReport)
 		finalReport = utils.PrettifyHtmlString(htmlReport)
 	case "json":
-		jsonBytes, err := json.Marshal(reportStruct)
+		jsonBytes, err := json.Marshal(analyzeSchemaReport)
 		if err != nil {
 			panic(err)
 		}
 		reportJsonString := string(jsonBytes)
 		finalReport = utils.PrettifyJsonString(reportJsonString)
 	case "txt":
-		finalReport = generateTxtReport(reportStruct)
+		finalReport = generateTxtReport(analyzeSchemaReport)
 	case "xml":
-		byteReport, _ := xml.MarshalIndent(reportStruct, "", "\t")
+		byteReport, _ := xml.MarshalIndent(analyzeSchemaReport, "", "\t")
 		finalReport = string(byteReport)
 	default:
 		panic(fmt.Sprintf("invalid report format: %q", analyzeSchemaReportFormat))
@@ -1095,7 +1099,7 @@ func analyzeSchema() {
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	var callhomeIssues []utils.Issue
-	for _, issue := range reportStruct.Issues {
+	for _, issue := range analyzeSchemaReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
 		callhomeIssues = append(callhomeIssues, issue)
 	}
@@ -1105,7 +1109,7 @@ func analyzeSchema() {
 	} else {
 		payload.Issues = string(issues)
 	}
-	dbobjects, err := json.Marshal(reportStruct.Summary.DBObjects)
+	dbobjects, err := json.Marshal(analyzeSchemaReport.SchemaSummary.DBObjects)
 	if err != nil {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
 	} else {
@@ -1114,7 +1118,7 @@ func analyzeSchema() {
 
 	callhome.PackAndSendPayload(exportDir)
 
-	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(reportStruct)
+	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(analyzeSchemaReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 

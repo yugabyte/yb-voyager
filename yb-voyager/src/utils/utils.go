@@ -41,7 +41,17 @@ import (
 
 var DoNotPrompt bool
 
-func Wait(args ...string) {
+type PrintFunc func(format string, args ...interface{})
+
+func ActivePrint(format string, args ...interface{}) {
+	fmt.Printf(format, args...)
+}
+
+func SilentPrint(format string, args ...interface{}) {
+	// Do nothing
+}
+
+func Wait(printFunc PrintFunc, args ...string) {
 	var successMsg, failureMsg string
 	if len(args) > 0 {
 		successMsg = args[0]
@@ -56,16 +66,16 @@ func Wait(args ...string) {
 		i++
 		select {
 		case channelCode := <-WaitChannel:
-			fmt.Print("\b ")
+			printFunc("\b ")
 			if channelCode == 0 {
-				fmt.Printf("%s", successMsg)
+				printFunc("%s", successMsg)
 			} else if channelCode == 1 {
-				fmt.Printf("%s", failureMsg)
+				printFunc("%s", failureMsg)
 			}
 			WaitChannel <- -1
 			return
 		default:
-			fmt.Printf("\b" + string(chars[i%4]))
+			printFunc("\b" + string(chars[i%4]))
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -218,7 +228,7 @@ func ParseJsonFromString(jsonString string) Report {
 
 func GetObjectNameListFromReport(report Report, objType string) []string {
 	var objectList []string
-	for _, dbObject := range report.Summary.DBObjects {
+	for _, dbObject := range report.SchemaSummary.DBObjects {
 		if dbObject.ObjectType == objType {
 			rawObjectList := strings.Trim(dbObject.ObjectNames, ", ")
 			objectList = strings.Split(rawObjectList, ", ")

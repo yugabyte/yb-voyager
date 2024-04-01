@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"text/template"
 
 	log "github.com/sirupsen/logrus"
@@ -86,7 +87,6 @@ func assessMigration() error {
 	if err != nil {
 		log.Errorf("failed to export schema: %v", err)
 		return fmt.Errorf("failed to export schema: %w", err)
-
 	}
 
 	err = gatherMetadataAndStats()
@@ -179,7 +179,7 @@ func exportSchemaForAssessMigration() (err error) {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 	log.Infof("exporting schema for assess migration")
-	source.DB().ExportSchema(exportDir)
+	source.DB().ExportSchema(utils.SilentPrint, exportDir)
 	return nil
 }
 
@@ -256,15 +256,54 @@ func gatherMetadataAndStatsFromPG() error {
 	return nil
 }
 
+type AssessmentReport struct {
+	SchemaSummary       utils.SchemaSummary            `json:"SchemaSummary"`
+	UnsupportedIndexes  []utils.IndexInfo              `json:"UnsupportedIndexes"`
+	UnsupportedTriggers []utils.TriggerInfo            `json:"UnsupportedTriggers"`
+	Recommendations     migassessment.AssessmentReport `json:"Recommendations"`
+}
+
+var mergedAssessmentReport AssessmentReport
+
 func generateAssessmentReport() error {
 	utils.PrintAndLog("Generating assessment reports...")
+
+	err := schemaAnalysisContentForAssessmentReport()
+	if err != nil {
+		return fmt.Errorf("failed to analyze schema for assessment: %w", err)
+	}
+
+	// removing InvalidCount and Details from DBObjects in SchemaSummary
+	for i := range mergedAssessmentReport.SchemaSummary.DBObjects {
+		mergedAssessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0 // Set to zero value(0)
+		mergedAssessmentReport.SchemaSummary.DBObjects[i].Details = ""     // Set to zero values(empty string)
+	}
+
+	mergedAssessmentReport.Recommendations = migassessment.Report
+
+	// write the merged assessment report to a file
+	mergedAssessmentReportFilePath := filepath.Join(exportDir, "assessment", "reports", "merged-assessment-report.json")
+	mergedAssessmentReportContent, err := json.MarshalIndent(&mergedAssessmentReport, "", "\t")
+	if err != nil {
+		log.Errorf("failed to marshal the merged assessment report: %v", err)
+		return fmt.Errorf("failed to marshal the merged assessment report: %w", err)
+	}
+
+	log.Infof("writing merged assessment report to file: %s", mergedAssessmentReportFilePath)
+	err = os.WriteFile(mergedAssessmentReportFilePath, mergedAssessmentReportContent, 0644)
+	if err != nil {
+		log.Errorf("failed to write the merged assessment report: %v", err)
+		return fmt.Errorf("failed to write the merged assessment report: %w", err)
+	}
+
+	// recommendations report
 	reportsDir := filepath.Join(exportDir, "assessment", "reports")
 	for _, assessmentReportFormat := range supportedAssessmentReportFormats {
-		reportFilePath := filepath.Join(reportsDir, "report."+assessmentReportFormat)
+		reportFilePath := filepath.Join(reportsDir, "assessment_report."+assessmentReportFormat)
 		var assessmentReportContent bytes.Buffer
 		switch assessmentReportFormat {
 		case "json":
-			strReport, err := json.MarshalIndent(&migassessment.FinalReport, "", "\t")
+			strReport, err := json.MarshalIndent(&migassessment.Report, "", "\t")
 			if err != nil {
 				log.Errorf("failed to marshal the assessment report: %v", err)
 				return fmt.Errorf("failed to marshal the assessment report: %w", err)
@@ -277,7 +316,7 @@ func generateAssessmentReport() error {
 			}
 		case "html":
 			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
-			err := templ.Execute(&assessmentReportContent, migassessment.FinalReport)
+			err := templ.Execute(&assessmentReportContent, migassessment.Report)
 			if err != nil {
 				log.Errorf("failed to render the assessment report: %v", err)
 				return fmt.Errorf("failed to render the assessment report: %w", err)
@@ -292,6 +331,47 @@ func generateAssessmentReport() error {
 		}
 	}
 	utils.PrintAndLog("Generated assessment reports at '%s'", reportsDir)
+	return nil
+}
+
+type SchemaAnalysisReportForAssessment struct {
+	Summary     utils.SchemaSummary `json:"summary"`
+	IndexesInfo []utils.IndexInfo   `json:"indexes_info"`
+	TriggerInfo []utils.TriggerInfo `json:"trigger_info"`
+}
+
+func schemaAnalysisContentForAssessmentReport() error {
+	// fetch info from analyze schema to put in the report
+	analyzeSchemReport, err := analyzeSchemaInternal(&source)
+	if err != nil {
+		log.Errorf("failed to analyze schema: %v", err)
+		return fmt.Errorf("failed to analyze schema: %w", err)
+	}
+
+	mergedAssessmentReport.SchemaSummary = analyzeSchemReport.SchemaSummary
+	numIssues := len(analyzeSchemReport.Issues)
+	for i := 0; i < numIssues; i++ {
+		issue := analyzeSchemReport.Issues[i]
+
+		switch issue.ObjectType {
+		case "INDEX":
+			if slices.Contains([]string{GIST_INDEX_ISSUE_REASON, BRIN_INDEX_ISSUE_REASON, SPGIST_INDEX_ISSUE_REASON, RTREE_INDEX_ISSUE_REASON}, issue.Reason) {
+				mergedAssessmentReport.UnsupportedIndexes = append(mergedAssessmentReport.UnsupportedIndexes, utils.IndexInfo{
+					IndexName: issue.ObjectName,
+					IndexType: "GIST",
+					// TableName: issue.Parent - TODO: Store a Parent field for each issue object
+				})
+			}
+		case "TRIGGER":
+			if issue.Reason == COMPOUND_TRIGGER_ISSUE_REASON {
+				mergedAssessmentReport.UnsupportedTriggers = append(mergedAssessmentReport.UnsupportedTriggers, utils.TriggerInfo{
+					TriggerName: issue.ObjectName,
+					TriggerType: "COMPOUND",
+				})
+			}
+		}
+	}
+
 	return nil
 }
 

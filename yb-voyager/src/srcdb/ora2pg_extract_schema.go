@@ -28,7 +28,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func ora2pgExtractSchema(source *Source, exportDir string) {
+func ora2pgExtractSchema(printFunc utils.PrintFunc, source *Source, exportDir string) {
 	schemaDirPath := filepath.Join(exportDir, "schema")
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	populateOra2pgConfigFile(configFilePath, getDefaultOra2pgConfig(source))
@@ -38,9 +38,9 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 			continue // INDEX are exported along with TABLE in ora2pg
 		}
 
-		fmt.Printf("exporting %10s %5s", exportObject, "")
+		printFunc("exporting %10s %5s", exportObject, "")
 
-		go utils.Wait(fmt.Sprintf("%10s\n", "done"), fmt.Sprintf("%10s\n", "error!"))
+		go utils.Wait(printFunc, fmt.Sprintf("%10s\n", "done"), fmt.Sprintf("%10s\n", "error!"))
 
 		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)
 		exportObjectDirPath := utils.GetObjectDirPath(schemaDirPath, exportObject)

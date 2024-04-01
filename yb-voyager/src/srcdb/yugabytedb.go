@@ -238,7 +238,7 @@ func (yb *YugabyteDB) GetConnectionUriWithoutPassword() string {
 	return source.Uri
 }
 
-func (yb *YugabyteDB) ExportSchema(exportDir string) {
+func (yb *YugabyteDB) ExportSchema(printFunc utils.PrintFunc, exportDir string) {
 	panic("not implemented")
 }
 

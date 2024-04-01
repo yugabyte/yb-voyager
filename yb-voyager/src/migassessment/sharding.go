@@ -83,7 +83,7 @@ func ShardingAssessment() error {
 
 	// core assessment logic goes here - maybe call some external package APIs to perform the assessment
 
-	FinalReport.ShardingReport = &ShardingReport{
+	Report.ShardingReport = &ShardingReport{
 		// replace this with actual assessment results
 		ColocatedTables: tableList[:len(tableList)/2],
 		ShardedTables:   tableList[len(tableList)/2:],
