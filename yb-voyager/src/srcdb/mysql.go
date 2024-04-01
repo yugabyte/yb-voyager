@@ -68,7 +68,7 @@ func (ms *MySQL) CheckRequiredToolsAreInstalled() {
 
 func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 	var rowCount int64
-	query := fmt.Sprintf("select count(*) from %s", tableName.CurrentName.Qualified.Unquoted)
+	query := fmt.Sprintf("select count(*) from %s", tableName.AsQualifiedCatalogName())
 
 	log.Infof("Querying row count of table %s", tableName)
 	err := ms.db.QueryRow(query).Scan(&rowCount)
@@ -219,7 +219,7 @@ func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sq
 func (ms *MySQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
 	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.CurrentName.Qualified.Unquoted)
+		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.AsQualifiedCatalogName())
 		if !IsTableEmpty(ms.db, query) {
 			nonEmptyTableList = append(nonEmptyTableList, tableName)
 		} else {
@@ -317,7 +317,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 			if err != nil {
 				utils.ErrExit("Failed to scan %q for auto increment column of %q: %s", query, table.String(), err)
 			}
-			qualifiedColumeName := fmt.Sprintf("%s.%s", table.CurrentName.Qualified.Unquoted, columnName)
+			qualifiedColumeName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
 			// sequence name as per PG naming convention for bigserial datatype's sequence
 			sequenceName := fmt.Sprintf("%s_%s_seq", tname, columnName)
 			columnToSequenceMap[qualifiedColumeName] = sequenceName

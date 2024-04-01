@@ -101,7 +101,7 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 		utils.ErrExit("lookup %s in name registry: %v", tableStatus.TableName, err)
 	}
 	row := &exportTableMigStatusOutputRow{
-		tableName:     nt.CurrentName.MinQualified.MinQuoted,
+		tableName:     nt.ForMinOutput(),
 		status:        "DONE",
 		exportedCount: tableStatus.ExportedRowCountSnapshot,
 	}
@@ -139,8 +139,8 @@ func runExportDataStatusCmd() error {
 		if err != nil {
 			return fmt.Errorf("lookup %s in name registry: %v", tableName, err)
 		}
-		displayTableName := finalFullTableName.CurrentName.MinQualified.MinQuoted
-		partitions := leafPartitions[finalFullTableName.CurrentName.Qualified.MinQuoted]
+		displayTableName := finalFullTableName.ForMinOutput()
+		partitions := leafPartitions[finalFullTableName.ForOutput()]
 		if source.DBType == POSTGRESQL && partitions != nil {
 			partitions := strings.Join(partitions, ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)

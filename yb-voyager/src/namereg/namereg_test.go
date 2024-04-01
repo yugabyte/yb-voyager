@@ -185,7 +185,7 @@ func TestNameMatchesPattern(t *testing.T) {
 		for _, ntup := range ntups {
 			match, err := ntup.MatchesPattern(tc.pattern)
 			require.Nil(err)
-			tableName := ntup.CurrentName.Qualified.Unquoted
+			tableName := ntup.AsQualifiedCatalogName()
 			if match {
 				assert.Contains(tc.expected, tableName, "pattern: %s, tableName: %s", tc.pattern, tableName)
 			} else {

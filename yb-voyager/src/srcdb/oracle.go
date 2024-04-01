@@ -409,7 +409,7 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 			if err != nil {
 				utils.ErrExit("failed to scan columnName from output of query %q: %v", query, err)
 			}
-			qualifiedColumnName := fmt.Sprintf("%s.%s", table.CurrentName.Qualified.Unquoted, columnName)
+			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf("%s_%s_seq", tname, columnName)
 		}
 	}

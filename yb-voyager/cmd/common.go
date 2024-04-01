@@ -68,7 +68,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
 			fullTableName := tableName.ForKey()
-			table := tableName.CurrentName.MinQualified.MinQuoted
+			table := tableName.ForMinOutput()
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
 				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
 				tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", table+"_data.sql")
@@ -79,7 +79,8 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		}
 	} else if source.DBType == "oracle" || source.DBType == "mysql" {
 		for _, key := range sortedKeys {
-			targetTableName := tablesProgressMetadata[key].TableName.CurrentName.Unqualified.Unquoted
+			_, tname := tablesProgressMetadata[key].TableName.ForCatalogQuery()
+			targetTableName := tname
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
 			if tablesProgressMetadata[key].IsPartition {
 				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
@@ -207,7 +208,7 @@ func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 }
 
 func getLeafPartitionsFromRootTable() map[string][]string {
-	
+
 	leafPartitions := make(map[string][]string)
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -254,7 +255,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				utils.ErrExit("lookup table %s in name registry : %v", key, err)
 			}
 			displayTableName := table.CurrentName.Unqualified.MinQuoted
-			partitions := leafPartitions[table.CurrentName.Qualified.MinQuoted]
+			partitions := leafPartitions[table.ForOutput()]
 			if source.DBType == POSTGRESQL && partitions != nil {
 				partitions := strings.Join(partitions, ", ")
 				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
@@ -287,7 +288,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
 		}
 		displayTableName := table.CurrentName.Unqualified.MinQuoted
-		partitions := leafPartitions[table.CurrentName.Qualified.MinQuoted]
+		partitions := leafPartitions[table.ForOutput()]
 		if source.DBType == POSTGRESQL && partitions != nil {
 			partitions := strings.Join(partitions, ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
@@ -874,13 +875,13 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*
 func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	minQuotedTableList := lo.Uniq(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
 		// Store list of tables in MSR with root table in case of partitions
-		renamedTable, isRenamed := renameTableIfRequired(table.CurrentName.Qualified.MinQuoted)
+		renamedTable, isRenamed := renameTableIfRequired(table.ForOutput())
 		if isRenamed {
 			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
 			if err != nil {
 				return fmt.Sprintf("lookup table %s in name registry : %v", renamedTable, err)
 			}
-			return tuple.CurrentName.Qualified.MinQuoted
+			return tuple.ForOutput()
 		}
 		return renamedTable
 	}))
