@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -47,6 +48,10 @@ var exportDataStatusCmd = &cobra.Command{
 		if streamChanges {
 			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
+		}
+		err = InitNameRegistry(exportDir, SOURCE_DB_EXPORTER_ROLE, nil, nil, nil, nil)
+		if err != nil {
+			utils.ErrExit("initializing name registry: %v", err)
 		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
 		var rows []*exportTableMigStatusOutputRow
@@ -117,8 +122,12 @@ func runExportDataStatusCmdDbzm(streamChanges bool) ([]*exportTableMigStatusOutp
 }
 
 func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTableMigStatusOutputRow {
+	nt, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
+	if err != nil {
+		utils.ErrExit("lookup %s in name registry: %v", tableStatus.TableName, err)
+	}
 	row := &exportTableMigStatusOutputRow{
-		TableName:     tableStatus.TableName,
+		TableName:     nt.ForMinOutput(),
 		Status:        "DONE",
 		ExportedCount: tableStatus.ExportedRowCountSnapshot,
 	}
@@ -136,7 +145,6 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 	tableList := msr.TableListExportedFromSource
 	source = *msr.SourceDBConf
 	sqlname.SourceDBType = source.DBType
-	var finalFullTableName string
 	var outputRows []*exportTableMigStatusOutputRow
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
@@ -145,30 +153,31 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 	}
 
-	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(tableList, exportStatusSnapshot)
+	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
 	if err != nil {
 		return nil, fmt.Errorf("error while getting exported snapshot rows map: %v", err)
 	}
 
-	leafPartitions := getLeafPartitionsFromRootTable(tableList)
+	leafPartitions := getLeafPartitionsFromRootTable()
 
 	for _, tableName := range tableList {
-		sqlTableName := sqlname.NewSourceNameFromQualifiedName(tableName)
-		finalFullTableName = sqlTableName.Qualified.MinQuoted
-		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted == "public" {
-			finalFullTableName = sqlTableName.ObjectName.MinQuoted
+		finalFullTableName, err := namereg.NameReg.LookupTableName(tableName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup %s in name registry: %v", tableName, err)
 		}
-		displayTableName := finalFullTableName
-		if source.DBType == POSTGRESQL && leafPartitions[finalFullTableName] != nil {
-			partitions := strings.Join(leafPartitions[finalFullTableName], ", ")
-			displayTableName = fmt.Sprintf("%s (%s)", finalFullTableName, partitions)
+		displayTableName := finalFullTableName.ForMinOutput()
+		partitions := leafPartitions[finalFullTableName.ForOutput()]
+		if source.DBType == POSTGRESQL && partitions != nil {
+			partitions := strings.Join(partitions, ", ")
+			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
 		}
-		finalStatus := exportedSnapshotStatus[finalFullTableName][0]
-		if len(exportedSnapshotStatus[finalFullTableName]) > 1 { // status for root partition wrt leaf partitions
+		snapshotStatus, _ := exportedSnapshotStatus.Get(finalFullTableName)
+		finalStatus := snapshotStatus[0]
+		if len(snapshotStatus) > 1 { // status for root partition wrt leaf partitions
 			exportingLeaf := 0
 			doneLeaf := 0
 			not_started := 0
-			for _, status := range exportedSnapshotStatus[finalFullTableName] {
+			for _, status := range snapshotStatus {
 				if status == "EXPORTING" {
 					exportingLeaf++
 				} else if status == "DONE" {
@@ -179,16 +188,17 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 			}
 			if exportingLeaf > 0 {
 				finalStatus = "EXPORTING"
-			} else if doneLeaf == len(exportedSnapshotStatus[finalFullTableName]) {
+			} else if doneLeaf == len(snapshotStatus) {
 				finalStatus = "DONE"
-			} else if not_started == len(exportedSnapshotStatus[finalFullTableName]) {
+			} else if not_started == len(snapshotStatus) {
 				finalStatus = "NOT_STARTED"
 			}
 		}
+		exportedCount, _ := exportedSnapshotRow.Get(finalFullTableName)
 		row := &exportTableMigStatusOutputRow{
 			TableName:     displayTableName,
 			Status:        finalStatus,
-			ExportedCount: exportedSnapshotRow[finalFullTableName],
+			ExportedCount: exportedCount,
 		}
 		outputRows = append(outputRows, row)
 	}

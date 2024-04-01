@@ -29,11 +29,12 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, snapshotName string) {
+func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, snapshotName string) {
 	defer utils.WaitGroup.Done()
 
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
@@ -122,10 +123,10 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	tocTextFile.Close()
 }
 
-func createTableListPatterns(tableList []*sqlname.SourceName) string {
+func createTableListPatterns(tableList []sqlname.NameTuple) string {
 	var tableListPattern string
 	for _, table := range tableList {
-		tableListPattern += fmt.Sprintf("--table='%s' ", table.Qualified.MinQuoted) 
+		tableListPattern += fmt.Sprintf("--table='%s' ", table.ForKey())
 	}
 
 	return strings.TrimPrefix(tableListPattern, "--table=")

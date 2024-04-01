@@ -101,33 +101,25 @@ type NameTuple struct {
 	TargetName  *ObjectName
 }
 
-func (t1 *NameTuple) Equals(t2 *NameTuple) bool {
+func (t1 NameTuple) Equals(t2 NameTuple) bool {
 	return reflect.DeepEqual(t1, t2)
 }
 
-// func (t *NameTuple) SetMode(mode string) {
-// 	t.Mode = mode
-// 	switch mode {
-// 	case TARGET_DB_IMPORTER_ROLE:
-// 		t.CurrentName = t.TargetName
-// 	case SOURCE_DB_IMPORTER_ROLE:
-// 		t.CurrentName = t.SourceName
-// 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-// 		t.CurrentName = t.SourceName
-// 	case SOURCE_DB_EXPORTER_ROLE:
-// 		t.CurrentName = t.SourceName
-// 	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
-// 		t.CurrentName = t.TargetName
-// 	default:
-// 		t.CurrentName = nil
-// 	}
-// }
-
-func (t *NameTuple) String() string {
-	return t.CurrentName.String()
+func (t NameTuple) String() string {
+	var curname, tname, sname string
+	if t.CurrentName != nil {
+		curname = t.CurrentName.String()
+	}
+	if t.SourceName != nil {
+		sname = t.SourceName.String()
+	}
+	if t.TargetName != nil {
+		tname = t.TargetName.String()
+	}
+	return fmt.Sprintf("[CurrentName=(%s) SourceName=(%s) TargetName=(%s)]", curname, sname, tname)
 }
 
-func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
+func (t NameTuple) MatchesPattern(pattern string) (bool, error) {
 	for _, tableName := range []*ObjectName{t.SourceName, t.TargetName} {
 		if tableName == nil {
 			continue
@@ -143,31 +135,60 @@ func (t *NameTuple) MatchesPattern(pattern string) (bool, error) {
 	return false, nil
 }
 
-func (t *NameTuple) ForUserQuery() string {
+func (t NameTuple) ForUserQuery() string {
 	return t.CurrentName.Qualified.Quoted
 }
 
-func (t *NameTuple) ForCatalogQuery() (string, string) {
+func (t NameTuple) ForOutput() string {
+	return t.CurrentName.Qualified.MinQuoted
+}
+
+func (t NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
 }
 
-func (t *NameTuple) ForKey() string {
+func (t NameTuple) AsQualifiedCatalogName() string {
+	return t.CurrentName.Qualified.Unquoted
+}
+
+func (t NameTuple) ForMinOutput() string {
+	return t.CurrentName.MinQualified.MinQuoted
+}
+
+func (t NameTuple) ForKey() string {
+	// sourcename will be nil only in the case of import-data-file
 	if t.SourceName != nil {
 		return t.SourceName.Qualified.Quoted
 	}
 	return t.TargetName.Qualified.Quoted
 }
 
-//================================================
+func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {
+	m := make(map[string]bool)
+	for _, x := range b {
+		m[x.String()] = true
+	}
+	var res []NameTuple
+	for _, x := range a {
+		if !m[x.String()] {
+			res = append(res, x)
+		}
+	}
+	return res
+}
 
+// Implements: utils.Keyer.Key()
+func (t NameTuple) Key() string {
+	return t.ForKey()
+}
+
+// ================================================
 func quote2(dbType, name string) string {
 	switch dbType {
-	case POSTGRESQL, YUGABYTEDB, ORACLE:
+	case POSTGRESQL, YUGABYTEDB, ORACLE, MYSQL:
 		return `"` + name + `"`
-	case MYSQL:
-		return name
 	default:
-		panic("unknown source db type")
+		panic("unknown source db type " + dbType)
 	}
 }
 
@@ -180,7 +201,7 @@ func minQuote2(objectName, sourceDBType string) string {
 			return `"` + objectName + `"`
 		}
 	case MYSQL:
-		return objectName
+		return `"` + objectName + `"`
 	case ORACLE:
 		if IsAllUppercase(objectName) && !IsReservedKeywordOracle(objectName) {
 			return objectName

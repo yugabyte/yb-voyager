@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/samber/lo"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -34,6 +32,28 @@ const (
 
 var NameReg NameRegistry
 
+type SourceDBInterface interface {
+	GetAllTableNamesRaw(schemaName string) ([]string, error)
+}
+
+type YBDBInterface interface {
+	GetAllSchemaNamesRaw() ([]string, error)
+	GetAllTableNamesRaw(schemaName string) ([]string, error)
+} // Only implemented by TargetYugabyteDB and dummyTargetDB.
+
+type NameRegistryParams struct {
+	FilePath string
+	Role     string
+
+	SourceDBType   string
+	SourceDBSchema string
+	SourceDBName   string
+	SDB            SourceDBInterface
+
+	TargetDBSchema string
+	YBDB           YBDBInterface
+}
+
 type NameRegistry struct {
 	SourceDBType string
 
@@ -50,42 +70,26 @@ type NameRegistry struct {
 	DefaultSourceReplicaDBSchemaName string
 	// Source replica has same table name list as original source.
 
-	// Private members are not saved in the JSON file.
-	filePath string
-	role     string
-	sconf    *srcdb.Source
-	sdb      srcdb.SourceDB
-	tconf    *tgtdb.TargetConf
-	tdb      tgtdb.TargetDB
+	params NameRegistryParams
 }
 
-func NewNameRegistry(
-	exportDir string, role string,
-	sconf *srcdb.Source, sdb srcdb.SourceDB,
-	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) *NameRegistry {
-
-	return &NameRegistry{
-		filePath: fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
-		role:     role,
-		sconf:    sconf,
-		sdb:      sdb,
-		tconf:    tconf,
-		tdb:      tdb,
-	}
-}
-
-func InitNameRegistry(
-	exportDir string, role string,
-	sconf *srcdb.Source, sdb srcdb.SourceDB,
-	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) error {
-	NameReg = *NewNameRegistry(exportDir, role, sconf, sdb, tconf, tdb)
+func InitNameRegistry(params NameRegistryParams) error {
+	log.Infof("Initializing name registry with params - %v", params)
+	NameReg = *NewNameRegistry(params)
 	return NameReg.Init()
 }
 
+func NewNameRegistry(params NameRegistryParams) *NameRegistry {
+
+	return &NameRegistry{
+		params: params,
+	}
+}
+
 func (reg *NameRegistry) Init() error {
-	log.Infof("initialising name registry: %s", reg.filePath)
-	jsonFile := jsonfile.NewJsonFile[NameRegistry](reg.filePath)
-	if utils.FileOrFolderExists(reg.filePath) {
+	log.Infof("initialising name registry: %s", reg.params.FilePath)
+	jsonFile := jsonfile.NewJsonFile[NameRegistry](reg.params.FilePath)
+	if utils.FileOrFolderExists(reg.params.FilePath) {
 		err := jsonFile.Load(reg)
 		if err != nil {
 			return fmt.Errorf("load name registry: %w", err)
@@ -109,28 +113,28 @@ func (reg *NameRegistry) Init() error {
 // TODO: only registry tables from tablelist, not all from schema.
 func (reg *NameRegistry) registerNames() (bool, error) {
 	switch true {
-	case reg.role == SOURCE_DB_EXPORTER_ROLE && reg.SourceDBTableNames == nil:
+	case reg.params.Role == SOURCE_DB_EXPORTER_ROLE && reg.SourceDBTableNames == nil:
 		log.Info("registering source names in the name registry")
 		return reg.registerSourceNames()
-	case (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == IMPORT_FILE_ROLE) && reg.YBTableNames == nil:
+	case (reg.params.Role == TARGET_DB_IMPORTER_ROLE || reg.params.Role == IMPORT_FILE_ROLE) && reg.YBTableNames == nil:
 		log.Info("registering YB names in the name registry")
 		return reg.registerYBNames()
-	case reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE && reg.DefaultSourceReplicaDBSchemaName == "":
+	case reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE && reg.DefaultSourceReplicaDBSchemaName == "":
 		log.Infof("setting default source replica schema name in the name registry: %s", reg.DefaultSourceDBSchemaName)
-		defaultSchema := lo.Ternary(reg.SourceDBType == POSTGRESQL, reg.DefaultSourceDBSchemaName, reg.tconf.Schema)
+		defaultSchema := lo.Ternary(reg.SourceDBType == POSTGRESQL, reg.DefaultSourceDBSchemaName, reg.params.TargetDBSchema)
 		reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
 		return true, nil
 	}
-	log.Infof("no name registry update required: mode %q", reg.role)
+	log.Infof("no name registry update required: mode %q", reg.params.Role)
 	return false, nil
 }
 
 func (reg *NameRegistry) registerSourceNames() (bool, error) {
-	reg.SourceDBType = reg.sconf.DBType
+	reg.SourceDBType = reg.params.SourceDBType
 	reg.initSourceDBSchemaNames()
 	m := make(map[string][]string)
 	for _, schemaName := range reg.SourceDBSchemaNames {
-		tableNames, err := reg.sdb.GetAllTableNamesRaw(schemaName)
+		tableNames, err := reg.params.SDB.GetAllTableNamesRaw(schemaName)
 		if err != nil {
 			return false, fmt.Errorf("get all table names: %w", err)
 		}
@@ -143,13 +147,13 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 func (reg *NameRegistry) initSourceDBSchemaNames() {
 	// source.Schema contains only one schema name for MySQL and Oracle; whereas
 	// it contains a pipe separated list for postgres.
-	switch reg.sconf.DBType {
+	switch reg.params.SourceDBType {
 	case ORACLE:
-		reg.SourceDBSchemaNames = []string{strings.ToUpper(reg.sconf.Schema)}
+		reg.SourceDBSchemaNames = []string{strings.ToUpper(reg.params.SourceDBSchema)}
 	case MYSQL:
-		reg.SourceDBSchemaNames = []string{reg.sconf.DBName}
+		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
 	case POSTGRESQL:
-		reg.SourceDBSchemaNames = lo.Map(strings.Split(reg.sconf.Schema, "|"), func(s string, _ int) string {
+		reg.SourceDBSchemaNames = lo.Map(strings.Split(reg.params.SourceDBSchema, "|"), func(s string, _ int) string {
 			return strings.ToLower(s)
 		})
 	}
@@ -161,20 +165,13 @@ func (reg *NameRegistry) initSourceDBSchemaNames() {
 }
 
 func (reg *NameRegistry) registerYBNames() (bool, error) {
-	type YBDB interface {
-		GetAllSchemaNamesRaw() ([]string, error)
-		GetAllTableNamesRaw(schemaName string) ([]string, error)
-	} // Only implemented by TargetYugabyteDB and dummyTargetDB.
-	if reg.tdb == nil {
+	if reg.params.YBDB == nil {
 		return false, fmt.Errorf("target db is nil")
 	}
-	yb, ok := reg.tdb.(YBDB)
-	if !ok {
-		return false, fmt.Errorf("target db is not YugabyteDB")
-	}
+	yb := reg.params.YBDB
 
 	m := make(map[string][]string)
-	reg.DefaultYBSchemaName = reg.tconf.Schema
+	reg.DefaultYBSchemaName = reg.params.TargetDBSchema
 	if reg.SourceDBTableNames != nil && reg.SourceDBType == POSTGRESQL {
 		reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
 	}
@@ -182,7 +179,7 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	case POSTGRESQL:
 		reg.YBSchemaNames = reg.SourceDBSchemaNames
 	default:
-		reg.YBSchemaNames = []string{reg.tconf.Schema}
+		reg.YBSchemaNames = []string{reg.params.TargetDBSchema}
 	}
 	for _, schemaName := range reg.YBSchemaNames {
 		tableNames, err := yb.GetAllTableNamesRaw(schemaName)
@@ -202,19 +199,10 @@ func (reg *NameRegistry) setDefaultSourceReplicaDBSchemaName(defaultSourceReplic
 }
 
 func (reg *NameRegistry) DefaultSourceSideSchemaName() string {
-	originalSourceModes := []string{
-		SOURCE_DB_EXPORTER_ROLE,
-		SOURCE_DB_IMPORTER_ROLE,
-		TARGET_DB_IMPORTER_ROLE,
-		TARGET_DB_EXPORTER_FF_ROLE,
-		TARGET_DB_EXPORTER_FB_ROLE,
-	}
-	if lo.Contains(originalSourceModes, reg.role) {
-		return reg.DefaultSourceDBSchemaName
-	} else if reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+	if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		return reg.DefaultSourceReplicaDBSchemaName
 	} else {
-		return ""
+		return reg.DefaultSourceDBSchemaName
 	}
 }
 
@@ -230,12 +218,15 @@ foobar, "foobar", FooBar, "FooBar", FOOBAR, "FOOBAR",
 schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOBAR, schema1."FOOBAR",
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
-func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTuple, error) {
-	if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
+func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple, error) {
+	// TODO: REVISIT. Removing the check for reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE because it's possible that import-data-to-source-replica
+	// starts before import-data-to-target and so , defaultYBSchemaName will not be set.
+	// if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
+	if (reg.params.Role == TARGET_DB_IMPORTER_ROLE) &&
 		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
 		msg := "either both or none of the default schema names should be set"
-		return nil, fmt.Errorf("%s: [%s], [%s]", msg,
+		return sqlname.NameTuple{}, fmt.Errorf("%s: [%s], [%s]", msg,
 			reg.DefaultSourceSideSchemaName(), reg.DefaultYBSchemaName)
 	}
 	var err error
@@ -250,9 +241,15 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 		schemaName = parts[0]
 		tableName = parts[1]
 	default:
-		return nil, fmt.Errorf("invalid table name: %s", tableNameArg)
+		return sqlname.NameTuple{}, fmt.Errorf("invalid table name: %s", tableNameArg)
 	}
-	if schemaName == reg.DefaultSourceSideSchemaName() || schemaName == reg.DefaultYBSchemaName {
+	// Consider a case of oracle data migration: source table name is SAKILA.TABLE1 and it is being imported in ybsakila.table1.
+	// When a name lookup comes for ybsakila.table1 we have to pair it with SAKILA.TABLE1.
+	// Consider the case of fall-forward import-data to source-replica (with different schema for source-replica SAKILA_REPLICA
+	// During the snapshot and event data in the beginning before cutover, lookup will be for SAKILA.TABLE1,
+	// but we want to get the SourceName to be SAKILA_REPLICA.TABLE1.
+	// Therefore, we unqualify the input in case it is equal to the default.
+	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultSourceReplicaDBSchemaName || schemaName == reg.DefaultYBSchemaName {
 		schemaName = ""
 	}
 
@@ -278,7 +275,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 			}
 			if err != nil {
 				// `err` can be: no default schema, no matching name, multiple matching names.
-				return nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
+				return sqlname.NameTuple{}, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
 			}
 		}
 	}
@@ -295,15 +292,15 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (*sqlname.NameTupl
 				}
 			}
 			if err != nil {
-				return nil, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
+				return sqlname.NameTuple{}, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
 			}
 		}
 	}
 	if sourceName == nil && targetName == nil {
-		return nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
+		return sqlname.NameTuple{}, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
 
-	ntup := NewNameTuple(reg.role, sourceName, targetName)
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
 }
 
@@ -370,7 +367,7 @@ func matchName(objType string, names []string, name string) (string, error) {
 	return "", &ErrNameNotFound{ObjectType: objType, Name: name}
 }
 
-func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName) *sqlname.NameTuple {
+func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName) sqlname.NameTuple {
 	t := sqlname.NameTuple{SourceName: sourceName, TargetName: targetName}
 	switch role {
 	case TARGET_DB_IMPORTER_ROLE:
@@ -383,8 +380,10 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 		t.CurrentName = t.SourceName
 	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
 		t.CurrentName = t.TargetName
+	case IMPORT_FILE_ROLE:
+		t.CurrentName = t.TargetName
 	default:
 		t.CurrentName = nil
 	}
-	return &t
+	return t
 }
