@@ -6,6 +6,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNameTupleEquals(t *testing.T) {
+	assert := assert.New(t)
+	o1 := NewObjectName(POSTGRESQL, "public", "public", "table1")
+	o2 := NewObjectName(POSTGRESQL, "public", "public", "table1")
+	nameTuple1 := NameTuple{CurrentName: o1, SourceName: o1, TargetName: o1}
+	nameTuple2 := NameTuple{CurrentName: o2, SourceName: o2, TargetName: o2}
+	assert.True(nameTuple1.Equals(nameTuple2))
+
+	o3 := NewObjectName(POSTGRESQL, "public", "public", "table2")
+	nameTuple3 := NameTuple{CurrentName: o3, SourceName: o3, TargetName: o3}
+	assert.False(nameTuple1.Equals(nameTuple3))
+}
+
 func TestPGDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 

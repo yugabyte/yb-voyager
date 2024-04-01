@@ -35,14 +35,14 @@ type TargetDB interface {
 	PrepareForStreaming()
 	GetVersion() string
 	CreateVoyagerSchema() error
-	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple //
+	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
-	IfRequiredQuoteColumnNames(tableName sqlname.NameTuple, columns []string) ([]string, error) //
+	IfRequiredQuoteColumnNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
-	GetIdentityColumnNamesForTable(table sqlname.NameTuple, identityType string) ([]string, error) //
+	GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error)
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
@@ -146,9 +146,9 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 }
 
 type ImportBatchArgs struct {
-	FilePath  string
-	TableName sqlname.NameTuple
-	Columns   []string
+	FilePath     string
+	TableNameTup sqlname.NameTuple
+	Columns      []string
 
 	FileFormat string
 	HasHeader  bool
@@ -167,7 +167,7 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
-	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName.ForUserQuery(), columns, strings.Join(options, ", "))
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 
 func (args *ImportBatchArgs) GetPGCopyStatement() string {
@@ -176,7 +176,7 @@ func (args *ImportBatchArgs) GetPGCopyStatement() string {
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
-	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName.ForUserQuery(), columns, strings.Join(options, ", "))
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 
 func (args *ImportBatchArgs) copyOptions() []string {
@@ -249,7 +249,7 @@ REENABLE DISABLED_CONSTRAINTS
 FIELDS CSV WITH EMBEDDED 
 TRAILING NULLCOLS
 %s`
-	return fmt.Sprintf(configTemplate, args.FilePath, args.TableName.ForUserQuery(), columns)
+	return fmt.Sprintf(configTemplate, args.FilePath, args.TableNameTup.ForUserQuery(), columns)
 	/*
 	   reference for sqlldr control file
 	   https://docs.oracle.com/en/database/oracle/oracle-database/19/sutil/oracle-sql-loader-control-file-contents.html#GUID-D1762699-8154-40F6-90DE-EFB8EB6A9AB0

@@ -66,12 +66,8 @@ func (m *StructMap[K, V]) IterKV(f func(key K, value V) (bool, error)) error {
 }
 
 func (m *StructMap[K, V]) Clear() {
-	for k := range m.kmap {
-		delete(m.kmap, k)
-	}
-	for k := range m.vmap {
-		delete(m.vmap, k)
-	}
+	m.kmap = make(map[string]K)
+	m.vmap = make(map[string]V)
 }
 
 func (m *StructMap[K, V]) Keys() []string {

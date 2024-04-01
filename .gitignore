@@ -38,3 +38,5 @@ migtests/tests/analyze-schema/dummy-export-dir/.*.lck
 # debezium server
 debezium-server-voyager/**/target/
 *.iml
+
+**/dummy_name_registry.json

@@ -78,10 +78,10 @@ func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	}
 }
 
-func (sreg *SchemaRegistry) GetColumnTypes(tableName sqlname.NameTuple, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
-	tableSchema, _ := sreg.TableNameToSchema.Get(tableName)
+func (sreg *SchemaRegistry) GetColumnTypes(tableNameTup sqlname.NameTuple, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
+	tableSchema, _ := sreg.TableNameToSchema.Get(tableNameTup)
 	if tableSchema == nil {
-		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableName)
+		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableNameTup)
 	}
 	columnTypes := make([]string, len(columnNames))
 	columnSchemas := make([]*ColumnSchema, len(columnNames))
@@ -89,17 +89,17 @@ func (sreg *SchemaRegistry) GetColumnTypes(tableName sqlname.NameTuple, columnNa
 		var err error
 		columnTypes[idx], columnSchemas[idx], err = tableSchema.getColumnType(columnName, getSourceDatatypes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get column type for table %s, column %s: %w", tableName, columnName, err)
+			return nil, nil, fmt.Errorf("failed to get column type for table %s, column %s: %w", tableNameTup, columnName, err)
 		}
 	}
 	return columnTypes, columnSchemas, nil
 }
 
-func (sreg *SchemaRegistry) GetColumnType(tableName sqlname.NameTuple, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
+func (sreg *SchemaRegistry) GetColumnType(tableNameTup sqlname.NameTuple, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
 	var tableSchema *TableSchema
 	var found bool
 	var err error
-	tableSchema, _ = sreg.TableNameToSchema.Get(tableName)
+	tableSchema, _ = sreg.TableNameToSchema.Get(tableNameTup)
 	if tableSchema == nil {
 		// reinit
 		sreg.TableNameToSchema.Clear()
@@ -108,9 +108,9 @@ func (sreg *SchemaRegistry) GetColumnType(tableName sqlname.NameTuple, columnNam
 		if err != nil {
 			return "", nil, fmt.Errorf("re-init of registry : %v", err)
 		}
-		tableSchema, found = sreg.TableNameToSchema.Get(tableName)
+		tableSchema, found = sreg.TableNameToSchema.Get(tableNameTup)
 		if !found || tableSchema == nil {
-			return "", nil, fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
+			return "", nil, fmt.Errorf("table %s not found in schema registry:%w", tableNameTup, err)
 		}
 	}
 	return tableSchema.getColumnType(columnName, getSourceDatatype)

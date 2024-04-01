@@ -329,11 +329,11 @@ outer:
 	return nil
 }
 
-func (yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
-	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableName)
+func (yb *TargetYugabyteDB) qualifyTableName(tableNameTup string) string {
+	if len(strings.Split(tableNameTup, ".")) != 2 {
+		tableNameTup = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableNameTup)
 	}
-	return tableName
+	return tableNameTup
 }
 
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -432,7 +432,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	return res.RowsAffected(), err
 }
 
-func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTuple, columns []string) ([]string, error) {
+func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
 	// FAST PATH.
 	fastPathSuccessful := true
@@ -452,15 +452,15 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTup
 		}
 	}
 	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
+		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableNameTup, result)
 		return result, nil
 	}
 	// SLOW PATH.
-	targetColumns, err := yb.getListOfTableAttributes(tableName)
+	targetColumns, err := yb.getListOfTableAttributes(tableNameTup)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
-	log.Infof("columns of table %s in target db: %v", tableName.ForUserQuery(), targetColumns)
+	log.Infof("columns of table %s in target db: %v", tableNameTup.ForUserQuery(), targetColumns)
 
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
@@ -477,10 +477,10 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName sqlname.NameTup
 		case slices.Contains(targetColumns, strings.ToLower(colName)): // Case insensitive name given with mixed case.
 			result[i] = strings.ToLower(colName)
 		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
+			return nil, fmt.Errorf("column %q not found in table %s", colName, tableNameTup)
 		}
 	}
-	log.Infof("columns of table %s after quoting: %v", tableName.ForUserQuery(), result)
+	log.Infof("columns of table %s after quoting: %v", tableNameTup.ForUserQuery(), result)
 	return result, nil
 }
 
@@ -995,11 +995,11 @@ func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 	return 200 * 1024 * 1024 // 200 MB
 }
 
-func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(table sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := table.ForCatalogQuery()
+func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
+	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
 		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, table, query)
+	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
 	var identityColumns []string
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		rows, err := conn.Query(context.Background(), query)
@@ -1083,8 +1083,8 @@ func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
 	return yb.isQueryResultNonEmpty(query)
 }
 
-func (yb *TargetYugabyteDB) isTableExists(tableName sqlname.NameTuple) bool {
-	schema, table := tableName.ForCatalogQuery()
+func (yb *TargetYugabyteDB) isTableExists(tableNameTup sqlname.NameTuple) bool {
+	schema, table := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
 	return yb.isQueryResultNonEmpty(query)
 }

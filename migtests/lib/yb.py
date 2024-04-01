@@ -142,7 +142,6 @@ class PostgresDB:
 		try:
 			cur.execute(f"{query}")
 		except Exception as error:
-			print("error", error)
 			self.conn.rollback()
 			return error_code == str(error.pgcode)
 		return False

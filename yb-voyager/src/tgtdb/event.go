@@ -33,7 +33,7 @@ import (
 type Event struct {
 	Vsn          int64 // Voyager Sequence Number
 	Op           string
-	TableName    sqlname.NameTuple
+	TableNameTup sqlname.NameTuple
 	Key          map[string]*string
 	Fields       map[string]*string
 	BeforeFields map[string]*string
@@ -57,7 +57,6 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		ExporterRole string             `json:"exporter_role"`
 	}
 
-	// Unmarshal the json into the realTicker struct.
 	if err = json.Unmarshal(data, &rawEvent); err != nil {
 		return err
 	}
@@ -68,9 +67,9 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.BeforeFields = rawEvent.BeforeFields
 	e.ExporterRole = rawEvent.ExporterRole
 	if !e.IsCutoverEvent() {
-		e.TableName, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.SchemaName, rawEvent.TableName))
+		e.TableNameTup, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", rawEvent.SchemaName, rawEvent.TableName))
 		if err != nil {
-			return fmt.Errorf("lookup table %s.%s in name registry: %v", rawEvent.SchemaName, rawEvent.TableName, err)
+			return fmt.Errorf("lookup table %s.%s in name registry: %w", rawEvent.SchemaName, rawEvent.TableName, err)
 		}
 	}
 
@@ -94,7 +93,7 @@ func (e *Event) String() string {
 	}
 
 	return fmt.Sprintf("Event{vsn=%v, op=%v, table=%v, key=%v, before_fields=%v, fields=%v, exporter_role=%v}",
-		e.Vsn, e.Op, e.TableName, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
+		e.Vsn, e.Op, e.TableNameTup, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
 }
 
 func (e *Event) Copy() *Event {
@@ -104,7 +103,7 @@ func (e *Event) Copy() *Event {
 	return &Event{
 		Vsn:          e.Vsn,
 		Op:           e.Op,
-		TableName:    e.TableName, // TODO: TABLENAME do we need to deepcopy?
+		TableNameTup: e.TableNameTup,
 		Key:          lo.MapEntries(e.Key, idFn),
 		Fields:       lo.MapEntries(e.Fields, idFn),
 		BeforeFields: lo.MapEntries(e.BeforeFields, idFn),
@@ -178,7 +177,7 @@ func (e *Event) GetParams() []interface{} {
 
 func (event *Event) GetPreparedStmtName() string {
 	var ps strings.Builder
-	ps.WriteString(event.TableName.ForUserQuery())
+	ps.WriteString(event.TableNameTup.ForUserQuery())
 	ps.WriteString("_")
 	ps.WriteString(event.Op)
 	if event.Op == "u" {
@@ -206,7 +205,7 @@ func (event *Event) getInsertStmt() string {
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, event.TableName.ForUserQuery(), columns, values)
+	stmt := fmt.Sprintf(insertTemplate, event.TableNameTup.ForUserQuery(), columns, values)
 	return stmt
 }
 
@@ -229,7 +228,7 @@ func (event *Event) getUpdateStmt() string {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.TableName.ForUserQuery(), setClause, whereClause)
+	return fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause)
 }
 
 func (event *Event) getDeleteStmt() string {
@@ -241,7 +240,7 @@ func (event *Event) getDeleteStmt() string {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.TableName.ForUserQuery(), whereClause)
+	return fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause)
 }
 
 func (event *Event) getPreparedInsertStmt(targetDBType string) string {
@@ -254,7 +253,7 @@ func (event *Event) getPreparedInsertStmt(targetDBType string) string {
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, event.TableName.ForUserQuery(), columns, values)
+	stmt := fmt.Sprintf(insertTemplate, event.TableNameTup.ForUserQuery(), columns, values)
 	if targetDBType == POSTGRESQL {
 		keyColumns := utils.GetMapKeysSorted(event.Key)
 		stmt = fmt.Sprintf("%s ON CONFLICT (%s) DO NOTHING", stmt, strings.Join(keyColumns, ","))
@@ -278,7 +277,7 @@ func (event *Event) getPreparedUpdateStmt() string {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.TableName.ForUserQuery(), setClause, whereClause)
+	return fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause)
 }
 
 func (event *Event) getPreparedDeleteStmt() string {
@@ -288,7 +287,7 @@ func (event *Event) getPreparedDeleteStmt() string {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.TableName.ForUserQuery(), whereClause)
+	return fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause)
 }
 
 func (event *Event) getInsertParams() []interface{} {
@@ -355,7 +354,7 @@ type EventBatch struct {
 	Events             []*Event
 	ChanNo             int
 	EventCounts        *EventCounter
-	EventCountsByTable *utils.StructMap[sqlname.NameTuple, *EventCounter] //map[string]*EventCounter
+	EventCountsByTable *utils.StructMap[sqlname.NameTuple, *EventCounter]
 }
 
 func NewEventBatch(events []*Event, chanNo int) *EventBatch {
@@ -392,7 +391,7 @@ func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) str
 		migrationUUID, eb.ChanNo)
 }
 
-func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName sqlname.NameTuple) string {
+func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableNameTup sqlname.NameTuple) string {
 	queryTemplate := `UPDATE %s 
 	SET 
 		total_events = total_events + %d, 
@@ -403,7 +402,7 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 		migration_uuid='%s' AND table_name='%s' AND channel_no=%d
 	`
 
-	eventCounter, _ := eb.EventCountsByTable.Get(tableName)
+	eventCounter, _ := eb.EventCountsByTable.Get(tableNameTup)
 
 	return fmt.Sprintf(queryTemplate,
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME,
@@ -411,19 +410,19 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 		eventCounter.NumInserts,
 		eventCounter.NumUpdates,
 		eventCounter.NumDeletes,
-		migrationUUID, tableName.ForKey(), eb.ChanNo)
+		migrationUUID, tableNameTup.ForKey(), eb.ChanNo)
 }
 
-func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUID, tableName sqlname.NameTuple) string {
+func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUID, tableNameTup sqlname.NameTuple) string {
 	queryTemplate := `INSERT INTO %s 
 	(migration_uuid, table_name, channel_no, total_events, num_inserts, num_updates, num_deletes) 
 	VALUES ('%s', '%s', %d, %d, %d, %d, %d)
 	`
 
-	eventCounter, _ := eb.EventCountsByTable.Get(tableName)
+	eventCounter, _ := eb.EventCountsByTable.Get(tableNameTup)
 	return fmt.Sprintf(queryTemplate,
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME,
-		migrationUUID, tableName.ForKey(), eb.ChanNo,
+		migrationUUID, tableNameTup.ForKey(), eb.ChanNo,
 		eventCounter.TotalEvents,
 		eventCounter.NumInserts,
 		eventCounter.NumUpdates,
@@ -443,10 +442,10 @@ func (eb *EventBatch) updateCounts() {
 	for _, event := range eb.Events {
 		var eventCounter *EventCounter
 		var found bool
-		eventCounter, found = eb.EventCountsByTable.Get(event.TableName)
+		eventCounter, found = eb.EventCountsByTable.Get(event.TableNameTup)
 		if !found {
-			eb.EventCountsByTable.Put(event.TableName, &EventCounter{})
-			eventCounter, _ = eb.EventCountsByTable.Get(event.TableName)
+			eb.EventCountsByTable.Put(event.TableNameTup, &EventCounter{})
+			eventCounter, _ = eb.EventCountsByTable.Get(event.TableNameTup)
 		}
 		eventCounter.CountEvent(event)
 		eb.EventCounts.CountEvent(event)

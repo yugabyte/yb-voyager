@@ -166,7 +166,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		return false
 	}
 
-	uniqueKeyColumns, _ := c.tableToUniqueKeyColumns.Get(cachedEvent.TableName)
+	uniqueKeyColumns, _ := c.tableToUniqueKeyColumns.Get(cachedEvent.TableNameTup)
 	/*
 		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
 		TODO(future): Fix this in our debezium voyager plugin
@@ -188,7 +188,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		}
 
 		if conflict {
-			log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", cachedEvent.TableName, cachedEvent.Vsn, incomingEvent.Vsn)
+			log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", cachedEvent.TableNameTup, cachedEvent.Vsn, incomingEvent.Vsn)
 		}
 		return conflict
 	}
@@ -200,7 +200,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 		if *cachedEvent.BeforeFields[column] == *incomingEvent.Fields[column] {
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableName.ForKey(), column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
 			return true
 		}
 	}
@@ -208,5 +208,5 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 }
 
 func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
-	return event1.TableName.ForKey() == event2.TableName.ForKey()
+	return event1.TableNameTup.Equals(event2.TableNameTup)
 }
