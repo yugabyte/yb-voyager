@@ -125,7 +125,7 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	sleep 30 
+	sleep 100 
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-snapshot-import true --refresh-mviews=true
@@ -136,7 +136,7 @@ main() {
 	step "Inserting new events"
 	run_sql_file source_delta.sql
 
-	sleep 120
+	sleep 200
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -165,6 +165,15 @@ main() {
 	then
 	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'false' --fb_enabled 'false'
 	fi
+
+	step "Run get data-migration-report"
+	get_data_migration_report
+
+	expected_file="${TEST_DIR}/data-migration-report.json"
+	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
+
+	step "Verify data-migration-report report"
+	verify_report ${expected_file} ${actual_file}
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes

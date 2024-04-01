@@ -493,6 +493,17 @@ import_data_status(){
 								  --json-report true
 }
 
+get_data_migration_report(){
+
+	# setting env vars for passwords to be used for saving reports
+	export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
+	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
+	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
+
+	yb-voyager get data-migration-report --export-dir ${EXPORT_DIR} \
+										--json-report true
+}
+
 verify_report() {
 	expected_report=$1
 	actual_report=$2

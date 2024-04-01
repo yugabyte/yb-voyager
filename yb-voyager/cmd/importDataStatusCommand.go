@@ -75,7 +75,7 @@ func init() {
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 type tableMigStatusOutputRow struct {
 	TableName          string  `json:"table_name"`
-	FileName           string  `json:"file_name"`
+	FileName           string  `json:"file_name",omitempty`
 	Status             string  `json:"status"`
 	TotalCount         int64   `json:"total_count"`
 	ImportedCount      int64   `json:"imported_count"`
@@ -107,6 +107,7 @@ func runImportDataStatusCmd() error {
 		if err != nil {
 			return fmt.Errorf("write to report file: %w", err)
 		}
+		fmt.Print(color.GreenString("Import data status report is written to %s\n", reportFilePath))
 		return nil
 	}
 	color.Cyan(importDataStatusMsg)

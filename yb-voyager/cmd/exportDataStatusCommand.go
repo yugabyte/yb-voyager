@@ -79,6 +79,7 @@ var exportDataStatusCmd = &cobra.Command{
 			if err != nil {
 				utils.ErrExit("error while writing to report file: %v", err)
 			}
+			fmt.Print(color.GreenString("Export data status report is written to %s\n", reportFilePath))
 			return
 		}
 		displayExportDataStatus(rows)

@@ -16,7 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -84,17 +86,20 @@ var getDataMigrationReportCmd = &cobra.Command{
 }
 
 type rowData struct {
-	TableName            string
-	DBType               string
-	ExportedSnapshotRows int64
-	ImportedSnapshotRows int64
-	ImportedInserts      int64
-	ImportedUpdates      int64
-	ImportedDeletes      int64
-	ExportedInserts      int64
-	ExportedUpdates      int64
-	ExportedDeletes      int64
+	TableName            string `json:"table_name"`
+	DBType               string `json:"db_type"`
+	ExportedSnapshotRows int64  `json:"exported_snapshot_rows"`
+	ImportedSnapshotRows int64  `json:"imported_snapshot_rows"`
+	ImportedInserts      int64  `json:"imported_inserts"`
+	ImportedUpdates      int64  `json:"imported_updates"`
+	ImportedDeletes      int64  `json:"imported_deletes"`
+	ExportedInserts      int64  `json:"exported_inserts"`
+	ExportedUpdates      int64  `json:"exported_updates"`
+	ExportedDeletes      int64  `json:"exported_deletes"`
+	FinalRowCount        int64  `json:"final_row_count"`
 }
+
+var reportData []*rowData
 
 var fBEnabled, fFEnabled bool
 var firstHeader = []string{"TABLE", "DB_TYPE", "EXPORTED", "IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL_ROW_COUNT"}
@@ -221,7 +226,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
 		}
-		addRowInTheTable(uitbl, row)
+		addRowInTheTable(uitbl, row, nameTup)
 		row = rowData{}
 		row.TableName = ""
 		row.DBType = "target"
@@ -238,7 +243,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting exported events for target DB: %w\n", err)
 			}
 		}
-		addRowInTheTable(uitbl, row)
+		addRowInTheTable(uitbl, row, nameTup)
 		if fFEnabled {
 			row = rowData{}
 			row.TableName = ""
@@ -248,9 +253,10 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
-			addRowInTheTable(uitbl, row)
+			addRowInTheTable(uitbl, row, nameTup)
 		}
-		if i%maxTablesInOnePage == 0 && i != 0 {
+
+		if i%maxTablesInOnePage == 0 && i != 0 && !jsonReport {
 			//multiple table in case of large set of tables
 			fmt.Print("\n")
 			fmt.Println(uitbl)
@@ -262,6 +268,24 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			addHeader(uitbl, secondHeader...)
 		}
 	}
+	if jsonReport {
+		jsonBytes, err := json.MarshalIndent(reportData, "", "  ")
+		if err != nil {
+			utils.ErrExit("marshal json: %w", err)
+		}
+		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
+		reportFile, err := os.Create(reportFilePath)
+		if err != nil {
+			utils.ErrExit("create report file: %w", err)
+		}
+		defer reportFile.Close()
+		_, err = reportFile.Write(jsonBytes)
+		if err != nil {
+			utils.ErrExit("write to report file: %w", err)
+		}
+		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
+		return 
+	}
 	if uitbl.Rows != nil {
 		fmt.Print("\n")
 		fmt.Println(uitbl)
@@ -270,7 +294,13 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 
 }
 
-func addRowInTheTable(uitbl *uitable.Table, row rowData) {
+func addRowInTheTable(uitbl *uitable.Table, row rowData, nameTup sqlname.NameTuple) {
+	if jsonReport {
+		row.TableName = nameTup.ForKey()
+		row.FinalRowCount = getFinalRowCount(row)
+		reportData = append(reportData, &row)
+		return
+	}
 	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
 
@@ -370,6 +400,8 @@ func getFinalRowCount(row rowData) int64 {
 func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)
+	BoolVar(getDataMigrationReportCmd.Flags(), &jsonReport, "json-report", false, "Display report in json format")
+	getDataMigrationReportCmd.Flags().MarkHidden("json-report")
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
