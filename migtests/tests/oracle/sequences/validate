@@ -23,7 +23,8 @@ EXPECTED_ROW_COUNT = {
 	'identity_demo_generated_always_start_with': 1,        
 	'identity_demo_generated_by_def_st_with_inc_by': 3,        
 	'identity_demo_generated_by_def_start_with': 3,        
-	'identity_demo_with_null': 2
+	'identity_demo_with_null': 2,
+	'case_sensitive_always': 2
 }
 
 EXPECTED_TABLE_SUM = {
@@ -33,7 +34,8 @@ EXPECTED_TABLE_SUM = {
 	'identity_demo_generated_always_start_with': 101,        
 	'identity_demo_generated_by_def_st_with_inc_by': 115,        
 	'identity_demo_generated_by_def_start_with': 205,        
-	'identity_demo_with_null': 3
+	'identity_demo_with_null': 3,
+	'case_sensitive_always': 3
 }
 
 EXPECTED_TABLE_SUM_AFTER_INSERT = {
@@ -43,8 +45,10 @@ EXPECTED_TABLE_SUM_AFTER_INSERT = {
 	'identity_demo_generated_always_start_with': 223,        
 	'identity_demo_generated_by_def_st_with_inc_by': 2241,        
 	'identity_demo_generated_by_def_start_with': 327,        
-	'identity_demo_with_null': 25
+	'identity_demo_with_null': 25,
+	'case_sensitive_always': 25
 }
+
 if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 	EXPECTED_TABLE_SUM_AFTER_INSERT = {
 	'identity_demo_generated_by_def_inc_by': 308,        
@@ -53,7 +57,8 @@ if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 	'identity_demo_generated_always_start_with': 203,        
 	'identity_demo_generated_by_def_st_with_inc_by': 322,        
 	'identity_demo_generated_by_def_start_with': 308,        
-	'identity_demo_with_null': 6
+	'identity_demo_with_null': 6,
+	'case_sensitive_always': 6
 }
 
 QUERIES_CHECK = {
@@ -81,6 +86,8 @@ def migration_completed_checks_yb():
 
 def migration_completed_checks_ff():
 	print("Running tests on Oracle source replica")
+	global EXPECTED_TABLE_SUM
+	EXPECTED_TABLE_SUM = EXPECTED_TABLE_SUM_ORA
 	global db_schema
 	db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
 	oracle.run_checks(migration_completed_checks, db_type="source_replica")
@@ -89,7 +96,7 @@ def migration_completed_checks(tgt):
 	global test_type_flags
 	table_list = tgt.get_table_names(db_schema)
 	print("table_list: ", table_list)
-	assert len(table_list) == 9
+	assert len(table_list) == 10
 
 	got_row_count = tgt.row_count_of_all_tables(db_schema)
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
@@ -97,6 +104,8 @@ def migration_completed_checks(tgt):
 		assert row_count == got_row_count[table_name]
 
 	for table_name, sum_column_values in EXPECTED_TABLE_SUM.items():
+		if table_name == "case_sensitive_always" and type(tgt) == oracle.OracleDB: 
+			table_name = '"Case_Sensitive_always"'
 		got_sum_column_values = tgt.get_sum_of_column_of_table(table_name, "id", db_schema)
 		print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values}, expected_sum_column_values: {sum_column_values}")
 		assert sum_column_values == got_sum_column_values
@@ -124,6 +133,8 @@ def migration_completed_checks(tgt):
 			typename = "BY DEFAULT"
 			if test_type_flags['fb_enabled'] == 'true' and type(tgt) == oracle.OracleDB: # as for fall-back identity is change to by default after cutover
 				typename = "ALWAYS"
+			if table_name == "case_sensitive_always" and type(tgt) == oracle.OracleDB: 
+				table_name = '"Case_Sensitive_always"'
 			got_columns = tgt.get_identity_type_columns(typename,table_name, db_schema)
 			print(f"table_name: {table_name}, got_columns: {got_columns}, expected_columns: {columns}")
 			for column in columns:
