@@ -28,7 +28,9 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const importDataStatusMsg = "Import Data Status for TargetDB\n"
@@ -46,7 +48,17 @@ var importDataStatusCmd = &cobra.Command{
 			utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
-		importerRole = TARGET_DB_IMPORTER_ROLE
+		dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
+		if utils.FileOrFolderExists(dataFileDescriptorPath) {
+			importerRole = TARGET_DB_IMPORTER_ROLE
+		} else {
+			importerRole = IMPORT_FILE_ROLE
+		}
+
+		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+		if err != nil {
+			utils.ErrExit("initialize name registry: %v", err)
+		}
 		err = runImportDataStatusCmd()
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
@@ -60,8 +72,7 @@ func init() {
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 type tableMigStatusOutputRow struct {
-	schemaName         string
-	tableName          string
+	tableName          sqlname.NameTuple
 	fileName           string
 	status             string
 	totalCount         int64
@@ -91,13 +102,13 @@ func runImportDataStatusCmd() error {
 			// case of importDataFileCommand where file size is available not row counts
 			totalCount := utils.HumanReadableByteCount(row.totalCount)
 			importedCount := utils.HumanReadableByteCount(row.importedCount)
-			uiTable.AddRow(row.tableName, row.fileName, row.status, totalCount, importedCount, perc)
+			uiTable.AddRow(row.tableName.ForOutput(), row.fileName, row.status, totalCount, importedCount, perc)
 		} else {
 			if i == 0 {
 				addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
 			}
 			// case of importData where row counts is available
-			uiTable.AddRow(row.tableName, row.status, row.totalCount, row.importedCount, perc)
+			uiTable.AddRow(row.tableName.ForOutput(), row.status, row.totalCount, row.importedCount, perc)
 		}
 	}
 
@@ -155,7 +166,8 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		}
 	}
 
-	outputRows := make(map[string]*tableMigStatusOutputRow)
+	// outputRows := make(map[string]*tableMigStatusOutputRow)
+	outputRows := utils.NewStructMap[sqlname.NameTuple, *tableMigStatusOutputRow]()
 
 	for _, dataFile := range dataFileDescriptor.DataFileList {
 		row, err := prepareRowWithDatafile(dataFile, state)
@@ -165,16 +177,21 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		if importerRole == IMPORT_FILE_ROLE {
 			table = append(table, row)
 		} else {
-			if outputRows[row.tableName] == nil {
-				outputRows[row.tableName] = &tableMigStatusOutputRow{}
+			var existingRow *tableMigStatusOutputRow
+			var found bool
+			existingRow, found = outputRows.Get(row.tableName)
+			if !found {
+				existingRow = &tableMigStatusOutputRow{}
+				outputRows.Put(row.tableName, existingRow)
 			}
-			outputRows[row.tableName].tableName = row.tableName
-			outputRows[row.tableName].schemaName = row.schemaName
-			outputRows[row.tableName].totalCount += row.totalCount
-			outputRows[row.tableName].importedCount += row.importedCount
+			existingRow.tableName = row.tableName
+			existingRow.totalCount += row.totalCount
+			existingRow.importedCount += row.importedCount
+
 		}
 	}
-	for _, row := range outputRows {
+
+	outputRows.IterKV(func(nt sqlname.NameTuple, row *tableMigStatusOutputRow) (bool, error) {
 		row.percentageComplete = float64(row.importedCount) * 100.0 / float64(row.totalCount)
 		if row.percentageComplete == 100 {
 			row.status = "DONE"
@@ -184,7 +201,8 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			row.status = "MIGRATING"
 		}
 		table = append(table, row)
-	}
+		return true, nil
+	})
 
 	// First sort by status and then by table-name.
 	sort.Slice(table, func(i, j int) bool {
@@ -195,7 +213,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			if row1.tableName == row2.tableName {
 				return strings.Compare(row1.fileName, row2.fileName) < 0
 			} else {
-				return strings.Compare(row1.tableName, row2.tableName) < 0
+				return strings.Compare(row1.tableName.ForKey(), row2.tableName.ForKey()) < 0
 			}
 		} else {
 			return ordStates[row1.status] < ordStates[row2.status]
@@ -211,13 +229,16 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	var perc float64
 	var status string
 	reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
-
+	dataFileNt, err := namereg.NameReg.LookupTableName(dataFile.TableName)
+	if err != nil {
+		return nil, fmt.Errorf("lookup %s from name registry: %v", dataFile.TableName, err)
+	}
 	if reportProgressInBytes {
 		totalCount = dataFile.FileSize
-		importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFile.TableName)
+		importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFileNt)
 	} else {
 		totalCount = dataFile.RowCount
-		importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+		importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFileNt)
 
 	}
 	if err != nil {
@@ -235,9 +256,9 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	case importedCount < totalCount:
 		status = "MIGRATING"
 	}
+
 	row := &tableMigStatusOutputRow{
-		tableName:          dataFile.TableName,
-		schemaName:         getTargetSchemaName(dataFile.TableName),
+		tableName:          dataFileNt,
 		fileName:           path.Base(dataFile.FilePath),
 		status:             status,
 		totalCount:         totalCount,

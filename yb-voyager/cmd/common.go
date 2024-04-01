@@ -44,7 +44,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -340,7 +342,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	} else {
 		fmt.Printf("snapshot import report\n")
 	}
-	tableList := importFileTasksToTableNames(tasks)
+	tableList := importFileTasksToTableNameTuples(tasks)
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
@@ -352,7 +354,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "source-replica"
 	}
 
-	snapshotRowCount := make(map[string]int64)
+	snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
 
 	if importerRole == IMPORT_FILE_ROLE {
 		for _, tableName := range tableList {
@@ -360,7 +362,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 			if err != nil {
 				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
 			}
-			snapshotRowCount[tableName] = tableRowCount
+			snapshotRowCount.Put(tableName, tableRowCount)
 		}
 	} else {
 		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType, tableList)
@@ -373,11 +375,10 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
-		table := tableName
-		if len(strings.Split(tableName, ".")) == 2 {
-			table = strings.Split(tableName, ".")[1]
-		}
-		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
+		s, t := tableName.ForCatalogQuery()
+
+		rowCount, _ := snapshotRowCount.Get(tableName)
+		uitable.AddRow(s, t, rowCount)
 	}
 	if len(tableList) > 0 {
 		fmt.Printf("\n")
@@ -450,6 +451,49 @@ func initMetaDB() {
 		}
 		utils.ErrExit(userFacingMsg)
 	}
+}
+
+func InitNameRegistry(
+	exportDir string, role string,
+	sconf *srcdb.Source, sdb srcdb.SourceDB,
+	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) error {
+
+	var sdbReg namereg.SourceDBInterface
+	var ybdb namereg.YBDBInterface
+	var sourceDbType, sourceDbSchema, sourceDbName string
+	var targetDBSchema string
+
+	if sconf != nil {
+		sourceDbType = sconf.DBType
+		sourceDbName = sconf.DBName
+		sourceDbSchema = sconf.Schema
+	}
+	if sdb != nil {
+		sdbReg = sdb.(namereg.SourceDBInterface)
+	}
+
+	if tconf != nil {
+		targetDBSchema = tconf.Schema
+	}
+	var ok bool
+	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
+		ybdb, ok = tdb.(namereg.YBDBInterface)
+		if !ok {
+			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty")
+		}
+	}
+	nameregistryParams := namereg.NameRegistryParams{
+		FilePath:       fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
+		Role:           role,
+		SourceDBType:   sourceDbType,
+		SourceDBSchema: sourceDbSchema,
+		SourceDBName:   sourceDbName,
+		TargetDBSchema: targetDBSchema,
+		SDB:            sdbReg,
+		YBDB:           ybdb,
+	}
+
+	return namereg.InitNameRegistry(nameregistryParams)
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
@@ -588,22 +632,20 @@ func validateMetaDBCreated() {
 	}
 }
 
-func getImportTableList(sourceTableList []string) []string {
+func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	if importerRole == IMPORT_FILE_ROLE {
-		return nil
+		return nil, nil
 	}
-	var tableList []string
+	var tableList []sqlname.NameTuple
 	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
-		// TODO: handle case sensitivity?
-		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
-		table := tableName.ObjectName.MinQuoted
-		if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
-			table = tableName.Qualified.MinQuoted
+		table, err := namereg.NameReg.LookupTableName(qualifiedTableName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
 		}
 		tableList = append(tableList, table)
 	}
-	return tableList
+	return tableList, nil
 }
 
 func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
@@ -769,25 +811,30 @@ func renameTableIfRequired(table string) (string, bool) {
 	return table, false
 }
 
-func getExportedSnapshotRowsMap(tableList []string, exportSnapshotStatus *ExportSnapshotStatus) (map[string]int64, map[string][]string, error) {
-	snapshotRowsMap := make(map[string]int64)
-	snapshotStatusMap := make(map[string][]string)
-	for _, table := range tableList {
-		tableStatus := exportSnapshotStatus.GetTableStatusByTableName(table)
-		table = strings.TrimPrefix(table, "public.") //safely can remove it for now. TODO: fix with NameRegistry all such occurrences
-		for _, status := range tableStatus {
-			if status.FileName == "" {
-				//in case of root table as well in the tablelist during export an entry with empty file name is there
-				continue
-			}
-			snapshotRowsMap[table] += status.ExportedRowCountSnapshot
-			snapshotStatusMap[table] = append(snapshotStatusMap[table], status.Status)
+func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*utils.StructMap[sqlname.NameTuple, int64], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	for _, tableStatus := range exportSnapshotStatus.Tables {
+		if tableStatus.FileName == "" {
+			//in case of root table as well in the tablelist during export an entry with empty file name is there
+			continue
 		}
+		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
+		}
+		existingSnapshotRows, _ := snapshotRowsMap.Get(nt)
+		snapshotRowsMap.Put(nt, existingSnapshotRows+tableStatus.ExportedRowCountSnapshot)
+		existingStatuses, _ := snapshotStatusMap.Get(nt)
+		existingStatuses = append(existingStatuses, tableStatus.Status)
+		snapshotStatusMap.Put(nt, existingStatuses)
 	}
+
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]int64, error) {
+func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -802,45 +849,23 @@ func getImportedSnapshotRowsMap(dbType string, tableList []string) (map[string]i
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	}
 
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return nil, fmt.Errorf("get migration status record: %w", err)
+	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+	dataFilePathNtMap := map[string]sqlname.NameTuple{}
+	for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+		}
+		dataFilePathNtMap[fileEntry.FilePath] = nt
 	}
-	sourceSchemaCount := len(strings.Split(msr.SourceDBConf.Schema, "|"))
 
-	snapshotRowsMap := make(map[string]int64)
-	for _, table := range tableList {
-		parts := strings.Split(table, ".")
-		schemaName := ""
-		tableName := parts[0]
-		if len(parts) > 1 {
-			schemaName = parts[0]
-			tableName = parts[1]
+	for dataFilePath, nt := range dataFilePathNtMap {
+		snapshotRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
+		if err != nil {
+			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
 		}
-		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case
-			schemaName = ""
-		}
-		if schemaName == "public" || schemaName == "" {
-			table = tableName
-		}
-		//Now multiple files can be there for a table in case of partitions
-		dataFiles := snapshotDataFileDescriptor.GetDataFileEntriesByTableName(table)
-		if len(dataFiles) == 0 {
-			dataFile := &datafile.FileEntry{
-				FilePath:  "",
-				TableName: table,
-				RowCount:  0,
-				FileSize:  0,
-			}
-			dataFiles = append(dataFiles, dataFile)
-		}
-		for _, dataFile := range dataFiles {
-			snapshotRowCount, err := state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
-			if err != nil {
-				return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", table, err)
-			}
-			snapshotRowsMap[table] += snapshotRowCount
-		}
+		existingRows, _ := snapshotRowsMap.Get(nt)
+		snapshotRowsMap.Put(nt, existingRows+snapshotRowCount)
 	}
 	return snapshotRowsMap, nil
 }

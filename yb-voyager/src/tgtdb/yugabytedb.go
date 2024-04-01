@@ -31,11 +31,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -331,20 +329,20 @@ outer:
 	return nil
 }
 
-func (yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
-	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableName)
+func (yb *TargetYugabyteDB) qualifyTableName(tableNameTup string) string {
+	if len(strings.Split(tableNameTup, ".")) != 2 {
+		tableNameTup = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableNameTup)
 	}
-	return tableName
+	return tableNameTup
 }
 
-func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
-	result := []string{}
+func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
+	result := []sqlname.NameTuple{}
 
 	for _, table := range tables {
 		log.Infof("checking if table %q is empty.", table)
 		tmp := false
-		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
+		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table.ForUserQuery())
 		err := yb.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
 		if err == pgx.ErrNoRows {
 			continue
@@ -434,7 +432,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	return res.RowsAffected(), err
 }
 
-func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
+func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
 	// FAST PATH.
 	fastPathSuccessful := true
@@ -454,17 +452,15 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 		}
 	}
 	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
+		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableNameTup, result)
 		return result, nil
 	}
 	// SLOW PATH.
-	var schemaName string
-	schemaName, tableName = yb.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := yb.getListOfTableAttributes(schemaName, tableName)
+	targetColumns, err := yb.getListOfTableAttributes(tableNameTup)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
 	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	log.Infof("columns of table %s in target db: %v", tableNameTup.ForUserQuery(), targetColumns)
 
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
@@ -481,19 +477,16 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 		case slices.Contains(targetColumns, strings.ToLower(colName)): // Case insensitive name given with mixed case.
 			result[i] = strings.ToLower(colName)
 		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
+			return nil, fmt.Errorf("column %q not found in table %s", colName, tableNameTup)
 		}
 	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
+	log.Infof("columns of table %s after quoting: %v", tableNameTup.ForUserQuery(), result)
 	return result, nil
 }
 
-func (yb *TargetYugabyteDB) getListOfTableAttributes(schemaName, tableName string) ([]string, error) {
+func (yb *TargetYugabyteDB) getListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
+	schemaName, tableName := nt.ForCatalogQuery()
 	var result []string
-	if tableName[0] == '"' {
-		// Remove the double quotes around the table name.
-		tableName = tableName[1 : len(tableName)-1]
-	}
 	query := fmt.Sprintf(
 		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
 		schemaName, tableName)
@@ -644,7 +637,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			tableName := yb.qualifyTableName(tableName)
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
@@ -990,14 +982,6 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
 
 }
 
-func (yb *TargetYugabyteDB) getTargetSchemaName(tableName string) string {
-	parts := strings.Split(tableName, ".")
-	if len(parts) == 2 {
-		return parts[0]
-	}
-	return yb.tconf.Schema // default set to "public"
-}
-
 func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool, int64, error) {
 	var rowsImported int64
 	query := batch.GetQueryIsBatchAlreadyImported()
@@ -1022,25 +1006,15 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 	return nil
 }
 
-func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
-	return tgtdbsuite.YBValueConverterSuite
-}
-
 func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 	return 200 * 1024 * 1024 // 200 MB
 }
 
-func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error) {
-	schema := yb.getTargetSchemaName(table)
-	// TODO: handle case-sensitivity correctly
-	if utils.IsQuotedString(table) {
-		table = table[1 : len(table)-1]
-	} else {
-		table = strings.ToLower(table)
-	}
+func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
+	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, schema, table, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, table, query)
+		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
+	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
 	var identityColumns []string
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		rows, err := conn.Query(context.Background(), query)
@@ -1063,78 +1037,28 @@ func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(table string, identit
 	return identityColumns, err
 }
 
-func (yb *TargetYugabyteDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (yb *TargetYugabyteDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("disabling generated always as identity columns")
 	return yb.alterColumns(tableColumnsMap, "SET GENERATED BY DEFAULT")
 }
 
-func (yb *TargetYugabyteDB) EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (yb *TargetYugabyteDB) EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("enabling generated always as identity columns")
 	// YB automatically resumes the value for further inserts due to sequence attached
 	return yb.alterColumns(tableColumnsMap, "SET GENERATED ALWAYS")
 }
 
-func (yb *TargetYugabyteDB) EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (yb *TargetYugabyteDB) EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("enabling generated by default as identity columns")
 	return yb.alterColumns(tableColumnsMap, "SET GENERATED BY DEFAULT")
 }
 
-const ybQueryTmplForUniqCols = `
-SELECT tc.table_schema, tc.table_name, kcu.column_name
-FROM information_schema.table_constraints tc
-JOIN information_schema.key_column_usage kcu
-    ON tc.constraint_name = kcu.constraint_name
-	AND tc.table_schema = kcu.table_schema
-    AND tc.table_name = kcu.table_name
-WHERE tc.table_schema = ANY('{%s}') AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
-`
-
-func (yb *TargetYugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
-	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := make(map[string][]string)
-	var querySchemaList, queryTableList []string
-	for i := 0; i < len(tableList); i++ {
-		schema, table := yb.splitMaybeQualifiedTableName(tableList[i])
-		querySchemaList = append(querySchemaList, schema)
-		queryTableList = append(queryTableList, table)
-	}
-
-	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
-	log.Infof("query to get unique key columns: %s", query)
-	rows, err := yb.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schemaName, tableName, colName string
-		err := rows.Scan(&schemaName, &tableName, &colName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		if schemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		}
-		result[tableName] = append(result[tableName], colName)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
-	}
-	log.Infof("unique key columns for tables: %v", result)
-	return result, nil
-}
-
-func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, alterAction string) error {
+func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {
 	log.Infof("altering columns for action %s", alterAction)
-	for table, columns := range tableColumnsMap {
-		qualifiedTableName := yb.qualifyTableName(table)
+	return tableColumnsMap.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
 		batch := pgx.Batch{}
 		for _, column := range columns {
-			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, qualifiedTableName, column, alterAction)
+			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
 			batch.Queue(query)
 		}
 		sleepIntervalSec := 10
@@ -1144,37 +1068,29 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, al
 				for i := 0; i < batch.Len(); i++ {
 					_, err := br.Exec()
 					if err != nil {
-						log.Errorf("executing query to alter columns for table(%s): %v", qualifiedTableName, err)
-						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", qualifiedTableName, err)
+						log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
+						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
 					}
 				}
 				if err := br.Close(); err != nil {
-					log.Errorf("closing batch of queries to alter columns for table(%s): %v", qualifiedTableName, err)
-					return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", qualifiedTableName, err)
+					log.Errorf("closing batch of queries to alter columns for table(%s): %v", table.ForUserQuery(), err)
+					return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", table.ForUserQuery(), err)
 				}
 				return false, nil
 			})
 			if err != nil {
-				log.Errorf("error in altering columns for table(%s): %v", qualifiedTableName, err)
+				log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
 				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
-					return err
+					return false, err
 				}
-				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, qualifiedTableName)
+				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
 				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
 				continue
 			}
 			break
 		}
-	}
-	return nil
-}
-
-func (yb *TargetYugabyteDB) splitMaybeQualifiedTableName(tableName string) (string, string) {
-	if strings.Contains(tableName, ".") {
-		parts := strings.Split(tableName, ".")
-		return parts[0], parts[1]
-	}
-	return yb.tconf.Schema, tableName
+		return true, nil
+	})
 }
 
 func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
@@ -1182,8 +1098,8 @@ func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
 	return yb.isQueryResultNonEmpty(query)
 }
 
-func (yb *TargetYugabyteDB) isTableExists(qualifiedTableName string) bool {
-	schema, table := yb.splitMaybeQualifiedTableName(qualifiedTableName)
+func (yb *TargetYugabyteDB) isTableExists(tableNameTup sqlname.NameTuple) bool {
+	schema, table := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
 	return yb.isQueryResultNonEmpty(query)
 }
@@ -1232,14 +1148,25 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 
 	// clean up all the tables in BATCH_METADATA_TABLE_SCHEMA for given migrationUUID
-	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tableNames := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tables := []sqlname.NameTuple{}
+	for _, tableName := range tableNames {
+		parts := strings.Split(tableName, ".")
+		objName := sqlname.NewObjectName(sqlname.YUGABYTEDB, "", parts[0], parts[1])
+		nt := sqlname.NameTuple{
+			CurrentName: objName,
+			SourceName:  objName,
+			TargetName:  objName,
+		}
+		tables = append(tables, nt)
+	}
 	for _, table := range tables {
 		if !yb.isTableExists(table) {
 			log.Infof("table %s does not exist, nothing to clear migration state", table)
 			continue
 		}
 		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
-		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table.ForUserQuery(), migrationUUID)
 		_, err := yb.Exec(query)
 		if err != nil {
 			log.Errorf("error cleaning up table %s for migrationUUID=%s: %v", table, migrationUUID, err)

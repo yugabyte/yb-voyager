@@ -41,7 +41,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -156,7 +155,7 @@ func exportData() bool {
 	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
-	err = namereg.InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil)
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
@@ -493,11 +492,6 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	}
 	var nonPKTables []string
 	for _, table := range finalTableList {
-		if source.DBType == POSTGRESQL {
-			if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
-				caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
-			}
-		}
 		if lo.Contains(allNonPKTables, table.Qualified.MinQuoted) {
 			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
 		}
