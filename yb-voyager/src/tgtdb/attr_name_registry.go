@@ -91,6 +91,9 @@ func (reg *AttributeNameRegistry) IfRequiredQuoteColumnNames(tableNameTup sqlnam
 // }
 
 func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
+	if colName[0] == '"' && colName[len(colName)-1] == '"' {
+		colName = colName[1 : len(colName)-1]
+	}
 	if slices.Contains(targetColumns, colName) { // Exact match.
 		return colName, nil
 	}
