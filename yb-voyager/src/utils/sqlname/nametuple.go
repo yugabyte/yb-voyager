@@ -147,6 +147,14 @@ func (t NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
 }
 
+func (t NameTuple) AsQualifiedCatalogName() string {
+	return t.CurrentName.Qualified.Unquoted
+}
+
+func (t NameTuple) ForMinOutput() string {
+	return t.CurrentName.MinQualified.MinQuoted
+}
+
 func (t NameTuple) ForKey() string {
 	// sourcename will be nil only in the case of import-data-file
 	if t.SourceName != nil {
@@ -155,13 +163,26 @@ func (t NameTuple) ForKey() string {
 	return t.TargetName.Qualified.Quoted
 }
 
+func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {
+	m := make(map[string]bool)
+	for _, x := range b {
+		m[x.String()] = true
+	}
+	var res []NameTuple
+	for _, x := range a {
+		if !m[x.String()] {
+			res = append(res, x)
+		}
+	}
+	return res
+}
+
 // Implements: utils.Keyer.Key()
 func (t NameTuple) Key() string {
 	return t.ForKey()
 }
 
-//================================================
-
+// ================================================
 func quote2(dbType, name string) string {
 	switch dbType {
 	case POSTGRESQL, YUGABYTEDB, ORACLE, MYSQL:

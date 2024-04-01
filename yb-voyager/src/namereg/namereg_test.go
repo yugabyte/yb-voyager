@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -105,6 +106,41 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 	}
 }
 
+func TestNameTupleMatchesPatternMySQL(t *testing.T) {
+	assert := assert.New(t)
+	sourceName := sqlname.NewObjectName(MYSQL, "test", "test", "Table1")
+	targetName := sqlname.NewObjectName(YUGABYTEDB, "public", "test", "table1")
+	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
+	testCases := []struct {
+		pattern string
+		match   bool
+	}{
+		{"table1", true},
+		{"table2", false},
+		{"table", false},
+		{`"Table1"`, true},
+		{"Table1", true},
+		{"TABLE2", false},
+		{"TABLE", false},
+		{"TABLE*", true},
+		{`"Table*"`, true},
+		{"Table*", true},
+		{"TEST.TABLE1", true},
+		{"test.TABLE2", false},
+		{"test.TABLE", false},
+		{"test.TABLE*", true}, // Case-sensitive, so "SAKILA.TABLE*" does not match "test.Table1"
+		{"test.table1", true}, // Case-sensitive, so "sakila.table1" does not match "test.Table1"
+		{"test.table2", false},
+		{"test.table", false},
+		{"test.table*", true}, // Case-sensitive, so "sakila.table*" does not match "test.Table1"
+	}
+
+	for _, tc := range testCases {
+		match, err := ntup.MatchesPattern(tc.pattern)
+		assert.Nil(err)
+		assert.Equal(tc.match, match, "pattern: %s, expected: %b, got: %b", tc.pattern, tc.match, match)
+	}
+}
 func TestNameMatchesPattern(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
@@ -142,14 +178,14 @@ func TestNameMatchesPattern(t *testing.T) {
 		{"group", []string{"TEST_SCHEMA.group"}},
 		{"check", []string{"TEST_SCHEMA.check"}},
 		{"test*", []string{"TEST_SCHEMA.TEST_TIMEZONE"}},
-		{"*Case*", []string{"TEST_SCHEMA.Case_Sensitive_Columns", "TEST_SCHEMA.Mixed_Case_Table_Name_Test"}},
+		{`"*Case*"`, []string{"TEST_SCHEMA.Case_Sensitive_Columns", "TEST_SCHEMA.Mixed_Case_Table_Name_Test"}},
 		{"c*", []string{"TEST_SCHEMA.C", "TEST_SCHEMA.C1", "TEST_SCHEMA.C2", "TEST_SCHEMA.Case_Sensitive_Columns", "TEST_SCHEMA.check"}},
 	}
 	for _, tc := range testCases {
 		for _, ntup := range ntups {
 			match, err := ntup.MatchesPattern(tc.pattern)
 			require.Nil(err)
-			tableName := ntup.CurrentName.Qualified.Unquoted
+			tableName := ntup.AsQualifiedCatalogName()
 			if match {
 				assert.Contains(tc.expected, tableName, "pattern: %s, tableName: %s", tc.pattern, tableName)
 			} else {

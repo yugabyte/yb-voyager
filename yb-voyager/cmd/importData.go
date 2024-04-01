@@ -660,7 +660,9 @@ func importFileTasksToTableNameTuples(tasks []*ImportFileTask) []sqlname.NameTup
 	for _, t := range tasks {
 		tableNames = append(tableNames, t.TableNameTup)
 	}
-	return lo.Uniq(tableNames)
+	return lo.UniqBy(tableNames, func(t sqlname.NameTuple) string {
+		return t.ForKey()
+	})
 }
 
 func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {

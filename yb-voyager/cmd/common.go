@@ -67,15 +67,11 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"), false)
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
-			fullTableName := tableName.Qualified.MinQuoted
-
+			fullTableName := tableName.ForKey()
+			table := tableName.ForMinOutput()
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
 				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
-				if tablesProgressMetadata[key].TableName.SchemaName.Unquoted == "public" {
-					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", tableName.ObjectName.MinQuoted+"_data.sql")
-				} else {
-					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", fullTableName+"_data.sql")
-				}
+				tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", table+"_data.sql")
 			} else {
 				log.Infof("deleting an entry %q from tablesProgressMetadata: ", key)
 				delete(tablesProgressMetadata, key)
@@ -83,7 +79,8 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		}
 	} else if source.DBType == "oracle" || source.DBType == "mysql" {
 		for _, key := range sortedKeys {
-			targetTableName := tablesProgressMetadata[key].TableName.ObjectName.Unquoted
+			_, tname := tablesProgressMetadata[key].TableName.ForCatalogQuery()
+			targetTableName := tname
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
 			if tablesProgressMetadata[key].IsPartition {
 				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
@@ -140,7 +137,11 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 				tableName = fmt.Sprintf("\"%s\"", tableName)
 			}
 			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-			tableNameVsFileNameMap[fullTableName] = fileName
+			table, err := namereg.NameReg.LookupTableName(fullTableName)
+			if err != nil {
+				utils.ErrExit("lookup table %s in name registry : %v", fullTableName, err)
+			}
+			tableNameVsFileNameMap[table.ForKey()] = fileName
 		}
 	}
 
@@ -206,7 +207,8 @@ func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 	return tableRowCount
 }
 
-func getLeafPartitionsFromRootTable(tables []string) map[string][]string {
+func getLeafPartitionsFromRootTable() map[string][]string {
+
 	leafPartitions := make(map[string][]string)
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -215,6 +217,7 @@ func getLeafPartitionsFromRootTable(tables []string) map[string][]string {
 	if !msr.IsExportTableListSet || msr.SourceDBConf.DBType != POSTGRESQL {
 		return leafPartitions
 	}
+	tables := msr.TableListExportedFromSource
 	for leaf, root := range msr.SourceRenameTablesMap {
 		leafTable := sqlname.NewSourceNameFromQualifiedName(leaf)
 		rootTable := sqlname.NewSourceNameFromQualifiedName(root)
@@ -223,9 +226,6 @@ func getLeafPartitionsFromRootTable(tables []string) map[string][]string {
 			leaf = leafTable.ObjectName.MinQuoted
 		}
 		root = rootTable.Qualified.MinQuoted
-		if rootTable.SchemaName.MinQuoted == "public" {
-			root = rootTable.ObjectName.MinQuoted
-		}
 		if !lo.Contains(tables, root) {
 			continue
 		}
@@ -239,6 +239,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
 
+	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
 		if source.Schema != "" {
@@ -248,25 +249,19 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		}
 		keys := lo.Keys(exportedRowCount)
 		sort.Strings(keys)
-		leafPartitions := getLeafPartitionsFromRootTable(keys)
 		for _, key := range keys {
-			if source.Schema != "" {
-				tableParts := strings.Split(key, ".")
-				table := tableParts[0]
-				schema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schema
-				if len(tableParts) > 1 {
-					schema = tableParts[0]
-					table = tableParts[1]
-				}
-				displayTableName := table
-				if source.DBType == POSTGRESQL && leafPartitions[key] != nil {
-					partitions := strings.Join(leafPartitions[key], ", ")
-					displayTableName = fmt.Sprintf("%s (%s)", table, partitions)
-				}
-				uitable.AddRow(schema, displayTableName, exportedRowCount[key])
-			} else {
-				uitable.AddRow(source.DBName, key, exportedRowCount[key])
+			table, err := namereg.NameReg.LookupTableName(key)
+			if err != nil {
+				utils.ErrExit("lookup table %s in name registry : %v", key, err)
 			}
+			displayTableName := table.CurrentName.Unqualified.MinQuoted
+			partitions := leafPartitions[table.ForOutput()]
+			if source.DBType == POSTGRESQL && partitions != nil {
+				partitions := strings.Join(partitions, ", ")
+				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
+			}
+			schema := table.SourceName.SchemaName
+			uitable.AddRow(schema, displayTableName, exportedRowCount[key])
 		}
 		if len(keys) > 0 {
 			fmt.Print("\n")
@@ -280,7 +275,6 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	if err != nil {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
-	//TODO: report table with case-sensitiveness
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
 			if tableStatus.SchemaName != "" {
@@ -289,11 +283,19 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
 			}
 		}
-		if tableStatus.SchemaName != "" {
-			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
-		} else {
-			uitable.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
+		table, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
+		if err != nil {
+			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
 		}
+		displayTableName := table.CurrentName.Unqualified.MinQuoted
+		partitions := leafPartitions[table.ForOutput()]
+		if source.DBType == POSTGRESQL && partitions != nil {
+			partitions := strings.Join(partitions, ", ")
+			displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
+		}
+		schema := table.CurrentName.SchemaName
+		uitable.AddRow(schema, displayTableName, tableStatus.ExportedRowCountSnapshot)
+
 	}
 	fmt.Print("\n")
 	fmt.Println(uitable)
@@ -870,14 +872,16 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*
 	return snapshotRowsMap, nil
 }
 
-func storeTableListInMSR(tableList []*sqlname.SourceName) error {
-	minQuotedTableList := lo.Uniq(lo.Map(tableList, func(table *sqlname.SourceName, _ int) string {
+func storeTableListInMSR(tableList []sqlname.NameTuple) error {
+	minQuotedTableList := lo.Uniq(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
 		// Store list of tables in MSR with root table in case of partitions
-		renamedTable, isRenamed := renameTableIfRequired(table.Qualified.MinQuoted)
+		renamedTable, isRenamed := renameTableIfRequired(table.ForOutput())
 		if isRenamed {
-			if len(strings.Split(renamedTable, ".")) == 1 {
-				renamedTable = fmt.Sprintf("public.%s", renamedTable)
+			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
+			if err != nil {
+				return fmt.Sprintf("lookup table %s in name registry : %v", renamedTable, err)
 			}
+			return tuple.ForOutput()
 		}
 		return renamedTable
 	}))
