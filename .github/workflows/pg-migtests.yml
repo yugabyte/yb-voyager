@@ -2,9 +2,9 @@ name: "PG: Migration Tests"
 
 on:
   push:
-    branches: ['name-registry-integration', 'main']
+    branches: ['main']
   pull_request:
-    branches: ['name-registry-integration', 'main']
+    branches: ['main']
 
 jobs:
   run-pg-migration-tests:
