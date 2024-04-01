@@ -655,6 +655,7 @@ func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	return lo.Uniq(tableNames)
 }
 
+
 func importFileTasksToTableNameTuples(tasks []*ImportFileTask) []sqlname.NameTuple {
 	tableNames := []sqlname.NameTuple{}
 	for _, t := range tasks {
