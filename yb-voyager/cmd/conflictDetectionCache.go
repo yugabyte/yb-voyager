@@ -208,5 +208,5 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 }
 
 func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
-	return event1.TableNameTup.ForKey() == event2.TableNameTup.ForKey()
+	return event1.TableNameTup.Equals(event2.TableNameTup)
 }
