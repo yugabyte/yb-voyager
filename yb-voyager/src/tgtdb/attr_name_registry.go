@@ -15,7 +15,7 @@ type AttributeNameRegistry struct {
 	dbType    string
 	tdb       TargetDB
 	tconf     *TargetConf
-	attrNames map[string][]string
+	attrNames *utils.StructMap[sqlname.NameTuple, []string]
 	mu        sync.Mutex
 }
 
@@ -24,60 +24,61 @@ func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameReg
 		dbType:    tconf.TargetDBType,
 		tdb:       tdb,
 		tconf:     tconf,
-		attrNames: make(map[string][]string),
+		attrNames: utils.NewStructMap[sqlname.NameTuple, []string](),
 	}
 }
 
 func (reg *AttributeNameRegistry) QuoteIdentifier(tableNameTup sqlname.NameTuple, columnName string) string {
 	var err error
-	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-	targetColumns, ok := reg.attrNames[qualifiedTableName]
+	// qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
+	targetColumns, ok := reg.attrNames.Get(tableNameTup)
 	if !ok {
 		reg.mu.Lock()
 		// try again in case it's now available
-		targetColumns, ok = reg.attrNames[qualifiedTableName]
+		targetColumns, ok = reg.attrNames.Get(tableNameTup)
 		if !ok {
-			targetColumns, err = reg.tdb.GetListOfTableAttributes(schemaName, tableName)
-			log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+			targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
+			log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
 			if err != nil {
 				utils.ErrExit("get list of table attributes: %w", err)
 			}
-			reg.attrNames[qualifiedTableName] = targetColumns
+			reg.attrNames.Put(tableNameTup, targetColumns)
 		}
 
 		reg.mu.Unlock()
 	}
 	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
-		utils.ErrExit("find best matching column name for %q in table %s.%s: %w", columnName, schemaName, tableName, err)
+		utils.ErrExit("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 	}
 	return fmt.Sprintf("%q", c)
 }
 
-func (reg *AttributeNameRegistry) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
+func (reg *AttributeNameRegistry) IfRequiredQuoteColumnNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
-	var schemaName string
-	schemaName, tableName = reg.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := reg.tdb.GetListOfTableAttributes(schemaName, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("get list of table attributes: %w", err)
-	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-	reg.attrNames[qualifiedTableName] = targetColumns
+	// var schemaName string
+	// schemaName, tableName = reg.splitMaybeQualifiedTableName(tableName)
+	// targetColumns, err := reg.tdb.GetListOfTableAttributes(schemaName, tableName)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("get list of table attributes: %w", err)
+	// }
+	// log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	// qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
+	// reg.attrNames[qualifiedTableName] = targetColumns
 
 	for i, colName := range columns {
-		if colName[0] == '"' && colName[len(colName)-1] == '"' {
-			colName = colName[1 : len(colName)-1]
-		}
-		matchCol, err := reg.findBestMatchingColumnName(colName, targetColumns)
-		if err != nil {
-			return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
-				colName, schemaName, tableName, err)
-		}
-		result[i] = fmt.Sprintf("%q", matchCol)
+		// if colName[0] == '"' && colName[len(colName)-1] == '"' {
+		// 	colName = colName[1 : len(colName)-1]
+		// }
+		// matchCol, err := reg.findBestMatchingColumnName(colName, targetColumns)
+		// if err != nil {
+		// 	return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
+		// 		colName, schemaName, tableName, err)
+		// }
+		quotedColName := reg.QuoteIdentifier(tableNameTup, colName)
+		result[i] = quotedColName
 	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
+	log.Infof("columns of table %s after quoting: %v", tableNameTup, result)
 	return result, nil
 }
 

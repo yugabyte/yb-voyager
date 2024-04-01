@@ -196,7 +196,7 @@ func (event *Event) getInsertStmt(tdb TargetDB) string {
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
-		column = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
+		column = tdb.QuoteIdentifier(event.TableNameTup, column)
 		columnList = append(columnList, column)
 		if value == nil {
 			valueList = append(valueList, "NULL")
@@ -213,7 +213,7 @@ func (event *Event) getInsertStmt(tdb TargetDB) string {
 func (event *Event) getUpdateStmt(tdb TargetDB) string {
 	setClauses := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
-		column = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
+		column = tdb.QuoteIdentifier(event.TableNameTup, column)
 		if value == nil {
 			setClauses = append(setClauses, fmt.Sprintf("%s = NULL", column))
 		} else {
@@ -227,7 +227,7 @@ func (event *Event) getUpdateStmt(tdb TargetDB) string {
 		if value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
-		column = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
+		column = tdb.QuoteIdentifier(event.TableNameTup, column)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
@@ -240,7 +240,7 @@ func (event *Event) getDeleteStmt(tdb TargetDB) string {
 		if value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
-		column = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
+		column = tdb.QuoteIdentifier(event.TableNameTup, column)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
@@ -252,7 +252,7 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) str
 	valueList := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
-		column := tdb.QuoteIdentifier(event.SchemaName, event.TableName, key)
+		column := tdb.QuoteIdentifier(event.TableNameTup, key)
 		columnList = append(columnList, column)
 		valueList = append(valueList, fmt.Sprintf("$%d", pos+1))
 	}
@@ -262,7 +262,7 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) str
 	if targetDBType == POSTGRESQL {
 		keyColumns := utils.GetMapKeysSorted(event.Key)
 		for i, column := range keyColumns {
-			keyColumns[i] = tdb.QuoteIdentifier(event.SchemaName, event.TableName, column)
+			keyColumns[i] = tdb.QuoteIdentifier(event.TableNameTup, column)
 		}
 		stmt = fmt.Sprintf("%s ON CONFLICT (%s) DO NOTHING", stmt, strings.Join(keyColumns, ","))
 	}
@@ -274,7 +274,7 @@ func (event *Event) getPreparedUpdateStmt(tdb TargetDB) string {
 	setClauses := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
-		key = tdb.QuoteIdentifier(event.SchemaName, event.TableName, key)
+		key = tdb.QuoteIdentifier(event.TableNameTup, key)
 		setClauses = append(setClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	setClause := strings.Join(setClauses, ", ")
@@ -282,7 +282,7 @@ func (event *Event) getPreparedUpdateStmt(tdb TargetDB) string {
 	whereClauses := make([]string, 0, len(event.Key))
 	keys = utils.GetMapKeysSorted(event.Key)
 	for i, key := range keys {
-		key = tdb.QuoteIdentifier(event.SchemaName, event.TableName, key)
+		key = tdb.QuoteIdentifier(event.TableNameTup, key)
 		pos := i + 1 + len(event.Fields)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos))
 	}
@@ -294,7 +294,7 @@ func (event *Event) getPreparedDeleteStmt(tdb TargetDB) string {
 	whereClauses := make([]string, 0, len(event.Key))
 	keys := utils.GetMapKeysSorted(event.Key)
 	for pos, key := range keys {
-		key = tdb.QuoteIdentifier(event.SchemaName, event.TableName, key)
+		key = tdb.QuoteIdentifier(event.TableNameTup, key)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
