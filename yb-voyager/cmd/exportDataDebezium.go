@@ -405,10 +405,6 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			}
 			if !(msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted) {
 				utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
-				// only events received after yb cdc initialization will be emitted by debezium.
-				// Therefore, we sleep to allow yb cdc connector to initialize and only then mark the cutover to be complete.
-				// Ideally, we should have a more reliable way to determine that init is complete. This is a temp solution.
-				// time.Sleep(2 * time.Minute)
 				logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
 				// Wait for log file to be created
 				for {
