@@ -755,15 +755,8 @@ create_gather_metadata_and_stats_scripts_file() {
 
 	psql_script_file_name="yb-voyager-gather-metadata-and-stats.psql"
 	psql_script_file_path="${scripts_dir}/${psql_script_file_name}"
-	if [ -f "${psql_script_file_path}" ]
-	then
-		curr_date=$(date "+%Y.%m.%d-%H.%M.%S")
-		backup_file_path="${psql_script_file_path}.${curr_date}"
-		sudo mv ${psql_script_file_path} ${backup_file_path}
-		output "Overwriting ${psql_script_file_path}. Existing contents are backed up in ${backup_file_path}"
-	fi
 
-	output "Installing the latest yb-voyager-gather-metadata-and-stats.psql"
+	output "Installing the latest ${psql_script_file_name}"
 	if [ "${VERSION}" == "latest" ]
 	then
 		sudo wget -nv -O $psql_script_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/${psql_script_file_name}

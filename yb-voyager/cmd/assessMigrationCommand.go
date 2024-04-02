@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
@@ -35,7 +36,7 @@ import (
 var supportedAssessmentReportFormats = []string{"json", "html"}
 var assessmentParamsFpath string
 
-var metadataAndStatsDir string
+var assessmentDataDir string
 
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
@@ -71,8 +72,8 @@ func init() {
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
 	// optional flag to take metadata and stats directory path in case it is not in exportDir
-	assessMigrationCmd.Flags().StringVar(&metadataAndStatsDir, "metadata-and-stats-dir", "",
-		"Directory path where metadata and stats are stored. Optional flag, if not provided, "+
+	assessMigrationCmd.Flags().StringVar(&assessmentDataDir, "assessment-data-dir", "",
+		"Directory path where metadata and stats of source DB are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
 }
 
@@ -84,25 +85,22 @@ func assessMigration() error {
 
 	err := exportSchemaForAssessMigration()
 	if err != nil {
-		log.Errorf("failed to export schema: %v", err)
 		return fmt.Errorf("failed to export schema: %w", err)
 
 	}
 
-	err = gatherMetadataAndStats()
+	err = gatherAssessmentData()
 	if err != nil {
-		return fmt.Errorf("failed to gather metadata and stats: %w", err)
+		return fmt.Errorf("failed to gather assessment data: %w", err)
 	}
 
 	err = runAssessment()
 	if err != nil {
-		log.Infof("failed to run assessment: %v", err)
 		return fmt.Errorf("failed to run assessment: %w", err)
 	}
 
 	err = generateAssessmentReport()
 	if err != nil {
-		log.Errorf("failed to generate assessment report: %v", err)
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
 
@@ -112,23 +110,17 @@ func assessMigration() error {
 
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	if metadataAndStatsDir != "" {
-		migassessment.AssessmentDataDir = metadataAndStatsDir
-	} else {
-		migassessment.AssessmentDataDir = filepath.Join(exportDir, "assessment", "data")
-	}
+	migassessment.AssessmentDataDir = lo.Ternary(assessmentDataDir != "",
+		assessmentDataDir, filepath.Join(exportDir, "assessment", "data"))
 
 	// load and sets 'assessmentParams' from the user input file
 	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
 	if err != nil {
-		log.Errorf("failed to load assessment parameters: %v", err)
 		return fmt.Errorf("failed to load assessment parameters: %w", err)
-
 	}
 
 	err = migassessment.ShardingAssessment()
 	if err != nil {
-		log.Errorf("failed to perform sharding assessment: %v", err)
 		return fmt.Errorf("failed to perform sharding assessment: %w", err)
 	}
 
@@ -138,16 +130,16 @@ func runAssessment() error {
 }
 
 func checkStartCleanForAssessMigration() {
-	assessmentDir := filepath.Join(exportDir, "assessment")
-	dataFilesPattern := filepath.Join(assessmentDir, "data", "*.csv")
-	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
+	assessmentDataDir := filepath.Join(exportDir, "assessment")
+	dataFilesPattern := filepath.Join(assessmentDataDir, "data", "*.csv")
+	reportsFilePattern := filepath.Join(assessmentDataDir, "reports", "report.*")
 
 	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) || utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) {
 		if startClean {
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
 		} else {
-			utils.ErrExit("metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
+			utils.ErrExit("metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDataDir)
 		}
 	}
 }
@@ -156,7 +148,7 @@ func exportSchemaForAssessMigration() (err error) {
 	if source.Password == "" {
 		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting source db password: %v", err)
+			return fmt.Errorf("failed to get source DB password: %w", err)
 		}
 	}
 
@@ -166,7 +158,6 @@ func exportSchemaForAssessMigration() (err error) {
 
 	err = source.DB().Connect()
 	if err != nil {
-		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db: %w", err)
 	}
 	defer source.DB().Disconnect()
@@ -175,7 +166,6 @@ func exportSchemaForAssessMigration() (err error) {
 	source.DB().CheckRequiredToolsAreInstalled()
 	err = retrieveMigrationUUID()
 	if err != nil {
-		log.Errorf("failed to get migration UUID: %v", err)
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 	log.Infof("exporting schema for assess migration")
@@ -183,7 +173,7 @@ func exportSchemaForAssessMigration() (err error) {
 	return nil
 }
 
-func gatherMetadataAndStats() error {
+func gatherAssessmentData() error {
 	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
 
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
@@ -203,7 +193,6 @@ func gatherMetadataAndStats() error {
 func gatherMetadataAndStatsFromPG() error {
 	psqlBinPath, err := srcdb.GetAbsPathOfPGCommand("psql")
 	if err != nil {
-		log.Errorf("could not get absolute path of psql command: %v", err)
 		return fmt.Errorf("could not get absolute path of psql command: %w", err)
 	}
 
@@ -222,7 +211,6 @@ func gatherMetadataAndStatsFromPG() error {
 	}
 
 	if psqlScriptPath == "" {
-		log.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
 		return fmt.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
 	}
 
@@ -230,8 +218,7 @@ func gatherMetadataAndStatsFromPG() error {
 	if source.Password == "" {
 		sourcePassword, err := askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
-			log.Errorf("error getting source DB password: %v", err)
-			return err
+			return fmt.Errorf("error getting source DB password: %w", err)
 		}
 		source.Password = sourcePassword
 	}
@@ -249,8 +236,7 @@ func gatherMetadataAndStatsFromPG() error {
 
 	stdout, err := preparedPsqlCmd.CombinedOutput()
 	if err != nil {
-		log.Errorf("output of postgres metadata and stats gathering script\n%s", string(stdout))
-		return err
+		return fmt.Errorf("error running psql command: %w", err)
 	}
 	log.Infof("output of postgres metadata and stats gathering script\n%s", string(stdout))
 	return nil
@@ -266,20 +252,17 @@ func generateAssessmentReport() error {
 		case "json":
 			strReport, err := json.MarshalIndent(&migassessment.FinalReport, "", "\t")
 			if err != nil {
-				log.Errorf("failed to marshal the assessment report: %v", err)
 				return fmt.Errorf("failed to marshal the assessment report: %w", err)
 			}
 
 			_, err = assessmentReportContent.Write(strReport)
 			if err != nil {
-				log.Errorf("failed to write assessment report to buffer: %v", err)
 				return fmt.Errorf("failed to write assessment report to buffer: %w", err)
 			}
 		case "html":
 			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
 			err := templ.Execute(&assessmentReportContent, migassessment.FinalReport)
 			if err != nil {
-				log.Errorf("failed to render the assessment report: %v", err)
 				return fmt.Errorf("failed to render the assessment report: %w", err)
 			}
 		}
@@ -287,7 +270,6 @@ func generateAssessmentReport() error {
 		log.Infof("writing assessment report to file: %s", reportFilePath)
 		err := os.WriteFile(reportFilePath, assessmentReportContent.Bytes(), 0644)
 		if err != nil {
-			log.Errorf("failed to write the assessment report: %v", err)
 			return fmt.Errorf("failed to write the assessment report: %w", err)
 		}
 	}

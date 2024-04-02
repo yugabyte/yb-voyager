@@ -42,8 +42,8 @@ var assessmentParams = &AssessmentParams{}
 
 type AssessmentParams struct {
 	TargetYBVersion string `toml:"target_yb_version"`
-	ShardingParams  `toml:"sharding_params"`
-	SizingParams    `toml:"sizing_params"`
+	ShardingParams  `toml:"sharding"`
+	SizingParams    `toml:"sizing"`
 }
 
 func loadCSVDataFile[T any](filePath string) ([]*T, error) {
@@ -76,8 +76,8 @@ func loadCSVDataFile[T any](filePath string) ([]*T, error) {
 func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Errorf("error opening file %s: %v", filePath, err)
-		return nil, fmt.Errorf("error opening file %s: %w", filePath, err)
+		log.Warnf("error opening file %s: %v", filePath, err)
+		return nil, nil
 	}
 
 	defer func() {
