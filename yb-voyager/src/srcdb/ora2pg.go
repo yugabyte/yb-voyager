@@ -43,6 +43,7 @@ type Ora2pgConfig struct {
 	DisableComment   string
 	Allow            string
 	ModifyStruct     string
+	DataTypeMapping  string
 }
 
 func getDefaultOra2pgConfig(source *Source) *Ora2pgConfig {
@@ -68,6 +69,11 @@ func getDefaultOra2pgConfig(source *Source) *Ora2pgConfig {
 		conf.DisableComment = "0"
 	} else {
 		conf.DisableComment = "1"
+	}
+	if source.DBType == "oracle" {
+		conf.DataTypeMapping = utils.ORACLE_DATA_TYPE_MAPPING
+	} else if source.DBType == "mysql" {
+		conf.DataTypeMapping = utils.MYSQL_DATA_TYPE_MAPPING
 	}
 	return conf
 }
