@@ -87,7 +87,7 @@ func Run(targetYbVersion string, inputs map[string]int) {
 	//requiredSelectThroughput := inputs["requiredSelectThroughput"]
 	//requiredInsertThroughput := inputs["requiredInsertThroughput"]
 
-	filePath := "src/migassessment/resources/yb_" + strings.ReplaceAll(targetYbVersion, ".", "_") + ".db"
+	filePath := "src/migassessment/resources/yb_" + strings.ReplaceAll(targetYbVersion, ".", "_") + "_source.db"
 	if checkInternetAccess() {
 		remoteFileExists := checkFileExistsOnRemoteRepo(filePath)
 		if remoteFileExists {
