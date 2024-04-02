@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"net/url"
@@ -335,6 +336,45 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func PollForMessageFromOffsetInFile(filePath string, offset int64, message string) error {
+	lastPosition := offset
+	for {
+		file, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %v", filePath, err)
+		}
+
+		defer file.Close()
+
+		_, err = file.Seek(lastPosition, 0)
+		if err != nil {
+			return fmt.Errorf("error seeking to last position in file %s: %v", filePath, err)
+		}
+
+		scanner := bufio.NewScanner(file)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, message) {
+				return nil
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf("error scanning file %s: %v", filePath, err)
+		}
+
+		currentPosition, err := file.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return fmt.Errorf("error getting current position in file %s: %v", filePath, err)
+		}
+
+		lastPosition = currentPosition
+
+		time.Sleep(1 * time.Second)
+	}
 }
 
 func ToCaseInsensitiveNames(names []string) []string {

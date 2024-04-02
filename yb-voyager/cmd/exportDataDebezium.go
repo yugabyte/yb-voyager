@@ -408,7 +408,21 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				// only events received after yb cdc initialization will be emitted by debezium.
 				// Therefore, we sleep to allow yb cdc connector to initialize and only then mark the cutover to be complete.
 				// Ideally, we should have a more reliable way to determine that init is complete. This is a temp solution.
-				time.Sleep(2 * time.Minute)
+				// time.Sleep(2 * time.Minute)
+				logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
+				// Wait for log file to be created
+				for {
+					_, err := os.Stat(logFilePath)
+					if err == nil {
+						break
+					}
+					time.Sleep(1 * time.Second)
+				}
+
+				err := utils.PollForMessageFromOffsetInFile(logFilePath, int64(0), "Beginning to poll the changes from the server")
+				if err != nil {
+					return false, fmt.Errorf("failed to poll for message in log file: %w", err)
+				}
 
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
