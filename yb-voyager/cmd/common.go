@@ -208,7 +208,6 @@ func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 }
 
 func getLeafPartitionsFromRootTable() map[string][]string {
-
 	leafPartitions := make(map[string][]string)
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {

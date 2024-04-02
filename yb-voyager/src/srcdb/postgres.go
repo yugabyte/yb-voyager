@@ -388,6 +388,30 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 	return sequenceNames
 }
 
+// GetAllSequencesRaw returns all the sequence names in the database for the schema
+func (pg *PostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	var sequenceNames []string
+	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences where schemaname = '%s';`, schemaName)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceName string
+	for rows.Next() {
+		err = rows.Scan(&sequenceName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for sequence names: %v", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
+	}
+	return sequenceNames, nil
+}
+
 func (pg *PostgreSQL) GetCharset() (string, error) {
 	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", pg.source.DBName)
 	encoding := ""

@@ -256,7 +256,6 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	case importedCount < totalCount:
 		status = "MIGRATING"
 	}
-
 	row := &tableMigStatusOutputRow{
 		tableName:          dataFileNt,
 		fileName:           path.Base(dataFile.FilePath),

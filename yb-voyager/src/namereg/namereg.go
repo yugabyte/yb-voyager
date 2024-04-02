@@ -34,11 +34,13 @@ var NameReg NameRegistry
 
 type SourceDBInterface interface {
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
+	GetAllSequencesRaw(schemaName string) ([]string, error)
 }
 
 type YBDBInterface interface {
 	GetAllSchemaNamesRaw() ([]string, error)
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
+	GetAllSequencesRaw(schemaName string) ([]string, error)
 } // Only implemented by TargetYugabyteDB and dummyTargetDB.
 
 type NameRegistryParams struct {
@@ -139,6 +141,11 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 			return false, fmt.Errorf("get all table names: %w", err)
 		}
 		m[schemaName] = tableNames
+		seqNames, err := reg.params.SDB.GetAllSequencesRaw(schemaName)
+		if err != nil {
+			return false, fmt.Errorf("get all table names: %w", err)
+		}
+		m[schemaName] = append(m[schemaName], seqNames...)
 	}
 	reg.SourceDBTableNames = m
 	return true, nil
@@ -187,6 +194,11 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 			return false, fmt.Errorf("get all table names: %w", err)
 		}
 		m[schemaName] = tableNames
+		seqNames, err := yb.GetAllSequencesRaw(schemaName)
+		if err != nil {
+			return false, fmt.Errorf("get all table names: %w", err)
+		}
+		m[schemaName] = append(m[schemaName], seqNames...)
 	}
 	reg.YBTableNames = m
 	return true, nil

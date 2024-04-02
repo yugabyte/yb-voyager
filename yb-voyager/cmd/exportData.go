@@ -257,9 +257,10 @@ func exportData() bool {
 			}
 
 			var sequenceInitValues strings.Builder
-			for seqName, seqValue := range sequenceValueMap {
-				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.Qualified.Quoted, seqValue))
-			}
+			sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForUserQuery(), seqValue))
+				return true, nil
+			})
 
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
@@ -460,13 +461,12 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	return nil
 }
 
-func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
-	result := map[*sqlname.SourceName]int64{}
-	//TODO: fix later to handle sequences indexes in nameregistry
+func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, int64]()
 	path := filepath.Join(exportDir, "data", "postdata.sql")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		utils.ErrExit("read file %q: %v", path, err)
+		return nil, fmt.Errorf("read file %q: %v", path, err)
 	}
 
 	lines := strings.Split(string(data), "\n")
@@ -486,7 +486,10 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 		args := strings.Split(matches[argsIdx], ",")
 
 		seqNameRaw := args[0][1 : len(args[0])-1]
-		seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
+		seqName, err := namereg.NameReg.LookupTableName(seqNameRaw)
+		if err != nil {
+			return nil, fmt.Errorf("lookup for sequence name %s: %v", seqNameRaw, err)
+		}
 
 		seqVal, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
 		if err != nil {
@@ -499,7 +502,7 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 			seqVal--
 		}
 
-		result[seqName] = seqVal
+		result.Put(seqName, seqVal)
 	}
 	return result, nil
 }
@@ -670,15 +673,12 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
 		sequenceList := source.DB().GetAllSequences()
-		defaultSchema, _ := getDefaultSourceSchemaName()
 		for _, seq := range sequenceList {
-			//TODO: handle in nameregistry lookup
-			schema, seqName := strings.Split(seq, ".")[0], strings.Split(seq, ".")[1]
-			obj := sqlname.NewObjectName(POSTGRESQL, defaultSchema, schema, seqName)
-			finalTableList = append(finalTableList, sqlname.NameTuple{
-				SourceName:  obj,
-				CurrentName: obj,
-			})
+			seqTuple, err := namereg.NameReg.LookupTableName(seq)
+			if err != nil {
+				utils.ErrExit("lookup for sequence %s failed err: %v", seq, err)
+			}
+			finalTableList = append(finalTableList, seqTuple)
 		}
 	}
 	fmt.Printf("Initiating data export.\n")

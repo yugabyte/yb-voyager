@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
 	"sync"
 
 	"github.com/google/uuid"

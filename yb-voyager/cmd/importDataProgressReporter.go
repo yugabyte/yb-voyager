@@ -22,6 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
