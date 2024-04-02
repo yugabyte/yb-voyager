@@ -86,8 +86,6 @@ def migration_completed_checks_yb():
 
 def migration_completed_checks_ff():
 	print("Running tests on Oracle source replica")
-	global EXPECTED_TABLE_SUM
-	EXPECTED_TABLE_SUM = EXPECTED_TABLE_SUM_ORA
 	global db_schema
 	db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
 	oracle.run_checks(migration_completed_checks, db_type="source_replica")
