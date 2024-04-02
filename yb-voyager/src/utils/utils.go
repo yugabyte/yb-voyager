@@ -343,17 +343,18 @@ func PollForMessageFromOffsetInFile(filePath string, offset int64, message strin
 		return fmt.Errorf("error opening file %s: %v", filePath, err)
 	}
 
-	_, err = file.Seek(offset, 0)
 	defer file.Close()
+
+	_, err = file.Seek(offset, 0)
+	if err != nil {
+		return fmt.Errorf("error seeking to offset position in file %s: %v", filePath, err)
+	}
+
 	for {
-		if err != nil {
-			return fmt.Errorf("error seeking to last position in file %s: %v", filePath, err)
-		}
-
 		scanner := bufio.NewScanner(file)
-
 		for scanner.Scan() {
 			line := scanner.Text()
+			fmt.Println(line)
 			if strings.Contains(line, message) {
 				return nil
 			}
