@@ -80,17 +80,19 @@ func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 }
 
-func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
+func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool, registerOracleFlags bool) {
 	registerCommonSourceDBConnFlags(cmd)
 
-	cmd.Flags().StringVar(&source.DBSid, "oracle-db-sid", "",
-		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
+	if registerOracleFlags {
+		cmd.Flags().StringVar(&source.DBSid, "oracle-db-sid", "",
+			"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
 
-	cmd.Flags().StringVar(&source.OracleHome, "oracle-home", "",
-		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+		cmd.Flags().StringVar(&source.OracleHome, "oracle-home", "",
+			"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
 
-	cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+		cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
+			"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+	}
 
 	if includeOracleCDBFlags {
 		cmd.Flags().StringVar(&source.CDBName, "oracle-cdb-name", "",

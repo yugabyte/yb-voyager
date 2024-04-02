@@ -118,6 +118,10 @@ func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
 }
 
 func LoadAssessmentParams(userInputFpath string) error {
+	if userInputFpath == "" {
+		log.Infof("user input file path is empty, skipping loading assessment parameters")
+		return nil
+	}
 	log.Infof("loading assessment parameters from file %s", userInputFpath)
 	tomlData, err := os.ReadFile(userInputFpath)
 	if err != nil {

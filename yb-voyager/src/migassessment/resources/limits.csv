@@ -1,0 +1,5 @@
+max_size,instance_type,num_cores,mem_per_core,max_num_tables,min_num_tables
+57,m6i.large,2,4,100,5
+120,m6i.xlarge,4,4,200,10
+250,m6i.2xlarge,8,4,400,15
+400,m6i.4xlarge,16,4,800,20
