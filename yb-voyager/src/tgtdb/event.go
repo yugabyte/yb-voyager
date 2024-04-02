@@ -127,7 +127,7 @@ func (e *Event) IsCutoverEvent() bool {
 	return e.IsCutoverToTarget() || e.IsCutoverToSourceReplica() || e.IsCutoverToSource()
 }
 
-func (e *Event) GetSQLStmt(tdb TargetDB) string {
+func (e *Event) GetSQLStmt(tdb TargetDB) (string, error) {
 	switch e.Op {
 	case "c":
 		return e.getInsertStmt(tdb)
@@ -140,26 +140,35 @@ func (e *Event) GetSQLStmt(tdb TargetDB) string {
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt(tdb TargetDB, targetDBType string) string {
+func (e *Event) GetPreparedSQLStmt(tdb TargetDB, targetDBType string) (string, error) {
 	psName := e.GetPreparedStmtName()
 	if stmt, ok := cachePreparedStmt.Load(psName); ok {
-		return stmt.(string)
+		return stmt.(string), nil
 	}
 	var ps string
+	var err error
 	switch e.Op {
 	case "c":
-		ps = e.getPreparedInsertStmt(tdb, targetDBType)
-
+		ps, err = e.getPreparedInsertStmt(tdb, targetDBType)
+		if err != nil {
+			return "", fmt.Errorf("get prepared insert stmt: %w", err)
+		}
 	case "u":
-		ps = e.getPreparedUpdateStmt(tdb)
+		ps, err = e.getPreparedUpdateStmt(tdb)
+		if err != nil {
+			return "", fmt.Errorf("get prepared update stmt: %w", err)
+		}
 	case "d":
-		ps = e.getPreparedDeleteStmt(tdb)
+		ps, err = e.getPreparedDeleteStmt(tdb)
+		if err != nil {
+			return "", fmt.Errorf("get prepared delete stmt: %w", err)
+		}
 	default:
 		panic("unknown op: " + e.Op)
 	}
 
 	cachePreparedStmt.Store(psName, ps)
-	return ps
+	return ps, nil
 }
 
 func (e *Event) GetParams() []interface{} {
@@ -192,11 +201,14 @@ const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
 const updateTemplate = "UPDATE %s SET %s WHERE %s"
 const deleteTemplate = "DELETE FROM %s WHERE %s"
 
-func (event *Event) getInsertStmt(tdb TargetDB) string {
+func (event *Event) getInsertStmt(tdb TargetDB) (string, error) {
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
-		column = tdb.QuoteAttributeName(event.TableNameTup, column)
+		column, err := tdb.QuoteAttributeName(event.TableNameTup, column)
+		if err != nil {
+			return "", fmt.Errorf("quote column name %s: %w", column, err)
+		}
 		columnList = append(columnList, column)
 		if value == nil {
 			valueList = append(valueList, "NULL")
@@ -207,13 +219,16 @@ func (event *Event) getInsertStmt(tdb TargetDB) string {
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
 	stmt := fmt.Sprintf(insertTemplate, event.TableNameTup.ForUserQuery(), columns, values)
-	return stmt
+	return stmt, nil
 }
 
-func (event *Event) getUpdateStmt(tdb TargetDB) string {
+func (event *Event) getUpdateStmt(tdb TargetDB) (string, error) {
 	setClauses := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
-		column = tdb.QuoteAttributeName(event.TableNameTup, column)
+		column, err := tdb.QuoteAttributeName(event.TableNameTup, column)
+		if err != nil {
+			return "", fmt.Errorf("quote column name %s: %w", column, err)
+		}
 		if value == nil {
 			setClauses = append(setClauses, fmt.Sprintf("%s = NULL", column))
 		} else {
@@ -227,32 +242,41 @@ func (event *Event) getUpdateStmt(tdb TargetDB) string {
 		if value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
-		column = tdb.QuoteAttributeName(event.TableNameTup, column)
+		column, err := tdb.QuoteAttributeName(event.TableNameTup, column)
+		if err != nil {
+			return "", fmt.Errorf("quote column name %s: %w", column, err)
+		}
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause)
+	return fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause), nil
 }
 
-func (event *Event) getDeleteStmt(tdb TargetDB) string {
+func (event *Event) getDeleteStmt(tdb TargetDB) (string, error) {
 	whereClauses := make([]string, 0, len(event.Key))
 	for column, value := range event.Key {
 		if value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
-		column = tdb.QuoteAttributeName(event.TableNameTup, column)
+		column, err := tdb.QuoteAttributeName(event.TableNameTup, column)
+		if err != nil {
+			return "", fmt.Errorf("quote column name %s: %w", column, err)
+		}
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause)
+	return fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause), nil
 }
 
-func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) string {
+func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) (string, error) {
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
-		column := tdb.QuoteAttributeName(event.TableNameTup, key)
+		column, err := tdb.QuoteAttributeName(event.TableNameTup, key)
+		if err != nil {
+			panic(fmt.Errorf("quote column name %s: %w", column, err))
+		}
 		columnList = append(columnList, column)
 		valueList = append(valueList, fmt.Sprintf("$%d", pos+1))
 	}
@@ -262,19 +286,26 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string) str
 	if targetDBType == POSTGRESQL {
 		keyColumns := utils.GetMapKeysSorted(event.Key)
 		for i, column := range keyColumns {
-			keyColumns[i] = tdb.QuoteAttributeName(event.TableNameTup, column)
+			column, err := tdb.QuoteAttributeName(event.TableNameTup, column)
+			if err != nil {
+				return "", fmt.Errorf("quote column name %s: %w", column, err)
+			}
+			keyColumns[i] = column
 		}
 		stmt = fmt.Sprintf("%s ON CONFLICT (%s) DO NOTHING", stmt, strings.Join(keyColumns, ","))
 	}
-	return stmt
+	return stmt, nil
 }
 
 // NOTE: PS for each event of same table can be different as it depends on columns being updated
-func (event *Event) getPreparedUpdateStmt(tdb TargetDB) string {
+func (event *Event) getPreparedUpdateStmt(tdb TargetDB) (string, error) {
 	setClauses := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
-		key = tdb.QuoteAttributeName(event.TableNameTup, key)
+		key, err := tdb.QuoteAttributeName(event.TableNameTup, key)
+		if err != nil {
+			return "", fmt.Errorf("quote column name %s: %w", key, err)
+		}
 		setClauses = append(setClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	setClause := strings.Join(setClauses, ", ")
@@ -282,23 +313,29 @@ func (event *Event) getPreparedUpdateStmt(tdb TargetDB) string {
 	whereClauses := make([]string, 0, len(event.Key))
 	keys = utils.GetMapKeysSorted(event.Key)
 	for i, key := range keys {
-		key = tdb.QuoteAttributeName(event.TableNameTup, key)
+		key, err := tdb.QuoteAttributeName(event.TableNameTup, key)
+		if err != nil {
+			return "", fmt.Errorf("quote column name %s: %w", key, err)
+		}
 		pos := i + 1 + len(event.Fields)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause)
+	return fmt.Sprintf(updateTemplate, event.TableNameTup.ForUserQuery(), setClause, whereClause), nil
 }
 
-func (event *Event) getPreparedDeleteStmt(tdb TargetDB) string {
+func (event *Event) getPreparedDeleteStmt(tdb TargetDB) (string, error) {
 	whereClauses := make([]string, 0, len(event.Key))
 	keys := utils.GetMapKeysSorted(event.Key)
 	for pos, key := range keys {
-		key = tdb.QuoteAttributeName(event.TableNameTup, key)
+		key, err := tdb.QuoteAttributeName(event.TableNameTup, key)
+		if err != nil {
+			return "", fmt.Errorf("quote column name %s: %w", key, err)
+		}
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause)
+	return fmt.Sprintf(deleteTemplate, event.TableNameTup.ForUserQuery(), whereClause), nil
 }
 
 func (event *Event) getInsertParams() []interface{} {

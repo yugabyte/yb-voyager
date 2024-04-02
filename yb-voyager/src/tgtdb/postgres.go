@@ -489,10 +489,16 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt := event.GetSQLStmt(pg)
+			stmt, err := event.GetSQLStmt(pg)
+			if err != nil {
+				return fmt.Errorf("get sql stmt: %w", err)
+			}
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType)
+			if err != nil {
+				return fmt.Errorf("get prepared sql stmt: %w", err)
+			}
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
 				stmtToPrepare[event.GetPreparedStmtName()] = stmt

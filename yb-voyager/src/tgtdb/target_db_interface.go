@@ -41,7 +41,7 @@ type TargetDB interface {
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
-	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) string
+	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
 	GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error)

@@ -436,11 +436,17 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt := event.GetSQLStmt(tdb)
+			stmt, err := event.GetSQLStmt(tdb)
+			if err != nil {
+				return false, fmt.Errorf("get sql stmt: %w", err)
+			}
 			if event.Op == "c" && tdb.tconf.EnableUpsert {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt := event.GetSQLStmt(tdb)
+				updateStmt, err := event.GetSQLStmt(tdb)
+				if err != nil {
+					return false, fmt.Errorf("get sql stmt: %w", err)
+				}
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				event.Op = "c" // reverting state
 			}

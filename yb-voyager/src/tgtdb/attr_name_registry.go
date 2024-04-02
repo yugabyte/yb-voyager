@@ -28,7 +28,7 @@ func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameReg
 	}
 }
 
-func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) string {
+func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error) {
 	var err error
 	targetColumns, ok := reg.attrNames.Get(tableNameTup)
 	if !ok {
@@ -39,7 +39,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 			targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
 			log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
 			if err != nil {
-				utils.ErrExit("get list of table attributes: %w", err)
+				return "", fmt.Errorf("get list of table attributes: %w", err)
 			}
 			reg.attrNames.Put(tableNameTup, targetColumns)
 		}
@@ -48,16 +48,19 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 	}
 	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
-		utils.ErrExit("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
+		return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 	}
-	return fmt.Sprintf("%q", c)
+	return fmt.Sprintf("%q", c), nil
 }
 
 func (reg *AttributeNameRegistry) QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
 
 	for i, colName := range columns {
-		quotedColName := reg.QuoteAttributeName(tableNameTup, colName)
+		quotedColName, err := reg.QuoteAttributeName(tableNameTup, colName)
+		if err != nil {
+			return nil, fmt.Errorf("quote attribute name for %q in table %s: %w", colName, tableNameTup, err)
+		}
 		result[i] = quotedColName
 	}
 	log.Infof("columns of table %s after quoting: %v", tableNameTup, result)
