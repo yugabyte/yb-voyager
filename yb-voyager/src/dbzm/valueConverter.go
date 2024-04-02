@@ -67,6 +67,7 @@ type DebeziumValueConverter struct {
 	schemaRegistrySource   *schemareg.SchemaRegistry
 	schemaRegistryTarget   *schemareg.SchemaRegistry
 	targetSchema           string
+	tdb                    tgtdb.TargetDB
 	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
 	converterFnCache       *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
 	dbzmColumnSchemasCache *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
@@ -107,6 +108,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		dbzmColumnSchemasCache: utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
 		targetDBType:           targetConf.TargetDBType,
 		targetSchema:           targetConf.Schema,
+		tdb:                    tdb,
 		sourceDBType:           sourceDBType,
 	}
 
@@ -255,7 +257,8 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() *utils.StructMap[sqln
 		colSchemaMap := make(map[string]map[string]string)
 
 		for _, col := range tblSchema.Columns {
-			colSchemaMap[col.Name] = col.Schema.Parameters
+			colNameQuoted := conv.tdb.QuoteIdentifier(tbl, col.Name)
+			colSchemaMap[colNameQuoted] = col.Schema.Parameters
 		}
 		tableToSchema.Put(tbl, colSchemaMap)
 		return true, nil
