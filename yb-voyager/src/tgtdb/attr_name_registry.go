@@ -28,9 +28,8 @@ func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameReg
 	}
 }
 
-func (reg *AttributeNameRegistry) QuoteIdentifier(tableNameTup sqlname.NameTuple, columnName string) string {
+func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) string {
 	var err error
-	// qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
 	targetColumns, ok := reg.attrNames.Get(tableNameTup)
 	if !ok {
 		reg.mu.Lock()
@@ -54,41 +53,16 @@ func (reg *AttributeNameRegistry) QuoteIdentifier(tableNameTup sqlname.NameTuple
 	return fmt.Sprintf("%q", c)
 }
 
-func (reg *AttributeNameRegistry) IfRequiredQuoteColumnNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
+func (reg *AttributeNameRegistry) QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
 	result := make([]string, len(columns))
-	// var schemaName string
-	// schemaName, tableName = reg.splitMaybeQualifiedTableName(tableName)
-	// targetColumns, err := reg.tdb.GetListOfTableAttributes(schemaName, tableName)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("get list of table attributes: %w", err)
-	// }
-	// log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-	// qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-	// reg.attrNames[qualifiedTableName] = targetColumns
 
 	for i, colName := range columns {
-		// if colName[0] == '"' && colName[len(colName)-1] == '"' {
-		// 	colName = colName[1 : len(colName)-1]
-		// }
-		// matchCol, err := reg.findBestMatchingColumnName(colName, targetColumns)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("find best matching column name for %q in table %s.%s: %w",
-		// 		colName, schemaName, tableName, err)
-		// }
-		quotedColName := reg.QuoteIdentifier(tableNameTup, colName)
+		quotedColName := reg.QuoteAttributeName(tableNameTup, colName)
 		result[i] = quotedColName
 	}
 	log.Infof("columns of table %s after quoting: %v", tableNameTup, result)
 	return result, nil
 }
-
-// func (reg *AttributeNameRegistry) splitMaybeQualifiedTableName(tableName string) (string, string) {
-// 	if strings.Contains(tableName, ".") {
-// 		parts := strings.Split(tableName, ".")
-// 		return parts[0], parts[1]
-// 	}
-// 	return reg.tconf.Schema, tableName
-// }
 
 func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
 	if colName[0] == '"' && colName[len(colName)-1] == '"' {

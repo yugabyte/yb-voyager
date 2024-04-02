@@ -257,7 +257,7 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() *utils.StructMap[sqln
 		colSchemaMap := make(map[string]map[string]string)
 
 		for _, col := range tblSchema.Columns {
-			colNameQuoted := conv.tdb.QuoteIdentifier(tbl, col.Name)
+			colNameQuoted := conv.tdb.QuoteAttributeName(tbl, col.Name)
 			colSchemaMap[colNameQuoted] = col.Schema.Parameters
 		}
 		tableToSchema.Put(tbl, colSchemaMap)

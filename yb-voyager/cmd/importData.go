@@ -732,7 +732,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 
 func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
 	columns, _ := TableToColumnNames.Get(tableNameTup)
-	columns, err := tdb.IfRequiredQuoteColumnNames(tableNameTup, columns)
+	columns, err := tdb.QuoteAttributeNames(tableNameTup, columns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
 	}
