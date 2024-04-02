@@ -403,11 +403,15 @@ func importData(importFileTasks []*ImportFileTask) {
 	} else {
 		valueConverter, err = dbzm.NewNoOpValueConverter()
 	}
-
-	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
-		utils.ErrExit("Failed to create value converter: %s", err)
+		utils.ErrExit("create value converter: %s", err)
 	}
+
+	TableNameToSchema, err = valueConverter.GetTableNameToSchema()
+	if err != nil {
+		utils.ErrExit("getting table name to schema: %s", err)
+	}
+
 	err = tdb.InitConnPool()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
