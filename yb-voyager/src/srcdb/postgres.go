@@ -271,9 +271,9 @@ func (pg *PostgreSQL) GetConnectionUriWithoutPassword() string {
 	return sourceUrl.String()
 }
 
-func (pg *PostgreSQL) ExportSchema(exportDir string) {
+func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 	pg.checkSchemasExists()
-	pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir)
+	pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir)
 }
 
 func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {

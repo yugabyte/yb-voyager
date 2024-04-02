@@ -393,7 +393,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
-		"assessment", "assessment/data", "assessment/reports",
+		"assessment", "assessment/data", "assessment/data/schema", "assessment/reports",
 		"metainfo", "metainfo/data", "metainfo/conf", "metainfo/ssl",
 		"temp", "temp/ora2pg_temp_dir", "temp/schema",
 	}
@@ -401,7 +401,6 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	log.Info("Creating a project directory if not exists...")
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
-
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", filepath.Join(projectDirPath, subdir)).Run()
 		if err != nil {
@@ -416,9 +415,9 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
-		err := exec.Command("mkdir", "-p", filepath.Join(projectDirPath, "schema", databaseObjectDirName)).Run()
+		err := exec.Command("mkdir", "-p", filepath.Join(schemaDir, databaseObjectDirName)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under %q: %v", filepath.Join(projectDirPath, "schema"), err)
+			utils.ErrExit("couldn't create sub-directories under %q: %v", schemaDir, err)
 		}
 	}
 

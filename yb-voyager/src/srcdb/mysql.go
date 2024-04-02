@@ -203,8 +203,8 @@ func (ms *MySQL) GetConnectionUriWithoutPassword() string {
 	return sourceUriWithoutPassword
 }
 
-func (ms *MySQL) ExportSchema(exportDir string) {
-	ora2pgExtractSchema(ms.source, exportDir)
+func (ms *MySQL) ExportSchema(exportDir string, schemaDir string) {
+	ora2pgExtractSchema(ms.source, exportDir, schemaDir)
 }
 
 func (ms *MySQL) GetIndexesInfo() []utils.IndexInfo {

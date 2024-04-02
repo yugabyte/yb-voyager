@@ -36,7 +36,7 @@ import (
 var supportedAssessmentReportFormats = []string{"json", "html"}
 var assessmentParamsFpath string
 
-var assessmentDataDir string
+var assessmentDataDirFlag string
 
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
@@ -49,6 +49,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
+		validateAssessmentDataDirFlag()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -72,7 +73,7 @@ func init() {
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
 	// optional flag to take metadata and stats directory path in case it is not in exportDir
-	assessMigrationCmd.Flags().StringVar(&assessmentDataDir, "assessment-data-dir", "",
+	assessMigrationCmd.Flags().StringVar(&assessmentDataDirFlag, "assessment-data-dir", "",
 		"Directory path where metadata and stats of source DB are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
 }
@@ -82,7 +83,7 @@ var bytesTemplate []byte
 
 func assessMigration() error {
 	checkStartCleanForAssessMigration()
-
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err := exportSchemaForAssessMigration()
 	if err != nil {
 		return fmt.Errorf("failed to export schema: %w", err)
@@ -110,8 +111,8 @@ func assessMigration() error {
 
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	migassessment.AssessmentDataDir = lo.Ternary(assessmentDataDir != "",
-		assessmentDataDir, filepath.Join(exportDir, "assessment", "data"))
+	migassessment.AssessmentDataDir = lo.Ternary(assessmentDataDirFlag != "",
+		assessmentDataDirFlag, filepath.Join(exportDir, "assessment", "data"))
 
 	// load and sets 'assessmentParams' from the user input file
 	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
@@ -125,26 +126,32 @@ func runAssessment() error {
 	}
 
 	// migassessment.SizingAssessment()
-
 	return nil
 }
 
 func checkStartCleanForAssessMigration() {
-	assessmentDataDir := filepath.Join(exportDir, "assessment")
-	dataFilesPattern := filepath.Join(assessmentDataDir, "data", "*.csv")
-	reportsFilePattern := filepath.Join(assessmentDataDir, "reports", "report.*")
+	assessmentDir := filepath.Join(exportDir, "assessment")
+	dataFilesPattern := filepath.Join(assessmentDir, "data", "*.csv")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
+	schemaFilesPattern := filepath.Join(assessmentDir, "data", "schema", "*", "*.sql")
 
-	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) || utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) {
+	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) ||
+		utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) ||
+		utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern) {
 		if startClean {
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
 		} else {
-			utils.ErrExit("metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDataDir)
+			utils.ErrExit("assessment data or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
 		}
 	}
 }
 
 func exportSchemaForAssessMigration() (err error) {
+	if assessmentDataDirFlag != "" {
+		return nil // schema files will be provided by the user inside assessmentDataDir
+	}
+
 	if source.Password == "" {
 		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
@@ -154,6 +161,7 @@ func exportSchemaForAssessMigration() (err error) {
 
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
+	schemaDir = filepath.Join(exportDir, "assessment", "data", "schema")
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	err = source.DB().Connect()
@@ -169,11 +177,15 @@ func exportSchemaForAssessMigration() (err error) {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 	log.Infof("exporting schema for assess migration")
-	source.DB().ExportSchema(exportDir)
+	source.DB().ExportSchema(exportDir, schemaDir)
 	return nil
 }
 
 func gatherAssessmentData() error {
+	if assessmentDataDirFlag != "" {
+		return nil // assessment data files are provided by the user inside assessmentDataDir
+	}
+
 	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
 
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
@@ -283,5 +295,15 @@ func validateSourceDBTypeForAssessMigration() {
 		return
 	default:
 		utils.ErrExit("source DB Type %q is not yet supported for migration assessment", source.DBType)
+	}
+}
+
+func validateAssessmentDataDirFlag() {
+	if assessmentDataDirFlag != "" {
+		if !utils.FileOrFolderExists(assessmentDataDirFlag) {
+			utils.ErrExit("assessment data directory '%s' provided with `--assessment-data-dir` flag does not exist", assessmentDataDirFlag)
+		} else {
+			log.Infof("using provided assessment data directory: %s", assessmentDataDirFlag)
+		}
 	}
 }

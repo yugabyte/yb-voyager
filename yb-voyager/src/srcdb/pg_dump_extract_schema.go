@@ -31,7 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string) {
+func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "")
 
@@ -65,7 +65,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	}
 
 	//Parsing the single file to generate multiple database object files
-	returnCode := parseSchemaFile(exportDir, source.ExportObjectTypeList)
+	returnCode := parseSchemaFile(exportDir, schemaDir, source.ExportObjectTypeList)
 
 	log.Info("Export of schema completed.")
 	utils.WaitChannel <- returnCode
@@ -98,7 +98,7 @@ func readSchemaFile(path string) []string {
 var sqlInfoCommentRegex = regexp.MustCompile("-- Name:.*; Type:.*; Schema: .*")
 
 // NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(exportDir string, exportObjectTypesList []string) int {
+func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList []string) int {
 	log.Info("Begun parsing the schema file.")
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
 
@@ -158,12 +158,11 @@ func parseSchemaFile(exportDir string, exportObjectTypesList []string) int {
 	// merging TABLE ATTACH later with TABLE - to avoid alter add PK on partitioned tables
 	objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
 
-	schemaDirPath := filepath.Join(exportDir, "schema")
 	for objType, sqlStmts := range objSqlStmts {
 		if !utils.ContainsString(exportObjectTypesList, objType) || sqlStmts.Len() == 0 { // create .sql file only if there are DDLs or the user has asked for that object type
 			continue
 		}
-		filePath := utils.GetObjectFilePath(schemaDirPath, objType)
+		filePath := utils.GetObjectFilePath(schemaDir, objType)
 		dataBytes := []byte(setSessionVariables.String() + sqlStmts.String())
 
 		err := os.WriteFile(filePath, dataBytes, 0644)
@@ -172,8 +171,8 @@ func parseSchemaFile(exportDir string, exportObjectTypesList []string) int {
 		}
 	}
 
-	if uncategorizedSqls.Len() > 0 {
-		filePath := filepath.Join(schemaDirPath, "uncategorized.sql")
+	if uncategorizedSqls.Len() > 0 && filepath.Dir(schemaDir) == exportDir { // skipping in case of yb-voyager assess-migration cmd
+		filePath := filepath.Join(schemaDir, "uncategorized.sql")
 		// TODO: add it to the analyze-schema report in case of postgresql
 		msg := fmt.Sprintf("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
 		color.Red(msg)

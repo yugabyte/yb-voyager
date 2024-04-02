@@ -189,8 +189,8 @@ func GetOracleConnectionString(host string, port int, dbname string, dbsid strin
 	return ""
 }
 
-func (ora *Oracle) ExportSchema(exportDir string) {
-	ora2pgExtractSchema(ora.source, exportDir)
+func (ora *Oracle) ExportSchema(exportDir string, schemaDir string) {
+	ora2pgExtractSchema(ora.source, exportDir, schemaDir)
 }
 
 // return list of jsons having index info like index name, index type, table name, column name

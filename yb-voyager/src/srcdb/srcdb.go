@@ -37,7 +37,7 @@ type SourceDB interface {
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
 	GetAllSequencesRaw(schemaName string) ([]string, error)
-	ExportSchema(exportDir string)
+	ExportSchema(exportDir string, schemaDir string)
 	GetIndexesInfo() []utils.IndexInfo
 	ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
