@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"net/url"
@@ -339,16 +338,14 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 }
 
 func PollForMessageFromOffsetInFile(filePath string, offset int64, message string) error {
-	lastPosition := offset
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+
+	_, err = file.Seek(offset, 0)
+	defer file.Close()
 	for {
-		file, err := os.Open(filePath)
-		if err != nil {
-			return fmt.Errorf("error opening file %s: %v", filePath, err)
-		}
-
-		defer file.Close()
-
-		_, err = file.Seek(lastPosition, 0)
 		if err != nil {
 			return fmt.Errorf("error seeking to last position in file %s: %v", filePath, err)
 		}
@@ -365,13 +362,6 @@ func PollForMessageFromOffsetInFile(filePath string, offset int64, message strin
 		if err := scanner.Err(); err != nil {
 			return fmt.Errorf("error scanning file %s: %v", filePath, err)
 		}
-
-		currentPosition, err := file.Seek(0, io.SeekCurrent)
-		if err != nil {
-			return fmt.Errorf("error getting current position in file %s: %v", filePath, err)
-		}
-
-		lastPosition = currentPosition
 
 		time.Sleep(1 * time.Second)
 	}
