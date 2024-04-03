@@ -329,6 +329,13 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			log.Infof("sleep for %d seconds before retrying the batch on channel %v (attempt %d)",
 				sleepIntervalSec, chanNo, attempt)
 			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+
+			// In certain situations, we get an error on `targetDB.ExecuteBatch`, but eventually the transaction is committed.
+			// For example, in Yugabyte, we can get an `rpc timeout` on commit, and the commit eventually succeeds on YB server.
+			// Retrying an already executed batch has consequences:
+			// - It can fail with some duplicate / unique key constraint errors
+			// - Stats will double count the events.
+			// Therefore, we check if batch has already been imported before retrying.
 			tgtDbQueryMutex.Lock()
 			alreadyImported, aerr := state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
 			tgtDbQueryMutex.Unlock()
