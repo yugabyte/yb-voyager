@@ -354,7 +354,6 @@ func PollForMessageFromOffsetInFile(filePath string, offset int64, message strin
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
 			line := scanner.Text()
-			fmt.Println(line)
 			if strings.Contains(line, message) {
 				return nil
 			}
