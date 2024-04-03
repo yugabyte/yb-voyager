@@ -337,6 +337,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			}
 			if alreadyImported {
 				log.Infof("batch on channel %d (last VSN: %d) already imported", chanNo, eventBatch.GetLastVsn())
+				err = nil
 				break
 			}
 		}
