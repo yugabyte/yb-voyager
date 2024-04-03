@@ -34,6 +34,7 @@ DELETE FROM p1.sales_region WHERE id = 17;
 -- Delete from a specific partition
 DELETE FROM p2.sydney_region WHERE id = 200;
 
+
 -- Insert into the sales table
 INSERT INTO sales (id, p_name, amount, sale_date) VALUES (1011, 'Person 1011', 1000, '2019-11-01');
 

@@ -63,4 +63,13 @@ VALUES('Random description for the test');
 
 select * from identity_demo_generated_by_def_st_with_inc_by;
 
+
+INSERT INTO "Case_Sensitive_always"(description) 
+VALUES('Random description for the test');
+
+Insert into "Case_Sensitive_always"(description)
+VALUES('Random description for the test');
+
+select * from "Case_Sensitive_always";
+
 commit;

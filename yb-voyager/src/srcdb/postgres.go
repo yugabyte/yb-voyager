@@ -100,7 +100,7 @@ func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
 }
 
-func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
+func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 	// new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
 	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
 	if err != nil {
@@ -109,7 +109,7 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	defer conn.Close(context.Background())
 
 	var rowCount int64
-	query := fmt.Sprintf("select count(*) from %s", tableName)
+	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 	log.Infof("Querying row count of table %q", tableName)
 	err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
 	if err != nil {
@@ -119,10 +119,10 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (pg *PostgreSQL) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
+func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
-		"where oid = '%s'::regclass", tableName.Qualified.MinQuoted)
+		"where oid = '%s'::regclass", tableName.ForOutput())
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
@@ -275,7 +275,7 @@ func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) {
 	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
 }
 
@@ -388,6 +388,30 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 	return sequenceNames
 }
 
+// GetAllSequencesRaw returns all the sequence names in the database for the schema
+func (pg *PostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	var sequenceNames []string
+	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences where schemaname = '%s';`, schemaName)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceName string
+	for rows.Next() {
+		err = rows.Scan(&sequenceName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for sequence names: %v", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
+	}
+	return sequenceNames, nil
+}
+
 func (pg *PostgreSQL) GetCharset() (string, error) {
 	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", pg.source.DBName)
 	encoding := ""
@@ -398,14 +422,15 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
 
-func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
-	var nonEmptyTableList, emptyTableList []*sqlname.SourceName
+func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
+
 	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.Qualified.MinQuoted)
+		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.ForUserQuery())
 		var empty bool
 		err := pg.db.QueryRow(context.Background(), query).Scan(&empty)
 		if err != nil {
@@ -424,9 +449,10 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) getTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
+func (pg *PostgreSQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
-	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+	sname, tname := tableName.ForCatalogQuery()
+	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, sname, tname)
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
@@ -445,9 +471,9 @@ func (pg *PostgreSQL) getTableColumns(tableName *sqlname.SourceName) ([]string, 
 	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error) {
-	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
-	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
+func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	for _, tableName := range tableList {
 		columns, dataTypes, _, err := pg.getTableColumns(tableName)
 		if err != nil {
@@ -465,11 +491,11 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 			}
 		}
 		if len(supportedColumnNames) == len(columns) {
-			supportedTableColumnsMap[tableName] = []string{"*"}
+			supportedTableColumnsMap.Put(tableName, []string{"*"})
 		} else {
-			supportedTableColumnsMap[tableName] = supportedColumnNames
+			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
 			if len(unsupportedColumnNames) > 0 {
-				unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
 			}
 		}
 	}
@@ -477,12 +503,12 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
-func (pg *PostgreSQL) ParentTableOfPartition(table *sqlname.SourceName) string {
+func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table.Qualified.MinQuoted)
+	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
 
 	err := pg.db.QueryRow(context.Background(), query).Scan(&parentTable)
 	if err != pgx.ErrNoRows && err != nil {
@@ -492,12 +518,13 @@ func (pg *PostgreSQL) ParentTableOfPartition(table *sqlname.SourceName) string {
 	return parentTable
 }
 
-func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
+func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
 		// this query also covers the case of identity columns
-		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, table.SchemaName.Unquoted, table.ObjectName.Unquoted)
+		sname, tname := table.ForCatalogQuery()
+		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, sname, tname)
 
 		var columeName, sequenceName, schemaName string
 		rows, err := pg.db.Query(context.Background(), query)
@@ -510,7 +537,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 			if err != nil {
 				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
 			}
-			qualifiedColumnName := fmt.Sprintf("%s.%s", table.Qualified.Unquoted, columeName)
+			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
 		}
@@ -558,8 +585,9 @@ func (pg *PostgreSQL) GetServers() []string {
 	return []string{pg.source.Host}
 }
 
-func (pg *PostgreSQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
-	partitions := make([]*sqlname.SourceName, 0)
+func (pg *PostgreSQL) GetPartitions(tableName sqlname.NameTuple) []string {
+	partitions := make([]string, 0)
+	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT
     nmsp_child.nspname  AS child_schema,
     child.relname       AS child
@@ -568,7 +596,7 @@ FROM pg_inherits
     JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
     JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
     JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
-WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
@@ -582,13 +610,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		if err != nil {
 			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
 		}
-		if tableName.ObjectName.MinQuoted != tableName.ObjectName.Unquoted {
-			// case sensitive unquoted table name returns unquoted parititons name as well
-			// so we need to add quotes around them
-			partitions = append(partitions, sqlname.NewSourceName(childSchema, fmt.Sprintf(`"%s"`, childTable)))
-		} else {
-			partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
-		}
+		partitions = append(partitions, fmt.Sprintf(`%s.%s`, childSchema, childTable))
 	}
 	if rows.Err() != nil {
 		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
@@ -596,14 +618,14 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 	return partitions
 }
 
-func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
 	result := make(map[string][]string)
 	var querySchemaList, queryTableList []string
 	for i := 0; i < len(tableList); i++ {
-		schema, table := tableList[i].SchemaName.Unquoted, tableList[i].ObjectName.Unquoted
-		querySchemaList = append(querySchemaList, schema)
-		queryTableList = append(queryTableList, table)
+		sname, tname := tableList[i].ForCatalogQuery()
+		querySchemaList = append(querySchemaList, sname)
+		queryTableList = append(queryTableList, tname)
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
@@ -683,7 +705,7 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []*sqlname.SourceName, dropIfAlreadyExists bool) error {
+func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool) error {
 	if dropIfAlreadyExists {
 		err := pg.DropPublication(publicationName)
 		if err != nil {
@@ -692,7 +714,7 @@ func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName str
 	}
 	tablelistQualifiedQuoted := []string{}
 	for _, tableName := range tableList {
-		tablelistQualifiedQuoted = append(tablelistQualifiedQuoted, tableName.Qualified.Quoted)
+		tablelistQualifiedQuoted = append(tablelistQualifiedQuoted, tableName.ForKey())
 	}
 	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))
 	result := conn.Exec(context.Background(), stmt)
@@ -745,17 +767,18 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 		}
 		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
 		if pkCount == 0 {
-			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
 	}
 	return nonPKTables, nil
 }
 
-func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
+func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
 	var tablesWithReplicaIdentityNotFull []string
 	var qualifiedTableNames []string
 	for _, table := range tableList {
-		qualifiedTableNames = append(qualifiedTableNames, fmt.Sprintf("'%s'", table.Qualified.Unquoted))
+		sname, tname := table.ForCatalogQuery()
+		qualifiedTableNames = append(qualifiedTableNames, fmt.Sprintf("'%s.%s'", sname, tname))
 	}
 	query := fmt.Sprintf(`SELECT n.nspname || '.' || c.relname AS table_name_with_schema
     FROM pg_class AS c
