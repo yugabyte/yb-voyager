@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -45,6 +46,7 @@ var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
 var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
+var tgtDbQueryMutex sync.Mutex
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 100)
@@ -108,7 +110,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
@@ -123,7 +125,8 @@ func streamChangesFromSegment(
 	evChans []chan *tgtdb.Event,
 	processingDoneChans []chan bool,
 	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
-	statsReporter *reporter.StreamImportStatsReporter) error {
+	statsReporter *reporter.StreamImportStatsReporter,
+	state *ImportDataState) error {
 
 	err := segment.Open()
 	if err != nil {
@@ -140,7 +143,7 @@ func streamChangesFromSegment(
 		} else {
 			return fmt.Errorf("unable to find channel meta info for channel - %v", i)
 		}
-		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i], statsReporter)
+		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i], statsReporter, state)
 	}
 
 	log.Infof("streaming changes for segment %s", segment.FilePath)
@@ -267,7 +270,7 @@ func hashEvent(e *tgtdb.Event) int {
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }
 
-func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter) {
+func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter, state *ImportDataState) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -326,6 +329,16 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			log.Infof("sleep for %d seconds before retrying the batch on channel %v (attempt %d)",
 				sleepIntervalSec, chanNo, attempt)
 			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+			tgtDbQueryMutex.Lock()
+			alreadyImported, err := state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
+			tgtDbQueryMutex.Unlock()
+			if err != nil {
+				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %v", chanNo, eventBatch.GetLastVsn(), err)
+			}
+			if alreadyImported {
+				log.Infof("batch on channel %d (last VSN: %d) already imported", chanNo, eventBatch.GetLastVsn())
+				break
+			}
 		}
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)

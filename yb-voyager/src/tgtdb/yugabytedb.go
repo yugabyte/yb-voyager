@@ -285,7 +285,6 @@ func (yb *TargetYugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, err
 	return sequenceNames, nil
 }
 
-
 // The _v2 is appended in the table name so that the import code doesn't
 // try to use the similar table created by the voyager 1.3 and earlier.
 // Voyager 1.4 uses import data state format that is incompatible from

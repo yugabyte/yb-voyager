@@ -570,6 +570,16 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 	return metainfo, nil
 }
 
+func (s *ImportDataState) IsEventBatchAlreadyImported(batch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {
+	query := batch.GetQueryToCheckIfAlreadyImported(migrationUUID)
+	var alreadyImported bool
+	err := tdb.QueryRow(query).Scan(&alreadyImported)
+	if err != nil {
+		return false, err
+	}
+	return alreadyImported, nil
+}
+
 func (s *ImportDataState) GetImportedEventsStatsForTable(tableNameTup sqlname.NameTuple, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
 	var eventCounter tgtdb.EventCounter
 	query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
