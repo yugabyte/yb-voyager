@@ -16,7 +16,8 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'x':3,
-	'user_table': 8
+	'user_table': 8,
+	'date_time_types': 4,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -26,6 +27,9 @@ EXPECTED_SUM_OF_COLUMN = {
 	},
 	'user_table': {
 		'id': '36',
+	},
+	'date_time_types': {
+		'id': '10',
 	}
 }
 
