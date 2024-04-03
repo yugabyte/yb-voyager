@@ -191,7 +191,7 @@ jobs:
 
       - name: "TEST: pg-live-migration-partitions-fall-forward"
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
-        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59
+        if: matrix.version != '2.16.9.0-b67' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.9.0-b67
       
       - name: "TEST: pg-case-sensitivity-reserved-words-offline"
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
