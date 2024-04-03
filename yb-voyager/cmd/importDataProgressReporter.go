@@ -22,6 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -57,7 +58,7 @@ func (pr *ImportDataProgressReporter) ImportFileStarted(task *ImportFileTask, to
 		mpb.BarFillerClearOnComplete(),
 		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
-			decor.Name(task.TableName),
+			decor.Name(task.TableNameTup.ForOutput()),
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
@@ -87,7 +88,7 @@ func (pr *ImportDataProgressReporter) FileImportDone(task *ImportFileTask) {
 	pr.Lock()
 	defer pr.Unlock()
 	if pr.disablePb {
-		utils.PrintAndLog("Table %s: import completed", task.TableName)
+		utils.PrintAndLog("Table %s: import completed", task.TableNameTup.ForOutput())
 		return
 	}
 	progressBar := pr.progressBars[task.ID]

@@ -61,3 +61,10 @@ WHERE id = 1;
 commit;
 
 select * from empty_identity_always;
+
+INSERT INTO "Case_Sensitive_always" (description) VALUES ('First Row');
+INSERT INTO "Case_Sensitive_always" (description) VALUES ('Second Row');
+UPDATE "Case_Sensitive_always" SET description = 'Updated First Row' WHERE id = 1;
+DELETE FROM "Case_Sensitive_always" WHERE id = 1;
+
+select * from "Case_Sensitive_always";
