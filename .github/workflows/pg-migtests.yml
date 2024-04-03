@@ -77,7 +77,7 @@ jobs:
       - name: Start YugabyteDB cluster
         run: |
           docker pull yugabytedb/yugabyte:${{ matrix.version }}
-          VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+          VERSION=${{ matrix.version }} docker compose -f migtests/setup/yb-docker-compose.yaml up -d
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -191,5 +191,19 @@ jobs:
 
       - name: "TEST: pg-live-migration-partitions-fall-forward"
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
-        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59 
+        if: matrix.version != '2.16.7.0-b59' # Now pg/partitions's schema has PK as well so because of same issue with pg-partitions-with-indexes, skipping this test for v2.16.7.0-b59
+      
+      - name: "TEST: pg-case-sensitivity-reserved-words-offline"
+        run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
+      
+      - name: "TEST: pg-case-sensitivity-reserved-words-live"
+        run: migtests/scripts/live-migration-run-test.sh pg/case-sensitivity-reserved-words
+      
+      - name: "TEST: pg-case-sensitivity-reserved-words-live-fallb"
+        run: migtests/scripts/live-migration-fallb-run-test.sh pg/case-sensitivity-reserved-words
+
+      - name: "TEST: pg-case-sensitivity-reserved-words-live-fallf"
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/case-sensitivity-reserved-words
+
+
 

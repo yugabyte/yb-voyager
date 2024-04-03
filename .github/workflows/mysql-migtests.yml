@@ -60,7 +60,7 @@ jobs:
       - name: Start YugabyteDB cluster
         run: |
           docker pull yugabytedb/yugabyte:${{ matrix.version }}
-          VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+          VERSION=${{ matrix.version }} docker compose -f migtests/setup/yb-docker-compose.yaml up -d
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -114,6 +114,9 @@ jobs:
 
       - name: "TEST: mysql-misc-tests"
         run: migtests/scripts/run-test.sh mysql/misc-tests
+      
+      - name: "TEST: mysql-case-sensitivity-reserved-words"
+        run: migtests/scripts/run-test.sh mysql/case-sensitivity-reserved-words
 
       # Placeholder for now so that a basic test can run
       - name: Create the live migration user

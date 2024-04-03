@@ -1,0 +1,37 @@
+#!/usr/bin/env python3.9
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'case':3,
+	'grouping':3,
+	'lt_lc':3,
+	'lt_mc':3,
+	'lt_rwc':3,
+	'lt_uc':3,
+	'mt_lc':3,
+	'mt_mc':3,
+	'mt_rwc':3,
+	'mt_uc':3,
+	'user':3,
+	'ut_lc':3,
+	'ut_mc':3,
+	'ut_rwc':3,
+	'ut_uc':3
+}
+
+def migration_completed_checks(tgt):
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+if __name__ == "__main__":
+	main()
