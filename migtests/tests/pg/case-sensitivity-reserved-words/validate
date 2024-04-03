@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+
+import common
+import os
+import yb
+import collections
+
+def main():
+	test_type_flags = common.valparser()
+
+	migration_completed_checks_yb()
+
+	if test_type_flags['ff_enabled'] == 'true':
+		migration_completed_checks_ff()
+	
+	if test_type_flags['fb_enabled'] == 'true':
+		migration_completed_checks_fb()
+
+EXPECTED_ROW_COUNT = {
+	'UT_UC': 3,
+	'UT_RWC': 3,
+	'UT_MC': 3,
+	'UT_LC': 3,
+	'USER': 3,
+	'Table': 3,
+	'SCHEMA': 500,
+	'Mt_Rwc': 3,
+	'lt_uc': 3,
+	'lt_rwc': 3,
+	'lt_mc': 3,
+	'lt_lc': 3,
+	'describe': 3,
+	'cust_user_large': 250,
+	'cust_Part22': 125,
+	'cust_part21': 125,
+	'cust_part12': 228,
+	'cust_part11': 272,
+	'cust_other': 250,
+	'Customers': 1000,
+	'cust_active': 750,
+	'cs_rwc': 3,
+	'case': 3
+}
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_ff():
+	print("Running tests on PG source replica")
+	yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_fb():
+	print("Running tests on PG source")
+	yb.run_checks(migration_completed_checks, db_type="source")
+
+def migration_completed_checks(tgt):
+	# Validation to check for matching row counts
+	print("Running tests on public")
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+	
+	print("Running tests on schema2")
+	got_row_count = tgt.row_count_of_all_tables("schema2")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+#=============================================================================
+
+if __name__ == "__main__":
+	main()
