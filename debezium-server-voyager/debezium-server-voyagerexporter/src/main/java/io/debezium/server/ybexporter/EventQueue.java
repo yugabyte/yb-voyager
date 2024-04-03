@@ -114,6 +114,8 @@ public class EventQueue implements RecordWriter {
      * This function gets the latest queue segment that was written to from
      * queue_segment_meta table
      * If no queue segments are found, it logs a message and returns.
+     * If the current queue segment has alreaady been closed by ./ we rotate to the
+     * next one
      */
     private void recoverLatestQueueSegment() {
         long fetchedQueueSegmentIndex = es.getLastQueueSegmentIndex();
