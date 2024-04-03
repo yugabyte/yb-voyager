@@ -47,7 +47,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     boolean shutDown = false;
     Object flushingSnapshotFilesLock = new Object();
 
-
     public YbExporterConsumer(String dataDir) {
         this.dataDir = dataDir;
     }
@@ -125,7 +124,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         }
 
         while (true) {
-            synchronized (flushingSnapshotFilesLock){
+            synchronized (flushingSnapshotFilesLock) {
                 for (RecordWriter writer : snapshotWriters.values()) {
                     writer.flush();
                     writer.sync();
@@ -308,7 +307,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     private void handleSnapshotComplete() {
-        synchronized (flushingSnapshotFilesLock){
+        synchronized (flushingSnapshotFilesLock) {
             closeSnapshotWriters();
         }
         exportStatus.updateMode(ExportMode.STREAMING);
@@ -356,7 +355,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         final Config config = ConfigProvider.getConfig();
         Long queueSegmentMaxBytes = config.getOptionalValue(PROP_PREFIX + "queueSegmentMaxBytes", Long.class)
                 .orElse(null);
-        eventQueue = new EventQueue(dataDir, queueSegmentMaxBytes);
+        eventQueue = new EventQueue(dataDir, queueSegmentMaxBytes, sourceType);
     }
 
     private void checkIfHelperThreadAlive() {

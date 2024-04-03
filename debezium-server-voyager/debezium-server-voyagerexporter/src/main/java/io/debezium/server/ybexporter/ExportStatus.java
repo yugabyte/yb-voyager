@@ -305,6 +305,27 @@ public class ExportStatus {
         return lastSegmentIndex;
     }
 
+    public String getLastQueueSegmentExporterRole() {
+        Statement selectStmt;
+        String lastExporterRole;
+        try {
+            selectStmt = metadataDBConn.createStatement();
+            // Get only 1 result
+            ResultSet rs = selectStmt
+                    .executeQuery(String.format("SELECT exporter_role from %s ORDER BY segment_no DESC LIMIT 1",
+                            QUEUE_SEGMENT_META_TABLE_NAME));
+            // if no results are obtained from the query, return null
+            if (!rs.next()) {
+                return null;
+            }
+            lastExporterRole = rs.getString("exporter_role");
+            selectStmt.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(String.format("Failed to get last queue segment exporter role"), e);
+        }
+        return lastExporterRole;
+    }
+
     public void updateQueueSegmentMetaInfo(long segmentNo, long committedSize,
             Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
         final boolean oldAutoCommit = metadataDBConn.getAutoCommit();

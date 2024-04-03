@@ -47,8 +47,10 @@ public class EventQueue implements RecordWriter {
     private SequenceNumberGenerator sng;
     private EventDedupCache eventDedupCache;
     private ExportStatus es;
+    private String sourceType;
 
-    public EventQueue(String datadirStr, Long queueSegmentMaxBytes) {
+    public EventQueue(String datadirStr, Long queueSegmentMaxBytes, String sourceType) {
+        this.sourceType = sourceType;
         es = ExportStatus.getInstance(datadirStr);
         dataDir = datadirStr;
         if (queueSegmentMaxBytes != null) {
@@ -119,18 +121,30 @@ public class EventQueue implements RecordWriter {
      */
     private void recoverLatestQueueSegment() {
         long fetchedQueueSegmentIndex = es.getLastQueueSegmentIndex();
+        String fetchedQueueSegmentExporterRole = es.getLastQueueSegmentExporterRole();
         if (fetchedQueueSegmentIndex == -1) {
             LOGGER.info("No queue segments found. Nothing to recover");
             return;
         }
         currentQueueSegmentIndex = fetchedQueueSegmentIndex;
-        currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
-                getFilePathWithIndex(currentQueueSegmentIndex));
-        if (currentQueueSegment.isClosed()) {
-            // if the latest queue segment is closed, we need to rotate to the next one
+
+        if (fetchedQueueSegmentExporterRole.equals("source_db_exporter") && sourceType.equals("yb")) {
+            // if the latest queue segment was written by source_db_exporter and we are
+            // currently exporting from target, we need to
+            // rotate to the next one
             currentQueueSegmentIndex++;
             currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
                     getFilePathWithIndex(currentQueueSegmentIndex));
+        } else {
+            currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
+                    getFilePathWithIndex(currentQueueSegmentIndex));
+            if (currentQueueSegment.isClosed()) {
+                // if the latest queue segment is closed, we need to rotate to the next one
+                LOGGER.info("Queue segment {} is closed. Rotating to next one", currentQueueSegmentIndex);
+                currentQueueSegmentIndex++;
+                currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
+                        getFilePathWithIndex(currentQueueSegmentIndex));
+            }
         }
 
         LOGGER.info("Recovered from queue segment-{} with byte count={}",
