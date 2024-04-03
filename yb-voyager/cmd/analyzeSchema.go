@@ -383,7 +383,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 		} else if stmt := alterConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			clause = stmt[1]
+			clause = strings.ToUpper(stmt[1])
 			if slices.Contains(notSupportedFetchClauses, clause) {
 				reportCase(fpath, "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", "", sqlInfo.formattedStmt)
 			}
