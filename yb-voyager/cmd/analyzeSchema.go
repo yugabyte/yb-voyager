@@ -61,7 +61,7 @@ var (
 	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
 	commaSeperatedTokens         = `[^,]+(?:,[^,]+){1,}`
 	unqualifiedIdent             = `[a-zA-Z0-9_]+`
-	clause                       = `[A-Z]+`
+	fetchLocation                = `[a-zA-Z]+`
 	supportedExtensionsOnYB      = []string{
 		"adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
 		"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
@@ -132,8 +132,8 @@ var (
 	ginRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
 	viewWithCheckRegex       = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
 	rangeRegex               = re("PRECEDING", "and", anything, ":float")
-	fetchRegex               = re("FETCH", capture(clause), "FROM")
-	notSupportedFetchClauses = []string{"FIRST", "LAST", "NEXT", "PRIOR", "RELATIVE", "ABSOLUTE", "NEXT", "FORWARD", "BACKWARD"}
+	fetchRegex               = re("FETCH", capture(fetchLocation), "FROM")
+	notSupportedFetchLocation = []string{"FIRST", "LAST", "NEXT", "PRIOR", "RELATIVE", "ABSOLUTE", "NEXT", "FORWARD", "BACKWARD"}
 	backwardRegex            = re("MOVE", "BACKWARD")
 	alterAggRegex            = re("ALTER", "AGGREGATE", capture(ident))
 	dropCollRegex            = re("DROP", "COLLATION", ifExists, capture(commaSeperatedTokens))
@@ -383,8 +383,8 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 		} else if stmt := alterConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			clause = strings.ToUpper(stmt[1])
-			if slices.Contains(notSupportedFetchClauses, clause) {
+			location := strings.ToUpper(stmt[1])
+			if slices.Contains(notSupportedFetchLocation, location) {
 				reportCase(fpath, "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", "", sqlInfo.formattedStmt)
 			}
 		} else if backwardRegex.MatchString(sqlInfo.stmt) {
