@@ -49,6 +49,7 @@ public class EventQueue implements RecordWriter {
     private ExportStatus es;
 
     public EventQueue(String datadirStr, Long queueSegmentMaxBytes) {
+        es = ExportStatus.getInstance(datadirStr);
         dataDir = datadirStr;
         if (queueSegmentMaxBytes != null) {
             this.queueSegmentMaxBytes = queueSegmentMaxBytes;
@@ -69,7 +70,6 @@ public class EventQueue implements RecordWriter {
                     getFilePathWithIndex(currentQueueSegmentIndex));
         }
 
-        es = ExportStatus.getInstance(datadirStr);
         Map<Long, Long> totalEventsPerSegment = es.getTotalEventsPerSegment();
         eventDedupCache = new EventDedupCache(datadirStr);
         eventDedupCache.warmUp(totalEventsPerSegment);
@@ -111,56 +111,29 @@ public class EventQueue implements RecordWriter {
     }
 
     /**
-     * This function reads the /queue dir for all the queue segment files.
-     * Then it retrieves the index number from the paths, and then finds
-     * the max index - which is the latest queue segment that was written to.
-     * If no files are found, we just return.
-     * TODO handle edge case: even if the latest queue segment was already closed
-     * (i.e. EOF marker was written),
-     * we would still consider it to be the latest and open it. when the next write
-     * arrives, we will rotate the
-     * queue segment, which would again write an EOF marker, leading to two EOF
-     * markers sequentially.
-     * Voyager import data will proceed to next segment upon seeing the first EOF so
-     * it's not a concern.
+     * This function gets the latest queue segment that was written to from
+     * queue_segment_meta table
+     * If no queue segments are found, it logs a message and returns.
      */
     private void recoverLatestQueueSegment() {
-        // read dir to find all queue files
-        Path queueDirPath = Path.of(dataDir, QUEUE_FILE_DIR);
-        String searchGlob = String.format("%s.[0-9]*.%s", QUEUE_SEGMENT_FILE_NAME, QUEUE_SEGMENT_FILE_EXTENSION);
-        ArrayList<Path> filePaths = new ArrayList<>();
-        try {
-            DirectoryStream<Path> stream = Files.newDirectoryStream(queueDirPath, searchGlob);
-            for (Path entry : stream) {
-                filePaths.add(entry);
-            }
-            if (filePaths.size() == 0) {
-                // no files found. nothing to recover.
-                LOGGER.info("No files found matching {}. Nothing to recover", searchGlob);
-                return;
-            }
-            // extract max index of all files
-            long maxIndex = 0;
-            Path maxIndexPath = null;
-            for (Path p : filePaths) {
-                String filename = p.getFileName().toString();
-                String indexStr = filename.substring(QUEUE_SEGMENT_FILE_NAME.length() + 1,
-                        filename.length() - (QUEUE_SEGMENT_FILE_EXTENSION.length() + 1));
-                long index = Long.parseLong(indexStr);
-                if (index >= maxIndex) {
-                    maxIndex = index;
-                    maxIndexPath = p;
-                }
-            }
-            // create queue segment for last file segment
-            currentQueueSegmentIndex = maxIndex;
-            currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex, maxIndexPath.toString());
-
-            LOGGER.info("Recovered from queue segment-{} with byte count={}", maxIndexPath,
-                    currentQueueSegment.getByteCount());
-        } catch (IOException x) {
-            throw new RuntimeException(x);
+        long fetchedQueueSegmentIndex = es.getLastQueueSegmentIndex();
+        if (fetchedQueueSegmentIndex == -1) {
+            LOGGER.info("No queue segments found. Nothing to recover");
+            return;
         }
+        currentQueueSegmentIndex = fetchedQueueSegmentIndex;
+        currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
+                getFilePathWithIndex(currentQueueSegmentIndex));
+        if (currentQueueSegment.isClosed()) {
+            // if the latest queue segment is closed, we need to rotate to the next one
+            currentQueueSegmentIndex++;
+            currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
+                    getFilePathWithIndex(currentQueueSegmentIndex));
+        }
+
+        LOGGER.info("Recovered from queue segment-{} with byte count={}",
+                getFilePathWithIndex(currentQueueSegmentIndex),
+                currentQueueSegment.getByteCount());
     }
 
     /**
