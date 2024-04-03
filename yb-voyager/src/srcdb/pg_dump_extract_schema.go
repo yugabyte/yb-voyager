@@ -51,7 +51,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
 	preparedPgdumpCommand.Env = append(os.Environ(), "PGPASSWORD="+source.Password)
-
+	fmt.Printf("pg_dump command for extracting schema: %s\n", cmd)
 	stdout, err := preparedPgdumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
 	if string(stdout) != "" {
@@ -101,6 +101,9 @@ var sqlInfoCommentRegex = regexp.MustCompile("-- Name:.*; Type:.*; Schema: .*")
 func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList []string) int {
 	log.Info("Begun parsing the schema file.")
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
+	if utils.FileOrFolderExists(filepath.Join(schemaDir, "schema.sql")) { // assess-migration workflow
+		schemaFilePath = filepath.Join(schemaDir, "schema.sql")
+	}
 
 	lines := readSchemaFile(schemaFilePath)
 	var delimiterIndexes []int

@@ -29,7 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -81,19 +80,19 @@ func init() {
 //go:embed report.template
 var bytesTemplate []byte
 
-func assessMigration() error {
+func assessMigration() (err error) {
 	checkStartCleanForAssessMigration()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err := exportSchemaForAssessMigration()
-	if err != nil {
-		return fmt.Errorf("failed to export schema: %w", err)
-
-	}
 
 	err = gatherAssessmentData()
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment data: %w", err)
 	}
+
+	// parse the schema.sql file and put it into folders
+	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
+		filepath.Join(exportDir, "assessment", "data", "schema"))
+	source.DB().ExportSchema(exportDir, schemaDir)
 
 	err = runAssessment()
 	if err != nil {
@@ -147,10 +146,17 @@ func checkStartCleanForAssessMigration() {
 	}
 }
 
-func exportSchemaForAssessMigration() (err error) {
+func gatherAssessmentData() (err error) {
 	if assessmentDataDirFlag != "" {
-		return nil // schema files will be provided by the user inside assessmentDataDir
+		return nil // assessment data files are provided by the user inside assessmentDataDir
 	}
+
+	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
+
+	// setting schema objects types to export before creating the project directories
+	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
+	schemaDir = filepath.Join(assessmentDataDir, "schema")
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	if source.Password == "" {
 		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
@@ -159,98 +165,63 @@ func exportSchemaForAssessMigration() (err error) {
 		}
 	}
 
-	// setting schema objects types to export before creating the project directories
-	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
-	schemaDir = filepath.Join(exportDir, "assessment", "data", "schema")
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-	err = source.DB().Connect()
-	if err != nil {
-		return fmt.Errorf("failed to connect to the source db: %w", err)
-	}
-	defer source.DB().Disconnect()
-
-	checkSourceDBCharset()
-	source.DB().CheckRequiredToolsAreInstalled()
-	err = retrieveMigrationUUID()
-	if err != nil {
-		return fmt.Errorf("failed to get migration UUID: %w", err)
-	}
-	log.Infof("exporting schema for assess migration")
-	source.DB().ExportSchema(exportDir, schemaDir)
-	return nil
-}
-
-func gatherAssessmentData() error {
-	if assessmentDataDirFlag != "" {
-		return nil // assessment data files are provided by the user inside assessmentDataDir
-	}
-
-	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
-
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
 	switch source.DBType {
 	case POSTGRESQL:
-		err := gatherMetadataAndStatsFromPG()
+		err := gatherAssessmentDataFromPG()
 		if err != nil {
 			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
 		}
 	default:
 		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
-	utils.PrintAndLog("gathered metadata and stats files at '%s'", assessmentDataDir)
+	utils.PrintAndLog("gathered assessment data files at '%s'", assessmentDataDir)
 	return nil
 }
 
-func gatherMetadataAndStatsFromPG() error {
-	psqlBinPath, err := srcdb.GetAbsPathOfPGCommand("psql")
-	if err != nil {
-		return fmt.Errorf("could not get absolute path of psql command: %w", err)
+func gatherAssessmentDataFromPG() (err error) {
+	if assessmentDataDirFlag != "" {
+		return nil
 	}
 
 	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
-	possiblePathsForPsqlScript := []string{
-		filepath.Join("/", "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
-		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
-		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "scripts", "yb-voyager-gather-metadata-and-stats.psql"),
+	gatherAssessmentDataScriptPath := filepath.Join("/", "etc", "yb-voyager", "gather-assessment-data", "postgresql", "yb-voyager-gather-assessment-data.sh")
+
+	possiblePathsForScript := []string{
+		gatherAssessmentDataScriptPath,
+		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, gatherAssessmentDataScriptPath),
+		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, gatherAssessmentDataScriptPath),
 	}
-	psqlScriptPath := ""
-	for _, path := range possiblePathsForPsqlScript {
+
+	scriptPath := ""
+	for _, path := range possiblePathsForScript {
 		if utils.FileOrFolderExists(path) {
-			psqlScriptPath = path
+			scriptPath = path
 			break
 		}
 	}
 
-	if psqlScriptPath == "" {
-		return fmt.Errorf("psql script not found in possible paths: %v", possiblePathsForPsqlScript)
+	if scriptPath == "" {
+		return fmt.Errorf("script not found in possible paths: %v", possiblePathsForScript)
 	}
 
-	log.Infof("using psql script: %s", psqlScriptPath)
-	if source.Password == "" {
-		sourcePassword, err := askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-		if err != nil {
-			return fmt.Errorf("error getting source DB password: %w", err)
-		}
-		source.Password = sourcePassword
-	}
-
-	args := []string{
+	log.Infof("using script: %s", scriptPath)
+	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
+	scriptArgs := []string{
 		source.DB().GetConnectionUriWithoutPassword(),
-		"-f", psqlScriptPath,
-		"-v", "schema_list=" + source.Schema,
+		source.Schema,
+		assessmentDataDir,
 	}
 
-	preparedPsqlCmd := exec.Command(psqlBinPath, args...)
-	log.Infof("running psql command: %s", preparedPsqlCmd.String())
-	preparedPsqlCmd.Env = append(preparedPsqlCmd.Env, "PGPASSWORD="+source.Password)
-	preparedPsqlCmd.Dir = filepath.Join(exportDir, "assessment", "data")
-
-	stdout, err := preparedPsqlCmd.CombinedOutput()
+	preparedScriptCmd := exec.Command(scriptPath, scriptArgs...)
+	log.Infof("running script: %s", preparedScriptCmd.String())
+	preparedScriptCmd.Env = append(preparedScriptCmd.Env, "PGPASSWORD="+source.Password)
+	preparedScriptCmd.Dir = assessmentDataDir
+	stdout, err := preparedScriptCmd.CombinedOutput()
+	log.Infof("output of gather assessment data script for PG: %s\n", string(stdout))
 	if err != nil {
-		return fmt.Errorf("error running psql command: %w", err)
+		return fmt.Errorf("error running script: %w", err)
 	}
-	log.Infof("output of postgres metadata and stats gathering script\n%s", string(stdout))
 	return nil
 }
 

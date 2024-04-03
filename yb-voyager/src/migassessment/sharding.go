@@ -50,8 +50,8 @@ type ShardingParams struct {
 
 func ShardingAssessment() error {
 	// load the assessment data
-	tableSizesFpath := filepath.Join(AssessmentDataDir, "sharding__table-sizes.csv")
-	tableIOPSFpath := filepath.Join(AssessmentDataDir, "sharding__table-iops.csv")
+	tableSizesFpath := filepath.Join(AssessmentDataDir, "table-sizes.csv")
+	tableIOPSFpath := filepath.Join(AssessmentDataDir, "table-iops.csv")
 
 	log.Infof("loading metadata files for sharding assessment")
 	tableSizes, err := loadCSVDataFile[ShardingTableSizesRecord](tableSizesFpath)

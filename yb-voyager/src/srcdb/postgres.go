@@ -272,8 +272,14 @@ func (pg *PostgreSQL) GetConnectionUriWithoutPassword() string {
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
-	pg.checkSchemasExists()
-	pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir)
+	if utils.FileOrFolderExists(filepath.Join(schemaDir, "schema.sql")) {
+		// case for assess-migration cmd workflow
+		log.Infof("directly parsing the '%s/schema.sql' file", schemaDir)
+		parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList)
+	} else {
+		pg.checkSchemasExists()
+		pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir)
+	}
 }
 
 func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
