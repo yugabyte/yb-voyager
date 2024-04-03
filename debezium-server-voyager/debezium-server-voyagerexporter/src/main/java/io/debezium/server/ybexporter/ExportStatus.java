@@ -289,8 +289,10 @@ public class ExportStatus {
         int lastSegmentIndex;
         try {
             selectStmt = metadataDBConn.createStatement();
-            ResultSet rs = selectStmt.executeQuery(String.format("SELECT segment_no from %s ORDER BY segment_no DESC",
-                    QUEUE_SEGMENT_META_TABLE_NAME));
+            // Get only 1 result
+            ResultSet rs = selectStmt
+                    .executeQuery(String.format("SELECT segment_no from %s ORDER BY segment_no DESC LIMIT 1",
+                            QUEUE_SEGMENT_META_TABLE_NAME));
             // if no results are obtained from the query, return -1
             if (!rs.next()) {
                 return -1;
