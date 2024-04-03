@@ -312,7 +312,6 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		start := time.Now()
 		eventBatch := tgtdb.NewEventBatch(batch, chanNo)
 		var err error
-		var alreadyImported bool
 		sleepIntervalSec := 0
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
@@ -331,9 +330,9 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 				sleepIntervalSec, chanNo, attempt)
 			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
 			tgtDbQueryMutex.Lock()
-			alreadyImported, err = state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
+			alreadyImported, aerr := state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
 			tgtDbQueryMutex.Unlock()
-			if err != nil {
+			if aerr != nil {
 				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %v", chanNo, eventBatch.GetLastVsn(), err)
 			}
 			if alreadyImported {
