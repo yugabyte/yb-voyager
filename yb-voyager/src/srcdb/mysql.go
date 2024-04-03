@@ -253,6 +253,33 @@ func (ms *MySQL) GetAllSequences() []string {
 	return nil
 }
 
+func (ms *MySQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
+
+	query := fmt.Sprintf(`SELECT table_name, column_name FROM information_schema.columns
+		WHERE table_schema = '%s' AND extra = 'auto_increment'`,
+			schemaName)
+	log.Infof("Querying '%s' for auto increment column of all tables in the database %q", query, schemaName)
+	var sequences []string
+	rows, err := ms.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %q for auto increment columns in tables: %s", query, err)
+	}
+	for rows.Next() {
+		var columnName, tableName string
+		err = rows.Scan(&tableName, &columnName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan %q for auto increment columns in tables: %s", query, err)
+		}
+		// sequence name as per PG naming convention for bigserial datatype's sequence
+		sequenceName := fmt.Sprintf("%s_%s_seq", tableName, columnName)
+		sequences = append(sequences, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
+	}
+	return sequences, nil
+}
+
 func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, _ bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()

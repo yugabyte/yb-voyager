@@ -68,8 +68,13 @@ class OracleDB:
 
     def get_row_count(self, table_name, schema_name) -> int:
         try:
+            #handle case sensitive table names
+            if table_name[0] == '"' :
+                table_name = table_name[1:-1]
+            else:
+                table_name = table_name.upper()
             cur = self.conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM {}.{}".format(schema_name, table_name))
+            cur.execute('SELECT COUNT(*) FROM {}."{}"'.format(schema_name, table_name))
             row_count = cur.fetchone()[0]
             return row_count
         except cx_Oracle.Error as error:
@@ -78,12 +83,17 @@ class OracleDB:
             return None
 
     def row_count_of_all_tables(self, schema_name) -> Dict[str, int]:
-        tables = self.get_table_names(schema_name)
-        return {table: self.get_row_count(table, schema_name) for table in tables}
+        cur = self.conn.cursor()
+        #for handling the case sensitive table names in oracle
+        #quote all tables coming from DB
+        cur.execute("SELECT table_name FROM all_tables WHERE owner = '{}'".format(schema_name))
+        tables = ['"{}"'.format(table[0]) for table in cur.fetchall()]
+        #return tables in lower case to match EXPECTED values Todo handled it properly later
+        return {table[1:-1].lower(): self.get_row_count(table, schema_name) for table in tables}
 
     def get_sum_of_column_of_table(self, table_name, column_name, schema_name) -> int:
         cur = self.conn.cursor()
-        cur.execute("SELECT SUM({}) FROM {}.{}".format(column_name, schema_name, table_name))
+        cur.execute('SELECT SUM({}) FROM {}.{}'.format(column_name, schema_name, table_name))
         return cur.fetchone()[0]
 
     def run_query_and_chk_error(self, query, error_code) -> bool:
@@ -93,11 +103,16 @@ class OracleDB:
         except cx_Oracle.DatabaseError as error:
             code = str(error.args[0].code)
             self.conn.rollback()
+            print(error)
             return error_code == str(code)
         return False
     
     def get_identity_type_columns(self, type_name, table_name, schema_name) -> List[str]:
+        if table_name[0] == '"' : #case sensitive
+            table_name = table_name[1:-1]
+        else:
+            table_name = table_name.upper()
         cur = self.conn.cursor()
-        query = f"Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '{schema_name}' AND TABLE_NAME = UPPER('{table_name}') AND GENERATION_TYPE='{type_name}'"
+        query = f"Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '{schema_name}' AND TABLE_NAME = '{table_name}' AND GENERATION_TYPE='{type_name}'"
         cur.execute(query)
         return [column[0].lower() for column in cur.fetchall()]

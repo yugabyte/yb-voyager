@@ -73,6 +73,18 @@ create table multiple_serial_columns (
 insert into multiple_serial_columns(name, balance, name2, balance2) values('def', 10000, 'def', 10000);
 insert into multiple_serial_columns(name, balance, name2, balance2) values('abc', 10000, 'abc', 10000);
 
+create table "Case_Sensitive_Seq" (
+    id serial,
+    name varchar(100) not null,
+    balance dec(15, 2) not null,
+    name2 varchar(100) not null,
+    balance2 dec(15, 2) not null,
+    primary key(id)
+);
+
+insert into "Case_Sensitive_Seq"(name, balance, name2, balance2) values('def', 10000, 'def', 10000);
+insert into "Case_Sensitive_Seq"(name, balance, name2, balance2) values('abc', 10000, 'abc', 10000);
+
 
 -- same as above but with schema
 create schema schema1;
