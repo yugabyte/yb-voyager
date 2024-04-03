@@ -390,11 +390,11 @@ func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) str
 		migrationUUID, eb.ChanNo)
 }
 
-func (eb *EventBatch) GetQueryToCheckIfAlreadyImported(migrationUUID uuid.UUID) string {
-	return fmt.Sprintf("SELECT last_applied_vsn>=%d FROM %s WHERE migration_uuid='%s' AND channel_no=%d",
-		eb.GetLastVsn(),
-		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, eb.ChanNo)
-}
+// func (eb *EventBatch) GetQueryToCheckIfAlreadyImported(migrationUUID uuid.UUID) string {
+// 	return fmt.Sprintf("SELECT last_applied_vsn>=%d FROM %s WHERE migration_uuid='%s' AND channel_no=%d",
+// 		eb.GetLastVsn(),
+// 		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, eb.ChanNo)
+// }
 
 func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableNameTup sqlname.NameTuple) string {
 	queryTemplate := `UPDATE %s 

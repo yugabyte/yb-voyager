@@ -571,13 +571,14 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 }
 
 func (s *ImportDataState) IsEventBatchAlreadyImported(batch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {
-	query := batch.GetQueryToCheckIfAlreadyImported(migrationUUID)
-	var alreadyImported bool
-	err := tdb.QueryRow(query).Scan(&alreadyImported)
+	query := fmt.Sprintf("SELECT last_applied_vsn FROM %s WHERE migration_uuid='%s' AND channel_no=%d",
+		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, batch.ChanNo)
+	var lastAppliedVsnInChan int64
+	err := tdb.QueryRow(query).Scan(&lastAppliedVsnInChan)
 	if err != nil {
 		return false, err
 	}
-	return alreadyImported, nil
+	return lastAppliedVsnInChan >= batch.GetLastVsn(), nil
 }
 
 func (s *ImportDataState) GetImportedEventsStatsForTable(tableNameTup sqlname.NameTuple, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
