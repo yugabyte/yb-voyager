@@ -32,6 +32,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -480,18 +481,24 @@ func (s *ImportDataState) getEventChannelsRowCount(migrationUUID uuid.UUID) (int
 	return rowCount, nil
 }
 
-func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID, tableNames []sqlname.NameTuple, numChans int) error {
+func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID, tableNameTups []sqlname.NameTuple, numChans int) error {
+	tableRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
+	for _, tableNameTup := range tableNameTups {
+		rowCount, err := s.getLiveMigrationMetaInfoByTable(migrationUUID, tableNameTup)
+		if err != nil {
+			return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+		}
+		tableRowCount.Put(tableNameTup, rowCount)
+	}
+
 	return tdb.WithTx(func(tx tgtdb.Tx) error {
-		for _, tableName := range tableNames {
-			rowCount, err := s.getLiveMigrationMetaInfoByTable(migrationUUID, tableName)
-			if err != nil {
-				return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
-			}
+		for _, tableNameTup := range tableNameTups {
+			rowCount, _ := tableRowCount.Get(tableNameTup)
 			if rowCount > 0 {
-				log.Info(fmt.Sprintf("event stats for %s already created. Skipping init.", tableName))
+				log.Info(fmt.Sprintf("event stats for %s already created. Skipping init.", tableNameTup))
 			} else {
 				for c := 0; c < numChans; c++ {
-					insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName.ForKey(), c, 0, 0, 0, 0)
+					insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableNameTup.ForKey(), c, 0, 0, 0, 0)
 					_, err := tx.Exec(context.Background(), insertStmt)
 					if err != nil {
 						return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
