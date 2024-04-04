@@ -238,7 +238,7 @@ func exportData() bool {
 				utils.ErrExit("error: validate if tables are ready for live migration: %v", err)
 			}
 			if !dataIsExported() { // if snapshot is not already done...
-				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
+				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
 				if err != nil {
 					log.Errorf("export snapshot failed: %v", err)
 					return false
@@ -409,7 +409,7 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 	return allLeafPartitions
 }
 
-func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string]) error {
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions map[string][]string) error {
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
@@ -426,7 +426,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	// Note: publication object needs to be created before replication slot
 	// https://www.postgresql.org/message-id/flat/e0885261-5723-7bab-f541-e6a260f50328%402ndquadrant.com#a5f257b667575719ad98c59281f3e191
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
-	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true)
+	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true, leafPartitions)
 	if err != nil {
 		return fmt.Errorf("create publication: %v", err)
 	}
