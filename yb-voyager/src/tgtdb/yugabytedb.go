@@ -41,51 +41,75 @@ import (
 
 type TargetYugabyteDB struct {
 	sync.Mutex
-	tconf    *TargetConf
-	conn_    *pgx.Conn
-	connPool *ConnectionPool
+	tconf     *TargetConf
+	conn_     *pgx.Conn
+	connPool  *ConnectionPool
+	connMutex sync.Mutex
 }
 
 func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 	return &TargetYugabyteDB{tconf: tconf}
 }
 
+func (yb *TargetYugabyteDB) WithConn(fn func(conn *pgx.Conn) error) error {
+	yb.connMutex.Lock()
+	defer yb.connMutex.Unlock()
+	return fn(yb.conn_)
+}
+
 func (yb *TargetYugabyteDB) Query(query string) (Rows, error) {
-	rows, err := yb.conn_.Query(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
-	}
-	return rows, nil
+	var rows Rows
+	err := yb.WithConn(func(conn *pgx.Conn) error {
+		var err error
+		rows, err = conn.Query(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+		}
+		return nil
+	})
+	return rows, err
 }
 
 func (yb *TargetYugabyteDB) QueryRow(query string) Row {
-	row := yb.conn_.QueryRow(context.Background(), query)
+	var row Row
+	_ = yb.WithConn(func(conn *pgx.Conn) error {
+		row = conn.QueryRow(context.Background(), query)
+		return nil
+	})
 	return row
 }
 
 func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
-	res, err := yb.conn_.Exec(context.Background(), query)
-	if err != nil {
-		return 0, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
-	}
-	return res.RowsAffected(), nil
+	var rowsAffected int64
+
+	err := yb.WithConn(func(conn *pgx.Conn) error {
+		res, err := conn.Exec(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+		}
+		rowsAffected = res.RowsAffected()
+		return nil
+	})
+	return rowsAffected, err
 }
 
 func (yb *TargetYugabyteDB) WithTx(fn func(tx Tx) error) error {
-	tx, err := yb.conn_.Begin(context.Background())
-	if err != nil {
-		return fmt.Errorf("begin transaction on target %q: %w", yb.tconf.Host, err)
-	}
-	defer tx.Rollback(context.Background())
-	err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
-	if err != nil {
-		return err
-	}
-	err = tx.Commit(context.Background())
-	if err != nil {
-		return fmt.Errorf("commit transaction on target %q: %w", yb.tconf.Host, err)
-	}
-	return nil
+	return yb.WithConn(func(conn *pgx.Conn) error {
+		tx, err := conn.Begin(context.Background())
+		if err != nil {
+			return fmt.Errorf("begin transaction on target %q: %w", yb.tconf.Host, err)
+		}
+		defer tx.Rollback(context.Background())
+		err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
+		if err != nil {
+			return err
+		}
+		err = tx.Commit(context.Background())
+		if err != nil {
+			return fmt.Errorf("commit transaction on target %q: %w", yb.tconf.Host, err)
+		}
+		return nil
+	})
 }
 
 func (yb *TargetYugabyteDB) Init() error {
