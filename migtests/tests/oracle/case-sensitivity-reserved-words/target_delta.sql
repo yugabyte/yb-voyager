@@ -1,3 +1,5 @@
+set search_path to test_schema2;
+
 INSERT INTO lt_lc_uc (id, "column_name", COLUMN_NAME2) VALUES (4, 'data7', 'data8');
 DELETE FROM lt_lc_uc WHERE id = 1;
 UPDATE lt_lc_uc SET "column_name" = 'updated_data', COLUMN_NAME2 = 'updated_data', id=1 WHERE id = 5;
@@ -52,9 +54,9 @@ UPDATE "limit" SET column_name = 'updated_column', "case" = 'updated_case', "lim
 INSERT INTO "limit" (id, column_name, "case", "limit") VALUES (15, NULL,'case',NULL);
 
 
-INSERT INTO "RowId" (id, "TABLE") VALUES (3, 'table3');
-INSERT INTO "RowId" (id, "User") VALUES (4, 'user4');
-INSERT INTO "RowId" (id, "User", "TABLE") VALUES (5, 'user5', 'table5');
-UPDATE "RowId" SET "User" = 'updated_user', "TABLE" = 'updated_table' WHERE id = 3;
-UPDATE "RowId" SET "User" = 'updated_user', "TABLE" = 'updated_table' WHERE id = 4;
-DELETE FROM "RowId" WHERE id > 4;
+INSERT INTO rowid (id, "table") VALUES (3, 'table3');
+INSERT INTO rowid (id, "user") VALUES (4, 'user4');
+INSERT INTO rowid (id, "user", "table") VALUES (5, 'user5', 'table5');
+UPDATE rowid SET "user" = 'updated_user', "table" = 'updated_table' WHERE id = 3;
+UPDATE rowid SET "user" = 'updated_user', "table" = 'updated_table' WHERE id = 4;
+DELETE FROM rowid WHERE id > 4;
