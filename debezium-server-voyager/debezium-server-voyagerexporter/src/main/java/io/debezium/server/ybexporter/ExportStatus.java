@@ -321,7 +321,8 @@ public class ExportStatus {
             selectStmt.close();
         } catch (SQLException e) {
             throw new RuntimeException(
-                    String.format("Failed to check if last queue segment has been archived or deleted"),
+                    String.format("Failed to check if queue segment has been archived or deleted - segmentNo: %d",
+                            segmentNo),
                     e);
         }
         return result == 1;
