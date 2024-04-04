@@ -125,7 +125,7 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	sleep 100 
+	sleep 30 
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-snapshot-import true --refresh-mviews=true
@@ -136,7 +136,7 @@ main() {
 	step "Inserting new events"
 	run_sql_file source_delta.sql
 
-	sleep 200
+	sleep 120
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
