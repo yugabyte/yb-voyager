@@ -123,8 +123,24 @@ public class EventQueue implements RecordWriter {
         }
         currentQueueSegmentIndex = latestQueueSegmentIndex;
 
-        if (es.checkIfQueueSegmentHasBeenArchivedOrDeleted(currentQueueSegmentIndex))
+        // In case the latest queue segment has been archived or deleted, we need to
+        // move to the next
+        // This can happen in two cases:
+        // 1. During cutover, archiver deleted the segment.0.ndjson file which was used
+        // by the source db exporter before the segment file for target db exported
+        // could be created. In this case the target db exporter will pick up the
+        // latest segment file in queue_segment_meta which is segment.0.ndjson. Thus, we
+        // need this check to move to the next segment.
+        // 2. During export from source if the segment file is archived or deleted and
+        // then the exporter crashed before writing to the next segment file. In this
+        // case as well when the export is resumed, the latest segment file will be the
+        // deleted segment file. Since it had been closed and archived we need this
+        // check to ensure that the next segment file is created and picked up.
+        if (es.checkIfQueueSegmentHasBeenArchivedOrDeleted(currentQueueSegmentIndex)) {
+            LOGGER.info("Queue segment-{} has been archived or deleted. Moving to next segment",
+                    currentQueueSegmentIndex);
             currentQueueSegmentIndex++;
+        }
 
         currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
                 getFilePathWithIndex(currentQueueSegmentIndex));
@@ -253,7 +269,12 @@ public class EventQueue implements RecordWriter {
                 BufferedReader input;
                 try {
                     // If the queue segment file has been deleted by the archiver, move to the next
+                    // TODO: Edge case: If the archiver deletes the segment file while we are
+                    // starting to read the file to fill our dedup cache. It is a very rare case but
+                    // we should handle it.
                     if (!Files.exists(Path.of(currentQueueSegmentPath))) {
+                        LOGGER.info("Queue segment-{} has been archived or deleted. Moving to next segment",
+                                currentQueueSegmentIndex);
                         currentQueueSegmentIndex++;
                         continue;
                     }
