@@ -88,12 +88,12 @@ var sqlInfoCommentRegex = regexp.MustCompile("-- Name:.*; Type:.*; Schema: .*")
 
 // NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
 func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList []string) int {
-	log.Info("Begun parsing the schema file.")
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
 	if utils.FileOrFolderExists(filepath.Join(schemaDir, "schema.sql")) { // assess-migration workflow
 		schemaFilePath = filepath.Join(schemaDir, "schema.sql")
 	}
-
+	
+	log.Infof("begun parsing the schema file %q", schemaFilePath)
 	lines := readSchemaFile(schemaFilePath)
 	var delimiterIndexes []int
 	for i, line := range lines {
@@ -155,6 +155,7 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 			continue
 		}
 		filePath := utils.GetObjectFilePath(schemaDir, objType)
+		log.Infof("creating schema objects file for %q at %q", objType, filePath)
 		dataBytes := []byte(setSessionVariables.String() + sqlStmts.String())
 
 		err := os.WriteFile(filePath, dataBytes, 0644)
@@ -172,6 +173,8 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 		os.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 		return 1
 	}
+
+	log.Infof("schema file %q parsed successfully.", schemaFilePath)
 	return 0
 }
 

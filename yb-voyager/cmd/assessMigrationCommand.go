@@ -89,10 +89,7 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to gather assessment data: %w", err)
 	}
 
-	// parse the schema.sql file and put it into folders
-	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
-		filepath.Join(exportDir, "assessment", "data", "schema"))
-	source.DB().ExportSchema(exportDir, schemaDir)
+	parseExportedSchemaFileForAssessment()
 
 	err = runAssessment()
 	if err != nil {
@@ -225,6 +222,15 @@ func gatherAssessmentDataFromPG() (err error) {
 	return nil
 }
 
+func parseExportedSchemaFileForAssessment() {
+	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
+		filepath.Join(exportDir, "assessment", "data", "schema"))
+	log.Infof("set 'schemaDir' as: %s", schemaDir)
+	source.ApplyExportSchemaObjectListFilter()
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	source.DB().ExportSchema(exportDir, schemaDir)
+}
+
 func generateAssessmentReport() error {
 	utils.PrintAndLog("Generating assessment reports...")
 	reportsDir := filepath.Join(exportDir, "assessment", "reports")
@@ -272,7 +278,7 @@ func validateSourceDBTypeForAssessMigration() {
 func validateAssessmentDataDirFlag() {
 	if assessmentDataDirFlag != "" {
 		if !utils.FileOrFolderExists(assessmentDataDirFlag) {
-			utils.ErrExit("assessment data directory '%s' provided with `--assessment-data-dir` flag does not exist", assessmentDataDirFlag)
+			utils.ErrExit("assessment data directory %q provided with `--assessment-data-dir` flag does not exist", assessmentDataDirFlag)
 		} else {
 			log.Infof("using provided assessment data directory: %s", assessmentDataDirFlag)
 		}
