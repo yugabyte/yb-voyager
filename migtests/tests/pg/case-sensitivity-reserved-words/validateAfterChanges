@@ -75,10 +75,6 @@ def change_expected_values():
 	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
 		EXPECTED_ROW_COUNT[table_name] = row_count
 
-	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN_FF.items():
-		for column, sum in column_names_with_sum.items():
-			EXPECTED_SUM_OF_COLUMN[table_name][column] = sum
-
 def migration_completed_checks_yb():
 	print("Running tests on YB")
 	yb.run_checks(migration_completed_checks)
