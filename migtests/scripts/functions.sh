@@ -474,6 +474,7 @@ end_migration() {
 	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
 	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
 
+	# TODO: TABLENAME reenable --save-migration-reports
 	yb-voyager end migration --export-dir ${EXPORT_DIR} \
 	--backup-dir ${BACKUP_DIR} --backup-schema-files true \
 	--backup-data-files true --backup-log-files true \

@@ -47,3 +47,10 @@ WHERE id = 2;
 
 DELETE FROM empty_identity_always
 WHERE id = 2;
+
+Insert into Case_Sensitive_always(description) VALUES('Random description for the test');
+Insert into Case_Sensitive_always(description) VALUES('Random description for the test');
+Insert into Case_Sensitive_always(description) VALUES('Random description for the test');
+UPDATE Case_Sensitive_always SET description = 'Updated Event 1' WHERE id = 3;
+UPDATE Case_Sensitive_always SET description = 'Updated Event 2' WHERE id = 4;
+DELETE FROM Case_Sensitive_always WHERE id = 2;

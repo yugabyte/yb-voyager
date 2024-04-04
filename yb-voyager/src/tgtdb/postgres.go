@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -284,30 +285,6 @@ outer:
 	return nil
 }
 
-func getDefaultPGSchema(schema string) (string, bool) {
-	// second return value is true if public is not included in schema list
-	// which indicates noDefaultSchema
-	schemas := strings.Split(schema, ",")
-	if len(schemas) == 1 {
-		return schema, false
-	} else if slices.Contains(schemas, "public") {
-		return "public", false
-	} else {
-		return "", true
-	}
-}
-
-func (pg *TargetPostgreSQL) qualifyTableName(tableName string) (string, error) {
-	defaultSchema, noDefaultSchema := getDefaultPGSchema(pg.tconf.Schema)
-	if len(strings.Split(tableName, ".")) != 2 {
-		if noDefaultSchema {
-			return "", fmt.Errorf("object name %q does not have schema name and public schema is not included in the schema list", tableName)
-		}
-		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
-	}
-	return tableName, nil
-}
-
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -492,10 +469,12 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) 
 			continue
 		}
 		// same function logic will work for sequences as well
-		sequenceName, err := pg.qualifyTableName(sequenceName)
+		// sequenceName, err := pg.qualifyTableName(sequenceName)
+		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
 		if err != nil {
-			return fmt.Errorf("qualify sequence name: %w", err)
+			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 		}
+		sequenceName := seqName.ForUserQuery()
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
 	}
