@@ -187,8 +187,13 @@ func exportData() bool {
 		}
 	})
 
-	leafPartitions := make(map[string][]string)
-	tableListToDisplay := lo.Uniq(lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) string {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+
+	leafPartitions := utils.NewStructMap[sqlname.NameTuple, []string]()
+	tableListTuplesToDisplay := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) sqlname.NameTuple {
 		renamedTable, isRenamed := renameTableIfRequired(table.ForOutput())
 		if isRenamed {
 			t := table.ForMinOutput()
@@ -197,24 +202,31 @@ func exportData() bool {
 			if err != nil {
 				utils.ErrExit("lookup table name %s: %v", renamedTable, err)
 			}
-			renamedTable = tuple.ForOutput()
-			leafPartitions[renamedTable] = append(leafPartitions[renamedTable], t)
-			return renamedTable
-		}
-		return renamedTable
-	}))
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
-	}
-
-	//handle case of display in case user is filtering few partitions in table-list
-	tableListToDisplay = lo.Map(tableListToDisplay, func(table string, _ int) string {
-		if source.DBType == POSTGRESQL && leafPartitions[table] != nil && msr.IsExportTableListSet {
-			partitions := strings.Join(leafPartitions[table], ", ")
-			return fmt.Sprintf("%s (%s)", table, partitions)
+			currPartitions, ok := leafPartitions.Get(tuple)
+			if !ok {
+				var partitions []string
+				partitions = append(partitions, t)
+				leafPartitions.Put(tuple, partitions)
+			} else {
+				currPartitions = append(currPartitions, t)
+				leafPartitions.Put(tuple, currPartitions)
+			}
+			return tuple
 		}
 		return table
+	})
+	tableListTuplesToDisplay = lo.UniqBy(tableListTuplesToDisplay, func(table sqlname.NameTuple) string {
+		return table.ForKey()
+	})
+
+	//handle case of display in case user is filtering few partitions in table-list
+	tableListToDisplay := lo.Map(tableListTuplesToDisplay, func(table sqlname.NameTuple, _ int) string {
+		partitions, ok := leafPartitions.Get(table)
+		if source.DBType == POSTGRESQL && ok && msr.IsExportTableListSet {
+			partitions := strings.Join(partitions, ", ")
+			return fmt.Sprintf("%s (%s)", table.ForMinOutput(), partitions)
+		}
+		return table.ForMinOutput()
 	})
 	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
 	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
@@ -238,7 +250,7 @@ func exportData() bool {
 				utils.ErrExit("error: validate if tables are ready for live migration: %v", err)
 			}
 			if !dataIsExported() { // if snapshot is not already done...
-				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
+				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
 				if err != nil {
 					log.Errorf("export snapshot failed: %v", err)
 					return false
@@ -409,7 +421,7 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 	return allLeafPartitions
 }
 
-func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string]) error {
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
@@ -426,7 +438,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	// Note: publication object needs to be created before replication slot
 	// https://www.postgresql.org/message-id/flat/e0885261-5723-7bab-f541-e6a260f50328%402ndquadrant.com#a5f257b667575719ad98c59281f3e191
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
-	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true)
+	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true, leafPartitions)
 	if err != nil {
 		return fmt.Errorf("create publication: %v", err)
 	}
