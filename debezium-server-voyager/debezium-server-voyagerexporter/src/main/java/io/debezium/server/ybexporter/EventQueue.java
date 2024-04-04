@@ -255,6 +255,11 @@ public class EventQueue implements RecordWriter {
                 String line;
                 BufferedReader input;
                 try {
+                    // If the queue segment file has been deleted by the archiver, move to the next
+                    if (!Files.exists(Path.of(currentQueueSegmentPath))) {
+                        currentQueueSegmentIndex++;
+                        continue;
+                    }
                     input = new BufferedReader(new FileReader(currentQueueSegmentPath));
                     // TODO: Move the logic for reading queue segment file to QueueSegment class and
                     // call something like queueSegment.getNextEvent()
