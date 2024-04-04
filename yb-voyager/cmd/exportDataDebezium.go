@@ -406,16 +406,8 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			if !(msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted) {
 				utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
 				logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
-				// Wait for log file to be created
-				for {
-					_, err := os.Stat(logFilePath)
-					if err == nil {
-						break
-					}
-					time.Sleep(1 * time.Second)
-				}
 
-				err := utils.PollForMessageFromOffsetInFile(logFilePath, int64(0), "Beginning to poll the changes from the server")
+				err := utils.WaitForLineInLogFile(logFilePath, "Beginning to poll the changes from the server")
 				if err != nil {
 					return false, fmt.Errorf("failed to poll for message in log file: %w", err)
 				}

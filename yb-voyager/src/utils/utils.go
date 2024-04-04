@@ -337,7 +337,16 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 	return false
 }
 
-func PollForMessageFromOffsetInFile(filePath string, offset int64, message string) error {
+func WaitForLineInLogFile(filePath string, message string) error {
+	// Wait for log file to be created
+	for {
+		_, err := os.Stat(filePath)
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("error opening file %s: %v", filePath, err)
@@ -345,11 +354,7 @@ func PollForMessageFromOffsetInFile(filePath string, offset int64, message strin
 
 	defer file.Close()
 
-	_, err = file.Seek(offset, 0)
-	if err != nil {
-		return fmt.Errorf("error seeking to offset position in file %s: %v", filePath, err)
-	}
-
+	timeout := time.After(2 * time.Minute)
 	for {
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
@@ -363,7 +368,12 @@ func PollForMessageFromOffsetInFile(filePath string, offset int64, message strin
 			return fmt.Errorf("error scanning file %s: %v", filePath, err)
 		}
 
-		time.Sleep(1 * time.Second)
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout while waiting for %q in %q", message, filePath)
+		default:
+			time.Sleep(1 * time.Second)
+		}
 	}
 }
 
