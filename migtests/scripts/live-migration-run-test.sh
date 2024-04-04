@@ -125,7 +125,7 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	sleep 30 
+	sleep 60 
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-snapshot-import true --refresh-mviews=true
