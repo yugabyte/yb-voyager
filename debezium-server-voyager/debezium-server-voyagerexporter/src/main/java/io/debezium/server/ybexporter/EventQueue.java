@@ -123,7 +123,7 @@ public class EventQueue implements RecordWriter {
         }
         currentQueueSegmentIndex = latestQueueSegmentIndex;
 
-        if (es.checkIfLastQueueSegmentHasBeenArchivedOrDeleted())
+        if (es.checkIfQueueSegmentHasBeenArchivedOrDeleted(currentQueueSegmentIndex))
             currentQueueSegmentIndex++;
 
         currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,

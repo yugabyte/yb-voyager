@@ -305,15 +305,15 @@ public class ExportStatus {
         return lastSegmentIndex;
     }
 
-    public boolean checkIfLastQueueSegmentHasBeenArchivedOrDeleted() {
+    public boolean checkIfQueueSegmentHasBeenArchivedOrDeleted(long segmentNo) {
         Statement selectStmt;
         int result;
         try {
             selectStmt = metadataDBConn.createStatement();
             ResultSet rs = selectStmt
                     .executeQuery(String.format(
-                            "SELECT CASE WHEN archived = 1 OR deleted = 1 THEN 1 ELSE 0 END AS result FROM queue_segment_meta ORDER BY segment_no DESC LIMIT 1;",
-                            QUEUE_SEGMENT_META_TABLE_NAME));
+                            "SELECT CASE WHEN archived = 1 OR deleted = 1 THEN 1 ELSE 0 END AS result FROM %s WHERE segment_no=%d",
+                            QUEUE_SEGMENT_META_TABLE_NAME, segmentNo));
             if (!rs.next()) {
                 return false;
             }
