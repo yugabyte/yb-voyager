@@ -339,12 +339,18 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 
 func WaitForLineInLogFile(filePath string, message string) error {
 	// Wait for log file to be created
+	timeout := time.After(3 * time.Minute)
 	for {
 		_, err := os.Stat(filePath)
 		if err == nil {
 			break
 		}
-		time.Sleep(1 * time.Second)
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout while waiting for log file %q", filePath)
+		default:
+			time.Sleep(1 * time.Second)
+		}
 	}
 
 	file, err := os.Open(filePath)
@@ -354,7 +360,6 @@ func WaitForLineInLogFile(filePath string, message string) error {
 
 	defer file.Close()
 
-	timeout := time.After(2 * time.Minute)
 	for {
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
