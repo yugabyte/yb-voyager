@@ -435,11 +435,11 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		// TODO: TableName and FilePath must be quoted by debezium plugin.
 		tableNameTup, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", table.SchemaName, table.TableName))
 		if err != nil {
-			return fmt.Errorf("lookup for table name %s: ", err)
+			return fmt.Errorf("lookup for table name %s: %v", table.TableName,  err)
 		}
 		fileEntry := &datafile.FileEntry{
 			TableName: tableNameTup.ForKey(),
-			FilePath:  fmt.Sprintf("%s_data.sql", tableNameTup.CurrentName.MinQualified.Unquoted),
+			FilePath:  table.FileName,
 			RowCount:  table.ExportedRowCountSnapshot,
 			FileSize:  -1, // Not available.
 		}
