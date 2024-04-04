@@ -141,6 +141,10 @@ public class QueueSegment {
     }
 
     public void close() throws IOException, SQLException {
+        if (isClosed()) {
+            LOGGER.info("Queue segment {} at path {} is already closed", segmentNo, filePath);
+            return;
+        }
         LOGGER.info("Closing queue file {}", filePath);
         writer.write(EOF_MARKER);
         writer.write("\n");

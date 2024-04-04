@@ -151,8 +151,7 @@ public class EventQueue implements RecordWriter {
     private void rotateQueueSegment() {
         // close old file.
         try {
-            if (!currentQueueSegment.isClosed())
-                currentQueueSegment.close();
+            currentQueueSegment.close();
         } catch (IOException | SQLException e) {
             throw new RuntimeException(e);
         }
