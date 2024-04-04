@@ -34,6 +34,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -432,13 +433,13 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, table := range status.Tables {
 		// TODO: TableName and FilePath must be quoted by debezium plugin.
-		tableName := quoteIdentifierIfRequired(table.TableName)
-		if source.DBType == POSTGRESQL && table.SchemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", table.SchemaName, tableName)
+		tableNameTup, err := namereg.NameReg.LookupTableName(table.TableName)
+		if err != nil {
+			return fmt.Errorf("lookup for table name %s: ", err)
 		}
 		fileEntry := &datafile.FileEntry{
-			TableName: tableName,
-			FilePath:  fmt.Sprintf("%s_data.sql", tableName),
+			TableName: tableNameTup.ForKey(),
+			FilePath:  fmt.Sprintf("%s_data.sql", table.TableName),
 			RowCount:  table.ExportedRowCountSnapshot,
 			FileSize:  -1, // Not available.
 		}

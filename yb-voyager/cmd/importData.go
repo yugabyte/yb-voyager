@@ -1215,23 +1215,6 @@ func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *
 	return result
 }
 
-func quoteIdentifierIfRequired(identifier string) string {
-	if sqlname.IsQuoted(identifier) {
-		return identifier
-	}
-	// TODO: Use either sourceDBType or source.DBType throughout the code.
-	// In the export code path source.DBType is used. In the import code path
-	// sourceDBType is used.
-	dbType := source.DBType
-	if dbType == "" {
-		dbType = sourceDBType
-	}
-	if sqlname.IsReservedKeywordPG(identifier) ||
-		((dbType == POSTGRESQL || dbType == YUGABYTEDB) && sqlname.IsCaseSensitive(identifier, dbType)) {
-		return fmt.Sprintf(`"%s"`, identifier)
-	}
-	return identifier
-}
 
 func checkExportDataDoneFlag() {
 	metaInfoDir := filepath.Join(exportDir, metaInfoDirName)
