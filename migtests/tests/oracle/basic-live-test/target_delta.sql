@@ -25,3 +25,9 @@ UPDATE test_schema.user_table SET email = 'user1@example.com' WHERE id = 13;
 -- UPDATE-UPDATE CONFLICT
 UPDATE test_schema.user_table SET email = 'user10@example.com' WHERE id = 10;
 UPDATE test_schema.user_table SET email = 'user2@example.com' WHERE id = 14;
+
+
+insert into test_schema.date_time_types values(7,'2020-01-01 12:23:59.213263','2024-12-05 18:45:30.254566');
+insert into test_schema.date_time_types values(8,'2020-01-02 14:25:32.214646',CURRENT_TIMESTAMP);
+UPDATE test_schema.date_time_types SET date_val = '2023-06-20 22:21:32.989899' WHERE id = 5;
+delete from test_schema.date_time_types where id=6;
