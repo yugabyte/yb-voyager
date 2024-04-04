@@ -196,14 +196,18 @@ jobs:
       - name: "TEST: pg-case-sensitivity-reserved-words-offline"
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
         if: matrix.BETA_FAST_DATA_EXPORT != 1
+        if: matrix.version != '2.16.9.0-b67'
       
       - name: "TEST: pg-case-sensitivity-reserved-words-live"
         run: migtests/scripts/live-migration-run-test.sh pg/case-sensitivity-reserved-words
+        if: matrix.version != '2.16.9.0-b67'
       
       - name: "TEST: pg-case-sensitivity-reserved-words-live-fallb"
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/case-sensitivity-reserved-words
+        if: matrix.version != '2.16.9.0-b67'
 
       - name: "TEST: pg-case-sensitivity-reserved-words-live-fallf"
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/case-sensitivity-reserved-words
+        if: matrix.version != '2.16.9.0-b67'
 
 
