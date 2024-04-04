@@ -41,14 +41,22 @@ import (
 
 type TargetYugabyteDB struct {
 	sync.Mutex
+	*AttributeNameRegistry
 	tconf     *TargetConf
 	conn_     *pgx.Conn
 	connPool  *ConnectionPool
 	connMutex sync.Mutex
+
+	attrNames map[string][]string
 }
 
 func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
-	return &TargetYugabyteDB{tconf: tconf}
+	tdb := &TargetYugabyteDB{
+		tconf:     tconf,
+		attrNames: make(map[string][]string),
+	}
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
+	return tdb
 }
 
 func (yb *TargetYugabyteDB) WithConn(fn func(conn *pgx.Conn) error) error {
@@ -204,7 +212,7 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	yb.Mutex.Lock()
 	defer yb.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := yb.conn_.QueryRow(context.Background(), query).Scan(&yb.tconf.DBVersion)
+	err := yb.QueryRow(query).Scan(&yb.tconf.DBVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
@@ -240,7 +248,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 
 func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
 	query := "SELECT schema_name FROM information_schema.schemata"
-	rows, err := yb.conn_.Query(context.Background(), query)
+	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying YB database for schema names: %w", err)
 	}
@@ -265,7 +273,7 @@ func (yb *TargetYugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, er
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema = '%s';`, schemaName)
 
-	rows, err := yb.conn_.Query(context.Background(), query)
+	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) YB database for table names: %w", query, err)
 	}
@@ -474,59 +482,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	return res.RowsAffected(), err
 }
 
-func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
-	result := make([]string, len(columns))
-	// FAST PATH.
-	fastPathSuccessful := true
-	for i, colName := range columns {
-		if strings.ToLower(colName) == colName {
-			if sqlname.IsReservedKeywordPG(colName) && colName[0:1] != `"` {
-				result[i] = fmt.Sprintf(`"%s"`, colName)
-			} else {
-				result[i] = colName
-			}
-		} else {
-			// Go to slow path.
-			log.Infof("column name (%s) is not all lower-case. Going to slow path.", colName)
-			result = make([]string, len(columns))
-			fastPathSuccessful = false
-			break
-		}
-	}
-	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableNameTup, result)
-		return result, nil
-	}
-	// SLOW PATH.
-	targetColumns, err := yb.getListOfTableAttributes(tableNameTup)
-	if err != nil {
-		return nil, fmt.Errorf("get list of table attributes: %w", err)
-	}
-	log.Infof("columns of table %s in target db: %v", tableNameTup.ForUserQuery(), targetColumns)
-
-	for i, colName := range columns {
-		if colName[0] == '"' && colName[len(colName)-1] == '"' {
-			colName = colName[1 : len(colName)-1]
-		}
-		switch true {
-		// TODO: Move sqlname.IsReservedKeyword() in this file.
-		case sqlname.IsReservedKeywordPG(colName):
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case colName == strings.ToLower(colName): // Name is all lowercase.
-			result[i] = colName
-		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all lowercase.
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case slices.Contains(targetColumns, strings.ToLower(colName)): // Case insensitive name given with mixed case.
-			result[i] = strings.ToLower(colName)
-		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableNameTup)
-		}
-	}
-	log.Infof("columns of table %s after quoting: %v", tableNameTup.ForUserQuery(), result)
-	return result, nil
-}
-
-func (yb *TargetYugabyteDB) getListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
+func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
 	schemaName, tableName := nt.ForCatalogQuery()
 	var result []string
 	query := fmt.Sprintf(
@@ -612,10 +568,16 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt := event.GetSQLStmt()
+			stmt, err := event.GetSQLStmt(yb)
+			if err != nil {
+				return fmt.Errorf("get sql stmt: %w", err)
+			}
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(yb.tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(yb, yb.tconf.TargetDBType)
+			if err != nil {
+				return fmt.Errorf("get prepared sql stmt: %w", err)
+			}
 			psName := event.GetPreparedStmtName()
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[psName]; !ok {
@@ -1229,7 +1191,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 	utils.PrintAndLog("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
-	_, err := yb.conn_.Exec(context.Background(), query)
+	_, err := yb.Exec(query)
 	if err != nil {
 		log.Errorf("error dropping schema %s: %v", schema, err)
 		return fmt.Errorf("error dropping schema %s: %w", schema, err)

@@ -43,7 +43,12 @@ type Ora2pgConfig struct {
 	DisableComment   string
 	Allow            string
 	ModifyStruct     string
+	DataTypeMapping  string
 }
+// These mappings are present as comment in sample-ora2pg.conf file as well, be sure to update at both the places. 
+const ORACLE_DATA_TYPE_MAPPING = "VARCHAR2:varchar,NVARCHAR2:varchar,DATE:timestamp,LONG:text,LONG RAW:bytea,CLOB:text,NCLOB:text,BLOB:bytea,BFILE:bytea,RAW(16):uuid,RAW(32):uuid,RAW:bytea,UROWID:oid,ROWID:oid,FLOAT:double precision,DEC:decimal,DECIMAL:decimal,DOUBLE PRECISION:double precision,INT:integer,INTEGER:integer,REAL:real,SMALLINT:smallint,BINARY_FLOAT:double precision,BINARY_DOUBLE:double precision,TIMESTAMP:timestamp,XMLTYPE:xml,BINARY_INTEGER:integer,PLS_INTEGER:integer,TIMESTAMP WITH TIME ZONE:timestamp with time zone,TIMESTAMP WITH LOCAL TIME ZONE:timestamp with time zone"
+
+const MYSQL_DATA_TYPE_MAPPING = "VARCHAR2:varchar,NVARCHAR2:varchar,DATE:date,LONG:text,LONG RAW:bytea,CLOB:text,NCLOB:text,BLOB:bytea,BFILE:bytea,RAW(16):uuid,RAW(32):uuid,RAW:bytea,UROWID:oid,ROWID:oid,FLOAT:double precision,DEC:decimal,DECIMAL:decimal,DOUBLE PRECISION:double precision,INT:integer,INTEGER:integer,REAL:real,SMALLINT:smallint,BINARY_FLOAT:double precision,BINARY_DOUBLE:double precision,TIMESTAMP:timestamp,XMLTYPE:xml,BINARY_INTEGER:integer,PLS_INTEGER:integer,TIMESTAMP WITH TIME ZONE:timestamp with time zone,TIMESTAMP WITH LOCAL TIME ZONE:timestamp with time zone"
 
 func getDefaultOra2pgConfig(source *Source) *Ora2pgConfig {
 	conf := &Ora2pgConfig{}
@@ -68,6 +73,11 @@ func getDefaultOra2pgConfig(source *Source) *Ora2pgConfig {
 		conf.DisableComment = "0"
 	} else {
 		conf.DisableComment = "1"
+	}
+	if source.DBType == "oracle" {
+		conf.DataTypeMapping = ORACLE_DATA_TYPE_MAPPING
+	} else if source.DBType == "mysql" {
+		conf.DataTypeMapping = MYSQL_DATA_TYPE_MAPPING
 	}
 	return conf
 }

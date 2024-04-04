@@ -9,7 +9,7 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'numeric_types': 8,
-	'date_time_types': 10,
+	'date_time_types': 11,
 	'interval_types': 4,
 	'char_types': 6,
 	'long_type': 4,
@@ -52,7 +52,7 @@ EXPECTED_DATA_TYPES = {
 		'ts_tz_value': 'timestamp with time zone',
 		'timestamp_val': 'timestamp without time zone',
 		'ts_tz_lt_value': 'timestamp with time zone',
-		'date_val': 'date'
+		'date_val': 'timestamp without time zone',
 	},
 	'interval_types': {
 		'id': 'numeric',
