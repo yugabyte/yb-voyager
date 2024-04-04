@@ -130,7 +130,7 @@ func (yb *TargetYugabyteDB) Init() error {
 		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
 		yb.tconf.Schema)
 	var cntSchemaName int
-	if err = yb.conn_.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, yb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
 		err = fmt.Errorf("schema '%s' does not exist in target", yb.tconf.Schema)
@@ -140,14 +140,6 @@ func (yb *TargetYugabyteDB) Init() error {
 
 func (yb *TargetYugabyteDB) Finalize() {
 	yb.disconnect()
-}
-
-// TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
-func (yb *TargetYugabyteDB) Conn() *pgx.Conn {
-	if yb.conn_ == nil {
-		utils.ErrExit("Called TargetDB.Conn() before TargetDB.Connect()")
-	}
-	return yb.conn_
 }
 
 func (yb *TargetYugabyteDB) reconnect() error {
@@ -365,8 +357,7 @@ outer:
 	for _, cmd := range cmds {
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			log.Infof("Executing on target: [%s]", cmd)
-			conn := yb.Conn()
-			_, err = conn.Exec(context.Background(), cmd)
+			_, err = yb.Exec(cmd)
 			if err == nil {
 				// No error. Move on to the next command.
 				continue outer
@@ -393,7 +384,7 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 		log.Infof("checking if table %q is empty.", table)
 		tmp := false
 		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table.ForUserQuery())
-		err := yb.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
+		err := yb.QueryRow(stmt).Scan(&tmp)
 		if err == pgx.ErrNoRows {
 			continue
 		}
@@ -488,7 +479,7 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	query := fmt.Sprintf(
 		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
 		schemaName, tableName)
-	rows, err := yb.Conn().Query(context.Background(), query)
+	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("run [%s] on target: %w", query, err)
 	}
