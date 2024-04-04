@@ -13,39 +13,41 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+SCRIPT_DIR=$(dirname $0)
+SCRIPT_NAME=$(basename $0)
 
-show_help() {
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_data_dir>"
-    echo ""
-    echo "Collects PostgreSQL database statistics and schema information."
-    echo "Note: The order of the arguments is important and must be followed."
-    echo ""
-    echo "Arguments:"
-    echo "  pg_connection_string   PostgreSQL connection string in the format:"
-    echo "                         'postgresql://username:password@hostname:port/dbname'"
-    echo "                         Ensure this string is properly quoted to avoid shell interpretation issues."
-    echo ""
-    echo "  schema_list            Comma-separated list of schemas for which statistics are to be collected."
-    echo "                         Example: 'public,sales,inventory'"
-    echo ""
-    echo "  assessment_data_dir    The directory path where the assessment data will be stored."
-    echo "                         This script will attempt to create the directory if it does not exist."
-    echo ""
-    echo "Example:"
-    echo "  yb-voyager-gather-assessment-data.sh 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/data'"
-    echo ""
-    echo "Please ensure to replace the placeholders with actual values suited to your environment."
-}
+HELP_TEXT="
+Usage: $SCRIPT_NAME <pg_connection_string> <schema_list> <assessment_data_dir>
+
+Collects PostgreSQL database statistics and schema information.
+Note: The order of the arguments is important and must be followed.
+
+Arguments:
+  pg_connection_string   PostgreSQL connection string in the format:
+                         'postgresql://username:password@hostname:port/dbname'
+                         Ensure this string is properly quoted to avoid shell interpretation issues.
+
+  schema_list            Comma-separated list of schemas for which statistics are to be collected.
+                         Example: 'public,sales,inventory'
+
+  assessment_data_dir    The directory path where the assessment data will be stored.
+                         This script will attempt to create the directory if it does not exist.
+
+Example:
+  yb-voyager-gather-assessment-data.sh 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/data'
+
+Please ensure to replace the placeholders with actual values suited to your environment.
+"
 
 # Check for the --help option
 if [ "$1" == "--help" ]; then
-    show_help
+    echo "$HELP_TEXT"
     exit 0
 fi
 
 # Check if all required arguments are provided
 if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_data_dir>"
+    echo "Usage: $SCRIPT_NAME <pg_connection_string> <schema_list> <assessment_data_dir>"
     exit 1
 fi
 
@@ -53,21 +55,18 @@ pg_connection_string=$1
 schema_list=$2
 assessment_data_dir=$3
 
-SCHEMA_DIR=$(dirname $0)
-echo "SCHEMA_DIR = $SCHEMA_DIR and $(dirname $0)"
+echo "Assessment data collection started"
+echo "Collecting table sizes..."
+psql $pg_connection_string -f $SCRIPT_DIR/table-sizes.sql -v schema_list=$schema_list
 
-echo "Collect stats about size of tables"
-psql $pg_connection_string -f $SCHEMA_DIR/table-sizes.sql -v schema_list=$schema_list
-
-echo "Collect stats about iops of tables"
-psql $pg_connection_string -f $SCHEMA_DIR/table-iops.sql -v schema_list=$schema_list
+echo "Collecting table iops stats..."
+psql $pg_connection_string -f $SCRIPT_DIR/table-iops.sql -v schema_list=$schema_list
 
 # TODO: finalize the query, approx count or exact count(any optimization also if possible)
-echo "Collect stats about row count of tables"
-psql $pg_connection_string -f $SCHEMA_DIR/table-row-counts.sql -v schema_list=$schema_list
+echo "Collecting table row counts..."
+psql $pg_connection_string -f $SCRIPT_DIR/table-row-counts.sql -v schema_list=$schema_list
 
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
-
 
 # check for pg_dump version
 pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')

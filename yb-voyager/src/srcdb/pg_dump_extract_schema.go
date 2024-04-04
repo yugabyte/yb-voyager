@@ -32,9 +32,6 @@ import (
 )
 
 func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
-	fmt.Printf("exporting the schema %10s", "")
-	go utils.Wait("done\n", "")
-
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
@@ -51,7 +48,6 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
 	preparedPgdumpCommand.Env = append(os.Environ(), "PGPASSWORD="+source.Password)
-	fmt.Printf("pg_dump command for extracting schema: %s\n", cmd)
 	stdout, err := preparedPgdumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
 	if string(stdout) != "" {
@@ -63,13 +59,6 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 		log.Infof("pg_dump failed to export schema with output: %s", string(stdout))
 		utils.ErrExit("data export unsuccessful: %v. For more details check '%s/logs/yb-voyager-export-schema.log'.\n", err, exportDir)
 	}
-
-	//Parsing the single file to generate multiple database object files
-	returnCode := parseSchemaFile(exportDir, schemaDir, source.ExportObjectTypeList)
-
-	log.Info("Export of schema completed.")
-	utils.WaitChannel <- returnCode
-	<-utils.WaitChannel
 }
 
 func readSchemaFile(path string) []string {
