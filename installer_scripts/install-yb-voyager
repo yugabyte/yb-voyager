@@ -136,6 +136,7 @@ centos_main() {
 	$YUM postgresql14 1>&2
 	$YUM sqlite 1>&2
 	create_pg_dump_args_file
+	create_gather_assessment_data_dir
 	install_golang linux
 	if [ $ONLY_PG == "false" ] ; then
 		$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -171,6 +172,7 @@ ubuntu_main() {
 	install_golang linux
 	ubuntu_install_postgres
 	create_pg_dump_args_file
+	create_gather_assessment_data_dir
 	if [ $ONLY_PG == "false" ] ; then
 		sudo apt-get -y install perl  1>&2
 		sudo apt-get -y install libdbi-perl 1>&2
@@ -205,6 +207,7 @@ macos_main() {
 	macos_install_brew
 	macos_install_pg_dump
 	create_pg_dump_args_file
+	create_gather_assessment_data_dir
 	brew install wget
 	brew install sqlite
 	install_golang darwin
@@ -744,6 +747,23 @@ create_pg_dump_args_file() {
 		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
 		popd > /dev/null
 	fi	
+}
+
+create_gather_assessment_data_dir() {	
+	scripts_dir="/etc/yb-voyager"
+	sudo mkdir -p $scripts_dir
+
+	output "Installing the latest scripts for gathering assessment data"
+	if [ "${VERSION}" == "latest" ]
+	then
+		# TODO: fix it, github does not link statically links the raw file contents
+		sudo wget -nv -O /tmp/gather-assessment-data.tar.gz https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/gather-assessment-data
+		sudo tar -xzf /tmp/gather-assessment-data.tar.gz -C $scripts_dir
+	else
+		pushd $REPO_ROOT > /dev/null
+		sudo cp -r ./yb-voyager/src/srcdb/data/gather-assessment-data $scripts_dir
+		popd > /dev/null
+	fi
 }
 
 #=============================================================================

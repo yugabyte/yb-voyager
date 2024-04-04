@@ -89,8 +89,8 @@ func init() {
 	registerCommonGlobalFlags(exportDataFromSrcCmd)
 	registerCommonExportFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataFromSrcCmd)
-	registerSourceDBConnFlags(exportDataCmd, true)
-	registerSourceDBConnFlags(exportDataFromSrcCmd, true)
+	registerSourceDBConnFlags(exportDataCmd, true, true)
+	registerSourceDBConnFlags(exportDataFromSrcCmd, true, true)
 	registerExportDataFlags(exportDataCmd)
 	registerExportDataFlags(exportDataFromSrcCmd)
 }

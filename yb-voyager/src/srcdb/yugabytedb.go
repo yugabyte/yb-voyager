@@ -221,7 +221,7 @@ func (yb *YugabyteDB) getConnectionUri() string {
 	return source.Uri
 }
 
-func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
+func (yb *YugabyteDB) GetConnectionUriWithoutPassword() string {
 	source := yb.source
 	if source.Uri == "" {
 		hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
@@ -238,7 +238,7 @@ func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
 	return source.Uri
 }
 
-func (yb *YugabyteDB) ExportSchema(exportDir string) {
+func (yb *YugabyteDB) ExportSchema(exportDir string, schemaDir string) {
 	panic("not implemented")
 }
 
@@ -251,7 +251,7 @@ func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 }
 
 func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) {
-	pgdumpExportDataOffline(ctx, yb.source, yb.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
+	pgdumpExportDataOffline(ctx, yb.source, yb.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
 }
 
 func (yb *YugabyteDB) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -352,7 +352,6 @@ func (yb *YugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	}
 	return sequenceNames, nil
 }
-
 
 func (yb *YugabyteDB) GetCharset() (string, error) {
 	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", yb.source.DBName)
