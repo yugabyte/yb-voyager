@@ -77,17 +77,16 @@ var mysqlSchemaObjectListForExport = []string{"TABLE", "VIEW", "TRIGGER", "FUNCT
 var WaitGroup sync.WaitGroup
 var WaitChannel = make(chan int)
 
-// report.json format
-type Report struct {
-	Summary Summary `json:"summary"`
-	Issues  []Issue `json:"issues"`
+type SchemaReport struct {
+	SchemaSummary SchemaSummary `json:"summary"`
+	Issues        []Issue       `json:"issues"`
 }
 
-type Summary struct {
-	DBName     string     `json:"dbName"`
-	SchemaName string     `json:"schemaName"`
-	DBVersion  string     `json:"dbVersion"`
-	Notes      []string   `json:"notes"`
+type SchemaSummary struct {
+	DBName     string     `json:"dbName,omitempty"`
+	SchemaName string     `json:"schemaName,omitempty"`
+	DBVersion  string     `json:"dbVersion,omitempty"`
+	Notes      []string   `json:"notes,omitempty"`
 	DBObjects  []DBObject `json:"databaseObjects"`
 }
 
