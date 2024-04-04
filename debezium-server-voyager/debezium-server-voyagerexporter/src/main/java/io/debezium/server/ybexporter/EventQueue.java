@@ -116,36 +116,20 @@ public class EventQueue implements RecordWriter {
      * This function gets the latest queue segment that was written to from
      * queue_segment_meta table
      * If no queue segments are found, it logs a message and returns.
-     * If the current queue segment has alreaady been closed by ./ we rotate to the
-     * next one
      */
     private void recoverLatestQueueSegment() {
-        long fetchedQueueSegmentIndex = es.getLastQueueSegmentIndex();
-        String fetchedQueueSegmentExporterRole = es.getLastQueueSegmentExporterRole();
-        if (fetchedQueueSegmentIndex == -1) {
+        long latestQueueSegmentIndex = es.getLastQueueSegmentIndex();
+        if (latestQueueSegmentIndex == -1) {
             LOGGER.info("No queue segments found. Nothing to recover");
             return;
         }
-        currentQueueSegmentIndex = fetchedQueueSegmentIndex;
+        currentQueueSegmentIndex = latestQueueSegmentIndex;
 
-        if (fetchedQueueSegmentExporterRole.equals("source_db_exporter") && sourceType.equals("yb")) {
-            // if the latest queue segment was written by source_db_exporter and we are
-            // currently exporting from target, we need to
-            // rotate to the next one
+        if (es.checkIfLastQueueSegmentHasBeenArchivedOrDeleted())
             currentQueueSegmentIndex++;
-            currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
-                    getFilePathWithIndex(currentQueueSegmentIndex));
-        } else {
-            currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
-                    getFilePathWithIndex(currentQueueSegmentIndex));
-            if (currentQueueSegment.isClosed()) {
-                // if the latest queue segment is closed, we need to rotate to the next one
-                LOGGER.info("Queue segment {} is closed. Rotating to next one", currentQueueSegmentIndex);
-                currentQueueSegmentIndex++;
-                currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
-                        getFilePathWithIndex(currentQueueSegmentIndex));
-            }
-        }
+
+        currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
+                getFilePathWithIndex(currentQueueSegmentIndex));
 
         LOGGER.info("Recovered from queue segment-{} with byte count={}",
                 getFilePathWithIndex(currentQueueSegmentIndex),
@@ -169,7 +153,8 @@ public class EventQueue implements RecordWriter {
     private void rotateQueueSegment() {
         // close old file.
         try {
-            currentQueueSegment.close();
+            if (!currentQueueSegment.isClosed())
+                currentQueueSegment.close();
         } catch (IOException | SQLException e) {
             throw new RuntimeException(e);
         }

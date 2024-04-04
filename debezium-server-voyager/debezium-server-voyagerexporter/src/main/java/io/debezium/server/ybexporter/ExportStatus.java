@@ -305,25 +305,26 @@ public class ExportStatus {
         return lastSegmentIndex;
     }
 
-    public String getLastQueueSegmentExporterRole() {
+    public boolean checkIfLastQueueSegmentHasBeenArchivedOrDeleted() {
         Statement selectStmt;
-        String lastExporterRole;
+        int result;
         try {
             selectStmt = metadataDBConn.createStatement();
-            // Get only 1 result
             ResultSet rs = selectStmt
-                    .executeQuery(String.format("SELECT exporter_role from %s ORDER BY segment_no DESC LIMIT 1",
+                    .executeQuery(String.format(
+                            "SELECT CASE WHEN archived = 1 OR deleted = 1 THEN 1 ELSE 0 END AS result FROM queue_segment_meta ORDER BY segment_no DESC LIMIT 1;",
                             QUEUE_SEGMENT_META_TABLE_NAME));
-            // if no results are obtained from the query, return null
             if (!rs.next()) {
-                return null;
+                return false;
             }
-            lastExporterRole = rs.getString("exporter_role");
+            result = rs.getInt("result");
             selectStmt.close();
         } catch (SQLException e) {
-            throw new RuntimeException(String.format("Failed to get last queue segment exporter role"), e);
+            throw new RuntimeException(
+                    String.format("Failed to check if last queue segment has been archived or deleted"),
+                    e);
         }
-        return lastExporterRole;
+        return result == 1;
     }
 
     public void updateQueueSegmentMetaInfo(long segmentNo, long committedSize,
