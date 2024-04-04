@@ -195,6 +195,7 @@ jobs:
       
       - name: "TEST: pg-case-sensitivity-reserved-words-offline"
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
+        if: matrix.BETA_FAST_DATA_EXPORT != 1
       
       - name: "TEST: pg-case-sensitivity-reserved-words-live"
         run: migtests/scripts/live-migration-run-test.sh pg/case-sensitivity-reserved-words
