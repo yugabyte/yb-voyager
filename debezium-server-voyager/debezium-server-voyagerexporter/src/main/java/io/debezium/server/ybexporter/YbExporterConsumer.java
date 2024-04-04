@@ -355,7 +355,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         final Config config = ConfigProvider.getConfig();
         Long queueSegmentMaxBytes = config.getOptionalValue(PROP_PREFIX + "queueSegmentMaxBytes", Long.class)
                 .orElse(null);
-        eventQueue = new EventQueue(dataDir, queueSegmentMaxBytes, sourceType);
+        eventQueue = new EventQueue(dataDir, queueSegmentMaxBytes);
     }
 
     private void checkIfHelperThreadAlive() {

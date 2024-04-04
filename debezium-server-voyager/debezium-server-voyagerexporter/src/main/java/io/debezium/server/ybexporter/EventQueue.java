@@ -47,10 +47,8 @@ public class EventQueue implements RecordWriter {
     private SequenceNumberGenerator sng;
     private EventDedupCache eventDedupCache;
     private ExportStatus es;
-    private String sourceType;
 
-    public EventQueue(String datadirStr, Long queueSegmentMaxBytes, String sourceType) {
-        this.sourceType = sourceType;
+    public EventQueue(String datadirStr, Long queueSegmentMaxBytes) {
         es = ExportStatus.getInstance(datadirStr);
         dataDir = datadirStr;
         if (queueSegmentMaxBytes != null) {
