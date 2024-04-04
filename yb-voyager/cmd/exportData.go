@@ -346,14 +346,14 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]str
 		allLeafPartitions := GetAllLeafPartitions(table)
 		switch true {
 		case len(allLeafPartitions) == 0 && rootTable != table: //leaf partition
-			partitionsToRootTableMap[qualifiedCatalogName] = rootTable.ForKey() // Unquoted->MinQuoted map as debezium uses Unquoted table name
+			partitionsToRootTableMap[qualifiedCatalogName] = rootTable.AsQualifiedCatalogName() // Unquoted->Unquoted map as debezium uses Unquoted table name
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
-				partitionsToRootTableMap[leafPartition.AsQualifiedCatalogName()] = rootTable.ForKey()
+				partitionsToRootTableMap[leafPartition.AsQualifiedCatalogName()] = rootTable.AsQualifiedCatalogName()
 			}
 		}
 		// will be keeping root in the list as it might be required by some of the catalog queries

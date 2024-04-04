@@ -387,10 +387,6 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			return false, fmt.Errorf("failed to write data file descriptor: %w", err)
 		}
 		log.Infof("snapshot export is complete.")
-		err = renameDbzmExportedDataFiles()
-		if err != nil {
-			return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
-		}
 		displayExportedRowCountSnapshot(true)
 	}
 
@@ -457,55 +453,5 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		DataFileList: dataFileList,
 	}
 	dfd.Save()
-	return nil
-}
-
-// handle renaming for tables having case sensitivity and reserved keywords
-func renameDbzmExportedDataFiles() error {
-	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-	if err != nil {
-		return fmt.Errorf("failed to read export status during renaming exported data files: %w", err)
-	}
-	if status == nil {
-		return fmt.Errorf("export status is empty during renaming exported data files")
-	}
-
-	for i := 0; i < len(status.Tables); i++ {
-		tableName := status.Tables[i].TableName
-		// either case sensitive(postgresql) or reserved keyword(any source db)
-		if (!sqlname.IsAllLowercase(tableName) && source.DBType == POSTGRESQL) ||
-			sqlname.IsReservedKeywordPG(tableName) {
-			tableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
-		}
-
-		oldFilePath := filepath.Join(exportDir, "data", status.Tables[i].FileName)
-		newFilePath := filepath.Join(exportDir, "data", tableName+"_data.sql")
-		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newFilePath = filepath.Join(exportDir, "data", status.Tables[i].SchemaName+"."+tableName+"_data.sql")
-		}
-
-		if utils.FileOrFolderExists(newFilePath) { //In case of restarts rename should not be done again else it will error out
-			log.Infof("Skipping renaming files as they are already renamed")
-			continue
-		}
-
-		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)
-		err = os.Rename(oldFilePath, newFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to rename dbzm exported data file: %w", err)
-		}
-
-		//rename table schema file as well
-		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
-		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, tableName+"_schema.json")
-		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, status.Tables[i].SchemaName+"."+tableName+"_schema.json")
-		}
-		log.Infof("Renaming %s to %s", oldTableSchemaFilePath, newTableSchemaFilePath)
-		err = os.Rename(oldTableSchemaFilePath, newTableSchemaFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to rename dbzm exported table schema file: %w", err)
-		}
-	}
 	return nil
 }
