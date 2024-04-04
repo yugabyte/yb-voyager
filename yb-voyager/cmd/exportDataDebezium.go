@@ -41,7 +41,7 @@ import (
 
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions map[string][]string) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -63,7 +63,8 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 
 	var dbzmTableList, dbzmColumnList []string
 	for _, table := range tableList {
-		if leafPartitions[table.ForOutput()] != nil {
+		_, ok := leafPartitions.Get(table)
+		if ok {
 			//In case of debezium offline migration of PG, tablelist should not have root and leaf both so not adding root table in table list
 			continue
 		}
