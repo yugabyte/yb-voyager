@@ -705,7 +705,7 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions map[string][]string) error {
+func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
 	if dropIfAlreadyExists {
 		err := pg.DropPublication(publicationName)
 		if err != nil {
@@ -714,7 +714,8 @@ func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName str
 	}
 	tablelistQualifiedQuoted := []string{}
 	for _, tableName := range tableList {
-		if leafPartitions[tableName.ForOutput()] != nil {
+		_, ok := leafPartitions.Get(tableName)
+		if ok {
 			//In case of partiitons, tablelist in CREATE PUBLICATION query should not have root
 			continue
 		}
