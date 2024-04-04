@@ -16,9 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -32,6 +30,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 )
 
 const importDataStatusMsg = "Import Data Status for TargetDB\n"
@@ -39,7 +38,9 @@ const importDataStatusMsg = "Import Data Status for TargetDB\n"
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print status of an ongoing/completed import data.",
-
+	PreRun: func(cmd *cobra.Command, args []string) {
+		validateReportOutputFormat(migrationReportFormats)
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		streamChanges, err := checkStreamingMode()
 		if err != nil {
@@ -69,13 +70,15 @@ var importDataStatusCmd = &cobra.Command{
 
 func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
-	BoolVar(importDataStatusCmd.Flags(), &jsonReport, "json-report", false, "Print the status in JSON format.")
+	importDataStatusCmd.Flags().StringVar(&outputFormat, "output-format", "table",
+	"format in which report will be generated: (table, json)")
+	importDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 type tableMigStatusOutputRow struct {
 	TableName          string  `json:"table_name"`
-	FileName           string  `json:"file_name",omitempty`
+	FileName           string  `json:"file_name,omitempty"` 
 	Status             string  `json:"status"`
 	TotalCount         int64   `json:"total_count"`
 	ImportedCount      int64   `json:"imported_count"`
@@ -88,31 +91,24 @@ func runImportDataStatusCmd() error {
 	if !dataIsExported() {
 		return fmt.Errorf("cannot run `import data status` before data export is done")
 	}
-	table, err := prepareImportDataStatusTable()
+	rows, err := prepareImportDataStatusTable()
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
-	if jsonReport {
-		jsonBytes, err := json.MarshalIndent(table, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshal json: %w", err)
-		}
+	if outputInJsonFormat() {
+		// Print the report in json format.
 		reportFilePath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
-		reportFile, err := os.Create(reportFilePath)
+		reportFile := jsonfile.NewJsonFile[[]*tableMigStatusOutputRow](reportFilePath)
+		err := reportFile.Create(&rows)
 		if err != nil {
-			return fmt.Errorf("create report file: %w", err)
-		}
-		defer reportFile.Close()
-		_, err = reportFile.Write(jsonBytes)
-		if err != nil {
-			return fmt.Errorf("write to report file: %w", err)
+			utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
 		}
 		fmt.Print(color.GreenString("Import data status report is written to %s\n", reportFilePath))
 		return nil
 	}
 	color.Cyan(importDataStatusMsg)
 	uiTable := uitable.New()
-	for i, row := range table {
+	for i, row := range rows {
 		perc := fmt.Sprintf("%.2f", row.PercentageComplete)
 		if reportProgressInBytes {
 			if i == 0 {
@@ -131,7 +127,7 @@ func runImportDataStatusCmd() error {
 		}
 	}
 
-	if len(table) > 0 {
+	if len(rows) > 0 {
 		fmt.Print("\n")
 		fmt.Println(uiTable)
 		fmt.Print("\n")

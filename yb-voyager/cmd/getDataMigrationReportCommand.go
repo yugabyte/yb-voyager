@@ -16,9 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -46,7 +44,9 @@ var getDataMigrationReportCmd = &cobra.Command{
 	Use:   "data-migration-report",
 	Short: "Print the consolidated report of migration of data.",
 	Long:  `Print the consolidated report of migration of data among different DBs (source / target / source-replica) when export-type 'snapshot-and-changes' is enabled.`,
-
+	PreRun: func(cmd *cobra.Command, args []string) {
+		validateReportOutputFormat(migrationReportFormats)
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
@@ -256,7 +256,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			addRowInTheTable(uitbl, row, nameTup)
 		}
 
-		if i%maxTablesInOnePage == 0 && i != 0 && !jsonReport {
+		if i%maxTablesInOnePage == 0 && i != 0 && !outputInJsonFormat() {
 			//multiple table in case of large set of tables
 			fmt.Print("\n")
 			fmt.Println(uitbl)
@@ -268,20 +268,13 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			addHeader(uitbl, secondHeader...)
 		}
 	}
-	if jsonReport {
-		jsonBytes, err := json.MarshalIndent(reportData, "", "  ")
-		if err != nil {
-			utils.ErrExit("marshal json: %w", err)
-		}
+	if outputInJsonFormat() {
+		// Print the report in json format.
 		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		reportFile, err := os.Create(reportFilePath)
+		reportFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
+		err := reportFile.Create(&reportData)
 		if err != nil {
-			utils.ErrExit("create report file: %w", err)
-		}
-		defer reportFile.Close()
-		_, err = reportFile.Write(jsonBytes)
-		if err != nil {
-			utils.ErrExit("write to report file: %w", err)
+			utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
 		}
 		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
 		return 
@@ -295,7 +288,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func addRowInTheTable(uitbl *uitable.Table, row rowData, nameTup sqlname.NameTuple) {
-	if jsonReport {
+	if outputInJsonFormat() {
 		row.TableName = nameTup.ForKey()
 		row.FinalRowCount = getFinalRowCount(row)
 		reportData = append(reportData, &row)
@@ -400,8 +393,10 @@ func getFinalRowCount(row rowData) int64 {
 func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)
-	BoolVar(getDataMigrationReportCmd.Flags(), &jsonReport, "json-report", false, "Display report in json format")
-	getDataMigrationReportCmd.Flags().MarkHidden("json-report")
+	getDataMigrationReportCmd.Flags().StringVar(&outputFormat, "output-format", "table",
+	"format in which report will be generated: (table, json)")
+	getDataMigrationReportCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
+
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 

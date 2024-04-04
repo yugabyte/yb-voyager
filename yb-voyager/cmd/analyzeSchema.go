@@ -1124,7 +1124,8 @@ var analyzeSchemaCmd = &cobra.Command{
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/",
 	Long: ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateReportOutputFormat()
+		allowedOutputFormats := []string{"html", "json", "txt", "xml"}
+		validateReportOutputFormat(allowedOutputFormats)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -1139,8 +1140,7 @@ func init() {
 		"format in which report will be generated: (html, txt, json, xml)")
 }
 
-func validateReportOutputFormat() {
-	allowedOutputFormats := []string{"html", "json", "txt", "xml"}
+func validateReportOutputFormat(allowedOutputFormats []string) {
 	outputFormat = strings.ToLower(outputFormat)
 
 	for i := 0; i < len(allowedOutputFormats); i++ {

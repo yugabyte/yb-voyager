@@ -16,9 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -39,6 +37,10 @@ const exportDataStatusMsg = "Export Data Status for SourceDB\n"
 var exportDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print status of an ongoing/completed data export.",
+
+	PreRun: func(cmd *cobra.Command, args []string) {
+		validateReportOutputFormat(migrationReportFormats)
+	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		streamChanges, err := checkStreamingMode()
@@ -63,21 +65,13 @@ var exportDataStatusCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
-		if jsonReport {
+		if outputInJsonFormat() {
 			// Print the report in json format.
-			jsonBytes, err := json.MarshalIndent(rows, "", "  ")
-			if err != nil {
-				utils.ErrExit("error while marshalling json: %v", err)
-			}
 			reportFilePath := filepath.Join(exportDir, "reports", "export-data-status-report.json")
-			reportFile, err := os.Create(reportFilePath)
+			reportFile := jsonfile.NewJsonFile[[]*exportTableMigStatusOutputRow](reportFilePath)
+			err := reportFile.Create(&rows)
 			if err != nil {
-				utils.ErrExit("error while creating report file: %v", err)
-			}
-			defer reportFile.Close()
-			_, err = reportFile.Write(jsonBytes)
-			if err != nil {
-				utils.ErrExit("error while writing to report file: %v", err)
+				utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
 			}
 			fmt.Print(color.GreenString("Export data status report is written to %s\n", reportFilePath))
 			return
@@ -86,11 +80,17 @@ var exportDataStatusCmd = &cobra.Command{
 	},
 }
 
+func outputInJsonFormat() bool {
+	return outputFormat == "json"
+}
+
+var migrationReportFormats = []string{"table", "json"}
+
 func init() {
 	exportDataCmd.AddCommand(exportDataStatusCmd)
-	BoolVar(exportDataStatusCmd.Flags(), &jsonReport, "json-report", false, "Display report in json format")
-	exportDataStatusCmd.Flags().MarkHidden("json-report")
-
+	exportDataStatusCmd.Flags().StringVar(&outputFormat, "output-format", "table",
+	"format in which report will be generated: (table, json)")
+	exportDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }
 
 type exportTableMigStatusOutputRow struct {
@@ -98,8 +98,6 @@ type exportTableMigStatusOutputRow struct {
 	Status        string `json:"status"`
 	ExportedCount int64  `json:"exported_count"`
 }
-
-var jsonReport utils.BoolStr
 
 var InProgressTableSno int
 

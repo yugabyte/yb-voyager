@@ -1,7 +1,13 @@
 [
     {
+      "table_name": "\"Case_Sensitive_Seq\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
       "table_name": "bar",
-      "file_name": "",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -9,7 +15,13 @@
     },
     {
       "table_name": "foo",
-      "file_name": "",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "foo_bar",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -17,7 +29,6 @@
     },
     {
       "table_name": "multiple_identity_columns",
-      "file_name": "",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -113,12 +124,5 @@
       "total_count": 3,
       "imported_count": 3,
       "percentage_complete": 100
-    },
-    {
-        "table_name": "foo_bar",
-        "status": "DONE",
-        "total_count": 2,
-        "imported_count": 2,
-        "percentage_complete": 100
     }
   ]
