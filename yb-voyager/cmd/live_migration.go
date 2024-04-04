@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -46,7 +45,6 @@ var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
 var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
-var tgtDbQueryMutex sync.Mutex
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 100)
@@ -336,9 +334,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			// - It can fail with some duplicate / unique key constraint errors
 			// - Stats will double count the events.
 			// Therefore, we check if batch has already been imported before retrying.
-			tgtDbQueryMutex.Lock()
 			alreadyImported, aerr := state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
-			tgtDbQueryMutex.Unlock()
 			if aerr != nil {
 				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %v", chanNo, eventBatch.GetLastVsn(), err)
 			}
