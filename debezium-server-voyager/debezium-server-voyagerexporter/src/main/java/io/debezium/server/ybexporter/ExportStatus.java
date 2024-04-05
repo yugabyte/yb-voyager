@@ -284,6 +284,50 @@ public class ExportStatus {
         this.sourceType = sourceType;
     }
 
+    public long getLastQueueSegmentIndex() {
+        Statement selectStmt;
+        int lastSegmentIndex;
+        try {
+            selectStmt = metadataDBConn.createStatement();
+            // Get only 1 result
+            ResultSet rs = selectStmt
+                    .executeQuery(String.format("SELECT segment_no from %s ORDER BY segment_no DESC LIMIT 1",
+                            QUEUE_SEGMENT_META_TABLE_NAME));
+            // if no results are obtained from the query, return -1
+            if (!rs.next()) {
+                return -1;
+            }
+            lastSegmentIndex = rs.getInt("segment_no");
+            selectStmt.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(String.format("Failed to get last queue segment index"), e);
+        }
+        return lastSegmentIndex;
+    }
+
+    public boolean checkIfQueueSegmentHasBeenArchivedOrDeleted(long segmentNo) {
+        Statement selectStmt;
+        int result;
+        try {
+            selectStmt = metadataDBConn.createStatement();
+            ResultSet rs = selectStmt
+                    .executeQuery(String.format(
+                            "SELECT CASE WHEN archived = 1 OR deleted = 1 THEN 1 ELSE 0 END AS result FROM %s WHERE segment_no=%d",
+                            QUEUE_SEGMENT_META_TABLE_NAME, segmentNo));
+            if (!rs.next()) {
+                return false;
+            }
+            result = rs.getInt("result");
+            selectStmt.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(
+                    String.format("Failed to check if queue segment has been archived or deleted - segmentNo: %d",
+                            segmentNo),
+                    e);
+        }
+        return result == 1;
+    }
+
     public void updateQueueSegmentMetaInfo(long segmentNo, long committedSize,
             Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
         final boolean oldAutoCommit = metadataDBConn.getAutoCommit();

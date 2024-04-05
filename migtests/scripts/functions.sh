@@ -461,7 +461,8 @@ archive_changes() {
 		mkdir ${ARCHIVE_DIR}  # temporary place to store the archive files
 
 		yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
-		--export-dir ${EXPORT_DIR}
+		--export-dir ${EXPORT_DIR} \
+		--fs-utilization-threshold 0
 	fi
 }
 
