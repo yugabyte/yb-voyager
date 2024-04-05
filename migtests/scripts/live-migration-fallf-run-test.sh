@@ -21,6 +21,7 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
+export QUEUE_SEGMENT_MAX_BYTES=400
 
 # Order of env.sh import matters.
 source ${TEST_DIR}/env.sh
