@@ -67,10 +67,11 @@ var importDataStatusCmd = &cobra.Command{
 		}
 	},
 }
+var reportOrStatusCmdOutputFormat string
 
 func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
-	importDataStatusCmd.Flags().StringVar(&outputFormat, "output-format", "table",
+	importDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 	"format in which report will be generated: (table, json)")
 	importDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }

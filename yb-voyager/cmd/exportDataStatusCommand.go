@@ -81,14 +81,14 @@ var exportDataStatusCmd = &cobra.Command{
 }
 
 func outputInJsonFormat() bool {
-	return outputFormat == "json"
+	return reportOrStatusCmdOutputFormat == "json"
 }
 
 var migrationReportFormats = []string{"table", "json"}
 
 func init() {
 	exportDataCmd.AddCommand(exportDataStatusCmd)
-	exportDataStatusCmd.Flags().StringVar(&outputFormat, "output-format", "table",
+	exportDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 	"format in which report will be generated: (table, json)")
 	exportDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }

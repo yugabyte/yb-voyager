@@ -55,7 +55,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 }
 
-func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
+func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type: (oracle, mysql, postgresql)\n")
 
@@ -75,14 +75,24 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.DBSid, "oracle-db-sid", "",
-		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
+	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
+		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
+			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
+}
 
-	cmd.Flags().StringVar(&source.OracleHome, "oracle-home", "",
-		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool, registerOracleFlags bool) {
+	registerCommonSourceDBConnFlags(cmd)
 
-	cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+	if registerOracleFlags {
+		cmd.Flags().StringVar(&source.DBSid, "oracle-db-sid", "",
+			"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
+
+		cmd.Flags().StringVar(&source.OracleHome, "oracle-home", "",
+			"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+		cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
+			"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+	}
 
 	if includeOracleCDBFlags {
 		cmd.Flags().StringVar(&source.CDBName, "oracle-cdb-name", "",
@@ -94,10 +104,6 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 		cmd.Flags().StringVar(&source.CDBTNSAlias, "oracle-cdb-tns-alias", "",
 			"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database. Refer to documentation to learn more about configuring tnsnames.ora and aliases. Note: This is only required for live migration.")
 	}
-
-	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
-		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
-			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 
 	// TODO SSL related more args will come. Explore them later.
 	cmd.Flags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",

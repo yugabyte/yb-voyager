@@ -34,9 +34,9 @@
             },
             {
                 "objectType": "PROCEDURE",
-                "totalCount": 2,
+                "totalCount": 5,
                 "invalidCount": 0,
-                "objectNames": "foo, foo1",
+                "objectNames": "foo, foo1, sp_createnachabatch, test, test1",
                 "details": ""
             },
             {

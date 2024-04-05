@@ -33,7 +33,7 @@ import (
 type ValueConverter interface {
 	ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error)
 	ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error
-	GetTableNameToSchema() *utils.StructMap[sqlname.NameTuple, map[string]map[string]string] //returns table name to schema mapping
+	GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) //returns table name to schema mapping
 }
 
 func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (ValueConverter, error) {
@@ -56,8 +56,8 @@ func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table sqlname.NameT
 	return nil
 }
 
-func (nvc *NoOpValueConverter) GetTableNameToSchema() *utils.StructMap[sqlname.NameTuple, map[string]map[string]string] {
-	return utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
+func (nvc *NoOpValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
+	return utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string](), nil
 }
 
 //============================================================================
@@ -67,6 +67,7 @@ type DebeziumValueConverter struct {
 	schemaRegistrySource   *schemareg.SchemaRegistry
 	schemaRegistryTarget   *schemareg.SchemaRegistry
 	targetSchema           string
+	tdb                    tgtdb.TargetDB
 	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
 	converterFnCache       *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
 	dbzmColumnSchemasCache *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
@@ -107,6 +108,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		dbzmColumnSchemasCache: utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
 		targetDBType:           targetConf.TargetDBType,
 		targetSchema:           targetConf.Schema,
+		tdb:                    tdb,
 		sourceDBType:           sourceDBType,
 	}
 
@@ -245,7 +247,7 @@ func (conv *DebeziumValueConverter) convertMap(tableNameTup sqlname.NameTuple, m
 	return nil
 }
 
-func (conv *DebeziumValueConverter) GetTableNameToSchema() *utils.StructMap[sqlname.NameTuple, map[string]map[string]string] {
+func (conv *DebeziumValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
 	//TODO: fix this cyclic dependency maybe using DataFileDescriptor
@@ -255,13 +257,17 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() *utils.StructMap[sqln
 		colSchemaMap := make(map[string]map[string]string)
 
 		for _, col := range tblSchema.Columns {
-			colSchemaMap[col.Name] = col.Schema.Parameters
+			colNameQuoted, err := conv.tdb.QuoteAttributeName(tbl, col.Name)
+			if err != nil {
+				return false, fmt.Errorf("error quoting attribute name %s for table %s: %w", col.Name, tbl, err)
+			}
+			colSchemaMap[colNameQuoted] = col.Schema.Parameters
 		}
 		tableToSchema.Put(tbl, colSchemaMap)
 		return true, nil
 	})
 	if err != nil {
-		utils.ErrExit("error getting table name to schema : %v", err)
+		return nil, err
 	}
-	return tableToSchema
+	return tableToSchema, nil
 }

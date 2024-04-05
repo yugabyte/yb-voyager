@@ -28,8 +28,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func ora2pgExtractSchema(source *Source, exportDir string) {
-	schemaDirPath := filepath.Join(exportDir, "schema")
+func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	populateOra2pgConfigFile(configFilePath, getDefaultOra2pgConfig(source))
 
@@ -42,8 +41,8 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 
 		go utils.Wait(fmt.Sprintf("%10s\n", "done"), fmt.Sprintf("%10s\n", "error!"))
 
-		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)
-		exportObjectDirPath := utils.GetObjectDirPath(schemaDirPath, exportObject)
+		exportObjectFileName := utils.GetObjectFileName(schemaDir, exportObject)
+		exportObjectDirPath := utils.GetObjectDirPath(schemaDir, exportObject)
 
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
@@ -90,16 +89,16 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 				<-utils.WaitChannel
 			}
 		}
-		if err := processImportDirectives(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
+		if err := processImportDirectives(utils.GetObjectFilePath(schemaDir, exportObject)); err != nil {
 			utils.ErrExit(err.Error())
 		}
 		if exportObject == "SYNONYM" {
-			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDirPath, exportObject), source.Schema); err != nil {
+			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDir, exportObject), source.Schema); err != nil {
 				utils.ErrExit(err.Error())
 			}
 		}
 		if exportObject == "TABLE" {
-			if err := removeReduntantAlterTable(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
+			if err := removeReduntantAlterTable(utils.GetObjectFilePath(schemaDir, exportObject)); err != nil {
 				utils.ErrExit(err.Error())
 			}
 		}

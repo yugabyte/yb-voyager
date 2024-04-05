@@ -223,9 +223,9 @@ main() {
 			--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header true
 
 	# Test larger import from GCS buckets
-	step "Import large data file from GCS: volume.csv-> gcs_volume"
+	step "Import large data file from GCS: volume1.csv-> gcs_volume"
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
-			--file-table-map "volume.csv:gcs_volume" --has-header yes --batch-size 10000 --null-string "\N"
+			--file-table-map "volume1.csv:gcs_volume" --has-header yes --batch-size 10000 --null-string "\N"
 
 	# Test import from GCS buckets with escape/quote characters
 	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"

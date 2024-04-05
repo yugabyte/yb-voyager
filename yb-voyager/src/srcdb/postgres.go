@@ -40,7 +40,12 @@ import (
 
 var postgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT"}
 
-const PG_COMMAND_VERSION string = "14.0"
+var PG_COMMAND_VERSION = map[string]string{
+	"pg_dump":    "14.0",
+	"pg_restore": "14.0",
+	"psql":       "9.0", //psql features we need are available in 7.1 onwards, keeping it to 9.0 for safety
+}
+
 const FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE = `SELECT
 a.attname AS column_name,
 COALESCE(seq.relname, '') AS sequence_name,
@@ -253,7 +258,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 	return source.Uri
 }
 
-func (pg *PostgreSQL) getConnectionUriWithoutPassword() string {
+func (pg *PostgreSQL) GetConnectionUriWithoutPassword() string {
 	source := pg.source
 	hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
 	sourceUrl := &url.URL{
@@ -266,9 +271,25 @@ func (pg *PostgreSQL) getConnectionUriWithoutPassword() string {
 	return sourceUrl.String()
 }
 
-func (pg *PostgreSQL) ExportSchema(exportDir string) {
-	pg.checkSchemasExists()
-	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
+func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
+	if utils.FileOrFolderExists(filepath.Join(schemaDir, "schema.sql")) {
+		// case for assess-migration cmd workflow
+		log.Infof("directly parsing the '%s/schema.sql' file", schemaDir)
+		parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList)
+	} else {
+		pg.checkSchemasExists()
+
+		fmt.Printf("exporting the schema %10s", "")
+		go utils.Wait("done\n", "")
+		pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir)
+
+		//Parsing the single file to generate multiple database object files
+		returnCode := parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList)
+
+		log.Info("Export of schema completed.")
+		utils.WaitChannel <- returnCode
+		<-utils.WaitChannel
+	}
 }
 
 func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
@@ -276,7 +297,7 @@ func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
+	pgdumpExportDataOffline(ctx, pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -332,7 +353,7 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 }
 
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
-// the executable file having version >= `PG_COMMAND_VERSION`.
+// the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
 func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
@@ -345,10 +366,10 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	}
 
 	for _, path := range paths {
-		cmd := exec.Command(path, "--version")
-		stdout, err := cmd.Output()
+		checkVersiomCmd := exec.Command(path, "--version")
+		stdout, err := checkVersiomCmd.Output()
 		if err != nil {
-			err = fmt.Errorf("error in finding version of %v from path %v: %w", cmd, path, err)
+			err = fmt.Errorf("error in finding version of %v from path %v: %w", checkVersiomCmd, path, err)
 			return "", err
 		}
 
@@ -356,7 +377,7 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
 		currVersion := strings.Fields(string(stdout))[2]
 
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION) >= 0 {
+		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 {
 			return path, nil
 		}
 	}
@@ -705,7 +726,7 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool) error {
+func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
 	if dropIfAlreadyExists {
 		err := pg.DropPublication(publicationName)
 		if err != nil {
@@ -714,6 +735,11 @@ func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName str
 	}
 	tablelistQualifiedQuoted := []string{}
 	for _, tableName := range tableList {
+		_, ok := leafPartitions.Get(tableName)
+		if ok {
+			//In case of partiitons, tablelist in CREATE PUBLICATION query should not have root
+			continue
+		}
 		tablelistQualifiedQuoted = append(tablelistQualifiedQuoted, tableName.ForKey())
 	}
 	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))

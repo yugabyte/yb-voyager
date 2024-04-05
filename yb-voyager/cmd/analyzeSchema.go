@@ -61,6 +61,7 @@ var (
 	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
 	commaSeperatedTokens         = `[^,]+(?:,[^,]+){1,}`
 	unqualifiedIdent             = `[a-zA-Z0-9_]+`
+	fetchLocation                = `[a-zA-Z]+`
 	supportedExtensionsOnYB      = []string{
 		"adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
 		"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
@@ -112,7 +113,7 @@ func parenth(s string) string {
 }
 
 var (
-	outputFormat  string
+	analyzeSchemaReportFormat  string
 	sourceObjList []string
 	reportStruct  utils.Report
 	tblParts      = make(map[string]string)
@@ -122,42 +123,41 @@ var (
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	createConvRegex       = re("CREATE", opt("DEFAULT"), optionalWS, "CONVERSION", capture(ident))
-	alterConvRegex        = re("ALTER", "CONVERSION", capture(ident))
-	gistRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
-	brinRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
-	spgistRegex           = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
-	rtreeRegex            = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
-	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
-	viewWithCheckRegex    = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
-	rangeRegex            = re("PRECEDING", "and", anything, ":float")
-	fetchRegex            = re("FETCH", anything, "FROM")
-	fetchRelativeRegex    = re("FETCH", "RELATIVE")
-	backwardRegex         = re("MOVE", "BACKWARD")
-	fetchAbsRegex         = re("FETCH", "ABSOLUTE")
-	alterAggRegex         = re("ALTER", "AGGREGATE", capture(ident))
-	dropCollRegex         = re("DROP", "COLLATION", ifExists, capture(commaSeperatedTokens))
-	dropIdxRegex          = re("DROP", "INDEX", ifExists, capture(commaSeperatedTokens))
-	dropViewRegex         = re("DROP", "VIEW", ifExists, capture(commaSeperatedTokens))
-	dropSeqRegex          = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedTokens))
-	dropForeignRegex      = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
-	dropIdxConcurRegex    = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
-	trigRefRegex          = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
-	constrTrgRegex        = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
-	currentOfRegex        = re("WHERE", "CURRENT", "OF")
-	amRegex               = re("CREATE", "ACCESS", "METHOD", capture(ident))
-	idxConcRegex          = re("REINDEX", anything, capture(ident))
-	storedRegex           = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
-	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
-	likeAllRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
-	likeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
-	inheritRegex          = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
-	withOidsRegex         = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
-	intvlRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
-	anydataRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyData", anything)
-	anydatasetRegex       = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyDataSet", anything)
-	anyTypeRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyType", anything)
-	uriTypeRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "URIType", anything)
+	createConvRegex          = re("CREATE", opt("DEFAULT"), optionalWS, "CONVERSION", capture(ident))
+	alterConvRegex           = re("ALTER", "CONVERSION", capture(ident))
+	gistRegex                = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
+	brinRegex                = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
+	spgistRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
+	rtreeRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
+	ginRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
+	viewWithCheckRegex       = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
+	rangeRegex               = re("PRECEDING", "and", anything, ":float")
+	fetchRegex               = re("FETCH", capture(fetchLocation), "FROM")
+	notSupportedFetchLocation = []string{"FIRST", "LAST", "NEXT", "PRIOR", "RELATIVE", "ABSOLUTE", "NEXT", "FORWARD", "BACKWARD"}
+	backwardRegex            = re("MOVE", "BACKWARD")
+	alterAggRegex            = re("ALTER", "AGGREGATE", capture(ident))
+	dropCollRegex            = re("DROP", "COLLATION", ifExists, capture(commaSeperatedTokens))
+	dropIdxRegex             = re("DROP", "INDEX", ifExists, capture(commaSeperatedTokens))
+	dropViewRegex            = re("DROP", "VIEW", ifExists, capture(commaSeperatedTokens))
+	dropSeqRegex             = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedTokens))
+	dropForeignRegex         = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
+	dropIdxConcurRegex       = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
+	trigRefRegex             = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
+	constrTrgRegex           = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
+	currentOfRegex           = re("WHERE", "CURRENT", "OF")
+	amRegex                  = re("CREATE", "ACCESS", "METHOD", capture(ident))
+	idxConcRegex             = re("REINDEX", anything, capture(ident))
+	storedRegex              = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
+	partitionColumnsRegex    = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
+	likeAllRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
+	likeRegex                = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
+	inheritRegex             = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
+	withOidsRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
+	intvlRegex               = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
+	anydataRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyData", anything)
+	anydatasetRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyDataSet", anything)
+	anyTypeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyType", anything)
+	uriTypeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "URIType", anything)
 	//super user role required, language c is errored as unsafe
 	cLangRegex = re("CREATE", opt("OR REPLACE"), "FUNCTION", capture(ident), anything, "language c")
 
@@ -382,12 +382,11 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "CREATE CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[2], sqlInfo.formattedStmt)
 		} else if stmt := alterConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
-		} else if fetchAbsRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "FETCH ABSOLUTE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", sqlInfo.formattedStmt)
-		} else if fetchRelativeRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "FETCH RELATIVE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", sqlInfo.formattedStmt)
-		} else if fetchRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "FETCH - not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", sqlInfo.formattedStmt)
+		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
+			location := strings.ToUpper(stmt[1])
+			if slices.Contains(notSupportedFetchLocation, location) {
+				reportCase(fpath, "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", "", sqlInfo.formattedStmt)
+			}
 		} else if backwardRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "FETCH BACKWARD not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", sqlInfo.formattedStmt)
 		} else if stmt := alterAggRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
@@ -1041,7 +1040,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-	reportFile := "schema_analysis_report." + outputFormat
+	reportFile := "schema_analysis_report." + analyzeSchemaReportFormat
 
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
@@ -1056,7 +1055,7 @@ func analyzeSchema() {
 
 	var finalReport string
 
-	switch outputFormat {
+	switch analyzeSchemaReportFormat {
 	case "html":
 		htmlReport := generateHTMLReport(reportStruct)
 		finalReport = utils.PrettifyHtmlString(htmlReport)
@@ -1073,7 +1072,7 @@ func analyzeSchema() {
 		byteReport, _ := xml.MarshalIndent(reportStruct, "", "\t")
 		finalReport = string(byteReport)
 	default:
-		panic(fmt.Sprintf("invalid report format: %q", outputFormat))
+		panic(fmt.Sprintf("invalid report format: %q", analyzeSchemaReportFormat))
 	}
 
 	//check & inform if file already exists
@@ -1136,19 +1135,19 @@ var analyzeSchemaCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(analyzeSchemaCmd)
 	registerCommonGlobalFlags(analyzeSchemaCmd)
-	analyzeSchemaCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
+	analyzeSchemaCmd.PersistentFlags().StringVar(&analyzeSchemaReportFormat, "output-format", "txt",
 		"format in which report will be generated: (html, txt, json, xml)")
 }
 
 func validateReportOutputFormat(allowedOutputFormats []string) {
-	outputFormat = strings.ToLower(outputFormat)
+	analyzeSchemaReportFormat = strings.ToLower(analyzeSchemaReportFormat)
 
 	for i := 0; i < len(allowedOutputFormats); i++ {
-		if outputFormat == allowedOutputFormats[i] {
+		if analyzeSchemaReportFormat == allowedOutputFormats[i] {
 			return
 		}
 	}
-	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", outputFormat, allowedOutputFormats)
+	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", analyzeSchemaReportFormat, allowedOutputFormats)
 }
 
 func schemaIsAnalyzed() bool {

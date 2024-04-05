@@ -393,7 +393,7 @@ func getFinalRowCount(row rowData) int64 {
 func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)
-	getDataMigrationReportCmd.Flags().StringVar(&outputFormat, "output-format", "table",
+	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 	"format in which report will be generated: (table, json)")
 	getDataMigrationReportCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 

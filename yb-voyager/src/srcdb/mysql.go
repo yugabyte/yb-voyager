@@ -176,8 +176,35 @@ func (ms *MySQL) getConnectionUri() string {
 	return source.Uri
 }
 
-func (ms *MySQL) ExportSchema(exportDir string) {
-	ora2pgExtractSchema(ms.source, exportDir)
+func (ms *MySQL) GetConnectionUriWithoutPassword() string {
+	source := ms.source
+	parseSSLString(source)
+	var tlsString string
+	switch source.SSLMode {
+	case "disable":
+		tlsString = "tls=false"
+	case "prefer":
+		tlsString = "tls=preferred"
+	case "require":
+		tlsString = "tls=skip-verify"
+	case "verify-ca", "verify-full":
+		tlsConf := createTLSConf(source)
+		err := mysql.RegisterTLSConfig("custom", &tlsConf)
+		if err != nil {
+			utils.ErrExit("Failed to register TLS config: %s", err)
+		}
+		tlsString = "tls=custom"
+	default:
+		errMsg := "Incorrect SSL Mode Provided. Please enter a valid sslmode."
+		panic(errMsg)
+	}
+
+	sourceUriWithoutPassword := fmt.Sprintf("%s@(%s:%d)/%s?%s", source.User, source.Host, source.Port, source.DBName, tlsString)
+	return sourceUriWithoutPassword
+}
+
+func (ms *MySQL) ExportSchema(exportDir string, schemaDir string) {
+	ora2pgExtractSchema(ms.source, exportDir, schemaDir)
 }
 
 func (ms *MySQL) GetIndexesInfo() []utils.IndexInfo {

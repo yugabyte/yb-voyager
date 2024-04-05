@@ -31,10 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string) {
-	fmt.Printf("exporting the schema %10s", "")
-	go utils.Wait("done\n", "")
-
+func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
@@ -51,7 +48,6 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
 	preparedPgdumpCommand.Env = append(os.Environ(), "PGPASSWORD="+source.Password)
-
 	stdout, err := preparedPgdumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
 	if string(stdout) != "" {
@@ -63,13 +59,6 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 		log.Infof("pg_dump failed to export schema with output: %s", string(stdout))
 		utils.ErrExit("data export unsuccessful: %v. For more details check '%s/logs/yb-voyager-export-schema.log'.\n", err, exportDir)
 	}
-
-	//Parsing the single file to generate multiple database object files
-	returnCode := parseSchemaFile(exportDir, source.ExportObjectTypeList)
-
-	log.Info("Export of schema completed.")
-	utils.WaitChannel <- returnCode
-	<-utils.WaitChannel
 }
 
 func readSchemaFile(path string) []string {
@@ -98,10 +87,13 @@ func readSchemaFile(path string) []string {
 var sqlInfoCommentRegex = regexp.MustCompile("-- Name:.*; Type:.*; Schema: .*")
 
 // NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(exportDir string, exportObjectTypesList []string) int {
-	log.Info("Begun parsing the schema file.")
+func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList []string) int {
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
-
+	if utils.FileOrFolderExists(filepath.Join(schemaDir, "schema.sql")) { // assess-migration workflow
+		schemaFilePath = filepath.Join(schemaDir, "schema.sql")
+	}
+	
+	log.Infof("begun parsing the schema file %q", schemaFilePath)
 	lines := readSchemaFile(schemaFilePath)
 	var delimiterIndexes []int
 	for i, line := range lines {
@@ -158,12 +150,12 @@ func parseSchemaFile(exportDir string, exportObjectTypesList []string) int {
 	// merging TABLE ATTACH later with TABLE - to avoid alter add PK on partitioned tables
 	objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
 
-	schemaDirPath := filepath.Join(exportDir, "schema")
 	for objType, sqlStmts := range objSqlStmts {
 		if !utils.ContainsString(exportObjectTypesList, objType) || sqlStmts.Len() == 0 { // create .sql file only if there are DDLs or the user has asked for that object type
 			continue
 		}
-		filePath := utils.GetObjectFilePath(schemaDirPath, objType)
+		filePath := utils.GetObjectFilePath(schemaDir, objType)
+		log.Infof("creating schema objects file for %q at %q", objType, filePath)
 		dataBytes := []byte(setSessionVariables.String() + sqlStmts.String())
 
 		err := os.WriteFile(filePath, dataBytes, 0644)
@@ -172,8 +164,8 @@ func parseSchemaFile(exportDir string, exportObjectTypesList []string) int {
 		}
 	}
 
-	if uncategorizedSqls.Len() > 0 {
-		filePath := filepath.Join(schemaDirPath, "uncategorized.sql")
+	if uncategorizedSqls.Len() > 0 && filepath.Dir(schemaDir) == exportDir { // skipping in case of yb-voyager assess-migration cmd
+		filePath := filepath.Join(schemaDir, "uncategorized.sql")
 		// TODO: add it to the analyze-schema report in case of postgresql
 		msg := fmt.Sprintf("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
 		color.Red(msg)
@@ -181,6 +173,8 @@ func parseSchemaFile(exportDir string, exportObjectTypesList []string) int {
 		os.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 		return 1
 	}
+
+	log.Infof("schema file %q parsed successfully.", schemaFilePath)
 	return 0
 }
 
