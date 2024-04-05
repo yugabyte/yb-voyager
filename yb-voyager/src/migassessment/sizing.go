@@ -16,7 +16,7 @@ limitations under the License.
 
 package migassessment
 
-type SizingReport struct {
+type SizingRecommendation struct {
 	NodeCount        int
 	VcpuCountPerNode int
 	MemGBPerNode     int

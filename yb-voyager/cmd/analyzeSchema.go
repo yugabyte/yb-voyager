@@ -1019,7 +1019,6 @@ func generateTxtReport(Report utils.SchemaReport) string {
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 	analyzeSchemaReport = utils.SchemaReport{}
-	schemaDir := filepath.Join(exportDir, "schema")
 	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {

@@ -49,13 +49,6 @@ var TableMetadataStatusMap = map[int]string{
 	3: "DONE",
 }
 
-type IndexInfo struct {
-	IndexName string   `json:"IndexName"`
-	IndexType string   `json:"IndexType"`
-	TableName string   `json:"TableName"`
-	Columns   []string `json:"Columns"`
-}
-
 // the list elements order is same as the import objects order
 // TODO: Need to make each of the list comprehensive, not missing any database object category
 var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PARTITION", "INDEX", "PACKAGE", "VIEW",
@@ -77,6 +70,8 @@ var mysqlSchemaObjectListForExport = []string{"TABLE", "VIEW", "TRIGGER", "FUNCT
 var WaitGroup sync.WaitGroup
 var WaitChannel = make(chan int)
 
+// ================== Schema Report ==============================
+
 type SchemaReport struct {
 	SchemaSummary SchemaSummary `json:"summary"`
 	Issues        []Issue       `json:"issues"`
@@ -93,9 +88,9 @@ type SchemaSummary struct {
 type DBObject struct {
 	ObjectType   string `json:"objectType"`
 	TotalCount   int    `json:"totalCount"`
-	InvalidCount int    `json:"invalidCount"`
+	InvalidCount int    `json:"invalidCount,omitempty"`
 	ObjectNames  string `json:"objectNames"`
-	Details      string `json:"details"`
+	Details      string `json:"details,omitempty"`
 }
 
 type Issue struct {
@@ -108,6 +103,20 @@ type Issue struct {
 	GH           string `json:"GH"`
 }
 
+type IndexInfo struct {
+	IndexName string   `json:"IndexName"`
+	IndexType string   `json:"IndexType"`
+	TableName string   `json:"TableName"`
+	Columns   []string `json:"Columns"`
+}
+
+type TriggerInfo struct {
+	TriggerName string `json:"TriggerName"`
+	TriggerType string `json:"TriggerType"`
+	TableName   string `json:"TableName"`
+}
+
+// ================== Segment ==============================
 type Segment struct {
 	Num      int
 	FilePath string

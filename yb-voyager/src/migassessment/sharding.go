@@ -24,7 +24,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-type ShardingReport struct {
+type ShardingRecommendation struct {
 	ColocatedTables []string
 	ShardedTables   []string
 }
@@ -83,7 +83,7 @@ func ShardingAssessment() error {
 
 	// core assessment logic goes here - maybe call some external package APIs to perform the assessment
 
-	FinalReport.ShardingReport = &ShardingReport{
+	Recommendations.ShardingRecommendation = &ShardingRecommendation{
 		// replace this with actual assessment results
 		ColocatedTables: tableList[:len(tableList)/2],
 		ShardedTables:   tableList[len(tableList)/2:],

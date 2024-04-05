@@ -37,6 +37,22 @@ var assessmentParamsFpath string
 
 var assessmentDataDirFlag string
 
+var assessmentReport AssessmentReport
+
+type AssessmentReport struct {
+	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
+
+	// stores unsupported indexes like PG(gin, gist indexes), Oracle(domain, bitmap indexes)
+	IndexesInfo []utils.IndexInfo `json:"IndexesInfo"`
+
+	// stores unsupported triggers like PG(constraint triggers), Oracle(COMPOUND triggers)
+	TriggersInfo []utils.TriggerInfo `json:"TriggersInfo"`
+
+	// UnsupportedDataTypes map[*sqlname.SourceName][]string `json:"UnsupportedDataTypes"`
+	// UnsupportedFeatures  []utils.UnsupportedFeature              `json:"UnsupportedFeatures"`
+	Recommendations migassessment.AssessmentRecommendations `json:"Recommendations"`
+}
+
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
 	Short: "Assess the migration from source database to YugabyteDB.",
@@ -77,9 +93,6 @@ func init() {
 			"it will be assumed to be present at default path inside the export directory.")
 }
 
-//go:embed report.template
-var bytesTemplate []byte
-
 func assessMigration() (err error) {
 	checkStartCleanForAssessMigration()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
@@ -96,7 +109,8 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to run assessment: %w", err)
 	}
 
-	err = generateAssessmentReport()
+	// err = generateAssessmentReport()
+	err = generateConsolidatedAssessmentReport()
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
@@ -231,6 +245,58 @@ func parseExportedSchemaFileForAssessment() {
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
+//go:embed report.template
+var bytesTemplate []byte
+
+func generateConsolidatedAssessmentReport() (err error) {
+	utils.PrintAndLog("Generating consolidated assessment report...")
+
+	err = getAssessmentReportContentFromAnalyzeSchema()
+	if err != nil {
+		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
+	}
+
+	// TODO: move this unsupported datatypes fetching query in yb-voyager-gather-assessment-data.sh script
+	// if assessmentDataDirFlag == "" {
+	// 	log.Infof("gathering unsupported columns from source database...")
+
+	// 	_ = source.DB().Connect()
+	// 	sqlname.SourceDBType = source.DBType
+
+	// 	tableList := source.DB().GetAllTableNames()
+	// 	_, unsupportedColumns, err := source.DB().GetColumnsWithSupportedTypes(tableList, true, false)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to get columns with supported types: %w", err)
+	// 	}
+
+	// 	utils.PrintAndLog("unsupported columns: %v\n", unsupportedColumns)
+	// 	assessmentReport.UnsupportedDataTypes = unsupportedColumns
+	// }
+
+	// generate json report
+	assessmentReportJSON, err := json.MarshalIndent(&assessmentReport, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal the assessment report: %w", err)
+	}
+
+	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
+	reportFilePath := filepath.Join(assessmentReportDir, "assessmentReport.json")
+	log.Infof("writing assessment report to file: %s", reportFilePath)
+	err = os.WriteFile(reportFilePath, assessmentReportJSON, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write the assessment report: %w", err)
+	}
+
+	return nil
+}
+
+func getAssessmentReportContentFromAnalyzeSchema() (err error) {
+	analyzeSchemaReport = analyzeSchemaInternal(&source)
+	assessmentReport.SchemaSummary = analyzeSchemaReport.SchemaSummary
+	assessmentReport.Recommendations = migassessment.Recommendations
+	return nil
+}
+
 func generateAssessmentReport() error {
 	utils.PrintAndLog("Generating assessment reports...")
 	reportsDir := filepath.Join(exportDir, "assessment", "reports")
@@ -239,7 +305,7 @@ func generateAssessmentReport() error {
 		var assessmentReportContent bytes.Buffer
 		switch assessmentReportFormat {
 		case "json":
-			strReport, err := json.MarshalIndent(&migassessment.FinalReport, "", "\t")
+			strReport, err := json.MarshalIndent(&migassessment.Recommendations, "", "\t")
 			if err != nil {
 				return fmt.Errorf("failed to marshal the assessment report: %w", err)
 			}
@@ -250,7 +316,7 @@ func generateAssessmentReport() error {
 			}
 		case "html":
 			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
-			err := templ.Execute(&assessmentReportContent, migassessment.FinalReport)
+			err := templ.Execute(&assessmentReportContent, migassessment.Recommendations)
 			if err != nil {
 				return fmt.Errorf("failed to render the assessment report: %w", err)
 			}
