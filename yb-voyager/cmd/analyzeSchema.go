@@ -1124,7 +1124,7 @@ var analyzeSchemaCmd = &cobra.Command{
 	Long: ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		allowedOutputFormats := []string{"html", "json", "txt", "xml"}
-		validateReportOutputFormat(allowedOutputFormats)
+		validateReportOutputFormat(allowedOutputFormats, analyzeSchemaReportFormat)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -1139,15 +1139,15 @@ func init() {
 		"format in which report will be generated: (html, txt, json, xml)")
 }
 
-func validateReportOutputFormat(allowedOutputFormats []string) {
-	analyzeSchemaReportFormat = strings.ToLower(analyzeSchemaReportFormat)
+func validateReportOutputFormat(allowedOutputFormats []string, format string ) {
+	format = strings.ToLower(format)
 
 	for i := 0; i < len(allowedOutputFormats); i++ {
-		if analyzeSchemaReportFormat == allowedOutputFormats[i] {
+		if format == allowedOutputFormats[i] {
 			return
 		}
 	}
-	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", analyzeSchemaReportFormat, allowedOutputFormats)
+	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", format, allowedOutputFormats)
 }
 
 func schemaIsAnalyzed() bool {

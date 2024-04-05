@@ -45,7 +45,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 	Short: "Print the consolidated report of migration of data.",
 	Long:  `Print the consolidated report of migration of data among different DBs (source / target / source-replica) when export-type 'snapshot-and-changes' is enabled.`,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateReportOutputFormat(migrationReportFormats)
+		validateReportOutputFormat(migrationReportFormats, reportOrStatusCmdOutputFormat)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
@@ -277,7 +277,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
 		}
 		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
-		return 
+		return
 	}
 	if uitbl.Rows != nil {
 		fmt.Print("\n")
@@ -394,7 +394,7 @@ func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)
 	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
-	"format in which report will be generated: (table, json)")
+		"format in which report will be generated: (table, json)")
 	getDataMigrationReportCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",

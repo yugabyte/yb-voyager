@@ -39,7 +39,7 @@ var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print status of an ongoing/completed import data.",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateReportOutputFormat(migrationReportFormats)
+		validateReportOutputFormat(migrationReportFormats, reportOrStatusCmdOutputFormat)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		streamChanges, err := checkStreamingMode()

@@ -39,7 +39,7 @@ var exportDataStatusCmd = &cobra.Command{
 	Short: "Print status of an ongoing/completed data export.",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateReportOutputFormat(migrationReportFormats)
+		validateReportOutputFormat(migrationReportFormats, reportOrStatusCmdOutputFormat)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
