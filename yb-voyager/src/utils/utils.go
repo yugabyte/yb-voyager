@@ -337,9 +337,9 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 	return false
 }
 
-func WaitForLineInLogFile(filePath string, message string) error {
+func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.Duration) error {
 	// Wait for log file to be created
-	timeout := time.After(3 * time.Minute)
+	timeout := time.After(timeoutDuration)
 	for {
 		_, err := os.Stat(filePath)
 		if err == nil {
