@@ -113,7 +113,7 @@ func parenth(s string) string {
 }
 
 var (
-	outputFormat  string
+	analyzeSchemaReportFormat  string
 	sourceObjList []string
 	reportStruct  utils.Report
 	tblParts      = make(map[string]string)
@@ -1040,7 +1040,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-	reportFile := "schema_analysis_report." + outputFormat
+	reportFile := "schema_analysis_report." + analyzeSchemaReportFormat
 
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
@@ -1055,7 +1055,7 @@ func analyzeSchema() {
 
 	var finalReport string
 
-	switch outputFormat {
+	switch analyzeSchemaReportFormat {
 	case "html":
 		htmlReport := generateHTMLReport(reportStruct)
 		finalReport = utils.PrettifyHtmlString(htmlReport)
@@ -1072,7 +1072,7 @@ func analyzeSchema() {
 		byteReport, _ := xml.MarshalIndent(reportStruct, "", "\t")
 		finalReport = string(byteReport)
 	default:
-		panic(fmt.Sprintf("invalid report format: %q", outputFormat))
+		panic(fmt.Sprintf("invalid report format: %q", analyzeSchemaReportFormat))
 	}
 
 	//check & inform if file already exists
@@ -1134,20 +1134,20 @@ var analyzeSchemaCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(analyzeSchemaCmd)
 	registerCommonGlobalFlags(analyzeSchemaCmd)
-	analyzeSchemaCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
+	analyzeSchemaCmd.PersistentFlags().StringVar(&analyzeSchemaReportFormat, "output-format", "txt",
 		"format in which report will be generated: (html, txt, json, xml)")
 }
 
 func validateReportOutputFormat() {
 	allowedOutputFormats := []string{"html", "json", "txt", "xml"}
-	outputFormat = strings.ToLower(outputFormat)
+	analyzeSchemaReportFormat = strings.ToLower(analyzeSchemaReportFormat)
 
 	for i := 0; i < len(allowedOutputFormats); i++ {
-		if outputFormat == allowedOutputFormats[i] {
+		if analyzeSchemaReportFormat == allowedOutputFormats[i] {
 			return
 		}
 	}
-	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", outputFormat, allowedOutputFormats)
+	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", analyzeSchemaReportFormat, allowedOutputFormats)
 }
 
 func schemaIsAnalyzed() bool {

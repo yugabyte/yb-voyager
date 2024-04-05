@@ -39,9 +39,10 @@ import (
 type TargetOracleDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf *TargetConf
-	oraDB *sql.DB
-	conn  *sql.Conn
+	tconf     *TargetConf
+	oraDB     *sql.DB
+	conn      *sql.Conn
+	connMutex sync.Mutex
 
 	attrNames map[string][]string
 }
@@ -81,7 +82,7 @@ func (tdb *TargetOracleDB) Init() error {
 		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
 		tdb.tconf.Schema)
 	var cntSchemaName int
-	if err = tdb.conn.QueryRowContext(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+	if err = tdb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tdb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
 		err = fmt.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
@@ -89,43 +90,65 @@ func (tdb *TargetOracleDB) Init() error {
 	return err
 }
 
+func (tdb *TargetOracleDB) WithConn(fn func(conn *sql.Conn) error) error {
+	tdb.connMutex.Lock()
+	defer tdb.connMutex.Unlock()
+	return fn(tdb.conn)
+}
+
 func (tdb *TargetOracleDB) Query(query string) (Rows, error) {
-	rows, err := tdb.conn.QueryContext(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
-	}
-	return &sqlRowsToTgtdbRowsAdapter{Rows: rows}, nil
+	var rows *sql.Rows
+	err := tdb.WithConn(func(conn *sql.Conn) error {
+		var err error
+		rows, err = conn.QueryContext(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
+		}
+		return nil
+	})
+	return &sqlRowsToTgtdbRowsAdapter{Rows: rows}, err
 }
 
 func (tdb *TargetOracleDB) QueryRow(query string) Row {
-	row := tdb.conn.QueryRowContext(context.Background(), query)
+	var row Row
+	_ = tdb.WithConn(func(conn *sql.Conn) error {
+		row = conn.QueryRowContext(context.Background(), query)
+		return nil
+	})
 	return row
 }
 
 func (tdb *TargetOracleDB) Exec(query string) (int64, error) {
-	res, err := tdb.conn.ExecContext(context.Background(), query)
-	if err != nil {
-		return 0, fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
-	}
-	rowsAffected, _ := res.RowsAffected()
-	return rowsAffected, nil
+	var rowsAffected int64
+
+	err := tdb.WithConn(func(conn *sql.Conn) error {
+		res, err := conn.ExecContext(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, tdb.tconf.Host, err)
+		}
+		rowsAffected, err = res.RowsAffected()
+		return err
+	})
+	return rowsAffected, err
 }
 
 func (tdb *TargetOracleDB) WithTx(fn func(tx Tx) error) error {
-	tx, err := tdb.conn.BeginTx(context.Background(), &sql.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-	err = fn(&sqlTxToTgtdbTxAdapter{tx: tx})
-	if err != nil {
-		return err
-	}
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
-	}
-	return nil
+	return tdb.WithConn(func(conn *sql.Conn) error {
+		tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{})
+		if err != nil {
+			return fmt.Errorf("begin transaction: %w", err)
+		}
+		defer tx.Rollback()
+		err = fn(&sqlTxToTgtdbTxAdapter{tx: tx})
+		if err != nil {
+			return err
+		}
+		err = tx.Commit()
+		if err != nil {
+			return fmt.Errorf("commit transaction: %w", err)
+		}
+		return nil
+	})
 }
 
 func (tdb *TargetOracleDB) disconnect() {
@@ -155,7 +178,7 @@ func (tdb *TargetOracleDB) GetVersion() string {
 	var version string
 	query := "SELECT BANNER FROM V$VERSION"
 	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
-	err := tdb.conn.QueryRowContext(context.Background(), query).Scan(&version)
+	err := tdb.QueryRow(query).Scan(&version)
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
@@ -173,7 +196,7 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlna
 		log.Infof("Checking if table %s is empty", table.ForUserQuery())
 		rowCount := 0
 		stmt := fmt.Sprintf("SELECT COUNT(*) FROM %s", table.ForUserQuery())
-		err := tdb.conn.QueryRowContext(context.Background(), stmt).Scan(&rowCount)
+		err := tdb.QueryRow(stmt).Scan(&rowCount)
 		if err != nil {
 			utils.ErrExit("run query %q on target: %s", stmt, err)
 		}
@@ -204,11 +227,11 @@ func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, expor
 		rowsAffected, err = tdb.importBatch(conn, batch, args, exportDir, tableSchema)
 		return false, err
 	}
-	err = tdb.WithConn(copyFn)
+	err = tdb.WithConnFromPool(copyFn)
 	return rowsAffected, err
 }
 
-func (tdb *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
+func (tdb *TargetOracleDB) WithConnFromPool(fn func(*sql.Conn) (bool, error)) error {
 	var err error
 	retry := true
 
@@ -408,7 +431,7 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error) {
 	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE table_name = '%s' AND owner = '%s'", tname, sname)
-	rows, err := tdb.conn.QueryContext(context.Background(), query)
+	rows, err := tdb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
 	}
@@ -428,7 +451,7 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
 	log.Infof("executing batch of %d events", len(batch.Events))
-	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+	err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
 		tx, err := conn.BeginTx(context.Background(), nil)
 		if err != nil {
 			return false, fmt.Errorf("begin transaction: %w", err)
@@ -554,7 +577,7 @@ func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.N
 	AND TABLE_NAME = '%s' AND GENERATION_TYPE='%s'`, sname, tname, identityType)
 	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
 	var identityColumns []string
-	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+	err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
 		rows, err := conn.QueryContext(context.Background(), query)
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -599,7 +622,7 @@ func (tdb *TargetOracleDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname
 		for _, column := range columns {
 			// LIMIT VALUE - ensures that start it is set to the current value of the sequence
 			query := fmt.Sprintf(`ALTER TABLE %s MODIFY %s %s`, table.ForUserQuery(), column, alterAction)
-			err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+			err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
 				_, err := conn.ExecContext(context.Background(), query)
 				if err != nil {
 					log.Errorf("executing query-%s to alter column(%s) for table(%s): %v", query, column, table.ForUserQuery(), err)
@@ -670,7 +693,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 		}
 		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
 		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table.ForUserQuery(), migrationUUID)
-		_, err := tdb.conn.ExecContext(context.Background(), query)
+		_, err := tdb.Exec(query)
 		if err != nil {
 			log.Errorf("error cleaning up table %s: %v", table, err)
 			return fmt.Errorf("error cleaning up table %s: %w", table, err)
