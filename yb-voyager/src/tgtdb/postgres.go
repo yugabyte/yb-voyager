@@ -37,9 +37,10 @@ import (
 type TargetPostgreSQL struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf    *TargetConf
-	conn_    *pgx.Conn
-	connPool *ConnectionPool
+	tconf     *TargetConf
+	conn_     *pgx.Conn
+	connPool  *ConnectionPool
+	connMutex sync.Mutex
 
 	attrNames map[string][]string
 }
@@ -53,42 +54,65 @@ func newTargetPostgreSQL(tconf *TargetConf) *TargetPostgreSQL {
 	return tdb
 }
 
+func (pg *TargetPostgreSQL) WithConn(fn func(conn *pgx.Conn) error) error {
+	pg.connMutex.Lock()
+	defer pg.connMutex.Unlock()
+	return fn(pg.conn_)
+}
+
 func (pg *TargetPostgreSQL) Query(query string) (Rows, error) {
-	rows, err := pg.conn_.Query(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
-	}
-	return rows, nil
+	var rows Rows
+	err := pg.WithConn(func(conn *pgx.Conn) error {
+		var err error
+		rows, err = conn.Query(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+		}
+		return nil
+	})
+	return rows, err
 }
 
 func (pg *TargetPostgreSQL) QueryRow(query string) Row {
-	row := pg.conn_.QueryRow(context.Background(), query)
+	var row Row
+	_ = pg.WithConn(func(conn *pgx.Conn) error {
+		row = conn.QueryRow(context.Background(), query)
+		return nil
+	})
 	return row
 }
 
 func (pg *TargetPostgreSQL) Exec(query string) (int64, error) {
-	res, err := pg.conn_.Exec(context.Background(), query)
-	if err != nil {
-		return 0, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
-	}
-	return res.RowsAffected(), nil
+	var rowsAffected int64
+
+	err := pg.WithConn(func(conn *pgx.Conn) error {
+		res, err := conn.Exec(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+		}
+		rowsAffected = res.RowsAffected()
+		return nil
+	})
+	return rowsAffected, err
 }
 
 func (pg *TargetPostgreSQL) WithTx(fn func(tx Tx) error) error {
-	tx, err := pg.conn_.Begin(context.Background())
-	if err != nil {
-		return fmt.Errorf("begin transaction on target %q: %w", pg.tconf.Host, err)
-	}
-	defer tx.Rollback(context.Background())
-	err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
-	if err != nil {
-		return err
-	}
-	err = tx.Commit(context.Background())
-	if err != nil {
-		return fmt.Errorf("commit transaction on target %q: %w", pg.tconf.Host, err)
-	}
-	return nil
+	return pg.WithConn(func(conn *pgx.Conn) error {
+		tx, err := conn.Begin(context.Background())
+		if err != nil {
+			return fmt.Errorf("begin transaction on target %q: %w", pg.tconf.Host, err)
+		}
+		defer tx.Rollback(context.Background())
+		err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
+		if err != nil {
+			return err
+		}
+		err = tx.Commit(context.Background())
+		if err != nil {
+			return fmt.Errorf("commit transaction on target %q: %w", pg.tconf.Host, err)
+		}
+		return nil
+	})
 }
 
 func (pg *TargetPostgreSQL) Init() error {
@@ -101,7 +125,7 @@ func (pg *TargetPostgreSQL) Init() error {
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('%s')",
 		schemaList)
-	rows, err := pg.conn_.Query(context.Background(), checkSchemaExistsQuery)
+	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
 		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
@@ -124,14 +148,6 @@ func (pg *TargetPostgreSQL) Init() error {
 
 func (pg *TargetPostgreSQL) Finalize() {
 	pg.disconnect()
-}
-
-// TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
-func (pg *TargetPostgreSQL) Conn() *pgx.Conn {
-	if pg.conn_ == nil {
-		utils.ErrExit("Called TargetDB.Conn() before TargetDB.Connect()")
-	}
-	return pg.conn_
 }
 
 func (pg *TargetPostgreSQL) reconnect() error {
@@ -196,7 +212,7 @@ func (pg *TargetPostgreSQL) GetVersion() string {
 	pg.Mutex.Lock()
 	defer pg.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := pg.conn_.QueryRow(context.Background(), query).Scan(&pg.tconf.DBVersion)
+	err := pg.QueryRow(query).Scan(&pg.tconf.DBVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
@@ -271,8 +287,7 @@ outer:
 	for _, cmd := range cmds {
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			log.Infof("Executing on target: [%s]", cmd)
-			conn := pg.Conn()
-			_, err = conn.Exec(context.Background(), cmd)
+			_, err = pg.Exec(cmd)
 			if err == nil {
 				// No error. Move on to the next command.
 				continue outer
@@ -299,7 +314,7 @@ func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 		log.Infof("checking if table %q is empty.", table)
 		tmp := false
 		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table.ForUserQuery())
-		err := pg.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
+		err := pg.QueryRow(stmt).Scan(&tmp)
 		if err == pgx.ErrNoRows {
 			continue
 		}
@@ -394,7 +409,7 @@ func (pg *TargetPostgreSQL) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	query := fmt.Sprintf(
 		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
 		sname, tname)
-	rows, err := pg.Conn().Query(context.Background(), query)
+	rows, err := pg.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("run [%s] on target: %w", query, err)
 	}
@@ -750,7 +765,7 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 	utils.PrintAndLog("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
-	_, err := pg.conn_.Exec(context.Background(), query)
+	_, err := pg.Exec(query)
 	if err != nil {
 		log.Errorf("error dropping schema %s: %v", schema, err)
 		return fmt.Errorf("error dropping schema %s: %w", schema, err)

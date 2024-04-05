@@ -108,7 +108,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
@@ -123,7 +123,8 @@ func streamChangesFromSegment(
 	evChans []chan *tgtdb.Event,
 	processingDoneChans []chan bool,
 	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
-	statsReporter *reporter.StreamImportStatsReporter) error {
+	statsReporter *reporter.StreamImportStatsReporter,
+	state *ImportDataState) error {
 
 	err := segment.Open()
 	if err != nil {
@@ -140,7 +141,7 @@ func streamChangesFromSegment(
 		} else {
 			return fmt.Errorf("unable to find channel meta info for channel - %v", i)
 		}
-		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i], statsReporter)
+		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i], statsReporter, state)
 	}
 
 	log.Infof("streaming changes for segment %s", segment.FilePath)
@@ -267,7 +268,7 @@ func hashEvent(e *tgtdb.Event) int {
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }
 
-func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter) {
+func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter, state *ImportDataState) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -326,6 +327,22 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			log.Infof("sleep for %d seconds before retrying the batch on channel %v (attempt %d)",
 				sleepIntervalSec, chanNo, attempt)
 			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+
+			// In certain situations, we get an error on `targetDB.ExecuteBatch`, but eventually the transaction is committed.
+			// For example, in Yugabyte, we can get an `rpc timeout` on commit, and the commit eventually succeeds on YB server.
+			// Retrying an already executed batch has consequences:
+			// - It can fail with some duplicate / unique key constraint errors
+			// - Stats will double count the events.
+			// Therefore, we check if batch has already been imported before retrying.
+			alreadyImported, aerr := state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
+			if aerr != nil {
+				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %v", chanNo, eventBatch.GetLastVsn(), err)
+			}
+			if alreadyImported {
+				log.Infof("batch on channel %d (last VSN: %d) already imported", chanNo, eventBatch.GetLastVsn())
+				err = nil
+				break
+			}
 		}
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)

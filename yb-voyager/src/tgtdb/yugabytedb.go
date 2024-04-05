@@ -42,9 +42,10 @@ import (
 type TargetYugabyteDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf    *TargetConf
-	conn_    *pgx.Conn
-	connPool *ConnectionPool
+	tconf     *TargetConf
+	conn_     *pgx.Conn
+	connPool  *ConnectionPool
+	connMutex sync.Mutex
 
 	attrNames map[string][]string
 }
@@ -58,42 +59,65 @@ func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 	return tdb
 }
 
+func (yb *TargetYugabyteDB) WithConn(fn func(conn *pgx.Conn) error) error {
+	yb.connMutex.Lock()
+	defer yb.connMutex.Unlock()
+	return fn(yb.conn_)
+}
+
 func (yb *TargetYugabyteDB) Query(query string) (Rows, error) {
-	rows, err := yb.conn_.Query(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
-	}
-	return rows, nil
+	var rows Rows
+	err := yb.WithConn(func(conn *pgx.Conn) error {
+		var err error
+		rows, err = conn.Query(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+		}
+		return nil
+	})
+	return rows, err
 }
 
 func (yb *TargetYugabyteDB) QueryRow(query string) Row {
-	row := yb.conn_.QueryRow(context.Background(), query)
+	var row Row
+	_ = yb.WithConn(func(conn *pgx.Conn) error {
+		row = conn.QueryRow(context.Background(), query)
+		return nil
+	})
 	return row
 }
 
 func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
-	res, err := yb.conn_.Exec(context.Background(), query)
-	if err != nil {
-		return 0, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
-	}
-	return res.RowsAffected(), nil
+	var rowsAffected int64
+
+	err := yb.WithConn(func(conn *pgx.Conn) error {
+		res, err := conn.Exec(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+		}
+		rowsAffected = res.RowsAffected()
+		return nil
+	})
+	return rowsAffected, err
 }
 
 func (yb *TargetYugabyteDB) WithTx(fn func(tx Tx) error) error {
-	tx, err := yb.conn_.Begin(context.Background())
-	if err != nil {
-		return fmt.Errorf("begin transaction on target %q: %w", yb.tconf.Host, err)
-	}
-	defer tx.Rollback(context.Background())
-	err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
-	if err != nil {
-		return err
-	}
-	err = tx.Commit(context.Background())
-	if err != nil {
-		return fmt.Errorf("commit transaction on target %q: %w", yb.tconf.Host, err)
-	}
-	return nil
+	return yb.WithConn(func(conn *pgx.Conn) error {
+		tx, err := conn.Begin(context.Background())
+		if err != nil {
+			return fmt.Errorf("begin transaction on target %q: %w", yb.tconf.Host, err)
+		}
+		defer tx.Rollback(context.Background())
+		err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
+		if err != nil {
+			return err
+		}
+		err = tx.Commit(context.Background())
+		if err != nil {
+			return fmt.Errorf("commit transaction on target %q: %w", yb.tconf.Host, err)
+		}
+		return nil
+	})
 }
 
 func (yb *TargetYugabyteDB) Init() error {
@@ -106,7 +130,7 @@ func (yb *TargetYugabyteDB) Init() error {
 		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
 		yb.tconf.Schema)
 	var cntSchemaName int
-	if err = yb.conn_.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, yb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
 		err = fmt.Errorf("schema '%s' does not exist in target", yb.tconf.Schema)
@@ -116,14 +140,6 @@ func (yb *TargetYugabyteDB) Init() error {
 
 func (yb *TargetYugabyteDB) Finalize() {
 	yb.disconnect()
-}
-
-// TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
-func (yb *TargetYugabyteDB) Conn() *pgx.Conn {
-	if yb.conn_ == nil {
-		utils.ErrExit("Called TargetDB.Conn() before TargetDB.Connect()")
-	}
-	return yb.conn_
 }
 
 func (yb *TargetYugabyteDB) reconnect() error {
@@ -188,7 +204,7 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	yb.Mutex.Lock()
 	defer yb.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := yb.conn_.QueryRow(context.Background(), query).Scan(&yb.tconf.DBVersion)
+	err := yb.QueryRow(query).Scan(&yb.tconf.DBVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
@@ -224,7 +240,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 
 func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
 	query := "SELECT schema_name FROM information_schema.schemata"
-	rows, err := yb.conn_.Query(context.Background(), query)
+	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying YB database for schema names: %w", err)
 	}
@@ -249,7 +265,7 @@ func (yb *TargetYugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, er
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema = '%s';`, schemaName)
 
-	rows, err := yb.conn_.Query(context.Background(), query)
+	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) YB database for table names: %w", query, err)
 	}
@@ -292,7 +308,6 @@ func (yb *TargetYugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, err
 	}
 	return sequenceNames, nil
 }
-
 
 // The _v2 is appended in the table name so that the import code doesn't
 // try to use the similar table created by the voyager 1.3 and earlier.
@@ -342,8 +357,7 @@ outer:
 	for _, cmd := range cmds {
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			log.Infof("Executing on target: [%s]", cmd)
-			conn := yb.Conn()
-			_, err = conn.Exec(context.Background(), cmd)
+			_, err = yb.Exec(cmd)
 			if err == nil {
 				// No error. Move on to the next command.
 				continue outer
@@ -370,7 +384,7 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 		log.Infof("checking if table %q is empty.", table)
 		tmp := false
 		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table.ForUserQuery())
-		err := yb.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
+		err := yb.QueryRow(stmt).Scan(&tmp)
 		if err == pgx.ErrNoRows {
 			continue
 		}
@@ -465,7 +479,7 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	query := fmt.Sprintf(
 		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
 		schemaName, tableName)
-	rows, err := yb.Conn().Query(context.Background(), query)
+	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("run [%s] on target: %w", query, err)
 	}
@@ -1168,7 +1182,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 	utils.PrintAndLog("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
-	_, err := yb.conn_.Exec(context.Background(), query)
+	_, err := yb.Exec(query)
 	if err != nil {
 		log.Errorf("error dropping schema %s: %v", schema, err)
 		return fmt.Errorf("error dropping schema %s: %w", schema, err)
