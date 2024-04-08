@@ -64,25 +64,27 @@ fi
 # Switch to assessment_data_dir and remember the current directory
 pushd "$assessment_data_dir" > /dev/null || exit
 
-echo -n "Enter PostgreSQL password: "
-read -s PGPASSWORD
-echo
-export PGPASSWORD
+if [ -z "$PGPASSWORD" ]; then 
+    echo -n "Enter PostgreSQL password: "
+    read -s PGPASSWORD
+    echo
+    export PGPASSWORD
+fi
 
 echo "Assessment data collection started"
 echo "Collecting table sizes..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-sizes.sql -v schema_list=$schema_list -v assessment_data_dir=$assessment_data_dir
+psql $pg_connection_string -f $SCRIPT_DIR/table-sizes.psql -v schema_list=$schema_list -v assessment_data_dir=$assessment_data_dir
 
 echo "Collecting table iops stats..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-iops.sql -v schema_list=$schema_list
+psql $pg_connection_string -f $SCRIPT_DIR/table-iops.psql -v schema_list=$schema_list
 
 # TODO: finalize the query, approx count or exact count(any optimization also if possible)
 echo "Collecting table row counts..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-row-counts.sql -v schema_list=$schema_list
+psql $pg_connection_string -f $SCRIPT_DIR/table-row-counts.psql -v schema_list=$schema_list
 
 
 echo "Collecting table columns' data types..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-columns-data-types.sql -v schema_list=$schema_list
+psql $pg_connection_string -f $SCRIPT_DIR/table-columns-data-types.psql -v schema_list=$schema_list
 
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
 

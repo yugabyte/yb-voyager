@@ -193,7 +193,7 @@ func gatherAssessmentDataFromPG() (err error) {
 	}
 
 	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
-	gatherAssessmentDataScriptPath := filepath.Join("/", "etc", "yb-voyager", "gather-assessment-data", "postgresql", "yb-voyager-gather-assessment-data.sh")
+	gatherAssessmentDataScriptPath := filepath.Join("/", "etc", "yb-voyager", "gather-assessment-data", "postgresql", "yb-voyager-pg-gather-assessment-data.sh")
 
 	possiblePathsForScript := []string{
 		gatherAssessmentDataScriptPath,
@@ -263,13 +263,11 @@ func generateConsolidatedAssessmentReport() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report JSON: %w", err)
 	}
-	utils.PrintAndLog("generated JSON assessment report at: %s", assessmentReportDir)
 
 	err = generateAssessmentReportHtml(assessmentReportDir)
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report HTML: %w", err)
 	}
-	utils.PrintAndLog("generated HTML assessment report at: %s", assessmentReportDir)
 	return nil
 }
 
@@ -385,6 +383,7 @@ func generateAssessmentReportJson(reportDir string) error {
 		return fmt.Errorf("failed to write assessment report to file: %w", err)
 	}
 
+	utils.PrintAndLog("generated JSON assessment report at: %s", jsonReportFilePath)
 	return nil
 }
 
@@ -412,6 +411,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		return fmt.Errorf("failed to render the assessment report: %w", err)
 	}
 
+	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
 }
 
