@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"bufio"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -107,7 +108,6 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to run assessment: %w", err)
 	}
 
-	// err = generateAssessmentReport()
 	err = generateConsolidatedAssessmentReport()
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report: %w", err)
@@ -225,10 +225,39 @@ func gatherAssessmentDataFromPG() (err error) {
 	log.Infof("running script: %s", preparedScriptCmd.String())
 	preparedScriptCmd.Env = append(preparedScriptCmd.Env, "PGPASSWORD="+source.Password)
 	preparedScriptCmd.Dir = assessmentDataDir
-	stdout, err := preparedScriptCmd.CombinedOutput()
-	log.Infof("output of gather assessment data script for PG: %s\n", string(stdout))
+
+	stdout, err := preparedScriptCmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("error running script: %w", err)
+		return fmt.Errorf("error creating stdout pipe: %w", err)
+	}
+
+	stderr, err := preparedScriptCmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stderr pipe: %w", err)
+	}
+
+	err = preparedScriptCmd.Start()
+	if err != nil {
+		return fmt.Errorf("error starting gather assessment data script: %w", err)
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			log.Errorf("[stderr of script]: %s", scanner.Text())
+			fmt.Printf("%s\n", scanner.Text())
+		}
+	}()
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		log.Infof("[stdout of script]: %s", scanner.Text())
+		fmt.Printf("%s\n", scanner.Text())
+	}
+
+	err = preparedScriptCmd.Wait()
+	if err != nil {
+		return fmt.Errorf("error waiting for gather assessment data script to complete: %w", err)
 	}
 	return nil
 }

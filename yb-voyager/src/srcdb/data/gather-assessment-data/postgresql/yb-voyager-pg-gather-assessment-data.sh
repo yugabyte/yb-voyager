@@ -13,6 +13,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+set -e
+
 SCRIPT_DIR=$(dirname $0)
 SCRIPT_NAME=$(basename $0)
 
@@ -73,18 +75,18 @@ fi
 
 echo "Assessment data collection started"
 echo "Collecting table sizes..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-sizes.psql -v schema_list=$schema_list -v assessment_data_dir=$assessment_data_dir
+psql -q $pg_connection_string -f $SCRIPT_DIR/table-sizes.psql -v schema_list=$schema_list -v ON_ERROR_STOP=on
 
 echo "Collecting table iops stats..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-iops.psql -v schema_list=$schema_list
+psql -q $pg_connection_string -f $SCRIPT_DIR/table-iops.psql -v schema_list=$schema_list -v ON_ERROR_STOP=on
 
 # TODO: finalize the query, approx count or exact count(any optimization also if possible)
 echo "Collecting table row counts..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-row-counts.psql -v schema_list=$schema_list
+psql -q $pg_connection_string -f $SCRIPT_DIR/table-row-counts.psql -v schema_list=$schema_list -v ON_ERROR_STOP=on
 
 
 echo "Collecting table columns' data types..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-columns-data-types.psql -v schema_list=$schema_list
+psql -q $pg_connection_string -f $SCRIPT_DIR/table-columns-data-types.psql -v schema_list=$schema_list -v ON_ERROR_STOP=on
 
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
 
@@ -96,9 +98,9 @@ if [ "$pg_dump_version" -lt 14 ]; then
 fi
 
 mkdir -p schema
-echo "Collect schema information"
+echo "Collecting schema information..."
 pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql"
-
+v
 # Return to the original directory after operations are done
 popd > /dev/null
 
