@@ -46,7 +46,7 @@ type AssessmentParams struct {
 	SizingParams    `toml:"sizing"`
 }
 
-func loadCSVDataFile[T any](filePath string) ([]*T, error) {
+func LoadCSVDataFile[T any](filePath string) ([]*T, error) {
 	result := make([]*T, 0)
 	records, err := loadCSVDataFileGeneric(filePath)
 	if err != nil {
@@ -66,10 +66,8 @@ func loadCSVDataFile[T any](filePath string) ([]*T, error) {
 			log.Errorf("error unmarshalling record: %v", err)
 			return nil, fmt.Errorf("error unmarshalling record: %w", err)
 		}
-
 		result = append(result, &tmplRec)
 	}
-
 	return result, nil
 }
 

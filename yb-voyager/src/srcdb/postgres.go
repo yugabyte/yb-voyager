@@ -38,7 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var postgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT"}
+var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT"}
 
 var PG_COMMAND_VERSION = map[string]string{
 	"pg_dump":    "14.0",
@@ -504,7 +504,7 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		var supportedColumnNames []string
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
-				if utils.ContainsAnySubstringFromSlice(postgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
+				if utils.ContainsAnySubstringFromSlice(PostgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)

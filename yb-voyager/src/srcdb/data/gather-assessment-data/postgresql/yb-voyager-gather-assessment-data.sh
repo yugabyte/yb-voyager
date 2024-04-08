@@ -66,6 +66,10 @@ psql $pg_connection_string -f $SCRIPT_DIR/table-iops.sql -v schema_list=$schema_
 echo "Collecting table row counts..."
 psql $pg_connection_string -f $SCRIPT_DIR/table-row-counts.sql -v schema_list=$schema_list
 
+
+echo "Collecting table columns' data types..."
+psql $pg_connection_string -f $SCRIPT_DIR/table-columns-data-types.sql -v schema_list=$schema_list
+
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
 
 # check for pg_dump version

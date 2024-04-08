@@ -16,19 +16,19 @@ limitations under the License.
 package cmd
 
 import (
-	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"text/template"
+	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -42,14 +42,10 @@ var assessmentReport AssessmentReport
 type AssessmentReport struct {
 	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
 
-	// stores unsupported indexes like PG(gin, gist indexes), Oracle(domain, bitmap indexes)
-	IndexesInfo []utils.IndexInfo `json:"IndexesInfo"`
+	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
 
-	// stores unsupported triggers like PG(constraint triggers), Oracle(COMPOUND triggers)
-	TriggersInfo []utils.TriggerInfo `json:"TriggersInfo"`
+	UnsupportedFeatures []string `json:"UnsupportedFeatures"`
 
-	// UnsupportedDataTypes map[*sqlname.SourceName][]string `json:"UnsupportedDataTypes"`
-	// UnsupportedFeatures  []utils.UnsupportedFeature              `json:"UnsupportedFeatures"`
 	Recommendations migassessment.AssessmentRecommendations `json:"Recommendations"`
 }
 
@@ -96,6 +92,10 @@ func init() {
 func assessMigration() (err error) {
 	checkStartCleanForAssessMigration()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
+	// setting schemaDir to use later on - gather assessment data, segregating into schema files per object etc..
+	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
+		filepath.Join(exportDir, "assessment", "data", "schema"))
 
 	err = gatherAssessmentData()
 	if err != nil {
@@ -166,7 +166,6 @@ func gatherAssessmentData() (err error) {
 
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
-	schemaDir = filepath.Join(assessmentDataDir, "schema")
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	if source.Password == "" {
@@ -237,8 +236,6 @@ func gatherAssessmentDataFromPG() (err error) {
 }
 
 func parseExportedSchemaFileForAssessment() {
-	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
-		filepath.Join(exportDir, "assessment", "data", "schema"))
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
@@ -256,22 +253,12 @@ func generateConsolidatedAssessmentReport() (err error) {
 		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
 	}
 
-	// TODO: move this unsupported datatypes fetching query in yb-voyager-gather-assessment-data.sh script
-	// if assessmentDataDirFlag == "" {
-	// 	log.Infof("gathering unsupported columns from source database...")
+	assessmentReport.UnsupportedDataTypes, err = fetchColumnsWithUnsupportedDataTypes()
+	if err != nil {
+		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
+	}
 
-	// 	_ = source.DB().Connect()
-	// 	sqlname.SourceDBType = source.DBType
-
-	// 	tableList := source.DB().GetAllTableNames()
-	// 	_, unsupportedColumns, err := source.DB().GetColumnsWithSupportedTypes(tableList, true, false)
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to get columns with supported types: %w", err)
-	// 	}
-
-	// 	utils.PrintAndLog("unsupported columns: %v\n", unsupportedColumns)
-	// 	assessmentReport.UnsupportedDataTypes = unsupportedColumns
-	// }
+	assessmentReport.Recommendations = migassessment.Recommendations
 
 	// generate json report
 	assessmentReportJSON, err := json.MarshalIndent(&assessmentReport, "", "\t")
@@ -291,46 +278,138 @@ func generateConsolidatedAssessmentReport() (err error) {
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() (err error) {
-	analyzeSchemaReport = analyzeSchemaInternal(&source)
+	analyzeSchemaReport := analyzeSchemaInternal(&source)
 	assessmentReport.SchemaSummary = analyzeSchemaReport.SchemaSummary
-	assessmentReport.Recommendations = migassessment.Recommendations
+
+	// set invalidCount to zero so that it doesn't show up in the report
+	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
+		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
+	}
+
+	unsupportedFeatures, err := fetchUnsupportedFeaturesForPG(analyzeSchemaReport)
+	if err != nil {
+		return fmt.Errorf("failed to fetch unsupported features: %w", err)
+	}
+	assessmentReport.UnsupportedFeatures = unsupportedFeatures
+
 	return nil
 }
 
-func generateAssessmentReport() error {
-	utils.PrintAndLog("Generating assessment reports...")
-	reportsDir := filepath.Join(exportDir, "assessment", "reports")
-	for _, assessmentReportFormat := range supportedAssessmentReportFormats {
-		reportFilePath := filepath.Join(reportsDir, "report."+assessmentReportFormat)
-		var assessmentReportContent bytes.Buffer
-		switch assessmentReportFormat {
-		case "json":
-			strReport, err := json.MarshalIndent(&migassessment.Recommendations, "", "\t")
-			if err != nil {
-				return fmt.Errorf("failed to marshal the assessment report: %w", err)
-			}
+func fetchUnsupportedFeaturesForPG(analyzeSchemaReport utils.SchemaReport) ([]string, error) {
+	var unsupportedFeatures []string
+	log.Infof("fetching unsupported features for PG...")
 
-			_, err = assessmentReportContent.Write(strReport)
-			if err != nil {
-				return fmt.Errorf("failed to write assessment report to buffer: %w", err)
-			}
-		case "html":
-			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
-			err := templ.Execute(&assessmentReportContent, migassessment.Recommendations)
-			if err != nil {
-				return fmt.Errorf("failed to render the assessment report: %w", err)
+	lookForIssuesMatching := func(issueReason string) []utils.Issue {
+		var matchingIssues []utils.Issue
+		for _, issue := range analyzeSchemaReport.Issues {
+			if strings.Contains(issue.Reason, issueReason) {
+				matchingIssues = append(matchingIssues, issue)
 			}
 		}
+		return matchingIssues
+	}
 
-		log.Infof("writing assessment report to file: %s", reportFilePath)
-		err := os.WriteFile(reportFilePath, assessmentReportContent.Bytes(), 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write the assessment report: %w", err)
+	log.Infof("looking for gin indexes(unsupported)...")
+	gistIndexIssues := lookForIssuesMatching(GIST_INDEX_ISSUE_REASON)
+	var tablesWithGistIndexes []string
+	for _, issue := range gistIndexIssues {
+		tablesWithGistIndexes = append(tablesWithGistIndexes, issue.ObjectName)
+	}
+	if len(tablesWithGistIndexes) > 0 {
+		unsupportedFeatures = append(unsupportedFeatures, fmt.Sprintf("GIST indexes names: %v", tablesWithGistIndexes))
+	}
+
+	log.Infof("looking for constraint triggers(unsupported)...")
+	constraintTriggerIssues := lookForIssuesMatching(CONSTRAINT_TRIGGER_ISSUE_REASON)
+	var constraintTriggerNames []string
+	for _, issue := range constraintTriggerIssues {
+		constraintTriggerNames = append(constraintTriggerNames, issue.ObjectName)
+	}
+	if len(constraintTriggerNames) > 0 {
+		unsupportedFeatures = append(unsupportedFeatures, fmt.Sprintf("Constraint triggers: %v", constraintTriggerNames))
+	}
+
+	log.Infof("looking for inherited tables(unsupported)...")
+	inheritanceIssues := lookForIssuesMatching(INHERITANCE_ISSUE_REASON)
+	var tablesWithInheritance []string
+	for _, issue := range inheritanceIssues {
+		tablesWithInheritance = append(tablesWithInheritance, issue.ObjectName)
+	}
+	if len(tablesWithInheritance) > 0 {
+		unsupportedFeatures = append(unsupportedFeatures, fmt.Sprintf("Inherited(child) Tables are: %v", tablesWithInheritance))
+	}
+
+	log.Infof("looking for stored generated columns(unsupported)...")
+	storedGeneratedColumnIssues := lookForIssuesMatching(STORED_GENERATED_COLUMN_ISSUE_REASON)
+	var tablesWithStoredGeneratedColumns []string
+	for _, issue := range storedGeneratedColumnIssues {
+		tablesWithStoredGeneratedColumns = append(tablesWithStoredGeneratedColumns, issue.ObjectName)
+	}
+	if len(tablesWithStoredGeneratedColumns) > 0 {
+		unsupportedFeatures = append(unsupportedFeatures, fmt.Sprintf("Tables with stored generated columns: %v", tablesWithStoredGeneratedColumns))
+	}
+
+	return unsupportedFeatures, nil
+}
+
+func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, error) {
+	var unsupportedDataTypes []utils.TableColumnsDataTypes
+
+	// load file with all column data types
+	assessmentDataDir := lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
+		filepath.Join(exportDir, "assessment", "data"))
+	filePath := filepath.Join(assessmentDataDir, "table-columns-data-types.csv")
+
+	allColumnsDataTypes, err := migassessment.LoadCSVDataFile[utils.TableColumnsDataTypes](filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load table columns data types file: %w", err)
+	}
+
+	// filter columns with unsupported data types using srcdb.PostgresUnsupportedDataTypesForDbzm
+	pgUnsupportedDataTypes := srcdb.PostgresUnsupportedDataTypesForDbzm
+	for i := 0; i < len(allColumnsDataTypes); i++ {
+		if utils.ContainsAnySubstringFromSlice(pgUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+			unsupportedDataTypes = append(unsupportedDataTypes, *allColumnsDataTypes[i])
 		}
 	}
-	utils.PrintAndLog("Generated assessment reports at '%s'", reportsDir)
-	return nil
+
+	return unsupportedDataTypes, nil
 }
+
+// func generateAssessmentReport() error {
+// 	utils.PrintAndLog("Generating assessment reports...")
+// 	reportsDir := filepath.Join(exportDir, "assessment", "reports")
+// 	for _, assessmentReportFormat := range supportedAssessmentReportFormats {
+// 		reportFilePath := filepath.Join(reportsDir, "report."+assessmentReportFormat)
+// 		var assessmentReportContent bytes.Buffer
+// 		switch assessmentReportFormat {
+// 		case "json":
+// 			strReport, err := json.MarshalIndent(&migassessment.Recommendations, "", "\t")
+// 			if err != nil {
+// 				return fmt.Errorf("failed to marshal the assessment report: %w", err)
+// 			}
+
+// 			_, err = assessmentReportContent.Write(strReport)
+// 			if err != nil {
+// 				return fmt.Errorf("failed to write assessment report to buffer: %w", err)
+// 			}
+// 		case "html":
+// 			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
+// 			err := templ.Execute(&assessmentReportContent, migassessment.Recommendations)
+// 			if err != nil {
+// 				return fmt.Errorf("failed to render the assessment report: %w", err)
+// 			}
+// 		}
+
+// 		log.Infof("writing assessment report to file: %s", reportFilePath)
+// 		err := os.WriteFile(reportFilePath, assessmentReportContent.Bytes(), 0644)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to write the assessment report: %w", err)
+// 		}
+// 	}
+// 	utils.PrintAndLog("Generated assessment reports at '%s'", reportsDir)
+// 	return nil
+// }
 
 func validateSourceDBTypeForAssessMigration() {
 	switch source.DBType {

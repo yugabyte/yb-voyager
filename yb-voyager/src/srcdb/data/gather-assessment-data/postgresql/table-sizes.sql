@@ -17,6 +17,8 @@ ORDER BY
 
 -- TODO: handle storing the info(column names) with schema name(required in case of multi schema migration)
 -- Output the contents of the temporary table to a CSV file
+
 \copy temp_table TO 'table-sizes.csv' WITH CSV HEADER;
+
 -- Drop the temporary table
 DROP TABLE temp_table;

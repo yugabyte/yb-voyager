@@ -104,16 +104,18 @@ type Issue struct {
 }
 
 type IndexInfo struct {
+	// TODO: ADD SchemaName string `json:"SchemaName"`
 	IndexName string   `json:"IndexName"`
 	IndexType string   `json:"IndexType"`
 	TableName string   `json:"TableName"`
 	Columns   []string `json:"Columns"`
 }
 
-type TriggerInfo struct {
-	TriggerName string `json:"TriggerName"`
-	TriggerType string `json:"TriggerType"`
-	TableName   string `json:"TableName"`
+type TableColumnsDataTypes struct {
+	SchemaName string `json:"schema_name"`
+	TableName  string `json:"table_name"`
+	ColumnName string `json:"column_name"`
+	DataType   string `json:"data_type"`
 }
 
 // ================== Segment ==============================

@@ -148,6 +148,7 @@ var (
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
 	storedRegex               = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
+	createTableRegex      	  = re("CREATE", "TABLE", ifNotExists, capture(ident), anything)
 	partitionColumnsRegex     = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
 	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
 	likeRegex                 = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
@@ -199,6 +200,16 @@ var (
 	typeUnsupportedRegex       = re("Inherited types are not supported", anything, "replacing with inherited table")
 	bulkCollectRegex           = re("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
 	jsonFuncRegex              = re("CREATE", opt("OR REPLACE"), capture(unqualifiedIdent), capture(ident), anything, "JSON_ARRAYAGG")
+)
+
+const (
+	INHERITANCE_ISSUE_REASON        = "INHERITANCE is not supported in YugabyteDB"
+	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
+	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER are not supported in YugabyteDB."
+
+	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated column is not supported."
+
+	GIST_INDEX_ISSUE_REASON = "Schema contains gist index which is not supported."
 )
 
 // Reports one case in JSON
@@ -327,7 +338,7 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
-			reportCase(fpath, "Schema contains gist index which is not supported.",
+			reportCase(fpath, "GIST_INDEX_ISSUE_REASON",
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
@@ -418,7 +429,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt)
 		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			reportCase(fpath, "CREATE CONSTRAINT TRIGGER not supported yet.",
+			reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", trig[1], sqlInfo.formattedStmt)
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", sqlInfo.formattedStmt)
@@ -442,8 +453,10 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
 		} else if col := storedRegex.FindStringSubmatch(sqlInfo.stmt); col != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "Stored generated column is not supported. Column is: "+col[1],
-				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", "", sqlInfo.formattedStmt)
+			// fetch table name using different regex
+			tbl := createTableRegex.FindStringSubmatch(sqlInfo.stmt)
+			reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Column is: %s", col[1]),
+				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE ALL is not supported yet.",
@@ -464,8 +477,8 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			primaryCons[tbl[2]] = fpath
 		} else if tbl := inheritRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "INHERITS not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
+			reportCase(fpath, INHERITANCE_ISSUE_REASON,
+				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[4], sqlInfo.formattedStmt)
 		} else if tbl := withOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "OIDs are not supported for user tables.",
@@ -648,7 +661,7 @@ func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if trig := compoundTrigRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			reportCase(fpath, "Compound Triggers are not supported in YugabyteDB.",
+			reportCase(fpath, COMPOUND_TRIGGER_ISSUE_REASON,
 				"", "", "TRIGGER", trig[2], sqlInfo.formattedStmt)
 			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
 		}
