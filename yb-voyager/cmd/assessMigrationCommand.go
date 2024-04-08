@@ -336,7 +336,6 @@ func fetchUnsupportedFeaturesForPG(analyzeSchemaReport utils.SchemaReport) ([]Un
 				objectNames = append(objectNames, issue.ObjectName)
 			}
 		}
-
 		unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
 	}
 
