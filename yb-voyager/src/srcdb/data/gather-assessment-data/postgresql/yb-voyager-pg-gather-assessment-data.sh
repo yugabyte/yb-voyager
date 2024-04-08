@@ -75,10 +75,6 @@ fi
 
 echo "Assessment data collection started"
 
-
-echo "Collecting table columns' data types..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-columns-data-types.sql -v schema_list=$schema_list
-
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
 for script in $SCRIPT_DIR/*.psql; do
     script_action=$(basename "$script" .psql | sed 's/-/ /g')
