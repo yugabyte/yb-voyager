@@ -2,14 +2,11 @@
         "dbName": "dummy_db_name",
         "schemaName": "public",
         "dbVersion": "12.0",
-        "notes": null,
         "databaseObjects": [
             {
                 "objectType": "SCHEMA",
                 "totalCount": 1,
-                "invalidCount": 0,
-                "objectNames": "hollywood",
-                "details": ""
+                "objectNames": "hollywood"
             },
             {
                 "objectType": "EXTENSION",
@@ -22,8 +19,7 @@
                 "objectType": "TABLE",
                 "totalCount": 24,
                 "invalidCount": 21,
-                "objectNames": "sales, test_2, test_7, test_8, table_abc, table_1, test_interval, sales_data, test_6, newtable, table_test, xyz, anydata_test, anytype_test, salaries2, test_3, uritype_test, test_1, test_non_pk_multi_column_list, test_4, test_5, test_9, table_xyz, anydataset_test",
-                "details": ""
+                "objectNames": "sales, test_2, test_7, test_8, table_abc, table_1, test_interval, sales_data, test_6, newtable, table_test, xyz, anydata_test, anytype_test, salaries2, test_3, uritype_test, test_1, test_non_pk_multi_column_list, test_4, test_5, test_9, table_xyz, anydataset_test"
             },
             {
                 "objectType": "INDEX",

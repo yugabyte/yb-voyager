@@ -148,7 +148,7 @@ var (
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
 	storedRegex               = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
-	createTableRegex      	  = re("CREATE", "TABLE", ifNotExists, capture(ident), anything)
+	createTableRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything)
 	partitionColumnsRegex     = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
 	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
 	likeRegex                 = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
@@ -203,11 +203,11 @@ var (
 )
 
 const (
-	INHERITANCE_ISSUE_REASON        = "INHERITANCE is not supported in YugabyteDB"
+	INHERITANCE_ISSUE_REASON        = "TABLE INHERITANCE not supported in YugabyteDB"
 	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
-	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER are not supported in YugabyteDB."
+	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
 
-	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated column is not supported."
+	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated column not supported."
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains gist index which is not supported."
 )
