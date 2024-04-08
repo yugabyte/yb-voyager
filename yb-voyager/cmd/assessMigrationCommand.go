@@ -299,7 +299,6 @@ func generateAssessmentReport() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report JSON: %w", err)
 	}
-	utils.PrintAndLog("generated JSON assessment report at: %s", assessmentReportDir)
 
 	err = generateAssessmentReportHtml(assessmentReportDir)
 	if err != nil {
