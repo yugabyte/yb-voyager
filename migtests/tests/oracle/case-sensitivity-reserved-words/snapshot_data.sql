@@ -19,7 +19,7 @@ INSERT INTO "Mt_Rwc" (id, "user", "column_name", limit) VALUES (2, 'user2', 'col
 INSERT INTO "CASE" (id, "USER", "case", limit) VALUES (1, 'user1', 'case1', 'description1');
 INSERT INTO "CASE" (id, "USER", "case", limit) VALUES (2, NULL, 'case2', 'description2');
 
-INSERT INTO "number" (id, "Column_Name", "case", limit) VALUES (1, 'column1', NULL, 'description1');
+INSERT INTO "number" (id, "Column_Name", "case", limit) VALUES (10, 'column1', NULL, 'description1');
 INSERT INTO "number" (id, "Column_Name", "case", limit) VALUES (2, 'column2', 'case2', 'description2');
 
 INSERT INTO limit (id, "Column_Name", "case", limit) VALUES (1, 'column1', 'case1', 'description1');

@@ -45,7 +45,7 @@ DELETE FROM "CASE" WHERE id = 4;
 INSERT INTO "number" (id, "Column_Name", "case", limit) VALUES (3, 'column3', 'case3', 'description3');
 INSERT INTO "number" (id, "Column_Name", limit) VALUES (4, 'column4', 'description4');
 DELETE FROM "number" WHERE id = 4;
-UPDATE "number" SET "case" = 'updated_case',id=6 WHERE id = 1;
+UPDATE "number" SET "case" = 'updated_case',id=6 WHERE id = 10;
 UPDATE "number" SET "Column_Name" = 'updated_column', "case" = 'updated_case', limit = 'updated_description' WHERE id = 2;
 
 
