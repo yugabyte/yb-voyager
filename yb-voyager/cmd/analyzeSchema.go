@@ -344,10 +344,7 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, "index method 'brin' not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
-		} else if idx := spgistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
-			reportCase(fpath, "index method 'spgist' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := rtreeRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, "index method 'rtree' is superceded by 'gist' which is not supported yet.",

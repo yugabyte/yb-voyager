@@ -416,6 +416,41 @@ func generateAssessmentReportHtml(reportDir string) error {
 	return nil
 }
 
+// func generateAssessmentReport() error {
+// 	utils.PrintAndLog("Generating assessment reports...")
+// 	reportsDir := filepath.Join(exportDir, "assessment", "reports")
+// 	for _, assessmentReportFormat := range supportedAssessmentReportFormats {
+// 		reportFilePath := filepath.Join(reportsDir, "report."+assessmentReportFormat)
+// 		var assessmentReportContent bytes.Buffer
+// 		switch assessmentReportFormat {
+// 		case "json":
+// 			strReport, err := json.MarshalIndent(&migassessment.Recommendations, "", "\t")
+// 			if err != nil {
+// 				return fmt.Errorf("failed to marshal the assessment report: %w", err)
+// 			}
+
+// 			_, err = assessmentReportContent.Write(strReport)
+// 			if err != nil {
+// 				return fmt.Errorf("failed to write assessment report to buffer: %w", err)
+// 			}
+// 		case "html":
+// 			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
+// 			err := templ.Execute(&assessmentReportContent, migassessment.Recommendations)
+// 			if err != nil {
+// 				return fmt.Errorf("failed to render the assessment report: %w", err)
+// 			}
+// 		}
+
+// 		log.Infof("writing assessment report to file: %s", reportFilePath)
+// 		err := os.WriteFile(reportFilePath, assessmentReportContent.Bytes(), 0644)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to write the assessment report: %w", err)
+// 		}
+// 	}
+// 	utils.PrintAndLog("Generated assessment reports at '%s'", reportsDir)
+// 	return nil
+// }
+
 func validateSourceDBTypeForAssessMigration() {
 	switch source.DBType {
 	case POSTGRESQL:
