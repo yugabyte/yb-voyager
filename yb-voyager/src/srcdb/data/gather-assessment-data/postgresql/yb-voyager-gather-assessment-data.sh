@@ -34,7 +34,7 @@ Arguments:
                          This script will attempt to create the directory if it does not exist.
 
 Example:
-  yb-voyager-gather-assessment-data.sh 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/data'
+  $SCRIPT_NAME 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/data'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -55,9 +55,23 @@ pg_connection_string=$1
 schema_list=$2
 assessment_data_dir=$3
 
+# check if assessment_data_dir exists, if not exit 1
+if [ ! -d "$assessment_data_dir" ]; then
+    echo "Directory $assessment_data_dir does not exist. Please create the directory and try again."
+    exit 1
+fi
+
+# Switch to assessment_data_dir and remember the current directory
+pushd "$assessment_data_dir" > /dev/null || exit
+
+echo -n "Enter PostgreSQL password: "
+read -s PGPASSWORD
+echo
+export PGPASSWORD
+
 echo "Assessment data collection started"
 echo "Collecting table sizes..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-sizes.sql -v schema_list=$schema_list
+psql $pg_connection_string -f $SCRIPT_DIR/table-sizes.sql -v schema_list=$schema_list -v assessment_data_dir=$assessment_data_dir
 
 echo "Collecting table iops stats..."
 psql $pg_connection_string -f $SCRIPT_DIR/table-iops.sql -v schema_list=$schema_list
@@ -79,7 +93,11 @@ if [ "$pg_dump_version" -lt 14 ]; then
     exit 1
 fi
 
+mkdir -p schema
 echo "Collect schema information"
-pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="$assessment_data_dir/schema/schema.sql"
+pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql"
+
+# Return to the original directory after operations are done
+popd > /dev/null
 
 echo "Assessment data collection completed"
