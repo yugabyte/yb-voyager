@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Migration Assessment Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .wrapper {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even){background-color: #f9f9f9;}
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <h1>Migration Assessment Report</h1>
+        <h2>Schema Summary</h2>
+        <p><strong>Database Name:</strong> {{.SchemaSummary.DBName}}</p>
+        <p><strong>Schema Name:</strong> {{.SchemaSummary.SchemaName}}</p>
+        <p><strong>Database Version:</strong> {{.SchemaSummary.DBVersion}}</p>
+
+        <h3>Database Objects</h3>
+        <table>
+            <tr>
+                <th>Object Type</th>
+                <th>Total Count</th>
+                <th>Object Names</th>
+            </tr>
+            {{range .SchemaSummary.DBObjects}}
+            <tr>
+                <td>{{.ObjectType}}</td>
+                <td>{{.TotalCount}}</td>
+                <td>{{.ObjectNames}}</td>
+            </tr>
+            {{end}}
+        </table>
+
+        <h2>Unsupported Data Types</h2>
+        <table>
+            <tr>
+                <th>Schema</th>
+                <th>Table</th>
+                <th>Column</th>
+                <th>Data Type</th>
+            </tr>
+            {{range .UnsupportedDataTypes}}
+            <tr>
+                <td>{{.SchemaName}}</td>
+                <td>{{.TableName}}</td>
+                <td>{{.ColumnName}}</td>
+                <td>{{.DataType}}</td>
+            </tr>
+            {{end}}
+        </table>
+
+        <h2>Unsupported Features</h2>
+        <ul>
+            {{range .UnsupportedFeatures}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+
+        <h2>Recommendations</h2>
+        <h3>Sharding Recommendation</h3>
+        <table>
+            <tr>
+                <th>Colocated Tables</th>
+                <th>Sharded Tables</th>
+            </tr>
+            <tr>
+                <td>{{range .Recommendations.ShardingRecommendation.ColocatedTables}}{{.}}<br>{{end}}</td>
+                <td>{{range .Recommendations.ShardingRecommendation.ShardedTables}}{{.}}<br>{{end}}</td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

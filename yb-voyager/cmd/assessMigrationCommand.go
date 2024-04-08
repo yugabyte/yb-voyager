@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -32,11 +33,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var supportedAssessmentReportFormats = []string{"json", "html"}
 var assessmentParamsFpath string
-
 var assessmentDataDirFlag string
-
 var assessmentReport AssessmentReport
 
 type AssessmentReport struct {
@@ -242,7 +240,7 @@ func parseExportedSchemaFileForAssessment() {
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
-//go:embed report.template
+//go:embed assessmentReport.template
 var bytesTemplate []byte
 
 func generateConsolidatedAssessmentReport() (err error) {
@@ -260,20 +258,18 @@ func generateConsolidatedAssessmentReport() (err error) {
 
 	assessmentReport.Recommendations = migassessment.Recommendations
 
-	// generate json report
-	assessmentReportJSON, err := json.MarshalIndent(&assessmentReport, "", "\t")
-	if err != nil {
-		return fmt.Errorf("failed to marshal the assessment report: %w", err)
-	}
-
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
-	reportFilePath := filepath.Join(assessmentReportDir, "assessmentReport.json")
-	log.Infof("writing assessment report to file: %s", reportFilePath)
-	err = os.WriteFile(reportFilePath, assessmentReportJSON, 0644)
+	err = generateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
-		return fmt.Errorf("failed to write the assessment report: %w", err)
+		return fmt.Errorf("failed to generate assessment report JSON: %w", err)
 	}
+	utils.PrintAndLog("generated JSON assessment report at: %s", assessmentReportDir)
 
+	err = generateAssessmentReportHtml(assessmentReportDir)
+	if err != nil {
+		return fmt.Errorf("failed to generate assessment report HTML: %w", err)
+	}
+	utils.PrintAndLog("generated HTML assessment report at: %s", assessmentReportDir)
 	return nil
 }
 
@@ -376,40 +372,48 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	return unsupportedDataTypes, nil
 }
 
-// func generateAssessmentReport() error {
-// 	utils.PrintAndLog("Generating assessment reports...")
-// 	reportsDir := filepath.Join(exportDir, "assessment", "reports")
-// 	for _, assessmentReportFormat := range supportedAssessmentReportFormats {
-// 		reportFilePath := filepath.Join(reportsDir, "report."+assessmentReportFormat)
-// 		var assessmentReportContent bytes.Buffer
-// 		switch assessmentReportFormat {
-// 		case "json":
-// 			strReport, err := json.MarshalIndent(&migassessment.Recommendations, "", "\t")
-// 			if err != nil {
-// 				return fmt.Errorf("failed to marshal the assessment report: %w", err)
-// 			}
+func generateAssessmentReportJson(reportDir string) error {
+	jsonReportFilePath := filepath.Join(reportDir, "assessmentReport.json")
+	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
+	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal the assessment report: %w", err)
+	}
 
-// 			_, err = assessmentReportContent.Write(strReport)
-// 			if err != nil {
-// 				return fmt.Errorf("failed to write assessment report to buffer: %w", err)
-// 			}
-// 		case "html":
-// 			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
-// 			err := templ.Execute(&assessmentReportContent, migassessment.Recommendations)
-// 			if err != nil {
-// 				return fmt.Errorf("failed to render the assessment report: %w", err)
-// 			}
-// 		}
+	err = os.WriteFile(jsonReportFilePath, strReport, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write assessment report to file: %w", err)
+	}
 
-// 		log.Infof("writing assessment report to file: %s", reportFilePath)
-// 		err := os.WriteFile(reportFilePath, assessmentReportContent.Bytes(), 0644)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to write the assessment report: %w", err)
-// 		}
-// 	}
-// 	utils.PrintAndLog("Generated assessment reports at '%s'", reportsDir)
-// 	return nil
-// }
+	return nil
+}
+
+func generateAssessmentReportHtml(reportDir string) error {
+	htmlReportFilePath := filepath.Join(reportDir, "assessmentReport.html")
+	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
+
+	file, err := os.Create(htmlReportFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create file for %q: %w", filepath.Base(htmlReportFilePath), err)
+	}
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Errorf("failed to close file %q: %v", htmlReportFilePath, err)
+		}
+	}()
+
+	log.Infof("creating template for assessment report...")
+	tmpl := template.Must(template.New("report").Parse(string(bytesTemplate)))
+
+	log.Infof("execute template for assessment report...")
+	err = tmpl.Execute(file, assessmentReport)
+	if err != nil {
+		return fmt.Errorf("failed to render the assessment report: %w", err)
+	}
+
+	return nil
+}
 
 func validateSourceDBTypeForAssessMigration() {
 	switch source.DBType {
