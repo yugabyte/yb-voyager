@@ -32,22 +32,19 @@
                 "objectType": "PROCEDURE",
                 "totalCount": 5,
                 "invalidCount": 3,
-                "objectNames": "foo, foo1, sp_createnachabatch, test, test1",
-                "details": ""
+                "objectNames": "foo, foo1, sp_createnachabatch, test, test1"
             },
             {
                 "objectType": "VIEW",
                 "totalCount": 2,
                 "invalidCount": 2,
-                "objectNames": "v1, test",
-                "details": ""
+                "objectNames": "v1, test"
             },
             {
                 "objectType": "TRIGGER",
                 "totalCount": 3,
                 "invalidCount": 3,
-                "objectNames": "transfer_insert, emp_trig, test",
-                "details": ""
+                "objectNames": "transfer_insert, emp_trig, test"
             }
         ]
 }
