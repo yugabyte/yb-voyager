@@ -256,7 +256,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			addRowInTheTable(uitbl, row, nameTup)
 		}
 
-		if i%maxTablesInOnePage == 0 && i != 0 && !outputInJsonFormat() {
+		if i%maxTablesInOnePage == 0 && i != 0 && reportOrStatusCmdOutputFormat == "table" {
 			//multiple table in case of large set of tables
 			fmt.Print("\n")
 			fmt.Println(uitbl)
@@ -268,7 +268,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			addHeader(uitbl, secondHeader...)
 		}
 	}
-	if outputInJsonFormat() {
+	if reportOrStatusCmdOutputFormat == "json" {
 		// Print the report in json format.
 		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
 		reportFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
@@ -288,7 +288,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func addRowInTheTable(uitbl *uitable.Table, row rowData, nameTup sqlname.NameTuple) {
-	if outputInJsonFormat() {
+	if reportOrStatusCmdOutputFormat == "json" {
 		row.TableName = nameTup.ForKey()
 		row.FinalRowCount = getFinalRowCount(row)
 		reportData = append(reportData, &row)

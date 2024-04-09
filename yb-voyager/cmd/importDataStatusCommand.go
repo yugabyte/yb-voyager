@@ -96,7 +96,7 @@ func runImportDataStatusCmd() error {
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
-	if outputInJsonFormat() {
+	if reportOrStatusCmdOutputFormat == "json" {
 		// Print the report in json format.
 		reportFilePath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 		reportFile := jsonfile.NewJsonFile[[]*tableMigStatusOutputRow](reportFilePath)

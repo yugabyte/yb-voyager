@@ -1123,8 +1123,8 @@ var analyzeSchemaCmd = &cobra.Command{
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/",
 	Long: ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		allowedOutputFormats := []string{"html", "json", "txt", "xml"}
-		validateReportOutputFormat(allowedOutputFormats, analyzeSchemaReportFormat)
+		validOutputFormats := []string{"html", "json", "txt", "xml"}
+		validateReportOutputFormat(validOutputFormats, analyzeSchemaReportFormat)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -1139,15 +1139,15 @@ func init() {
 		"format in which report will be generated: (html, txt, json, xml)")
 }
 
-func validateReportOutputFormat(allowedOutputFormats []string, format string ) {
+func validateReportOutputFormat(validOutputFormats []string, format string ) {
 	format = strings.ToLower(format)
 
-	for i := 0; i < len(allowedOutputFormats); i++ {
-		if format == allowedOutputFormats[i] {
+	for i := 0; i < len(validOutputFormats); i++ {
+		if format == validOutputFormats[i] {
 			return
 		}
 	}
-	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", format, allowedOutputFormats)
+	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", format, validOutputFormats)
 }
 
 func schemaIsAnalyzed() bool {

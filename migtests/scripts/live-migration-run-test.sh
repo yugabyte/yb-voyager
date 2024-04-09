@@ -169,7 +169,7 @@ main() {
 	step "Run get data-migration-report"
 	get_data_migration_report
 
-	expected_file="${TEST_DIR}/data-migration-report.json"
+	expected_file="${TEST_DIR}/data-migration-report-live-migration.json"
 	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
 
 	step "Verify data-migration-report report"

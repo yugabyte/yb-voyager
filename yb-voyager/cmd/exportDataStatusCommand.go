@@ -65,7 +65,7 @@ var exportDataStatusCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
-		if outputInJsonFormat() {
+		if reportOrStatusCmdOutputFormat == "json" {
 			// Print the report in json format.
 			reportFilePath := filepath.Join(exportDir, "reports", "export-data-status-report.json")
 			reportFile := jsonfile.NewJsonFile[[]*exportTableMigStatusOutputRow](reportFilePath)
@@ -80,9 +80,6 @@ var exportDataStatusCmd = &cobra.Command{
 	},
 }
 
-func outputInJsonFormat() bool {
-	return reportOrStatusCmdOutputFormat == "json"
-}
 
 var migrationReportFormats = []string{"table", "json"}
 
