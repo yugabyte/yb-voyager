@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
@@ -161,6 +162,25 @@ func convertToMap(rows *sql.Rows) []map[string]interface{} {
 		allMaps = append(allMaps, resultMap)
 	}
 	return allMaps
+}
+
+func convertToMapOfStringString(input []map[string]interface{}) []map[string]string {
+	output := make([]map[string]string, len(input))
+	for i, m := range input {
+		output[i] = make(map[string]string)
+		for k, v := range m {
+			switch value := v.(type) {
+			case string:
+				output[i][k] = value
+			case int:
+				output[i][k] = strconv.Itoa(value)
+			// Add more cases if you expect other types
+			default:
+				output[i][k] = fmt.Sprintf("%v", value)
+			}
+		}
+	}
+	return output
 }
 
 func printMap(allMaps []map[string]interface{}) {
