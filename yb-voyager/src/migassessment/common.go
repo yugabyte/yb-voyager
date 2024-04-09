@@ -40,7 +40,7 @@ type Report struct {
 	ColocatedTables                 []string
 	ColocatedReasoning              string
 	ShardedTables                   []string
-	NumNodes                        int64
+	NumNodes                        float64
 	VCPUsPerInstance                int64
 	MemoryPerInstance               int64
 	OptimalSelectConnectionsPerNode int64

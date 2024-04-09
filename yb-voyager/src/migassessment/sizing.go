@@ -74,18 +74,13 @@ func PrintAssessmentReport() {
 	fmt.Println("\tOptimalSelectConnectionsPerNode: ", FinalReport.OptimalSelectConnectionsPerNode)
 	fmt.Println("\tOptimalInsertConnectionsPerNode: ", FinalReport.OptimalInsertConnectionsPerNode)
 	fmt.Println("\tMigration time taken in min: ", FinalReport.MigrationTimeTakenInMin)
-	fmt.Println("--------------------------------------------\n")
+	fmt.Println("--------------------------------------------")
 }
 
 func loadSourceMetadata() ([]SourceDBMetadata, int64) {
-	//sourceDbFile := filepath.Join("src/migassessment/", "source_info.db")
 	err := ConnectSourceMetaDatabase("src/migassessment/source_info_test3.db")
 	checkErr(err)
 	srcMeta, totalSourceDBSize := getSourceMetadata()
-	/*for _, meta := range srcMeta {
-		fmt.Println(meta)
-	}
-	fmt.Println(len(srcMeta), totalSourceDBSize)*/
 	return srcMeta, totalSourceDBSize
 }
 
@@ -207,8 +202,7 @@ func generateSizingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSize
 			sumSourceWriteThroughput += metadata.WritesPerSec
 		}
 		fmt.Printf("source-select-throughput: %d\tsource-write-throughput: %d\n", sumSourceSelectThroughput, sumSourceWriteThroughput)
-		values := getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput)
-		fmt.Println(values)
+		getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput)
 		// calculate impact of table count : not in this version
 		//values = calculateTableCountImpact(values, int64(len(srcMeta)))
 
@@ -253,7 +247,6 @@ func checkFileExistsOnRemoteRepo(fileName string) bool {
 		//fmt.Println("File does not exist on remote location")
 		return false
 	} else {
-		//body, err := io.ReadAll(resp.Body)
 		downloadPath := strings.ReplaceAll(fileName, "resources/", baseDownloadPath)
 		out, err := os.Create(downloadPath)
 		defer out.Close()
@@ -314,7 +307,7 @@ func checkTableLimits(reqTables int) []int {
 	}
 }
 
-func getThroughputData(selectThroughput int64, writeThroughput int64) []map[string]string {
+func getThroughputData(selectThroughput int64, writeThroughput int64) {
 	selectQuery := "SELECT foo.* FROM (SELECT id, ROUND((? / inserts_per_core) + 0.5) AS insert_total_cores," +
 		"ROUND((? / selects_per_core) + 0.5) AS select_total_cores, num_cores, num_nodes FROM sizing " +
 		"WHERE dimension = 'MaxThroughput' AND num_cores >= ?) AS foo ORDER BY select_total_cores + insert_total_cores," +
@@ -324,86 +317,16 @@ func getThroughputData(selectThroughput int64, writeThroughput int64) []map[stri
 		log.Fatal(err)
 	}
 	defer rows.Close()
-	allMaps := convertToMapOfStringString(convertToMap(rows))
-	//printMap(allMaps)
-	return allMaps
-}
-
-/*func findRecommendationForColocatedTables() {
-	// Example input tables with respective sizes
-	data := map[string]int64{
-		"table1": 40,
-		"table2": 20,
-		"table3": 30,
-		"table4": 10,
-		"table5": 5,
-		"table6": 50,
+	allMaps := convertToMap(rows)
+	var insertTotalCores float64 = 0
+	var selectTotalCores float64 = 0
+	for _, value := range allMaps {
+		insertTotalCores += value["insert_total_cores"].(float64)
+		selectTotalCores += value["select_total_cores"].(float64)
 	}
-
-	// Sort the map based on values and get the sum of values.
-	sortedKeys, totalSum := sortByValue(data)
-	// Connect to SQLite database
-	db, err := sql.Open("sqlite3", "src/migassessment/resources/yb_2_20_source.db")
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	var selectedRow [6]interface{} // Assuming 6 columns in the table
-	rows, err := db.Query("SELECT * FROM limits WHERE max_num_tables > ? AND min_num_tables <= ? AND max_size <= ? ORDER BY max_size DESC LIMIT 1", len(data), len(data), totalSum)
-	if err != nil {
-		panic(err)
-	}
-	defer rows.Close()
-
-	var S int64
-	for rows.Next() {
-		if err := rows.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4], &selectedRow[5]); err != nil {
-			panic(err)
-		}
-		S = selectedRow[0].(int64) // Assuming max_size is the first column
-		var cumulativeSum int64
-		var colocatedTables []string
-		index := 0
-		for i, key := range sortedKeys {
-			cumulativeSum += data[key]
-			if cumulativeSum > S {
-				break
-			}
-			index = i
-			colocatedTables = append(colocatedTables, key)
-		}
-
-		fmt.Printf("\nTotal size of source tables: %v\n", totalSum)
-		fmt.Println("Recommended list of colocated Tables", colocatedTables)
-		fmt.Println("Recommended list of sharded tables", sortedKeys[index+1:])
-		fmt.Println("Recommended instance type row from limits table:", selectedRow)
-		//fmt.Println("max size is : ", S)
-		fmt.Println("\n")
-
-	}
-	if err := rows.Err(); err != nil {
-		panic(err)
-	}
-
-}*/
-
-func sortByValue(m map[string]int64) ([]string, int64) {
-	var sum int64
-
-	// Create a slice of key-value pairs.
-	var sortedKeys []string
-	for key, value := range m {
-		sortedKeys = append(sortedKeys, key)
-		sum += value
-	}
-
-	// Sort the slice based on the values of the map.
-	sort.Slice(sortedKeys, func(i, j int) bool {
-		return m[sortedKeys[i]] < m[sortedKeys[j]]
-	})
-
-	return sortedKeys, sum
+	fmt.Println("insert total cores:", insertTotalCores)
+	fmt.Println("select total cores:", selectTotalCores)
+	FinalReport.NumNodes = math.Ceil((selectTotalCores + insertTotalCores) / float64(FinalReport.VCPUsPerInstance))
 }
 
 /*
@@ -538,3 +461,80 @@ func printRows(db *sql.DB, tableName string) {
 	}
 	return 0
 }*/
+
+/*func findRecommendationForColocatedTables() {
+	// Example input tables with respective sizes
+	data := map[string]int64{
+		"table1": 40,
+		"table2": 20,
+		"table3": 30,
+		"table4": 10,
+		"table5": 5,
+		"table6": 50,
+	}
+
+	// Sort the map based on values and get the sum of values.
+	sortedKeys, totalSum := sortByValue(data)
+	// Connect to SQLite database
+	db, err := sql.Open("sqlite3", "src/migassessment/resources/yb_2_20_source.db")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	var selectedRow [6]interface{} // Assuming 6 columns in the table
+	rows, err := db.Query("SELECT * FROM limits WHERE max_num_tables > ? AND min_num_tables <= ? AND max_size <= ? ORDER BY max_size DESC LIMIT 1", len(data), len(data), totalSum)
+	if err != nil {
+		panic(err)
+	}
+	defer rows.Close()
+
+	var S int64
+	for rows.Next() {
+		if err := rows.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4], &selectedRow[5]); err != nil {
+			panic(err)
+		}
+		S = selectedRow[0].(int64) // Assuming max_size is the first column
+		var cumulativeSum int64
+		var colocatedTables []string
+		index := 0
+		for i, key := range sortedKeys {
+			cumulativeSum += data[key]
+			if cumulativeSum > S {
+				break
+			}
+			index = i
+			colocatedTables = append(colocatedTables, key)
+		}
+
+		fmt.Printf("\nTotal size of source tables: %v\n", totalSum)
+		fmt.Println("Recommended list of colocated Tables", colocatedTables)
+		fmt.Println("Recommended list of sharded tables", sortedKeys[index+1:])
+		fmt.Println("Recommended instance type row from limits table:", selectedRow)
+		//fmt.Println("max size is : ", S)
+		fmt.Println("\n")
+
+	}
+	if err := rows.Err(); err != nil {
+		panic(err)
+	}
+
+}*/
+
+func sortByValue(m map[string]int64) ([]string, int64) {
+	var sum int64
+
+	// Create a slice of key-value pairs.
+	var sortedKeys []string
+	for key, value := range m {
+		sortedKeys = append(sortedKeys, key)
+		sum += value
+	}
+
+	// Sort the slice based on the values of the map.
+	sort.Slice(sortedKeys, func(i, j int) bool {
+		return m[sortedKeys[i]] < m[sortedKeys[j]]
+	})
+
+	return sortedKeys, sum
+}
