@@ -263,12 +263,12 @@ func gatherMetadataAndStatsFromPG() error {
 func generateAssessmentReport() error {
 	utils.PrintAndLog("Generating assessment reports...")
 	reportsDir := filepath.Join(exportDir, "assessment", "reports")
+	migassessment.PrintAssessmentReport()
 	for _, assessmentReportFormat := range supportedAssessmentReportFormats {
 		reportFilePath := filepath.Join(reportsDir, "report."+assessmentReportFormat)
 		var assessmentReportContent bytes.Buffer
 		switch assessmentReportFormat {
 		case "json":
-			fmt.Println(migassessment.FinalReport)
 			strReport, err := json.MarshalIndent(&migassessment.FinalReport, "", "\t")
 			if err != nil {
 				log.Errorf("failed to marshal the assessment report: %v", err)

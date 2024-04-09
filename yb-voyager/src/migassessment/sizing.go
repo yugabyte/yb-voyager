@@ -57,23 +57,23 @@ func SizingAssessment() error {
 	createConnectionToExperimentData(assessmentParams.TargetYBVersion)
 	generateShardingRecommendations(srcMeta, totalSourceDBSize)
 	// print recommendation till this point
-	printAssessmentReport(FinalReport)
+	//PrintAssessmentReport()
 	generateSizingRecommendations(srcMeta, totalSourceDBSize)
-	//printAssessmentReport(FinalReport)
+	//PrintAssessmentReport()
 	return nil
 }
 
-func printAssessmentReport(report *Report) {
+func PrintAssessmentReport() {
 	fmt.Println("\n--------------------------------------------")
-	fmt.Println("\tColocated Tables: ", report.ColocatedTables)
-	fmt.Println("\tColocated Reasoning: ", report.ColocatedReasoning)
-	fmt.Println("\tSharded Tables: ", report.ShardedTables)
-	fmt.Println("\tNumInstances: ", report.NumInstances)
-	fmt.Println("\tVCPUsPerInstance: ", report.VCPUsPerInstance)
-	fmt.Println("\tMemoryPerInstance: ", report.MemoryPerInstance)
-	fmt.Println("\tOptimalSelectConnectionsPerNode: ", report.OptimalSelectConnectionsPerNode)
-	fmt.Println("\tOptimalInsertConnectionsPerNode: ", report.OptimalInsertConnectionsPerNode)
-	fmt.Println("\tTimeTakenInMin: ", report.MigrationTimeTakenInMin)
+	fmt.Println("\tColocated Tables: ", FinalReport.ColocatedTables)
+	fmt.Println("\tColocated Reasoning: ", FinalReport.ColocatedReasoning)
+	fmt.Println("\tSharded Tables: ", FinalReport.ShardedTables)
+	fmt.Println("\tNumNodes: ", FinalReport.NumNodes)
+	fmt.Println("\tVCPUsPerInstance: ", FinalReport.VCPUsPerInstance)
+	fmt.Println("\tMemoryPerInstance: ", FinalReport.MemoryPerInstance)
+	fmt.Println("\tOptimalSelectConnectionsPerNode: ", FinalReport.OptimalSelectConnectionsPerNode)
+	fmt.Println("\tOptimalInsertConnectionsPerNode: ", FinalReport.OptimalInsertConnectionsPerNode)
+	fmt.Println("\tMigration time taken in min: ", FinalReport.MigrationTimeTakenInMin)
 	fmt.Println("--------------------------------------------\n")
 }
 
@@ -196,7 +196,6 @@ func generateSizingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSize
 	if len(FinalReport.ShardedTables) == 0 {
 		fmt.Println("Skipping sizing assessment as all tables can be fit into colocated")
 	} else {
-		fmt.Println("Performing sizing assessment")
 		// table limit check
 		arrayOfSupportedCores := checkTableLimits(len(srcMeta))
 		fmt.Println(arrayOfSupportedCores)
@@ -217,12 +216,12 @@ func generateSizingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSize
 		//calculateImpactOfHorizontalScaling(values)
 
 		// get connections per core
-		getConnectionsPerCore(arrayOfSupportedCores[0])
+		FinalReport.OptimalSelectConnectionsPerNode, FinalReport.OptimalInsertConnectionsPerNode = getConnectionsPerCore(arrayOfSupportedCores[0])
 	}
 }
 
-func getConnectionsPerCore(numCores int) {
-	var selectConnectionsPerCore, insertConnectionsPerCore int
+func getConnectionsPerCore(numCores int) (int64, int64) {
+	var selectConnectionsPerCore, insertConnectionsPerCore int64
 	selectQuery := "select select_conn_per_node, insert_conn_per_node from sizing " +
 		"where dimension like 'MaxThroughput' and num_cores = ? order by num_nodes limit 1"
 	row := DB.QueryRow(selectQuery, numCores)
@@ -236,7 +235,7 @@ func getConnectionsPerCore(numCores int) {
 	}
 	fmt.Println("Select connections per core:", selectConnectionsPerCore)
 	fmt.Println("Insert connections per core:", insertConnectionsPerCore)
-
+	return selectConnectionsPerCore, insertConnectionsPerCore
 }
 
 func checkFileExistsOnRemoteRepo(fileName string) bool {

@@ -19,7 +19,8 @@
 </head>
 <body>
     <h1>Migration Assessment Report</h1>
-    <h2>Sharding Report</h2>
+    <h2>Sharding Recommendations</h2>
+    <h4>Reasoning: {{ .ColocatedReasoning }}
     <table>
         <tr>
             <th>Colocated Tables</th>
@@ -30,7 +31,18 @@
             <td>{{range .ShardedTables}}{{.}}<br>{{end}}</td>
         </tr>
     </table>
-    <h2>Sizing Report</h2>
-    <!-- Include sizing report data here -->
+    <h2>Sizing Recommendations</h2>
+    <table>
+        <tr>
+            <th>Parameter</th>
+            <th>Recommendation</th>
+        </tr>
+        <tr><td>Num of Nodes</td><td>{{ .NumNodes }}</td></tr>
+        <tr><td>vCPU per instance</td><td>{{ .VCPUsPerInstance }}</td></tr>
+        <tr><td>Memory per instance</td><td>{{ .MemoryPerInstance }}</td></tr>
+        <tr><td>Optimal select connections per node</td><td>{{ .OptimalSelectConnectionsPerNode }}</td></tr>
+        <tr><td>Optimal insert connections per node</td><td>{{ .OptimalInsertConnectionsPerNode }}</td></tr>
+        <tr><td>Time taken for migration</td><td>{{ .MigrationTimeTakenInMin }} min</td></tr>
+    </table>
 </body>
 </html>

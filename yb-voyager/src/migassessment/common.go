@@ -27,7 +27,6 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var AssessmentDataDir string
@@ -41,7 +40,7 @@ type Report struct {
 	ColocatedTables                 []string
 	ColocatedReasoning              string
 	ShardedTables                   []string
-	NumInstances                    int64
+	NumNodes                        int64
 	VCPUsPerInstance                int64
 	MemoryPerInstance               int64
 	OptimalSelectConnectionsPerNode int64
@@ -144,7 +143,7 @@ func LoadAssessmentParams(userInputFpath string) error {
 		return fmt.Errorf("error unmarshalling toml file's data: %w", err)
 	}
 
-	utils.PrintAndLog("assessment params: %+v", assessmentParams)
+	//utils.PrintAndLog("assessment params: %+v", assessmentParams)
 	return nil
 }
 
