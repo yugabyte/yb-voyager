@@ -126,11 +126,11 @@ func runAssessment() error {
 
 	}
 
-	err = migassessment.ShardingAssessment()
-	if err != nil {
-		log.Errorf("failed to perform sharding assessment: %v", err)
-		return fmt.Errorf("failed to perform sharding assessment: %w", err)
-	}
+	/*	err = migassessment.ShardingAssessment()
+		if err != nil {
+			log.Errorf("failed to perform sharding assessment: %v", err)
+			return fmt.Errorf("failed to perform sharding assessment: %w", err)
+		}*/
 
 	err = migassessment.SizingAssessment()
 	if err != nil {
@@ -268,6 +268,7 @@ func generateAssessmentReport() error {
 		var assessmentReportContent bytes.Buffer
 		switch assessmentReportFormat {
 		case "json":
+			fmt.Println(migassessment.FinalReport)
 			strReport, err := json.MarshalIndent(&migassessment.FinalReport, "", "\t")
 			if err != nil {
 				log.Errorf("failed to marshal the assessment report: %v", err)

@@ -29,14 +29,6 @@ import (
 	"strings"
 )
 
-type SizingReport struct {
-	NumInstances      int
-	VcpuPerNode       int
-	MemGBPerNode      int
-	InsertConnections int
-	SelectConnections int
-}
-
 type SizingParams struct {
 	// add any sizing specific parameters required from user here
 	// dummy params for now
@@ -45,7 +37,6 @@ type SizingParams struct {
 }
 
 type SourceDBMetadata struct {
-	//object_name,row_count,col_count,reads_per_second,writes_per_second,is_index,parent_table_name,size_in_gb
 	ObjectName      string `json:"object_name"`
 	RowCount        int64  `json:"row_count,string"`
 	ColCount        int64  `json:"col_count,string"`
@@ -56,24 +47,11 @@ type SourceDBMetadata struct {
 	SizeInGB        int64  `json:"size_in_gb,string"`
 }
 
-type AssessmentReport struct {
-	ColocatedTables                 []string
-	ColocatedReasoning              string
-	ShardedTables                   []string
-	InstanceType                    string // not available at the moment
-	NumInstances                    int64
-	VCPUsPerInstance                int64
-	MemoryPerInstance               int64
-	OptimalSelectConnectionsPerNode int64
-	OptimalInsertConnectionsPerNode int64
-	MigrationTimeTakenInMin         int64
-	// ParallelVoyagerImportThreads int64 ==> Optional
-}
-
 var baseDownloadPath = "src/migassessment/resources/remote/"
 var DB *sql.DB
 var SourceMetaDB *sql.DB
-var report *AssessmentReport
+
+//var report *Report
 
 func SizingAssessment() error {
 	log.Infof("loading metadata files for sharding assessment")
@@ -83,17 +61,17 @@ func SizingAssessment() error {
 	createConnectionToExperimentData("2.20")
 	generateShardingRecommendations(srcMeta, totalSourceDBSize)
 	// print recommendation till this point
-	printAssessmentReport(report)
+	printAssessmentReport(FinalReport)
 	generateSizingRecommendations(srcMeta, totalSourceDBSize)
+	printAssessmentReport(FinalReport)
 	return nil
 }
 
-func printAssessmentReport(report *AssessmentReport) {
+func printAssessmentReport(report *Report) {
 	fmt.Println("\n--------------------------------------------")
 	fmt.Println("\tColocated Tables: ", report.ColocatedTables)
 	fmt.Println("\tColocated Reasoning: ", report.ColocatedReasoning)
 	fmt.Println("\tSharded Tables: ", report.ShardedTables)
-	fmt.Println("\tInstanceType: ", report.InstanceType)
 	fmt.Println("\tNumInstances: ", report.NumInstances)
 	fmt.Println("\tVCPUsPerInstance: ", report.VCPUsPerInstance)
 	fmt.Println("\tMemoryPerInstance: ", report.MemoryPerInstance)
@@ -209,18 +187,17 @@ func generateShardingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSi
 	if len(shardedTables) >= 0 {
 		reasoning = "few tables fit as colocated and rest as sharded"
 	}
-	report = &AssessmentReport{
+	FinalReport = &Report{
 		ColocatedTables:    coloTables,
 		ColocatedReasoning: reasoning,
 		ShardedTables:      shardedTables,
-		InstanceType:       selectedRow[1].(string),
 		VCPUsPerInstance:   selectedRow[2].(int64),
 		MemoryPerInstance:  selectedRow[2].(int64) * selectedRow[3].(int64),
 	}
 }
 
 func generateSizingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSize int64) {
-	if len(report.ShardedTables) == 0 {
+	if len(FinalReport.ShardedTables) == 0 {
 		fmt.Println("Skipping sizing assessment as all tables can be fit into colocated")
 	} else {
 		fmt.Println("Performing sizing assessment")
@@ -267,6 +244,244 @@ func getConnectionsPerCore(numCores int) {
 	fmt.Println("Select connections per core:", selectConnectionsPerCore)
 	fmt.Println("Insert connections per core:", insertConnectionsPerCore)
 
+}
+
+func checkFileExistsOnRemoteRepo(fileName string) bool {
+	remotePath := "https://raw.githubusercontent.com/yb-voyager/sshaikh/mat/yb-voyager/" + fileName
+	resp, _ := http.Get(remotePath)
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != 200 {
+		//fmt.Println("File does not exist on remote location")
+		return false
+	} else {
+		//body, err := io.ReadAll(resp.Body)
+		downloadPath := strings.ReplaceAll(fileName, "resources/", baseDownloadPath)
+		out, err := os.Create(downloadPath)
+		defer out.Close()
+		_, err = io.Copy(out, resp.Body)
+
+		if err != nil {
+			panic(err)
+		}
+		return true
+	}
+}
+
+func ConnectSourceMetaDatabase(file string) error {
+	db, err := sql.Open("sqlite3", file)
+	if err != nil {
+		return err
+	}
+	SourceMetaDB = db
+	return nil
+}
+
+func ConnectExperimentDataDatabase(file string) error {
+	db, err := sql.Open("sqlite3", file)
+	if err != nil {
+		return err
+	}
+	DB = db
+	return nil
+}
+
+func checkTableLimits(reqTables int) []int {
+	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
+	selectQuery := "SELECT num_cores FROM sizing WHERE num_tables > ? AND num_cores >= ? AND dimension LIKE '%TableLimits-3nodeRF=3%' ORDER BY num_cores"
+	rows, err := DB.Query(selectQuery, reqTables, FinalReport.VCPUsPerInstance)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	var valuesArray []int
+	for rows.Next() {
+		var numCores int
+		if err := rows.Scan(&numCores); err != nil {
+			log.Fatal(err)
+		}
+		valuesArray = append(valuesArray, numCores)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	if len(valuesArray) > 0 {
+		return valuesArray
+	} else {
+		//*logs = append(*logs, fmt.Sprintf("No results found for required %d tables.", reqTables))
+		return nil
+	}
+}
+
+func getThroughputData(selectThroughput int64, writeThroughput int64) []map[string]string {
+	selectQuery := "SELECT foo.* FROM (SELECT id, ROUND((? / inserts_per_core) + 0.5) AS insert_total_cores," +
+		"ROUND((? / selects_per_core) + 0.5) AS select_total_cores, num_cores, num_nodes FROM sizing " +
+		"WHERE dimension = 'MaxThroughput' AND num_cores >= ?) AS foo ORDER BY select_total_cores + insert_total_cores," +
+		"num_cores;"
+	rows, err := DB.Query(selectQuery, writeThroughput, selectThroughput, FinalReport.VCPUsPerInstance)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	allMaps := convertToMapOfStringString(convertToMap(rows))
+	//printMap(allMaps)
+	return allMaps
+}
+
+/*func findRecommendationForColocatedTables() {
+	// Example input tables with respective sizes
+	data := map[string]int64{
+		"table1": 40,
+		"table2": 20,
+		"table3": 30,
+		"table4": 10,
+		"table5": 5,
+		"table6": 50,
+	}
+
+	// Sort the map based on values and get the sum of values.
+	sortedKeys, totalSum := sortByValue(data)
+	// Connect to SQLite database
+	db, err := sql.Open("sqlite3", "src/migassessment/resources/yb_2_20_source.db")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	var selectedRow [6]interface{} // Assuming 6 columns in the table
+	rows, err := db.Query("SELECT * FROM limits WHERE max_num_tables > ? AND min_num_tables <= ? AND max_size <= ? ORDER BY max_size DESC LIMIT 1", len(data), len(data), totalSum)
+	if err != nil {
+		panic(err)
+	}
+	defer rows.Close()
+
+	var S int64
+	for rows.Next() {
+		if err := rows.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4], &selectedRow[5]); err != nil {
+			panic(err)
+		}
+		S = selectedRow[0].(int64) // Assuming max_size is the first column
+		var cumulativeSum int64
+		var colocatedTables []string
+		index := 0
+		for i, key := range sortedKeys {
+			cumulativeSum += data[key]
+			if cumulativeSum > S {
+				break
+			}
+			index = i
+			colocatedTables = append(colocatedTables, key)
+		}
+
+		fmt.Printf("\nTotal size of source tables: %v\n", totalSum)
+		fmt.Println("Recommended list of colocated Tables", colocatedTables)
+		fmt.Println("Recommended list of sharded tables", sortedKeys[index+1:])
+		fmt.Println("Recommended instance type row from limits table:", selectedRow)
+		//fmt.Println("max size is : ", S)
+		fmt.Println("\n")
+
+	}
+	if err := rows.Err(); err != nil {
+		panic(err)
+	}
+
+}*/
+
+func sortByValue(m map[string]int64) ([]string, int64) {
+	var sum int64
+
+	// Create a slice of key-value pairs.
+	var sortedKeys []string
+	for key, value := range m {
+		sortedKeys = append(sortedKeys, key)
+		sum += value
+	}
+
+	// Sort the slice based on the values of the map.
+	sort.Slice(sortedKeys, func(i, j int) bool {
+		return m[sortedKeys[i]] < m[sortedKeys[j]]
+	})
+
+	return sortedKeys, sum
+}
+
+/*
+========== Unused functions as of this version ====================
+*/
+func calculateTableCountImpact(values []map[string]string, numTables int64) []map[string]string {
+	var impactOnSelect float64 = 0
+	var impactOnInsert float64 = 0
+	//var numCores int64 = 16
+
+	selectQuery := "select selects_per_core, inserts_per_core, num_tables, num_cores, num_nodes from " +
+		"sizing where dimension like 'MaxThroughput-TableCount' and num_cores = 16 order by num_tables asc;"
+	rows, err := DB.Query(selectQuery)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	allMaps := convertToMapOfStringString(convertToMap(rows))
+	//calculate impact on select
+	impactOnSelect = calculateTableCountImpactForCores(allMaps, "selects_per_core", numTables)
+	// calculate impact on inserts
+	impactOnInsert = calculateTableCountImpactForCores(allMaps, "inserts_per_core", numTables)
+	fmt.Println("\n\nBefore data: ", values)
+	for i, value := range values {
+		values[i] = calculateCoresAfterImpact("select", value, impactOnSelect, 1)
+		values[i] = calculateCoresAfterImpact("insert", value, impactOnInsert, 1)
+	}
+	fmt.Println("After data:", values)
+
+	return values
+}
+
+func calculateCoresAfterImpact(field string, rowJSON map[string]string, impact float64, itr float64) map[string]string {
+	coreParam := field + "_total_cores"
+	reqCores, _ := strconv.ParseFloat(rowJSON[coreParam], 64)
+	impact = math.Round(impact*1000) / 1000                           // Round to 3 decimal places
+	reqCores = math.Round((reqCores+(reqCores*impact*itr))*100) / 100 // Round to 2 decimal places
+	rowJSON[coreParam] = fmt.Sprintf("%f", reqCores)
+	return rowJSON
+}
+
+func calculateTableCountImpactForCores(values []map[string]string, field string, numTables int64) float64 {
+	value1, _ := strconv.ParseFloat(values[0][field], 64)
+	var value2 float64 = 0
+	for i := 0; i < len(values); i++ {
+		if i < len(values)-1 {
+			val, _ := strconv.ParseFloat(values[i]["num_tables"], 64)
+			if val > float64(numTables) {
+				value2, _ = strconv.ParseFloat(values[i-1][field], 64)
+				break
+			}
+		}
+	}
+	impact := (value1 - value2) / value1
+	return impact
+}
+
+func printRows(db *sql.DB, tableName string) {
+	rows, err := db.Query(fmt.Sprintf("SELECT * from %v", tableName))
+	if err != nil {
+		fmt.Println("no records found")
+	}
+	defer rows.Close()
+	allMaps := convertToMap(rows)
+	printMap(allMaps)
+
+	err = rows.Err()
+	if err != nil {
+		fmt.Println("error occurred")
+	}
 }
 
 /*func calculateImpactOfHorizontalScaling(jsonResults []map[string]string) []map[string]string{} {
@@ -331,243 +546,3 @@ func getConnectionsPerCore(numCores int) {
 	}
 	return 0
 }*/
-
-//func calculateCoresAfterImpact(op string, rowJson map[string]interface{}, coreImpactSelect, v float64) map[string]interface{} {
-//	// Implement calculation logic here
-//	return rowJson
-//}
-
-func printRows(db *sql.DB, tableName string) {
-	rows, err := db.Query(fmt.Sprintf("SELECT * from %v", tableName))
-	if err != nil {
-		fmt.Println("no records found")
-	}
-	defer rows.Close()
-	allMaps := convertToMap(rows)
-	printMap(allMaps)
-
-	err = rows.Err()
-	if err != nil {
-		fmt.Println("error occurred")
-	}
-}
-
-func checkFileExistsOnRemoteRepo(fileName string) bool {
-	remotePath := "https://raw.githubusercontent.com/yb-voyager/sshaikh/mat/yb-voyager/" + fileName
-	resp, _ := http.Get(remotePath)
-
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(resp.Body)
-
-	if resp.StatusCode != 200 {
-		//fmt.Println("File does not exist on remote location")
-		return false
-	} else {
-		//body, err := io.ReadAll(resp.Body)
-		downloadPath := strings.ReplaceAll(fileName, "resources/", baseDownloadPath)
-		out, err := os.Create(downloadPath)
-		defer out.Close()
-		_, err = io.Copy(out, resp.Body)
-
-		if err != nil {
-			panic(err)
-		}
-		return true
-	}
-}
-
-func ConnectSourceMetaDatabase(file string) error {
-	db, err := sql.Open("sqlite3", file)
-	if err != nil {
-		return err
-	}
-	SourceMetaDB = db
-	return nil
-}
-
-func ConnectExperimentDataDatabase(file string) error {
-	db, err := sql.Open("sqlite3", file)
-	if err != nil {
-		return err
-	}
-	DB = db
-	return nil
-}
-
-func checkTableLimits(reqTables int) []int {
-	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
-	selectQuery := "SELECT num_cores FROM sizing WHERE num_tables > ? AND num_cores >= ? AND dimension LIKE '%TableLimits-3nodeRF=3%' ORDER BY num_cores"
-	rows, err := DB.Query(selectQuery, reqTables, report.VCPUsPerInstance)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-
-	var valuesArray []int
-	for rows.Next() {
-		var numCores int
-		if err := rows.Scan(&numCores); err != nil {
-			log.Fatal(err)
-		}
-		valuesArray = append(valuesArray, numCores)
-	}
-
-	if err := rows.Err(); err != nil {
-		log.Fatal(err)
-	}
-
-	if len(valuesArray) > 0 {
-		return valuesArray
-	} else {
-		//*logs = append(*logs, fmt.Sprintf("No results found for required %d tables.", reqTables))
-		return nil
-	}
-}
-
-func getThroughputData(selectThroughput int64, writeThroughput int64) []map[string]string {
-	selectQuery := "SELECT foo.* FROM (SELECT id, ROUND((? / inserts_per_core) + 0.5) AS insert_total_cores," +
-		"ROUND((? / selects_per_core) + 0.5) AS select_total_cores, num_cores, num_nodes FROM sizing " +
-		"WHERE dimension = 'MaxThroughput' AND num_cores >= ?) AS foo ORDER BY select_total_cores + insert_total_cores," +
-		"num_cores;"
-	rows, err := DB.Query(selectQuery, writeThroughput, selectThroughput, report.VCPUsPerInstance)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-	allMaps := convertToMapOfStringString(convertToMap(rows))
-	//printMap(allMaps)
-	return allMaps
-}
-
-func calculateTableCountImpact(values []map[string]string, numTables int64) []map[string]string {
-	var impactOnSelect float64 = 0
-	var impactOnInsert float64 = 0
-	//var numCores int64 = 16
-
-	selectQuery := "select selects_per_core, inserts_per_core, num_tables, num_cores, num_nodes from " +
-		"sizing where dimension like 'MaxThroughput-TableCount' and num_cores = 16 order by num_tables asc;"
-	rows, err := DB.Query(selectQuery)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-	allMaps := convertToMapOfStringString(convertToMap(rows))
-	//calculate impact on select
-	impactOnSelect = calculateTableCountImpactForCores(allMaps, "selects_per_core", numTables)
-	// calculate impact on inserts
-	impactOnInsert = calculateTableCountImpactForCores(allMaps, "inserts_per_core", numTables)
-	fmt.Println("\n\nBefore data: ", values)
-	for i, value := range values {
-		values[i] = calculateCoresAfterImpact("select", value, impactOnSelect, 1)
-		values[i] = calculateCoresAfterImpact("insert", value, impactOnInsert, 1)
-	}
-	fmt.Println("After data:", values)
-
-	return values
-}
-
-func calculateCoresAfterImpact(field string, rowJSON map[string]string, impact float64, itr float64) map[string]string {
-	coreParam := field + "_total_cores"
-	reqCores, _ := strconv.ParseFloat(rowJSON[coreParam], 64)
-	impact = math.Round(impact*1000) / 1000                           // Round to 3 decimal places
-	reqCores = math.Round((reqCores+(reqCores*impact*itr))*100) / 100 // Round to 2 decimal places
-	rowJSON[coreParam] = fmt.Sprintf("%f", reqCores)
-	return rowJSON
-}
-
-func calculateTableCountImpactForCores(values []map[string]string, field string, numTables int64) float64 {
-	value1, _ := strconv.ParseFloat(values[0][field], 64)
-	var value2 float64 = 0
-	for i := 0; i < len(values); i++ {
-		if i < len(values)-1 {
-			val, _ := strconv.ParseFloat(values[i]["num_tables"], 64)
-			if val > float64(numTables) {
-				value2, _ = strconv.ParseFloat(values[i-1][field], 64)
-				break
-			}
-		}
-	}
-	impact := (value1 - value2) / value1
-	return impact
-}
-
-func findRecommendationForColocatedTables() {
-	// Example input tables with respective sizes
-	data := map[string]int64{
-		"table1": 40,
-		"table2": 20,
-		"table3": 30,
-		"table4": 10,
-		"table5": 5,
-		"table6": 50,
-	}
-
-	// Sort the map based on values and get the sum of values.
-	sortedKeys, totalSum := sortByValue(data)
-	// Connect to SQLite database
-	db, err := sql.Open("sqlite3", "src/migassessment/resources/yb_2_20_source.db")
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	var selectedRow [6]interface{} // Assuming 6 columns in the table
-	rows, err := db.Query("SELECT * FROM limits WHERE max_num_tables > ? AND min_num_tables <= ? AND max_size <= ? ORDER BY max_size DESC LIMIT 1", len(data), len(data), totalSum)
-	if err != nil {
-		panic(err)
-	}
-	defer rows.Close()
-
-	var S int64
-	for rows.Next() {
-		if err := rows.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4], &selectedRow[5]); err != nil {
-			panic(err)
-		}
-		S = selectedRow[0].(int64) // Assuming max_size is the first column
-		var cumulativeSum int64
-		var colocatedTables []string
-		index := 0
-		for i, key := range sortedKeys {
-			cumulativeSum += data[key]
-			if cumulativeSum > S {
-				break
-			}
-			index = i
-			colocatedTables = append(colocatedTables, key)
-		}
-
-		fmt.Printf("\nTotal size of source tables: %v\n", totalSum)
-		fmt.Println("Recommended list of colocated Tables", colocatedTables)
-		fmt.Println("Recommended list of sharded tables", sortedKeys[index+1:])
-		fmt.Println("Recommended instance type row from limits table:", selectedRow)
-		//fmt.Println("max size is : ", S)
-		fmt.Println("\n")
-
-	}
-	if err := rows.Err(); err != nil {
-		panic(err)
-	}
-
-}
-
-func sortByValue(m map[string]int64) ([]string, int64) {
-	var sum int64
-
-	// Create a slice of key-value pairs.
-	var sortedKeys []string
-	for key, value := range m {
-		sortedKeys = append(sortedKeys, key)
-		sum += value
-	}
-
-	// Sort the slice based on the values of the map.
-	sort.Slice(sortedKeys, func(i, j int) bool {
-		return m[sortedKeys[i]] < m[sortedKeys[j]]
-	})
-
-	return sortedKeys, sum
-}

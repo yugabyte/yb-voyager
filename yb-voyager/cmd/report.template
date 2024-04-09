@@ -26,8 +26,8 @@
             <th>Sharded Tables</th>
         </tr>
         <tr>
-            <td>{{range .ShardingReport.ColocatedTables}}{{.}}<br>{{end}}</td>
-            <td>{{range .ShardingReport.ShardedTables}}{{.}}<br>{{end}}</td>
+            <td>{{range .ColocatedTables}}{{.}}<br>{{end}}</td>
+            <td>{{range .ShardedTables}}{{.}}<br>{{end}}</td>
         </tr>
     </table>
     <h2>Sizing Report</h2>

@@ -34,12 +34,20 @@ var AssessmentDataDir string
 
 type Record map[string]any
 
-// type QueryResult []Record
-var FinalReport Report
+// FinalReport type QueryResult []Record
+var FinalReport *Report
 
 type Report struct {
-	*ShardingReport `json:"sharding"`
-	*SizingReport   `json:"sizing"`
+	ColocatedTables                 []string
+	ColocatedReasoning              string
+	ShardedTables                   []string
+	NumInstances                    int64
+	VCPUsPerInstance                int64
+	MemoryPerInstance               int64
+	OptimalSelectConnectionsPerNode int64
+	OptimalInsertConnectionsPerNode int64
+	MigrationTimeTakenInMin         int64
+	// ParallelVoyagerImportThreads int64 ==> Optional
 }
 
 var assessmentParams = &AssessmentParams{}
