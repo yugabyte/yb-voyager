@@ -51,19 +51,15 @@ var baseDownloadPath = "src/migassessment/resources/remote/"
 var DB *sql.DB
 var SourceMetaDB *sql.DB
 
-//var report *Report
-
 func SizingAssessment() error {
 	log.Infof("loading metadata files for sharding assessment")
-	fmt.Println("loading source metadata")
 	srcMeta, totalSourceDBSize := loadSourceMetadata()
-	fmt.Println("connect to the experimental data")
-	createConnectionToExperimentData("2.20")
+	createConnectionToExperimentData(assessmentParams.TargetYBVersion)
 	generateShardingRecommendations(srcMeta, totalSourceDBSize)
 	// print recommendation till this point
 	printAssessmentReport(FinalReport)
 	generateSizingRecommendations(srcMeta, totalSourceDBSize)
-	printAssessmentReport(FinalReport)
+	//printAssessmentReport(FinalReport)
 	return nil
 }
 
@@ -86,10 +82,10 @@ func loadSourceMetadata() ([]SourceDBMetadata, int64) {
 	err := ConnectSourceMetaDatabase("src/migassessment/source_info_test3.db")
 	checkErr(err)
 	srcMeta, totalSourceDBSize := getSourceMetadata()
-	for _, meta := range srcMeta {
+	/*for _, meta := range srcMeta {
 		fmt.Println(meta)
 	}
-	fmt.Println(len(srcMeta), totalSourceDBSize)
+	fmt.Println(len(srcMeta), totalSourceDBSize)*/
 	return srcMeta, totalSourceDBSize
 }
 
@@ -221,10 +217,7 @@ func generateSizingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSize
 		//calculateImpactOfHorizontalScaling(values)
 
 		// get connections per core
-		fmt.Println("Here we are")
 		getConnectionsPerCore(arrayOfSupportedCores[0])
-		fmt.Println("Endline")
-
 	}
 }
 
