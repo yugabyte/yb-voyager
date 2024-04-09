@@ -38,6 +38,10 @@ var exportDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print status of an ongoing/completed data export.",
 
+	PreRun: func(cmd *cobra.Command, args []string) {
+		validateReportOutputFormat(migrationReportFormats, reportOrStatusCmdOutputFormat)
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
 		streamChanges, err := checkStreamingMode()
 		if err != nil {
@@ -52,32 +56,51 @@ var exportDataStatusCmd = &cobra.Command{
 			utils.ErrExit("initializing name registry: %v", err)
 		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
+		var rows []*exportTableMigStatusOutputRow
 		if useDebezium {
-			err = runExportDataStatusCmdDbzm(streamChanges)
+			rows, err = runExportDataStatusCmdDbzm(streamChanges)
 		} else {
-			err = runExportDataStatusCmd()
+			rows, err = runExportDataStatusCmd()
 		}
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
+		if reportOrStatusCmdOutputFormat == "json" {
+			// Print the report in json format.
+			reportFilePath := filepath.Join(exportDir, "reports", "export-data-status-report.json")
+			reportFile := jsonfile.NewJsonFile[[]*exportTableMigStatusOutputRow](reportFilePath)
+			err := reportFile.Create(&rows)
+			if err != nil {
+				utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
+			}
+			fmt.Print(color.GreenString("Export data status report is written to %s\n", reportFilePath))
+			return
+		}
+		displayExportDataStatus(rows)
 	},
 }
 
+
+var migrationReportFormats = []string{"table", "json"}
+
 func init() {
 	exportDataCmd.AddCommand(exportDataStatusCmd)
+	exportDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
+	"format in which report will be generated: (table, json)")
+	exportDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }
 
 type exportTableMigStatusOutputRow struct {
-	tableName     string
-	status        string
-	exportedCount int64
+	TableName     string `json:"table_name"`
+	Status        string `json:"status"`
+	ExportedCount int64  `json:"exported_count"`
 }
 
 var InProgressTableSno int
 
 // Note that the `export data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `export data` process.
-func runExportDataStatusCmdDbzm(streamChanges bool) error {
+func runExportDataStatusCmdDbzm(streamChanges bool) ([]*exportTableMigStatusOutputRow, error) {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
@@ -91,8 +114,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 		row = getSnapshotExportStatusRow(&tableStatus)
 		rows = append(rows, row)
 	}
-	displayExportDataStatus(rows)
-	return nil
+	return rows, nil
 }
 
 func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTableMigStatusOutputRow {
@@ -101,20 +123,20 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 		utils.ErrExit("lookup %s in name registry: %v", tableStatus.TableName, err)
 	}
 	row := &exportTableMigStatusOutputRow{
-		tableName:     nt.ForMinOutput(),
-		status:        "DONE",
-		exportedCount: tableStatus.ExportedRowCountSnapshot,
+		TableName:     nt.ForMinOutput(),
+		Status:        "DONE",
+		ExportedCount: tableStatus.ExportedRowCountSnapshot,
 	}
 	if tableStatus.Sno == InProgressTableSno && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
-		row.status = "EXPORTING"
+		row.Status = "EXPORTING"
 	}
 	return row
 }
 
-func runExportDataStatusCmd() error {
+func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("error while getting migration status record: %v", err)
+		return nil, fmt.Errorf("error while getting migration status record: %v", err)
 	}
 	tableList := msr.TableListExportedFromSource
 	source = *msr.SourceDBConf
@@ -129,7 +151,7 @@ func runExportDataStatusCmd() error {
 
 	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
 	if err != nil {
-		return fmt.Errorf("error while getting exported snapshot rows map: %v", err)
+		return nil, fmt.Errorf("error while getting exported snapshot rows map: %v", err)
 	}
 
 	leafPartitions := getLeafPartitionsFromRootTable()
@@ -137,7 +159,7 @@ func runExportDataStatusCmd() error {
 	for _, tableName := range tableList {
 		finalFullTableName, err := namereg.NameReg.LookupTableName(tableName)
 		if err != nil {
-			return fmt.Errorf("lookup %s in name registry: %v", tableName, err)
+			return nil, fmt.Errorf("lookup %s in name registry: %v", tableName, err)
 		}
 		displayTableName := finalFullTableName.ForMinOutput()
 		partitions := leafPartitions[finalFullTableName.ForOutput()]
@@ -170,15 +192,14 @@ func runExportDataStatusCmd() error {
 		}
 		exportedCount, _ := exportedSnapshotRow.Get(finalFullTableName)
 		row := &exportTableMigStatusOutputRow{
-			tableName:     displayTableName,
-			status:        finalStatus,
-			exportedCount: exportedCount,
+			TableName:     displayTableName,
+			Status:        finalStatus,
+			ExportedCount: exportedCount,
 		}
 		outputRows = append(outputRows, row)
 	}
 
-	displayExportDataStatus(outputRows)
-	return nil
+	return outputRows, nil
 }
 
 func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
@@ -191,14 +212,14 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 		ordStates := map[string]int{"EXPORTING": 1, "DONE": 2, "NOT_STARTED": 3, "STREAMING": 4}
 		row1 := rows[i]
 		row2 := rows[j]
-		if row1.status == row2.status {
-			return strings.Compare(row1.tableName, row2.tableName) < 0
+		if row1.Status == row2.Status {
+			return strings.Compare(row1.TableName, row2.TableName) < 0
 		} else {
-			return ordStates[row1.status] < ordStates[row2.status]
+			return ordStates[row1.Status] < ordStates[row2.Status]
 		}
 	})
 	for _, row := range rows {
-		table.AddRow(row.tableName, row.status, row.exportedCount)
+		table.AddRow(row.TableName, row.Status, row.ExportedCount)
 	}
 	if len(rows) > 0 {
 		fmt.Print("\n")
