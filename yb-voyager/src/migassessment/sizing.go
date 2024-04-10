@@ -230,10 +230,10 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 			"Rest %v objects of size %v GB can be imported as sharded tables",
 			len(coloObjectNames), totalSourceDBSize-shardedObjectsSize, len(shardedObjectNames), shardedObjectsSize)
 	} else {
-		reasoning += fmt.Sprintf("All %v database objects as colocated", totalSourceDBSize)
+		reasoning += fmt.Sprintf("All %v objects of size %vGB as colocated",
+			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
 	}
 
-	// TODO: calculate time taken for migrating the colocated tables
 	FinalReport = &Report{
 		ColocatedTables:         coloObjectNames,
 		ColocatedReasoning:      reasoning,
