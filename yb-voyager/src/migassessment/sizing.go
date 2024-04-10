@@ -77,7 +77,7 @@ func PrintAssessmentReport() {
 	fmt.Println("\tMemoryPerInstance: ", FinalReport.MemoryPerInstance)
 	fmt.Println("\tOptimalSelectConnectionsPerNode: ", naIfZero(FinalReport.OptimalSelectConnectionsPerNode))
 	fmt.Println("\tOptimalInsertConnectionsPerNode: ", naIfZero(FinalReport.OptimalInsertConnectionsPerNode))
-	fmt.Println("\tMigration time taken in min: ", FinalReport.MigrationTimeTakenInMin)
+	fmt.Println("\testimated migration time take min: ", FinalReport.MigrationTimeTakenInMin)
 	fmt.Println("-------------------------------------------------------------------------------------------------")
 }
 
@@ -223,7 +223,10 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	vCPUPerInstance := selectedRow[1].(int64)
 	memPerCore := selectedRow[2].(int64)
 
-	reasoning := fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ", vCPUPerInstance, memPerCore)
+	reasoning :=
+		fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ",
+			vCPUPerInstance, vCPUPerInstance*memPerCore)
+
 	//reasoning := "all tables could be fit into colocated db with recommended instance type"
 	if len(shardedObjectNames) > 0 {
 		reasoning += fmt.Sprintf("%v objects with size %v GB as colocated. "+
@@ -241,12 +244,12 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		NumNodes:                3,
 		VCPUsPerInstance:        vCPUPerInstance,
 		MemoryPerInstance:       vCPUPerInstance * memPerCore,
-		MigrationTimeTakenInMin: calculateTimeTakenForMigration(colocatedObjects, vCPUPerInstance, memPerCore),
+		MigrationTimeTakenInMin: calculateTimeTakenForMigration("colocated", colocatedObjects, vCPUPerInstance, memPerCore),
 	}
 	return shardedObjects, shardedObjectsSize
 }
 
-func calculateTimeTakenForMigration(dbObjects []SourceDBMetadata, vCPUPerInstance int64, memPerCore int64) int64 {
+func calculateTimeTakenForMigration(objectType string, dbObjects []SourceDBMetadata, vCPUPerInstance int64, memPerCore int64) int64 {
 	// the total size of colocated objects
 	var size int64 = 0
 	var timeTakenOfFetchedRow int64
@@ -257,8 +260,11 @@ func calculateTimeTakenForMigration(dbObjects []SourceDBMetadata, vCPUPerInstanc
 
 	//fmt.Println("size of the colo objects", size, "num_cores: ", vCPUPerInstance, "mem: ", memPerCore)
 	// find the rows in experiment data about the approx row matching the size
-	selectQuery := "SELECT csv_size_gb, migration_time_secs from colocated_load_time where num_cores = ? " +
-		"and mem_per_core = ? and csv_size_gb >= ? order by csv_size_gb limit 1; "
+	selectQuery := fmt.Sprintf("SELECT csv_size_gb, migration_time_secs from %v_load_time where "+
+		"num_cores = ? and mem_per_core = ? and csv_size_gb >= ? UNION ALL "+
+		"SELECT csv_size_gb, migration_time_secs from sharded_load_time WHERE csv_size_gb = (SELECT MAX(csv_size_gb) "+
+		"FROM sharded_load_time) LIMIT 1;", objectType)
+	//fmt.Println(selectQuery)
 	row := DB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size)
 
 	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow); err != nil {
@@ -308,6 +314,10 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 
 		// get connections per core
 		FinalReport.OptimalSelectConnectionsPerNode, FinalReport.OptimalInsertConnectionsPerNode = getConnectionsPerCore(arrayOfSupportedCores[0])
+		// calculate time taken for sharded migration
+		migrationTimeForShardedObjects :=
+			calculateTimeTakenForMigration("sharded", shardedObjectMetadata, FinalReport.VCPUsPerInstance, 4)
+		FinalReport.MigrationTimeTakenInMin += migrationTimeForShardedObjects
 	}
 }
 
