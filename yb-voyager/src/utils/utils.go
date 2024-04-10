@@ -337,6 +337,51 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 	return false
 }
 
+func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.Duration) error {
+	// Wait for log file to be created
+	timeout := time.After(timeoutDuration)
+	for {
+		_, err := os.Stat(filePath)
+		if err == nil {
+			break
+		}
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout while waiting for log file %q", filePath)
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+
+	defer file.Close()
+
+	for {
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, message) {
+				return nil
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf("error scanning file %s: %v", filePath, err)
+		}
+
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout while waiting for %q in %q", message, filePath)
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
+
 func ToCaseInsensitiveNames(names []string) []string {
 	for i, object := range names {
 		object = strings.Trim(object, "\"")
