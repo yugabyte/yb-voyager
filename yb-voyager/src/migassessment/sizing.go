@@ -53,12 +53,12 @@ var SourceMetaDB *sql.DB
 
 func SizingAssessment() error {
 	log.Infof("loading metadata files for sharding assessment")
-	srcMeta, totalSourceDBSize := loadSourceMetadata()
+	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
 	createConnectionToExperimentData(assessmentParams.TargetYBVersion)
-	generateShardingRecommendations(srcMeta, totalSourceDBSize)
+	generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 	// print recommendation till this point
 	//PrintAssessmentReport()
-	generateSizingRecommendations(srcMeta, totalSourceDBSize)
+	generateSizingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 	//PrintAssessmentReport()
 	return nil
 }
@@ -77,14 +77,16 @@ func PrintAssessmentReport() {
 	fmt.Println("--------------------------------------------")
 }
 
-func loadSourceMetadata() ([]SourceDBMetadata, int64) {
-	err := ConnectSourceMetaDatabase("src/migassessment/source_info_test3.db")
+func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, int64) {
+	//err := ConnectSourceMetaDatabase("src/migassessment/source_info_test3.db")
+	err := ConnectSourceMetaDatabase(assessmentParams.SourceDBMetadataFile)
 	checkErr(err)
-	srcMeta, totalSourceDBSize := getSourceMetadata()
-	return srcMeta, totalSourceDBSize
+	//srcMeta, totalSourceDBSize := getSourceMetadata()
+	//return srcMeta, totalSourceDBSize
+	return getSourceMetadata()
 }
 
-func getSourceMetadata() ([]SourceDBMetadata, int64) {
+func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, int64) {
 	rows, err := SourceMetaDB.Query("SELECT * FROM source_metadata ORDER BY size_in_gb ASC")
 	if err != nil {
 		fmt.Println("no records found")
@@ -92,7 +94,9 @@ func getSourceMetadata() ([]SourceDBMetadata, int64) {
 	defer rows.Close()
 
 	// Iterate over the rows
-	var sourceMetadata []SourceDBMetadata
+	var sourceTableMetadata []SourceDBMetadata
+	var sourceIndexMetadata []SourceDBMetadata
+
 	var totalSourceDBSize int64 = 0
 	for rows.Next() {
 		var metadata SourceDBMetadata
@@ -100,14 +104,18 @@ func getSourceMetadata() ([]SourceDBMetadata, int64) {
 			&metadata.WritesPerSec, &metadata.IsIndex, &metadata.ParentTableName, &metadata.SizeInGB); err != nil {
 			log.Fatal(err)
 		}
-		sourceMetadata = append(sourceMetadata, metadata)
+		if metadata.IsIndex {
+			sourceIndexMetadata = append(sourceIndexMetadata, metadata)
+		} else {
+			sourceTableMetadata = append(sourceTableMetadata, metadata)
+		}
 		totalSourceDBSize += metadata.SizeInGB
 	}
 	if err := rows.Err(); err != nil {
 		log.Fatal(err)
 	}
 	SourceMetaDB.Close()
-	return sourceMetadata, totalSourceDBSize
+	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize
 }
 
 func createConnectionToExperimentData(targetYbVersion string) {
@@ -141,11 +149,17 @@ func getExperimentFile(targetYbVersion string) string {
 	return filePath
 }
 
-func generateShardingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSize int64) {
+func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata, totalSourceDBSize int64) {
 	var selectedRow [6]interface{} // Assuming 6 columns in the table
+	var cumulativeSum int64
+	var colocatedObjects []SourceDBMetadata
+	var coloObjectNames []string
+	var shardedObjectNames []string
+	var index int
+	numSourceObjects := len(sourceTableMetadata) + len(sourceIndexMetadata)
 	row := DB.QueryRow("SELECT * FROM limits WHERE max_num_tables > ? AND min_num_tables <= ? AND "+
 		"max_size >= ? UNION ALL SELECT * FROM limits WHERE max_size = (SELECT MAX(max_size) "+
-		"FROM limits) LIMIT 1;", len(srcMeta), len(srcMeta), totalSourceDBSize)
+		"FROM limits) LIMIT 1;", numSourceObjects, numSourceObjects, totalSourceDBSize)
 
 	var S int64
 	if err := row.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4], &selectedRow[5]); err != nil {
@@ -155,49 +169,76 @@ func generateShardingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSi
 			log.Fatal(err)
 		}
 	}
+
 	S = selectedRow[0].(int64) // Assuming max_size is the first column
-	var cumulativeSum int64
-	var colocatedTables []SourceDBMetadata
-	var coloTables []string
-	var shardedTables []string
-	var index int
-	for i, key := range srcMeta {
-		cumulativeSum += key.SizeInGB
-		// need to find all indexes for the current tables
+	for i, key := range sourceTableMetadata {
+		// TODO: need to find all indexes for the current table
+		// check if the current object is index and its parent table
+		// check if the parent table is present in colocatedTables list
+		// fire a db query to find out all indexes of that table
+		// calculate cumulativeSum and see if table and indexes can be fit into the colo
+		// else put it into sharded tables
+
+		// check if current table has any indexes and fetch all indexes
+		indexesOfTable, indexesSizeSum := checkAndFetchIndexes(key, sourceIndexMetadata)
+		cumulativeSum += key.SizeInGB + indexesSizeSum
 		if cumulativeSum > S {
 			break
 		}
 		index = i
-		colocatedTables = append(colocatedTables, key)
-		coloTables = append(coloTables, key.ObjectName)
+		colocatedObjects = append(colocatedObjects, key)
+		coloObjectNames = append(coloObjectNames, key.ObjectName)
+
+		// append all indexes into colocated
+		colocatedObjects = append(colocatedObjects, indexesOfTable...)
+		// append all index names into coloresult
+		for _, key := range indexesOfTable {
+			coloObjectNames = append(coloObjectNames, key.ObjectName)
+		}
 	}
-	for _, key := range srcMeta[index+1:] {
-		shardedTables = append(shardedTables, key.ObjectName)
+
+	for _, key := range sourceTableMetadata[index+1:] {
+		shardedObjectNames = append(shardedObjectNames, key.ObjectName)
+		indexesOfTable, _ := checkAndFetchIndexes(key, sourceIndexMetadata)
+		for _, key := range indexesOfTable {
+			shardedObjectNames = append(shardedObjectNames, key.ObjectName)
+		}
 	}
 	reasoning := "all tables could be fit into colocated db with recommended instance type"
-	if len(shardedTables) >= 0 {
+	if len(shardedObjectNames) >= 0 {
 		reasoning = "few tables fit as colocated and rest as sharded"
 	}
 	FinalReport = &Report{
-		ColocatedTables:    coloTables,
+		ColocatedTables:    coloObjectNames,
 		ColocatedReasoning: reasoning,
-		ShardedTables:      shardedTables,
+		ShardedTables:      shardedObjectNames,
 		VCPUsPerInstance:   selectedRow[2].(int64),
 		MemoryPerInstance:  selectedRow[2].(int64) * selectedRow[3].(int64),
 	}
 }
 
-func generateSizingRecommendations(srcMeta []SourceDBMetadata, totalSourceDBSize int64) {
+func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, int64) {
+	indexesOfTable := make([]SourceDBMetadata, 0)
+	var indexesSizeSum int64 = 0
+	for _, index := range indexes {
+		if index.ParentTableName == table.ObjectName {
+			indexesOfTable = append(indexesOfTable, index)
+			indexesSizeSum += index.SizeInGB
+		}
+	}
+	return indexesOfTable, indexesSizeSum
+}
+func generateSizingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata, totalSourceDBSize int64) {
 	if len(FinalReport.ShardedTables) == 0 {
 		fmt.Println("Skipping sizing assessment as all tables can be fit into colocated")
 	} else {
 		// table limit check
-		arrayOfSupportedCores := checkTableLimits(len(srcMeta))
+		arrayOfSupportedCores := checkTableLimits(len(sourceTableMetadata))
 		fmt.Println(arrayOfSupportedCores)
 		// calculate throughput data
 		var sumSourceSelectThroughput int64 = 0
 		var sumSourceWriteThroughput int64 = 0
-		for _, metadata := range srcMeta {
+		for _, metadata := range sourceTableMetadata {
 			sumSourceSelectThroughput += metadata.ReadsPerSec
 			sumSourceWriteThroughput += metadata.WritesPerSec
 		}
