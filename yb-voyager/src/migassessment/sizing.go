@@ -290,7 +290,7 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 	if len(FinalReport.ShardedTables) > 0 {
 		// table limit check
 		arrayOfSupportedCores := checkTableLimits(len(shardedObjectMetadata))
-		fmt.Println(arrayOfSupportedCores)
+		//fmt.Println(arrayOfSupportedCores)
 		// calculate throughput data
 		var sumSourceSelectThroughput int64 = 0
 		var sumSourceWriteThroughput int64 = 0
@@ -298,7 +298,7 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 			sumSourceSelectThroughput += metadata.ReadsPerSec
 			sumSourceWriteThroughput += metadata.WritesPerSec
 		}
-		fmt.Printf("source-select-throughput: %d\tsource-write-throughput: %d\n", sumSourceSelectThroughput, sumSourceWriteThroughput)
+		//fmt.Printf("source-select-throughput: %d\tsource-write-throughput: %d\n", sumSourceSelectThroughput, sumSourceWriteThroughput)
 		getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput)
 		// calculate impact of table count : not in this version
 		//values = calculateTableCountImpact(values, int64(len(srcMeta)))
@@ -324,8 +324,8 @@ func getConnectionsPerCore(numCores int) (int64, int64) {
 			log.Fatal(err)
 		}
 	}
-	fmt.Println("Select connections per core:", selectConnectionsPerCore)
-	fmt.Println("Insert connections per core:", insertConnectionsPerCore)
+	/*fmt.Println("Select connections per core:", selectConnectionsPerCore)
+	fmt.Println("Insert connections per core:", insertConnectionsPerCore)*/
 	return selectConnectionsPerCore, insertConnectionsPerCore
 }
 
@@ -422,8 +422,8 @@ func getThroughputData(selectThroughput int64, writeThroughput int64) {
 		insertTotalCores += value["insert_total_cores"].(float64)
 		selectTotalCores += value["select_total_cores"].(float64)
 	}
-	fmt.Println("insert total cores:", insertTotalCores)
-	fmt.Println("select total cores:", selectTotalCores)
+	/*fmt.Println("insert total cores:", insertTotalCores)
+	fmt.Println("select total cores:", selectTotalCores)*/
 	// add the additional nodes to the total
 	FinalReport.NumNodes += math.Max(math.Ceil((selectTotalCores+insertTotalCores)/float64(FinalReport.VCPUsPerInstance)), 1)
 }
