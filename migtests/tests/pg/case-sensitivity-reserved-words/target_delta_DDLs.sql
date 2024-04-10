@@ -47,42 +47,42 @@ DELETE FROM "UT_MC" WHERE id = 6;
 UPDATE "UT_MC" SET "Column_Name" = 'Updated Value 1 again', id=6 WHERE id = 1;
 
 -- "UT_RWC" Table:
-INSERT INTO "UT_RWC" (id, "user", "case", "describe") VALUES (7, 'User 3', 'Case 3', 'Description 3');
-UPDATE "UT_RWC" SET "user" = 'Updated User 5', "describe" = 'Updated description', id=4 WHERE id = 5;
-UPDATE "UT_RWC" SET "case" = NULL, "describe" = NULL WHERE id = 7;
-DELETE FROM "UT_RWC" WHERE "describe" = 'Updated description';
+INSERT INTO "UT_RWC" (id, "user", "case", "table") VALUES (7, 'User 3', 'Case 3', 'Description 3');
+UPDATE "UT_RWC" SET "user" = 'Updated User 5', "table" = 'Updated description', id=4 WHERE id = 5;
+UPDATE "UT_RWC" SET "case" = NULL, "table" = NULL WHERE id = 7;
+DELETE FROM "UT_RWC" WHERE "table" = 'Updated description';
 
 -- "Mt_Rwc" Table:
-INSERT INTO "Mt_Rwc" (id, "user", "COLUMN_NAME", "Describe") VALUES (6, 'User6', 'Value6', 'Description6');
-UPDATE "Mt_Rwc" SET id = 3, "user" = 'UpdatedUser1', "Describe" = 'UpdatedDescription2', "COLUMN_NAME" = 'UpdatedValue3' WHERE id = 5;
+INSERT INTO "Mt_Rwc" (id, "user", "COLUMN_NAME", "Table") VALUES (6, 'User6', 'Value6', 'Description6');
+UPDATE "Mt_Rwc" SET id = 3, "user" = 'UpdatedUser1', "Table" = 'UpdatedDescription2', "COLUMN_NAME" = 'UpdatedValue3' WHERE id = 5;
 DELETE FROM "Mt_Rwc" WHERE id = 1;
-UPDATE "Mt_Rwc" SET "user" = NULL, "Describe" = NULL, "COLUMN_NAME" = NULL,id=1 WHERE id = 6;
+UPDATE "Mt_Rwc" SET "user" = NULL, "Table" = NULL, "COLUMN_NAME" = NULL,id=1 WHERE id = 6;
 
--- "describe" Table:
-INSERT INTO "describe" (id, "Column_Name") VALUES (5, 'Value 2');
-INSERT INTO "describe" (id, "Column_Name") VALUES (6, 'Value 3');
-UPDATE "describe" SET "Column_Name" = NULL WHERE id = 6;
-DELETE FROM "describe" WHERE id = 6;
-UPDATE "describe" SET "Column_Name" = 'Updated Value 1 again', id=6 WHERE id = 1;
+-- "integer" Table:
+INSERT INTO "integer" (id, "Column_Name") VALUES (5, 'Value 2');
+INSERT INTO "integer" (id, "Column_Name") VALUES (6, 'Value 3');
+UPDATE "integer" SET "Column_Name" = NULL WHERE id = 6;
+DELETE FROM "integer" WHERE id = 6;
+UPDATE "integer" SET "Column_Name" = 'Updated Value 1 again', id=6 WHERE id = 1;
 
 -- "case" Table:
-INSERT INTO "case" (id, "user", "case", "describe") VALUES (7, 'User 3', 'Case 3', 'Description 3');
-UPDATE "case" SET "user" = 'Updated User 5', "describe" = 'Updated description', id=4 WHERE id = 5;
-DELETE FROM "case" WHERE "describe" = 'Updated description';
-UPDATE "case" SET "user" = NULL, "describe" = NULL WHERE id = 7;
+INSERT INTO "case" (id, "user", "case", "table") VALUES (7, 'User 3', 'Case 3', 'Description 3');
+UPDATE "case" SET "user" = 'Updated User 5', "table" = 'Updated description', id=4 WHERE id = 5;
+DELETE FROM "case" WHERE "table" = 'Updated description';
+UPDATE "case" SET "user" = NULL, "table" = NULL WHERE id = 7;
 
 -- case-sensitive reserved word table/column
-INSERT INTO "Table" (id, "User_name", "describe") VALUES (5, 'User5', 'Description5');
-INSERT INTO "Table" (id,"describe") VALUES (6, 'Description6');
-UPDATE "Table" SET "User_name" = 'UpdatedUser', "describe" = 'UpdatedDescription' WHERE id = 5;
+INSERT INTO "Table" (id, "User_name", "table") VALUES (5, 'User5', 'Description5');
+INSERT INTO "Table" (id,"table") VALUES (6, 'Description6');
+UPDATE "Table" SET "User_name" = 'UpdatedUser', "table" = 'UpdatedDescription' WHERE id = 5;
 DELETE FROM "Table" WHERE id = 3;
-UPDATE "Table" SET "describe" = NULL, "User_name" = NULL WHERE id = 6;
+UPDATE "Table" SET "table" = NULL, "User_name" = NULL WHERE id = 6;
 
 -- case-sensitive reserved word column
-INSERT INTO cs_rwc (id, "User", "describe") VALUES (5, 'User5', 'Description5');
-INSERT INTO cs_rwc (id,"describe") VALUES (6, 'Description6');
-UPDATE cs_rwc SET "User" = 'UpdatedUser', "describe" = 'UpdatedDescription' WHERE id = 5;
-UPDATE cs_rwc SET "describe" = NULL, "User" = NULL WHERE id = 5;
+INSERT INTO cs_rwc (id, "User", "table") VALUES (5, 'User5', 'Description5');
+INSERT INTO cs_rwc (id,"table") VALUES (6, 'Description6');
+UPDATE cs_rwc SET "User" = 'UpdatedUser', "table" = 'UpdatedDescription' WHERE id = 5;
+UPDATE cs_rwc SET "table" = NULL, "User" = NULL WHERE id = 5;
 DELETE FROM cs_rwc WHERE id = 3;
 
 -- case-sensitive reserved word table/column

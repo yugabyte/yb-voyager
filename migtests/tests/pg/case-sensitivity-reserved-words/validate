@@ -29,7 +29,7 @@ EXPECTED_ROW_COUNT = {
 	'lt_rwc': 3,
 	'lt_mc': 3,
 	'lt_lc': 3,
-	'describe': 3,
+	'integer': 3,
 	'cust_user_large': 250,
 	'cust_Part22': 125,
 	'cust_part21': 125,

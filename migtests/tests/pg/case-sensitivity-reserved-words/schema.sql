@@ -38,19 +38,19 @@ CREATE TABLE "UT_RWC" (
     id INT PRIMARY KEY,
     "user" varchar(1000),
     "case" varchar(1000),
-    "describe" varchar(1000)
+    "table" varchar(1000)
 );
 
 CREATE TABLE "Mt_Rwc" (
     id INT PRIMARY KEY,
     "user" varchar(1000),
     "COLUMN_NAME" varchar(1000),
-    "Describe" varchar(1000)
+    "Table" varchar(1000)
 );
 
 -- tablename reserved in both pg/yb without reserved word columns
 
-CREATE TABLE "describe" (
+CREATE TABLE "integer" (
     id INT PRIMARY KEY,
     "Column_Name" varchar(1000)
 );
@@ -61,7 +61,7 @@ CREATE TABLE "case" (
     id INT PRIMARY KEY,
     "user" varchar(1000),
     "case" varchar(1000),
-    "describe" varchar(1000)
+    "table" varchar(1000)
 );
 
 -- case-sensitive reserved word table
@@ -69,7 +69,7 @@ CREATE TABLE "case" (
 CREATE TABLE "Table" (
     id INT PRIMARY KEY,
     "User_name" varchar(1000),
-    "describe" varchar(1000)
+    "table" varchar(1000)
 );
 
 -- case-sensitive reserved word column
@@ -77,7 +77,7 @@ CREATE TABLE "Table" (
 CREATE TABLE cs_rwc (
     id INT PRIMARY KEY,
     "User" varchar(1000),
-    "describe" varchar(1000)
+    "table" varchar(1000)
 );
 
 -- case-sensitive reserved word table/column
