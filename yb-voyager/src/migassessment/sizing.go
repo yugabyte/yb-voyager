@@ -55,10 +55,12 @@ func SizingAssessment() error {
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
 	createConnectionToExperimentData(assessmentParams.TargetYBVersion)
-	generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
+	shardedObjects, shardedObjectsSize := generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 	// print recommendation till this point
 	//PrintAssessmentReport()
-	generateSizingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
+
+	// only use the remaining sharded objects and its size for further recommendation processing
+	generateSizingRecommendations(shardedObjects, shardedObjectsSize)
 	//PrintAssessmentReport()
 	return nil
 }
@@ -149,10 +151,14 @@ func getExperimentFile(targetYbVersion string) string {
 	return filePath
 }
 
-func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata, totalSourceDBSize int64) {
+func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
+	totalSourceDBSize int64) ([]SourceDBMetadata, int64) {
+
 	var selectedRow [6]interface{} // Assuming 6 columns in the table
 	var cumulativeSum int64
 	var colocatedObjects []SourceDBMetadata
+	var shardedObjects []SourceDBMetadata
+	var shardedObjectsSize int64 = 0
 	var coloObjectNames []string
 	var shardedObjectNames []string
 	var index int
@@ -172,13 +178,6 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 
 	S = selectedRow[0].(int64) // Assuming max_size is the first column
 	for i, key := range sourceTableMetadata {
-		// TODO: need to find all indexes for the current table
-		// check if the current object is index and its parent table
-		// check if the parent table is present in colocatedTables list
-		// fire a db query to find out all indexes of that table
-		// calculate cumulativeSum and see if table and indexes can be fit into the colo
-		// else put it into sharded tables
-
 		// check if current table has any indexes and fetch all indexes
 		indexesOfTable, indexesSizeSum := checkAndFetchIndexes(key, sourceIndexMetadata)
 		cumulativeSum += key.SizeInGB + indexesSizeSum
@@ -199,7 +198,13 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 
 	for _, key := range sourceTableMetadata[index+1:] {
 		shardedObjectNames = append(shardedObjectNames, key.ObjectName)
-		indexesOfTable, _ := checkAndFetchIndexes(key, sourceIndexMetadata)
+		shardedObjects = append(shardedObjects, key)
+		// fetch all associated indexes
+		indexesOfTable, indexesSizeSum := checkAndFetchIndexes(key, sourceIndexMetadata)
+		shardedObjects = append(shardedObjects, indexesOfTable...)
+
+		// add the sum of size of sharded objects
+		shardedObjectsSize += key.SizeInGB + indexesSizeSum
 		for _, key := range indexesOfTable {
 			shardedObjectNames = append(shardedObjectNames, key.ObjectName)
 		}
@@ -212,9 +217,11 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		ColocatedTables:    coloObjectNames,
 		ColocatedReasoning: reasoning,
 		ShardedTables:      shardedObjectNames,
+		NumNodes:           3,
 		VCPUsPerInstance:   selectedRow[2].(int64),
 		MemoryPerInstance:  selectedRow[2].(int64) * selectedRow[3].(int64),
 	}
+	return shardedObjects, shardedObjectsSize
 }
 
 func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, int64) {
@@ -228,7 +235,7 @@ func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([
 	}
 	return indexesOfTable, indexesSizeSum
 }
-func generateSizingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata, totalSourceDBSize int64) {
+func generateSizingRecommendations(sourceTableMetadata []SourceDBMetadata, totalSourceDBSize int64) {
 	if len(FinalReport.ShardedTables) == 0 {
 		fmt.Println("Skipping sizing assessment as all tables can be fit into colocated")
 	} else {
@@ -367,7 +374,8 @@ func getThroughputData(selectThroughput int64, writeThroughput int64) {
 	}
 	fmt.Println("insert total cores:", insertTotalCores)
 	fmt.Println("select total cores:", selectTotalCores)
-	FinalReport.NumNodes = math.Ceil((selectTotalCores + insertTotalCores) / float64(FinalReport.VCPUsPerInstance))
+	// add the additional nodes to the total
+	FinalReport.NumNodes += math.Ceil((selectTotalCores + insertTotalCores) / float64(FinalReport.VCPUsPerInstance))
 }
 
 /*
