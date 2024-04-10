@@ -223,7 +223,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	vCPUPerInstance := selectedRow[1].(int64)
 	memPerCore := selectedRow[2].(int64)
 
-	reasoning := fmt.Sprintf("Recommended instance type with %vvCPU and %vGiB memory could fit: ", vCPUPerInstance, memPerCore)
+	reasoning := fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ", vCPUPerInstance, memPerCore)
 	//reasoning := "all tables could be fit into colocated db with recommended instance type"
 	if len(shardedObjectNames) > 0 {
 		reasoning += fmt.Sprintf("%v objects with size %v GB as colocated. "+
