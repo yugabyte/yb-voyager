@@ -66,19 +66,28 @@ func SizingAssessment() error {
 }
 
 func PrintAssessmentReport() {
-	fmt.Println("\n--------------------------------------------")
+	fmt.Println("\n-----------------------------------------------------------------------------------------------")
+	fmt.Println("Sizing & Sharding Recommendations: ")
+	fmt.Println("-----------------------------------------------------------------------------------------------")
 	fmt.Println("\tColocated Tables: ", FinalReport.ColocatedTables)
 	fmt.Println("\tColocated Reasoning: ", FinalReport.ColocatedReasoning)
 	fmt.Println("\tSharded Tables: ", FinalReport.ShardedTables)
 	fmt.Println("\tNumNodes: ", FinalReport.NumNodes)
 	fmt.Println("\tVCPUsPerInstance: ", FinalReport.VCPUsPerInstance)
 	fmt.Println("\tMemoryPerInstance: ", FinalReport.MemoryPerInstance)
-	fmt.Println("\tOptimalSelectConnectionsPerNode: ", FinalReport.OptimalSelectConnectionsPerNode)
-	fmt.Println("\tOptimalInsertConnectionsPerNode: ", FinalReport.OptimalInsertConnectionsPerNode)
+	fmt.Println("\tOptimalSelectConnectionsPerNode: ", naIfZero(FinalReport.OptimalSelectConnectionsPerNode))
+	fmt.Println("\tOptimalInsertConnectionsPerNode: ", naIfZero(FinalReport.OptimalInsertConnectionsPerNode))
 	fmt.Println("\tMigration time taken in min: ", FinalReport.MigrationTimeTakenInMin)
-	fmt.Println("--------------------------------------------")
+	fmt.Println("-------------------------------------------------------------------------------------------------")
 }
 
+func naIfZero(value int64) string {
+	if value == 0 {
+		return "--"
+	} else {
+		return fmt.Sprintf("%d", value)
+	}
+}
 func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, int64) {
 	//err := ConnectSourceMetaDatabase("src/migassessment/source_info_test3.db")
 	err := ConnectSourceMetaDatabase(assessmentParams.SourceDBMetadataFile)
@@ -246,7 +255,7 @@ func calculateTimeTakenForMigration(dbObjects []SourceDBMetadata, vCPUPerInstanc
 		size += dbObject.SizeInGB
 	}
 
-	fmt.Println("size of the colo objects", size, "num_cores: ", vCPUPerInstance, "mem: ", memPerCore)
+	//fmt.Println("size of the colo objects", size, "num_cores: ", vCPUPerInstance, "mem: ", memPerCore)
 	// find the rows in experiment data about the approx row matching the size
 	selectQuery := "SELECT csv_size_gb, migration_time_secs from colocated_load_time where num_cores = ? " +
 		"and mem_per_core = ? and csv_size_gb >= ? order by csv_size_gb limit 1; "
@@ -259,10 +268,10 @@ func calculateTimeTakenForMigration(dbObjects []SourceDBMetadata, vCPUPerInstanc
 			log.Fatal(err)
 		}
 	}
-	fmt.Println("max size of fetched row", maxSizeOfFetchedRow)
-	fmt.Println("migration_time_secs of fetched row", timeTakenOfFetchedRow)
+	//fmt.Println("max size of fetched row", maxSizeOfFetchedRow)
+	//fmt.Println("migration_time_secs of fetched row", timeTakenOfFetchedRow)
 	migrationTime := ((timeTakenOfFetchedRow * size) / maxSizeOfFetchedRow) / 60
-	fmt.Println("Migration time minutes: ", migrationTime)
+	//fmt.Println("Migration time minutes: ", migrationTime)
 	return migrationTime
 }
 
@@ -278,9 +287,7 @@ func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([
 	return indexesOfTable, indexesSizeSum
 }
 func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize int64) {
-	if len(FinalReport.ShardedTables) == 0 {
-		fmt.Println("Skipping sizing assessment as all tables can be fit into colocated")
-	} else {
+	if len(FinalReport.ShardedTables) > 0 {
 		// table limit check
 		arrayOfSupportedCores := checkTableLimits(len(shardedObjectMetadata))
 		fmt.Println(arrayOfSupportedCores)
