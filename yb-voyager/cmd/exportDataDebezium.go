@@ -71,7 +71,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 		dbzmTableList = append(dbzmTableList, table.AsQualifiedCatalogName())
 	}
-	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		err = storeTableListInMSR(tableList)
 		if err != nil {
 			utils.ErrExit("error while storing the table-list in msr: %v", err)

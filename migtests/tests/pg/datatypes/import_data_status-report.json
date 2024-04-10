@@ -1,0 +1,51 @@
+[
+  {
+    "table_name": "datatypes1",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100
+  },
+  {
+    "table_name": "datatypes2",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100
+  },
+  {
+    "table_name": "datetime_type",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100
+  },
+  {
+    "table_name": "datetime_type2",
+    "status": "DONE",
+    "total_count": 2,
+    "imported_count": 2,
+    "percentage_complete": 100
+  },
+  {
+    "table_name": "decimal_types",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100
+  },
+  {
+    "table_name": "null_and_default",
+    "status": "DONE",
+    "total_count": 2,
+    "imported_count": 2,
+    "percentage_complete": 100
+  },
+  {
+    "table_name": "num_types",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100
+  }
+]

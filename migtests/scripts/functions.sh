@@ -485,6 +485,64 @@ end_migration() {
 	}
 }
 
+export_data_status(){
+	yb-voyager export data status --export-dir ${EXPORT_DIR} \
+								  --output-format json
+}
+
+import_data_status(){
+	yb-voyager import data status --export-dir ${EXPORT_DIR} \
+								  --output-format json
+}
+
+get_data_migration_report(){
+
+	# setting env vars for passwords to be used for saving reports
+	export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
+	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
+	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
+
+	yb-voyager get data-migration-report --export-dir ${EXPORT_DIR} \
+										--output-format json
+}
+
+verify_report() {
+	expected_report=$1
+	actual_report=$2
+	if [ -f "${actual_report}" ]
+	then
+		echo "Printing ${actual_report} file"
+		cat "${actual_report}"
+		 # Parse JSON data
+        actual_data=$(jq -c '.' "${actual_report}")
+        
+        if [ -f "${expected_report}" ]
+        then
+            expected_data=$(jq -c '.' "${expected_report}")
+            
+            # Compare data
+			actual_data=$(echo $actual_data | jq -S 'sort_by(.table_name)')
+			expected_data=$(echo $expected_data | jq -S 'sort_by(.table_name)')
+            if [ "$actual_data" == "$expected_data" ]
+            then
+                echo "Data matches expected report."
+            else
+                echo "Data does not match expected report."
+				exit 1
+            fi
+        else
+            echo "No ${expected_report} found."
+			# exit 1 
+        fi
+	else
+		echo "No ${actual_report} found."
+		exit 1
+	fi
+
+
+}
+
+
 tail_log_file() {
 	log_file_name=$1
 	if [ -f "${EXPORT_DIR}/logs/${log_file_name}" ]

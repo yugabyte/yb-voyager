@@ -1,0 +1,37 @@
+[
+  {
+    "table_name": "num_types",
+    "status": "DONE",
+    "exported_count": 3
+  },
+  {
+    "table_name": "decimal_types",
+    "status": "DONE",
+    "exported_count": 3
+  },
+  {
+    "table_name": "datatypes1",
+    "status": "DONE",
+    "exported_count": 3
+  },
+  {
+    "table_name": "datetime_type",
+    "status": "DONE",
+    "exported_count": 3
+  },
+  {
+    "table_name": "datetime_type2",
+    "status": "DONE",
+    "exported_count": 2
+  },
+  {
+    "table_name": "datatypes2",
+    "status": "DONE",
+    "exported_count": 3
+  },
+  {
+    "table_name": "null_and_default",
+    "status": "DONE",
+    "exported_count": 2
+  }
+]
