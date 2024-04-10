@@ -154,7 +154,7 @@ func getExperimentFile(targetYbVersion string) string {
 func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
 	totalSourceDBSize int64) ([]SourceDBMetadata, int64) {
 
-	var selectedRow [6]interface{} // Assuming 6 columns in the table
+	var selectedRow [5]interface{} // Assuming 5 columns in the table
 	var cumulativeSum int64
 	var colocatedObjects []SourceDBMetadata
 	var shardedObjects []SourceDBMetadata
@@ -163,15 +163,16 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	var shardedObjectNames []string
 	var index int
 	numSourceObjects := len(sourceTableMetadata) + len(sourceIndexMetadata)
-	row := DB.QueryRow("SELECT * FROM limits WHERE max_num_tables > ? AND min_num_tables <= ? AND "+
-		"max_size >= ? UNION ALL SELECT * FROM limits WHERE max_size = (SELECT MAX(max_size) "+
-		"FROM limits) LIMIT 1;", numSourceObjects, numSourceObjects, totalSourceDBSize)
+	row := DB.QueryRow("SELECT * FROM colocated_limits WHERE max_num_tables > ? AND min_num_tables <= ? AND "+
+		"max_colocated_db_size_gb >= ? UNION ALL SELECT * FROM colocated_limits WHERE max_colocated_db_size_gb = (SELECT MAX(max_colocated_db_size_gb) "+
+		"FROM colocated_limits) LIMIT 1;", numSourceObjects, numSourceObjects, totalSourceDBSize)
 
 	var S int64
-	if err := row.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4], &selectedRow[5]); err != nil {
+	if err := row.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4]); err != nil {
 		if err == sql.ErrNoRows {
 			log.Println("No rows were returned by the query.")
 		} else {
+			fmt.Println("Error")
 			log.Fatal(err)
 		}
 	}
@@ -209,19 +210,60 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 			shardedObjectNames = append(shardedObjectNames, key.ObjectName)
 		}
 	}
-	reasoning := "all tables could be fit into colocated db with recommended instance type"
-	if len(shardedObjectNames) >= 0 {
-		reasoning = "few tables fit as colocated and rest as sharded"
+
+	vCPUPerInstance := selectedRow[1].(int64)
+	memPerCore := selectedRow[2].(int64)
+
+	reasoning := fmt.Sprintf("Recommended instance type with %vvCPU and %vGiB memory could fit: ", vCPUPerInstance, memPerCore)
+	//reasoning := "all tables could be fit into colocated db with recommended instance type"
+	if len(shardedObjectNames) > 0 {
+		reasoning += fmt.Sprintf("%v objects with size %v GB as colocated. "+
+			"Rest %v objects of size %v GB can be imported as sharded tables",
+			len(coloObjectNames), totalSourceDBSize-shardedObjectsSize, len(shardedObjectNames), shardedObjectsSize)
+	} else {
+		reasoning += fmt.Sprintf("All %v database objects as colocated", totalSourceDBSize)
 	}
+
+	// TODO: calculate time taken for migrating the colocated tables
 	FinalReport = &Report{
-		ColocatedTables:    coloObjectNames,
-		ColocatedReasoning: reasoning,
-		ShardedTables:      shardedObjectNames,
-		NumNodes:           3,
-		VCPUsPerInstance:   selectedRow[2].(int64),
-		MemoryPerInstance:  selectedRow[2].(int64) * selectedRow[3].(int64),
+		ColocatedTables:         coloObjectNames,
+		ColocatedReasoning:      reasoning,
+		ShardedTables:           shardedObjectNames,
+		NumNodes:                3,
+		VCPUsPerInstance:        vCPUPerInstance,
+		MemoryPerInstance:       vCPUPerInstance * memPerCore,
+		MigrationTimeTakenInMin: calculateTimeTakenForMigration(colocatedObjects, vCPUPerInstance, memPerCore),
 	}
 	return shardedObjects, shardedObjectsSize
+}
+
+func calculateTimeTakenForMigration(dbObjects []SourceDBMetadata, vCPUPerInstance int64, memPerCore int64) int64 {
+	// the total size of colocated objects
+	var size int64 = 0
+	var timeTakenOfFetchedRow int64
+	var maxSizeOfFetchedRow int64
+	for _, dbObject := range dbObjects {
+		size += dbObject.SizeInGB
+	}
+
+	fmt.Println("size of the colo objects", size, "num_cores: ", vCPUPerInstance, "mem: ", memPerCore)
+	// find the rows in experiment data about the approx row matching the size
+	selectQuery := "SELECT csv_size_gb, migration_time_secs from colocated_load_time where num_cores = ? " +
+		"and mem_per_core = ? and csv_size_gb >= ? order by csv_size_gb limit 1; "
+	row := DB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size)
+
+	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow); err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Println("No rows were returned by the query.")
+		} else {
+			log.Fatal(err)
+		}
+	}
+	fmt.Println("max size of fetched row", maxSizeOfFetchedRow)
+	fmt.Println("migration_time_secs of fetched row", timeTakenOfFetchedRow)
+	migrationTime := ((timeTakenOfFetchedRow * size) / maxSizeOfFetchedRow) / 60
+	fmt.Println("Migration time minutes: ", migrationTime)
+	return migrationTime
 }
 
 func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, int64) {
@@ -235,17 +277,17 @@ func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([
 	}
 	return indexesOfTable, indexesSizeSum
 }
-func generateSizingRecommendations(sourceTableMetadata []SourceDBMetadata, totalSourceDBSize int64) {
+func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize int64) {
 	if len(FinalReport.ShardedTables) == 0 {
 		fmt.Println("Skipping sizing assessment as all tables can be fit into colocated")
 	} else {
 		// table limit check
-		arrayOfSupportedCores := checkTableLimits(len(sourceTableMetadata))
+		arrayOfSupportedCores := checkTableLimits(len(shardedObjectMetadata))
 		fmt.Println(arrayOfSupportedCores)
 		// calculate throughput data
 		var sumSourceSelectThroughput int64 = 0
 		var sumSourceWriteThroughput int64 = 0
-		for _, metadata := range sourceTableMetadata {
+		for _, metadata := range shardedObjectMetadata {
 			sumSourceSelectThroughput += metadata.ReadsPerSec
 			sumSourceWriteThroughput += metadata.WritesPerSec
 		}
@@ -264,7 +306,7 @@ func generateSizingRecommendations(sourceTableMetadata []SourceDBMetadata, total
 
 func getConnectionsPerCore(numCores int) (int64, int64) {
 	var selectConnectionsPerCore, insertConnectionsPerCore int64
-	selectQuery := "select select_conn_per_node, insert_conn_per_node from sizing " +
+	selectQuery := "select select_conn_per_node, insert_conn_per_node from sharded_sizing " +
 		"where dimension like 'MaxThroughput' and num_cores = ? order by num_nodes limit 1"
 	row := DB.QueryRow(selectQuery, numCores)
 
@@ -327,7 +369,8 @@ func ConnectExperimentDataDatabase(file string) error {
 
 func checkTableLimits(reqTables int) []int {
 	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
-	selectQuery := "SELECT num_cores FROM sizing WHERE num_tables > ? AND num_cores >= ? AND dimension LIKE '%TableLimits-3nodeRF=3%' ORDER BY num_cores"
+	selectQuery := "SELECT num_cores FROM sharded_sizing WHERE num_tables > ? AND num_cores >= ? AND " +
+		"dimension LIKE '%TableLimits-3nodeRF=3%' ORDER BY num_cores"
 	rows, err := DB.Query(selectQuery, reqTables, FinalReport.VCPUsPerInstance)
 	if err != nil {
 		log.Fatal(err)
@@ -357,7 +400,7 @@ func checkTableLimits(reqTables int) []int {
 
 func getThroughputData(selectThroughput int64, writeThroughput int64) {
 	selectQuery := "SELECT foo.* FROM (SELECT id, ROUND((? / inserts_per_core) + 0.5) AS insert_total_cores," +
-		"ROUND((? / selects_per_core) + 0.5) AS select_total_cores, num_cores, num_nodes FROM sizing " +
+		"ROUND((? / selects_per_core) + 0.5) AS select_total_cores, num_cores, num_nodes FROM sharded_sizing " +
 		"WHERE dimension = 'MaxThroughput' AND num_cores >= ?) AS foo ORDER BY select_total_cores + insert_total_cores," +
 		"num_cores;"
 	rows, err := DB.Query(selectQuery, writeThroughput, selectThroughput, FinalReport.VCPUsPerInstance)
@@ -375,7 +418,7 @@ func getThroughputData(selectThroughput int64, writeThroughput int64) {
 	fmt.Println("insert total cores:", insertTotalCores)
 	fmt.Println("select total cores:", selectTotalCores)
 	// add the additional nodes to the total
-	FinalReport.NumNodes += math.Ceil((selectTotalCores + insertTotalCores) / float64(FinalReport.VCPUsPerInstance))
+	FinalReport.NumNodes += math.Max(math.Ceil((selectTotalCores+insertTotalCores)/float64(FinalReport.VCPUsPerInstance)), 1)
 }
 
 /*

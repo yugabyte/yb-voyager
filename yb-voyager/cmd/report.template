@@ -20,7 +20,6 @@
 <body>
     <h1>Migration Assessment Report</h1>
     <h2>Sharding Recommendations</h2>
-    <h4>Reasoning: {{ .ColocatedReasoning }}
     <table>
         <tr>
             <th>Colocated Tables</th>
@@ -39,10 +38,12 @@
         </tr>
         <tr><td>Num of Nodes</td><td>{{ .NumNodes }}</td></tr>
         <tr><td>vCPU per instance</td><td>{{ .VCPUsPerInstance }}</td></tr>
-        <tr><td>Memory per instance</td><td>{{ .MemoryPerInstance }}</td></tr>
-        <tr><td>Optimal select connections per node</td><td>{{ .OptimalSelectConnectionsPerNode }}</td></tr>
-        <tr><td>Optimal insert connections per node</td><td>{{ .OptimalInsertConnectionsPerNode }}</td></tr>
+        <tr><td>Memory per instance(GiB)</td><td>{{ .MemoryPerInstance }}</td></tr>
+        <tr><td>Optimal select connections per node</td><td>{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{else}}{{.OptimalSelectConnectionsPerNode }}{{end}}</td></tr>
+        <tr><td>Optimal insert connections per node</td><td>{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{else}}{{.OptimalInsertConnectionsPerNode}}{{end}}</td></tr>
         <tr><td>Time taken for migration</td><td>{{ .MigrationTimeTakenInMin }} min</td></tr>
     </table>
+    <h3>Reasoning: </h3>
+    <p>{{ .ColocatedReasoning }}</p>
 </body>
 </html>
