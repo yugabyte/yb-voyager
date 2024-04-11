@@ -134,7 +134,6 @@ var (
 	rangeRegex               = re("PRECEDING", "and", anything, ":float")
 	fetchRegex               = re("FETCH", capture(fetchLocation), "FROM")
 	notSupportedFetchLocation = []string{"FIRST", "LAST", "NEXT", "PRIOR", "RELATIVE", "ABSOLUTE", "NEXT", "FORWARD", "BACKWARD"}
-	backwardRegex            = re("MOVE", "BACKWARD")
 	alterAggRegex            = re("ALTER", "AGGREGATE", capture(ident))
 	dropCollRegex            = re("DROP", "COLLATION", ifExists, capture(commaSeperatedTokens))
 	dropIdxRegex             = re("DROP", "INDEX", ifExists, capture(commaSeperatedTokens))
@@ -308,10 +307,12 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 			columnsFromGin := strings.Trim(matchGin[4], `()`)
 			columnList := strings.Split(columnsFromGin, ",")
 			if len(columnList) > 1 {
+				summaryMap["INDEX"].invalidCount[matchGin[2]] = true
 				reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
 					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", matchGin[2], sqlInfo.formattedStmt)
 			} else {
 				if strings.Contains(strings.ToUpper(columnList[0]), "ASC") || strings.Contains(strings.ToUpper(columnList[0]), "DESC") || strings.Contains(strings.ToUpper(columnList[0]), "HASH") {
+					summaryMap["INDEX"].invalidCount[matchGin[2]] = true
 					reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
 						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", matchGin[2], sqlInfo.formattedStmt)
 				}
@@ -327,15 +328,19 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
+			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, "Schema contains gist index which is not supported.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
+			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, "index method 'brin' not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := spgistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
+			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, "index method 'spgist' not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := rtreeRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
+			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, "index method 'rtree' is superceded by 'gist' which is not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		}
@@ -353,6 +358,7 @@ func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/yugabyte/yugabyte-db/issues/10102", "")
 		} else */
 		if view := viewWithCheckRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
+			summaryMap["VIEW"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "Schema containing VIEW WITH CHECK OPTION is not supported yet.", "", "", "VIEW", view[1], sqlInfo.formattedStmt)
 		}
 	}
@@ -384,11 +390,10 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			location := strings.ToUpper(stmt[1])
+			summaryMap["PROCEDURE"].invalidCount[sqlInfo.objName] = true // TODO: confirm this if only procedure can have cursor
 			if slices.Contains(notSupportedFetchLocation, location) {
-				reportCase(fpath, "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", "", sqlInfo.formattedStmt)
+				reportCase(fpath, "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", sqlInfo.objName, sqlInfo.formattedStmt)
 			}
-		} else if backwardRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "FETCH BACKWARD not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", sqlInfo.formattedStmt)
 		} else if stmt := alterAggRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			reportCase(fpath, "ALTER AGGREGATE not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/2717", "", "AGGREGATE", stmt[1], sqlInfo.formattedStmt)
@@ -411,6 +416,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "DROP INDEX CONCURRENTLY not supported yet",
 				"", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if trig := trigRefRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
+			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt)
 		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
@@ -429,12 +435,15 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 
 	for _, sqlInfo := range sqlInfoArr {
 		if am := amRegex.FindStringSubmatch(sqlInfo.stmt); am != nil {
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "CREATE ACCESS METHOD is not supported.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10693", "", "ACCESS METHOD", am[1], sqlInfo.formattedStmt)
 		} else if tbl := idxConcRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "REINDEX is not supported.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
 		} else if col := storedRegex.FindStringSubmatch(sqlInfo.stmt); col != nil {
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "Stored generated column is not supported. Column is: "+col[1],
 				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", "", sqlInfo.formattedStmt)
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
@@ -601,17 +610,23 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			filePath := strings.Split(fpath, "/")
 			fileName := filePath[len(filePath)-1]
 			objType := strings.ToUpper(strings.Split(fileName, ".")[0])
+			summaryMap[objType].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, `temporary table is not a supported clause for drop`,
 				"https://github.com/yugabyte/yb-voyager/issues/705", `remove "temporary" and change it to "drop table"`, objType, sqlInfo.objName, sqlInfo.formattedStmt)
 		} else if regMatch := anydataRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "AnyData datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyData datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		} else if regMatch := anydatasetRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "AnyDataSet datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyDataSet datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		} else if regMatch := anyTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "AnyType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		} else if regMatch := uriTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "URIType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with URIType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		} else if regMatch := jsonFuncRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			summaryMap[regMatch[2]].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "JSON_ARRAYAGG() function is not available in YugabyteDB", "", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, regMatch[2], regMatch[3], sqlInfo.formattedStmt)
 		}
 
@@ -715,11 +730,16 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 func processCollectedSql(fpath string, stmt string, formattedStmt string, objType string, reportNextSql *int) sqlInfo {
 	createObjRegex, objNameIndex := getCreateObjRegex(objType)
 	var objName = "" // to extract from sql statement
+	if objType == "EXTENSION" {
+		fmt.Printf("%s", createObjRegex)
+	}
 
 	//update about sqlStmt in the summary variable for the report generation part
 	createObjStmt := createObjRegex.FindStringSubmatch(formattedStmt)
+	fmt.Printf("formattedStmt %s", formattedStmt)
 	if createObjStmt != nil {
 		objName = createObjStmt[objNameIndex]
+		
 		if summaryMap != nil && summaryMap[objType] != nil { //when just createSqlStrArray() is called from someother file, then no summaryMap exists
 			summaryMap[objType].totalCount += 1
 			summaryMap[objType].objSet[objName] = true
