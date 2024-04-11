@@ -276,7 +276,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 	var targetSchemas []string
 	tconf.Schema = strings.ToLower(strings.Trim(tconf.Schema, "\"")) //trim case sensitivity quotes if needed, convert to lowercase
 
-	analyzeSchemaReport = analyzeSchemaInternal(
+	schemaAnalysisReport = analyzeSchemaInternal(
 		&srcdb.Source{
 			DBType: sourceDBType,
 		})
@@ -284,11 +284,11 @@ func createTargetSchemas(conn *pgx.Conn) {
 	switch sourceDBType {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = utils.GetObjectNameListFromReport(analyzeSchemaReport, "SCHEMA")
+		targetSchemas = utils.GetObjectNameListFromReport(schemaAnalysisReport, "SCHEMA")
 	case "oracle": // ORACLE PACKAGEs are exported as SCHEMAs
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, tconf.Schema)
-		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaReport, "PACKAGE")...)
+		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(schemaAnalysisReport, "PACKAGE")...)
 	case "mysql":
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, tconf.Schema)

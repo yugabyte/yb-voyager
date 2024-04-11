@@ -206,7 +206,7 @@ func PrintIfTrue(message string, args ...bool) {
 	fmt.Printf("%s", message)
 }
 
-func ParseJsonFromString(jsonString string) SchemaReport {
+func ParseSchemaAnalysisReport(jsonString string) SchemaReport {
 	byteJson := []byte(jsonString)
 	var report SchemaReport
 	err := json.Unmarshal(byteJson, &report)

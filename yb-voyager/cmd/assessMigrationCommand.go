@@ -43,9 +43,14 @@ type AssessmentReport struct {
 
 	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
 
-	UnsupportedFeatures []string `json:"UnsupportedFeatures"`
+	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
 
 	Recommendations migassessment.AssessmentRecommendations `json:"Recommendations"`
+}
+
+type UnsupportedFeature struct {
+	FeatureName string   `json:"feature_name"`
+	ObjectNames []string `json:"object_names"`
 }
 
 var assessMigrationCmd = &cobra.Command{
@@ -108,7 +113,7 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to run assessment: %w", err)
 	}
 
-	err = generateConsolidatedAssessmentReport()
+	err = generateAssessmentReport()
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
@@ -193,7 +198,7 @@ func gatherAssessmentDataFromPG() (err error) {
 	}
 
 	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
-	gatherAssessmentDataScriptPath := filepath.Join("/", "etc", "yb-voyager", "gather-assessment-data", "postgresql", "yb-voyager-pg-gather-assessment-data.sh")
+	gatherAssessmentDataScriptPath := "/etc/yb-voyager/gather-assessment-data/postgresql/yb-voyager-pg-gather-assessment-data.sh"
 
 	possiblePathsForScript := []string{
 		gatherAssessmentDataScriptPath,
@@ -221,22 +226,22 @@ func gatherAssessmentDataFromPG() (err error) {
 		assessmentDataDir,
 	}
 
-	preparedScriptCmd := exec.Command(scriptPath, scriptArgs...)
-	log.Infof("running script: %s", preparedScriptCmd.String())
-	preparedScriptCmd.Env = append(preparedScriptCmd.Env, "PGPASSWORD="+source.Password)
-	preparedScriptCmd.Dir = assessmentDataDir
+	cmd := exec.Command(scriptPath, scriptArgs...)
+	log.Infof("running script: %s", cmd.String())
+	cmd.Env = append(cmd.Env, "PGPASSWORD="+source.Password)
+	cmd.Dir = assessmentDataDir
 
-	stdout, err := preparedScriptCmd.StdoutPipe()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("error creating stdout pipe: %w", err)
 	}
 
-	stderr, err := preparedScriptCmd.StderrPipe()
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return fmt.Errorf("error creating stderr pipe: %w", err)
 	}
 
-	err = preparedScriptCmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		return fmt.Errorf("error starting gather assessment data script: %w", err)
 	}
@@ -255,7 +260,7 @@ func gatherAssessmentDataFromPG() (err error) {
 		fmt.Printf("%s\n", scanner.Text())
 	}
 
-	err = preparedScriptCmd.Wait()
+	err = cmd.Wait()
 	if err != nil {
 		return fmt.Errorf("error waiting for gather assessment data script to complete: %w", err)
 	}
@@ -272,7 +277,7 @@ func parseExportedSchemaFileForAssessment() {
 //go:embed assessmentReport.template
 var bytesTemplate []byte
 
-func generateConsolidatedAssessmentReport() (err error) {
+func generateAssessmentReport() (err error) {
 	utils.PrintAndLog("Generating consolidated assessment report...")
 
 	err = getAssessmentReportContentFromAnalyzeSchema()
@@ -318,59 +323,25 @@ func getAssessmentReportContentFromAnalyzeSchema() (err error) {
 	return nil
 }
 
-func fetchUnsupportedFeaturesForPG(analyzeSchemaReport utils.SchemaReport) ([]string, error) {
-	var unsupportedFeatures []string
+func fetchUnsupportedFeaturesForPG(analyzeSchemaReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
-
-	lookForIssuesMatching := func(issueReason string) []utils.Issue {
-		var matchingIssues []utils.Issue
+	unsupportedFeatures := make([]UnsupportedFeature, 0)
+	filterIssues := func(featureName, issueReason string) {
+		log.Info("filtering issues for feature: ", featureName)
+		objectNames := make([]string, 0)
 		for _, issue := range analyzeSchemaReport.Issues {
 			if strings.Contains(issue.Reason, issueReason) {
-				matchingIssues = append(matchingIssues, issue)
+				objectNames = append(objectNames, issue.ObjectName)
 			}
 		}
-		return matchingIssues
+
+		unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
 	}
 
-	log.Infof("looking for gin indexes(unsupported)...")
-	gistIndexIssues := lookForIssuesMatching(GIST_INDEX_ISSUE_REASON)
-	var tablesWithGistIndexes []string
-	for _, issue := range gistIndexIssues {
-		tablesWithGistIndexes = append(tablesWithGistIndexes, issue.ObjectName)
-	}
-	if len(tablesWithGistIndexes) > 0 {
-		unsupportedFeatures = append(unsupportedFeatures, fmt.Sprintf("GIST indexes names: %v", tablesWithGistIndexes))
-	}
-
-	log.Infof("looking for constraint triggers(unsupported)...")
-	constraintTriggerIssues := lookForIssuesMatching(CONSTRAINT_TRIGGER_ISSUE_REASON)
-	var constraintTriggerNames []string
-	for _, issue := range constraintTriggerIssues {
-		constraintTriggerNames = append(constraintTriggerNames, issue.ObjectName)
-	}
-	if len(constraintTriggerNames) > 0 {
-		unsupportedFeatures = append(unsupportedFeatures, fmt.Sprintf("Constraint triggers: %v", constraintTriggerNames))
-	}
-
-	log.Infof("looking for inherited tables(unsupported)...")
-	inheritanceIssues := lookForIssuesMatching(INHERITANCE_ISSUE_REASON)
-	var tablesWithInheritance []string
-	for _, issue := range inheritanceIssues {
-		tablesWithInheritance = append(tablesWithInheritance, issue.ObjectName)
-	}
-	if len(tablesWithInheritance) > 0 {
-		unsupportedFeatures = append(unsupportedFeatures, fmt.Sprintf("Inherited(child) Tables are: %v", tablesWithInheritance))
-	}
-
-	log.Infof("looking for stored generated columns(unsupported)...")
-	storedGeneratedColumnIssues := lookForIssuesMatching(STORED_GENERATED_COLUMN_ISSUE_REASON)
-	var tablesWithStoredGeneratedColumns []string
-	for _, issue := range storedGeneratedColumnIssues {
-		tablesWithStoredGeneratedColumns = append(tablesWithStoredGeneratedColumns, issue.ObjectName)
-	}
-	if len(tablesWithStoredGeneratedColumns) > 0 {
-		unsupportedFeatures = append(unsupportedFeatures, fmt.Sprintf("Tables with stored generated columns: %v", tablesWithStoredGeneratedColumns))
-	}
+	filterIssues("GIST indexes", GIST_INDEX_ISSUE_REASON)
+	filterIssues("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON)
+	filterIssues("Inherited tables", INHERITANCE_ISSUE_REASON)
+	filterIssues("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON)
 
 	return unsupportedFeatures, nil
 }

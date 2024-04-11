@@ -116,7 +116,7 @@ func parenth(s string) string {
 var (
 	analyzeSchemaReportFormat string
 	sourceObjList             []string
-	analyzeSchemaReport       utils.SchemaReport
+	schemaAnalysisReport      utils.SchemaReport
 	tblParts                  = make(map[string]string)
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
@@ -223,7 +223,7 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	issue.ObjectName = objName
 	issue.SqlStatement = sqlStmt
 
-	analyzeSchemaReport.Issues = append(analyzeSchemaReport.Issues, issue)
+	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
 
 func reportAddingPrimaryKey(fpath string, tbl string, line string) {
@@ -273,7 +273,7 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
-		schemaSummary.Notes = append(analyzeSchemaReport.SchemaSummary.Notes, note)
+		schemaSummary.Notes = append(schemaAnalysisReport.SchemaSummary.Notes, note)
 	}
 	return schemaSummary
 }
@@ -1031,7 +1031,7 @@ func generateTxtReport(Report utils.SchemaReport) string {
 
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
-	analyzeSchemaReport = utils.SchemaReport{}
+	schemaAnalysisReport = utils.SchemaReport{}
 	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
@@ -1052,8 +1052,8 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		checker(sqlInfoArr, filePath)
 	}
 
-	analyzeSchemaReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
-	return analyzeSchemaReport
+	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
+	return schemaAnalysisReport
 }
 
 func analyzeSchema() {
@@ -1082,19 +1082,19 @@ func analyzeSchema() {
 
 	switch analyzeSchemaReportFormat {
 	case "html":
-		htmlReport := generateHTMLReport(analyzeSchemaReport)
+		htmlReport := generateHTMLReport(schemaAnalysisReport)
 		finalReport = utils.PrettifyHtmlString(htmlReport)
 	case "json":
-		jsonBytes, err := json.Marshal(analyzeSchemaReport)
+		jsonBytes, err := json.Marshal(schemaAnalysisReport)
 		if err != nil {
 			panic(err)
 		}
 		reportJsonString := string(jsonBytes)
 		finalReport = utils.PrettifyJsonString(reportJsonString)
 	case "txt":
-		finalReport = generateTxtReport(analyzeSchemaReport)
+		finalReport = generateTxtReport(schemaAnalysisReport)
 	case "xml":
-		byteReport, _ := xml.MarshalIndent(analyzeSchemaReport, "", "\t")
+		byteReport, _ := xml.MarshalIndent(schemaAnalysisReport, "", "\t")
 		finalReport = string(byteReport)
 	default:
 		panic(fmt.Sprintf("invalid report format: %q", analyzeSchemaReportFormat))
@@ -1123,7 +1123,7 @@ func analyzeSchema() {
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	var callhomeIssues []utils.Issue
-	for _, issue := range analyzeSchemaReport.Issues {
+	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
 		callhomeIssues = append(callhomeIssues, issue)
 	}
@@ -1133,7 +1133,7 @@ func analyzeSchema() {
 	} else {
 		payload.Issues = string(issues)
 	}
-	dbobjects, err := json.Marshal(analyzeSchemaReport.SchemaSummary.DBObjects)
+	dbobjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
 	if err != nil {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
 	} else {
@@ -1142,7 +1142,7 @@ func analyzeSchema() {
 
 	callhome.PackAndSendPayload(exportDir)
 
-	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(analyzeSchemaReport)
+	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 
