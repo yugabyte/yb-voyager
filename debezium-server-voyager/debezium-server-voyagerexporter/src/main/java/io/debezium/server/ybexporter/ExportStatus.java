@@ -39,6 +39,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import org.sqlite.SQLiteConfig;
 
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 /**
@@ -163,9 +164,13 @@ public class ExportStatus {
             if ((sourceType.equals("postgresql") || sourceType.equals("yb")) && (!t.schemaName.equals("public"))) {
                 fileName = t.schemaName + "." + fileName;
             }
+            String tempPath = String.format("/tmp/%s_schema.json", fileName);
+            File tempFile = new File(tempPath);
             String schemaFilePath = String.format("%s/schemas/%s/%s_schema.json", dataDir, exporterRole, fileName);
             File schemaFile = new File(schemaFilePath);
-            schemaWriter.writeValue(schemaFile, tableSchema);
+            // writing to a temp file and moving later to achieve atomic write.
+            schemaWriter.writeValue(tempFile, tableSchema);
+            Files.move(tempFile.toPath(), schemaFile.toPath(), ATOMIC_MOVE);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -221,7 +226,7 @@ public class ExportStatus {
             // state (for example, when the complete file has not been written)
             tempf = new File(getTempFilePath());
             ow.writeValue(tempf, exportStatusMap);
-            Files.move(tempf.toPath(), f.toPath(), REPLACE_EXISTING);
+            Files.move(tempf.toPath(), f.toPath(), REPLACE_EXISTING, ATOMIC_MOVE);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
