@@ -513,7 +513,7 @@
         },
         {
             "objectType": "CURSOR",
-            "objectName": "",
+            "objectName": "test",
             "reason": "This FETCH clause might not be supported yet",
             "sqlStatement": "CREATE OR REPLACE PROCEDURE test () AS $body$\nDECLARE\n    cur CURSOR FOR SELECT column_name FROM table_name;\n    row RECORD;\nBEGIN\n    OPEN cur;\n    FETCH PRIOR FROM cur INTO row;\n    CLOSE cur;\nEND;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
             "suggestion": "Please verify the DDL on your YugabyteDB version before proceeding",
