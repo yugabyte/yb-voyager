@@ -1,0 +1,27 @@
+CREATE TEMP TABLE temp_table AS
+SELECT
+    n.nspname AS schema_name,
+    c.relname AS object_name,
+    CASE 
+        WHEN c.relkind = 'r' THEN 'table'
+        ELSE 'index'
+    END AS object_type,
+    CASE
+        WHEN c.relkind = 'r' THEN
+            (SELECT COUNT(*) FROM pg_attribute WHERE attrelid = c.oid AND attnum > 0)
+        ELSE
+            (SELECT COUNT(*) FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indexrelid WHERE i.indrelid = c.oid)
+    END AS column_count
+FROM
+    pg_class c
+JOIN
+    pg_namespace n ON c.relnamespace = n.oid
+LEFT JOIN
+    pg_index pi ON pi.indexrelid = c.oid
+WHERE
+    (c.relkind = 'r' OR (c.relkind = 'i' AND NOT pi.indisprimary))
+    AND n.nspname = ANY(ARRAY[string_to_array(:'schema_list', ',')]);
+
+\copy temp_table to 'columns_count.csv' WITH CSV HEADER;
+
+DROP TABLE temp_table;

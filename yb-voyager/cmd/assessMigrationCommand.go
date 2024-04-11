@@ -18,6 +18,7 @@ package cmd
 import (
 	"bufio"
 	_ "embed"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -29,6 +30,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -108,6 +110,10 @@ func assessMigration() (err error) {
 	}
 
 	parseExportedSchemaFileForAssessment()
+	err = populateMetricsCSVIntoSQLiteDB()
+	if err != nil {
+		return fmt.Errorf("failed to populate metrics CSV into SQLite DB: %w", err)
+	}
 
 	err = runAssessment()
 	if err != nil {
@@ -273,6 +279,104 @@ func parseExportedSchemaFileForAssessment() {
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	source.DB().ExportSchema(exportDir, schemaDir)
+}
+
+func populateMetricsCSVIntoSQLiteDB() error {
+	assessmentDataDir := lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
+		filepath.Join(exportDir, "assessment", "data"))
+	metricsFilePath, err := filepath.Glob(filepath.Join(assessmentDataDir, "*.csv"))
+	if err != nil {
+		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentDataDir, err)
+	}
+
+	for _, metricFilePath := range metricsFilePath {
+		baseFileName := filepath.Base(metricFilePath)
+		metric := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
+		table_name := strings.Replace(metric, "-", "_", -1)
+		log.Infof("populating metrics from file %s into table %s", metricFilePath, table_name)
+		file, err := os.Open(metricFilePath)
+		if err != nil {
+			log.Warnf("error opening file %s: %v", metricsFilePath, err)
+			return nil
+		}
+
+		csvReader := csv.NewReader(file)
+		csvReader.ReuseRecord = true
+		rows, err := csvReader.ReadAll()
+		if err != nil {
+			log.Errorf("error reading csv file %s: %v", metricsFilePath, err)
+			return fmt.Errorf("error reading csv file %s: %w", metricsFilePath, err)
+		}
+
+		columnNames := rows[0]
+
+		stmtStr := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, table_name,
+			strings.Join(columnNames, ", "), strings.Repeat("?, ", len(columnNames)-1)+"?")
+
+		ps, err := metaDB.PrepareStatement(stmtStr)
+		if err != nil {
+			return fmt.Errorf("error preparing statement for table %s: %w", table_name, err)
+		}
+
+		for rowNum := 1; rowNum < len(rows); rowNum++ {
+			row := utils.ConvertSliceStringToInterface(rows[rowNum])
+			_, err = ps.Exec(row...)
+			if err != nil {
+				return fmt.Errorf("error executing INSERT statement on table %s: %w", table_name, err)
+			}
+		}
+
+		err = ps.Close()
+		if err != nil {
+			return fmt.Errorf("error closing prepared statement for table %s: %w", table_name, err)
+		}
+
+		err = file.Close()
+		if err != nil {
+			log.Errorf("error closing file %s: %v", metricsFilePath, err)
+		}
+		log.Infof("populated metrics from file %s into table %s", metricFilePath, table_name)
+	}
+
+	// populate migration_assessment_stats table in SQLite
+	INSERT_TABLE_STATS := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
+	SELECT
+		trc.schema_name,
+		trc.table_name AS object_name,
+		trc.row_count,
+		tio.seq_reads as reads,
+		tio.row_writes as writes,
+		0 AS isIndex,
+		NULL AS parent_table_name, 
+		ts.size
+	FROM table_row_counts trc
+	LEFT JOIN table_index_iops tio ON trc.schema_name = tio.schema_name AND trc.table_name = tio.object_name
+	LEFT JOIN table_index_sizes ts ON trc.schema_name = ts.schema_name AND trc.table_name = ts.object_name;`, metadb.MIGRATION_ASSESSMENT_STATS)
+
+	INSERT_INDEX_STATS := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
+	SELECT
+		itm.index_schema AS schema_name,
+		itm.index_name AS object_name,
+		NULL AS row_count,
+		tio.seq_reads as reads,
+		tio.row_writes as writes,
+		1 AS isIndex,
+		itm.table_schema || '.' || itm.table_name AS parent_table_name,
+		ts.size
+	FROM index_to_table_mapping itm
+	LEFT JOIN table_index_iops tio ON itm.index_schema = tio.schema_name AND itm.index_name = tio.object_name
+	LEFT JOIN table_index_sizes ts ON itm.index_schema = ts.schema_name AND itm.index_name = ts.object_name;`, metadb.MIGRATION_ASSESSMENT_STATS)
+
+	err = metaDB.ExecStatement(INSERT_TABLE_STATS)
+	if err != nil {
+		return fmt.Errorf("error executing INSERT_TABLE_STATS on %s table: %w", metadb.MIGRATION_ASSESSMENT_STATS, err)
+	}
+
+	err = metaDB.ExecStatement(INSERT_INDEX_STATS)
+	if err != nil {
+		return fmt.Errorf("error executing INSERT_INDEX_STATS on %s table: %w", metadb.MIGRATION_ASSESSMENT_STATS, err)
+	}
+	return nil
 }
 
 //go:embed assessmentReport.template

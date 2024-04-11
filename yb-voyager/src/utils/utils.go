@@ -539,3 +539,11 @@ func GetLogMiningFlushTableName(migrationUUID uuid.UUID) string {
 	convertedMigUUID := strings.Replace(migrationUUID.String(), "-", "_", -1)
 	return fmt.Sprintf("VOYAGER_LOG_MINING_FLUSH_%s", convertedMigUUID)
 }
+
+func ConvertSliceStringToInterface(slice []string) []interface{} {
+	var interfaceSlice []interface{} = make([]interface{}, len(slice))
+	for i, d := range slice {
+		interfaceSlice[i] = d
+	}
+	return interfaceSlice
+}

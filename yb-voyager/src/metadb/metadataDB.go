@@ -44,6 +44,14 @@ var (
 	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
 	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY            = "table_to_unique_key_columns_key"
 	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
+
+	TABLE_INDEX_IOPS           = "table_index_iops"
+	TABLE_INDEX_SIZES          = "table_index_sizes"
+	TABLE_ROW_COUNTS           = "table_row_counts"
+	COLUMNS_COUNT              = "columns_count"
+	INDEX_TO_TABLE_MAPPING     = "index_to_table_mapping"
+	TABLE_COLUMNS_DATA_TYPES   = "table_columns_data_types"
+	MIGRATION_ASSESSMENT_STATS = "migration_assessment_stats"
 )
 
 const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
@@ -120,6 +128,55 @@ func initMetaDB(path string) error {
 		fmt.Sprintf(`CREATE TABLE %s (
 			key TEXT PRIMARY KEY,
 			json_text TEXT);`, JSON_OBJECTS_TABLE_NAME),
+
+		// metrics for migration assessment
+		fmt.Sprintf(`CREATE TABLE %s (
+			schema_name TEXT,
+			object_name TEXT,
+			object_type TEXT,
+			seq_reads INTEGER,
+			row_writes INTEGER,
+			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_IOPS),
+		fmt.Sprintf(`CREATE TABLE %s (
+			schema_name TEXT,
+			object_name TEXT,
+			object_type TEXT,
+			size REAL,
+			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_SIZES),
+		fmt.Sprintf(`CREATE TABLE %s (
+			schema_name TEXT,
+			table_name TEXT,
+			row_count INTEGER,
+			PRIMARY KEY (schema_name, table_name));`, TABLE_ROW_COUNTS),
+		fmt.Sprintf(`CREATE TABLE %s (
+			schema_name TEXT,
+			object_name TEXT,
+			object_type TEXT,
+			column_count INTEGER,
+			PRIMARY KEY (schema_name, object_name));`, COLUMNS_COUNT),
+		fmt.Sprintf(`CREATE TABLE %s (
+			index_schema TEXT,
+			index_name TEXT,
+			table_schema TEXT,
+			table_name TEXT,
+			PRIMARY KEY (index_schema, index_name));`, INDEX_TO_TABLE_MAPPING),
+		fmt.Sprintf(`CREATE TABLE %s (
+			schema_name TEXT,
+			table_name TEXT,
+			column_name TEXT,
+			data_type TEXT,
+			PRIMARY KEY (schema_name, table_name, column_name));`, TABLE_COLUMNS_DATA_TYPES),
+		// derived from the above metric tables
+		fmt.Sprintf(`CREATE TABLE %s (
+			schema_name         TEXT,
+			object_name         TEXT,
+			row_count           INTEGER,
+			reads               INTEGER,
+			writes              INTEGER,
+			isIndex             BOOLEAN,
+			parent_table_name   TEXT,
+			size                INTEGER,
+			PRIMARY KEY(schema_name, object_name));`, MIGRATION_ASSESSMENT_STATS),
 	}
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)
@@ -607,6 +664,22 @@ func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 	_, err := m.db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	return nil
+}
+
+func (m *MetaDB) PrepareStatement(stmt string) (*sql.Stmt, error) {
+	sqlStmt, err := m.db.Prepare(stmt)
+	if err != nil {
+		return nil, fmt.Errorf("error while preparing statement on metaDB: %w", err)
+	}
+	return sqlStmt, nil
+}
+
+func (m *MetaDB) ExecStatement(stmt string) error {
+	_, err := m.db.Exec(stmt)
+	if err != nil {
+		return fmt.Errorf("error while executing statement on metaDB: %w", err)
 	}
 	return nil
 }

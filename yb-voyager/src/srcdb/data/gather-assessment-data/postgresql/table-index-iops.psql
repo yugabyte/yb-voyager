@@ -1,0 +1,34 @@
+-- similar gather the IOPS for all the tables in these schemas
+CREATE TEMP TABLE temp_table AS
+SELECT
+    n.nspname AS schema_name,
+    c.relname AS object_name,
+    CASE WHEN c.relkind = 'r' THEN 'table' ELSE 'index' END AS object_type,
+    CASE 
+        WHEN c.relkind = 'r' THEN psut.seq_tup_read
+        WHEN c.relkind = 'i' THEN psi.idx_scan
+    END AS seq_reads,
+    CASE
+        WHEN c.relkind = 'r' THEN psut.n_tup_ins + psut.n_tup_upd + psut.n_tup_del
+        WHEN c.relkind = 'i' THEN psi.idx_tup_read
+    END AS row_writes
+FROM
+    pg_class c
+JOIN
+    pg_namespace n ON c.relnamespace = n.oid
+LEFT JOIN
+    pg_stat_user_tables psut ON psut.relid = c.oid AND c.relkind = 'r'
+LEFT JOIN
+    pg_stat_all_indexes psi ON psi.indexrelid = c.oid AND c.relkind = 'i'
+LEFT JOIN
+    pg_index pi ON pi.indexrelid = c.oid
+WHERE
+    n.nspname = ANY(ARRAY[string_to_array(:'schema_list', ',')])
+    AND (c.relkind = 'r' OR (c.relkind = 'i' AND NOT pi.indisprimary))
+    AND (psut.schemaname = n.nspname OR psi.schemaname = n.nspname);
+
+-- Now you can use the temporary table to fetch the data
+\copy temp_table TO 'table-index-iops.csv' WITH CSV HEADER;
+
+-- Drop the temporary table
+DROP TABLE temp_table;

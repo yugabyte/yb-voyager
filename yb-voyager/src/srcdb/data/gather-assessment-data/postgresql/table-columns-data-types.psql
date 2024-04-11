@@ -1,5 +1,4 @@
 -- gathering schema_name, table_name, column_name, data_type
--- Create a temporary table to gather column information for all tables in the specified schemas
 CREATE TEMP TABLE temp_column_info AS
 SELECT
     table_schema AS schema_name,
