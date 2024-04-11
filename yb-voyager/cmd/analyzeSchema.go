@@ -390,8 +390,8 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			location := strings.ToUpper(stmt[1])
-			summaryMap["PROCEDURE"].invalidCount[sqlInfo.objName] = true // TODO: confirm this if only procedure can have cursor
 			if slices.Contains(notSupportedFetchLocation, location) {
+				summaryMap["PROCEDURE"].invalidCount[sqlInfo.objName] = true 
 				reportCase(fpath, "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", sqlInfo.objName, sqlInfo.formattedStmt)
 			}
 		} else if stmt := alterAggRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
@@ -739,7 +739,7 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 	fmt.Printf("formattedStmt %s", formattedStmt)
 	if createObjStmt != nil {
 		objName = createObjStmt[objNameIndex]
-		
+
 		if summaryMap != nil && summaryMap[objType] != nil { //when just createSqlStrArray() is called from someother file, then no summaryMap exists
 			summaryMap[objType].totalCount += 1
 			summaryMap[objType].objSet[objName] = true
