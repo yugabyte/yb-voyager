@@ -74,21 +74,13 @@ if [ -z "$PGPASSWORD" ]; then
 fi
 
 echo "Assessment data collection started"
-echo "Collecting table sizes..."
-psql -q $pg_connection_string -f $SCRIPT_DIR/table-sizes.psql -v schema_list=$schema_list -v ON_ERROR_STOP=on
-
-echo "Collecting table iops stats..."
-psql -q $pg_connection_string -f $SCRIPT_DIR/table-iops.psql -v schema_list=$schema_list -v ON_ERROR_STOP=on
-
-# TODO: finalize the query, approx count or exact count(any optimization also if possible)
-echo "Collecting table row counts..."
-psql -q $pg_connection_string -f $SCRIPT_DIR/table-row-counts.psql -v schema_list=$schema_list -v ON_ERROR_STOP=on
-
-
-echo "Collecting table columns' data types..."
-psql -q $pg_connection_string -f $SCRIPT_DIR/table-columns-data-types.psql -v schema_list=$schema_list -v ON_ERROR_STOP=on
 
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
+for script in $SCRIPT_DIR/*.psql; do
+    script_action=$(basename "$script" .psql | sed 's/-/ /g')
+    echo "Collecting $script_action..."
+    psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on
+done
 
 # check for pg_dump version
 pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
@@ -100,7 +92,7 @@ fi
 mkdir -p schema
 echo "Collecting schema information..."
 pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql"
-v
+
 # Return to the original directory after operations are done
 popd > /dev/null
 
