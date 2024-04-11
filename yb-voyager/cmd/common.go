@@ -218,8 +218,8 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	}
 	tables := msr.TableListExportedFromSource
 	for leaf, root := range msr.SourceRenameTablesMap {
-		leafTable := sqlname.NewSourceNameFromQualifiedName(leaf)
-		rootTable := sqlname.NewSourceNameFromQualifiedName(root)
+		leafTable := sqlname.NewSourceNameFromQualifiedName((leaf))
+		rootTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(root))
 		leaf = leafTable.Qualified.MinQuoted
 		if leafTable.SchemaName.MinQuoted == "public" {
 			leaf = leafTable.ObjectName.MinQuoted
@@ -232,6 +232,13 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	}
 
 	return leafPartitions
+}
+
+func getQuotedFromUnquoted(t string) string {
+	//To preserve case sensitiveness in the Unquoted 
+	parts := strings.Split(t, ".")
+	s, t := parts[0], parts[1]
+	return fmt.Sprintf(`%s."%s"`, s, t)
 }
 
 func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
@@ -802,7 +809,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	fromTable := tableName.Qualified.Unquoted
 
 	if renameTablesMap[fromTable] != "" {
-		table := sqlname.NewSourceNameFromQualifiedName(renameTablesMap[fromTable])
+		table := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(renameTablesMap[fromTable]))
 		toTable := table.Qualified.MinQuoted
 		if table.SchemaName.MinQuoted == "public" {
 			toTable = table.ObjectName.MinQuoted
