@@ -86,11 +86,14 @@
         </table>
 
         <h2>Unsupported Features</h2>
+        {{range .UnsupportedFeatures}}
+        <h3>{{.FeatureName}}</h3>
         <ul>
-            {{range .UnsupportedFeatures}}
+            {{range .ObjectNames}}
             <li>{{.}}</li>
             {{end}}
         </ul>
+        {{end}}
 
         <h2>Recommendations</h2>
         <h3>Sharding Recommendation</h3>
