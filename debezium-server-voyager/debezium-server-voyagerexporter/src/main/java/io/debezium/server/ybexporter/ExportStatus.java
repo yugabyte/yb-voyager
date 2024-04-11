@@ -164,7 +164,7 @@ public class ExportStatus {
             if ((sourceType.equals("postgresql") || sourceType.equals("yb")) && (!t.schemaName.equals("public"))) {
                 fileName = t.schemaName + "." + fileName;
             }
-            String tempPath = String.format("/tmp/%s_schema.json", fileName);
+            String tempPath = String.format("/tmp/%s_%s_schema.json", exporterRole, fileName);
             File tempFile = new File(tempPath);
             String schemaFilePath = String.format("%s/schemas/%s/%s_schema.json", dataDir, exporterRole, fileName);
             File schemaFile = new File(schemaFilePath);
