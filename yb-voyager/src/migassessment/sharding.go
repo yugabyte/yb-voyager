@@ -54,13 +54,13 @@ func ShardingAssessment() error {
 	tableIOPSFpath := filepath.Join(AssessmentDataDir, "table-iops.csv")
 
 	log.Infof("loading metadata files for sharding assessment")
-	tableSizes, err := loadCSVDataFile[ShardingTableSizesRecord](tableSizesFpath)
+	tableSizes, err := LoadCSVDataFile[ShardingTableSizesRecord](tableSizesFpath)
 	if err != nil {
 		log.Errorf("failed to load table sizes file: %v", err)
 		return fmt.Errorf("failed to load table size file: %w", err)
 	}
 
-	tableIOPS, err := loadCSVDataFile[ShardingTableIOPSRecord](tableIOPSFpath)
+	tableIOPS, err := LoadCSVDataFile[ShardingTableIOPSRecord](tableIOPSFpath)
 	if err != nil {
 		log.Errorf("failed to load table IOPS file: %v", err)
 		return fmt.Errorf("failed to load table IOPS file: %w", err)
@@ -83,7 +83,7 @@ func ShardingAssessment() error {
 
 	// core assessment logic goes here - maybe call some external package APIs to perform the assessment
 
-	FinalReport.ShardingReport = &ShardingReport{
+	Report.ShardingReport = &ShardingReport{
 		// replace this with actual assessment results
 		ColocatedTables: tableList[:len(tableList)/2],
 		ShardedTables:   tableList[len(tableList)/2:],

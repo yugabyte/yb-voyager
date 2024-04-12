@@ -49,13 +49,6 @@ var TableMetadataStatusMap = map[int]string{
 	3: "DONE",
 }
 
-type IndexInfo struct {
-	IndexName string   `json:"IndexName"`
-	IndexType string   `json:"IndexType"`
-	TableName string   `json:"TableName"`
-	Columns   []string `json:"Columns"`
-}
-
 // the list elements order is same as the import objects order
 // TODO: Need to make each of the list comprehensive, not missing any database object category
 var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PARTITION", "INDEX", "PACKAGE", "VIEW",
@@ -77,26 +70,27 @@ var mysqlSchemaObjectListForExport = []string{"TABLE", "VIEW", "TRIGGER", "FUNCT
 var WaitGroup sync.WaitGroup
 var WaitChannel = make(chan int)
 
-// report.json format
-type Report struct {
-	Summary Summary `json:"summary"`
-	Issues  []Issue `json:"issues"`
+// ================== Schema Report ==============================
+
+type SchemaReport struct {
+	SchemaSummary SchemaSummary `json:"summary"`
+	Issues        []Issue       `json:"issues"`
 }
 
-type Summary struct {
-	DBName     string     `json:"dbName"`
-	SchemaName string     `json:"schemaName"`
-	DBVersion  string     `json:"dbVersion"`
-	Notes      []string   `json:"notes"`
+type SchemaSummary struct {
+	DBName     string     `json:"dbName,omitempty"`
+	SchemaName string     `json:"schemaName,omitempty"`
+	DBVersion  string     `json:"dbVersion,omitempty"`
+	Notes      []string   `json:"notes,omitempty"`
 	DBObjects  []DBObject `json:"databaseObjects"`
 }
 
 type DBObject struct {
 	ObjectType   string `json:"objectType"`
 	TotalCount   int    `json:"totalCount"`
-	InvalidCount int    `json:"invalidCount"`
+	InvalidCount int    `json:"invalidCount,omitempty"`
 	ObjectNames  string `json:"objectNames"`
-	Details      string `json:"details"`
+	Details      string `json:"details,omitempty"`
 }
 
 type Issue struct {
@@ -109,6 +103,22 @@ type Issue struct {
 	GH           string `json:"GH"`
 }
 
+type IndexInfo struct {
+	// TODO: ADD SchemaName string `json:"SchemaName"`
+	IndexName string   `json:"IndexName"`
+	IndexType string   `json:"IndexType"`
+	TableName string   `json:"TableName"`
+	Columns   []string `json:"Columns"`
+}
+
+type TableColumnsDataTypes struct {
+	SchemaName string `json:"schema_name"`
+	TableName  string `json:"table_name"`
+	ColumnName string `json:"column_name"`
+	DataType   string `json:"data_type"`
+}
+
+// ================== Segment ==============================
 type Segment struct {
 	Num      int
 	FilePath string

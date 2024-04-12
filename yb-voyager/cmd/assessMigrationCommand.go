@@ -16,26 +16,43 @@ limitations under the License.
 package cmd
 
 import (
-	"bytes"
+	"bufio"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var supportedAssessmentReportFormats = []string{"json", "html"}
 var assessmentParamsFpath string
-
 var assessmentDataDirFlag string
+var assessmentReport AssessmentReport
+
+type AssessmentReport struct {
+	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
+
+	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
+
+	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
+
+	Sharding *migassessment.ShardingReport `json:"Sharding"`
+	Sizing   *migassessment.SizingReport   `json:"Sizing"`
+}
+
+type UnsupportedFeature struct {
+	FeatureName string   `json:"feature_name"`
+	ObjectNames []string `json:"object_names"`
+}
 
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
@@ -77,12 +94,13 @@ func init() {
 			"it will be assumed to be present at default path inside the export directory.")
 }
 
-//go:embed report.template
-var bytesTemplate []byte
-
 func assessMigration() (err error) {
 	checkStartCleanForAssessMigration()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
+	// setting schemaDir to use later on - gather assessment data, segregating into schema files per object etc..
+	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
+		filepath.Join(exportDir, "assessment", "data", "schema"))
 
 	err = gatherAssessmentData()
 	if err != nil {
@@ -152,7 +170,6 @@ func gatherAssessmentData() (err error) {
 
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
-	schemaDir = filepath.Join(assessmentDataDir, "schema")
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	if source.Password == "" {
@@ -182,7 +199,7 @@ func gatherAssessmentDataFromPG() (err error) {
 	}
 
 	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
-	gatherAssessmentDataScriptPath := filepath.Join("/", "etc", "yb-voyager", "gather-assessment-data", "postgresql", "yb-voyager-gather-assessment-data.sh")
+	gatherAssessmentDataScriptPath := "/etc/yb-voyager/gather-assessment-data/postgresql/yb-voyager-pg-gather-assessment-data.sh"
 
 	possiblePathsForScript := []string{
 		gatherAssessmentDataScriptPath,
@@ -210,59 +227,193 @@ func gatherAssessmentDataFromPG() (err error) {
 		assessmentDataDir,
 	}
 
-	preparedScriptCmd := exec.Command(scriptPath, scriptArgs...)
-	log.Infof("running script: %s", preparedScriptCmd.String())
-	preparedScriptCmd.Env = append(preparedScriptCmd.Env, "PGPASSWORD="+source.Password)
-	preparedScriptCmd.Dir = assessmentDataDir
-	stdout, err := preparedScriptCmd.CombinedOutput()
-	log.Infof("output of gather assessment data script for PG: %s\n", string(stdout))
+	cmd := exec.Command(scriptPath, scriptArgs...)
+	log.Infof("running script: %s", cmd.String())
+	cmd.Env = append(cmd.Env, "PGPASSWORD="+source.Password)
+	cmd.Dir = assessmentDataDir
+
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("error running script: %w", err)
+		return fmt.Errorf("error creating stdout pipe: %w", err)
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stderr pipe: %w", err)
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("error starting gather assessment data script: %w", err)
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			log.Errorf("[stderr of script]: %s", scanner.Text())
+			fmt.Printf("%s\n", scanner.Text())
+		}
+	}()
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		log.Infof("[stdout of script]: %s", scanner.Text())
+		fmt.Printf("%s\n", scanner.Text())
+	}
+
+	err = cmd.Wait()
+	if err != nil {
+		return fmt.Errorf("error waiting for gather assessment data script to complete: %w", err)
 	}
 	return nil
 }
 
 func parseExportedSchemaFileForAssessment() {
-	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
-		filepath.Join(exportDir, "assessment", "data", "schema"))
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
-func generateAssessmentReport() error {
-	utils.PrintAndLog("Generating assessment reports...")
-	reportsDir := filepath.Join(exportDir, "assessment", "reports")
-	for _, assessmentReportFormat := range supportedAssessmentReportFormats {
-		reportFilePath := filepath.Join(reportsDir, "report."+assessmentReportFormat)
-		var assessmentReportContent bytes.Buffer
-		switch assessmentReportFormat {
-		case "json":
-			strReport, err := json.MarshalIndent(&migassessment.FinalReport, "", "\t")
-			if err != nil {
-				return fmt.Errorf("failed to marshal the assessment report: %w", err)
-			}
+//go:embed assessmentReport.template
+var bytesTemplate []byte
 
-			_, err = assessmentReportContent.Write(strReport)
-			if err != nil {
-				return fmt.Errorf("failed to write assessment report to buffer: %w", err)
-			}
-		case "html":
-			templ := template.Must(template.New("report").Parse(string(bytesTemplate)))
-			err := templ.Execute(&assessmentReportContent, migassessment.FinalReport)
-			if err != nil {
-				return fmt.Errorf("failed to render the assessment report: %w", err)
+func generateAssessmentReport() (err error) {
+	utils.PrintAndLog("Generating assessment report...")
+
+	err = getAssessmentReportContentFromAnalyzeSchema()
+	if err != nil {
+		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
+	}
+
+	assessmentReport.UnsupportedDataTypes, err = fetchColumnsWithUnsupportedDataTypes()
+	if err != nil {
+		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
+	}
+
+	assessmentReport.Sharding = migassessment.Report.ShardingReport
+	assessmentReport.Sizing = migassessment.Report.SizingReport
+
+	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
+	err = generateAssessmentReportJson(assessmentReportDir)
+	if err != nil {
+		return fmt.Errorf("failed to generate assessment report JSON: %w", err)
+	}
+
+	err = generateAssessmentReportHtml(assessmentReportDir)
+	if err != nil {
+		return fmt.Errorf("failed to generate assessment report HTML: %w", err)
+	}
+	return nil
+}
+
+func getAssessmentReportContentFromAnalyzeSchema() (err error) {
+	analyzeSchemaReport := analyzeSchemaInternal(&source)
+	assessmentReport.SchemaSummary = analyzeSchemaReport.SchemaSummary
+
+	// set invalidCount to zero so that it doesn't show up in the report
+	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
+		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
+	}
+
+	unsupportedFeatures, err := fetchUnsupportedFeaturesForPG(analyzeSchemaReport)
+	if err != nil {
+		return fmt.Errorf("failed to fetch unsupported features: %w", err)
+	}
+	assessmentReport.UnsupportedFeatures = unsupportedFeatures
+
+	return nil
+}
+
+func fetchUnsupportedFeaturesForPG(analyzeSchemaReport utils.SchemaReport) ([]UnsupportedFeature, error) {
+	log.Infof("fetching unsupported features for PG...")
+	unsupportedFeatures := make([]UnsupportedFeature, 0)
+	filterIssues := func(featureName, issueReason string) {
+		log.Info("filtering issues for feature: ", featureName)
+		objectNames := make([]string, 0)
+		for _, issue := range analyzeSchemaReport.Issues {
+			if strings.Contains(issue.Reason, issueReason) {
+				objectNames = append(objectNames, issue.ObjectName)
 			}
 		}
 
-		log.Infof("writing assessment report to file: %s", reportFilePath)
-		err := os.WriteFile(reportFilePath, assessmentReportContent.Bytes(), 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write the assessment report: %w", err)
+		unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
+	}
+
+	filterIssues("GIST indexes", GIST_INDEX_ISSUE_REASON)
+	filterIssues("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON)
+	filterIssues("Inherited tables", INHERITANCE_ISSUE_REASON)
+	filterIssues("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON)
+
+	return unsupportedFeatures, nil
+}
+
+func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, error) {
+	var unsupportedDataTypes []utils.TableColumnsDataTypes
+
+	// load file with all column data types
+	assessmentDataDir := lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
+		filepath.Join(exportDir, "assessment", "data"))
+	filePath := filepath.Join(assessmentDataDir, "table-columns-data-types.csv")
+
+	allColumnsDataTypes, err := migassessment.LoadCSVDataFile[utils.TableColumnsDataTypes](filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load table columns data types file: %w", err)
+	}
+
+	// filter columns with unsupported data types using srcdb.PostgresUnsupportedDataTypesForDbzm
+	pgUnsupportedDataTypes := srcdb.PostgresUnsupportedDataTypesForDbzm
+	for i := 0; i < len(allColumnsDataTypes); i++ {
+		if utils.ContainsAnySubstringFromSlice(pgUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+			unsupportedDataTypes = append(unsupportedDataTypes, *allColumnsDataTypes[i])
 		}
 	}
-	utils.PrintAndLog("Generated assessment reports at '%s'", reportsDir)
+
+	return unsupportedDataTypes, nil
+}
+
+func generateAssessmentReportJson(reportDir string) error {
+	jsonReportFilePath := filepath.Join(reportDir, "assessmentReport.json")
+	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
+	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal the assessment report: %w", err)
+	}
+
+	err = os.WriteFile(jsonReportFilePath, strReport, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write assessment report to file: %w", err)
+	}
+
+	utils.PrintAndLog("generated JSON assessment report at: %s", jsonReportFilePath)
+	return nil
+}
+
+func generateAssessmentReportHtml(reportDir string) error {
+	htmlReportFilePath := filepath.Join(reportDir, "assessmentReport.html")
+	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
+
+	file, err := os.Create(htmlReportFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create file for %q: %w", filepath.Base(htmlReportFilePath), err)
+	}
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Errorf("failed to close file %q: %v", htmlReportFilePath, err)
+		}
+	}()
+
+	log.Infof("creating template for assessment report...")
+	tmpl := template.Must(template.New("report").Parse(string(bytesTemplate)))
+
+	log.Infof("execute template for assessment report...")
+	err = tmpl.Execute(file, assessmentReport)
+	if err != nil {
+		return fmt.Errorf("failed to render the assessment report: %w", err)
+	}
+
+	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
 }
 

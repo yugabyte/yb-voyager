@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Migration Assessment Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .wrapper {
+            max-width: 960px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even){background-color: #f9f9f9;}
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        .table-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        .table-container > div {
+            width: 48%;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <h1>Migration Assessment Report</h1>
+        <h2>Schema Summary</h2>
+        <p><strong>Database Name:</strong> {{.SchemaSummary.DBName}}</p>
+        <p><strong>Schema Name:</strong> {{.SchemaSummary.SchemaName}}</p>
+        <p><strong>Database Version:</strong> {{.SchemaSummary.DBVersion}}</p>
+
+        <h2>Database Objects</h2>
+        <table>
+            <tr>
+                <th>Object Type</th>
+                <th>Total Count</th>
+                <th>Object Names</th>
+            </tr>
+            {{range .SchemaSummary.DBObjects}}
+            <tr>
+                <td>{{.ObjectType}}</td>
+                <td>{{.TotalCount}}</td>
+                <td>{{.ObjectNames}}</td>
+            </tr>
+            {{end}}
+        </table>
+
+        <h2>Unsupported Data Types</h2>
+        <table>
+            <tr>
+                <th>Schema</th>
+                <th>Table</th>
+                <th>Column</th>
+                <th>Data Type</th>
+            </tr>
+            {{range .UnsupportedDataTypes}}
+            <tr>
+                <td>{{.SchemaName}}</td>
+                <td>{{.TableName}}</td>
+                <td>{{.ColumnName}}</td>
+                <td>{{.DataType}}</td>
+            </tr>
+            {{end}}
+        </table>
+
+        <h2>Unsupported Features</h2>
+        {{range .UnsupportedFeatures}}
+        <h3>{{.FeatureName}}</h3>
+        <ul>
+            {{range .ObjectNames}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+
+        <h2>Recommendations</h2>
+        <div class="table-container">
+            <div>
+                <h3>Colocated Tables</h3>
+                <ul>
+                    {{range .Sharding.ColocatedTables}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+            <div>
+                <h3>Sharded Tables</h3>
+                <ul>
+                    {{range .Sharding.ShardedTables}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+        </div>
+
+        {{with .Sizing}}
+        <h3>Sizing Report</h3>
+        <p><strong>Node Count:</strong> {{.NodeCount}}</p>
+        <p><strong>Vcpu Count Per Node:</strong> {{.VcpuCountPerNode}}</p>
+        <p><strong>Memory GB Per Node:</strong> {{.MemGBPerNode}}</p>
+        <p><strong>Storage GB Per Node:</strong> {{.StorageGBPerNode}}</p>
+        {{else}}
+        <!-- <p>Sizing Report data is not available.</p> -->
+        {{end}}
+    </div>
+</body>
+</html>

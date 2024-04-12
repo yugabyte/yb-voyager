@@ -33,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -113,50 +114,51 @@ func parenth(s string) string {
 }
 
 var (
-	analyzeSchemaReportFormat  string
-	sourceObjList []string
-	reportStruct  utils.Report
-	tblParts      = make(map[string]string)
+	analyzeSchemaReportFormat string
+	sourceObjList             []string
+	schemaAnalysisReport      utils.SchemaReport
+	tblParts                  = make(map[string]string)
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	createConvRegex          = re("CREATE", opt("DEFAULT"), optionalWS, "CONVERSION", capture(ident))
-	alterConvRegex           = re("ALTER", "CONVERSION", capture(ident))
-	gistRegex                = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
-	brinRegex                = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
-	spgistRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
-	rtreeRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
-	ginRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
-	viewWithCheckRegex       = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
-	rangeRegex               = re("PRECEDING", "and", anything, ":float")
-	fetchRegex               = re("FETCH", capture(fetchLocation), "FROM")
+	createConvRegex           = re("CREATE", opt("DEFAULT"), optionalWS, "CONVERSION", capture(ident))
+	alterConvRegex            = re("ALTER", "CONVERSION", capture(ident))
+	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
+	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
+	spgistRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
+	rtreeRegex                = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
+	ginRegex                  = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
+	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
+	rangeRegex                = re("PRECEDING", "and", anything, ":float")
+	fetchRegex                = re("FETCH", capture(fetchLocation), "FROM")
 	notSupportedFetchLocation = []string{"FIRST", "LAST", "NEXT", "PRIOR", "RELATIVE", "ABSOLUTE", "NEXT", "FORWARD", "BACKWARD"}
-	alterAggRegex            = re("ALTER", "AGGREGATE", capture(ident))
-	dropCollRegex            = re("DROP", "COLLATION", ifExists, capture(commaSeperatedTokens))
-	dropIdxRegex             = re("DROP", "INDEX", ifExists, capture(commaSeperatedTokens))
-	dropViewRegex            = re("DROP", "VIEW", ifExists, capture(commaSeperatedTokens))
-	dropSeqRegex             = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedTokens))
-	dropForeignRegex         = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
-	dropIdxConcurRegex       = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
-	trigRefRegex             = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
-	constrTrgRegex           = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
-	currentOfRegex           = re("WHERE", "CURRENT", "OF")
-	amRegex                  = re("CREATE", "ACCESS", "METHOD", capture(ident))
-	idxConcRegex             = re("REINDEX", anything, capture(ident))
-	storedRegex              = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
-	partitionColumnsRegex    = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
-	likeAllRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
-	likeRegex                = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
-	inheritRegex             = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
-	withOidsRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
-	intvlRegex               = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
-	anydataRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyData", anything)
-	anydatasetRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyDataSet", anything)
-	anyTypeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyType", anything)
-	uriTypeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "URIType", anything)
+	alterAggRegex             = re("ALTER", "AGGREGATE", capture(ident))
+	dropCollRegex             = re("DROP", "COLLATION", ifExists, capture(commaSeperatedTokens))
+	dropIdxRegex              = re("DROP", "INDEX", ifExists, capture(commaSeperatedTokens))
+	dropViewRegex             = re("DROP", "VIEW", ifExists, capture(commaSeperatedTokens))
+	dropSeqRegex              = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedTokens))
+	dropForeignRegex          = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
+	dropIdxConcurRegex        = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
+	trigRefRegex              = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
+	constrTrgRegex            = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
+	currentOfRegex            = re("WHERE", "CURRENT", "OF")
+	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
+	idxConcRegex              = re("REINDEX", anything, capture(ident))
+	storedRegex               = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
+	createTableRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything)
+	partitionColumnsRegex     = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
+	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
+	likeRegex                 = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
+	inheritRegex              = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
+	withOidsRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
+	intvlRegex                = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
+	anydataRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyData", anything)
+	anydatasetRegex           = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyDataSet", anything)
+	anyTypeRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyType", anything)
+	uriTypeRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "URIType", anything)
 	//super user role required, language c is errored as unsafe
 	cLangRegex = re("CREATE", opt("OR REPLACE"), "FUNCTION", capture(ident), anything, "language c")
 
@@ -200,6 +202,16 @@ var (
 	jsonFuncRegex              = re("CREATE", opt("OR REPLACE"), capture(unqualifiedIdent), capture(ident), anything, "JSON_ARRAYAGG")
 )
 
+const (
+	INHERITANCE_ISSUE_REASON        = "TABLE INHERITANCE not supported in YugabyteDB"
+	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
+	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
+
+	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated column not supported."
+
+	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
+)
+
 // Reports one case in JSON
 func reportCase(filePath string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string) {
 	var issue utils.Issue
@@ -211,7 +223,7 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	issue.ObjectName = objName
 	issue.SqlStatement = sqlStmt
 
-	reportStruct.Issues = append(reportStruct.Issues, issue)
+	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
 
 func reportAddingPrimaryKey(fpath string, tbl string, line string) {
@@ -234,18 +246,14 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 
 }
 
-// adding migration summary info to reportStruct from summaryMap
-func reportSummary() {
-	//reading source db metainfo from msr
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
-	}
+// return summary about the schema objects like tables, indexes, functions, sequences
+func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
+	var schemaSummary utils.SchemaSummary
 
-	if !tconf.ImportMode { // this info is available only if we are exporting from source
-		reportStruct.Summary.DBName = msr.SourceDBConf.DBName
-		reportStruct.Summary.SchemaName = msr.SourceDBConf.Schema
-		reportStruct.Summary.DBVersion = msr.SourceDBConf.DBVersion
+	if !tconf.ImportMode && sourceDBConf != nil { // this info is available only if we are exporting from source
+		schemaSummary.DBName = sourceDBConf.DBName
+		schemaSummary.SchemaName = sourceDBConf.Schema
+		schemaSummary.DBVersion = sourceDBConf.DBVersion
 	}
 
 	addSummaryDetailsForIndexes()
@@ -260,13 +268,14 @@ func reportSummary() {
 		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
 		dbObject.ObjectNames = getMapKeysString(summaryMap[objType].objSet)
 		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
-		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
+		schemaSummary.DBObjects = append(schemaSummary.DBObjects, dbObject)
 	}
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
-		reportStruct.Summary.Notes = append(reportStruct.Summary.Notes, note)
+		schemaSummary.Notes = append(schemaAnalysisReport.SchemaSummary.Notes, note)
 	}
+	return schemaSummary
 }
 
 func addSummaryDetailsForIndexes() {
@@ -329,7 +338,7 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
-			reportCase(fpath, "Schema contains gist index which is not supported.",
+			reportCase(fpath, GIST_INDEX_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
@@ -391,7 +400,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			location := strings.ToUpper(stmt[1])
 			if slices.Contains(notSupportedFetchLocation, location) {
-				summaryMap["PROCEDURE"].invalidCount[sqlInfo.objName] = true 
+				summaryMap["PROCEDURE"].invalidCount[sqlInfo.objName] = true
 				reportCase(fpath, "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", sqlInfo.objName, sqlInfo.formattedStmt)
 			}
 		} else if stmt := alterAggRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
@@ -420,7 +429,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt)
 		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			reportCase(fpath, "CREATE CONSTRAINT TRIGGER not supported yet.",
+			reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", trig[1], sqlInfo.formattedStmt)
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", sqlInfo.formattedStmt)
@@ -444,8 +453,10 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
 		} else if col := storedRegex.FindStringSubmatch(sqlInfo.stmt); col != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "Stored generated column is not supported. Column is: "+col[1],
-				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", "", sqlInfo.formattedStmt)
+			// fetch table name using different regex
+			tbl := createTableRegex.FindStringSubmatch(sqlInfo.stmt)
+			reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Column is: %s", col[1]),
+				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE ALL is not supported yet.",
@@ -466,8 +477,8 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			primaryCons[tbl[2]] = fpath
 		} else if tbl := inheritRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "INHERITS not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
+			reportCase(fpath, INHERITANCE_ISSUE_REASON,
+				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[4], sqlInfo.formattedStmt)
 		} else if tbl := withOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "OIDs are not supported for user tables.",
@@ -650,7 +661,7 @@ func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if trig := compoundTrigRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			reportCase(fpath, "Compound Triggers are not supported in YugabyteDB.",
+			reportCase(fpath, COMPOUND_TRIGGER_ISSUE_REASON,
 				"", "", "TRIGGER", trig[2], sqlInfo.formattedStmt)
 			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
 		}
@@ -904,7 +915,7 @@ func initializeSummaryMap() {
 
 }
 
-func generateHTMLReport(Report utils.Report) string {
+func generateHTMLReport(Report utils.SchemaReport) string {
 	//appending to doc line by line for better readability
 
 	//reading source db metainfo
@@ -915,15 +926,15 @@ func generateHTMLReport(Report utils.Report) string {
 
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
-	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
-	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr>"
-	htmlstring += "<tr><th>" + strings.ToUpper(msr.SourceDBConf.DBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
+	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.SchemaSummary.DBName + "</td></tr>"
+	htmlstring += "<tr><th>Schema Name</th><td>" + Report.SchemaSummary.SchemaName + "</td></tr>"
+	htmlstring += "<tr><th>" + strings.ToUpper(msr.SourceDBConf.DBType) + " Version</th><td>" + Report.SchemaSummary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Valid Count</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
-	for i := 0; i < len(Report.Summary.DBObjects); i++ {
-		if Report.Summary.DBObjects[i].TotalCount != 0 {
-			htmlstring += "<tr><th>" + Report.Summary.DBObjects[i].ObjectType + "</th><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].InvalidCount) + "</td><td width='40%'>" + Report.Summary.DBObjects[i].ObjectNames + "</td><td width='30%'>" + Report.Summary.DBObjects[i].Details + "</td></tr>"
+	for i := 0; i < len(Report.SchemaSummary.DBObjects); i++ {
+		if Report.SchemaSummary.DBObjects[i].TotalCount != 0 {
+			htmlstring += "<tr><th>" + Report.SchemaSummary.DBObjects[i].ObjectType + "</th><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount-Report.SchemaSummary.DBObjects[i].InvalidCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].InvalidCount) + "</td><td width='40%'>" + Report.SchemaSummary.DBObjects[i].ObjectNames + "</td><td width='30%'>" + Report.SchemaSummary.DBObjects[i].Details + "</td></tr>"
 		}
 	}
 	htmlstring += "</table><br>"
@@ -957,11 +968,11 @@ func generateHTMLReport(Report utils.Report) string {
 		htmlstring += "</ul>"
 	}
 	htmlstring += "</ul>"
-	if len(Report.Summary.Notes) > 0 {
+	if len(Report.SchemaSummary.Notes) > 0 {
 		htmlstring += "<h3>Notes</h3>"
 		htmlstring += "<ul list-style-type='disc'>"
-		for i := 0; i < len(Report.Summary.Notes); i++ {
-			htmlstring += "<li>" + Report.Summary.Notes[i] + "</li>"
+		for i := 0; i < len(Report.SchemaSummary.Notes); i++ {
+			htmlstring += "<li>" + Report.SchemaSummary.Notes[i] + "</li>"
 		}
 		htmlstring += "</ul>"
 	}
@@ -970,24 +981,24 @@ func generateHTMLReport(Report utils.Report) string {
 
 }
 
-func generateTxtReport(Report utils.Report) string {
+func generateTxtReport(Report utils.SchemaReport) string {
 	txtstring := "+---------------------------+\n"
 	txtstring += "| Database Migration Report |\n"
 	txtstring += "+---------------------------+\n"
-	txtstring += "Database Name\t" + Report.Summary.DBName + "\n"
-	txtstring += "Schema Name\t" + Report.Summary.SchemaName + "\n"
-	txtstring += "DB Version\t" + Report.Summary.DBVersion + "\n\n"
+	txtstring += "Database Name\t" + Report.SchemaSummary.DBName + "\n"
+	txtstring += "Schema Name\t" + Report.SchemaSummary.SchemaName + "\n"
+	txtstring += "DB Version\t" + Report.SchemaSummary.DBVersion + "\n\n"
 	txtstring += "Objects:\n\n"
 	//if names for json objects need to be changed make sure to change the tab spaces accordingly as well.
-	for i := 0; i < len(Report.Summary.DBObjects); i++ {
-		if Report.Summary.DBObjects[i].TotalCount != 0 {
-			txtstring += fmt.Sprintf("%-16s", "Object:") + Report.Summary.DBObjects[i].ObjectType + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Total Count:") + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Valid Count:") + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Invalid Count:") + strconv.Itoa(Report.Summary.DBObjects[i].InvalidCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Object Names:") + Report.Summary.DBObjects[i].ObjectNames + "\n"
-			if Report.Summary.DBObjects[i].Details != "" {
-				txtstring += fmt.Sprintf("%-16s", "Details:") + Report.Summary.DBObjects[i].Details + "\n"
+	for i := 0; i < len(Report.SchemaSummary.DBObjects); i++ {
+		if Report.SchemaSummary.DBObjects[i].TotalCount != 0 {
+			txtstring += fmt.Sprintf("%-16s", "Object:") + Report.SchemaSummary.DBObjects[i].ObjectType + "\n"
+			txtstring += fmt.Sprintf("%-16s", "Total Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount) + "\n"
+			txtstring += fmt.Sprintf("%-16s", "Valid Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount-Report.SchemaSummary.DBObjects[i].InvalidCount) + "\n"
+			txtstring += fmt.Sprintf("%-16s", "Invalid Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].InvalidCount) + "\n"
+			txtstring += fmt.Sprintf("%-16s", "Object Names:") + Report.SchemaSummary.DBObjects[i].ObjectNames + "\n"
+			if Report.SchemaSummary.DBObjects[i].Details != "" {
+				txtstring += fmt.Sprintf("%-16s", "Details:") + Report.SchemaSummary.DBObjects[i].Details + "\n"
 			}
 			txtstring += "\n"
 		}
@@ -1009,25 +1020,19 @@ func generateTxtReport(Report utils.Report) string {
 		}
 		txtstring += "\n"
 	}
-	if len(Report.Summary.Notes) > 0 {
+	if len(Report.SchemaSummary.Notes) > 0 {
 		txtstring += "Notes:\n\n"
-		for i := 0; i < len(Report.Summary.Notes); i++ {
-			txtstring += strconv.Itoa(i+1) + ". " + Report.Summary.Notes[i] + "\n"
+		for i := 0; i < len(Report.SchemaSummary.Notes); i++ {
+			txtstring += strconv.Itoa(i+1) + ". " + Report.SchemaSummary.Notes[i] + "\n"
 		}
 	}
 	return txtstring
 }
 
 // add info to the 'reportStruct' variable and return
-func analyzeSchemaInternal() utils.Report {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("analyze schema : load migration status record: %s", err)
-	}
-
-	reportStruct = utils.Report{}
-	schemaDir := filepath.Join(exportDir, "schema")
-	sourceObjList = utils.GetSchemaObjectList(msr.SourceDBConf.DBType)
+func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
+	schemaAnalysisReport = utils.SchemaReport{}
+	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
 		var sqlInfoArr []sqlInfo
@@ -1047,8 +1052,8 @@ func analyzeSchemaInternal() utils.Report {
 		checker(sqlInfoArr, filePath)
 	}
 
-	reportSummary()
-	return reportStruct
+	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
+	return schemaAnalysisReport
 }
 
 func analyzeSchema() {
@@ -1067,25 +1072,29 @@ func analyzeSchema() {
 		utils.ErrExit("run export schema before running analyze-schema")
 	}
 
-	analyzeSchemaInternal()
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("analyze schema : load migration status record: %s", err)
+	}
+	analyzeSchemaInternal(msr.SourceDBConf)
 
 	var finalReport string
 
 	switch analyzeSchemaReportFormat {
 	case "html":
-		htmlReport := generateHTMLReport(reportStruct)
+		htmlReport := generateHTMLReport(schemaAnalysisReport)
 		finalReport = utils.PrettifyHtmlString(htmlReport)
 	case "json":
-		jsonBytes, err := json.Marshal(reportStruct)
+		jsonBytes, err := json.Marshal(schemaAnalysisReport)
 		if err != nil {
 			panic(err)
 		}
 		reportJsonString := string(jsonBytes)
 		finalReport = utils.PrettifyJsonString(reportJsonString)
 	case "txt":
-		finalReport = generateTxtReport(reportStruct)
+		finalReport = generateTxtReport(schemaAnalysisReport)
 	case "xml":
-		byteReport, _ := xml.MarshalIndent(reportStruct, "", "\t")
+		byteReport, _ := xml.MarshalIndent(schemaAnalysisReport, "", "\t")
 		finalReport = string(byteReport)
 	default:
 		panic(fmt.Sprintf("invalid report format: %q", analyzeSchemaReportFormat))
@@ -1100,7 +1109,11 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("Error while opening %q: %s", reportPath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Errorf("Error while closing file %s: %v", reportPath, err)
+		}
+	}()
 
 	_, err = file.WriteString(finalReport)
 	if err != nil {
@@ -1110,7 +1123,7 @@ func analyzeSchema() {
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	var callhomeIssues []utils.Issue
-	for _, issue := range reportStruct.Issues {
+	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
 		callhomeIssues = append(callhomeIssues, issue)
 	}
@@ -1120,7 +1133,7 @@ func analyzeSchema() {
 	} else {
 		payload.Issues = string(issues)
 	}
-	dbobjects, err := json.Marshal(reportStruct.Summary.DBObjects)
+	dbobjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
 	if err != nil {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
 	} else {
@@ -1129,7 +1142,7 @@ func analyzeSchema() {
 
 	callhome.PackAndSendPayload(exportDir)
 
-	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(reportStruct)
+	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 
@@ -1155,7 +1168,7 @@ func init() {
 		"format in which report will be generated: (html, txt, json, xml)")
 }
 
-func validateReportOutputFormat(validOutputFormats []string, format string ) {
+func validateReportOutputFormat(validOutputFormats []string, format string) {
 	format = strings.ToLower(format)
 
 	for i := 0; i < len(validOutputFormats); i++ {
@@ -1177,7 +1190,7 @@ func createSchemaAnalysisStartedEvent() cp.SchemaAnalysisStartedEvent {
 	return result
 }
 
-func createSchemaAnalysisIterationCompletedEvent(report utils.Report) cp.SchemaAnalysisIterationCompletedEvent {
+func createSchemaAnalysisIterationCompletedEvent(report utils.SchemaReport) cp.SchemaAnalysisIterationCompletedEvent {
 	result := cp.SchemaAnalysisIterationCompletedEvent{}
 	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
 	result.AnalysisReport = report
