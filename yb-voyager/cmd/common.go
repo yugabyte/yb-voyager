@@ -218,7 +218,7 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	}
 	tables := msr.TableListExportedFromSource
 	for leaf, root := range msr.SourceRenameTablesMap {
-		leafTable := sqlname.NewSourceNameFromQualifiedName((leaf))
+		leafTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(leaf))
 		rootTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(root))
 		leaf = leafTable.Qualified.MinQuoted
 		if leafTable.SchemaName.MinQuoted == "public" {
