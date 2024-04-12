@@ -28,7 +28,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
@@ -156,7 +156,7 @@ func (yb *TargetYugabyteDB) connect() error {
 	}
 	connStr := yb.tconf.GetConnectionUri()
 	var err error
-	yb.db, err = sql.Open("postgres", connStr)
+	yb.db, err = sql.Open("pgx", connStr)
 	if err != nil {
 		return fmt.Errorf("open connection to target db: %w", err)
 	}

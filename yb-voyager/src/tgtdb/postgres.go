@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
@@ -163,7 +163,7 @@ func (pg *TargetPostgreSQL) connect() error {
 	}
 	connStr := pg.tconf.GetConnectionUri()
 	var err error
-	pg.db, err = sql.Open("postgres", connStr)
+	pg.db, err = sql.Open("pgx", connStr)
 	if err != nil {
 		return fmt.Errorf("open connection to target db: %w", err)
 	}
