@@ -127,6 +127,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
+	if startClean {
+		namereg.De
+	}
 
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
@@ -1218,7 +1221,6 @@ func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *
 	}
 	return result
 }
-
 
 func checkExportDataDoneFlag() {
 	metaInfoDir := filepath.Join(exportDir, metaInfoDirName)
