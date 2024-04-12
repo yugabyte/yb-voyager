@@ -560,11 +560,21 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) 
 	return result, nil
 }
 
+const DROP_TABLE_IF_EXISTS_QUERY = `BEGIN
+EXECUTE IMMEDIATE 'DROP TABLE %s ';
+EXCEPTION
+WHEN OTHERS THEN
+	IF SQLCODE != -942 THEN
+		RAISE;
+	END IF;
+END;`
+//(-942) exception is for table doesn't exists
+
 func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("Clearing migration state for migration %q", migrationUUID)
 	logMiningFlushTableName := utils.GetLogMiningFlushTableName(migrationUUID)
 	log.Infof("Dropping table %s", logMiningFlushTableName)
-	_, err := ora.db.Exec(fmt.Sprintf("DROP TABLE %s", logMiningFlushTableName))
+	_, err := ora.db.Exec(fmt.Sprintf(DROP_TABLE_IF_EXISTS_QUERY, logMiningFlushTableName))
 	if err != nil {
 		if strings.Contains(err.Error(), "ORA-00942") {
 			// Table does not exist, so nothing to drop
