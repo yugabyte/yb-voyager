@@ -1219,7 +1219,6 @@ func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *
 	return result
 }
 
-
 func checkExportDataDoneFlag() {
 	metaInfoDir := filepath.Join(exportDir, metaInfoDirName)
 	_, err := os.Stat(metaInfoDir)

@@ -16,10 +16,11 @@ limitations under the License.
 package tgtdb
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/goccy/go-json"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"

@@ -52,17 +52,20 @@ public class QueueSegment {
     public QueueSegment(String datadirStr, long segmentNo, String filePath) {
         this.segmentNo = segmentNo;
         this.filePath = filePath;
+        final Config config = ConfigProvider.getConfig();
+        exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
         es = ExportStatus.getInstance(datadirStr);
         ow = new ObjectMapper().writer();
         try {
+            // need to create entry in metadb before creating file
+            // to avoid edge case where importer finds the file but cannot find the
+            // corresponding entry in metadb
+            es.queueSegmentCreated(segmentNo, filePath, exporterRole);
             openFile();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        final Config config = ConfigProvider.getConfig();
-        exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
-        es.queueSegmentCreated(segmentNo, filePath, exporterRole);
+        
         long committedSize = es.getQueueSegmentCommittedSize(segmentNo);
         LOGGER.info("Opened queue segment {}; byteCount={}, committedSize={}", filePath, byteCount, committedSize);
         if (committedSize < byteCount) {
