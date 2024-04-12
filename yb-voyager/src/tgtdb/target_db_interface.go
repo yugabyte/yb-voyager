@@ -54,10 +54,10 @@ type TargetDB interface {
 	// NOTE: The following four methods should not be used for arbitrary query
 	// execution on TargetDB. The should be only used from higher level
 	// abstractions like ImportDataState.
-	Query(query string) (Rows, error)
-	QueryRow(query string) Row
+	Query(query string) (*sql.Rows, error)
+	QueryRow(query string) *sql.Row
 	Exec(query string) (int64, error)
-	WithTx(fn func(tx Tx) error) error
+	WithTx(fn func(tx *sql.Tx) error) error
 }
 
 //=============================================================

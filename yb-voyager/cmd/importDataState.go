@@ -17,8 +17,8 @@ package cmd
 
 import (
 	"bufio"
-	"context"
 	"crypto/sha1"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -449,10 +449,10 @@ func (s *ImportDataState) initChannelMetaInfo(migrationUUID uuid.UUID, numChans 
 		log.Info("event channels meta info already created. Skipping init.")
 		return nil
 	}
-	err = tdb.WithTx(func(tx tgtdb.Tx) error {
+	err = tdb.WithTx(func(tx *sql.Tx) error {
 		for c := 0; c < numChans; c++ {
 			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
-			_, err := tx.Exec(context.Background(), insertStmt)
+			_, err := tx.Exec(insertStmt)
 			if err != nil {
 				return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
 			}
@@ -491,7 +491,7 @@ func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID,
 		tableRowCount.Put(tableNameTup, rowCount)
 	}
 
-	return tdb.WithTx(func(tx tgtdb.Tx) error {
+	return tdb.WithTx(func(tx *sql.Tx) error {
 		for _, tableNameTup := range tableNameTups {
 			rowCount, _ := tableRowCount.Get(tableNameTup)
 			if rowCount > 0 {
@@ -499,7 +499,7 @@ func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID,
 			} else {
 				for c := 0; c < numChans; c++ {
 					insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableNameTup.ForKey(), c, 0, 0, 0, 0)
-					_, err := tx.Exec(context.Background(), insertStmt)
+					_, err := tx.Exec(insertStmt)
 					if err != nil {
 						return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
 					}

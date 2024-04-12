@@ -17,6 +17,7 @@ package tgtdb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -38,6 +39,7 @@ type TargetPostgreSQL struct {
 	sync.Mutex
 	*AttributeNameRegistry
 	tconf     *TargetConf
+	db        *sql.DB
 	conn_     *pgx.Conn
 	connPool  *ConnectionPool
 	connMutex sync.Mutex
@@ -60,59 +62,43 @@ func (pg *TargetPostgreSQL) WithConn(fn func(conn *pgx.Conn) error) error {
 	return fn(pg.conn_)
 }
 
-func (pg *TargetPostgreSQL) Query(query string) (Rows, error) {
-	var rows Rows
-	err := pg.WithConn(func(conn *pgx.Conn) error {
-		var err error
-		rows, err = conn.Query(context.Background(), query)
-		if err != nil {
-			return fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
-		}
-		return nil
-	})
-	return rows, err
+func (pg *TargetPostgreSQL) Query(query string) (*sql.Rows, error) {
+	return pg.db.Query(query)
 }
 
-func (pg *TargetPostgreSQL) QueryRow(query string) Row {
-	var row Row
-	_ = pg.WithConn(func(conn *pgx.Conn) error {
-		row = conn.QueryRow(context.Background(), query)
-		return nil
-	})
-	return row
+func (pg *TargetPostgreSQL) QueryRow(query string) *sql.Row {
+	return pg.db.QueryRow(query)
 }
 
 func (pg *TargetPostgreSQL) Exec(query string) (int64, error) {
 	var rowsAffected int64
 
-	err := pg.WithConn(func(conn *pgx.Conn) error {
-		res, err := conn.Exec(context.Background(), query)
-		if err != nil {
-			return fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
-		}
-		rowsAffected = res.RowsAffected()
-		return nil
-	})
+	res, err := pg.db.Exec(query)
+	if err != nil {
+		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+	}
+	rowsAffected, err = res.RowsAffected()
+	if err != nil {
+		return rowsAffected, fmt.Errorf("rowsAffected on query %q on target %q: %w", query, pg.tconf.Host, err)
+	}
 	return rowsAffected, err
 }
 
-func (pg *TargetPostgreSQL) WithTx(fn func(tx Tx) error) error {
-	return pg.WithConn(func(conn *pgx.Conn) error {
-		tx, err := conn.Begin(context.Background())
-		if err != nil {
-			return fmt.Errorf("begin transaction on target %q: %w", pg.tconf.Host, err)
-		}
-		defer tx.Rollback(context.Background())
-		err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
-		if err != nil {
-			return err
-		}
-		err = tx.Commit(context.Background())
-		if err != nil {
-			return fmt.Errorf("commit transaction on target %q: %w", pg.tconf.Host, err)
-		}
-		return nil
-	})
+func (pg *TargetPostgreSQL) WithTx(fn func(tx *sql.Tx) error) error {
+	tx, err := pg.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction on target %q: %w", pg.tconf.Host, err)
+	}
+	defer tx.Rollback()
+	err = fn(tx)
+	if err != nil {
+		return err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit transaction on target %q: %w", pg.tconf.Host, err)
+	}
+	return nil
 }
 
 func (pg *TargetPostgreSQL) Init() error {
@@ -174,6 +160,11 @@ func (pg *TargetPostgreSQL) connect() error {
 		return nil
 	}
 	connStr := pg.tconf.GetConnectionUri()
+	var err error
+	pg.db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		return fmt.Errorf("open connection to target db: %w", err)
+	}
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return fmt.Errorf("connect to target db: %w", err)
