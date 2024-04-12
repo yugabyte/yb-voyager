@@ -176,9 +176,7 @@ main() {
 	run_sql_file source_delta.sql
 
 	sleep 120
-
-	for file in $EXPORT_DIR/data/schemas/source_db_exporter/*; do echo "Filename: $file"; cat "$file"; echo; done
-
+	
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --yes
 
@@ -192,7 +190,6 @@ main() {
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
-			for file in $EXPORT_DIR/data/schemas/source_db_exporter/*; do echo "Filename: $file"; cat "$file"; echo; done
 			exit 1
         fi
     else

@@ -140,8 +140,6 @@ main() {
 
 	sleep 120
 
-	for file in $EXPORT_DIR/data/schemas/source_db_exporter/*; do echo "Filename: $file"; cat "$file"; echo; done
-
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
@@ -155,8 +153,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
-			tail_log_file "debezium-source_db_exporter.log"
-			for file in $EXPORT_DIR/data/schemas/source_db_exporter/*; do echo "Filename: $file"; cat "$file"; echo; done
+			tail_log_file "debezium-source_db_exporter.log"		
 			exit 1
         fi
     else
