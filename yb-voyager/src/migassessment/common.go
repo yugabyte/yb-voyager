@@ -31,11 +31,11 @@ var AssessmentDataDir string
 type Record map[string]any
 
 // type QueryResult []Record
-var Recommendations AssessmentRecommendations
+var Report AssessmentReport
 
-type AssessmentRecommendations struct {
-	*ShardingRecommendation `json:"sharding"`
-	*SizingRecommendation   `json:"sizing"`
+type AssessmentReport struct {
+	*ShardingReport `json:"sharding"`
+	*SizingReport   `json:"sizing"`
 }
 
 var assessmentParams = &AssessmentParams{}

@@ -11,7 +11,7 @@
             color: #333;
         }
         .wrapper {
-            max-width: 800px;
+            max-width: 960px;
             margin: 20px auto;
             padding: 20px;
             background-color: white;
@@ -41,6 +41,13 @@
         li {
             margin: 5px 0;
         }
+        .table-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        .table-container > div {
+            width: 48%;
+        }
     </style>
 </head>
 <body>
@@ -51,7 +58,7 @@
         <p><strong>Schema Name:</strong> {{.SchemaSummary.SchemaName}}</p>
         <p><strong>Database Version:</strong> {{.SchemaSummary.DBVersion}}</p>
 
-        <h3>Database Objects</h3>
+        <h2>Database Objects</h2>
         <table>
             <tr>
                 <th>Object Type</th>
@@ -96,17 +103,34 @@
         {{end}}
 
         <h2>Recommendations</h2>
-        <h3>Sharding Recommendation</h3>
-        <table>
-            <tr>
-                <th>Colocated Tables</th>
-                <th>Sharded Tables</th>
-            </tr>
-            <tr>
-                <td>{{range .Recommendations.ShardingRecommendation.ColocatedTables}}{{.}}<br>{{end}}</td>
-                <td>{{range .Recommendations.ShardingRecommendation.ShardedTables}}{{.}}<br>{{end}}</td>
-            </tr>
-        </table>
+        <div class="table-container">
+            <div>
+                <h3>Colocated Tables</h3>
+                <ul>
+                    {{range .Sharding.ColocatedTables}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+            <div>
+                <h3>Sharded Tables</h3>
+                <ul>
+                    {{range .Sharding.ShardedTables}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+        </div>
+
+        {{with .Sizing}}
+        <h3>Sizing Report</h3>
+        <p><strong>Node Count:</strong> {{.NodeCount}}</p>
+        <p><strong>Vcpu Count Per Node:</strong> {{.VcpuCountPerNode}}</p>
+        <p><strong>Memory GB Per Node:</strong> {{.MemGBPerNode}}</p>
+        <p><strong>Storage GB Per Node:</strong> {{.StorageGBPerNode}}</p>
+        {{else}}
+        <!-- <p>Sizing Report data is not available.</p> -->
+        {{end}}
     </div>
 </body>
 </html>

@@ -45,7 +45,8 @@ type AssessmentReport struct {
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
 
-	Recommendations migassessment.AssessmentRecommendations `json:"Recommendations"`
+	Sharding *migassessment.ShardingReport `json:"Sharding"`
+	Sizing   *migassessment.SizingReport   `json:"Sizing"`
 }
 
 type UnsupportedFeature struct {
@@ -278,7 +279,7 @@ func parseExportedSchemaFileForAssessment() {
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
-	utils.PrintAndLog("Generating consolidated assessment report...")
+	utils.PrintAndLog("Generating assessment report...")
 
 	err = getAssessmentReportContentFromAnalyzeSchema()
 	if err != nil {
@@ -290,7 +291,8 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
 
-	assessmentReport.Recommendations = migassessment.Recommendations
+	assessmentReport.Sharding = migassessment.Report.ShardingReport
+	assessmentReport.Sizing = migassessment.Report.SizingReport
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
