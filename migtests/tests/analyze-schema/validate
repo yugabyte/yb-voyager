@@ -37,8 +37,12 @@ def validate_report_summary(report, expected_summary):
 				reported_object_names = report["summary"][key][i]["objectNames"].split(", ")
 				assert expected_summary[key][i]["objectType"] == report["summary"][key][i]["objectType"], f"expected summary field value is not reported correctly: {key}"
 				assert expected_summary[key][i]["totalCount"] == report["summary"][key][i]["totalCount"], f"expected summary field value is not reported correctly: {key}"
+				assert expected_summary[key][i]["invalidCount"] == report["summary"][key][i]["invalidCount"], f"expected summary field value is not reported correctly: {key}"
 				assert expected_summary[key][i]["details"] == report["summary"][key][i]["details"], f"expected summary field value is not reported correctly: {key}"
-				assert expected_object_names.sort() == reported_object_names.sort(), f"expected summary field value is not reported correctly: {key}"
+				assert len(expected_object_names) == len(reported_object_names)
+				expected_object_names.sort()
+				reported_object_names.sort()
+				assert expected_object_names == reported_object_names, f"expected summary field value is not reported correctly: {key}"
 
 def validate_report_issues(report, expected_issues):
     # filePath reported in the report can be different depending on the machine
