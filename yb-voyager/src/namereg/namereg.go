@@ -204,12 +204,6 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	return true, nil
 }
 
-func (reg *NameRegistry) DeregisterYBNames() {
-	reg.YBTableNames = nil
-	reg.YBSchemaNames = nil
-	reg.DefaultYBSchemaName = ""
-}
-
 func (reg *NameRegistry) setDefaultSourceReplicaDBSchemaName(defaultSourceReplicaDBSchemaName string) error {
 	reg.DefaultSourceReplicaDBSchemaName = defaultSourceReplicaDBSchemaName
 	reg.SourceDBTableNames[defaultSourceReplicaDBSchemaName] = reg.SourceDBTableNames[reg.DefaultSourceDBSchemaName]

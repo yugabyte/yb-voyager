@@ -111,8 +111,10 @@ func (tdb *TargetOracleDB) Query(query string) (Rows, error) {
 
 func (tdb *TargetOracleDB) QueryRow(query string) Row {
 	var row Row
+	tdb.oraDB.QueryRow()
 	_ = tdb.WithConn(func(conn *sql.Conn) error {
 		row = conn.QueryRowContext(context.Background(), query)
+		row.Scan()
 		return nil
 	})
 	return row
