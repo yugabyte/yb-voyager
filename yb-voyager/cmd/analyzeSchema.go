@@ -209,7 +209,7 @@ const (
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated column not supported."
 
-	GIST_INDEX_ISSUE_REASON = "Schema contains gist index which is not supported."
+	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 )
 
 // Reports one case in JSON
@@ -338,7 +338,7 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
-			reportCase(fpath, "GIST_INDEX_ISSUE_REASON",
+			reportCase(fpath, GIST_INDEX_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
