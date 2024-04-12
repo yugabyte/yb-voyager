@@ -308,7 +308,7 @@ func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 		tmp := false
 		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table.ForUserQuery())
 		err := pg.QueryRow(stmt).Scan(&tmp)
-		if err == pgx.ErrNoRows {
+		if err == sql.ErrNoRows {
 			continue
 		}
 		if err != nil {
