@@ -111,7 +111,6 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	ExitIfAlreadyCutover(exporterRole)
-	checkDataDirs()
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
@@ -152,13 +151,7 @@ func exportData() bool {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
 	defer source.DB().Disconnect()
-	if changeStreamingIsEnabled(exportType) && bool(startClean) {
-		//For dropping VOYAGER_LOG_MINING_FLUSH_{migrationUUID} table in oracle on start-clean
-		err = source.DB().ClearMigrationState(migrationUUID, exportDir)
-		if err != nil {
-			utils.ErrExit("failed to clear migration state: %s", err)
-		}
-	}
+	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
@@ -779,7 +772,7 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 	return strings.Join(tableList, ","), nil
 }
 
-func checkDataDirs() {
+func clearMigrationStateIfRequired() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
@@ -811,6 +804,13 @@ func checkDataDirs() {
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {
 			utils.ErrExit("Failed to truncate tables in metadb: %s", err)
+		}
+		if changeStreamingIsEnabled(exportType) {
+			//For dropping VOYAGER_LOG_MINING_FLUSH_{migrationUUID} table in oracle on start-clean
+			err = source.DB().ClearMigrationState(migrationUUID, exportDir)
+			if err != nil {
+				utils.ErrExit("failed to clear migration state: %s", err)
+			}
 		}
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
