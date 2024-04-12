@@ -152,6 +152,13 @@ func exportData() bool {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
 	defer source.DB().Disconnect()
+	if changeStreamingIsEnabled(exportType) && bool(startClean) {
+		//For dropping VOYAGER_LOG_MINING_FLUSH_{migrationUUID} table in oracle on start-clean
+		err = source.DB().ClearMigrationState(migrationUUID, exportDir)
+		if err != nil {
+			utils.ErrExit("failed to clear migration state: %s", err)
+		}
+	}
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
@@ -804,13 +811,6 @@ func checkDataDirs() {
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {
 			utils.ErrExit("Failed to truncate tables in metadb: %s", err)
-		}
-		if changeStreamingIsEnabled(exportType) {
-			//For dropping VOYAGER_LOG_MINING_FLUSH_{migrationUUID} table in oracle on start-clean
-			err = source.DB().ClearMigrationState(migrationUUID, exportDir)
-			if err != nil {
-				utils.ErrExit("failed to clear migration state: %s", err)
-			}
 		}
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
