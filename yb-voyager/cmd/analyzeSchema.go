@@ -730,13 +730,9 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 func processCollectedSql(fpath string, stmt string, formattedStmt string, objType string, reportNextSql *int) sqlInfo {
 	createObjRegex, objNameIndex := getCreateObjRegex(objType)
 	var objName = "" // to extract from sql statement
-	if objType == "EXTENSION" {
-		fmt.Printf("%s", createObjRegex)
-	}
 
 	//update about sqlStmt in the summary variable for the report generation part
 	createObjStmt := createObjRegex.FindStringSubmatch(formattedStmt)
-	fmt.Printf("formattedStmt %s", formattedStmt)
 	if createObjStmt != nil {
 		objName = createObjStmt[objNameIndex]
 
