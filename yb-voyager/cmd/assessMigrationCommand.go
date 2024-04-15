@@ -106,6 +106,7 @@ func assessMigration() (err error) {
 
 	assessmentDataDir = lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
 		filepath.Join(exportDir, "assessment", "data"))
+	migassessment.AssessmentDataDir = assessmentDataDir
 
 	err = gatherAssessmentData()
 	if err != nil {
