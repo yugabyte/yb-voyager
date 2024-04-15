@@ -30,13 +30,13 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var assessmentParamsFpath string
+var assessmentDataDir string
 var assessmentDataDirFlag string
 var assessmentReport AssessmentReport
 
@@ -104,13 +104,18 @@ func assessMigration() (err error) {
 	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
 		filepath.Join(exportDir, "assessment", "data", "schema"))
 
+	assessmentDataDir = lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
+		filepath.Join(exportDir, "assessment", "data"))
+
 	err = gatherAssessmentData()
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment data: %w", err)
 	}
 
 	parseExportedSchemaFileForAssessment()
-	err = populateMetricsCSVIntoSQLiteDB()
+
+	migassessment.AssessmentDataDir = assessmentDataDir
+	err = populateMetricsCSVIntoAssessmentDB()
 	if err != nil {
 		return fmt.Errorf("failed to populate metrics CSV into SQLite DB: %w", err)
 	}
@@ -131,9 +136,6 @@ func assessMigration() (err error) {
 
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	migassessment.AssessmentDataDir = lo.Ternary(assessmentDataDirFlag != "",
-		assessmentDataDirFlag, filepath.Join(exportDir, "assessment", "data"))
-
 	// load and sets 'assessmentParams' from the user input file
 	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
 	if err != nil {
@@ -171,8 +173,6 @@ func gatherAssessmentData() (err error) {
 	if assessmentDataDirFlag != "" {
 		return nil // assessment data files are provided by the user inside assessmentDataDir
 	}
-
-	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
 
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
@@ -226,7 +226,6 @@ func gatherAssessmentDataFromPG() (err error) {
 	}
 
 	log.Infof("using script: %s", scriptPath)
-	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
 	scriptArgs := []string{
 		source.DB().GetConnectionUriWithoutPassword(),
 		source.Schema,
@@ -281,9 +280,17 @@ func parseExportedSchemaFileForAssessment() {
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
-func populateMetricsCSVIntoSQLiteDB() error {
-	assessmentDataDir := lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
-		filepath.Join(exportDir, "assessment", "data"))
+func populateMetricsCSVIntoAssessmentDB() error {
+	err := migassessment.CreateAndInitAssessmentDB()
+	if err != nil {
+		return fmt.Errorf("error creating and initializing assessment DB: %w", err)
+	}
+
+	assessmentDB, err := migassessment.NewAssessmentDB()
+	if err != nil {
+		return fmt.Errorf("error creating assessment DB instance: %w", err)
+	}
+
 	metricsFilePath, err := filepath.Glob(filepath.Join(assessmentDataDir, "*.csv"))
 	if err != nil {
 		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentDataDir, err)
@@ -308,73 +315,17 @@ func populateMetricsCSVIntoSQLiteDB() error {
 			return fmt.Errorf("error reading csv file %s: %w", metricsFilePath, err)
 		}
 
-		columnNames := rows[0]
-
-		stmtStr := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, table_name,
-			strings.Join(columnNames, ", "), strings.Repeat("?, ", len(columnNames)-1)+"?")
-
-		ps, err := metaDB.PrepareStatement(stmtStr)
+		err = assessmentDB.BulkInsert(table_name, rows)
 		if err != nil {
-			return fmt.Errorf("error preparing statement for table %s: %w", table_name, err)
+			return fmt.Errorf("error bulk inserting data into %s table: %w", table_name, err)
 		}
 
-		for rowNum := 1; rowNum < len(rows); rowNum++ {
-			row := utils.ConvertSliceStringToInterface(rows[rowNum])
-			_, err = ps.Exec(row...)
-			if err != nil {
-				return fmt.Errorf("error executing INSERT statement on table %s: %w", table_name, err)
-			}
-		}
-
-		err = ps.Close()
-		if err != nil {
-			return fmt.Errorf("error closing prepared statement for table %s: %w", table_name, err)
-		}
-
-		err = file.Close()
-		if err != nil {
-			log.Errorf("error closing file %s: %v", metricsFilePath, err)
-		}
 		log.Infof("populated metrics from file %s into table %s", metricFilePath, table_name)
 	}
 
-	// populate migration_assessment_stats table in SQLite
-	INSERT_TABLE_STATS := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
-	SELECT
-		trc.schema_name,
-		trc.table_name AS object_name,
-		trc.row_count,
-		tio.seq_reads as reads,
-		tio.row_writes as writes,
-		0 AS isIndex,
-		NULL AS parent_table_name, 
-		ts.size
-	FROM table_row_counts trc
-	LEFT JOIN table_index_iops tio ON trc.schema_name = tio.schema_name AND trc.table_name = tio.object_name
-	LEFT JOIN table_index_sizes ts ON trc.schema_name = ts.schema_name AND trc.table_name = ts.object_name;`, metadb.MIGRATION_ASSESSMENT_STATS)
-
-	INSERT_INDEX_STATS := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
-	SELECT
-		itm.index_schema AS schema_name,
-		itm.index_name AS object_name,
-		NULL AS row_count,
-		tio.seq_reads as reads,
-		tio.row_writes as writes,
-		1 AS isIndex,
-		itm.table_schema || '.' || itm.table_name AS parent_table_name,
-		ts.size
-	FROM index_to_table_mapping itm
-	LEFT JOIN table_index_iops tio ON itm.index_schema = tio.schema_name AND itm.index_name = tio.object_name
-	LEFT JOIN table_index_sizes ts ON itm.index_schema = ts.schema_name AND itm.index_name = ts.object_name;`, metadb.MIGRATION_ASSESSMENT_STATS)
-
-	err = metaDB.ExecStatement(INSERT_TABLE_STATS)
+	err = assessmentDB.PopulateMigrationAssessmentStats()
 	if err != nil {
-		return fmt.Errorf("error executing INSERT_TABLE_STATS on %s table: %w", metadb.MIGRATION_ASSESSMENT_STATS, err)
-	}
-
-	err = metaDB.ExecStatement(INSERT_INDEX_STATS)
-	if err != nil {
-		return fmt.Errorf("error executing INSERT_INDEX_STATS on %s table: %w", metadb.MIGRATION_ASSESSMENT_STATS, err)
+		return fmt.Errorf("failed to populate migration assessment stats: %w", err)
 	}
 	return nil
 }
@@ -412,15 +363,15 @@ func generateAssessmentReport() (err error) {
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() (err error) {
-	analyzeSchemaReport := analyzeSchemaInternal(&source)
-	assessmentReport.SchemaSummary = analyzeSchemaReport.SchemaSummary
+	schemaAnalysisReport := analyzeSchemaInternal(&source)
+	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 
 	// set invalidCount to zero so that it doesn't show up in the report
 	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
 		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
 	}
 
-	unsupportedFeatures, err := fetchUnsupportedFeaturesForPG(analyzeSchemaReport)
+	unsupportedFeatures, err := fetchUnsupportedFeaturesForPG(schemaAnalysisReport)
 	if err != nil {
 		return fmt.Errorf("failed to fetch unsupported features: %w", err)
 	}
@@ -429,13 +380,13 @@ func getAssessmentReportContentFromAnalyzeSchema() (err error) {
 	return nil
 }
 
-func fetchUnsupportedFeaturesForPG(analyzeSchemaReport utils.SchemaReport) ([]UnsupportedFeature, error) {
+func fetchUnsupportedFeaturesForPG(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
 	filterIssues := func(featureName, issueReason string) {
 		log.Info("filtering issues for feature: ", featureName)
 		objectNames := make([]string, 0)
-		for _, issue := range analyzeSchemaReport.Issues {
+		for _, issue := range schemaAnalysisReport.Issues {
 			if strings.Contains(issue.Reason, issueReason) {
 				objectNames = append(objectNames, issue.ObjectName)
 			}
@@ -455,8 +406,6 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	var unsupportedDataTypes []utils.TableColumnsDataTypes
 
 	// load file with all column data types
-	assessmentDataDir := lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
-		filepath.Join(exportDir, "assessment", "data"))
 	filePath := filepath.Join(assessmentDataDir, "table-columns-data-types.csv")
 
 	allColumnsDataTypes, err := migassessment.LoadCSVDataFile[utils.TableColumnsDataTypes](filePath)

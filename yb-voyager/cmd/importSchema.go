@@ -276,7 +276,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 	var targetSchemas []string
 	tconf.Schema = strings.ToLower(strings.Trim(tconf.Schema, "\"")) //trim case sensitivity quotes if needed, convert to lowercase
 
-	schemaAnalysisReport = analyzeSchemaInternal(
+	schemaAnalysisReport := analyzeSchemaInternal(
 		&srcdb.Source{
 			DBType: sourceDBType,
 		})

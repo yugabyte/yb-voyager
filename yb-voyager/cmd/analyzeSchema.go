@@ -1028,7 +1028,11 @@ func generateTxtReport(Report utils.SchemaReport) string {
 
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
-	schemaAnalysisReport := utils.SchemaReport{}
+	/*
+	NOTE: Don't create local var with name 'schemaAnalysisReport' since global one
+	is used across all the internal functions called by analyzeSchemaInternal()
+	*/
+	schemaAnalysisReport = utils.SchemaReport{}
 	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
@@ -1073,7 +1077,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("analyze schema : load migration status record: %s", err)
 	}
-	schemaAnalysisReport = analyzeSchemaInternal(msr.SourceDBConf)
+	analyzeSchemaInternal(msr.SourceDBConf)
 
 	var finalReport string
 
