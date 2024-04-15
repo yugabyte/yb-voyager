@@ -18,6 +18,7 @@ package cmd
 import (
 	"bufio"
 	_ "embed"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -35,6 +36,7 @@ import (
 )
 
 var assessmentParamsFpath string
+var assessmentDataDir string
 var assessmentDataDirFlag string
 var assessmentReport AssessmentReport
 
@@ -102,12 +104,20 @@ func assessMigration() (err error) {
 	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
 		filepath.Join(exportDir, "assessment", "data", "schema"))
 
+	assessmentDataDir = lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
+		filepath.Join(exportDir, "assessment", "data"))
+
 	err = gatherAssessmentData()
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment data: %w", err)
 	}
 
 	parseExportedSchemaFileForAssessment()
+
+	err = populateMetricsCSVIntoAssessmentDB()
+	if err != nil {
+		return fmt.Errorf("failed to populate metrics CSV into SQLite DB: %w", err)
+	}
 
 	err = runAssessment()
 	if err != nil {
@@ -125,9 +135,6 @@ func assessMigration() (err error) {
 
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	migassessment.AssessmentDataDir = lo.Ternary(assessmentDataDirFlag != "",
-		assessmentDataDirFlag, filepath.Join(exportDir, "assessment", "data"))
-
 	// load and sets 'assessmentParams' from the user input file
 	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
 	if err != nil {
@@ -165,8 +172,6 @@ func gatherAssessmentData() (err error) {
 	if assessmentDataDirFlag != "" {
 		return nil // assessment data files are provided by the user inside assessmentDataDir
 	}
-
-	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
 
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
@@ -220,7 +225,6 @@ func gatherAssessmentDataFromPG() (err error) {
 	}
 
 	log.Infof("using script: %s", scriptPath)
-	assessmentDataDir := filepath.Join(exportDir, "assessment", "data")
 	scriptArgs := []string{
 		source.DB().GetConnectionUriWithoutPassword(),
 		source.Schema,
@@ -275,6 +279,56 @@ func parseExportedSchemaFileForAssessment() {
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
+func populateMetricsCSVIntoAssessmentDB() error {
+	err := migassessment.InitAssessmentDB()
+	if err != nil {
+		return fmt.Errorf("error creating and initializing assessment DB: %w", err)
+	}
+
+	assessmentDB, err := migassessment.NewAssessmentDB()
+	if err != nil {
+		return fmt.Errorf("error creating assessment DB instance: %w", err)
+	}
+
+	metricsFilePath, err := filepath.Glob(filepath.Join(assessmentDataDir, "*.csv"))
+	if err != nil {
+		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentDataDir, err)
+	}
+
+	for _, metricFilePath := range metricsFilePath {
+		baseFileName := filepath.Base(metricFilePath)
+		metric := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
+		table_name := strings.Replace(metric, "-", "_", -1)
+		log.Infof("populating metrics from file %s into table %s", metricFilePath, table_name)
+		file, err := os.Open(metricFilePath)
+		if err != nil {
+			log.Warnf("error opening file %s: %v", metricsFilePath, err)
+			return nil
+		}
+
+		csvReader := csv.NewReader(file)
+		csvReader.ReuseRecord = true
+		rows, err := csvReader.ReadAll()
+		if err != nil {
+			log.Errorf("error reading csv file %s: %v", metricsFilePath, err)
+			return fmt.Errorf("error reading csv file %s: %w", metricsFilePath, err)
+		}
+
+		err = assessmentDB.BulkInsert(table_name, rows)
+		if err != nil {
+			return fmt.Errorf("error bulk inserting data into %s table: %w", table_name, err)
+		}
+
+		log.Infof("populated metrics from file %s into table %s", metricFilePath, table_name)
+	}
+
+	err = assessmentDB.PopulateMigrationAssessmentStats()
+	if err != nil {
+		return fmt.Errorf("failed to populate migration assessment stats: %w", err)
+	}
+	return nil
+}
+
 //go:embed assessmentReport.template
 var bytesTemplate []byte
 
@@ -308,15 +362,15 @@ func generateAssessmentReport() (err error) {
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() (err error) {
-	analyzeSchemaReport := analyzeSchemaInternal(&source)
-	assessmentReport.SchemaSummary = analyzeSchemaReport.SchemaSummary
+	schemaAnalysisReport := analyzeSchemaInternal(&source)
+	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 
 	// set invalidCount to zero so that it doesn't show up in the report
 	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
 		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
 	}
 
-	unsupportedFeatures, err := fetchUnsupportedFeaturesForPG(analyzeSchemaReport)
+	unsupportedFeatures, err := fetchUnsupportedFeaturesForPG(schemaAnalysisReport)
 	if err != nil {
 		return fmt.Errorf("failed to fetch unsupported features: %w", err)
 	}
@@ -325,18 +379,17 @@ func getAssessmentReportContentFromAnalyzeSchema() (err error) {
 	return nil
 }
 
-func fetchUnsupportedFeaturesForPG(analyzeSchemaReport utils.SchemaReport) ([]UnsupportedFeature, error) {
+func fetchUnsupportedFeaturesForPG(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
 	filterIssues := func(featureName, issueReason string) {
 		log.Info("filtering issues for feature: ", featureName)
 		objectNames := make([]string, 0)
-		for _, issue := range analyzeSchemaReport.Issues {
+		for _, issue := range schemaAnalysisReport.Issues {
 			if strings.Contains(issue.Reason, issueReason) {
 				objectNames = append(objectNames, issue.ObjectName)
 			}
 		}
-
 		unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
 	}
 
@@ -352,8 +405,6 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	var unsupportedDataTypes []utils.TableColumnsDataTypes
 
 	// load file with all column data types
-	assessmentDataDir := lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
-		filepath.Join(exportDir, "assessment", "data"))
 	filePath := filepath.Join(assessmentDataDir, "table-columns-data-types.csv")
 
 	allColumnsDataTypes, err := migassessment.LoadCSVDataFile[utils.TableColumnsDataTypes](filePath)

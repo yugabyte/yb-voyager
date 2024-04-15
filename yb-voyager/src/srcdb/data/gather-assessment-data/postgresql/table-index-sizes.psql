@@ -1,0 +1,25 @@
+-- Create a temporary table to store the query results
+CREATE TEMP TABLE temp_table AS
+SELECT
+    n.nspname AS schema_name,
+    c.relname AS object_name,
+    CASE WHEN c.relkind = 'r' THEN 'table' ELSE 'index' END AS object_type,
+    pg_catalog.pg_relation_size(c.oid) AS size
+FROM 
+    pg_catalog.pg_class c
+JOIN 
+    pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN
+    pg_catalog.pg_index i ON i.indexrelid = c.oid AND c.relkind = 'i'
+WHERE 
+    (c.relkind = 'r' OR (c.relkind = 'i' AND NOT i.indisprimary))
+    AND n.nspname = ANY(ARRAY[string_to_array(:'schema_list', ',')]);
+
+
+-- TODO: handle storing the info(column names) with schema name(required in case of multi schema migration)
+-- Output the contents of the temporary table to a CSV file
+
+\copy temp_table TO 'table-index-sizes.csv' WITH CSV HEADER;
+
+-- Drop the temporary table
+DROP TABLE temp_table;

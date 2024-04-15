@@ -31,13 +31,13 @@ type ShardingReport struct {
 
 type ShardingTableSizesRecord struct {
 	SchemaName string `json:"schema_name"`
-	TableName  string `json:"table_name"`
+	ObjectName string `json:"object_name"`
 	TableSize  int64  `json:"table_size,string"` // specified string tag option to handle conversion(string -> int64) during unmarshalling
 }
 
 type ShardingTableIOPSRecord struct {
 	SchemaName string `json:"schema_name"`
-	TableName  string `json:"table_name"`
+	ObjectName string `json:"object_name"`
 	SeqReads   int64  `json:"seq_reads,string"`
 	RowWrites  int64  `json:"row_writes,string"`
 }
@@ -50,8 +50,8 @@ type ShardingParams struct {
 
 func ShardingAssessment() error {
 	// load the assessment data
-	tableSizesFpath := filepath.Join(AssessmentDataDir, "table-sizes.csv")
-	tableIOPSFpath := filepath.Join(AssessmentDataDir, "table-iops.csv")
+	tableSizesFpath := filepath.Join(AssessmentDataDir, "table-index-sizes.csv")
+	tableIOPSFpath := filepath.Join(AssessmentDataDir, "table-index-iops.csv")
 
 	log.Infof("loading metadata files for sharding assessment")
 	tableSizes, err := LoadCSVDataFile[ShardingTableSizesRecord](tableSizesFpath)
@@ -68,7 +68,7 @@ func ShardingAssessment() error {
 
 	var tableList []string
 	for _, record := range tableIOPS {
-		tableName := record.SchemaName + "." + record.TableName
+		tableName := record.SchemaName + "." + record.ObjectName
 		tableList = append(tableList, tableName)
 	}
 
