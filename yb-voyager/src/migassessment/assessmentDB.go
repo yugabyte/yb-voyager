@@ -40,6 +40,7 @@ const (
 
 func GetDBFilePath() string {
 	return filepath.Join(AssessmentDataDir, "assessment.db")
+
 }
 
 func InitAssessmentDB() error {
