@@ -28,3 +28,8 @@ INSERT INTO limit (id, "Column_Name", "case", limit) VALUES (2, 'column2', 'case
 INSERT INTO "RowId" (id, "User", "TABLE") VALUES (1, 'user1', NULL);
 INSERT INTO "RowId" (id, "User", "TABLE") VALUES (2, 'user2', 'table2');
 
+INSERT INTO cs_pk ("Id", "column_name", COLUMN_NAME2) VALUES (1, 'data1', 'data2');
+INSERT INTO cs_pk ("Id", "column_name", COLUMN_NAME2) VALUES (2, 'data3', NULL);
+
+INSERT INTO "rw_pk" ("USER", col, COLUMN_NAME2) VALUES (1, 'data1', 'data2');
+INSERT INTO "rw_pk" ("USER", col, COLUMN_NAME2) VALUES (2, 'data3', NULL);

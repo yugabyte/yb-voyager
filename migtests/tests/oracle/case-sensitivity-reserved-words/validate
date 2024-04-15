@@ -24,7 +24,9 @@ EXPECTED_ROW_COUNT = {
 	'rowid':2,
 	'ut_mc':2,
 	'ut_rwc':2,
-	'ut_uc':2
+	'ut_uc':2,
+	'cs_pk':2,
+	'rw_pk':2
 }
 
 def migration_completed_checks_yb():

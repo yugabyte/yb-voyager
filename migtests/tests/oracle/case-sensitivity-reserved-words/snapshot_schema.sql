@@ -70,3 +70,20 @@ CREATE TABLE "RowId" (
     "User" varchar(1000),
     "TABLE" varchar(1000)
 );
+
+
+-- case-sensitive pk
+
+CREATE TABLE cs_pk (
+    "Id" INT PRIMARY KEY,
+    "column_name" varchar(1000),
+    COLUMN_NAME2 varchar(1000)
+);
+
+--reserved word pk
+
+CREATE TABLE "rw_pk" (
+    "USER" INT PRIMARY KEY,
+    col varchar(1000),
+    COLUMN_NAME2 varchar(1000)
+);

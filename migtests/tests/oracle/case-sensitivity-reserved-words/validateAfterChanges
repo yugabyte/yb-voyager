@@ -31,7 +31,9 @@ EXPECTED_ROW_COUNT = {
 	'rowid':2,
 	'ut_mc':2,
 	'ut_rwc':2,
-	'ut_uc':2
+	'ut_uc':2,
+	'cs_pk':2,
+	'rw_pk':2
 }
 
 
@@ -45,7 +47,9 @@ EXPECTED_ROW_COUNT_FF = {
 	'rowid':4,
 	'ut_mc':2,
 	'ut_rwc':0,
-	'ut_uc':2
+	'ut_uc':2,
+	'cs_pk':2,
+	'rw_pk':2
 }
 
 def change_expected_values():

@@ -60,3 +60,13 @@ INSERT INTO rowid (id, "user", "table") VALUES (5, 'user5', 'table5');
 UPDATE rowid SET "user" = 'updated_user', "table" = 'updated_table' WHERE id = 3;
 UPDATE rowid SET "user" = 'updated_user', "table" = 'updated_table' WHERE id = 4;
 DELETE FROM rowid WHERE id > 4;
+
+INSERT INTO cs_pk (id, "column_name", COLUMN_NAME2) VALUES (4, 'data7', 'data8');
+DELETE FROM cs_pk WHERE id = 1;
+UPDATE cs_pk SET "column_name" = 'updated_data', COLUMN_NAME2 = 'updated_data', id=1 WHERE id = 5;
+
+INSERT INTO rw_pk ("user", col, COLUMN_NAME2) VALUES (4, 'data7', 'data8');
+DELETE FROM rw_pk WHERE "user" = 1;
+UPDATE rw_pk SET col = 'updated_data', COLUMN_NAME2 = 'updated_data', "user"=1 WHERE "user" = 5;
+
+
