@@ -1,9 +1,9 @@
--- lt_lc Table:
-INSERT INTO lt_lc (id, column_name) VALUES (5, 'Value 2');
-INSERT INTO lt_lc (id, column_name) VALUES (6, 'Value 3');
-DELETE FROM lt_lc WHERE id = 6;
-UPDATE lt_lc SET column_name = NULL WHERE id = 5;
-UPDATE lt_lc SET id = 6 WHERE id = 1;
+-- rw_pk Table:
+INSERT INTO rw_pk (id, column_name) VALUES (5, 'Value 2');
+INSERT INTO rw_pk (id, column_name) VALUES (6, 'Value 3');
+DELETE FROM rw_pk WHERE id = 6;
+UPDATE rw_pk SET column_name = NULL WHERE id = 5;
+UPDATE rw_pk SET id = 6 WHERE id = 1;
 
 -- lt_uc Table:
 INSERT INTO lt_uc (id, "COLUMN_NAME") VALUES (5, 'Value 2');
@@ -121,3 +121,18 @@ UPDATE "Customers" SET  "User" = 290 where id = 163;
 UPDATE "Customers" SET  "User" = 410, "Statuses" = 'RECURRING' where id = 164;
 DELETE FROM "Customers" WHERE id = 162;
 
+-- case-sensitive pk
+
+INSERT INTO cs_pk ("Id", column_name) VALUES (5, 'Value 2');
+INSERT INTO cs_pk ("Id", column_name) VALUES (6, 'Value 3');
+DELETE FROM cs_pk WHERE "Id" = 6;
+UPDATE cs_pk SET column_name = NULL WHERE "Id" = 5;
+UPDATE cs_pk SET "Id" = 6 WHERE "Id" = 1;
+
+-- reserved word pk
+
+INSERT INTO rw_pk ("user", column_name) VALUES (5, 'Value 2');
+INSERT INTO rw_pk ("user", column_name) VALUES (6, 'Value 3');
+DELETE FROM rw_pk WHERE "user" = 6;
+UPDATE rw_pk SET column_name = NULL WHERE "user" = 5;
+UPDATE rw_pk SET "user" = 6 WHERE "user" = 1;

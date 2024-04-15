@@ -123,3 +123,19 @@ UPDATE cust_active SET "User" = 340, "Statuses" = 'RECURRING' WHERE id = 16;
 INSERT INTO "Customers" (id, "Statuses", "User") VALUES (160, 'ACTIVE', 290);
 UPDATE "Customers" SET  "Statuses" = 'RECURRING' where id = 160;
 UPDATE "Customers" SET id = 162 WHERE id = 160;
+
+-- case sensitive pk
+
+INSERT INTO cs_pk ("Id", column_name) VALUES (4, 'Value 1');
+UPDATE cs_pk SET column_name = 'Updated Value 1' WHERE "Id" = 1;
+UPDATE cs_pk SET column_name = NULL WHERE "Id" = 1;
+UPDATE cs_pk SET "Id"=6 WHERE "Id" = 2;
+DELETE FROM cs_pk WHERE "Id" = 6;
+
+-- reserved word pk
+
+INSERT INTO rw_pk ("user", column_name) VALUES (4, 'Value 1');
+UPDATE rw_pk SET column_name = 'Updated Value 1' WHERE "user" = 1;
+UPDATE rw_pk SET column_name = NULL WHERE "user" = 1;
+UPDATE rw_pk SET "user"=6 WHERE "user" = 2;
+DELETE FROM rw_pk WHERE "user" = 6;

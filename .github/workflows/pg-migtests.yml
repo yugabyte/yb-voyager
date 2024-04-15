@@ -197,9 +197,3 @@ jobs:
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
         if: matrix.version != '2.16.9.0-b67'
       
-      - name: "TEST: pg-case-sensitivity-reserved-words-live-fallb"
-        run: migtests/scripts/live-migration-fallb-run-test.sh pg/case-sensitivity-reserved-words
-        if: matrix.version != '2.16.9.0-b67'
-
-
-

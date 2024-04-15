@@ -39,7 +39,9 @@ EXPECTED_ROW_COUNT = {
 	'Customers': 1000,
 	'cust_active': 750,
 	'cs_rwc': 3,
-	'case': 3
+	'case': 3,
+	'cs_pk': 3,
+	'rw_pk': 3
 }
 
 def migration_completed_checks_yb():

@@ -82,3 +82,15 @@ WITH status_list AS (
                     "Statuses"[1 + mod(n, array_length("Statuses", 1))],
                     "User"[1 + mod(n, array_length("User", 1))]
                         FROM arr_list, generate_series(1,1000) AS n, status_list;
+
+-- case-sensitive pk
+
+INSERT INTO cs_pk ("Id", column_name) VALUES (1, 'value1');
+INSERT INTO cs_pk ("Id", column_name) VALUES (2, NULL);
+INSERT INTO cs_pk ("Id", column_name) VALUES (3, 'value3');
+
+-- resrved word pk
+
+INSERT INTO rw_pk ("user", column_name) VALUES (1, 'value1');
+INSERT INTO rw_pk ("user", column_name) VALUES (2, NULL);
+INSERT INTO rw_pk ("user", column_name) VALUES (3, 'value3');

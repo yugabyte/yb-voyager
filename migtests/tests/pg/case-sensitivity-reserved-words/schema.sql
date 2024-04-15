@@ -87,6 +87,8 @@ CREATE TABLE "USER" (
     "User" varchar(1000)
 );
 
+-- partitioned table
+
 CREATE TABLE "Customers" (id INTEGER, "Statuses" TEXT, "User" NUMERIC, PRIMARY KEY(id, "Statuses", "User")) PARTITION BY LIST("Statuses");
 
 CREATE TABLE cust_active PARTITION OF "Customers" FOR VALUES IN ('ACTIVE', 'RECURRING','REACTIVATED') PARTITION BY RANGE("User");
@@ -99,4 +101,18 @@ CREATE TABLE cust_part12 PARTITION OF "SCHEMA" FOR VALUES WITH (modulus 2, remai
 CREATE TABLE cust_user_large PARTITION OF cust_active FOR VALUES FROM (101) TO (MAXVALUE) PARTITION BY HASH(id);
 CREATE TABLE cust_part21 PARTITION OF cust_user_large FOR VALUES WITH (modulus 2, remainder 0);
 CREATE TABLE "cust_Part22" PARTITION OF cust_user_large FOR VALUES WITH (modulus 2, remainder 1);
+
+-- case sensitive primary key
+
+CREATE TABLE cs_pk (
+    "Id" INT PRIMARY KEY,
+    column_name varchar(1000)
+);
+
+-- reserved word primary key
+
+CREATE TABLE rw_pk (
+    "user" INT PRIMARY KEY,
+    column_name varchar(1000)
+);
 

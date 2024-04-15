@@ -42,7 +42,9 @@ EXPECTED_ROW_COUNT = {
 	'Customers': 1002,
 	'cust_active': 752,
 	'cs_rwc': 3,
-	'case': 4
+	'case': 4,
+	'cs_pk': 3,
+	'rw_pk': 3
 }
 
 EXPECTED_ROW_COUNT_FF = {
@@ -68,7 +70,9 @@ EXPECTED_ROW_COUNT_FF = {
 	'Customers': 998,
 	'cust_active': 748,
 	'cs_rwc': 4,
-	'case': 3
+	'case': 3,
+	'cs_pk': 4,
+	'rw_pk': 4
 }
 
 def change_expected_values():
