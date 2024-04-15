@@ -1,0 +1,10 @@
+#!/bin/sh
+# tar zip a directory after every commit
+
+DIR_TO_TAR="yb-voyager/src/srcdb/data/gather-assessment-data/"
+OUTPUT_TAR="yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz"
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+tar -czf "${REPO_ROOT}/${OUTPUT_TAR}" -C "${REPO_ROOT}" "${DIR_TO_TAR}"
+
+echo "Created tarball: ${OUTPUT_TAR}"
