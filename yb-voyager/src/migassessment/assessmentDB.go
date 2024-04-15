@@ -167,43 +167,42 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 
 // populate migration_assessment_stats table using the data from other tables
 func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
-	INSERT_TABLE_STATS := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
+	populateTableStats := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
 	SELECT
 		trc.schema_name,
 		trc.table_name AS object_name,
 		trc.row_count,
-		tio.seq_reads as reads,
-		tio.row_writes as writes,
+		tii.seq_reads as reads,
+		tii.row_writes as writes,
 		0 AS isIndex,
 		NULL AS parent_table_name, 
-		ts.size
-	FROM table_row_counts trc
-	LEFT JOIN table_index_iops tio ON trc.schema_name = tio.schema_name AND trc.table_name = tio.object_name
-	LEFT JOIN table_index_sizes ts ON trc.schema_name = ts.schema_name AND trc.table_name = ts.object_name;`, MIGRATION_ASSESSMENT_STATS)
+		tis.size
+	FROM %s trc
+	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name
+	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name;`,
+		TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, MIGRATION_ASSESSMENT_STATS)
 
-	INSERT_INDEX_STATS := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
+	populateIndexStats := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
 	SELECT
 		itm.index_schema AS schema_name,
 		itm.index_name AS object_name,
 		NULL AS row_count,
-		tio.seq_reads as reads,
-		tio.row_writes as writes,
+		tii.seq_reads as reads,
+		tii.row_writes as writes,
 		1 AS isIndex,
 		itm.table_schema || '.' || itm.table_name AS parent_table_name,
-		ts.size
-	FROM index_to_table_mapping itm
-	LEFT JOIN table_index_iops tio ON itm.index_schema = tio.schema_name AND itm.index_name = tio.object_name
-	LEFT JOIN table_index_sizes ts ON itm.index_schema = ts.schema_name AND itm.index_name = ts.object_name;`, MIGRATION_ASSESSMENT_STATS)
+		tis.size
+	FROM %s itm
+	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name
+	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name;`,
+		INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, MIGRATION_ASSESSMENT_STATS)
 
-	_, err := adb.db.Exec(INSERT_TABLE_STATS)
-	if err != nil {
-		return fmt.Errorf("error executing INSERT_TABLE_STATS on %s table: %w", MIGRATION_ASSESSMENT_STATS, err)
+	stmts := []string{populateTableStats, populateIndexStats}
+	for _, stmt := range stmts {
+		_, err := adb.db.Exec(stmt)
+		if err != nil {
+			return fmt.Errorf("error executing query-%s on table %s: %w", stmt, MIGRATION_ASSESSMENT_STATS, err)
+		}
 	}
-
-	_, err = adb.db.Exec(INSERT_INDEX_STATS)
-	if err != nil {
-		return fmt.Errorf("error executing INSERT_INDEX_STATS on %s table: %w", MIGRATION_ASSESSMENT_STATS, err)
-	}
-
 	return nil
 }
