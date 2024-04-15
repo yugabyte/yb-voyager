@@ -114,7 +114,6 @@ func assessMigration() (err error) {
 
 	parseExportedSchemaFileForAssessment()
 
-	migassessment.AssessmentDataDir = assessmentDataDir
 	err = populateMetricsCSVIntoAssessmentDB()
 	if err != nil {
 		return fmt.Errorf("failed to populate metrics CSV into SQLite DB: %w", err)
@@ -281,7 +280,7 @@ func parseExportedSchemaFileForAssessment() {
 }
 
 func populateMetricsCSVIntoAssessmentDB() error {
-	err := migassessment.CreateAndInitAssessmentDB()
+	err := migassessment.InitAssessmentDB()
 	if err != nil {
 		return fmt.Errorf("error creating and initializing assessment DB: %w", err)
 	}

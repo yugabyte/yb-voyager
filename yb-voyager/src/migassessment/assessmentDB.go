@@ -16,9 +16,9 @@ limitations under the License.
 package migassessment
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -41,36 +41,8 @@ func GetDBFilePath() string {
 	return filepath.Join(AssessmentDataDir, "assessment.db")
 }
 
-func CreateAndInitAssessmentDB() error {
+func InitAssessmentDB() error {
 	assessmentDBPath := GetDBFilePath()
-	err := createAssessmentDBFile(assessmentDBPath)
-	if err != nil {
-		return err
-	}
-
-	err = initAssessmentDB(assessmentDBPath)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func createAssessmentDBFile(assessmentDBPath string) error {
-	log.Infof("creating assessment db file at %s", assessmentDBPath)
-	file, err := os.Create(assessmentDBPath)
-	if err != nil {
-		return fmt.Errorf("error creating assessment db file %s: %w", assessmentDBPath, err)
-	}
-
-	err = file.Close()
-	if err != nil {
-		return fmt.Errorf("error closing assessment db file %s: %w", assessmentDBPath, err)
-	}
-	return nil
-}
-
-func initAssessmentDB(assessmentDBPath string) error {
 	log.Infof("initializing assessment db at %s", assessmentDBPath)
 	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", assessmentDBPath, metadb.SQLITE_OPTIONS))
 	if err != nil {
@@ -78,44 +50,44 @@ func initAssessmentDB(assessmentDBPath string) error {
 	}
 
 	cmds := []string{
-		fmt.Sprintf(`CREATE TABLE %s (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name TEXT,
 			object_name TEXT,
 			object_type TEXT,
 			seq_reads INTEGER,
 			row_writes INTEGER,
 			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_IOPS),
-		fmt.Sprintf(`CREATE TABLE %s (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name TEXT,
 			object_name TEXT,
 			object_type TEXT,
 			size REAL,
 			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_SIZES),
-		fmt.Sprintf(`CREATE TABLE %s (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name TEXT,
 			table_name TEXT,
 			row_count INTEGER,
 			PRIMARY KEY (schema_name, table_name));`, TABLE_ROW_COUNTS),
-		fmt.Sprintf(`CREATE TABLE %s (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name TEXT,
 			object_name TEXT,
 			object_type TEXT,
 			column_count INTEGER,
 			PRIMARY KEY (schema_name, object_name));`, COLUMNS_COUNT),
-		fmt.Sprintf(`CREATE TABLE %s (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			index_schema TEXT,
 			index_name TEXT,
 			table_schema TEXT,
 			table_name TEXT,
 			PRIMARY KEY (index_schema, index_name));`, INDEX_TO_TABLE_MAPPING),
-		fmt.Sprintf(`CREATE TABLE %s (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name TEXT,
 			table_name TEXT,
 			column_name TEXT,
 			data_type TEXT,
 			PRIMARY KEY (schema_name, table_name, column_name));`, TABLE_COLUMNS_DATA_TYPES),
 		// derived from the above metric tables
-		fmt.Sprintf(`CREATE TABLE %s (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name         TEXT,
 			object_name         TEXT,
 			row_count           INTEGER,
@@ -155,23 +127,31 @@ func NewAssessmentDB() (*AssessmentDB, error) {
 }
 
 func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
-	tx, err := adb.db.Begin()
+	ctx := context.Background()
+	tx, err := adb.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("error starting transaction for bulk insert into %s: %w", table, err)
 	}
+
+	defer func() {
+		err = tx.Rollback()
+		if err != nil {
+			log.Warnf("error while rollback the BulkInsert txn: %v", err)
+		}
+	}()
 
 	columnNames := records[0]
 	stmtStr := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, table,
 		strings.Join(columnNames, ", "), strings.Repeat("?, ", len(columnNames)-1)+"?")
 
-	stmt, err := tx.Prepare(stmtStr)
+	stmt, err := tx.PrepareContext(ctx, stmtStr)
 	if err != nil {
 		return fmt.Errorf("error preparing statement for bulk insert into %s: %w", table, err)
 	}
 
 	for rowNum := 1; rowNum < len(records); rowNum++ {
 		row := utils.ConvertStringSliceToInterface(records[rowNum])
-		_, err = stmt.Exec(row...)
+		_, err = stmt.ExecContext(ctx, row...)
 		if err != nil {
 			return fmt.Errorf("error inserting record for bulk insert into %s: %w", table, err)
 		}

@@ -610,19 +610,3 @@ func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 	}
 	return nil
 }
-
-func (m *MetaDB) PrepareStatement(stmt string) (*sql.Stmt, error) {
-	sqlStmt, err := m.db.Prepare(stmt)
-	if err != nil {
-		return nil, fmt.Errorf("error while preparing statement on metaDB: %w", err)
-	}
-	return sqlStmt, nil
-}
-
-func (m *MetaDB) ExecStatement(stmt string) error {
-	_, err := m.db.Exec(stmt)
-	if err != nil {
-		return fmt.Errorf("error while executing statement on metaDB: %w", err)
-	}
-	return nil
-}

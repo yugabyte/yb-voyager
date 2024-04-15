@@ -541,9 +541,7 @@ func GetLogMiningFlushTableName(migrationUUID uuid.UUID) string {
 }
 
 func ConvertStringSliceToInterface(slice []string) []interface{} {
-	var interfaceSlice []interface{} = make([]interface{}, len(slice))
-	for i, d := range slice {
-		interfaceSlice[i] = d
-	}
-	return interfaceSlice
+	return lo.Map(slice, func(s string, _ int) interface{} {
+		return s
+	})
 }
