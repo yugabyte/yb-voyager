@@ -218,8 +218,8 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	}
 	tables := msr.TableListExportedFromSource
 	for leaf, root := range msr.SourceRenameTablesMap {
-		leafTable := sqlname.NewSourceNameFromQualifiedName(leaf)
-		rootTable := sqlname.NewSourceNameFromQualifiedName(root)
+		leafTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(leaf))
+		rootTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(root))
 		leaf = leafTable.Qualified.MinQuoted
 		if leafTable.SchemaName.MinQuoted == "public" {
 			leaf = leafTable.ObjectName.MinQuoted
@@ -232,6 +232,13 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	}
 
 	return leafPartitions
+}
+
+func getQuotedFromUnquoted(t string) string {
+	//To preserve case sensitiveness in the Unquoted 
+	parts := strings.Split(t, ".")
+	s, t := parts[0], parts[1]
+	return fmt.Sprintf(`%s."%s"`, s, t)
 }
 
 func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
@@ -324,9 +331,6 @@ func renameExportSnapshotStatus(exportSnapshotStatusFile *jsonfile.JsonFile[Expo
 		for i, tableStatus := range exportSnapshotStatus.Tables {
 			renamedTable, isRenamed := renameTableIfRequired(tableStatus.TableName)
 			if isRenamed {
-				if len(strings.Split(renamedTable, ".")) == 1 {
-					renamedTable = fmt.Sprintf("public.%s", renamedTable)
-				}
 				exportSnapshotStatus.Tables[i].TableName = renamedTable
 			}
 		}
@@ -802,12 +806,12 @@ func renameTableIfRequired(table string) (string, bool) {
 	fromTable := tableName.Qualified.Unquoted
 
 	if renameTablesMap[fromTable] != "" {
-		table := sqlname.NewSourceNameFromQualifiedName(renameTablesMap[fromTable])
-		toTable := table.Qualified.MinQuoted
-		if table.SchemaName.MinQuoted == "public" {
-			toTable = table.ObjectName.MinQuoted
+		tableTup, err := namereg.NameReg.LookupTableName(renameTablesMap[fromTable])
+		if err != nil {
+			utils.ErrExit("lookup failed for the table  %s", renameTablesMap[fromTable])
 		}
-		return toTable, true
+
+		return tableTup.ForMinOutput(), true
 	}
 	return table, false
 }
