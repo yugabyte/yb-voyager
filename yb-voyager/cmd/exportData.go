@@ -623,7 +623,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		fmt.Println("The following columns data export is unsupported:")
 		unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 			if len(v) != 0 {
-				fmt.Printf("%s: %s\n", k, v)
+				fmt.Printf("%s: %s\n", k.ForOutput(), v)
 			}
 			return true, nil
 		})
