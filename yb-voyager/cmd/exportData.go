@@ -327,7 +327,7 @@ func exportData() bool {
 }
 
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
-func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]string, []sqlname.NameTuple, error) {
+func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, ifTableListSet bool) (map[string]string, []sqlname.NameTuple, error) {
 	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
 	if !requiredForSource {
 		return nil, tableList, nil
@@ -356,20 +356,23 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple) (map[string]str
 			return nil, nil, fmt.Errorf("failed to get root table of partition %s: %v", table.ForKey(), err)
 		}
 		allLeafPartitions := GetAllLeafPartitions(table)
+		prevLengthOfList := len(modifiedTableList)
 		switch true {
 		case len(allLeafPartitions) == 0 && rootTable != table: //leaf partition
 			partitionsToRootTableMap[qualifiedCatalogName] = rootTable.AsQualifiedCatalogName() // Unquoted->Unquoted map as debezium uses Unquoted table name
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
-		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list
+		case len(allLeafPartitions) > 0 && ifTableListSet : // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
 				partitionsToRootTableMap[leafPartition.AsQualifiedCatalogName()] = rootTable.AsQualifiedCatalogName()
 			}
 		}
-		// will be keeping root in the list as it might be required by some of the catalog queries
-		modifiedTableList = append(modifiedTableList, rootTable)
+		if prevLengthOfList < len(modifiedTableList) {
+			// will be keeping root in the list if leaf partitions are added for this table as it might be required by some of the catalog queries
+			modifiedTableList = append(modifiedTableList, rootTable)
+		}
 	}
 	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table sqlname.NameTuple) string {
 		return table.ForKey()
@@ -543,6 +546,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []sqlname.NameTuple
 	tableListFromDB := source.DB().GetAllTableNames()
+	var err error
 	var fullTableList []sqlname.NameTuple
 	for _, t := range tableListFromDB {
 		schema, table := t.SchemaName.Unquoted, t.ObjectName.Unquoted
@@ -559,7 +563,6 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 			parent = source.DB().ParentTableOfPartition(tuple)
 		}
 		if parent == "" {
-			var err error
 			tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", schema, table))
 			if err != nil {
 				utils.ErrExit("lookup for table name %s failed err: %v", table, err)
@@ -568,6 +571,13 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		fullTableList = append(fullTableList, tuple)
 	}
 	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
+	if len(excludeTableList) > 0 {
+		//TODO: avoid duplicate call to this function and optimize this function later 
+		_, excludeTableList, err = addLeafPartitionsInTableList(excludeTableList, true)
+		if err != nil {
+			utils.ErrExit("adding leaf partititons to exclude table list: %s", err)
+		}
+	} 
 	if source.TableList != "" {
 		tableList = extractTableListFromString(fullTableList, source.TableList, "include")
 	} else {
@@ -606,12 +616,12 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	}
 
 	var partitionsToRootTableMap map[string]string
-	var err error
-	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList)
+	isTableListSet := source.TableList != ""
+	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList, isTableListSet)
 	if err != nil {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
-
+	
 	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
 	if err != nil {
 		utils.ErrExit("get columns with supported types: %v", err)
