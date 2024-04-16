@@ -16,14 +16,12 @@ limitations under the License.
 package tgtdb
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -58,65 +56,6 @@ type TargetDB interface {
 	QueryRow(query string) *sql.Row
 	Exec(query string) (int64, error)
 	WithTx(fn func(tx *sql.Tx) error) error
-}
-
-//=============================================================
-
-type Rows interface {
-	Row
-	Next() bool
-	Close()
-	Err() error
-}
-
-type Row interface {
-	Scan(dest ...interface{}) error
-}
-
-type sqlRowsToTgtdbRowsAdapter struct {
-	*sql.Rows // Provides implementation of Scan() and Next().
-}
-
-func (s *sqlRowsToTgtdbRowsAdapter) Close() {
-	_ = s.Rows.Close()
-}
-
-//=============================================================
-
-type Tx interface {
-	Exec(ctx context.Context, query string) (int64, error)
-}
-
-//----------------------------------------------
-
-type pgxTxToTgtdbTxAdapter struct {
-	tx pgx.Tx
-}
-
-func (t *pgxTxToTgtdbTxAdapter) Exec(ctx context.Context, query string) (int64, error) {
-	res, err := t.tx.Exec(ctx, query)
-	if err != nil {
-		return 0, err
-	}
-	return int64(res.RowsAffected()), err
-}
-
-//----------------------------------------------
-
-type sqlTxToTgtdbTxAdapter struct {
-	tx *sql.Tx
-}
-
-func (t *sqlTxToTgtdbTxAdapter) Exec(ctx context.Context, query string) (int64, error) {
-	res, err := t.tx.Exec(query)
-	if err != nil {
-		return 0, err
-	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	return rowsAffected, err
 }
 
 //=============================================================
