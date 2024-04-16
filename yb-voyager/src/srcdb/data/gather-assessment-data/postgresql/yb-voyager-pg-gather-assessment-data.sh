@@ -13,6 +13,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+set -e
+
 SCRIPT_DIR=$(dirname $0)
 SCRIPT_NAME=$(basename $0)
 
@@ -34,7 +36,7 @@ Arguments:
                          This script will attempt to create the directory if it does not exist.
 
 Example:
-  yb-voyager-gather-assessment-data.sh 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/data'
+  $SCRIPT_NAME 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/data'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -55,18 +57,30 @@ pg_connection_string=$1
 schema_list=$2
 assessment_data_dir=$3
 
+# check if assessment_data_dir exists, if not exit 1
+if [ ! -d "$assessment_data_dir" ]; then
+    echo "Directory $assessment_data_dir does not exist. Please create the directory and try again."
+    exit 1
+fi
+
+# Switch to assessment_data_dir and remember the current directory
+pushd "$assessment_data_dir" > /dev/null || exit
+
+if [ -z "$PGPASSWORD" ]; then 
+    echo -n "Enter PostgreSQL password: "
+    read -s PGPASSWORD
+    echo
+    export PGPASSWORD
+fi
+
 echo "Assessment data collection started"
-echo "Collecting table sizes..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-sizes.sql -v schema_list=$schema_list
-
-echo "Collecting table iops stats..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-iops.sql -v schema_list=$schema_list
-
-# TODO: finalize the query, approx count or exact count(any optimization also if possible)
-echo "Collecting table row counts..."
-psql $pg_connection_string -f $SCRIPT_DIR/table-row-counts.sql -v schema_list=$schema_list
 
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
+for script in $SCRIPT_DIR/*.psql; do
+    script_action=$(basename "$script" .psql | sed 's/-/ /g')
+    echo "Collecting $script_action..."
+    psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on
+done
 
 # check for pg_dump version
 pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
@@ -75,7 +89,11 @@ if [ "$pg_dump_version" -lt 14 ]; then
     exit 1
 fi
 
-echo "Collect schema information"
-pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="$assessment_data_dir/schema/schema.sql"
+mkdir -p schema
+echo "Collecting schema information..."
+pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql"
+
+# Return to the original directory after operations are done
+popd > /dev/null
 
 echo "Assessment data collection completed"

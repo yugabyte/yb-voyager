@@ -206,9 +206,9 @@ func PrintIfTrue(message string, args ...bool) {
 	fmt.Printf("%s", message)
 }
 
-func ParseJsonFromString(jsonString string) Report {
+func ParseSchemaAnalysisReport(jsonString string) SchemaReport {
 	byteJson := []byte(jsonString)
-	var report Report
+	var report SchemaReport
 	err := json.Unmarshal(byteJson, &report)
 	if err != nil {
 		fmt.Printf("%s\n", err.Error())
@@ -216,9 +216,9 @@ func ParseJsonFromString(jsonString string) Report {
 	return report
 }
 
-func GetObjectNameListFromReport(report Report, objType string) []string {
+func GetObjectNameListFromReport(report SchemaReport, objType string) []string {
 	var objectList []string
-	for _, dbObject := range report.Summary.DBObjects {
+	for _, dbObject := range report.SchemaSummary.DBObjects {
 		if dbObject.ObjectType == objType {
 			rawObjectList := strings.Trim(dbObject.ObjectNames, ", ")
 			objectList = strings.Split(rawObjectList, ", ")
@@ -538,4 +538,10 @@ func GetLogMiningFlushTableName(migrationUUID uuid.UUID) string {
 	// SQL tables doesn't support '-' in the name
 	convertedMigUUID := strings.Replace(migrationUUID.String(), "-", "_", -1)
 	return fmt.Sprintf("VOYAGER_LOG_MINING_FLUSH_%s", convertedMigUUID)
+}
+
+func ConvertStringSliceToInterface(slice []string) []interface{} {
+	return lo.Map(slice, func(s string, _ int) interface{} {
+		return s
+	})
 }

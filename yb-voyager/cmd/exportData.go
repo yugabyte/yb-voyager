@@ -111,7 +111,6 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	ExitIfAlreadyCutover(exporterRole)
-	checkDataDirs()
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
@@ -152,6 +151,7 @@ func exportData() bool {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
 	defer source.DB().Disconnect()
+	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
@@ -452,7 +452,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
 	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
-		"Be sure to run 'initiate cutover to target'/'end migration' command after completing/aborting this migration to drop the replication slot. "+
+		"Be sure to run 'initiate cutover to target' or 'end migration' command after completing/aborting this migration to drop the replication slot. "+
 		"This is important to avoid filling up disk space.", replicationSlotName))
 
 	// save replication slot, publication name in MSR
@@ -633,7 +633,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		fmt.Println("The following columns data export is unsupported:")
 		unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 			if len(v) != 0 {
-				fmt.Printf("%s: %s\n", k, v)
+				fmt.Printf("%s: %s\n", k.ForOutput(), v)
 			}
 			return true, nil
 		})
@@ -782,7 +782,7 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 	return strings.Join(tableList, ","), nil
 }
 
-func checkDataDirs() {
+func clearMigrationStateIfRequired() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
@@ -814,6 +814,11 @@ func checkDataDirs() {
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {
 			utils.ErrExit("Failed to truncate tables in metadb: %s", err)
+		}
+		//For dropping VOYAGER_LOG_MINING_FLUSH_{migrationUUID} table in oracle on start-clean
+		err = source.DB().ClearMigrationState(migrationUUID, exportDir)
+		if err != nil {
+			utils.ErrExit("failed to clear migration state: %s", err)
 		}
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {

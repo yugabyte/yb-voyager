@@ -57,9 +57,19 @@ var importDataStatusCmd = &cobra.Command{
 			importerRole = IMPORT_FILE_ROLE
 		}
 
-		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("initialize name registry: %v", err)
+			utils.ErrExit("get migration status record %s", err)
+		}
+
+		if msr.TargetDBConf != nil {
+			err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+			if err != nil {
+				utils.ErrExit("initialize name registry: %v", err)
+			}
+		} else {
+			color.Cyan(importDataStatusMsg)
+			return
 		}
 		err = runImportDataStatusCmd()
 		if err != nil {
