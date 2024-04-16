@@ -160,6 +160,9 @@ func (yb *TargetYugabyteDB) connect() error {
 	if err != nil {
 		return fmt.Errorf("open connection to target db: %w", err)
 	}
+	// setting this to only 1, because this is used for adhoc queries.
+	// We have a separate pool for importing data.
+	yb.db.SetMaxOpenConns(1)
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return fmt.Errorf("connect to target db: %w", err)
