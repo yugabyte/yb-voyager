@@ -180,7 +180,7 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	FROM %s trc
 	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name
 	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name;`,
-		TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, MIGRATION_ASSESSMENT_STATS)
+		MIGRATION_ASSESSMENT_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES)
 
 	populateIndexStats := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
 	SELECT
@@ -195,7 +195,7 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	FROM %s itm
 	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name
 	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name;`,
-		INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, MIGRATION_ASSESSMENT_STATS)
+		MIGRATION_ASSESSMENT_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES)
 
 	stmts := []string{populateTableStats, populateIndexStats}
 	for _, stmt := range stmts {
