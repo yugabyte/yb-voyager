@@ -45,11 +45,10 @@ import (
 type TargetYugabyteDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf     *TargetConf
-	db        *sql.DB
-	conn_     *pgx.Conn
-	connPool  *ConnectionPool
-	connMutex sync.Mutex
+	tconf    *TargetConf
+	db       *sql.DB
+	conn_    *pgx.Conn
+	connPool *ConnectionPool
 
 	attrNames map[string][]string
 }
@@ -61,12 +60,6 @@ func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 	}
 	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
 	return tdb
-}
-
-func (yb *TargetYugabyteDB) WithConn(fn func(conn *pgx.Conn) error) error {
-	yb.connMutex.Lock()
-	defer yb.connMutex.Unlock()
-	return fn(yb.conn_)
 }
 
 func (yb *TargetYugabyteDB) Query(query string) (*sql.Rows, error) {

@@ -39,10 +39,9 @@ import (
 type TargetOracleDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf     *TargetConf
-	oraDB     *sql.DB
-	conn      *sql.Conn
-	connMutex sync.Mutex
+	tconf *TargetConf
+	oraDB *sql.DB
+	conn  *sql.Conn
 
 	attrNames map[string][]string
 }
@@ -88,12 +87,6 @@ func (tdb *TargetOracleDB) Init() error {
 		err = fmt.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
 	}
 	return err
-}
-
-func (tdb *TargetOracleDB) WithConn(fn func(conn *sql.Conn) error) error {
-	tdb.connMutex.Lock()
-	defer tdb.connMutex.Unlock()
-	return fn(tdb.conn)
 }
 
 func (tdb *TargetOracleDB) Query(query string) (*sql.Rows, error) {

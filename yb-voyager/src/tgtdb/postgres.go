@@ -40,11 +40,10 @@ import (
 type TargetPostgreSQL struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf     *TargetConf
-	db        *sql.DB
-	conn_     *pgx.Conn
-	connPool  *ConnectionPool
-	connMutex sync.Mutex
+	tconf    *TargetConf
+	db       *sql.DB
+	conn_    *pgx.Conn
+	connPool *ConnectionPool
 
 	attrNames map[string][]string
 }
@@ -56,12 +55,6 @@ func newTargetPostgreSQL(tconf *TargetConf) *TargetPostgreSQL {
 	}
 	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
 	return tdb
-}
-
-func (pg *TargetPostgreSQL) WithConn(fn func(conn *pgx.Conn) error) error {
-	pg.connMutex.Lock()
-	defer pg.connMutex.Unlock()
-	return fn(pg.conn_)
 }
 
 func (pg *TargetPostgreSQL) Query(query string) (*sql.Rows, error) {
