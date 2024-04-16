@@ -16,9 +16,11 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
@@ -32,8 +34,11 @@ func main() {
 	captureTerminalState()
 
 	registerSignalHandlers()
+	cmd.StartTime = time.Now()
+	fmt.Printf("Start time: %s\n", cmd.StartTime)
 	atexit.Register(cmd.CleanupChildProcesses)
 	cmd.Execute()
+	cmd.PrintElapsedDuration()
 }
 
 func registerSignalHandlers() {
