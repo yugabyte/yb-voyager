@@ -887,6 +887,7 @@ const (
 	SET_YB_DISABLE_TRANSACTIONAL_WRITES   = "SET yb_disable_transactional_writes to true" // Disable transactions to improve ingestion throughput.
 	// The "SELECT 1" workaround introduced in ExecuteBatch does not work if isolation level is read_committed. Therefore, for now, we are forcing REPEATABLE READ.
 	SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ = "SET default_transaction_isolation = 'repeatable read'"
+	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
 )
 
 func getYBSessionInitScript(tconf *TargetConf) []string {
@@ -955,6 +956,13 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 	_, err = conn.Exec(context.Background(), sqlStmt)
 	if err != nil {
 		if !strings.Contains(err.Error(), "unrecognized configuration parameter") {
+			if strings.Contains(err.Error(), ERROR_MSG_PERMISSION_DENIED) {
+				utils.PrintAndLog("Superuser privileges are required on the target database user.\nAttempted operation: %q. Error message: %s", sqlStmt, err.Error())
+				if !utils.AskPrompt("Are you sure you want to proceed?") {
+					utils.ErrExit("Aborting import.")
+				}
+				return true
+			}
 			utils.ErrExit("error while executing sqlStatement=%q: %v", sqlStmt, err)
 		} else {
 			log.Warnf("Warning: %q is not supported: %v", sqlStmt, err)
