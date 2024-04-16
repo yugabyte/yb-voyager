@@ -99,6 +99,11 @@ func assessMigration() (err error) {
 	checkStartCleanForAssessMigration()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
+	err = retrieveMigrationUUID()
+	if err != nil {
+		return fmt.Errorf("failed to get migration UUID: %w", err)
+	}
+
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
