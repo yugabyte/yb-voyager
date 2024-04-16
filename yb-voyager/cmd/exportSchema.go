@@ -24,6 +24,7 @@ import (
 
 	"golang.org/x/exp/slices"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
@@ -35,6 +36,7 @@ import (
 )
 
 var skipRecommendations utils.BoolStr
+var assessmentReportPath string
 
 var exportSchemaCmd = &cobra.Command{
 	Use: "schema",
@@ -154,6 +156,9 @@ func init() {
 
 	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-recommendations", false,
 		"disable applying recommendations in the exported schema suggested by the migration assessment report")
+
+	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
+		"path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema")
 }
 
 func schemaIsExported() bool {
@@ -206,13 +211,13 @@ func updateIndexesInfoInMetaDB() error {
 }
 
 func applyMigrationAssessmentRecommendations() error {
-	// TODO: Add a flag for taking the report file path manually
 	if skipRecommendations {
 		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
 		return nil
 	}
 
-	assessmentReportPath := filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json")
+	assessmentReportPath := lo.Ternary(assessmentReportPath != "", assessmentReportPath,
+		filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json"))
 	if !utils.FileOrFolderExists(assessmentReportPath) {
 		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
 		return nil
