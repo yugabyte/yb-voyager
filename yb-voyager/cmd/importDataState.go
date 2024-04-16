@@ -565,7 +565,7 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
 	}
-
+	defer rows.Close()
 	for rows.Next() {
 		var chanMetaInfo EventChannelMetaInfo
 		err := rows.Scan(&(chanMetaInfo.ChanNo), &(chanMetaInfo.LastAppliedVsn))

@@ -412,6 +412,7 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
 	}
+	defer rows.Close()
 	var columns []string
 	for rows.Next() {
 		var column string
