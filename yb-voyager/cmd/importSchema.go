@@ -267,7 +267,7 @@ func getDDLStmts(objType string) []sqlInfo {
 	schemaDir := filepath.Join(exportDir, "schema")
 	importMViewFilePath := utils.GetObjectFilePath(schemaDir, objType)
 	if utils.FileOrFolderExists(importMViewFilePath) {
-		sqlInfoArr = createSqlStrInfoArray(importMViewFilePath, objType)
+		sqlInfoArr = parseSqlFileForObjectType(importMViewFilePath, objType)
 	}
 	return sqlInfoArr
 }

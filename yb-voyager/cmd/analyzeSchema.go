@@ -768,8 +768,8 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 	return sqlInfo
 }
 
-func createSqlStrInfoArray(path string, objType string) []sqlInfo {
-	log.Infof("Reading %s in dir %s", objType, path)
+func parseSqlFileForObjectType(path string, objType string) []sqlInfo {
+	log.Infof("Reading %s DDLs in file %s", objType, path)
 	var sqlInfoArr []sqlInfo
 	if !utils.FileOrFolderExists(path) {
 		return sqlInfoArr
@@ -1042,13 +1042,13 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		var sqlInfoArr []sqlInfo
 		filePath := utils.GetObjectFilePath(schemaDir, objType)
 		if objType != "INDEX" {
-			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
+			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
 		} else {
-			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
+			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
 			otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
-			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "PARTITION_INDEX")...)
+			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
 			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
-			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "FTS_INDEX")...)
+			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
 		}
 		if objType == "EXTENSION" {
 			checkExtensions(sqlInfoArr, filePath)

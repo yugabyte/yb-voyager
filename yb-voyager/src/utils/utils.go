@@ -216,6 +216,25 @@ func ParseSchemaAnalysisReport(jsonString string) SchemaReport {
 	return report
 }
 
+func ParseJsonReportFile[T any](path string) (*T, error) {
+	if !FileOrFolderExists(path) {
+		return nil, nil
+	}
+
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %q: %w", path, err)
+	}
+
+	var report T
+	err = json.Unmarshal(bytes, &report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal the data of file %q: %w", path, err)
+	}
+
+	return &report, nil
+}
+
 func GetObjectNameListFromReport(report SchemaReport, objType string) []string {
 	var objectList []string
 	for _, dbObject := range report.SchemaSummary.DBObjects {
@@ -544,4 +563,14 @@ func ConvertStringSliceToInterface(slice []string) []interface{} {
 	return lo.Map(slice, func(s string, _ int) interface{} {
 		return s
 	})
+}
+
+func AddSuffixToFilePath(path string, suffix string) string {
+	ext := filepath.Ext(path)
+	base := filepath.Base(path)
+	dir := filepath.Dir(path)
+
+	filename := strings.TrimSuffix(base, ext)
+	newFilename := fmt.Sprintf("%s_%s%s", filename, suffix, ext)
+	return filepath.Join(dir, newFilename)
 }

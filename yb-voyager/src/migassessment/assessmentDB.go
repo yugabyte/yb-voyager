@@ -18,6 +18,7 @@ package migassessment
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -104,6 +105,7 @@ func InitAssessmentDB() error {
 	}
 
 	for _, cmd := range cmds {
+		log.Infof("")
 		_, err = conn.Exec(cmd)
 		if err != nil {
 			return fmt.Errorf("error while initializing assessment db with query-%s: %w", cmd, err)
@@ -139,7 +141,7 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 
 	defer func() {
 		err = tx.Rollback()
-		if err != nil {
+		if err != nil && errors.Is(err, sql.ErrTxDone) {
 			log.Warnf("error while rollback the BulkInsert txn: %v", err)
 		}
 	}()
