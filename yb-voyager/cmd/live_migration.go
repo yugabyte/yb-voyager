@@ -26,6 +26,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -334,9 +335,9 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			// - It can fail with some duplicate / unique key constraint errors
 			// - Stats will double count the events.
 			// Therefore, we check if batch has already been imported before retrying.
-			alreadyImported, aerr := state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
+			alreadyImported, aerr := checkifEventBatchAlreadyImported(state, eventBatch, migrationUUID)
 			if aerr != nil {
-				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %v", chanNo, eventBatch.GetLastVsn(), err)
+				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %v", chanNo, eventBatch.GetLastVsn(), aerr)
 			}
 			if alreadyImported {
 				log.Infof("batch on channel %d (last VSN: %d) already imported", chanNo, eventBatch.GetLastVsn())
@@ -387,4 +388,26 @@ func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (*utils.Struct
 		res.Put(tableName, columns)
 	}
 	return res, nil
+}
+
+func checkifEventBatchAlreadyImported(state *ImportDataState, eventBatch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {
+	var res bool
+	var err error
+	sleepIntervalSec := 0
+	for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
+		res, err = state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
+		if err == nil {
+			break
+		} else if tdb.IsNonRetryableCopyError(err) {
+			break
+		}
+		sleepIntervalSec += 10
+		if sleepIntervalSec > MAX_SLEEP_SECOND {
+			sleepIntervalSec = MAX_SLEEP_SECOND
+		}
+		log.Infof("sleep for %d seconds before retrying to check if event batch (last vsn: %d) already imported (attempt %d)",
+			sleepIntervalSec, eventBatch.GetLastVsn(), attempt)
+		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+	}
+	return res, err
 }
