@@ -55,14 +55,14 @@ import (
 var (
 	metaDB               *metadb.MetaDB
 	PARENT_COMMAND_USAGE = "Parent command. Refer to the sub-commands for usage help."
-	StartTime            time.Time
+	startTime            time.Time
 )
 
 func PrintElapsedDuration() {
-	fmt.Printf("End time: %s\n", time.Now())
-	timeTakenByCurrentVoyagerInvocation := time.Since(StartTime)
-	fmt.Printf("Time taken: %s\n", timeTakenByCurrentVoyagerInvocation)
-	fmt.Printf("Time taken (in seconds): %f\n", timeTakenByCurrentVoyagerInvocation.Seconds())
+	utils.PrintAndLog("End time: %s\n", time.Now())
+	timeTakenByCurrentVoyagerInvocation := time.Since(startTime)
+	utils.PrintAndLog("Time taken: %s\n", timeTakenByCurrentVoyagerInvocation)
+	utils.PrintAndLog("Time taken (in seconds): %f\n", timeTakenByCurrentVoyagerInvocation.Seconds())
 }
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
