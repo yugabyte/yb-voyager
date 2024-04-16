@@ -31,6 +31,12 @@ func (cp *NoopControlPlane) Init() error {
 func (cp *NoopControlPlane) Finalize() {
 }
 
+func (cp *NoopControlPlane) MigrationAssessmentStarted(_ *cp.MigrationAssessmentStartedEvent) {
+}
+
+func (cp *NoopControlPlane) MigrationAssessmentCompleted(_ *cp.MigrationAssessmentCompletedEvent) {
+}
+
 func (cp *NoopControlPlane) ExportSchemaStarted(exportSchemaEvent *cp.ExportSchemaStartedEvent) {
 }
 

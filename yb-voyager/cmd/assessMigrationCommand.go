@@ -29,6 +29,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -98,6 +99,9 @@ func assessMigration() (err error) {
 	checkStartCleanForAssessMigration()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
+	startEvent := createMigrationAssessmentStartedEvent()
+	controlPlane.MigrationAssessmentStarted(startEvent)
+
 	// setting schemaDir to use later on - gather assessment data, segregating into schema files per object etc..
 	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
 		filepath.Join(exportDir, "assessment", "data", "schema"))
@@ -120,7 +124,22 @@ func assessMigration() (err error) {
 	}
 
 	utils.PrintAndLog("Migration assessment completed successfully.")
+	completedEvent := createMigrationAssessmentCompletedEvent()
+	controlPlane.MigrationAssessmentCompleted(completedEvent)
 	return nil
+}
+
+func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
+	ev := &cp.MigrationAssessmentStartedEvent{}
+	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
+	return ev
+}
+
+func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
+	ev := &cp.MigrationAssessmentCompletedEvent{}
+	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
+	ev.Report = migassessment.Report
+	return ev
 }
 
 func runAssessment() error {

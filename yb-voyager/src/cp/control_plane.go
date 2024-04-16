@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -32,6 +33,9 @@ var EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR = map[int]string{
 type ControlPlane interface {
 	Init() error
 	Finalize()
+
+	MigrationAssessmentStarted(*MigrationAssessmentStartedEvent)
+	MigrationAssessmentCompleted(*MigrationAssessmentCompletedEvent)
 
 	ExportSchemaStarted(*ExportSchemaStartedEvent)
 	ExportSchemaCompleted(*ExportSchemaCompletedEvent) // Only success is reported.
@@ -84,6 +88,15 @@ type ExportSchemaStartedEvent struct {
 
 type ExportSchemaCompletedEvent struct {
 	BaseEvent
+}
+
+type MigrationAssessmentStartedEvent struct {
+	BaseEvent
+}
+
+type MigrationAssessmentCompletedEvent struct {
+	BaseEvent
+	Report migassessment.AssessmentReport
 }
 
 type SchemaAnalysisStartedEvent struct {
