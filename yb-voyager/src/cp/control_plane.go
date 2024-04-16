@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -96,7 +95,7 @@ type MigrationAssessmentStartedEvent struct {
 
 type MigrationAssessmentCompletedEvent struct {
 	BaseEvent
-	Report migassessment.AssessmentReport
+	Report string
 }
 
 type SchemaAnalysisStartedEvent struct {

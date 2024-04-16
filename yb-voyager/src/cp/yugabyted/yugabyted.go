@@ -170,14 +170,7 @@ func (cp *YugabyteD) MigrationAssessmentStarted(ev *controlPlane.MigrationAssess
 }
 
 func (cp *YugabyteD) MigrationAssessmentCompleted(ev *controlPlane.MigrationAssessmentCompletedEvent) {
-	jsonBytes, err := json.Marshal(ev.Report)
-	if err != nil {
-		log.Warnf("%v", err)
-		return
-	}
-	payload := string(jsonBytes)
-
-	cp.createAndSendEvent(&ev.BaseEvent, "COMPLETED", payload)
+	cp.createAndSendEvent(&ev.BaseEvent, "COMPLETED", ev.Report)
 }
 
 func (cp *YugabyteD) ExportSchemaStarted(exportSchemaEvent *controlPlane.ExportSchemaStartedEvent) {

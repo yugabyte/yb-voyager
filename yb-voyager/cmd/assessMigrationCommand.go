@@ -138,7 +138,12 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
-	ev.Report = migassessment.Report
+	report, err := json.Marshal(assessmentReport)
+	if err != nil {
+		utils.PrintAndLog("Failed to serialise the assessment report to json (ERR IGNORED): %s", err)
+	}
+
+	ev.Report = string(report)
 	return ev
 }
 
