@@ -34,6 +34,7 @@ func main() {
 	registerSignalHandlers()
 	atexit.Register(cmd.CleanupChildProcesses)
 	cmd.Execute()
+	cmd.PrintElapsedDuration()
 }
 
 func registerSignalHandlers() {
