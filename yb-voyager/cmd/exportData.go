@@ -156,7 +156,7 @@ func exportData() bool {
 	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
-	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil)
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
@@ -363,7 +363,7 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, ifTableListSet 
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
-		case len(allLeafPartitions) > 0 && ifTableListSet : // table with partitions in table list
+		case len(allLeafPartitions) > 0 && ifTableListSet: // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
 				partitionsToRootTableMap[leafPartition.AsQualifiedCatalogName()] = rootTable.AsQualifiedCatalogName()
@@ -572,12 +572,12 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	}
 	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
 	if len(excludeTableList) > 0 {
-		//TODO: avoid duplicate call to this function and optimize this function later 
+		//TODO: avoid duplicate call to this function and optimize this function later
 		_, excludeTableList, err = addLeafPartitionsInTableList(excludeTableList, true)
 		if err != nil {
 			utils.ErrExit("adding leaf partititons to exclude table list: %s", err)
 		}
-	} 
+	}
 	if source.TableList != "" {
 		tableList = extractTableListFromString(fullTableList, source.TableList, "include")
 	} else {
@@ -621,7 +621,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	if err != nil {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
-	
+
 	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
 	if err != nil {
 		utils.ErrExit("get columns with supported types: %v", err)

@@ -243,7 +243,7 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 }
 
 func getQuotedFromUnquoted(t string) string {
-	//To preserve case sensitiveness in the Unquoted 
+	//To preserve case sensitiveness in the Unquoted
 	parts := strings.Split(t, ".")
 	s, t := parts[0], parts[1]
 	return fmt.Sprintf(`%s."%s"`, s, t)
@@ -469,7 +469,8 @@ func initMetaDB() {
 func InitNameRegistry(
 	exportDir string, role string,
 	sconf *srcdb.Source, sdb srcdb.SourceDB,
-	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB) error {
+	tconf *tgtdb.TargetConf, tdb tgtdb.TargetDB,
+	reregisterYBNames bool) error {
 
 	var sdbReg namereg.SourceDBInterface
 	var ybdb namereg.YBDBInterface
@@ -506,7 +507,22 @@ func InitNameRegistry(
 		YBDB:           ybdb,
 	}
 
-	return namereg.InitNameRegistry(nameregistryParams)
+	err := namereg.InitNameRegistry(nameregistryParams)
+	if err != nil {
+		return err
+	}
+	if reregisterYBNames {
+		// clean up yb names and re-init.
+		err := namereg.NameReg.UnRegisterYBNames()
+		if err != nil {
+			return fmt.Errorf("unregister yb names: %v", err)
+		}
+		err = namereg.NameReg.Init()
+		if err != nil {
+			return fmt.Errorf("init name registry: %v", err)
+		}
+	}
+	return nil
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
