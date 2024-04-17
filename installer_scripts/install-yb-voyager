@@ -756,12 +756,13 @@ create_gather_assessment_data_dir() {
 	output "Installing the latest scripts for gathering assessment data"
 	if [ "${VERSION}" == "latest" ]
 	then
-		# TODO: fix it, github does not link statically links the raw file contents
-		sudo wget -nv -O /tmp/gather-assessment-data.tar.gz https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/gather-assessment-data
-		sudo tar -xzf /tmp/gather-assessment-data.tar.gz -C $scripts_dir
+		# TODO: Replace the YB_VOYAGER_GIT_HASH_TEMP with the release tagged YB_VOYAGER_GIT_HASH
+		YB_VOYAGER_GIT_HASH_TEMP="23a94e714c3828d06df44f92e58a940a859610be"
+		sudo wget -nv -O /tmp/gather-assessment-data.tar.gz https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH_TEMP/yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz
+		sudo tar -xzf /tmp/gather-assessment-data.tar.gz -C $scripts_dir 1>&2
 	else
 		pushd $REPO_ROOT > /dev/null
-		sudo cp -r ./yb-voyager/src/srcdb/data/gather-assessment-data $scripts_dir
+		sudo rsync -av --delete $REPO_ROOT/yb-voyager/src/srcdb/data/gather-assessment-data $scripts_dir 1>&2
 		popd > /dev/null
 	fi
 }
