@@ -55,8 +55,8 @@ var assessmentParams = &AssessmentParams{}
 type AssessmentParams struct {
 	TargetYBVersion      string `toml:"target_yb_version"`
 	SourceDBMetadataFile string `toml:"source_db_metadata_file"`
-	ShardingParams       `toml:"sharding_params"`
-	SizingParams         `toml:"sizing_params"`
+	/*	ShardingParams       `toml:"sharding_params"`
+		SizingParams         `toml:"sizing_params"`*/
 }
 
 func LoadCSVDataFile[T any](filePath string) ([]*T, error) {

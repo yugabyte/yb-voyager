@@ -29,13 +29,6 @@ import (
 	"strings"
 )
 
-type SizingParams struct {
-	// add any sizing specific parameters required from user here
-	// dummy params for now
-	UseNvme           bool `toml:"use_nvme"`
-	MultiAzDeployment bool `toml:"multi_az_deployment"`
-}
-
 type SourceDBMetadata struct {
 	ObjectName      string `json:"object_name"`
 	RowCount        int64  `json:"row_count,string"`
@@ -45,14 +38,6 @@ type SourceDBMetadata struct {
 	IsIndex         bool   `json:"is_index,string"`
 	ParentTableName string `json:"parent_table_name"`
 	SizeInGB        int64  `json:"size_in_gb,string"`
-}
-
-// TODO: delete after resolving conflicts
-type SizingReport struct {
-	NodeCount        int
-	VcpuCountPerNode int
-	MemGBPerNode     int
-	StorageGBPerNode int
 }
 
 var baseDownloadPath = "src/migassessment/resources/remote/"

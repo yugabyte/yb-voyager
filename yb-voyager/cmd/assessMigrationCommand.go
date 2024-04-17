@@ -47,8 +47,7 @@ type AssessmentReport struct {
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
 
-	Sharding *migassessment.ShardingReport `json:"Sharding"`
-	Sizing   *migassessment.SizingReport   `json:"Sizing"`
+	//Sizing *migassessment.SizingReport `json:"Sizing"`
 }
 
 type UnsupportedFeature struct {
