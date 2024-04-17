@@ -27,7 +27,6 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var AssessmentDataDir string
@@ -42,21 +41,18 @@ type Report struct {
 	ColocatedReasoning              string
 	ShardedTables                   []string
 	NumNodes                        float64
-	VCPUsPerInstance                int64
-	MemoryPerInstance               int64
+	VCPUsPerInstance                float64
+	MemoryPerInstance               float64
 	OptimalSelectConnectionsPerNode int64
 	OptimalInsertConnectionsPerNode int64
-	MigrationTimeTakenInMin         int64
+	MigrationTimeTakenInMin         float64
 	// ParallelVoyagerImportThreads int64 ==> Optional
 }
 
 var assessmentParams = &AssessmentParams{}
 
 type AssessmentParams struct {
-	TargetYBVersion      string `toml:"target_yb_version"`
-	SourceDBMetadataFile string `toml:"source_db_metadata_file"`
-	/*	ShardingParams       `toml:"sharding_params"`
-		SizingParams         `toml:"sizing_params"`*/
+	TargetYBVersion string `toml:"target_yb_version"`
 }
 
 func LoadCSVDataFile[T any](filePath string) ([]*T, error) {
@@ -143,7 +139,6 @@ func LoadAssessmentParams(userInputFpath string) error {
 		return fmt.Errorf("error unmarshalling toml file's data: %w", err)
 	}
 
-	utils.PrintAndLog("assessment params: %+v", assessmentParams)
 	return nil
 }
 

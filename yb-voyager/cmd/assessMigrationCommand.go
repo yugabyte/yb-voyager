@@ -47,7 +47,7 @@ type AssessmentReport struct {
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
 
-	//Sizing *migassessment.SizingReport `json:"Sizing"`
+	Sizing *migassessment.Report `json:"Sizing"`
 }
 
 type UnsupportedFeature struct {
@@ -123,6 +123,7 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to run assessment: %w", err)
 	}
+	assessmentReport.Sizing = migassessment.FinalReport
 
 	err = generateAssessmentReport()
 	if err != nil {

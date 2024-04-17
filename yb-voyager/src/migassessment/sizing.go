@@ -30,14 +30,17 @@ import (
 )
 
 type SourceDBMetadata struct {
-	ObjectName      string `json:"object_name"`
-	RowCount        int64  `json:"row_count,string"`
-	ColCount        int64  `json:"col_count,string"`
-	ReadsPerSec     int64  `json:"reads_per_second,string"`
-	WritesPerSec    int64  `json:"writes_per_second,string"`
-	IsIndex         bool   `json:"is_index,string"`
-	ParentTableName string `json:"parent_table_name"`
-	SizeInGB        int64  `json:"size_in_gb,string"`
+	SchemaName string        `json:"schema_name"`
+	ObjectName string        `json:"object_name"`
+	RowCount   sql.NullInt64 `json:"row_count,string"`
+	//ColCount        int64  `json:"col_count,string"`
+	//ReadsPerSec     int64  `json:"reads_per_second,string"`
+	ReadsPerSec int64 `json:"reads,string"`
+	//WritesPerSec    int64  `json:"writes_per_second,string"`
+	WritesPerSec    int64          `json:"writes,string"`
+	IsIndex         bool           `json:"isIndex,string"`
+	ParentTableName sql.NullString `json:"parent_table_name"`
+	Size            float64        `json:"size,string"`
 }
 
 var baseDownloadPath = "src/migassessment/resources/remote/"
@@ -49,49 +52,21 @@ func SizingAssessment() error {
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
 	createConnectionToExperimentData(assessmentParams.TargetYBVersion)
 	shardedObjects, shardedObjectsSize := generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
-	// print recommendation till this point
-	//PrintAssessmentReport()
 
 	// only use the remaining sharded objects and its size for further recommendation processing
 	generateSizingRecommendations(shardedObjects, shardedObjectsSize)
-	//PrintAssessmentReport()
 	return nil
 }
 
-func PrintAssessmentReport() {
-	fmt.Println("\n-----------------------------------------------------------------------------------------------")
-	fmt.Println("Sizing & Sharding Recommendations: ")
-	fmt.Println("-----------------------------------------------------------------------------------------------")
-	fmt.Println("\tColocated Tables: ", FinalReport.ColocatedTables)
-	fmt.Println("\tColocated Reasoning: ", FinalReport.ColocatedReasoning)
-	fmt.Println("\tSharded Tables: ", FinalReport.ShardedTables)
-	fmt.Println("\tNumNodes: ", FinalReport.NumNodes)
-	fmt.Println("\tVCPUsPerInstance: ", FinalReport.VCPUsPerInstance)
-	fmt.Println("\tMemoryPerInstance: ", FinalReport.MemoryPerInstance)
-	fmt.Println("\tOptimalSelectConnectionsPerNode: ", naIfZero(FinalReport.OptimalSelectConnectionsPerNode))
-	fmt.Println("\tOptimalInsertConnectionsPerNode: ", naIfZero(FinalReport.OptimalInsertConnectionsPerNode))
-	fmt.Println("\testimated migration time take min: ", FinalReport.MigrationTimeTakenInMin)
-	fmt.Println("-------------------------------------------------------------------------------------------------")
-}
-
-func naIfZero(value int64) string {
-	if value == 0 {
-		return "--"
-	} else {
-		return fmt.Sprintf("%d", value)
-	}
-}
-func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, int64) {
-	//err := ConnectSourceMetaDatabase("src/migassessment/source_info_test3.db")
-	err := ConnectSourceMetaDatabase(assessmentParams.SourceDBMetadataFile)
+func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
+	err := ConnectSourceMetaDatabase(GetDBFilePath())
 	checkErr(err)
-	//srcMeta, totalSourceDBSize := getSourceMetadata()
-	//return srcMeta, totalSourceDBSize
 	return getSourceMetadata()
 }
 
-func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, int64) {
-	rows, err := SourceMetaDB.Query("SELECT * FROM source_metadata ORDER BY size_in_gb ASC")
+func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
+	query := "SELECT schema_name, object_name,row_count,reads,writes,isIndex,parent_table_name,size FROM migration_assessment_stats ORDER BY size ASC"
+	rows, err := SourceMetaDB.Query(query)
 	if err != nil {
 		fmt.Println("no records found")
 	}
@@ -101,25 +76,31 @@ func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, int64) {
 	var sourceTableMetadata []SourceDBMetadata
 	var sourceIndexMetadata []SourceDBMetadata
 
-	var totalSourceDBSize int64 = 0
+	var totalSourceDBSize float64 = 0
 	for rows.Next() {
 		var metadata SourceDBMetadata
-		if err := rows.Scan(&metadata.ObjectName, &metadata.RowCount, &metadata.ColCount, &metadata.ReadsPerSec,
-			&metadata.WritesPerSec, &metadata.IsIndex, &metadata.ParentTableName, &metadata.SizeInGB); err != nil {
+		if err := rows.Scan(&metadata.SchemaName, &metadata.ObjectName, &metadata.RowCount, &metadata.ReadsPerSec, &metadata.WritesPerSec,
+			&metadata.IsIndex, &metadata.ParentTableName, &metadata.Size); err != nil {
 			log.Fatal(err)
 		}
+		// convert bytes to GB
+		metadata.Size = bytesToGB(metadata.Size)
 		if metadata.IsIndex {
 			sourceIndexMetadata = append(sourceIndexMetadata, metadata)
 		} else {
 			sourceTableMetadata = append(sourceTableMetadata, metadata)
 		}
-		totalSourceDBSize += metadata.SizeInGB
+		totalSourceDBSize += metadata.Size
 	}
 	if err := rows.Err(); err != nil {
 		log.Fatal(err)
 	}
 	SourceMetaDB.Close()
 	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize
+}
+
+func bytesToGB(sizeInBytes float64) float64 {
+	return sizeInBytes / (1024 * 1024 * 1024)
 }
 
 func createConnectionToExperimentData(targetYbVersion string) {
@@ -154,13 +135,12 @@ func getExperimentFile(targetYbVersion string) string {
 }
 
 func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
-	totalSourceDBSize int64) ([]SourceDBMetadata, int64) {
-
-	var selectedRow [5]interface{} // Assuming 5 columns in the table
-	var cumulativeSum int64
+	totalSourceDBSize float64) ([]SourceDBMetadata, float64) {
+	var selectedRow [5]string // Assuming 5 columns in the table
+	var cumulativeSum float64
 	var colocatedObjects []SourceDBMetadata
 	var shardedObjects []SourceDBMetadata
-	var shardedObjectsSize int64 = 0
+	var shardedObjectsSize float64 = 0
 	var coloObjectNames []string
 	var shardedObjectNames []string
 	var index int
@@ -169,7 +149,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		"max_colocated_db_size_gb >= ? UNION ALL SELECT * FROM colocated_limits WHERE max_colocated_db_size_gb = (SELECT MAX(max_colocated_db_size_gb) "+
 		"FROM colocated_limits) LIMIT 1;", numSourceObjects, numSourceObjects, totalSourceDBSize)
 
-	var S int64
+	var S float64
 	if err := row.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4]); err != nil {
 		if err == sql.ErrNoRows {
 			log.Println("No rows were returned by the query.")
@@ -179,54 +159,52 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		}
 	}
 
-	S = selectedRow[0].(int64) // Assuming max_size is the first column
+	S, _ = strconv.ParseFloat(selectedRow[0], 64)
 	for i, key := range sourceTableMetadata {
 		// check if current table has any indexes and fetch all indexes
 		indexesOfTable, indexesSizeSum := checkAndFetchIndexes(key, sourceIndexMetadata)
-		cumulativeSum += key.SizeInGB + indexesSizeSum
+		cumulativeSum += key.Size + indexesSizeSum
 		if cumulativeSum > S {
 			break
 		}
 		index = i
 		colocatedObjects = append(colocatedObjects, key)
-		coloObjectNames = append(coloObjectNames, key.ObjectName)
+		coloObjectNames = append(coloObjectNames, key.SchemaName+"."+key.ObjectName)
 
 		// append all indexes into colocated
 		colocatedObjects = append(colocatedObjects, indexesOfTable...)
-		// append all index names into coloresult
+		// append all index names into colocated result
 		for _, key := range indexesOfTable {
-			coloObjectNames = append(coloObjectNames, key.ObjectName)
+			coloObjectNames = append(coloObjectNames, key.SchemaName+"."+key.ObjectName)
 		}
 	}
 
 	for _, key := range sourceTableMetadata[index+1:] {
-		shardedObjectNames = append(shardedObjectNames, key.ObjectName)
+		shardedObjectNames = append(shardedObjectNames, key.SchemaName+"."+key.ObjectName)
 		shardedObjects = append(shardedObjects, key)
 		// fetch all associated indexes
 		indexesOfTable, indexesSizeSum := checkAndFetchIndexes(key, sourceIndexMetadata)
 		shardedObjects = append(shardedObjects, indexesOfTable...)
 
 		// add the sum of size of sharded objects
-		shardedObjectsSize += key.SizeInGB + indexesSizeSum
+		shardedObjectsSize += key.Size + indexesSizeSum
 		for _, key := range indexesOfTable {
-			shardedObjectNames = append(shardedObjectNames, key.ObjectName)
+			shardedObjectNames = append(shardedObjectNames, key.SchemaName+"."+key.ObjectName)
 		}
 	}
 
-	vCPUPerInstance := selectedRow[1].(int64)
-	memPerCore := selectedRow[2].(int64)
+	vCPUPerInstance, _ := strconv.ParseFloat(selectedRow[1], 64)
+	memPerCore, _ := strconv.ParseFloat(selectedRow[2], 64)
 
-	reasoning :=
-		fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ",
-			vCPUPerInstance, vCPUPerInstance*memPerCore)
+	reasoning := fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ",
+		vCPUPerInstance, vCPUPerInstance*memPerCore)
 
-	//reasoning := "all tables could be fit into colocated db with recommended instance type"
 	if len(shardedObjectNames) > 0 {
-		reasoning += fmt.Sprintf("%v objects with size %v GB as colocated. "+
-			"Rest %v objects of size %v GB can be imported as sharded tables",
+		reasoning += fmt.Sprintf("%v objects with size %0.3f GB as colocated. "+
+			"Rest %v objects of size %0.3f GB can be imported as sharded tables",
 			len(coloObjectNames), totalSourceDBSize-shardedObjectsSize, len(shardedObjectNames), shardedObjectsSize)
 	} else {
-		reasoning += fmt.Sprintf("All %v objects of size %vGB as colocated",
+		reasoning += fmt.Sprintf("All %v objects of size %0.3fGB as colocated",
 			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
 	}
 
@@ -242,22 +220,20 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	return shardedObjects, shardedObjectsSize
 }
 
-func calculateTimeTakenForMigration(objectType string, dbObjects []SourceDBMetadata, vCPUPerInstance int64, memPerCore int64) int64 {
+func calculateTimeTakenForMigration(objectType string, dbObjects []SourceDBMetadata, vCPUPerInstance float64, memPerCore float64) float64 {
 	// the total size of colocated objects
-	var size int64 = 0
-	var timeTakenOfFetchedRow int64
-	var maxSizeOfFetchedRow int64
+	var size float64 = 0
+	var timeTakenOfFetchedRow float64
+	var maxSizeOfFetchedRow float64
 	for _, dbObject := range dbObjects {
-		size += dbObject.SizeInGB
+		size += dbObject.Size
 	}
 
-	//fmt.Println("size of the colo objects", size, "num_cores: ", vCPUPerInstance, "mem: ", memPerCore)
 	// find the rows in experiment data about the approx row matching the size
 	selectQuery := fmt.Sprintf("SELECT csv_size_gb, migration_time_secs from %v_load_time where "+
 		"num_cores = ? and mem_per_core = ? and csv_size_gb >= ? UNION ALL "+
 		"SELECT csv_size_gb, migration_time_secs from sharded_load_time WHERE csv_size_gb = (SELECT MAX(csv_size_gb) "+
 		"FROM sharded_load_time) LIMIT 1;", objectType)
-	//fmt.Println(selectQuery)
 	row := DB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size)
 
 	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow); err != nil {
@@ -267,29 +243,27 @@ func calculateTimeTakenForMigration(objectType string, dbObjects []SourceDBMetad
 			log.Fatal(err)
 		}
 	}
-	//fmt.Println("max size of fetched row", maxSizeOfFetchedRow)
-	//fmt.Println("migration_time_secs of fetched row", timeTakenOfFetchedRow)
+
 	migrationTime := ((timeTakenOfFetchedRow * size) / maxSizeOfFetchedRow) / 60
-	//fmt.Println("Migration time minutes: ", migrationTime)
-	return migrationTime
+	return math.Ceil(migrationTime)
 }
 
-func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, int64) {
+func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, float64) {
 	indexesOfTable := make([]SourceDBMetadata, 0)
-	var indexesSizeSum int64 = 0
+	var indexesSizeSum float64 = 0
 	for _, index := range indexes {
-		if index.ParentTableName == table.ObjectName {
+		if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
 			indexesOfTable = append(indexesOfTable, index)
-			indexesSizeSum += index.SizeInGB
+			indexesSizeSum += index.Size
 		}
 	}
 	return indexesOfTable, indexesSizeSum
 }
-func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize int64) {
+
+func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64) {
 	if len(FinalReport.ShardedTables) > 0 {
 		// table limit check
 		arrayOfSupportedCores := checkTableLimits(len(shardedObjectMetadata))
-		//fmt.Println(arrayOfSupportedCores)
 		// calculate throughput data
 		var sumSourceSelectThroughput int64 = 0
 		var sumSourceWriteThroughput int64 = 0
@@ -297,7 +271,7 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 			sumSourceSelectThroughput += metadata.ReadsPerSec
 			sumSourceWriteThroughput += metadata.WritesPerSec
 		}
-		//fmt.Printf("source-select-throughput: %d\tsource-write-throughput: %d\n", sumSourceSelectThroughput, sumSourceWriteThroughput)
+
 		getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput)
 		// calculate impact of table count : not in this version
 		//values = calculateTableCountImpact(values, int64(len(srcMeta)))
@@ -327,8 +301,7 @@ func getConnectionsPerCore(numCores int) (int64, int64) {
 			log.Fatal(err)
 		}
 	}
-	/*fmt.Println("Select connections per core:", selectConnectionsPerCore)
-	fmt.Println("Insert connections per core:", insertConnectionsPerCore)*/
+
 	return selectConnectionsPerCore, insertConnectionsPerCore
 }
 
@@ -403,7 +376,6 @@ func checkTableLimits(reqTables int) []int {
 	if len(valuesArray) > 0 {
 		return valuesArray
 	} else {
-		//*logs = append(*logs, fmt.Sprintf("No results found for required %d tables.", reqTables))
 		return nil
 	}
 }
@@ -425,8 +397,7 @@ func getThroughputData(selectThroughput int64, writeThroughput int64) {
 		insertTotalCores += value["insert_total_cores"].(float64)
 		selectTotalCores += value["select_total_cores"].(float64)
 	}
-	/*fmt.Println("insert total cores:", insertTotalCores)
-	fmt.Println("select total cores:", selectTotalCores)*/
+
 	// add the additional nodes to the total
 	FinalReport.NumNodes += math.Max(math.Ceil((selectTotalCores+insertTotalCores)/float64(FinalReport.VCPUsPerInstance)), 1)
 }
@@ -639,4 +610,28 @@ func sortByValue(m map[string]int64) ([]string, int64) {
 	})
 
 	return sortedKeys, sum
+}
+
+func PrintAssessmentReport() {
+	fmt.Println("\n-----------------------------------------------------------------------------------------------")
+	fmt.Println("Sizing & Sharding Recommendations: ")
+	fmt.Println("-----------------------------------------------------------------------------------------------")
+	fmt.Println("\tColocated Tables: ", FinalReport.ColocatedTables)
+	fmt.Println("\tColocated Reasoning: ", FinalReport.ColocatedReasoning)
+	fmt.Println("\tSharded Tables: ", FinalReport.ShardedTables)
+	fmt.Println("\tNumNodes: ", FinalReport.NumNodes)
+	fmt.Println("\tVCPUsPerInstance: ", FinalReport.VCPUsPerInstance)
+	fmt.Println("\tMemoryPerInstance: ", FinalReport.MemoryPerInstance)
+	fmt.Println("\tOptimalSelectConnectionsPerNode: ", naIfZero(FinalReport.OptimalSelectConnectionsPerNode))
+	fmt.Println("\tOptimalInsertConnectionsPerNode: ", naIfZero(FinalReport.OptimalInsertConnectionsPerNode))
+	fmt.Println("\testimated migration time take min: ", FinalReport.MigrationTimeTakenInMin)
+	fmt.Println("-------------------------------------------------------------------------------------------------")
+}
+
+func naIfZero(value int64) string {
+	if value == 0 {
+		return "--"
+	} else {
+		return fmt.Sprintf("%d", value)
+	}
 }
