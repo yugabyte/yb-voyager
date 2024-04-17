@@ -12,20 +12,20 @@ import (
 )
 
 type AttributeNameRegistry struct {
-	dbType    string
-	tdb       TargetDB
-	tconf     *TargetConf
-	attrNames *utils.StructMap[sqlname.NameTuple, []string]
+	dbType                  string
+	tdb                     TargetDB
+	tconf                   *TargetConf
+	attrNames               *utils.StructMap[sqlname.NameTuple, []string]
 	bestMatchingColumnCache *utils.StructMap[sqlname.NameTuple, map[string]string]
-	mu        sync.Mutex
+	mu                      sync.Mutex
 }
 
 func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameRegistry {
 	return &AttributeNameRegistry{
-		dbType:    tconf.TargetDBType,
-		tdb:       tdb,
-		tconf:     tconf,
-		attrNames: utils.NewStructMap[sqlname.NameTuple, []string](),
+		dbType:                  tconf.TargetDBType,
+		tdb:                     tdb,
+		tconf:                   tconf,
+		attrNames:               utils.NewStructMap[sqlname.NameTuple, []string](),
 		bestMatchingColumnCache: utils.NewStructMap[sqlname.NameTuple, map[string]string](),
 	}
 }
@@ -49,20 +49,35 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 		reg.mu.Unlock()
 	}
 	bestMatchingColumnMapForTuple, ok := reg.bestMatchingColumnCache.Get(tableNameTup)
-	if ok {
-		bestMatchColumn, foundMatch := bestMatchingColumnMapForTuple[columnName]
-		if foundMatch {
-			return bestMatchColumn, nil
+	if !ok {
+		reg.mu.Lock()
+		//try again
+		bestMatchingColumnMapForTuple, ok = reg.bestMatchingColumnCache.Get(tableNameTup)
+		if !ok {
+			reg.bestMatchingColumnCache.Put(tableNameTup, make(map[string]string))
+			c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
+			if err != nil {
+				return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
+			}
+			bestMatchingColumnMapForTuple, _ = reg.bestMatchingColumnCache.Get(tableNameTup)
+			bestMatchingColumnMapForTuple[columnName] = fmt.Sprintf("%q", c)
 		}
+		reg.mu.Unlock()
+	}
+
+	bestMatchColumn, foundMatch := bestMatchingColumnMapForTuple[columnName]
+	if foundMatch {
+		return bestMatchColumn, nil
 	} else {
-		reg.bestMatchingColumnCache.Put(tableNameTup, make(map[string]string))
+		reg.mu.Lock()
+		c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
+		if err != nil {
+			return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
+		}
+		bestMatchingColumnMapForTuple[columnName] = fmt.Sprintf("%q", c)
+		reg.mu.Unlock()
 	}
-	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
-	if err != nil {
-		return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
-	}
-	bestMatchingColumnMapForTuple, _ = reg.bestMatchingColumnCache.Get(tableNameTup)
-	bestMatchingColumnMapForTuple[columnName] = fmt.Sprintf("%q", c)
+
 	return bestMatchingColumnMapForTuple[columnName], nil
 }
 
