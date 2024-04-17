@@ -78,7 +78,7 @@ var importDataFileCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
-		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, bool(startClean))
 		if err != nil {
 			utils.ErrExit("initialize name registry: %v", err)
 		}
