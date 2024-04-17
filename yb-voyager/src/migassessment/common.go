@@ -21,12 +21,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"os"
-	"strconv"
-
 	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
+	"net/http"
+	"os"
 )
 
 var AssessmentDataDir string
@@ -165,34 +163,6 @@ func convertToMap(rows *sql.Rows) []map[string]interface{} {
 	return allMaps
 }
 
-func convertToMapOfStringString(input []map[string]interface{}) []map[string]string {
-	output := make([]map[string]string, len(input))
-	for i, m := range input {
-		output[i] = make(map[string]string)
-		for k, v := range m {
-			switch value := v.(type) {
-			case string:
-				output[i][k] = value
-			case int:
-				output[i][k] = strconv.Itoa(value)
-			// Add more cases if you expect other types
-			default:
-				output[i][k] = fmt.Sprintf("%v", value)
-			}
-		}
-	}
-	return output
-}
-
-func printMap(allMaps []map[string]interface{}) {
-	for _, v := range allMaps {
-		for k1, v1 := range v {
-			fmt.Printf("%v : %v\n", k1, v1)
-		}
-		fmt.Println()
-	}
-}
-
 func checkErr(err error) {
 	if err != nil {
 		log.Fatal(err)
@@ -201,10 +171,7 @@ func checkErr(err error) {
 
 func checkInternetAccess() (ok bool) {
 	_, err := http.Get("http://clients3.google.com/generate_204")
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func checkLocalFileExists(filePath string) bool {
