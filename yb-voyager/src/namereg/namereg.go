@@ -138,6 +138,7 @@ func (reg *NameRegistry) registerNames() (bool, error) {
 }
 
 func (reg *NameRegistry) UnRegisterYBNames() error {
+	log.Info("unregistering YB names")
 	reg.YBTableNames = nil
 	reg.YBSchemaNames = nil
 	reg.DefaultYBSchemaName = ""

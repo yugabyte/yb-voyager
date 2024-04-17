@@ -507,13 +507,14 @@ func InitNameRegistry(
 		// clean up yb names and re-init.
 		err := namereg.NameReg.UnRegisterYBNames()
 		if err != nil {
-			utils.ErrExit("unregister yb names: %v", err)
+			return fmt.Errorf("unregister yb names: %v", err)
 		}
 		err = namereg.NameReg.Init()
 		if err != nil {
-			utils.ErrExit("init name registry: %v", err)
+			return fmt.Errorf("init name registry: %v", err)
 		}
 	}
+	return nil
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
