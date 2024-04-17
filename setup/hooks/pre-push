@@ -1,8 +1,10 @@
-#!/bin/sh
+#!/usr/bin/env bash
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
 TARBALL="yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz"
 
 # Check if the tarball exists and is not already tracked
-if [ -f "$TARBALL" ] && [ -z "$(git ls-files $TARBALL)" ]; then
+if [ -f "$REPO_ROOT/$TARBALL" ] && [ -z "$(git ls-files $TARBALL)" ]; then
     git add $TARBALL
-    git commit -m "Add updated tarball"
+    git commit -m "Added updated gather-assessment-data tarball"
 fi

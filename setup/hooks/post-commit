@@ -1,10 +1,15 @@
-#!/bin/sh
-# tar zip a directory after every commit
+#!/usr/bin/env bash
 
-DIR_TO_TAR="yb-voyager/src/srcdb/data/gather-assessment-data/"
+# script to tar zip a directory after every commit
+PARENT_DIR="yb-voyager/src/srcdb/data/gather-assessment-data/"
+DIR_NAME="gather-assessment-data"
 OUTPUT_TAR="yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
-tar -czf "${REPO_ROOT}/${OUTPUT_TAR}" -C "${REPO_ROOT}" "${DIR_TO_TAR}"
+pushd "$REPO_ROOT/$PARENT_DIR/.." > /dev/null
 
-echo "Created tarball: ${OUTPUT_TAR}"
+tar -czf "$REPO_ROOT/$OUTPUT_TAR" $DIR_NAME
+
+popd > /dev/null
+
+echo "created tarball: ${OUTPUT_TAR}"
