@@ -18,6 +18,7 @@ package tgtdb
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
@@ -26,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
@@ -42,10 +45,10 @@ import (
 type TargetYugabyteDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf     *TargetConf
-	conn_     *pgx.Conn
-	connPool  *ConnectionPool
-	connMutex sync.Mutex
+	tconf    *TargetConf
+	db       *sql.DB
+	conn_    *pgx.Conn
+	connPool *ConnectionPool
 
 	attrNames map[string][]string
 }
@@ -59,65 +62,44 @@ func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 	return tdb
 }
 
-func (yb *TargetYugabyteDB) WithConn(fn func(conn *pgx.Conn) error) error {
-	yb.connMutex.Lock()
-	defer yb.connMutex.Unlock()
-	return fn(yb.conn_)
+func (yb *TargetYugabyteDB) Query(query string) (*sql.Rows, error) {
+	return yb.db.Query(query)
 }
 
-func (yb *TargetYugabyteDB) Query(query string) (Rows, error) {
-	var rows Rows
-	err := yb.WithConn(func(conn *pgx.Conn) error {
-		var err error
-		rows, err = conn.Query(context.Background(), query)
-		if err != nil {
-			return fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
-		}
-		return nil
-	})
-	return rows, err
-}
-
-func (yb *TargetYugabyteDB) QueryRow(query string) Row {
-	var row Row
-	_ = yb.WithConn(func(conn *pgx.Conn) error {
-		row = conn.QueryRow(context.Background(), query)
-		return nil
-	})
-	return row
+func (yb *TargetYugabyteDB) QueryRow(query string) *sql.Row {
+	return yb.db.QueryRow(query)
 }
 
 func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
+
 	var rowsAffected int64
 
-	err := yb.WithConn(func(conn *pgx.Conn) error {
-		res, err := conn.Exec(context.Background(), query)
-		if err != nil {
-			return fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
-		}
-		rowsAffected = res.RowsAffected()
-		return nil
-	})
+	res, err := yb.db.Exec(query)
+	if err != nil {
+		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+	}
+	rowsAffected, err = res.RowsAffected()
+	if err != nil {
+		return rowsAffected, fmt.Errorf("rowsAffected on query %q on target %q: %w", query, yb.tconf.Host, err)
+	}
 	return rowsAffected, err
 }
 
-func (yb *TargetYugabyteDB) WithTx(fn func(tx Tx) error) error {
-	return yb.WithConn(func(conn *pgx.Conn) error {
-		tx, err := conn.Begin(context.Background())
-		if err != nil {
-			return fmt.Errorf("begin transaction on target %q: %w", yb.tconf.Host, err)
-		}
-		defer tx.Rollback(context.Background())
-		err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
-		if err != nil {
-			return err
-		}
-		err = tx.Commit(context.Background())
-		if err != nil {
-			return fmt.Errorf("commit transaction on target %q: %w", yb.tconf.Host, err)
-		}
-		return nil
-	})
+func (yb *TargetYugabyteDB) WithTx(fn func(tx *sql.Tx) error) error {
+	tx, err := yb.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction on target %q: %w", yb.tconf.Host, err)
+	}
+	defer tx.Rollback()
+	err = fn(tx)
+	if err != nil {
+		return err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit transaction on target %q: %w", yb.tconf.Host, err)
+	}
+	return nil
 }
 
 func (yb *TargetYugabyteDB) Init() error {
@@ -166,6 +148,14 @@ func (yb *TargetYugabyteDB) connect() error {
 		return nil
 	}
 	connStr := yb.tconf.GetConnectionUri()
+	var err error
+	yb.db, err = sql.Open("pgx", connStr)
+	if err != nil {
+		return fmt.Errorf("open connection to target db: %w", err)
+	}
+	// setting this to only 1, because this is used for adhoc queries.
+	// We have a separate pool for importing data.
+	yb.db.SetMaxOpenConns(1)
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return fmt.Errorf("connect to target db: %w", err)
@@ -385,7 +375,7 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 		tmp := false
 		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table.ForUserQuery())
 		err := yb.QueryRow(stmt).Scan(&tmp)
-		if err == pgx.ErrNoRows {
+		if err == sql.ErrNoRows {
 			continue
 		}
 		if err != nil {
