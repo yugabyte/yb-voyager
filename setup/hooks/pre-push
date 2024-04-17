@@ -6,5 +6,5 @@ TARBALL="yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz"
 # Check if the tarball exists and is not already tracked
 if [ -f "$REPO_ROOT/$TARBALL" ] && [ -z "$(git ls-files $TARBALL)" ]; then
     git add $TARBALL
-    git commit -m "Added updated gather-assessment-data tarball"
+    git commit -m "Added updated gather-assessment-data.tar.gz"
 fi
