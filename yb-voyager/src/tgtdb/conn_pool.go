@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -197,6 +198,9 @@ func (pool *ConnectionPool) initSession(conn *pgx.Conn) error {
 	for _, v := range pool.params.SessionInitScript {
 		_, err := conn.Exec(context.Background(), v)
 		if err != nil {
+			if strings.Contains(err.Error(), ERROR_MSG_PERMISSION_DENIED) {
+				return nil
+			}
 			return err
 		}
 	}
