@@ -127,6 +127,17 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
+	if startClean {
+		// clean up yb names and re-init.
+		err := namereg.NameReg.UnRegisterYBNames()
+		if err != nil {
+			utils.ErrExit("unregister yb names: %v", err)
+		}
+		err = namereg.NameReg.Init()
+		if err != nil {
+			utils.ErrExit("init name registry: %v", err)
+		}
+	}
 
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)

@@ -102,14 +102,20 @@ func (reg *NameRegistry) Init() error {
 		return fmt.Errorf("register names: %w", err)
 	}
 	if registryUpdated {
-		err = jsonFile.Update(func(nr *NameRegistry) {
-			*nr = *reg
-		})
+		err := reg.save()
 		if err != nil {
 			return fmt.Errorf("create/update name registry: %w", err)
 		}
 	}
 	return nil
+}
+
+func (reg *NameRegistry) save() error {
+	log.Infof("saving name registry: %s", reg.params.FilePath)
+	jsonFile := jsonfile.NewJsonFile[NameRegistry](reg.params.FilePath)
+	return jsonFile.Update(func(nr *NameRegistry) {
+		*nr = *reg
+	})
 }
 
 // TODO: only registry tables from tablelist, not all from schema.
@@ -129,6 +135,14 @@ func (reg *NameRegistry) registerNames() (bool, error) {
 	}
 	log.Infof("no name registry update required: mode %q", reg.params.Role)
 	return false, nil
+}
+
+func (reg *NameRegistry) UnRegisterYBNames() error {
+	reg.YBTableNames = nil
+	reg.YBSchemaNames = nil
+	reg.DefaultYBSchemaName = ""
+	reg.save()
+	return nil
 }
 
 func (reg *NameRegistry) registerSourceNames() (bool, error) {
