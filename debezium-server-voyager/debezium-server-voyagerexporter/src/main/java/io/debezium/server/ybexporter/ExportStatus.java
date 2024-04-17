@@ -303,8 +303,12 @@ public class ExportStatus {
             if (!rs.next()) {
                 return -1;
             }
-            return lastSegmentIndex;
+            lastSegmentIndex = rs.getInt("segment_no");
+            selectStmt.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(String.format("Failed to get last queue segment index"), e);
         }
+        return lastSegmentIndex;
     }
 
     public boolean checkIfQueueSegmentHasBeenArchivedOrDeleted(long segmentNo) {
@@ -320,8 +324,15 @@ public class ExportStatus {
             if (!rs.next()) {
                 return false;
             }
-            return result == 1;
+            result = rs.getInt("result");
+            selectStmt.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(
+                    String.format("Failed to check if queue segment has been archived or deleted - segmentNo: %d",
+                            segmentNo),
+                    e);
         }
+        return result == 1;
     }
 
     public void updateQueueSegmentMetaInfo(long segmentNo, long committedSize,
@@ -348,6 +359,17 @@ public class ExportStatus {
                         String.format("Update of queue segment metadata failed with query: [%s], rowsAffected: [%d]",
                                 queueMetaUpdateStmt, updatedRows));
             }
+            queueMetaUpdateStmt.close();
+            updateEventsStats(metadataDBConn, eventCountDeltaPerTable);
+
+        } catch (SQLException e) {
+            metadataDBConn.rollback();
+            throw new RuntimeException(String.format("Failed to  update queue segment meta and stats " +
+                            "- segmentNo: %d, committedSize:%d, eventCount:%s", segmentNo, committedSize,
+                    eventCountDeltaPerTable), e);
+        } finally {
+            metadataDBConn.commit();
+            metadataDBConn.setAutoCommit(oldAutoCommit);
         }
     }
 
@@ -368,13 +390,13 @@ public class ExportStatus {
                     case "cutover.source":
                         return msr.CutoverToSourceRequested;
                 }
-            } catch (SQLException e) {
-                throw e;
-            } finally {
-                selectStmt.close();
             }
-            return false;
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            selectStmt.close();
         }
+        return false;
     }
 
     public boolean checkifEndMigrationRequested() throws SQLException {
@@ -388,8 +410,12 @@ public class ExportStatus {
                 MigrationStatusRecord msr = MigrationStatusRecord.fromJsonString(rs.getString("json_text"));
                 return msr.EndMigrationRequested;
             }
-            return false;
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            selectStmt.close();
         }
+        return false;
     }
 
     private void updateEventsStats(Connection conn,
@@ -522,8 +548,13 @@ public class ExportStatus {
                 throw new RuntimeException(
                         String.format("Could not fetch committedSize for queue segment - %d", segmentNo));
             }
-            return sizeCommitted;
+            sizeCommitted = rs.getLong("size_committed");
+            selectStmt.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(String.format("Failed to run update queue segment size " +
+                    "- segmentNo: %d", segmentNo), e);
         }
+        return sizeCommitted;
     }
 
     public Map<Long, Long> getTotalEventsPerSegment() {
@@ -538,8 +569,11 @@ public class ExportStatus {
             while (rs.next()) {
                 totalEventsPerSegment.put(rs.getLong("segment_no"), rs.getLong("total_events"));
             }
-            return totalEventsPerSegment;
+            selectStmt.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(String.format("Failed to get total events per segment"), e);
         }
+        return totalEventsPerSegment;
     }
 }
 
