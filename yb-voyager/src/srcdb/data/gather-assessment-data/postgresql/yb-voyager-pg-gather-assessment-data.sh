@@ -42,7 +42,7 @@ Please ensure to replace the placeholders with actual values suited to your envi
 "
 
 # Check for the --help option
-if [ "$1" == "--help" ]; then 
+if [ "$1" == "--help" ]; then
     echo "$HELP_TEXT"
     exit 0
 fi
