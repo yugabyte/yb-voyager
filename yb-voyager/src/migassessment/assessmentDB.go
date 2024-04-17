@@ -51,40 +51,40 @@ func InitAssessmentDB() error {
 
 	cmds := []string{
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			object_name TEXT,
-			object_type TEXT,
-			seq_reads INTEGER,
-			row_writes INTEGER,
+			schema_name		TEXT,
+			object_name		TEXT,
+			object_type		TEXT,
+			seq_reads		INTEGER,
+			row_writes		INTEGER,
 			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_IOPS),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			object_name TEXT,
-			object_type TEXT,
-			size REAL,
+			schema_name		TEXT,
+			object_name		TEXT,
+			object_type		TEXT,
+			size_in_bytes	INTEGER,
 			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_SIZES),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			table_name TEXT,
-			row_count INTEGER,
+			schema_name		TEXT,
+			table_name		TEXT,
+			row_count		INTEGER,
 			PRIMARY KEY (schema_name, table_name));`, TABLE_ROW_COUNTS),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			object_name TEXT,
-			object_type TEXT,
-			column_count INTEGER,
+			schema_name		TEXT,
+			object_name		TEXT,
+			object_type		TEXT,
+			column_count	INTEGER,
 			PRIMARY KEY (schema_name, object_name));`, TABLE_COLUMNS_COUNT),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			index_schema TEXT,
-			index_name TEXT,
-			table_schema TEXT,
-			table_name TEXT,
+			index_schema	TEXT,
+			index_name		TEXT,
+			table_schema	TEXT,
+			table_name		TEXT,
 			PRIMARY KEY (index_schema, index_name));`, INDEX_TO_TABLE_MAPPING),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			table_name TEXT,
-			column_name TEXT,
-			data_type TEXT,
+			schema_name		TEXT,
+			table_name		TEXT,
+			column_name		TEXT,
+			data_type		TEXT,
 			PRIMARY KEY (schema_name, table_name, column_name));`, TABLE_COLUMNS_DATA_TYPES),
 		// derived from the above metric tables
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -94,9 +94,9 @@ func InitAssessmentDB() error {
 			column_count		INTEGER,
 			reads               INTEGER,
 			writes              INTEGER,
-			is_index             BOOLEAN,
+			is_index            BOOLEAN,
 			parent_table_name   TEXT,
-			size                INTEGER,
+			size_in_bytes       INTEGER,
 			PRIMARY KEY(schema_name, object_name));`, MIGRATION_ASSESSMENT_STATS),
 	}
 
@@ -167,7 +167,7 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 }
 
 const (
-	InsertTableStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes, is_index, parent_table_name, size)
+	InsertTableStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes, is_index, parent_table_name, size_in_bytes)
 	SELECT 
 		trc.schema_name,
 		trc.table_name AS object_name,
@@ -177,14 +177,14 @@ const (
 		tii.row_writes AS writes,
 		0 AS is_index,
 		NULL AS parent_table_name,
-		tis.size
+		tis.size_in_bytes
 	FROM %s trc
 	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name
 	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name
 	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name;`
 
 	// No insertion into 'column_count' for indexes
-	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, reads, writes, is_index, parent_table_name, size)
+	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, reads, writes, is_index, parent_table_name, size_in_bytes)
 	SELECT 
 		itm.index_schema AS schema_name,
 		itm.index_name AS object_name,
@@ -193,7 +193,7 @@ const (
 		tii.row_writes AS writes,
 		1 AS is_index,
 		itm.table_schema || '.' || itm.table_name AS parent_table_name,
-		tis.size
+		tis.size_in_bytes
 	FROM %s itm
 	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name
 	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name;`
