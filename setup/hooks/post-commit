@@ -13,3 +13,15 @@ tar -czf "$REPO_ROOT/$OUTPUT_TAR" $DIR_NAME
 popd > /dev/null
 
 echo "created tarball: ${OUTPUT_TAR}"
+
+if [ ! -f "$OUTPUT_TAR" ]; then
+    echo "Error: $OUTPUT_TAR File does not exist."
+    exit 1
+fi
+
+# Check if the file is not tracked or is tracked but not staged
+if ! git ls-files --error-unmatch "$OUTPUT_TAR" &> /dev/null || ! git diff --quiet "$OUTPUT_TAR"; then
+    git add "$OUTPUT_TAR"
+    git commit -m "Added or updated gather-assessment-data tar.gz"
+    echo "$OUTPUT_TAR file added and committed."
+fi
