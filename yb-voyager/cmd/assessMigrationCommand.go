@@ -234,7 +234,8 @@ func gatherAssessmentDataFromPG() (err error) {
 
 	cmd := exec.Command(scriptPath, scriptArgs...)
 	log.Infof("running script: %s", cmd.String())
-	cmd.Env = append(cmd.Env, "PGPASSWORD="+source.Password)
+	cmd.Env = append(cmd.Env, "PGPASSWORD="+source.Password,
+		"PATH="+os.Getenv("PATH"))
 	cmd.Dir = assessmentDataDir
 
 	stdout, err := cmd.StdoutPipe()

@@ -55,7 +55,15 @@ import (
 var (
 	metaDB               *metadb.MetaDB
 	PARENT_COMMAND_USAGE = "Parent command. Refer to the sub-commands for usage help."
+	startTime            time.Time
 )
+
+func PrintElapsedDuration() {
+	utils.PrintAndLog("End time: %s\n", time.Now())
+	timeTakenByCurrentVoyagerInvocation := time.Since(startTime)
+	utils.PrintAndLog("Time taken: %s\n", timeTakenByCurrentVoyagerInvocation)
+	utils.PrintAndLog("Time taken (in seconds): %f\n", timeTakenByCurrentVoyagerInvocation.Seconds())
+}
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var requiredMap map[string]string
@@ -709,6 +717,7 @@ func CleanupChildProcesses() {
 			log.Infof("shut down child pid %d", pid)
 		}
 	}
+	PrintElapsedDuration()
 }
 
 // this function wait for process to exit after signalling it to stop

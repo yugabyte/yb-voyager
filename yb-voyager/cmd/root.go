@@ -21,6 +21,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -68,13 +69,14 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			lockFile.Lock()
 		}
 		InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
+		startTime = time.Now()
+		utils.PrintAndLog("Start time: %s\n", startTime)
 		if metaDBIsCreated(exportDir) {
 			initMetaDB()
 		}
 		if perfProfile {
 			go startPprofServer()
 		}
-
 		setControlPlane()
 	},
 
