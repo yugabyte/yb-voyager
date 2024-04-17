@@ -33,7 +33,6 @@ var AssessmentDataDir string
 
 type Record map[string]any
 
-// FinalReport type QueryResult []Record
 var FinalReport *Report
 
 type Report struct {

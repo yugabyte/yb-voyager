@@ -171,11 +171,6 @@ func runAssessment() error {
 		return fmt.Errorf("failed to load assessment parameters: %w", err)
 	}
 
-	/*	err = migassessment.ShardingAssessment()
-		if err != nil {
-			return fmt.Errorf("failed to perform sharding assessment: %w", err)
-		}*/
-
 	err = migassessment.SizingAssessment()
 	if err != nil {
 		log.Errorf("failed to perform sizing assessment: %v", err)
@@ -380,9 +375,6 @@ func generateAssessmentReport() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
-
-	/*	assessmentReport.Sharding = migassessment.Report.ShardingReport
-		assessmentReport.Sizing = migassessment.Report.SizingReport*/
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
