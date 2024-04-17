@@ -290,128 +290,137 @@ public class ExportStatus {
     }
 
     public long getLastQueueSegmentIndex() {
-        Statement selectStmt;
-        int lastSegmentIndex;
-        try {
-            selectStmt = metadataDBConn.createStatement();
-            // Get only 1 result
-            ResultSet rs = selectStmt
-                    .executeQuery(String.format("SELECT segment_no from %s ORDER BY segment_no DESC LIMIT 1",
-                            QUEUE_SEGMENT_META_TABLE_NAME));
-            // if no results are obtained from the query, return -1
-            if (!rs.next()) {
-                return -1;
+        synchronized (metadataDBConn) {
+            Statement selectStmt;
+            int lastSegmentIndex;
+            try {
+                selectStmt = metadataDBConn.createStatement();
+                // Get only 1 result
+                ResultSet rs = selectStmt
+                        .executeQuery(String.format("SELECT segment_no from %s ORDER BY segment_no DESC LIMIT 1",
+                                QUEUE_SEGMENT_META_TABLE_NAME));
+                // if no results are obtained from the query, return -1
+                if (!rs.next()) {
+                    return -1;
+                }
+                lastSegmentIndex = rs.getInt("segment_no");
+                selectStmt.close();
+            } catch (SQLException e) {
+                throw new RuntimeException(String.format("Failed to get last queue segment index"), e);
             }
-            lastSegmentIndex = rs.getInt("segment_no");
-            selectStmt.close();
-        } catch (SQLException e) {
-            throw new RuntimeException(String.format("Failed to get last queue segment index"), e);
+            return lastSegmentIndex;
         }
-        return lastSegmentIndex;
     }
 
     public boolean checkIfQueueSegmentHasBeenArchivedOrDeleted(long segmentNo) {
-        Statement selectStmt;
-        int result;
-        try {
-            selectStmt = metadataDBConn.createStatement();
-            ResultSet rs = selectStmt
-                    .executeQuery(String.format(
-                            "SELECT CASE WHEN archived = 1 OR deleted = 1 THEN 1 ELSE 0 END AS result FROM %s WHERE segment_no=%d",
-                            QUEUE_SEGMENT_META_TABLE_NAME, segmentNo));
-            if (!rs.next()) {
-                return false;
+        synchronized (metadataDBConn) {
+            Statement selectStmt;
+            int result;
+            try {
+                selectStmt = metadataDBConn.createStatement();
+                ResultSet rs = selectStmt
+                        .executeQuery(String.format(
+                                "SELECT CASE WHEN archived = 1 OR deleted = 1 THEN 1 ELSE 0 END AS result FROM %s WHERE segment_no=%d",
+                                QUEUE_SEGMENT_META_TABLE_NAME, segmentNo));
+                if (!rs.next()) {
+                    return false;
+                }
+                result = rs.getInt("result");
+                selectStmt.close();
+            } catch (SQLException e) {
+                throw new RuntimeException(
+                        String.format("Failed to check if queue segment has been archived or deleted - segmentNo: %d",
+                                segmentNo),
+                        e);
             }
-            result = rs.getInt("result");
-            selectStmt.close();
-        } catch (SQLException e) {
-            throw new RuntimeException(
-                    String.format("Failed to check if queue segment has been archived or deleted - segmentNo: %d",
-                            segmentNo),
-                    e);
+            return result == 1;
         }
-        return result == 1;
     }
 
     public void updateQueueSegmentMetaInfo(long segmentNo, long committedSize,
             Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
-        final boolean oldAutoCommit = metadataDBConn.getAutoCommit();
-        metadataDBConn.setAutoCommit(false);
-        int updatedRows;
-        // get total new events
-        int totalNewEvents = 0;
-        for (var entry : eventCountDeltaPerTable.entrySet()) {
-            Map<String, Long> eventCountDeltaTable = entry.getValue();
-            totalNewEvents += eventCountDeltaTable.getOrDefault("c", 0L)
-                    + eventCountDeltaTable.getOrDefault("u", 0L) + eventCountDeltaTable.getOrDefault("d", 0L);
-        }
-        try {
-            Statement queueMetaUpdateStmt = metadataDBConn.createStatement();
-            updatedRows = queueMetaUpdateStmt
-                    .executeUpdate(String.format(
-                            "UPDATE %s SET size_committed = %d, total_events = total_events + %d WHERE segment_no=%d",
-                            QUEUE_SEGMENT_META_TABLE_NAME, committedSize, totalNewEvents, segmentNo));
-            if (updatedRows != 1) {
-                throw new RuntimeException(
-                        String.format("Update of queue segment metadata failed with query: [%s], rowsAffected: [%d]",
-                                queueMetaUpdateStmt, updatedRows));
+        synchronized (metadataDBConn) {
+            final boolean oldAutoCommit = metadataDBConn.getAutoCommit();
+            metadataDBConn.setAutoCommit(false);
+            int updatedRows;
+            // get total new events
+            int totalNewEvents = 0;
+            for (var entry : eventCountDeltaPerTable.entrySet()) {
+                Map<String, Long> eventCountDeltaTable = entry.getValue();
+                totalNewEvents += eventCountDeltaTable.getOrDefault("c", 0L)
+                        + eventCountDeltaTable.getOrDefault("u", 0L) + eventCountDeltaTable.getOrDefault("d", 0L);
             }
-            queueMetaUpdateStmt.close();
-            updateEventsStats(metadataDBConn, eventCountDeltaPerTable);
+            try {
+                Statement queueMetaUpdateStmt = metadataDBConn.createStatement();
+                updatedRows = queueMetaUpdateStmt
+                        .executeUpdate(String.format(
+                                "UPDATE %s SET size_committed = %d, total_events = total_events + %d WHERE segment_no=%d",
+                                QUEUE_SEGMENT_META_TABLE_NAME, committedSize, totalNewEvents, segmentNo));
+                if (updatedRows != 1) {
+                    throw new RuntimeException(
+                            String.format("Update of queue segment metadata failed with query: [%s], rowsAffected: [%d]",
+                                    queueMetaUpdateStmt, updatedRows));
+                }
+                queueMetaUpdateStmt.close();
+                updateEventsStats(metadataDBConn, eventCountDeltaPerTable);
 
-        } catch (SQLException e) {
-            metadataDBConn.rollback();
-            throw new RuntimeException(String.format("Failed to  update queue segment meta and stats " +
-                    "- segmentNo: %d, committedSize:%d, eventCount:%s", segmentNo, committedSize,
-                    eventCountDeltaPerTable), e);
-        } finally {
-            metadataDBConn.commit();
-            metadataDBConn.setAutoCommit(oldAutoCommit);
+            } catch (SQLException e) {
+                metadataDBConn.rollback();
+                throw new RuntimeException(String.format("Failed to  update queue segment meta and stats " +
+                                "- segmentNo: %d, committedSize:%d, eventCount:%s", segmentNo, committedSize,
+                        eventCountDeltaPerTable), e);
+            } finally {
+                metadataDBConn.commit();
+                metadataDBConn.setAutoCommit(oldAutoCommit);
+            }
         }
-
     }
 
     public boolean checkIfSwitchOperationRequested(String operation) throws SQLException {
-        Statement selectStmt = metadataDBConn.createStatement();
-        String query = String.format("SELECT json_text from %s where key = '%s'",
-                JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
-        try {
-            ResultSet rs = selectStmt.executeQuery(query);
-            while (rs.next()) {
-                MigrationStatusRecord msr = MigrationStatusRecord.fromJsonString(rs.getString("json_text"));
-                switch (operation.toString()) {
-                    case "cutover.target":
-                        return msr.CutoverToTargetRequested;
-                    case "cutover.source_replica":
-                        return msr.CutoverToSourceReplicaRequested;
-                    case "cutover.source":
-                        return msr.CutoverToSourceRequested;
+        synchronized (metadataDBConn) {
+            Statement selectStmt = metadataDBConn.createStatement();
+            String query = String.format("SELECT json_text from %s where key = '%s'",
+                    JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
+            try {
+                ResultSet rs = selectStmt.executeQuery(query);
+                while (rs.next()) {
+                    MigrationStatusRecord msr = MigrationStatusRecord.fromJsonString(rs.getString("json_text"));
+                    switch (operation.toString()) {
+                        case "cutover.target":
+                            return msr.CutoverToTargetRequested;
+                        case "cutover.source_replica":
+                            return msr.CutoverToSourceReplicaRequested;
+                        case "cutover.source":
+                            return msr.CutoverToSourceRequested;
+                    }
                 }
+            } catch (SQLException e) {
+                throw e;
+            } finally {
+                selectStmt.close();
             }
-        } catch (SQLException e) {
-            throw e;
-        } finally {
-            selectStmt.close();
+            return false;
         }
-        return false;
     }
 
     public boolean checkifEndMigrationRequested() throws SQLException {
-        Statement selectStmt = metadataDBConn.createStatement();
-        String query = String.format("SELECT json_text from %s where key = '%s'",
-                JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
-        try {
-            ResultSet rs = selectStmt.executeQuery(query);
-            while (rs.next()) {
-                MigrationStatusRecord msr = MigrationStatusRecord.fromJsonString(rs.getString("json_text"));
-                return msr.EndMigrationRequested;
+        synchronized (metadataDBConn) {
+            Statement selectStmt = metadataDBConn.createStatement();
+            String query = String.format("SELECT json_text from %s where key = '%s'",
+                    JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
+            try {
+                ResultSet rs = selectStmt.executeQuery(query);
+                while (rs.next()) {
+                    MigrationStatusRecord msr = MigrationStatusRecord.fromJsonString(rs.getString("json_text"));
+                    return msr.EndMigrationRequested;
+                }
+            } catch (SQLException e) {
+                throw e;
+            } finally {
+                selectStmt.close();
             }
-        } catch (SQLException e) {
-            throw e;
-        } finally {
-            selectStmt.close();
+            return false;
         }
-        return false;
     }
 
     private void updateEventsStats(Connection conn,
@@ -502,55 +511,61 @@ public class ExportStatus {
     }
 
     public void queueSegmentCreated(long segmentNo, String segmentPath, String exporterRole) {
-        Statement insertStmt;
-        try {
-            insertStmt = metadataDBConn.createStatement();
-            insertStmt.executeUpdate(String.format(
-                    "INSERT OR IGNORE into %s (segment_no, file_path, size_committed, total_events, exporter_role) VALUES(%d, '%s', 0, 0,'%s')",
-                    QUEUE_SEGMENT_META_TABLE_NAME, segmentNo, segmentPath, exporterRole));
-            insertStmt.close();
-        } catch (SQLException e) {
-            throw new RuntimeException(String.format("Failed to run update queue segment size " +
-                    "- segmentNo: %d", segmentNo), e);
+        synchronized (metadataDBConn) {
+            Statement insertStmt;
+            try {
+                insertStmt = metadataDBConn.createStatement();
+                insertStmt.executeUpdate(String.format(
+                        "INSERT OR IGNORE into %s (segment_no, file_path, size_committed, total_events, exporter_role) VALUES(%d, '%s', 0, 0,'%s')",
+                        QUEUE_SEGMENT_META_TABLE_NAME, segmentNo, segmentPath, exporterRole));
+                insertStmt.close();
+            } catch (SQLException e) {
+                throw new RuntimeException(String.format("Failed to run update queue segment size " +
+                        "- segmentNo: %d", segmentNo), e);
+            }
         }
     }
 
     public long getQueueSegmentCommittedSize(long segmentNo) {
-        Statement selectStmt;
-        long sizeCommitted;
-        try {
-            selectStmt = metadataDBConn.createStatement();
-            ResultSet rs = selectStmt.executeQuery(String.format("SELECT size_committed from %s where segment_no=%s",
-                    QUEUE_SEGMENT_META_TABLE_NAME, segmentNo));
-            if (!rs.next()) {
-                throw new RuntimeException(
-                        String.format("Could not fetch committedSize for queue segment - %d", segmentNo));
+        synchronized (metadataDBConn) {
+            Statement selectStmt;
+            long sizeCommitted;
+            try {
+                selectStmt = metadataDBConn.createStatement();
+                ResultSet rs = selectStmt.executeQuery(String.format("SELECT size_committed from %s where segment_no=%s",
+                        QUEUE_SEGMENT_META_TABLE_NAME, segmentNo));
+                if (!rs.next()) {
+                    throw new RuntimeException(
+                            String.format("Could not fetch committedSize for queue segment - %d", segmentNo));
+                }
+                sizeCommitted = rs.getLong("size_committed");
+                selectStmt.close();
+            } catch (SQLException e) {
+                throw new RuntimeException(String.format("Failed to run update queue segment size " +
+                        "- segmentNo: %d", segmentNo), e);
             }
-            sizeCommitted = rs.getLong("size_committed");
-            selectStmt.close();
-        } catch (SQLException e) {
-            throw new RuntimeException(String.format("Failed to run update queue segment size " +
-                    "- segmentNo: %d", segmentNo), e);
+            return sizeCommitted;
         }
-        return sizeCommitted;
     }
 
     public Map<Long, Long> getTotalEventsPerSegment() {
-        Statement selectStmt;
-        Map<Long, Long> totalEventsPerSegment = new LinkedHashMap<Long, Long>();
-        try {
-            selectStmt = metadataDBConn.createStatement();
-            ResultSet rs = selectStmt
-                    .executeQuery(String.format("SELECT segment_no, total_events from %s ORDER BY segment_no DESC",
-                            QUEUE_SEGMENT_META_TABLE_NAME));
-            while (rs.next()) {
-                totalEventsPerSegment.put(rs.getLong("segment_no"), rs.getLong("total_events"));
+        synchronized (metadataDBConn) {
+            Statement selectStmt;
+            Map<Long, Long> totalEventsPerSegment = new LinkedHashMap<Long, Long>();
+            try {
+                selectStmt = metadataDBConn.createStatement();
+                ResultSet rs = selectStmt
+                        .executeQuery(String.format("SELECT segment_no, total_events from %s ORDER BY segment_no DESC",
+                                QUEUE_SEGMENT_META_TABLE_NAME));
+                while (rs.next()) {
+                    totalEventsPerSegment.put(rs.getLong("segment_no"), rs.getLong("total_events"));
+                }
+                selectStmt.close();
+            } catch (SQLException e) {
+                throw new RuntimeException(String.format("Failed to get total events per segment"), e);
             }
-            selectStmt.close();
-        } catch (SQLException e) {
-            throw new RuntimeException(String.format("Failed to get total events per segment"), e);
+            return totalEventsPerSegment;
         }
-        return totalEventsPerSegment;
     }
 }
 

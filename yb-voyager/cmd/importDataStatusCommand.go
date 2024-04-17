@@ -63,7 +63,7 @@ var importDataStatusCmd = &cobra.Command{
 		}
 
 		if msr.TargetDBConf != nil {
-			err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb)
+			err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, false)
 			if err != nil {
 				utils.ErrExit("initialize name registry: %v", err)
 			}
@@ -82,14 +82,14 @@ var reportOrStatusCmdOutputFormat string
 func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 	importDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
-	"format in which report will be generated: (table, json)")
+		"format in which report will be generated: (table, json)")
 	importDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 type tableMigStatusOutputRow struct {
 	TableName          string  `json:"table_name"`
-	FileName           string  `json:"file_name,omitempty"` 
+	FileName           string  `json:"file_name,omitempty"`
 	Status             string  `json:"status"`
 	TotalCount         int64   `json:"total_count"`
 	ImportedCount      int64   `json:"imported_count"`

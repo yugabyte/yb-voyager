@@ -39,10 +39,9 @@ import (
 type TargetOracleDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf     *TargetConf
-	oraDB     *sql.DB
-	conn      *sql.Conn
-	connMutex sync.Mutex
+	tconf *TargetConf
+	oraDB *sql.DB
+	conn  *sql.Conn
 
 	attrNames map[string][]string
 }
@@ -90,65 +89,43 @@ func (tdb *TargetOracleDB) Init() error {
 	return err
 }
 
-func (tdb *TargetOracleDB) WithConn(fn func(conn *sql.Conn) error) error {
-	tdb.connMutex.Lock()
-	defer tdb.connMutex.Unlock()
-	return fn(tdb.conn)
+func (tdb *TargetOracleDB) Query(query string) (*sql.Rows, error) {
+	return tdb.oraDB.Query(query)
 }
 
-func (tdb *TargetOracleDB) Query(query string) (Rows, error) {
-	var rows *sql.Rows
-	err := tdb.WithConn(func(conn *sql.Conn) error {
-		var err error
-		rows, err = conn.QueryContext(context.Background(), query)
-		if err != nil {
-			return fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
-		}
-		return nil
-	})
-	return &sqlRowsToTgtdbRowsAdapter{Rows: rows}, err
-}
-
-func (tdb *TargetOracleDB) QueryRow(query string) Row {
-	var row Row
-	_ = tdb.WithConn(func(conn *sql.Conn) error {
-		row = conn.QueryRowContext(context.Background(), query)
-		return nil
-	})
-	return row
+func (tdb *TargetOracleDB) QueryRow(query string) *sql.Row {
+	return tdb.oraDB.QueryRow(query)
 }
 
 func (tdb *TargetOracleDB) Exec(query string) (int64, error) {
 	var rowsAffected int64
 
-	err := tdb.WithConn(func(conn *sql.Conn) error {
-		res, err := conn.ExecContext(context.Background(), query)
-		if err != nil {
-			return fmt.Errorf("run query %q on target %q: %w", query, tdb.tconf.Host, err)
-		}
-		rowsAffected, err = res.RowsAffected()
-		return err
-	})
+	res, err := tdb.oraDB.Exec(query)
+	if err != nil {
+		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, tdb.tconf.Host, err)
+	}
+	rowsAffected, err = res.RowsAffected()
+	if err != nil {
+		return rowsAffected, fmt.Errorf("rowsAffected on query %q on target %q: %w", query, tdb.tconf.Host, err)
+	}
 	return rowsAffected, err
 }
 
-func (tdb *TargetOracleDB) WithTx(fn func(tx Tx) error) error {
-	return tdb.WithConn(func(conn *sql.Conn) error {
-		tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{})
-		if err != nil {
-			return fmt.Errorf("begin transaction: %w", err)
-		}
-		defer tx.Rollback()
-		err = fn(&sqlTxToTgtdbTxAdapter{tx: tx})
-		if err != nil {
-			return err
-		}
-		err = tx.Commit()
-		if err != nil {
-			return fmt.Errorf("commit transaction: %w", err)
-		}
-		return nil
-	})
+func (tdb *TargetOracleDB) WithTx(fn func(tx *sql.Tx) error) error {
+	tx, err := tdb.oraDB.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction on target %q: %w", tdb.tconf.Host, err)
+	}
+	defer tx.Rollback()
+	err = fn(tx)
+	if err != nil {
+		return err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit transaction on target %q: %w", tdb.tconf.Host, err)
+	}
+	return nil
 }
 
 func (tdb *TargetOracleDB) disconnect() {
@@ -435,6 +412,7 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
 	}
+	defer rows.Close()
 	var columns []string
 	for rows.Next() {
 		var column string

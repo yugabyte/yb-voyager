@@ -165,6 +165,14 @@ func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.Bas
 	}
 }
 
+func (cp *YugabyteD) MigrationAssessmentStarted(ev *controlPlane.MigrationAssessmentStartedEvent) {
+	cp.createAndSendEvent(&ev.BaseEvent, "IN PROGRESS", "")
+}
+
+func (cp *YugabyteD) MigrationAssessmentCompleted(ev *controlPlane.MigrationAssessmentCompletedEvent) {
+	cp.createAndSendEvent(&ev.BaseEvent, "COMPLETED", ev.Report)
+}
+
 func (cp *YugabyteD) ExportSchemaStarted(exportSchemaEvent *controlPlane.ExportSchemaStartedEvent) {
 	cp.createAndSendEvent(&exportSchemaEvent.BaseEvent, "IN PROGRESS", "")
 }
@@ -174,7 +182,6 @@ func (cp *YugabyteD) ExportSchemaCompleted(exportSchemaEvent *controlPlane.Expor
 }
 
 func (cp *YugabyteD) SchemaAnalysisStarted(schemaAnalysisEvent *controlPlane.SchemaAnalysisStartedEvent) {
-
 	cp.createAndSendEvent(&schemaAnalysisEvent.BaseEvent, "IN PROGRESS", "")
 }
 

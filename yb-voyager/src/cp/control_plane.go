@@ -33,6 +33,9 @@ type ControlPlane interface {
 	Init() error
 	Finalize()
 
+	MigrationAssessmentStarted(*MigrationAssessmentStartedEvent)
+	MigrationAssessmentCompleted(*MigrationAssessmentCompletedEvent)
+
 	ExportSchemaStarted(*ExportSchemaStartedEvent)
 	ExportSchemaCompleted(*ExportSchemaCompletedEvent) // Only success is reported.
 
@@ -84,6 +87,15 @@ type ExportSchemaStartedEvent struct {
 
 type ExportSchemaCompletedEvent struct {
 	BaseEvent
+}
+
+type MigrationAssessmentStartedEvent struct {
+	BaseEvent
+}
+
+type MigrationAssessmentCompletedEvent struct {
+	BaseEvent
+	Report string
 }
 
 type SchemaAnalysisStartedEvent struct {

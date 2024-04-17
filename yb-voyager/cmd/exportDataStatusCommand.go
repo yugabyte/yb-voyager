@@ -51,7 +51,7 @@ var exportDataStatusCmd = &cobra.Command{
 			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
-		err = InitNameRegistry(exportDir, SOURCE_DB_EXPORTER_ROLE, nil, nil, nil, nil)
+		err = InitNameRegistry(exportDir, SOURCE_DB_EXPORTER_ROLE, nil, nil, nil, nil, false)
 		if err != nil {
 			utils.ErrExit("initializing name registry: %v", err)
 		}
@@ -80,13 +80,12 @@ var exportDataStatusCmd = &cobra.Command{
 	},
 }
 
-
 var migrationReportFormats = []string{"table", "json"}
 
 func init() {
 	exportDataCmd.AddCommand(exportDataStatusCmd)
 	exportDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
-	"format in which report will be generated: (table, json)")
+		"format in which report will be generated: (table, json)")
 	exportDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }
 

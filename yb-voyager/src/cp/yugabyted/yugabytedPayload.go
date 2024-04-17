@@ -31,9 +31,10 @@ type MigrationEvent struct {
 }
 
 var MIGRATION_PHASE_MAP = map[string]int{
-	"EXPORT SCHEMA":  0,
-	"ANALYZE SCHEMA": 1,
-	"EXPORT DATA":    2,
-	"IMPORT SCHEMA":  3,
-	"IMPORT DATA":    4,
+	"ASSESS MIGRATION": 1,
+	"EXPORT SCHEMA":    2,
+	"ANALYZE SCHEMA":   3,
+	"EXPORT DATA":      4,
+	"IMPORT SCHEMA":    5,
+	"IMPORT DATA":      6,
 }
