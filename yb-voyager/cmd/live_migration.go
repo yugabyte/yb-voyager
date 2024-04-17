@@ -26,13 +26,16 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var NUM_EVENT_CHANNELS int
@@ -51,11 +54,16 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
-func streamChanges(state *ImportDataState, tableNames []string) error {
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
+	// re-initilizing name registry in case it hadn't picked up the names registered on source/target/source-replica
+	err := namereg.NameReg.Init()
+	if err != nil {
+		return fmt.Errorf("init name registry again: %v", err)
+	}
 	tdb.PrepareForStreaming()
-	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
+	err = state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
@@ -101,7 +109,7 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
@@ -116,7 +124,8 @@ func streamChangesFromSegment(
 	evChans []chan *tgtdb.Event,
 	processingDoneChans []chan bool,
 	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
-	statsReporter *reporter.StreamImportStatsReporter) error {
+	statsReporter *reporter.StreamImportStatsReporter,
+	state *ImportDataState) error {
 
 	err := segment.Open()
 	if err != nil {
@@ -133,7 +142,7 @@ func streamChangesFromSegment(
 		} else {
 			return fmt.Errorf("unable to find channel meta info for channel - %v", i)
 		}
-		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i], statsReporter)
+		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i], statsReporter, state)
 	}
 
 	log.Infof("streaming changes for segment %s", segment.FilePath)
@@ -203,15 +212,11 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	return false
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	if event.IsCutoverToTarget() || event.IsCutoverToSourceReplica() || event.IsCutoverToSource() {
+	if event.IsCutoverEvent() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
 	}
 	log.Debugf("handling event: %v", event)
-	tableName := event.TableName
-	if sourceDBType == "postgresql" && event.SchemaName != "public" {
-		tableName = event.SchemaName + "." + event.TableName
-	}
 
 	// hash event
 	// Note: hash the event before running the keys/values through the value converter.
@@ -223,11 +228,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	tableNameForUniqueKeyColumns := tableName
-	if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
-		tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
-	}
-	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableNameForUniqueKeyColumns]
+	uniqueKeyCols, _ := conflictDetectionCache.tableToUniqueKeyColumns.Get(event.TableNameTup)
 	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
@@ -240,7 +241,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	}
 
 	// preparing value converters for the streaming mode
-	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
+	err := valueConverter.ConvertEvent(event, event.TableNameTup, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
@@ -253,7 +254,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 // Returns a hash value between 0..NUM_EVENT_CHANNELS
 func hashEvent(e *tgtdb.Event) int {
 	hash := fnv.New64a()
-	hash.Write([]byte(e.SchemaName + e.TableName))
+	hash.Write([]byte(e.TableNameTup.ForKey()))
 
 	keyColumns := make([]string, 0)
 	for k := range e.Key {
@@ -268,7 +269,7 @@ func hashEvent(e *tgtdb.Event) int {
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }
 
-func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter) {
+func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter, state *ImportDataState) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -327,6 +328,22 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			log.Infof("sleep for %d seconds before retrying the batch on channel %v (attempt %d)",
 				sleepIntervalSec, chanNo, attempt)
 			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+
+			// In certain situations, we get an error on `targetDB.ExecuteBatch`, but eventually the transaction is committed.
+			// For example, in Yugabyte, we can get an `rpc timeout` on commit, and the commit eventually succeeds on YB server.
+			// Retrying an already executed batch has consequences:
+			// - It can fail with some duplicate / unique key constraint errors
+			// - Stats will double count the events.
+			// Therefore, we check if batch has already been imported before retrying.
+			alreadyImported, aerr := checkifEventBatchAlreadyImported(state, eventBatch, migrationUUID)
+			if aerr != nil {
+				utils.ErrExit("error checking if event batch channel %d (last VSN: %d) already imported: %v", chanNo, eventBatch.GetLastVsn(), aerr)
+			}
+			if alreadyImported {
+				log.Infof("batch on channel %d (last VSN: %d) already imported", chanNo, eventBatch.GetLastVsn())
+				err = nil
+				break
+			}
 		}
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
@@ -348,18 +365,49 @@ func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole 
 	return nil
 }
 
-func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]string, error) {
+func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	log.Infof("fetching table to unique key columns map from metaDB")
-	var res map[string][]string
+	var metaDbData map[string][]string
+	res := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-	found, err := metaDB.GetJsonObject(nil, key, &res)
+	found, err := metaDB.GetJsonObject(nil, key, &metaDbData)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
 		return nil, fmt.Errorf("table to unique key columns map not found in metaDB")
 	}
-	log.Infof("fetched table to unique key columns map: %v", res)
+	log.Infof("fetched table to unique key columns map: %v", metaDbData)
+
+	for tableNameRaw, columns := range metaDbData {
+		tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
+		}
+		res.Put(tableName, columns)
+	}
 	return res, nil
+}
+
+func checkifEventBatchAlreadyImported(state *ImportDataState, eventBatch *tgtdb.EventBatch, migrationUUID uuid.UUID) (bool, error) {
+	var res bool
+	var err error
+	sleepIntervalSec := 0
+	for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
+		res, err = state.IsEventBatchAlreadyImported(eventBatch, migrationUUID)
+		if err == nil {
+			break
+		} else if tdb.IsNonRetryableCopyError(err) {
+			break
+		}
+		sleepIntervalSec += 10
+		if sleepIntervalSec > MAX_SLEEP_SECOND {
+			sleepIntervalSec = MAX_SLEEP_SECOND
+		}
+		log.Infof("sleep for %d seconds before retrying to check if event batch (last vsn: %d) already imported (attempt %d)",
+			sleepIntervalSec, eventBatch.GetLastVsn(), attempt)
+		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+	}
+	return res, err
 }

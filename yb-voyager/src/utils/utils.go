@@ -206,9 +206,9 @@ func PrintIfTrue(message string, args ...bool) {
 	fmt.Printf("%s", message)
 }
 
-func ParseJsonFromString(jsonString string) Report {
+func ParseSchemaAnalysisReport(jsonString string) SchemaReport {
 	byteJson := []byte(jsonString)
-	var report Report
+	var report SchemaReport
 	err := json.Unmarshal(byteJson, &report)
 	if err != nil {
 		fmt.Printf("%s\n", err.Error())
@@ -216,9 +216,9 @@ func ParseJsonFromString(jsonString string) Report {
 	return report
 }
 
-func GetObjectNameListFromReport(report Report, objType string) []string {
+func GetObjectNameListFromReport(report SchemaReport, objType string) []string {
 	var objectList []string
-	for _, dbObject := range report.Summary.DBObjects {
+	for _, dbObject := range report.SchemaSummary.DBObjects {
 		if dbObject.ObjectType == objType {
 			rawObjectList := strings.Trim(dbObject.ObjectNames, ", ")
 			objectList = strings.Split(rawObjectList, ", ")
@@ -335,6 +335,51 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.Duration) error {
+	// Wait for log file to be created
+	timeout := time.After(timeoutDuration)
+	for {
+		_, err := os.Stat(filePath)
+		if err == nil {
+			break
+		}
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout while waiting for log file %q", filePath)
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+
+	defer file.Close()
+
+	for {
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, message) {
+				return nil
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf("error scanning file %s: %v", filePath, err)
+		}
+
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout while waiting for %q in %q", message, filePath)
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
 
 func ToCaseInsensitiveNames(names []string) []string {
@@ -493,4 +538,10 @@ func GetLogMiningFlushTableName(migrationUUID uuid.UUID) string {
 	// SQL tables doesn't support '-' in the name
 	convertedMigUUID := strings.Replace(migrationUUID.String(), "-", "_", -1)
 	return fmt.Sprintf("VOYAGER_LOG_MINING_FLUSH_%s", convertedMigUUID)
+}
+
+func ConvertStringSliceToInterface(slice []string) []interface{} {
+	return lo.Map(slice, func(s string, _ int) interface{} {
+		return s
+	})
 }

@@ -30,22 +30,30 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
-	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/slices"
 )
 
 type TargetOracleDB struct {
 	sync.Mutex
-	tconf *TargetConf
-	oraDB *sql.DB
-	conn  *sql.Conn
+	*AttributeNameRegistry
+	tconf     *TargetConf
+	oraDB     *sql.DB
+	conn      *sql.Conn
+	connMutex sync.Mutex
+
+	attrNames map[string][]string
 }
 
 func newTargetOracleDB(tconf *TargetConf) *TargetOracleDB {
-	return &TargetOracleDB{tconf: tconf}
+	tdb := &TargetOracleDB{
+		tconf:     tconf,
+		attrNames: make(map[string][]string),
+	}
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
+	return tdb
 }
 
 func (tdb *TargetOracleDB) connect() error {
@@ -74,7 +82,7 @@ func (tdb *TargetOracleDB) Init() error {
 		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
 		tdb.tconf.Schema)
 	var cntSchemaName int
-	if err = tdb.conn.QueryRowContext(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+	if err = tdb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tdb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
 		err = fmt.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
@@ -82,43 +90,65 @@ func (tdb *TargetOracleDB) Init() error {
 	return err
 }
 
+func (tdb *TargetOracleDB) WithConn(fn func(conn *sql.Conn) error) error {
+	tdb.connMutex.Lock()
+	defer tdb.connMutex.Unlock()
+	return fn(tdb.conn)
+}
+
 func (tdb *TargetOracleDB) Query(query string) (Rows, error) {
-	rows, err := tdb.conn.QueryContext(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
-	}
-	return &sqlRowsToTgtdbRowsAdapter{Rows: rows}, nil
+	var rows *sql.Rows
+	err := tdb.WithConn(func(conn *sql.Conn) error {
+		var err error
+		rows, err = conn.QueryContext(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
+		}
+		return nil
+	})
+	return &sqlRowsToTgtdbRowsAdapter{Rows: rows}, err
 }
 
 func (tdb *TargetOracleDB) QueryRow(query string) Row {
-	row := tdb.conn.QueryRowContext(context.Background(), query)
+	var row Row
+	_ = tdb.WithConn(func(conn *sql.Conn) error {
+		row = conn.QueryRowContext(context.Background(), query)
+		return nil
+	})
 	return row
 }
 
 func (tdb *TargetOracleDB) Exec(query string) (int64, error) {
-	res, err := tdb.conn.ExecContext(context.Background(), query)
-	if err != nil {
-		return 0, fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
-	}
-	rowsAffected, _ := res.RowsAffected()
-	return rowsAffected, nil
+	var rowsAffected int64
+
+	err := tdb.WithConn(func(conn *sql.Conn) error {
+		res, err := conn.ExecContext(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, tdb.tconf.Host, err)
+		}
+		rowsAffected, err = res.RowsAffected()
+		return err
+	})
+	return rowsAffected, err
 }
 
 func (tdb *TargetOracleDB) WithTx(fn func(tx Tx) error) error {
-	tx, err := tdb.conn.BeginTx(context.Background(), &sql.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-	err = fn(&sqlTxToTgtdbTxAdapter{tx: tx})
-	if err != nil {
-		return err
-	}
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
-	}
-	return nil
+	return tdb.WithConn(func(conn *sql.Conn) error {
+		tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{})
+		if err != nil {
+			return fmt.Errorf("begin transaction: %w", err)
+		}
+		defer tx.Rollback()
+		err = fn(&sqlTxToTgtdbTxAdapter{tx: tx})
+		if err != nil {
+			return err
+		}
+		err = tx.Commit()
+		if err != nil {
+			return fmt.Errorf("commit transaction: %w", err)
+		}
+		return nil
+	})
 }
 
 func (tdb *TargetOracleDB) disconnect() {
@@ -144,19 +174,11 @@ func (tdb *TargetOracleDB) Finalize() {
 	tdb.disconnect()
 }
 
-func (tdb *TargetOracleDB) getTargetSchemaName(tableName string) string {
-	parts := strings.Split(tableName, ".")
-	if len(parts) == 2 {
-		return parts[0]
-	}
-	return tdb.tconf.Schema
-}
-
 func (tdb *TargetOracleDB) GetVersion() string {
 	var version string
 	query := "SELECT BANNER FROM V$VERSION"
 	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
-	err := tdb.conn.QueryRowContext(context.Background(), query).Scan(&version)
+	err := tdb.QueryRow(query).Scan(&version)
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
@@ -167,21 +189,14 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	return nil
 }
 
-func (tdb *TargetOracleDB) qualifyTableName(tableName string) string {
-	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", tdb.tconf.Schema, tableName)
-	}
-	return tableName
-}
-
-func (tdb *TargetOracleDB) GetNonEmptyTables(tables []string) []string {
-	result := []string{}
+func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
+	result := []sqlname.NameTuple{}
 
 	for _, table := range tables {
-		log.Infof("Checking if table %s.%s is empty", tdb.tconf.Schema, table)
+		log.Infof("Checking if table %s is empty", table.ForUserQuery())
 		rowCount := 0
-		stmt := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", tdb.tconf.Schema, table)
-		err := tdb.conn.QueryRowContext(context.Background(), stmt).Scan(&rowCount)
+		stmt := fmt.Sprintf("SELECT COUNT(*) FROM %s", table.ForUserQuery())
+		err := tdb.QueryRow(stmt).Scan(&rowCount)
 		if err != nil {
 			utils.ErrExit("run query %q on target: %s", stmt, err)
 		}
@@ -212,11 +227,11 @@ func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, expor
 		rowsAffected, err = tdb.importBatch(conn, batch, args, exportDir, tableSchema)
 		return false, err
 	}
-	err = tdb.WithConn(copyFn)
+	err = tdb.WithConnFromPool(copyFn)
 	return rowsAffected, err
 }
 
-func (tdb *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
+func (tdb *TargetOracleDB) WithConnFromPool(fn func(*sql.Conn) (bool, error)) error {
 	var err error
 	retry := true
 
@@ -294,7 +309,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	}
 
 	tableName := batch.GetTableName()
-	sqlldrConfig := args.GetSqlLdrControlFile(tdb.tconf.Schema, tableSchema)
+	sqlldrConfig := args.GetSqlLdrControlFile(tableSchema)
 	fileName := filepath.Base(batch.GetFilePath())
 
 	err = sqlldr.CreateSqlldrDir(exportDir)
@@ -413,63 +428,10 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 	}
 }
 
-func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
-	result := make([]string, len(columns))
-	// FAST PATH.
-	fastPathSuccessful := true
-	for i, colName := range columns {
-		if strings.ToUpper(colName) == colName {
-			if sqlname.IsReservedKeywordOracle(colName) && colName[0:1] != `"` {
-				result[i] = fmt.Sprintf(`"%s"`, colName)
-			} else {
-				result[i] = colName
-			}
-		} else {
-			// Go to slow path.
-			log.Infof("column name (%s) is not all upper-case. Going to slow path.", colName)
-			result = make([]string, len(columns))
-			fastPathSuccessful = false
-			break
-		}
-	}
-	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
-		return result, nil
-	}
-	// SLOW PATH.
-	var schemaName string
-	schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := tdb.getListOfTableAttributes(schemaName, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("get list of table attributes: %w", err)
-	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-	for i, colName := range columns {
-		if colName[0] == '"' && colName[len(colName)-1] == '"' {
-			colName = colName[1 : len(colName)-1]
-		}
-		switch true {
-		// TODO: Move sqlname.IsReservedKeywordOracle() in this file.
-		case sqlname.IsReservedKeywordOracle(colName):
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case colName == strings.ToUpper(colName): // Name is all Upper case.
-			result[i] = colName
-		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all uppercase.
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case slices.Contains(targetColumns, strings.ToUpper(colName)): // Case insensitive name given with mixed case.
-			result[i] = strings.ToUpper(colName)
-		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
-		}
-	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
-	return result, nil
-}
-
-func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
-	// TODO: handle case-sensitivity properly
-	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE UPPER(table_name) = UPPER('%s') AND owner = '%s'", tableName, schemaName)
-	rows, err := tdb.conn.QueryContext(context.Background(), query)
+func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error) {
+	sname, tname := tableNameTup.ForCatalogQuery()
+	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE table_name = '%s' AND owner = '%s'", tname, sname)
+	rows, err := tdb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
 	}
@@ -489,7 +451,7 @@ func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
 	log.Infof("executing batch of %d events", len(batch.Events))
-	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+	err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
 		tx, err := conn.BeginTx(context.Background(), nil)
 		if err != nil {
 			return false, fmt.Errorf("begin transaction: %w", err)
@@ -498,11 +460,17 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt := event.GetSQLStmt()
+			stmt, err := event.GetSQLStmt(tdb)
+			if err != nil {
+				return false, fmt.Errorf("get sql stmt: %w", err)
+			}
 			if event.Op == "c" && tdb.tconf.EnableUpsert {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt := event.GetSQLStmt()
+				updateStmt, err := event.GetSQLStmt(tdb)
+				if err != nil {
+					return false, fmt.Errorf("get sql stmt: %w", err)
+				}
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				event.Op = "c" // reverting state
 			}
@@ -526,7 +494,6 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			tableName := tdb.qualifyTableName(tableName)
 			updatePerTableEvents := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(updatePerTableEvents)
 			if err != nil {
@@ -573,21 +540,6 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 
 func (tdb *TargetOracleDB) PrepareForStreaming() {}
 
-func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
-	oraValueConverterSuite := tgtdbsuite.OraValueConverterSuite
-	for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
-		intervalType := fmt.Sprintf("INTERVAL YEAR(%d) TO MONTH", i) //for all interval year to month types with precision
-		oraValueConverterSuite[intervalType] = oraValueConverterSuite["INTERVAL YEAR TO MONTH"]
-	}
-	for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
-		for _, j := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
-			intervalType := fmt.Sprintf("INTERVAL DAY(%d) TO SECOND(%d)", i, j) //for all interval day to second types with precision
-			oraValueConverterSuite[intervalType] = oraValueConverterSuite["INTERVAL DAY TO SECOND"]
-		}
-	}
-	return oraValueConverterSuite
-}
-
 func (tdb *TargetOracleDB) getConnectionUri(tconf *TargetConf) string {
 	if tconf.Uri != "" {
 		return tconf.Uri
@@ -619,13 +571,13 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 	return 2 * 1024 * 1024 * 1024 // 2GB
 }
 
-func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error) {
-	schema := tdb.getTargetSchemaName(table)
+func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
+	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf(`Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '%s'
-	AND TABLE_NAME = '%s' AND GENERATION_TYPE='%s'`, schema, table, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, table, query)
+	AND TABLE_NAME = '%s' AND GENERATION_TYPE='%s'`, sname, tname, identityType)
+	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
 	var identityColumns []string
-	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+	err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
 		rows, err := conn.QueryContext(context.Background(), query)
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -649,86 +601,41 @@ func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(table string, identity
 	return identityColumns, err
 }
 
-func (tdb *TargetOracleDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (tdb *TargetOracleDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("disabling generated always as identity columns")
 	return tdb.alterColumns(tableColumnsMap, "GENERATED BY DEFAULT AS IDENTITY(START WITH LIMIT VALUE)")
 }
 
-func (tdb *TargetOracleDB) EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (tdb *TargetOracleDB) EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("enabling generated always as identity columns")
 	// Oracle needs start value to resumes the value for further inserts correctly
 	return tdb.alterColumns(tableColumnsMap, "GENERATED ALWAYS AS IDENTITY(START WITH LIMIT VALUE)")
 }
 
-func (tdb *TargetOracleDB) EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (tdb *TargetOracleDB) EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("enabling generated by default as identity columns")
 	return tdb.alterColumns(tableColumnsMap, "GENERATED BY DEFAULT AS IDENTITY(START WITH LIMIT VALUE)")
 }
 
-func (tdb *TargetOracleDB) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
-	result := make(map[string][]string)
-	queryTemplate := `
-		SELECT TABLE_NAME, COLUMN_NAME
-		FROM ALL_CONS_COLUMNS
-		WHERE CONSTRAINT_NAME IN (
-			SELECT CONSTRAINT_NAME
-			FROM ALL_CONSTRAINTS
-			WHERE CONSTRAINT_TYPE = 'U'
-			AND TABLE_NAME IN ('%s')
-		)`
-	query := fmt.Sprintf(queryTemplate, strings.Join(tableList, "','"))
-	rows, err := tdb.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns for tables: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var tableName string
-		var columnName string
-		err := rows.Scan(&tableName, &columnName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		result[tableName] = append(result[tableName], columnName)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
-	}
-	log.Infof("unique key columns for tables: %+v", result)
-	return result, nil
-}
-
-func (tdb *TargetOracleDB) alterColumns(tableColumnsMap map[string][]string, alterAction string) error {
-	for table, columns := range tableColumnsMap {
-		qualifiedTblName := tdb.qualifyTableName(table)
+func (tdb *TargetOracleDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {
+	return tableColumnsMap.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
 		for _, column := range columns {
 			// LIMIT VALUE - ensures that start it is set to the current value of the sequence
-			query := fmt.Sprintf(`ALTER TABLE %s MODIFY %s %s`, qualifiedTblName, column, alterAction)
-			err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+			query := fmt.Sprintf(`ALTER TABLE %s MODIFY %s %s`, table.ForUserQuery(), column, alterAction)
+			err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
 				_, err := conn.ExecContext(context.Background(), query)
 				if err != nil {
-					log.Errorf("executing query-%s to alter column(%s) for table(%s): %v", query, column, qualifiedTblName, err)
-					return false, fmt.Errorf("executing query to alter column for table(%s): %w", qualifiedTblName, err)
+					log.Errorf("executing query-%s to alter column(%s) for table(%s): %v", query, column, table.ForUserQuery(), err)
+					return false, fmt.Errorf("executing query to alter column for table(%s): %w", table.ForUserQuery(), err)
 				}
 				return false, nil
 			})
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
-	}
-	return nil
-}
-
-func (tdb *TargetOracleDB) splitMaybeQualifiedTableName(tableName string) (string, string) {
-	parts := strings.Split(tableName, ".")
-	if len(parts) == 2 {
-		return parts[0], parts[1]
-	}
-	return tdb.tconf.Schema, tableName
+		return true, nil
+	})
 }
 
 func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
@@ -737,10 +644,9 @@ func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
 	return tdb.isQueryResultNonEmpty(query)
 }
 
-func (tdb *TargetOracleDB) isTableExists(qualifiedTableName string) bool {
-	schema, table := tdb.splitMaybeQualifiedTableName(qualifiedTableName)
-	// TODO: handle case-sensitivity properly
-	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = UPPER('%s') AND OWNER = UPPER('%s')", table, schema)
+func (tdb *TargetOracleDB) isTableExists(nt sqlname.NameTuple) bool {
+	sname, tname := nt.ForCatalogQuery()
+	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = '%s' AND OWNER = '%s'", tname, sname)
 	return tdb.isQueryResultNonEmpty(query)
 }
 
@@ -768,15 +674,26 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 	}
 
 	// clean up all the tables in BATCH_METADATA_TABLE_SCHEMA
-	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tableNames := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tables := []sqlname.NameTuple{}
+	for _, tableName := range tableNames {
+		parts := strings.Split(tableName, ".")
+		objName := sqlname.NewObjectName(sqlname.ORACLE, "", parts[0], strings.ToUpper(parts[1]))
+		nt := sqlname.NameTuple{
+			CurrentName: objName,
+			SourceName:  objName,
+			TargetName:  objName,
+		}
+		tables = append(tables, nt)
+	}
 	for _, table := range tables {
 		if !tdb.isTableExists(table) {
 			log.Infof("table %s does not exist, nothing to clear for migration state", table)
 			continue
 		}
 		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
-		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
-		_, err := tdb.conn.ExecContext(context.Background(), query)
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table.ForUserQuery(), migrationUUID)
+		_, err := tdb.Exec(query)
 		if err != nil {
 			log.Errorf("error cleaning up table %s: %v", table, err)
 			return fmt.Errorf("error cleaning up table %s: %w", table, err)

@@ -27,62 +27,92 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
-	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TargetPostgreSQL struct {
 	sync.Mutex
-	tconf    *TargetConf
-	conn_    *pgx.Conn
-	connPool *ConnectionPool
+	*AttributeNameRegistry
+	tconf     *TargetConf
+	conn_     *pgx.Conn
+	connPool  *ConnectionPool
+	connMutex sync.Mutex
+
+	attrNames map[string][]string
 }
 
 func newTargetPostgreSQL(tconf *TargetConf) *TargetPostgreSQL {
-	return &TargetPostgreSQL{tconf: tconf}
+	tdb := &TargetPostgreSQL{
+		tconf:     tconf,
+		attrNames: make(map[string][]string),
+	}
+	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
+	return tdb
+}
+
+func (pg *TargetPostgreSQL) WithConn(fn func(conn *pgx.Conn) error) error {
+	pg.connMutex.Lock()
+	defer pg.connMutex.Unlock()
+	return fn(pg.conn_)
 }
 
 func (pg *TargetPostgreSQL) Query(query string) (Rows, error) {
-	rows, err := pg.conn_.Query(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
-	}
-	return rows, nil
+	var rows Rows
+	err := pg.WithConn(func(conn *pgx.Conn) error {
+		var err error
+		rows, err = conn.Query(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+		}
+		return nil
+	})
+	return rows, err
 }
 
 func (pg *TargetPostgreSQL) QueryRow(query string) Row {
-	row := pg.conn_.QueryRow(context.Background(), query)
+	var row Row
+	_ = pg.WithConn(func(conn *pgx.Conn) error {
+		row = conn.QueryRow(context.Background(), query)
+		return nil
+	})
 	return row
 }
 
 func (pg *TargetPostgreSQL) Exec(query string) (int64, error) {
-	res, err := pg.conn_.Exec(context.Background(), query)
-	if err != nil {
-		return 0, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
-	}
-	return res.RowsAffected(), nil
+	var rowsAffected int64
+
+	err := pg.WithConn(func(conn *pgx.Conn) error {
+		res, err := conn.Exec(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+		}
+		rowsAffected = res.RowsAffected()
+		return nil
+	})
+	return rowsAffected, err
 }
 
 func (pg *TargetPostgreSQL) WithTx(fn func(tx Tx) error) error {
-	tx, err := pg.conn_.Begin(context.Background())
-	if err != nil {
-		return fmt.Errorf("begin transaction on target %q: %w", pg.tconf.Host, err)
-	}
-	defer tx.Rollback(context.Background())
-	err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
-	if err != nil {
-		return err
-	}
-	err = tx.Commit(context.Background())
-	if err != nil {
-		return fmt.Errorf("commit transaction on target %q: %w", pg.tconf.Host, err)
-	}
-	return nil
+	return pg.WithConn(func(conn *pgx.Conn) error {
+		tx, err := conn.Begin(context.Background())
+		if err != nil {
+			return fmt.Errorf("begin transaction on target %q: %w", pg.tconf.Host, err)
+		}
+		defer tx.Rollback(context.Background())
+		err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
+		if err != nil {
+			return err
+		}
+		err = tx.Commit(context.Background())
+		if err != nil {
+			return fmt.Errorf("commit transaction on target %q: %w", pg.tconf.Host, err)
+		}
+		return nil
+	})
 }
 
 func (pg *TargetPostgreSQL) Init() error {
@@ -95,7 +125,7 @@ func (pg *TargetPostgreSQL) Init() error {
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('%s')",
 		schemaList)
-	rows, err := pg.conn_.Query(context.Background(), checkSchemaExistsQuery)
+	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
 		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
@@ -118,14 +148,6 @@ func (pg *TargetPostgreSQL) Init() error {
 
 func (pg *TargetPostgreSQL) Finalize() {
 	pg.disconnect()
-}
-
-// TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
-func (pg *TargetPostgreSQL) Conn() *pgx.Conn {
-	if pg.conn_ == nil {
-		utils.ErrExit("Called TargetDB.Conn() before TargetDB.Connect()")
-	}
-	return pg.conn_
 }
 
 func (pg *TargetPostgreSQL) reconnect() error {
@@ -190,7 +212,7 @@ func (pg *TargetPostgreSQL) GetVersion() string {
 	pg.Mutex.Lock()
 	defer pg.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := pg.conn_.QueryRow(context.Background(), query).Scan(&pg.tconf.DBVersion)
+	err := pg.QueryRow(query).Scan(&pg.tconf.DBVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
@@ -265,8 +287,7 @@ outer:
 	for _, cmd := range cmds {
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			log.Infof("Executing on target: [%s]", cmd)
-			conn := pg.Conn()
-			_, err = conn.Exec(context.Background(), cmd)
+			_, err = pg.Exec(cmd)
 			if err == nil {
 				// No error. Move on to the next command.
 				continue outer
@@ -286,38 +307,14 @@ outer:
 	return nil
 }
 
-func getDefaultPGSchema(schema string) (string, bool) {
-	// second return value is true if public is not included in schema list
-	// which indicates noDefaultSchema
-	schemas := strings.Split(schema, ",")
-	if len(schemas) == 1 {
-		return schema, false
-	} else if slices.Contains(schemas, "public") {
-		return "public", false
-	} else {
-		return "", true
-	}
-}
-
-func (pg *TargetPostgreSQL) qualifyTableName(tableName string) (string, error) {
-	defaultSchema, noDefaultSchema := getDefaultPGSchema(pg.tconf.Schema)
-	if len(strings.Split(tableName, ".")) != 2 {
-		if noDefaultSchema {
-			return "", fmt.Errorf("object name %q does not have schema name and public schema is not included in the schema list", tableName)
-		}
-		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
-	}
-	return tableName, nil
-}
-
-func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []string) []string {
-	result := []string{}
+func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
+	result := []sqlname.NameTuple{}
 
 	for _, table := range tables {
 		log.Infof("checking if table %q is empty.", table)
 		tmp := false
-		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
-		err := pg.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
+		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table.ForUserQuery())
+		err := pg.QueryRow(stmt).Scan(&tmp)
 		if err == pgx.ErrNoRows {
 			continue
 		}
@@ -406,70 +403,13 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	return res.RowsAffected(), err
 }
 
-func (pg *TargetPostgreSQL) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
-	result := make([]string, len(columns))
-	// FAST PATH.
-	fastPathSuccessful := true
-	for i, colName := range columns {
-		if strings.ToLower(colName) == colName {
-			if sqlname.IsReservedKeywordPG(colName) && colName[0:1] != `"` {
-				result[i] = fmt.Sprintf(`"%s"`, colName)
-			} else {
-				result[i] = colName
-			}
-		} else {
-			// Go to slow path.
-			log.Infof("column name (%s) is not all lower-case. Going to slow path.", colName)
-			result = make([]string, len(columns))
-			fastPathSuccessful = false
-			break
-		}
-	}
-	if fastPathSuccessful {
-		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
-		return result, nil
-	}
-	// SLOW PATH.
-	var schemaName string
-	schemaName, tableName = pg.splitMaybeQualifiedTableName(tableName)
-	targetColumns, err := pg.getListOfTableAttributes(schemaName, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("get list of table attributes: %w", err)
-	}
-	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
-
-	for i, colName := range columns {
-		if colName[0] == '"' && colName[len(colName)-1] == '"' {
-			colName = colName[1 : len(colName)-1]
-		}
-		switch true {
-		// TODO: Move sqlname.IsReservedKeyword() in this file.
-		case sqlname.IsReservedKeywordPG(colName):
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case colName == strings.ToLower(colName): // Name is all lowercase.
-			result[i] = colName
-		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all lowercase.
-			result[i] = fmt.Sprintf(`"%s"`, colName)
-		case slices.Contains(targetColumns, strings.ToLower(colName)): // Case insensitive name given with mixed case.
-			result[i] = strings.ToLower(colName)
-		default:
-			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
-		}
-	}
-	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
-	return result, nil
-}
-
-func (pg *TargetPostgreSQL) getListOfTableAttributes(schemaName, tableName string) ([]string, error) {
+func (pg *TargetPostgreSQL) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
 	var result []string
-	if tableName[0] == '"' {
-		// Remove the double quotes around the table name.
-		tableName = tableName[1 : len(tableName)-1]
-	}
+	sname, tname := nt.ForCatalogQuery()
 	query := fmt.Sprintf(
 		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
-		schemaName, tableName)
-	rows, err := pg.Conn().Query(context.Background(), query)
+		sname, tname)
+	rows, err := pg.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("run [%s] on target: %w", query, err)
 	}
@@ -499,10 +439,12 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) 
 			continue
 		}
 		// same function logic will work for sequences as well
-		sequenceName, err := pg.qualifyTableName(sequenceName)
+		// sequenceName, err := pg.qualifyTableName(sequenceName)
+		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
 		if err != nil {
-			return fmt.Errorf("qualify sequence name: %w", err)
+			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 		}
+		sequenceName := seqName.ForUserQuery()
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
 	}
@@ -540,10 +482,16 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt := event.GetSQLStmt()
+			stmt, err := event.GetSQLStmt(pg)
+			if err != nil {
+				return fmt.Errorf("get sql stmt: %w", err)
+			}
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(pg.tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType)
+			if err != nil {
+				return fmt.Errorf("get prepared sql stmt: %w", err)
+			}
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
 				stmtToPrepare[event.GetPreparedStmtName()] = stmt
@@ -600,10 +548,6 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			tableName, err := pg.qualifyTableName(tableName)
-			if err != nil {
-				return false, fmt.Errorf("qualify table name: %w", err)
-			}
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
@@ -650,14 +594,6 @@ func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
 	}
 }
 
-func (pg *TargetPostgreSQL) getTargetSchemaName(tableName string) string {
-	parts := strings.Split(tableName, ".")
-	if len(parts) == 2 {
-		return parts[0]
-	}
-	return pg.tconf.Schema // default set to "public"
-}
-
 func (pg *TargetPostgreSQL) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool, int64, error) {
 	var rowsImported int64
 	query := batch.GetQueryIsBatchAlreadyImported()
@@ -682,25 +618,15 @@ func (pg *TargetPostgreSQL) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 	return nil
 }
 
-func (pg *TargetPostgreSQL) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
-	return tgtdbsuite.YBValueConverterSuite
-}
-
 func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
 	return 200 * 1024 * 1024 // 200 MB //TODO
 }
 
-func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error) {
-	schema := pg.getTargetSchemaName(table)
-	// TODO: handle case-sensitivity correctly
-	if utils.IsQuotedString(table) {
-		table = table[1 : len(table)-1]
-	} else {
-		table = strings.ToLower(table)
-	}
+func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
+	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, schema, table, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, table, query)
+		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
+	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
 	var identityColumns []string
 	err := pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		rows, err := conn.Query(context.Background(), query)
@@ -723,102 +649,51 @@ func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(table string, identit
 	return identityColumns, err
 }
 
-func (pg *TargetPostgreSQL) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (pg *TargetPostgreSQL) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("disabling generated always as identity columns")
 	return pg.alterColumns(tableColumnsMap, "SET GENERATED BY DEFAULT")
 }
 
-func (pg *TargetPostgreSQL) EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (pg *TargetPostgreSQL) EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("enabling generated always as identity columns")
 	// pg automatically resumes the value for further inserts due to sequence attached
 	return pg.alterColumns(tableColumnsMap, "SET GENERATED ALWAYS")
 }
 
-func (pg *TargetPostgreSQL) EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error {
+func (pg *TargetPostgreSQL) EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("enabling generated by default as identity columns")
 	return pg.alterColumns(tableColumnsMap, "SET GENERATED BY DEFAULT")
 }
 
-func (pg *TargetPostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
-	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := make(map[string][]string)
-	var querySchemaList, queryTableList []string
-	for i := 0; i < len(tableList); i++ {
-		schema, table := pg.splitMaybeQualifiedTableName(tableList[i])
-		querySchemaList = append(querySchemaList, schema)
-		queryTableList = append(queryTableList, table)
-	}
-
-	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
-	log.Infof("query to get unique key columns: %s", query)
-	rows, err := pg.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var schemaName, tableName, colName string
-		err := rows.Scan(&schemaName, &tableName, &colName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		if schemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		}
-		result[tableName] = append(result[tableName], colName)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
-	}
-	log.Infof("unique key columns for tables: %v", result)
-	return result, nil
-}
-
-func (pg *TargetPostgreSQL) alterColumns(tableColumnsMap map[string][]string, alterAction string) error {
+func (pg *TargetPostgreSQL) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {
 	log.Infof("altering columns for action %s", alterAction)
-	for table, columns := range tableColumnsMap {
-		qualifiedTableName, err := pg.qualifyTableName(table)
-		if err != nil {
-			return fmt.Errorf("qualify table name: %w", err)
-		}
+	return tableColumnsMap.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
 		batch := pgx.Batch{}
 		for _, column := range columns {
-			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, qualifiedTableName, column, alterAction)
+			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
 			batch.Queue(query)
 		}
 
-		err = pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		err := pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 			br := conn.SendBatch(context.Background(), &batch)
 			for i := 0; i < batch.Len(); i++ {
 				_, err := br.Exec()
 				if err != nil {
-					log.Errorf("executing query to alter columns for table(%s): %v", qualifiedTableName, err)
-					return false, fmt.Errorf("executing query to alter columns for table(%s): %w", qualifiedTableName, err)
+					log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
+					return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
 				}
 			}
 			if err := br.Close(); err != nil {
-				log.Errorf("closing batch of queries to alter columns for table(%s): %v", qualifiedTableName, err)
-				return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", qualifiedTableName, err)
+				log.Errorf("closing batch of queries to alter columns for table(%s): %v", table.ForUserQuery(), err)
+				return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", table.ForUserQuery(), err)
 			}
 			return false, nil
 		})
 		if err != nil {
-			return err
+			return false, err
 		}
-	}
-	return nil
-}
-
-func (pg *TargetPostgreSQL) splitMaybeQualifiedTableName(tableName string) (string, string) {
-	if strings.Contains(tableName, ".") {
-		parts := strings.Split(tableName, ".")
-		return parts[0], parts[1]
-	}
-	return pg.tconf.Schema, tableName
+		return true, nil
+	})
 }
 
 func (pg *TargetPostgreSQL) isSchemaExists(schema string) bool {
@@ -826,8 +701,8 @@ func (pg *TargetPostgreSQL) isSchemaExists(schema string) bool {
 	return pg.isQueryResultNonEmpty(query)
 }
 
-func (pg *TargetPostgreSQL) isTableExists(qualifiedTableName string) bool {
-	schema, table := pg.splitMaybeQualifiedTableName(qualifiedTableName)
+func (pg *TargetPostgreSQL) isTableExists(tableNameTup sqlname.NameTuple) bool {
+	schema, table := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
 	return pg.isQueryResultNonEmpty(query)
 }
@@ -855,14 +730,25 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 
 	// clean up all the tables in BATCH_METADATA_TABLE_SCHEMA for given migrationUUID
-	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tableNames := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	tables := []sqlname.NameTuple{}
+	for _, tableName := range tableNames {
+		parts := strings.Split(tableName, ".")
+		objName := sqlname.NewObjectName(sqlname.POSTGRESQL, "", parts[0], parts[1])
+		nt := sqlname.NameTuple{
+			CurrentName: objName,
+			SourceName:  objName,
+			TargetName:  objName,
+		}
+		tables = append(tables, nt)
+	}
 	for _, table := range tables {
 		if !pg.isTableExists(table) {
 			log.Infof("table %s does not exist, nothing to clear migration state", table)
 			continue
 		}
 		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
-		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table.ForUserQuery(), migrationUUID)
 		_, err := pg.Exec(query)
 		if err != nil {
 			log.Errorf("error cleaning up table %s for migrationUUID=%s: %v", table, migrationUUID, err)
@@ -879,7 +765,7 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 	utils.PrintAndLog("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
-	_, err := pg.conn_.Exec(context.Background(), query)
+	_, err := pg.Exec(query)
 	if err != nil {
 		log.Errorf("error dropping schema %s: %v", schema, err)
 		return fmt.Errorf("error dropping schema %s: %w", schema, err)

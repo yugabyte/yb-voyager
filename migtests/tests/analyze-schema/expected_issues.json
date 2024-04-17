@@ -2,7 +2,7 @@
         {
             "objectType": "INDEX",
             "objectName": "film_fulltext_idx",
-            "reason": "Schema contains gist index which is not supported.",
+            "reason": "Schema contains GIST index which is not supported.",
             "sqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
@@ -186,7 +186,7 @@
         {
             "objectType": "TRIGGER",
             "objectName": "some_trig",
-            "reason": "CREATE CONSTRAINT TRIGGER not supported yet.",
+            "reason": "CONSTRAINT TRIGGER not supported yet.",
             "sqlStatement": "CREATE CONSTRAINT TRIGGER some_trig\n   AFTER DELETE ON xyz_schema.abc\n   DEFERRABLE INITIALLY DEFERRED\n   FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1709"
@@ -209,8 +209,8 @@
         },
         {
             "objectType": "TABLE",
-            "objectName": "",
-            "reason": "Stored generated column is not supported. Column is: id",
+            "objectName": "newtable",
+            "reason": "Stored generated column not supported. Column is: id",
             "sqlStatement": "CREATE TABLE newtable (\n\tid UUID GENERATED ALWAYS AS gen_random_uuid() STORED,\n\torg uuid NOT NULL,\n\tname text,\n\tcreated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP UNIQUE(name, org)\n);",
             "suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
@@ -233,8 +233,8 @@
         },
         {
             "objectType": "TABLE",
-            "objectName": "",
-            "reason": "INHERITS not supported yet.",
+            "objectName": "table_1",
+            "reason": "TABLE INHERITANCE not supported in YugabyteDB",
             "sqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
@@ -394,7 +394,7 @@
         {
             "objectType": "TRIGGER",
             "objectName": "emp_trig",
-            "reason": "Compound Triggers are not supported in YugabyteDB.",
+            "reason": "COMPOUND TRIGGER not supported in YugabyteDB.",
             "sqlStatement": "CREATE TRIGGER emp_trig\n\tCOMPOUND INSERT ON emp FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_emp_trig();",
             "suggestion": "",
             "GH": ""
@@ -510,5 +510,13 @@
             "sqlStatement": "CREATE EXTENSION IF NOT EXISTS hstore_plperl WITH SCHEMA public;",
             "suggestion": "",
             "GH": ""
+        },
+        {
+            "objectType": "CURSOR",
+            "objectName": "test",
+            "reason": "This FETCH clause might not be supported yet",
+            "sqlStatement": "CREATE OR REPLACE PROCEDURE test () AS $body$\nDECLARE\n    cur CURSOR FOR SELECT column_name FROM table_name;\n    row RECORD;\nBEGIN\n    OPEN cur;\n    FETCH PRIOR FROM cur INTO row;\n    CLOSE cur;\nEND;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
+            "suggestion": "Please verify the DDL on your YugabyteDB version before proceeding",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514"
         }
 ]

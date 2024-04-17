@@ -32,27 +32,29 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []*sqlname.SourceName,
-	tablesColumnList map[*sqlname.SourceName][]string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []sqlname.NameTuple,
+	tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
 	tableList := []string{}
 	for _, tableName := range tableNameList {
-		tableList = append(tableList, tableName.ObjectName.Unquoted)
+		_, tname := tableName.ForCatalogQuery()
+		tableList = append(tableList, tname)
 	}
 	conf := getDefaultOra2pgConfig(source)
 	conf.DisablePartition = "1"
 	conf.Allow = fmt.Sprintf("TABLE%v", tableList)
-	// providing column list for tables having unsupported column types
-	for tableName, columnList := range tablesColumnList {
+	tablesColumnList.IterKV(func(tableName sqlname.NameTuple, columnList []string) (bool, error) {
+		_, tname := tableName.ForCatalogQuery()
 		allColumns := "*"
 		if len(columnList) == 1 && columnList[0] == allColumns {
-			continue
+			return true, nil
 		}
-		log.Infof("Modifying struct for table %s, columnList: %v\n", tableName.ObjectName.Unquoted, columnList)
-		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.ObjectName.Unquoted, strings.Join(columnList, ","))
-	}
+		log.Infof("Modifying struct for table %s, columnList: %v\n", tname, columnList)
+		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tname, strings.Join(columnList, ","))
+		return true, nil
+	})
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	populateOra2pgConfigFile(configFilePath, conf)
 
@@ -63,7 +65,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	//Exporting all the tables in the schema
 	log.Infof("Executing command: %s", exportDataCommandString)
 	exportDataCommand := exec.CommandContext(ctx, "/bin/bash", "-c", exportDataCommandString)
-    exportDataCommand.Env = append(os.Environ(), "ORA2PG_PASSWD="+source.Password)
+	exportDataCommand.Env = append(os.Environ(), "ORA2PG_PASSWD="+source.Password)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	exportDataCommand.Stdout = &outbuf
@@ -166,12 +168,12 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	log.Infof("renaming data files for tables with reserved words in them")
 	for _, tableProgressMetadata := range tablesProgressMetadata {
-		tblNameUnquoted := tableProgressMetadata.TableName.ObjectName.Unquoted
+		_, tblNameUnquoted := tableProgressMetadata.TableName.ForCatalogQuery()
 		if !sqlname.IsReservedKeywordPG(tblNameUnquoted) {
 			continue
 		}
 
-		tblNameQuoted := fmt.Sprintf(`"%s"`, tblNameUnquoted)
+		tblNameQuoted := tableProgressMetadata.TableName.CurrentName.Unqualified.Quoted
 		oldFilePath := tableProgressMetadata.FinalFilePath
 		newFilePath := filepath.Join(filepath.Dir(oldFilePath), tblNameQuoted+"_data.sql")
 		if utils.FileOrFolderExists(oldFilePath) {

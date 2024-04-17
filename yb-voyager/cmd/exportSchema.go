@@ -102,7 +102,7 @@ func exportSchema() error {
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
-	source.DB().ExportSchema(exportDir)
+	source.DB().ExportSchema(exportDir, schemaDir)
 	updateIndexesInfoInMetaDB()
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 

@@ -66,9 +66,9 @@ func (ora *Oracle) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg", "sqlplus")
 }
 
-func (ora *Oracle) GetTableRowCount(tableName string) int64 {
+func (ora *Oracle) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 	var rowCount int64
-	query := fmt.Sprintf("select count(*) from %s", tableName)
+	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 
 	log.Infof("Querying row count of table %q", tableName)
 	err := ora.db.QueryRow(query).Scan(&rowCount)
@@ -79,11 +79,12 @@ func (ora *Oracle) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (ora *Oracle) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
+func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
+	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TABLES "+
 		"WHERE TABLE_NAME = '%s' and OWNER =  '%s'",
-		tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+		tname, sname)
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := ora.db.QueryRow(query).Scan(&approxRowCount)
@@ -188,8 +189,8 @@ func GetOracleConnectionString(host string, port int, dbname string, dbsid strin
 	return ""
 }
 
-func (ora *Oracle) ExportSchema(exportDir string) {
-	ora2pgExtractSchema(ora.source, exportDir)
+func (ora *Oracle) ExportSchema(exportDir string, schemaDir string) {
+	ora2pgExtractSchema(ora.source, exportDir, schemaDir)
 }
 
 // return list of jsons having index info like index name, index type, table name, column name
@@ -235,7 +236,7 @@ func (ora *Oracle) GetIndexesInfo() []utils.IndexInfo {
 	return indexesInfo
 }
 
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) {
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -275,8 +276,8 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
-	var filteredTableList, unsupportedTableList []*sqlname.SourceName
+func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 
 	// query to find unsupported queue tables
 	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schema)
@@ -295,24 +296,28 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
 
 		for _, table := range tableList {
-			if table.Qualified == tableSrcName.Qualified {
-				unsupportedTableList = append(unsupportedTableList, tableSrcName)
+			if table.ForKey() == tableSrcName.Qualified.Quoted {
+				unsupportedTableList = append(unsupportedTableList, table)
 			}
 		}
 	}
 
-	if useDebezium {
-		for _, tableName := range tableList {
-			if ora.IsNestedTable(tableName) || ora.IsParentOfNestedTable(tableName) {
-				//In case of nested tables there are two tables created in the oracle one is this main parent table created by user and other is nested table for a column which is created by oracle
-				unsupportedTableList = append(unsupportedTableList, tableName)
-			}
+	for _, tableName := range tableList {
+		//In case of nested tables there are two tables created in the oracle one is this main parent table created by user and other is nested table for a column which is created by oracle
+		if ora.IsNestedTable(tableName) {
+			// nested table is not supported in dbzm, and in ora2pg, it works even  if you only specify the parent table in the list.
+			unsupportedTableList = append(unsupportedTableList, tableName)
+		}
+		if useDebezium && ora.IsParentOfNestedTable(tableName) {
+			// nested table not supported in dbzm
+			unsupportedTableList = append(unsupportedTableList, tableName)
 		}
 	}
 
 	logMiningFlushTable := utils.GetLogMiningFlushTableName(migrationUUID)
 	for _, table := range tableList {
-		if !slices.Contains(unsupportedTableList, table) && table.ObjectName.MinQuoted != logMiningFlushTable {
+		_, tname := table.ForCatalogQuery()
+		if !slices.Contains(unsupportedTableList, table) && tname != logMiningFlushTable {
 			filteredTableList = append(filteredTableList, table)
 		}
 	}
@@ -320,16 +325,17 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 	return filteredTableList, unsupportedTableList
 }
 
-func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
-	nonEmptyTableList := make([]*sqlname.SourceName, 0)
-	skippedTableList := make([]*sqlname.SourceName, 0)
+func (ora *Oracle) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	nonEmptyTableList := make([]sqlname.NameTuple, 0)
+	skippedTableList := make([]sqlname.NameTuple, 0)
 	for _, tableName := range tableList {
-		query := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM=1", tableName.Qualified.MinQuoted)
+		sname, tname := tableName.ForCatalogQuery()
+		query := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM=1", tableName.ForUserQuery())
 		if ora.IsNestedTable(tableName) {
 			// query to check empty nested oracle tables
 			query = fmt.Sprintf(`SELECT 1 from dba_segments 
 			where owner = '%s' AND segment_name = '%s' AND segment_type = 'NESTED TABLE'`,
-				tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+				sname, tname)
 		}
 
 		if !IsTableEmpty(ora.db, query) {
@@ -341,10 +347,11 @@ func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlnam
 	return nonEmptyTableList, skippedTableList
 }
 
-func (ora *Oracle) IsNestedTable(tableName *sqlname.SourceName) bool {
+func (ora *Oracle) IsNestedTable(tableName sqlname.NameTuple) bool {
 	// sql query to find out if it is oracle nested table
+	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND TABLE_NAME = '%s'",
-		tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+		sname, tname)
 	isNestedTable := 0
 	err := ora.db.QueryRow(query).Scan(&isNestedTable)
 	if err != nil && err != sql.ErrNoRows {
@@ -353,10 +360,11 @@ func (ora *Oracle) IsNestedTable(tableName *sqlname.SourceName) bool {
 	return isNestedTable == 1
 }
 
-func (ora *Oracle) IsParentOfNestedTable(tableName *sqlname.SourceName) bool {
+func (ora *Oracle) IsParentOfNestedTable(tableName sqlname.NameTuple) bool {
 	// sql query to find out if it is parent of oracle nested table
+	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND PARENT_TABLE_NAME= '%s'",
-		tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+		sname, tname)
 	isParentNestedTable := 0
 	err := ora.db.QueryRow(query).Scan(&isParentNestedTable)
 	if err != nil && err != sql.ErrNoRows {
@@ -379,11 +387,11 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
 }
 
-func (ora *Oracle) ParentTableOfPartition(table *sqlname.SourceName) string {
+func (ora *Oracle) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }
 
-func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
+func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
 	panic("not implemented")
 }
 
@@ -391,11 +399,12 @@ func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []*sqlname.Sour
 GetColumnToSequenceMap returns a map of column name to sequence name for all identity columns in the given list of tables.
 Note: There can be only one identity column per table in Oracle
 */
-func (ora *Oracle) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
+func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out if table has a identity column
-		query := fmt.Sprintf("SELECT column_name FROM all_tab_identity_cols WHERE owner = '%s' AND table_name = '%s'", table.SchemaName.Unquoted, table.ObjectName.Unquoted)
+		sname, tname := table.ForCatalogQuery()
+		query := fmt.Sprintf("SELECT column_name FROM all_tab_identity_cols WHERE owner = '%s' AND table_name = '%s'", sname, tname)
 		rows, err := ora.db.Query(query)
 		if err != nil {
 			utils.ErrExit("failed to query %q for finding identity column: %v", query, err)
@@ -406,8 +415,8 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[s
 			if err != nil {
 				utils.ErrExit("failed to scan columnName from output of query %q: %v", query, err)
 			}
-			qualifiedColumnName := fmt.Sprintf("%s.%s.%s", table.SchemaName.Unquoted, table.ObjectName.Unquoted, columnName)
-			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf("%s_%s_seq", table.ObjectName.Unquoted, columnName)
+			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
+			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf("%s_%s_seq", tname, columnName)
 		}
 	}
 
@@ -418,9 +427,33 @@ func (ora *Oracle) GetAllSequences() []string {
 	return nil
 }
 
-func (ora *Oracle) getTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
+func (ora *Oracle) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s'", schemaName)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %q for finding identity column: %v", query, err)
+	}
+	var sequences []string
+	for rows.Next() {
+		var columnName, tableName string
+		err := rows.Scan(&tableName, &columnName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan columnName from output of query %q: %v", query, err)
+		}
+		// sequence name as per PG naming convention for bigserial datatype's sequence
+		sequenceName := fmt.Sprintf("%s_%s_seq", tableName, columnName)
+		sequences = append(sequences, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
+	}
+	return sequences, nil
+}
+
+func (ora *Oracle) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
-	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+	sname, tname := tableName.ForCatalogQuery()
+	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", sname, tname)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
@@ -438,9 +471,9 @@ func (ora *Oracle) getTableColumns(tableName *sqlname.SourceName) ([]string, []s
 	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error) {
-	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
-	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if isStreamingEnabled {
 		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, "NCHAR", "NVARCHAR2")
 	}
@@ -450,23 +483,24 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}
 		var supportedColumnNames []string
+		sname, tname := tableName.ForCatalogQuery()
 		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
-			isUdtWithDebezium := (dataTypesOwner[i] == tableName.SchemaName.Unquoted) && useDebezium // datatype owner check is for UDT type detection as VARRAY are created using UDT
+			isUdtWithDebezium := (dataTypesOwner[i] == sname) && useDebezium // datatype owner check is for UDT type detection as VARRAY are created using UDT
 			if isUdtWithDebezium || utils.ContainsAnySubstringFromSlice(oracleUnsupportedDataTypes, dataTypes[i]) {
-				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
-				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
+				log.Infof("Skipping unsupproted column %s.%s of type %s", tname, columns[i], dataTypes[i])
+				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tname, columns[i], dataTypes[i]))
 			} else {
 				supportedColumnNames = append(supportedColumnNames, columns[i])
 			}
 
 		}
 		if len(supportedColumnNames) == len(columns) {
-			supportedTableColumnsMap[tableName] = []string{"*"}
+			supportedTableColumnsMap.Put(tableName, []string{"*"})
 		} else {
-			supportedTableColumnsMap[tableName] = supportedColumnNames
+			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
 			if len(unsupportedColumnNames) > 0 {
-				unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
 			}
 		}
 	}
@@ -478,11 +512,11 @@ func (ora *Oracle) GetServers() []string {
 	return []string{ora.source.Host}
 }
 
-func (ora *Oracle) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+func (ora *Oracle) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
-func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
 	result := make(map[string][]string)
 	queryTemplate := `
 		SELECT TABLE_NAME, COLUMN_NAME
@@ -497,7 +531,8 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName
 
 	var queryTableList []string
 	for _, table := range tableList {
-		queryTableList = append(queryTableList, table.ObjectName.Unquoted)
+		_, tname := table.ForCatalogQuery()
+		queryTableList = append(queryTableList, tname)
 	}
 	query := fmt.Sprintf(queryTemplate, ora.source.Schema, strings.Join(queryTableList, "','"))
 	log.Infof("query to get unique key columns for tables: %q", query)
@@ -525,11 +560,21 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName
 	return result, nil
 }
 
+const DROP_TABLE_IF_EXISTS_QUERY = `BEGIN
+EXECUTE IMMEDIATE 'DROP TABLE %s ';
+EXCEPTION
+WHEN OTHERS THEN
+	IF SQLCODE != -942 THEN
+		RAISE;
+	END IF;
+END;`
+//(-942) exception is for table doesn't exists
+
 func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("Clearing migration state for migration %q", migrationUUID)
 	logMiningFlushTableName := utils.GetLogMiningFlushTableName(migrationUUID)
 	log.Infof("Dropping table %s", logMiningFlushTableName)
-	_, err := ora.db.Exec(fmt.Sprintf("DROP TABLE %s", logMiningFlushTableName))
+	_, err := ora.db.Exec(fmt.Sprintf(DROP_TABLE_IF_EXISTS_QUERY, logMiningFlushTableName))
 	if err != nil {
 		if strings.Contains(err.Error(), "ORA-00942") {
 			// Table does not exist, so nothing to drop
@@ -565,7 +610,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		}
 		table := sqlname.NewSourceName(ora.source.Schema, fmt.Sprintf(`"%s"`, tableName))
 		if count == 0 {
-			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
 	}
 	return nonPKTables, nil

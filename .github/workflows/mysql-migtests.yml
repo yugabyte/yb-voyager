@@ -2,15 +2,15 @@ name: "MySQL: Migration Tests"
 
 on:
   push:
-    branches: [main]
+    branches: ['main']
   pull_request:
-    branches: [main]
+    branches: ['main']
 
 jobs:
   run-mysql-migration-tests:
     strategy:
       matrix:
-        version: [2.19.2.0-b121, 2.16.7.0-b59, 2.18.3.0-b75]
+        version: [2.21.0.0-b545, 2.16.9.0-b67, 2.18.7.0-b30, 2.20.2.2-b1]
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
@@ -60,7 +60,7 @@ jobs:
       - name: Start YugabyteDB cluster
         run: |
           docker pull yugabytedb/yugabyte:${{ matrix.version }}
-          VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+          VERSION=${{ matrix.version }} docker compose -f migtests/setup/yb-docker-compose.yaml up -d
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -114,6 +114,9 @@ jobs:
 
       - name: "TEST: mysql-misc-tests"
         run: migtests/scripts/run-test.sh mysql/misc-tests
+      
+      - name: "TEST: mysql-case-sensitivity-reserved-words"
+        run: migtests/scripts/run-test.sh mysql/case-sensitivity-reserved-words
 
       # Placeholder for now so that a basic test can run
       - name: Create the live migration user

@@ -47,6 +47,14 @@ type SourceDBMetadata struct {
 	SizeInGB        int64  `json:"size_in_gb,string"`
 }
 
+// TODO: delete after resolving conflicts
+type SizingReport struct {
+	NodeCount        int
+	VcpuCountPerNode int
+	MemGBPerNode     int
+	StorageGBPerNode int
+}
+
 var baseDownloadPath = "src/migassessment/resources/remote/"
 var DB *sql.DB
 var SourceMetaDB *sql.DB

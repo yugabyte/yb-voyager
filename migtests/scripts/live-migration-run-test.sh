@@ -18,6 +18,7 @@ export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
+export QUEUE_SEGMENT_MAX_BYTES=400
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
@@ -106,7 +107,8 @@ main() {
 	# Waiting for snapshot to complete
 	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/dataFileDescriptor.json ]; do sleep 3; done'
 
-	ls -l ${EXPORT_DIR}/data
+	ls -R ${EXPORT_DIR}/data | sed 's/:$//' | sed -e 's/[^-][^\/]*\//--/g' -e 's/^/   /' -e 's/-/|/'
+
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 
@@ -125,7 +127,7 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	sleep 30 
+	sleep 60 
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-snapshot-import true --refresh-mviews=true
@@ -151,7 +153,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
-			tail_log_file "debezium-source_db_exporter.log"
+			tail_log_file "debezium-source_db_exporter.log"		
 			exit 1
         fi
     else
@@ -165,6 +167,15 @@ main() {
 	then
 	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'false' --fb_enabled 'false'
 	fi
+
+	step "Run get data-migration-report"
+	get_data_migration_report
+
+	expected_file="${TEST_DIR}/data-migration-report-live-migration.json"
+	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
+
+	step "Verify data-migration-report report"
+	verify_report ${expected_file} ${actual_file}
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes

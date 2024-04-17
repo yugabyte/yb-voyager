@@ -66,9 +66,9 @@ func (ms *MySQL) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg")
 }
 
-func (ms *MySQL) GetTableRowCount(tableName string) int64 {
+func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
 	var rowCount int64
-	query := fmt.Sprintf("select count(*) from %s", tableName)
+	query := fmt.Sprintf("select count(*) from %s", tableName.AsQualifiedCatalogName())
 
 	log.Infof("Querying row count of table %s", tableName)
 	err := ms.db.QueryRow(query).Scan(&rowCount)
@@ -79,11 +79,12 @@ func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (ms *MySQL) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
+func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
+	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf("SELECT table_rows from information_schema.tables "+
 		"where table_name = '%s' and table_schema = '%s'",
-		tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+		tname, sname)
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := ms.db.QueryRow(query).Scan(&approxRowCount)
@@ -202,15 +203,15 @@ func (ms *MySQL) GetConnectionUriWithoutPassword() string {
 	return sourceUriWithoutPassword
 }
 
-func (ms *MySQL) ExportSchema(exportDir string) {
-	ora2pgExtractSchema(ms.source, exportDir)
+func (ms *MySQL) ExportSchema(exportDir string, schemaDir string) {
+	ora2pgExtractSchema(ms.source, exportDir, schemaDir)
 }
 
 func (ms *MySQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -238,14 +239,14 @@ func (ms *MySQL) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
 
-func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
-	var nonEmptyTableList, emptyTableList []*sqlname.SourceName
+func (ms *MySQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
 	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.Qualified.MinQuoted)
+		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.AsQualifiedCatalogName())
 		if !IsTableEmpty(ms.db, query) {
 			nonEmptyTableList = append(nonEmptyTableList, tableName)
 		} else {
@@ -255,9 +256,10 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) getTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string, error) {
+func (ms *MySQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
 	var columns, dataTypes []string
-	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+	sname, tname := tableName.ForCatalogQuery()
+	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", sname, tname)
 	rows, err := ms.db.Query(query)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
@@ -278,42 +280,70 @@ func (ms *MySQL) GetAllSequences() []string {
 	return nil
 }
 
-func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, map[*sqlname.SourceName][]string, error) {
-	supportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
-	unsupportedTableColumnsMap := make(map[*sqlname.SourceName][]string)
+func (ms *MySQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
+
+	query := fmt.Sprintf(`SELECT table_name, column_name FROM information_schema.columns
+		WHERE table_schema = '%s' AND extra = 'auto_increment'`,
+			schemaName)
+	log.Infof("Querying '%s' for auto increment column of all tables in the database %q", query, schemaName)
+	var sequences []string
+	rows, err := ms.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %q for auto increment columns in tables: %s", query, err)
+	}
+	for rows.Next() {
+		var columnName, tableName string
+		err = rows.Scan(&tableName, &columnName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan %q for auto increment columns in tables: %s", query, err)
+		}
+		// sequence name as per PG naming convention for bigserial datatype's sequence
+		sequenceName := fmt.Sprintf("%s_%s_seq", tableName, columnName)
+		sequences = append(sequences, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
+	}
+	return sequences, nil
+}
+
+func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, _ bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	for _, tableName := range tableList {
 		columns, dataTypes, _, err := ms.getTableColumns(tableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get columns of table %q: %w", tableName.String(), err)
 		}
 		var supportedColumnNames []string
+		_, tname := tableName.ForCatalogQuery()
 		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			if utils.ContainsAnySubstringFromSlice(mysqlUnsupportedDataTypes, dataTypes[i]) {
-				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
-				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
+				log.Infof("Skipping unsupproted column %s.%s of type %s", tname, columns[i], dataTypes[i])
+				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tname, columns[i], dataTypes[i]))
 			} else {
 				supportedColumnNames = append(supportedColumnNames, columns[i])
 			}
 
 		}
 		if len(supportedColumnNames) == len(columns) {
-			supportedTableColumnsMap[tableName] = []string{"*"}
+			supportedTableColumnsMap.Put(tableName, []string{"*"})
 		} else {
-			supportedTableColumnsMap[tableName] = supportedColumnNames
+			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
 			if len(unsupportedColumnNames) > 0 {
-				unsupportedTableColumnsMap[tableName] = unsupportedColumnNames
+				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
 			}
 		}
 	}
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
-func (ms *MySQL) ParentTableOfPartition(table *sqlname.SourceName) string {
+func (ms *MySQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }
 
-func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.SourceName) error {
+func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
 	panic("not implemented")
 }
 
@@ -321,13 +351,14 @@ func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []*sqlname.Source
 Only valid case is when the table has a auto increment column
 Note: a mysql table can have only one auto increment column
 */
-func (ms *MySQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
+func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out auto increment column
+		sname, tname := table.ForCatalogQuery()
 		query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns
 		WHERE table_schema = '%s' AND table_name = '%s' AND extra = 'auto_increment'`,
-			table.SchemaName.Unquoted, table.ObjectName.Unquoted)
+			sname, tname)
 		log.Infof("Querying '%s' for auto increment column of table %q", query, table.String())
 
 		var columnName string
@@ -340,9 +371,9 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[str
 			if err != nil {
 				utils.ErrExit("Failed to scan %q for auto increment column of %q: %s", query, table.String(), err)
 			}
-			qualifiedColumeName := fmt.Sprintf("%s.%s.%s", table.SchemaName.Unquoted, table.ObjectName.Unquoted, columnName)
+			qualifiedColumeName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
 			// sequence name as per PG naming convention for bigserial datatype's sequence
-			sequenceName := fmt.Sprintf("%s_%s_seq", table.ObjectName.Unquoted, columnName)
+			sequenceName := fmt.Sprintf("%s_%s_seq", tname, columnName)
 			columnToSequenceMap[qualifiedColumeName] = sequenceName
 		}
 	}
@@ -395,11 +426,11 @@ func (ms *MySQL) GetServers() []string {
 	return []string{ms.source.Host}
 }
 
-func (ms *MySQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+func (ms *MySQL) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
-func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
 	return nil, nil
 }
 
@@ -443,7 +474,7 @@ func (ms *MySQL) GetNonPKTables() ([]string, error) {
 		}
 		table := sqlname.NewSourceName(ms.source.DBName, tableName)
 		if count == 0 {
-			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
 	}
 	return nonPKTables, nil

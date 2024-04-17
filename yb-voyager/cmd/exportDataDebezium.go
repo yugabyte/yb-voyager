@@ -34,6 +34,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -41,7 +42,7 @@ import (
 
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, leafPartitions map[string][]string) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -63,33 +64,31 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 
 	var dbzmTableList, dbzmColumnList []string
 	for _, table := range tableList {
-		t := table.Qualified.MinQuoted
-		if source.DBType == POSTGRESQL && table.SchemaName.MinQuoted == "public" {
-			t = table.ObjectName.MinQuoted
-		}
-		if leafPartitions[t] != nil {
+		_, ok := leafPartitions.Get(table)
+		if ok {
 			//In case of debezium offline migration of PG, tablelist should not have root and leaf both so not adding root table in table list
 			continue
 		}
-		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
+		dbzmTableList = append(dbzmTableList, table.AsQualifiedCatalogName())
 	}
-	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		err = storeTableListInMSR(tableList)
 		if err != nil {
 			utils.ErrExit("error while storing the table-list in msr: %v", err)
 		}
 	}
 
-	for tableName, columns := range tablesColumnList {
-		for _, column := range columns {
-			columnName := fmt.Sprintf("%s.%s", tableName.Qualified.Unquoted, column)
+	tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+		for _, column := range v {
+			columnName := fmt.Sprintf("%s.%s", k.AsQualifiedCatalogName(), column)
 			if column == "*" {
 				dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
 				break
 			}
 			dbzmColumnList = append(dbzmColumnList, columnName) // if column is PK, then data for it will come from debezium
 		}
-	}
+		return true, nil
+	})
 
 	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
 	columnSequenceMapping := strings.Join(lo.MapToSlice(colToSeqMap, func(k, v string) string {
@@ -390,10 +389,6 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			return false, fmt.Errorf("failed to write data file descriptor: %w", err)
 		}
 		log.Infof("snapshot export is complete.")
-		err = renameDbzmExportedDataFiles()
-		if err != nil {
-			return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
-		}
 		displayExportedRowCountSnapshot(true)
 	}
 
@@ -405,10 +400,12 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			}
 			if !(msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted) {
 				utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
-				// only events received after yb cdc initialization will be emitted by debezium.
-				// Therefore, we sleep to allow yb cdc connector to initialize and only then mark the cutover to be complete.
-				// Ideally, we should have a more reliable way to determine that init is complete. This is a temp solution.
-				time.Sleep(2 * time.Minute)
+				logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
+
+				err := utils.WaitForLineInLogFile(logFilePath, "Beginning to poll the changes from the server", 3*time.Minute)
+				if err != nil {
+					return false, fmt.Errorf("failed to poll for message in log file: %w", err)
+				}
 
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
@@ -439,13 +436,13 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, table := range status.Tables {
 		// TODO: TableName and FilePath must be quoted by debezium plugin.
-		tableName := quoteIdentifierIfRequired(table.TableName)
-		if source.DBType == POSTGRESQL && table.SchemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", table.SchemaName, tableName)
+		tableNameTup, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", table.SchemaName, table.TableName))
+		if err != nil {
+			return fmt.Errorf("lookup for table name %s: %v", table.TableName,  err)
 		}
 		fileEntry := &datafile.FileEntry{
-			TableName: tableName,
-			FilePath:  fmt.Sprintf("%s_data.sql", tableName),
+			TableName: tableNameTup.ForKey(),
+			FilePath:  table.FileName,
 			RowCount:  table.ExportedRowCountSnapshot,
 			FileSize:  -1, // Not available.
 		}
@@ -460,55 +457,5 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		DataFileList: dataFileList,
 	}
 	dfd.Save()
-	return nil
-}
-
-// handle renaming for tables having case sensitivity and reserved keywords
-func renameDbzmExportedDataFiles() error {
-	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-	if err != nil {
-		return fmt.Errorf("failed to read export status during renaming exported data files: %w", err)
-	}
-	if status == nil {
-		return fmt.Errorf("export status is empty during renaming exported data files")
-	}
-
-	for i := 0; i < len(status.Tables); i++ {
-		tableName := status.Tables[i].TableName
-		// either case sensitive(postgresql) or reserved keyword(any source db)
-		if (!sqlname.IsAllLowercase(tableName) && source.DBType == POSTGRESQL) ||
-			sqlname.IsReservedKeywordPG(tableName) {
-			tableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
-		}
-
-		oldFilePath := filepath.Join(exportDir, "data", status.Tables[i].FileName)
-		newFilePath := filepath.Join(exportDir, "data", tableName+"_data.sql")
-		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newFilePath = filepath.Join(exportDir, "data", status.Tables[i].SchemaName+"."+tableName+"_data.sql")
-		}
-
-		if utils.FileOrFolderExists(newFilePath) { //In case of restarts rename should not be done again else it will error out
-			log.Infof("Skipping renaming files as they are already renamed")
-			continue
-		}
-
-		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)
-		err = os.Rename(oldFilePath, newFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to rename dbzm exported data file: %w", err)
-		}
-
-		//rename table schema file as well
-		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
-		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, tableName+"_schema.json")
-		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, status.Tables[i].SchemaName+"."+tableName+"_schema.json")
-		}
-		log.Infof("Renaming %s to %s", oldTableSchemaFilePath, newTableSchemaFilePath)
-		err = os.Rename(oldTableSchemaFilePath, newTableSchemaFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to rename dbzm exported table schema file: %w", err)
-		}
-	}
 	return nil
 }

@@ -31,13 +31,13 @@ type ShardingReport struct {
 
 type ShardingTableSizesRecord struct {
 	SchemaName string `json:"schema_name"`
-	TableName  string `json:"table_name"`
+	ObjectName string `json:"object_name"`
 	TableSize  int64  `json:"table_size,string"` // specified string tag option to handle conversion(string -> int64) during unmarshalling
 }
 
 type ShardingTableIOPSRecord struct {
 	SchemaName string `json:"schema_name"`
-	TableName  string `json:"table_name"`
+	ObjectName string `json:"object_name"`
 	SeqReads   int64  `json:"seq_reads,string"`
 	RowWrites  int64  `json:"row_writes,string"`
 }
@@ -50,17 +50,17 @@ type ShardingParams struct {
 
 func ShardingAssessment() error {
 	// load the assessment data
-	tableSizesFpath := filepath.Join(AssessmentDataDir, "sharding__table-sizes.csv")
-	tableIOPSFpath := filepath.Join(AssessmentDataDir, "sharding__table-iops.csv")
+	tableSizesFpath := filepath.Join(AssessmentDataDir, "table-index-sizes.csv")
+	tableIOPSFpath := filepath.Join(AssessmentDataDir, "table-index-iops.csv")
 
 	log.Infof("loading metadata files for sharding assessment")
-	tableSizes, err := loadCSVDataFile[ShardingTableSizesRecord](tableSizesFpath)
+	tableSizes, err := LoadCSVDataFile[ShardingTableSizesRecord](tableSizesFpath)
 	if err != nil {
 		log.Errorf("failed to load table sizes file: %v", err)
 		return fmt.Errorf("failed to load table size file: %w", err)
 	}
 
-	tableIOPS, err := loadCSVDataFile[ShardingTableIOPSRecord](tableIOPSFpath)
+	tableIOPS, err := LoadCSVDataFile[ShardingTableIOPSRecord](tableIOPSFpath)
 	if err != nil {
 		log.Errorf("failed to load table IOPS file: %v", err)
 		return fmt.Errorf("failed to load table IOPS file: %w", err)
@@ -68,7 +68,7 @@ func ShardingAssessment() error {
 
 	var tableList []string
 	for _, record := range tableIOPS {
-		tableName := record.SchemaName + "." + record.TableName
+		tableName := record.SchemaName + "." + record.ObjectName
 		tableList = append(tableList, tableName)
 	}
 
@@ -83,7 +83,7 @@ func ShardingAssessment() error {
 
 	// core assessment logic goes here - maybe call some external package APIs to perform the assessment
 
-	/*	FinalReport.ShardingReport = &ShardingReport{
+	/*FinalReport.ShardedTables = &ShardingReport{
 		// replace this with actual assessment results
 		ColocatedTables: tableList[:len(tableList)/2],
 		ShardedTables:   tableList[len(tableList)/2:],

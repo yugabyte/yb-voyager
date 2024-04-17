@@ -85,7 +85,8 @@ main() {
 		exit 1
 	}
 
-	ls -l ${EXPORT_DIR}/data
+	ls -R ${EXPORT_DIR}/data | sed 's/:$//' | sed -e 's/[^-][^\/]*\//--/g' -e 's/^/   /' -e 's/-/|/'
+
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 
@@ -121,6 +122,24 @@ main() {
 	then
 		 "${TEST_DIR}/validate"
 	fi
+
+	step "Run export-data-status"
+	export_data_status
+
+	expected_file="${TEST_DIR}/export_data_status-report.json"
+	actual_file="${EXPORT_DIR}/reports/export-data-status-report.json"
+
+	step "Verify export-data-status report"
+	verify_report ${expected_file} ${actual_file}
+
+	step "Run import-data-status"
+	import_data_status
+
+	expected_file="${TEST_DIR}/import_data_status-report.json"
+	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
+
+	step "Verify import-data-status report"
+	verify_report ${expected_file} ${actual_file}
 
 	step "End Migration: clearing metainfo about state of migration from everywhere."
 	end_migration --yes

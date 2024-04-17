@@ -41,6 +41,7 @@ import (
 var (
 	cfgFile                  string
 	exportDir                string
+	schemaDir                string
 	startClean               utils.BoolStr
 	lockFile                 *lockfile.Lockfile
 	migrationUUID            uuid.UUID
@@ -60,6 +61,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			return
 		}
 		validateExportDirFlag()
+		schemaDir = filepath.Join(exportDir, "schema")
 		if shouldLock(cmd) {
 			lockFPath := filepath.Join(exportDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 			lockFile = lockfile.NewLockfile(lockFPath)

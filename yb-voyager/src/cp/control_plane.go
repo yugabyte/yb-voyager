@@ -92,7 +92,7 @@ type SchemaAnalysisStartedEvent struct {
 
 type SchemaAnalysisIterationCompletedEvent struct {
 	BaseEvent
-	AnalysisReport utils.Report
+	AnalysisReport utils.SchemaReport
 }
 
 type SnapshotExportStartedEvent struct {

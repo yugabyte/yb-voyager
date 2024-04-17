@@ -21,6 +21,7 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
+export QUEUE_SEGMENT_MAX_BYTES=400
 
 # Order of env.sh import matters.
 source ${TEST_DIR}/env.sh
@@ -115,7 +116,8 @@ main() {
 	# Waiting for snapshot to complete
 	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/dataFileDescriptor.json ]; do sleep 3; done'
 
-	ls -l ${EXPORT_DIR}/data
+	ls -R ${EXPORT_DIR}/data | sed 's/:$//' | sed -e 's/[^-][^\/]*\//--/g' -e 's/^/   /' -e 's/-/|/'
+
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
@@ -162,7 +164,7 @@ main() {
 	# Updating the trap command to include the ff setup
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; kill_process -${archive_changes_pid}; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 120
+	sleep 60
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-snapshot-import true --refresh-mviews true
@@ -174,7 +176,7 @@ main() {
 	run_sql_file source_delta.sql
 
 	sleep 120
-
+	
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --yes
 

@@ -27,6 +27,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var AssessmentDataDir string
@@ -58,7 +59,7 @@ type AssessmentParams struct {
 	SizingParams         `toml:"sizing_params"`
 }
 
-func loadCSVDataFile[T any](filePath string) ([]*T, error) {
+func LoadCSVDataFile[T any](filePath string) ([]*T, error) {
 	result := make([]*T, 0)
 	records, err := loadCSVDataFileGeneric(filePath)
 	if err != nil {
@@ -78,18 +79,16 @@ func loadCSVDataFile[T any](filePath string) ([]*T, error) {
 			log.Errorf("error unmarshalling record: %v", err)
 			return nil, fmt.Errorf("error unmarshalling record: %w", err)
 		}
-
 		result = append(result, &tmplRec)
 	}
-
 	return result, nil
 }
 
 func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Errorf("error opening file %s: %v", filePath, err)
-		return nil, fmt.Errorf("error opening file %s: %w", filePath, err)
+		log.Warnf("error opening file %s: %v", filePath, err)
+		return nil, nil
 	}
 
 	defer func() {
@@ -144,7 +143,7 @@ func LoadAssessmentParams(userInputFpath string) error {
 		return fmt.Errorf("error unmarshalling toml file's data: %w", err)
 	}
 
-	//utils.PrintAndLog("assessment params: %+v", assessmentParams)
+	utils.PrintAndLog("assessment params: %+v", assessmentParams)
 	return nil
 }
 

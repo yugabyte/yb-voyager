@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+
+import common
+import os
+import yb
+import collections
+
+def main():
+	test_type_flags = common.valparser()
+
+	if test_type_flags['ff_enabled'] == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_ff()
+	elif test_type_flags['fb_enabled'] == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_fb()
+	else:
+		migration_completed_checks_yb()
+
+EXPECTED_ROW_COUNT = {
+	'UT_UC': 3,
+	'UT_RWC': 4,
+	'UT_MC': 3,
+	'UT_LC': 3,
+	'USER': 3,
+	'Table': 3,
+	'SCHEMA': 498,
+	'Mt_Rwc': 4,
+	'lt_uc': 3,
+	'lt_rwc': 4,
+	'lt_mc': 3,
+	'lt_lc': 3,
+	'integer': 3,
+	'cust_user_large': 254,
+	'cust_Part22': 127,
+	'cust_part21': 127,
+	'cust_part12': 228,
+	'cust_part11': 270,
+	'cust_other': 250,
+	'Customers': 1002,
+	'cust_active': 752,
+	'cs_rwc': 3,
+	'case': 4,
+	'cs_pk': 3,
+	'rw_pk': 3
+}
+
+EXPECTED_ROW_COUNT_FF = {
+	'UT_UC': 4,
+	'UT_RWC': 3,
+	'UT_MC': 4,
+	'UT_LC': 4,
+	'USER': 3,
+	'Table': 4,
+	'SCHEMA': 495,
+	'Mt_Rwc': 4,
+	'lt_uc': 4,
+	'lt_rwc': 4,
+	'lt_mc': 4,
+	'lt_lc': 4,
+	'integer': 4,
+	'cust_user_large': 253,
+	'cust_Part22': 127,
+	'cust_part21': 126,
+	'cust_part12': 226,
+	'cust_part11': 269,
+	'cust_other': 250,
+	'Customers': 998,
+	'cust_active': 748,
+	'cs_rwc': 4,
+	'case': 3,
+	'cs_pk': 4,
+	'rw_pk': 4
+}
+
+def change_expected_values():
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_ff():
+	print("Running tests on PG source replica")
+	yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_fb():
+	print("Running tests on PG source")
+	yb.run_checks(migration_completed_checks, db_type="source")
+
+def migration_completed_checks(tgt):
+	# Validation to check for matching row counts
+	print("Running tests on public")
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+	
+	print("Running tests on schema2")
+	got_row_count = tgt.row_count_of_all_tables("schema2")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+#=============================================================================
+
+if __name__ == "__main__":
+	main()
