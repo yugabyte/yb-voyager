@@ -41,6 +41,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 			targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
 			log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
 			if err != nil {
+				reg.mu.Unlock()
 				return "", fmt.Errorf("get list of table attributes: %w", err)
 			}
 			reg.attrNames.Put(tableNameTup, targetColumns)
@@ -57,6 +58,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 			reg.bestMatchingColumnCache.Put(tableNameTup, make(map[string]string))
 			c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 			if err != nil {
+				reg.mu.Unlock()
 				return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 			}
 			bestMatchingColumnMapForTuple, _ = reg.bestMatchingColumnCache.Get(tableNameTup)
@@ -72,6 +74,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 		reg.mu.Lock()
 		c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 		if err != nil {
+			reg.mu.Unlock()
 			return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 		}
 		bestMatchingColumnMapForTuple[columnName] = fmt.Sprintf("%q", c)
