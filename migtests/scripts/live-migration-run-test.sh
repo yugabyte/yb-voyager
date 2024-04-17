@@ -177,6 +177,8 @@ main() {
 	step "Verify data-migration-report report"
 	verify_report ${expected_file} ${actual_file}
 
+	tail_log_file "debezium-source_db_exporter.log"
+
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes
 

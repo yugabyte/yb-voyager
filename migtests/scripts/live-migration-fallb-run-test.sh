@@ -202,6 +202,9 @@ main() {
 	"${TEST_DIR}/validateAfterChanges" --fb_enabled 'true' --ff_enabled 'false'
 	fi
 
+	tail_log_file "debezium-source_db_exporter.log"
+	tail_log_file "debezium-target_db_exporter_fb.log"
+
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes
 
