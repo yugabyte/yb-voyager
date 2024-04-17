@@ -59,6 +59,10 @@ var (
 )
 
 func PrintElapsedDuration() {
+	uninitialisedTimestamp := time.Time{}
+	if startTime == uninitialisedTimestamp {
+		return
+	}
 	utils.PrintAndLog("End time: %s\n", time.Now())
 	timeTakenByCurrentVoyagerInvocation := time.Since(startTime)
 	utils.PrintAndLog("Time taken: %s\n", timeTakenByCurrentVoyagerInvocation)
