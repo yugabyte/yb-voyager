@@ -2,9 +2,17 @@
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 TARBALL="yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz"
+FILE_PATH=$REPO_ROOT/$TARBALL
 
-# Check if the tarball exists and is not already tracked
-if [ -f "$REPO_ROOT/$TARBALL" ] && [ -z "$(git ls-files $REPO_ROOT/$TARBALL)" ]; then
-    git add $REPO_ROOT/$TARBALL
-    git commit -m "Added updated gather-assessment-data.tar.gz"
+# Check if the file does not exists
+if [ ! -f "$FILE_PATH" ]; then
+    echo "Error: $TARBALL File does not exist."
+    exit 1
+fi
+
+# Check if the file is not tracked or is tracked but not staged
+if ! git ls-files --error-unmatch "$FILE_PATH" &> /dev/null || ! git diff --quiet "$FILE_PATH"; then
+    git add "$FILE_PATH"
+    git commit -m "Added or updated gather-assessment-data tar.gz"
+    echo "$TARBALL file added and committed."
 fi
