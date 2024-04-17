@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# script to tar zip a directory after every commit
+# script to tar zip a directory after every commit 
 PARENT_DIR="yb-voyager/src/srcdb/data/gather-assessment-data/"
 DIR_NAME="gather-assessment-data"
 OUTPUT_TAR="yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz"
