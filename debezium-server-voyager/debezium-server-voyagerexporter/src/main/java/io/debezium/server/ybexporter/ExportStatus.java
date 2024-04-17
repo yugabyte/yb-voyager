@@ -290,6 +290,7 @@ public class ExportStatus {
     }
 
     public long getLastQueueSegmentIndex() {
+        logBusyTimeout();
         Statement selectStmt;
         int lastSegmentIndex;
         try {
@@ -311,6 +312,7 @@ public class ExportStatus {
     }
 
     public boolean checkIfQueueSegmentHasBeenArchivedOrDeleted(long segmentNo) {
+        logBusyTimeout();
         Statement selectStmt;
         int result;
         try {
@@ -335,6 +337,7 @@ public class ExportStatus {
 
     public void updateQueueSegmentMetaInfo(long segmentNo, long committedSize,
             Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
+        logBusyTimeout();
         final boolean oldAutoCommit = metadataDBConn.getAutoCommit();
         metadataDBConn.setAutoCommit(false);
         int updatedRows;
@@ -372,6 +375,7 @@ public class ExportStatus {
     }
 
     public boolean checkIfSwitchOperationRequested(String operation) throws SQLException {
+        logBusyTimeout();
         Statement selectStmt = metadataDBConn.createStatement();
         String query = String.format("SELECT json_text from %s where key = '%s'",
                 JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
@@ -397,6 +401,7 @@ public class ExportStatus {
     }
 
     public boolean checkifEndMigrationRequested() throws SQLException {
+        logBusyTimeout();
         Statement selectStmt = metadataDBConn.createStatement();
         String query = String.format("SELECT json_text from %s where key = '%s'",
                 JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
@@ -502,6 +507,7 @@ public class ExportStatus {
     }
 
     public void queueSegmentCreated(long segmentNo, String segmentPath, String exporterRole) {
+        logBusyTimeout();
         Statement insertStmt;
         try {
             insertStmt = metadataDBConn.createStatement();
@@ -515,7 +521,24 @@ public class ExportStatus {
         }
     }
 
+    public void logBusyTimeout(){
+        Statement stmt;
+        try {
+            stmt = metadataDBConn.createStatement();
+            ResultSet resultSet = stmt.executeQuery("PRAGMA busy_timeout;");
+            if (resultSet.next()) {
+                int busyTimeout = resultSet.getInt(1); // Retrieve the value from the result set
+                LOGGER.info("Current busy_timeout value: " + busyTimeout + " milliseconds");
+            } else {
+                LOGGER.info("Unable to retrieve busy_timeout value");
+            }
+        } catch (SQLException e){
+            LOGGER.error("busy_timeout error" + e);
+        }
+    }
+
     public long getQueueSegmentCommittedSize(long segmentNo) {
+        logBusyTimeout();
         Statement selectStmt;
         long sizeCommitted;
         try {
@@ -536,6 +559,7 @@ public class ExportStatus {
     }
 
     public Map<Long, Long> getTotalEventsPerSegment() {
+        logBusyTimeout();
         Statement selectStmt;
         Map<Long, Long> totalEventsPerSegment = new LinkedHashMap<Long, Long>();
         try {
