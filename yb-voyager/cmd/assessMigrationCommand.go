@@ -55,7 +55,7 @@ type AssessmentReport struct {
 	Sharding *migassessment.ShardingReport `json:"Sharding"`
 	Sizing   *migassessment.SizingReport   `json:"Sizing"`
 
-	MigrationAssessmentStats *[]migassessment.MigrationAssessmentStats `json: "MigrationAssessmentStats"`
+	MigrationAssessmentStats *[]migassessment.MigrationAssessmentStats `json:"MigrationAssessmentStats"`
 }
 
 type UnsupportedFeature struct {
