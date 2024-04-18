@@ -99,14 +99,12 @@ main() {
 		"CentOS Stream")
 			# if major version is greater than or equal to 8 then disable postgresql module
 			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; then
-			then
 				sudo yum -qy module disable postgresql
 			fi
 			centos_main
 			;;
 		"CentOS Linux")
 			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; then
-			then
 				sudo yum -qy module disable postgresql
 			fi
 			centos_main
@@ -116,15 +114,13 @@ main() {
 			centos_main
 			;;
 		"Red Hat Enterprise Linux")
-			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; 
-			then
+			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; then
     			sudo yum -qy module disable postgresql
 			fi
 			centos_main
 			;;
 		"Red Hat Enterprise Linux Server")
 			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; then
-			then
 				sudo yum -qy module disable postgresql
 			fi
 			centos_main
