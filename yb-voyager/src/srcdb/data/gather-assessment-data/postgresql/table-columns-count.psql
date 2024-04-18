@@ -22,6 +22,6 @@ WHERE
     (c.relkind = 'r' OR (c.relkind = 'i' AND NOT pi.indisprimary))
     AND n.nspname = ANY(ARRAY[string_to_array(:'schema_list', ',')]);
 
-\copy temp_table to 'columns_count.csv' WITH CSV HEADER;
+\copy temp_table to 'table-columns-count.csv' WITH CSV HEADER;
 
 DROP TABLE temp_table;

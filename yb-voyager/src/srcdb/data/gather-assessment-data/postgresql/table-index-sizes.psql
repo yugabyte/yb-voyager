@@ -4,7 +4,7 @@ SELECT
     n.nspname AS schema_name,
     c.relname AS object_name,
     CASE WHEN c.relkind = 'r' THEN 'table' ELSE 'index' END AS object_type,
-    pg_catalog.pg_relation_size(c.oid) AS size
+    pg_catalog.pg_relation_size(c.oid) AS size_in_bytes
 FROM 
     pg_catalog.pg_class c
 JOIN 
