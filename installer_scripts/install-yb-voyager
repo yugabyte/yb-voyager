@@ -750,18 +750,23 @@ create_pg_dump_args_file() {
 }
 
 create_gather_assessment_data_dir() {	
-	scripts_dir="/etc/yb-voyager"
-	sudo mkdir -p $scripts_dir
+	scripts_parent_dir="/etc/yb-voyager"
+	scripts_dir_name="gather-assessment-data"
+	sudo mkdir -p $scripts_parent_dir
 
 	output "Installing the latest scripts for gathering assessment data"
 	if [ "${VERSION}" == "latest" ]
 	then
-		# TODO: fix it, github does not link statically links the raw file contents
-		sudo wget -nv -O /tmp/gather-assessment-data.tar.gz https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/gather-assessment-data
-		sudo tar -xzf /tmp/gather-assessment-data.tar.gz -C $scripts_dir
+		# TODO: Replace the YB_VOYAGER_GIT_HASH_TEMP with the release tagged YB_VOYAGER_GIT_HASH
+		YB_VOYAGER_GIT_HASH_TEMP="96eb3de7374e52279382c0fb01cf74bc5f9bb3fe"
+		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH_TEMP/yb-voyager/src/srcdb/data/${scripts_dir_name}.tar.gz"
+		sudo wget -nv -O /tmp/${scripts_dir_name}.tar.gz $TAR_URL
+		sudo tar -xzf /tmp/${scripts_dir_name}.tar.gz -C $scripts_parent_dir 1>&2
+		sudo rm /tmp/${scripts_dir_name}.tar.gz
 	else
 		pushd $REPO_ROOT > /dev/null
-		sudo cp -r ./yb-voyager/src/srcdb/data/gather-assessment-data $scripts_dir
+		# Synchronizes directory contents, deleting extraneous files and updating any that differ in checksum or timestamps.
+		sudo rsync -avc --delete $REPO_ROOT/yb-voyager/src/srcdb/data/gather-assessment-data $scripts_parent_dir 1>&2
 		popd > /dev/null
 	fi
 }
