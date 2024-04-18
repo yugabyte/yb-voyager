@@ -140,18 +140,12 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	}
 	dbzmNameTupToRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
 
-	for _, tableExportStatus := range dbzmStatus.Tables {
-		tableName := fmt.Sprintf("%s.%s", tableExportStatus.SchemaName, tableExportStatus.TableName)
-		nt, err := namereg.NameReg.LookupTableName(tableName)
-		if err != nil {
-			utils.ErrExit("lookup %s in name registry: %v", tableName, err)
-		}
-		dbzmNameTupToRowCount.Put(nt, tableExportStatus.ExportedRowCountSnapshot)
-	}
-
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	var exportSnapshotStatus *ExportSnapshotStatus
+
+	sqlname.SourceDBType = source.DBType
+	var exportedPGSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 
 	source = *msr.SourceDBConf
 	if source.DBType == POSTGRESQL {
@@ -159,14 +153,18 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 		}
-	}
-
-	sqlname.SourceDBType = source.DBType
-	var exportedPGSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
-	if source.DBType == POSTGRESQL {
 		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(exportSnapshotStatus)
 		if err != nil {
 			utils.ErrExit("error while getting exported snapshot rows: %w\n", err)
+		}
+	} else {
+		for _, tableExportStatus := range dbzmStatus.Tables {
+			tableName := fmt.Sprintf("%s.%s", tableExportStatus.SchemaName, tableExportStatus.TableName)
+			nt, err := namereg.NameReg.LookupTableName(tableName)
+			if err != nil {
+				utils.ErrExit("lookup %s in name registry: %v", tableName, err)
+			}
+			dbzmNameTupToRowCount.Put(nt, tableExportStatus.ExportedRowCountSnapshot)
 		}
 	}
 
