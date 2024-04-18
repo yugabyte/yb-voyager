@@ -30,6 +30,7 @@ import (
 	"github.com/magiconair/properties"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -91,9 +92,27 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	})
 
 	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
-	columnSequenceMapping := strings.Join(lo.MapToSlice(colToSeqMap, func(k, v string) string {
-		return fmt.Sprintf("%s:%s", k, v)
-	}), ",")
+	var colToSeqMapSlices []string
+	
+	for k,v := range colToSeqMap {
+		parts := strings.Split(k, ".")
+		leafTable := fmt.Sprintf("%s.%s",parts[0],parts[1])
+		rootTable, isRenamed := renameTableIfRequired(leafTable)
+		if isRenamed {
+			rootTableTup, err := namereg.NameReg.LookupTableName(rootTable)
+			if err != nil {
+				return nil, nil, fmt.Errorf("lookup failed for table %s", rootTable)
+			}
+			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], v)
+			if !slices.Contains(colToSeqMapSlices, c) {
+				colToSeqMapSlices = append(colToSeqMapSlices, c)
+			}
+		} else {
+			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, v))
+		}
+	}
+
+	columnSequenceMapping := strings.Join(colToSeqMapSlices, ",")
 
 	err = prepareSSLParamsForDebezium(absExportDir)
 	if err != nil {
