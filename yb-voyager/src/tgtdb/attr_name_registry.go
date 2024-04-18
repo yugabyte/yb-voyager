@@ -24,7 +24,7 @@ func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameReg
 		tdb:                     tdb,
 		tconf:                   tconf,
 		attrNames:               sync.Map{}, //sqlname.NameTuple.ForKey() -> []string
-		bestMatchingColumnCache: sync.Map{}, //sqlname.NameTuple.ForKey() -> map[string]string
+		bestMatchingColumnCache: sync.Map{}, //sqlname.NameTuple.ForKey() -> sync.Map{}
 	}
 }
 
@@ -48,22 +48,22 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 
 func (reg *AttributeNameRegistry) withCacheFindBestMatchingColumnName(columnName string, targetColumns []string, tableNameTup sqlname.NameTuple) (string, error) {
 	anyMap, ok := reg.bestMatchingColumnCache.Load(tableNameTup.ForKey())
-	bestMatchingColumnMapForTuple := make(map[string]string)
+	bestMatchingColumnMapForTuple := &sync.Map{}
 	if anyMap != nil {
-		bestMatchingColumnMapForTuple = anyMap.(map[string]string)
+		bestMatchingColumnMapForTuple = anyMap.(*sync.Map)
 	}
 	if !ok {
 		reg.bestMatchingColumnCache.Store(tableNameTup.ForKey(), bestMatchingColumnMapForTuple)
 	}
-	bestMatchColumn, foundMatch := bestMatchingColumnMapForTuple[columnName]
+	bestMatchColumn, foundMatch := bestMatchingColumnMapForTuple.Load(columnName)
 	if foundMatch {
-		return bestMatchColumn, nil
+		return bestMatchColumn.(string), nil
 	}
 	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
 		return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 	}
-	bestMatchingColumnMapForTuple[columnName] = fmt.Sprintf("%q", c)
+	bestMatchingColumnMapForTuple.Store(columnName, fmt.Sprintf("%q", c))
 	reg.bestMatchingColumnCache.Store(tableNameTup.ForKey(), bestMatchingColumnMapForTuple)
 	return fmt.Sprintf("%q", c), nil
 
