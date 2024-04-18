@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
 )
@@ -15,9 +14,8 @@ type AttributeNameRegistry struct {
 	dbType                  string
 	tdb                     TargetDB
 	tconf                   *TargetConf
-	attrNames               *utils.StructMap[sqlname.NameTuple, []string]
-	bestMatchingColumnCache *utils.StructMap[sqlname.NameTuple, sync.Map]
-	mu                      sync.Mutex
+	attrNames               sync.Map
+	bestMatchingColumnCache sync.Map
 }
 
 func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameRegistry {
@@ -25,55 +23,48 @@ func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameReg
 		dbType:                  tconf.TargetDBType,
 		tdb:                     tdb,
 		tconf:                   tconf,
-		attrNames:               utils.NewStructMap[sqlname.NameTuple, []string](),
-		bestMatchingColumnCache: utils.NewStructMap[sqlname.NameTuple, sync.Map](),
+		attrNames:               sync.Map{}, //sqlname.NameTuple.ForKey() -> []string
+		bestMatchingColumnCache: sync.Map{}, //sqlname.NameTuple.ForKey() -> map[string]string
 	}
 }
 
 func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error) {
 	var err error
-	targetColumns, ok := reg.attrNames.Get(tableNameTup)
+	anyArr, ok := reg.attrNames.Load(tableNameTup.ForKey())
+	var targetColumns []string
+	if anyArr != nil {
+		targetColumns = anyArr.([]string)
+	}
 	if !ok {
-		reg.mu.Lock()
-		// try again in case it's now available
-		targetColumns, ok = reg.attrNames.Get(tableNameTup)
-		if !ok {
-			targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
-			log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
-			if err != nil {
-				reg.mu.Unlock()
-				return "", fmt.Errorf("get list of table attributes: %w", err)
-			}
-			reg.attrNames.Put(tableNameTup, targetColumns)
+		targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
+		log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
+		if err != nil {
+			return "", fmt.Errorf("get list of table attributes: %w", err)
 		}
-
-		reg.mu.Unlock()
+		reg.attrNames.Store(tableNameTup.ForKey(), targetColumns)
 	}
 	return reg.withCacheFindBestMatchingColumnName(columnName, targetColumns, tableNameTup)
 }
 
 func (reg *AttributeNameRegistry) withCacheFindBestMatchingColumnName(columnName string, targetColumns []string, tableNameTup sqlname.NameTuple) (string, error) {
-	bestMatchingColumnMapForTuple, ok := reg.bestMatchingColumnCache.Get(tableNameTup)
+	anyMap, ok := reg.bestMatchingColumnCache.Load(tableNameTup.ForKey())
+	bestMatchingColumnMapForTuple := make(map[string]string)
+	if anyMap != nil {
+		bestMatchingColumnMapForTuple = anyMap.(map[string]string)
+	}
 	if !ok {
-		reg.mu.Lock()
-		//try again
-		bestMatchingColumnMapForTuple, ok = reg.bestMatchingColumnCache.Get(tableNameTup)
-		if !ok {
-			reg.bestMatchingColumnCache.Put(tableNameTup, sync.Map{})
-		}
-		reg.mu.Unlock()
+		reg.bestMatchingColumnCache.Store(tableNameTup.ForKey(), bestMatchingColumnMapForTuple)
 	}
-	bestMatchingColumnMapForTuple, _ = reg.bestMatchingColumnCache.Get(tableNameTup)
-	bestMatchColumn, foundMatch := bestMatchingColumnMapForTuple.Load(columnName)
+	bestMatchColumn, foundMatch := bestMatchingColumnMapForTuple[columnName]
 	if foundMatch {
-		return bestMatchColumn.(string), nil
+		return bestMatchColumn, nil
 	}
-
 	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
 		return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 	}
-	bestMatchingColumnMapForTuple.Store(columnName, fmt.Sprintf("%q", c))
+	bestMatchingColumnMapForTuple[columnName] = fmt.Sprintf("%q", c)
+	reg.bestMatchingColumnCache.Store(tableNameTup.ForKey(), bestMatchingColumnMapForTuple)
 	return fmt.Sprintf("%q", c), nil
 
 }
