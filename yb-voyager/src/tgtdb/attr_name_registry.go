@@ -49,35 +49,33 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 
 		reg.mu.Unlock()
 	}
-	return withCacheFindBestMatchingColumnName(reg)(columnName, targetColumns, tableNameTup)
+	return reg.withCacheFindBestMatchingColumnName(columnName, targetColumns, tableNameTup)
 }
 
+func (reg *AttributeNameRegistry) withCacheFindBestMatchingColumnName(columnName string, targetColumns []string, tableNameTup sqlname.NameTuple) (string, error) {
+	bestMatchingColumnMapForTuple, ok := reg.bestMatchingColumnCache.Get(tableNameTup)
+	if !ok {
+		reg.mu.Lock()
+		//try again
+		bestMatchingColumnMapForTuple, ok = reg.bestMatchingColumnCache.Get(tableNameTup)
+		if !ok {
+			reg.bestMatchingColumnCache.Put(tableNameTup, sync.Map{})
+		}
+		reg.mu.Unlock()
+	}
+	bestMatchingColumnMapForTuple, _ = reg.bestMatchingColumnCache.Get(tableNameTup)
+	bestMatchColumn, foundMatch := bestMatchingColumnMapForTuple.Load(columnName)
+	if foundMatch {
+		return bestMatchColumn.(string), nil
+	}
 
-func withCacheFindBestMatchingColumnName(reg *AttributeNameRegistry) func(columnName string, targetColumns []string, tableNameTup sqlname.NameTuple) (string, error) {
-    return func(columnName string, targetColumns []string, tableNameTup sqlname.NameTuple) (string, error) {
-        bestMatchingColumnMapForTuple, ok := reg.bestMatchingColumnCache.Get(tableNameTup)
-        if !ok {
-			reg.mu.Lock()
-			//try again
-            bestMatchingColumnMapForTuple, ok = reg.bestMatchingColumnCache.Get(tableNameTup)
-            if !ok {
-                reg.bestMatchingColumnCache.Put(tableNameTup, sync.Map{})
-            }
-			reg.mu.Unlock()
-        }
-        bestMatchingColumnMapForTuple, _ = reg.bestMatchingColumnCache.Get(tableNameTup)
-        bestMatchColumn, foundMatch := bestMatchingColumnMapForTuple.Load(columnName)
-        if foundMatch {
-            return bestMatchColumn.(string), nil
-        }
+	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
+	if err != nil {
+		return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
+	}
+	bestMatchingColumnMapForTuple.Store(columnName, fmt.Sprintf("%q", c))
+	return fmt.Sprintf("%q", c), nil
 
-        c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
-        if err != nil {
-            return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
-        }
-        bestMatchingColumnMapForTuple.Store(columnName, fmt.Sprintf("%q", c)) 
-        return fmt.Sprintf("%q", c), nil
-    }
 }
 
 func (reg *AttributeNameRegistry) QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {
