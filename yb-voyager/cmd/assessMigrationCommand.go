@@ -37,10 +37,13 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var assessmentParamsFpath string
-var assessmentDataDir string
-var assessmentDataDirFlag string
-var assessmentReport AssessmentReport
+var (
+	assessmentParamsFpath string
+	assessmentDataDir     string
+	assessmentDataDirFlag string
+	assessmentReport      AssessmentReport
+	assessmentDB          *migassessment.AssessmentDB
+)
 
 type AssessmentReport struct {
 	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
@@ -51,11 +54,13 @@ type AssessmentReport struct {
 
 	Sharding *migassessment.ShardingReport `json:"Sharding"`
 	Sizing   *migassessment.SizingReport   `json:"Sizing"`
+
+	MigrationAssessmentStats *[]migassessment.MigrationAssessmentStats `json: "MigrationAssessmentStats"`
 }
 
 type UnsupportedFeature struct {
-	FeatureName string   `json:"feature_name"`
-	ObjectNames []string `json:"object_names"`
+	FeatureName string   `json:"FeatureName"`
+	ObjectNames []string `json:"ObjectNames"`
 }
 
 var assessMigrationCmd = &cobra.Command{
@@ -117,6 +122,7 @@ func assessMigration() (err error) {
 	assessmentDataDir = lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
 		filepath.Join(exportDir, "assessment", "data"))
 	migassessment.AssessmentDataDir = assessmentDataDir
+	initAssessmentDB() // Note: migassessment.AssessmentDataDir needs to be set beforehand
 
 	err = gatherAssessmentData()
 	if err != nil {
@@ -321,16 +327,6 @@ func parseExportedSchemaFileForAssessment() {
 }
 
 func populateMetricsCSVIntoAssessmentDB() error {
-	err := migassessment.InitAssessmentDB()
-	if err != nil {
-		return fmt.Errorf("error creating and initializing assessment DB: %w", err)
-	}
-
-	assessmentDB, err := migassessment.NewAssessmentDB()
-	if err != nil {
-		return fmt.Errorf("error creating assessment DB instance: %w", err)
-	}
-
 	metricsFilePath, err := filepath.Glob(filepath.Join(assessmentDataDir, "*.csv"))
 	if err != nil {
 		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentDataDir, err)
@@ -393,6 +389,10 @@ func generateAssessmentReport() (err error) {
 
 	assessmentReport.Sharding = migassessment.Report.ShardingReport
 	assessmentReport.Sizing = migassessment.Report.SizingReport
+	assessmentReport.MigrationAssessmentStats, err = assessmentDB.FetchAllStats()
+	if err != nil {
+		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
+	}
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)

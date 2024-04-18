@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -37,6 +38,18 @@ const (
 	TABLE_COLUMNS_DATA_TYPES   = "table_columns_data_types"
 	MIGRATION_ASSESSMENT_STATS = "migration_assessment_stats"
 )
+
+type MigrationAssessmentStats struct {
+	SchemaName      string `json:"schema_name"`
+	ObjectName      string `json:"object_name"`
+	RowCount        int64  `json:"row_count"`
+	ColumnCount     int64  `json:"column_count"`
+	Reads           int64  `json:"reads"`
+	Writes          int64  `json:"writes"`
+	IsIndex         bool   `json:"is_index"`
+	ParentTableName string `json:"parent_table_name"`
+	SizeInBytes     int64  `json:"size_in_bytes"`
+}
 
 func GetDBFilePath() string {
 	return filepath.Join(AssessmentDataDir, "assessment.db")
@@ -252,4 +265,35 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	}
 
 	return nil
+}
+
+func (adb *AssessmentDB) FetchAllStats() (*[]MigrationAssessmentStats, error) {
+	log.Infof("fetching all stats info from %q table", MIGRATION_ASSESSMENT_STATS)
+	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads, writes, is_index, parent_table_name, size_in_bytes FROM %s;`, MIGRATION_ASSESSMENT_STATS)
+	rows, err := adb.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying all stats-%s: %w", query, err)
+	}
+	defer rows.Close()
+
+	var stats []MigrationAssessmentStats
+	for rows.Next() {
+		var stat MigrationAssessmentStats
+		var rowCount, columnCount sql.NullInt64
+		var parentTableName sql.NullString
+		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &stat.Reads, &stat.Writes, &stat.IsIndex, &parentTableName, &stat.SizeInBytes); err != nil {
+			return nil, fmt.Errorf("error scanning row: %w", err)
+		}
+
+		stat.RowCount = lo.Ternary(rowCount.Valid, rowCount.Int64, -1)
+		stat.ColumnCount = lo.Ternary(columnCount.Valid, columnCount.Int64, -1)
+		stat.ParentTableName = lo.Ternary(parentTableName.Valid, parentTableName.String, "")
+		stats = append(stats, stat)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading rows: %w", err)
+	}
+
+	return &stats, nil
 }

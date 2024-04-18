@@ -44,6 +44,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -468,6 +469,18 @@ func initMetaDB() {
 				"with a new export-dir.", exportDir, utils.YB_VOYAGER_VERSION)
 		}
 		utils.ErrExit(userFacingMsg)
+	}
+}
+
+func initAssessmentDB() {
+	err := migassessment.InitAssessmentDB()
+	if err != nil {
+		utils.ErrExit("error creating and initializing assessment DB: %v", err)
+	}
+
+	assessmentDB, err = migassessment.NewAssessmentDB()
+	if err != nil {
+		utils.ErrExit("error creating assessment DB instance: %v", err)
 	}
 }
 
