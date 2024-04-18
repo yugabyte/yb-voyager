@@ -1,48 +1,48 @@
 [
   {
-    "table_name": "datatypes1",
+    "table_name": "public.\"datatypes1\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
     "percentage_complete": 100
   },
   {
-    "table_name": "datatypes2",
+    "table_name": "public.\"datatypes2\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
     "percentage_complete": 100
   },
   {
-    "table_name": "datetime_type",
+    "table_name": "public.\"datetime_type\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
     "percentage_complete": 100
   },
   {
-    "table_name": "datetime_type2",
+    "table_name": "public.\"datetime_type2\"",
     "status": "DONE",
     "total_count": 2,
     "imported_count": 2,
     "percentage_complete": 100
   },
   {
-    "table_name": "decimal_types",
+    "table_name": "public.\"decimal_types\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
     "percentage_complete": 100
   },
   {
-    "table_name": "null_and_default",
+    "table_name": "public.\"null_and_default\"",
     "status": "DONE",
     "total_count": 2,
     "imported_count": 2,
     "percentage_complete": 100
   },
   {
-    "table_name": "num_types",
+    "table_name": "public.\"num_types\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
