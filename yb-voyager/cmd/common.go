@@ -63,10 +63,11 @@ func PrintElapsedDuration() {
 	if startTime == uninitialisedTimestamp {
 		return
 	}
-	utils.PrintAndLog("End time: %s\n", time.Now())
+	log.Infof("End time: %s\n", time.Now())
 	timeTakenByCurrentVoyagerInvocation := time.Since(startTime)
-	utils.PrintAndLog("Time taken: %s\n", timeTakenByCurrentVoyagerInvocation)
-	utils.PrintAndLog("Time taken (in seconds): %f\n", timeTakenByCurrentVoyagerInvocation.Seconds())
+	utils.PrintAndLog("Time taken: %s (%.2f seconds)\n",
+		timeTakenByCurrentVoyagerInvocation,
+		timeTakenByCurrentVoyagerInvocation.Seconds())
 }
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

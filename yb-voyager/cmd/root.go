@@ -70,7 +70,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
 		startTime = time.Now()
-		utils.PrintAndLog("Start time: %s\n", startTime)
+		log.Infof("Start time: %s\n", startTime)
 		if metaDBIsCreated(exportDir) {
 			initMetaDB()
 		}
