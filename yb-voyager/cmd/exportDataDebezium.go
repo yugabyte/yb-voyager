@@ -92,27 +92,10 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	})
 
 	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
-	var colToSeqMapSlices []string
-	
-	for k,v := range colToSeqMap {
-		parts := strings.Split(k, ".")
-		leafTable := fmt.Sprintf("%s.%s",parts[0],parts[1])
-		rootTable, isRenamed := renameTableIfRequired(leafTable)
-		if isRenamed {
-			rootTableTup, err := namereg.NameReg.LookupTableName(rootTable)
-			if err != nil {
-				return nil, nil, fmt.Errorf("lookup failed for table %s", rootTable)
-			}
-			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], v)
-			if !slices.Contains(colToSeqMapSlices, c) {
-				colToSeqMapSlices = append(colToSeqMapSlices, c)
-			}
-		} else {
-			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, v))
-		}
+	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting column to sequence mapping %s", err)
 	}
-
-	columnSequenceMapping := strings.Join(colToSeqMapSlices, ",")
 
 	err = prepareSSLParamsForDebezium(absExportDir)
 	if err != nil {
@@ -212,6 +195,30 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 	}
 	return config, tableNameToApproxRowCountMap, nil
+}
+
+func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
+	var colToSeqMapSlices []string
+	
+	for k,v := range colToSeqMap {
+		parts := strings.Split(k, ".")
+		leafTable := fmt.Sprintf("%s.%s",parts[0],parts[1])
+		rootTable, isRenamed := renameTableIfRequired(leafTable)
+		if isRenamed {
+			rootTableTup, err := namereg.NameReg.LookupTableName(rootTable)
+			if err != nil {
+				return "", fmt.Errorf("lookup failed for table %s", rootTable)
+			}
+			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], v)
+			if !slices.Contains(colToSeqMapSlices, c) {
+				colToSeqMapSlices = append(colToSeqMapSlices, c)
+			}
+		} else {
+			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, v))
+		}
+	}
+
+	return strings.Join(colToSeqMapSlices, ","), nil
 }
 
 func prepareSSLParamsForDebezium(exportDir string) error {
