@@ -83,7 +83,7 @@ WITH status_list AS (
         ), arr_list AS (
             SELECT '{100, 200, 50, 250}'::INT[] arr
         )
-        INSERT INTO "Customers" 
+        INSERT INTO customers
         (id, statuses, arr)
             SELECT  n,
                     statuses[1 + mod(n, array_length(statuses, 1))],
