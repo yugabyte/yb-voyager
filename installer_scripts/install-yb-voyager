@@ -97,32 +97,19 @@ main() {
 	dist=$(cat /etc/os-release | grep -w NAME | awk -F'=' '{print $2}' | tr -d '"')
 	case ${dist} in
 		"CentOS Stream")
-			# if major version is greater than or equal to 8 then disable postgresql module
-			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; then
-				sudo yum -qy module disable postgresql
-			fi
 			centos_main
 			;;
 		"CentOS Linux")
-			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; then
-				sudo yum -qy module disable postgresql
-			fi
 			centos_main
 			;;
 		"AlmaLinux")
-			sudo yum -qy module disable postgresql
+
 			centos_main
 			;;
 		"Red Hat Enterprise Linux")
-			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; then
-    			sudo yum -qy module disable postgresql
-			fi
 			centos_main
 			;;
 		"Red Hat Enterprise Linux Server")
-			if [ "$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d '"')" -ge 8 ]; then
-				sudo yum -qy module disable postgresql
-			fi
 			centos_main
 			;;
 		"Ubuntu")
@@ -137,6 +124,11 @@ main() {
 
 
 centos_main() {
+	# if major version is greater than or equal to 8 then disable postgresql module
+	version = $(cat /etc/redhat-release | awk '{print $4}' | awk -F'.' '{print $1}')
+	res = $(vercomp)
+		sudo yum -qy module disable postgresql
+	fi
 	check_binutils_version
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
