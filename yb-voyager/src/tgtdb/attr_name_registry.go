@@ -43,12 +43,14 @@ func (reg *AttributeNameRegistry) lookupCachedQuotedAttributeName(tableNameTup s
 }
 
 func (reg *AttributeNameRegistry) cacheQuotedAttributeName(tableNameTup sqlname.NameTuple, columnName, result string) {
+	var resultMap map[string]string
+
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
 	resultMap, ok := reg.resultCache[tableNameTup.ForKey()]
 	if !ok {
-		resultMap := make(map[string]string)
+		resultMap = make(map[string]string)
 		reg.resultCache[tableNameTup.ForKey()] = resultMap
 	}
 	resultMap[columnName] = result
