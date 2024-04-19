@@ -63,7 +63,11 @@ EXPECTED_ROW_COUNT = {
 	"p1.sales_region":			1000,
 	"public.range_columns_partition_test": 8,
 	"public.range_columns_partition_test_p0": 3,
-	"public.range_columns_partition_test_p1": 5
+	"public.range_columns_partition_test_p1": 5,
+	"public.test_partitions_sequences" : 1000,
+	"public.test_partitions_sequences_l": 334,
+	"public.test_partitions_sequences_s":332,
+	"public.test_partitions_sequences_b":334
 }
 
 
@@ -118,7 +122,7 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 		"schema_name": "public"
 	},
 	"List" : {
-		"query": "INSERT INTO test_partitions_sequences  (amount, branch, region) VALUES (2000, 'Branch 1001','Sydney') ",
+		"query": "INSERT INTO test_partitions_sequences  (amount, branch, region) VALUES (200025, 'Branch 1001','Sydney') ",
 		"partition_table_name": "test_partitions_sequences_s",
 		"schema_name": "public"
 	},
