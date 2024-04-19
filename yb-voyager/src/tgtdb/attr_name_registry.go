@@ -70,6 +70,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 		targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
 		log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
 		if err != nil {
+			reg.mu.Unlock()
 			return "", fmt.Errorf("get list of table attributes: %w", err)
 		}
 		reg.attrNames.Put(tableNameTup, targetColumns)
