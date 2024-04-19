@@ -73,6 +73,20 @@ if [ -z "$PGPASSWORD" ]; then
     export PGPASSWORD
 fi
 
+
+track_counts_on=$(psql $pg_connection_string -tAqc "SELECT setting FROM pg_settings WHERE name = 'track_counts';")
+if [ "$track_counts_on" != "on" ]; then
+    echo "Warning: track_counts is not enabled in the PostgreSQL configuration."
+    echo "It's required for calculating reads/writes per second stats of tables/indexes. Do you still want to continue? (Y/N): "
+    read continue_execution
+    continue_execution=$(echo "$continue_execution" | tr '[:upper:]' '[:lower:]') # converting to lower case for easier comparison
+    if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
+        echo "Exiting..."
+        exit 2
+    fi
+fi
+
+
 echo "Assessment data collection started"
 
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases

@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"github.com/samber/lo"
@@ -266,6 +267,7 @@ func gatherAssessmentDataFromPG() (err error) {
 	cmd.Env = append(cmd.Env, "PGPASSWORD="+source.Password,
 		"PATH="+os.Getenv("PATH"))
 	cmd.Dir = assessmentDataDir
+	cmd.Stdin = os.Stdin
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -298,6 +300,14 @@ func gatherAssessmentDataFromPG() (err error) {
 
 	err = cmd.Wait()
 	if err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				if status.ExitStatus() == 2 {
+					log.Infof("Exit without error as user opted not to continue in the script.")
+					os.Exit(0)
+				}
+			}
+		}
 		return fmt.Errorf("error waiting for gather assessment data script to complete: %w", err)
 	}
 	return nil
