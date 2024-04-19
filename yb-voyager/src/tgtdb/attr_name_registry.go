@@ -63,22 +63,18 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 	if ok {
 		return result, nil
 	}
-	targetColumns, ok := reg.attrNames.Get(tableNameTup)
+	var targetColumns []string
+	reg.mu.Lock()
+	targetColumns, ok = reg.attrNames.Get(tableNameTup)
 	if !ok {
-		reg.mu.Lock()
-		// try again in case it's now available
-		targetColumns, ok = reg.attrNames.Get(tableNameTup)
-		if !ok {
-			targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
-			log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
-			if err != nil {
-				return "", fmt.Errorf("get list of table attributes: %w", err)
-			}
-			reg.attrNames.Put(tableNameTup, targetColumns)
+		targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
+		log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
+		if err != nil {
+			return "", fmt.Errorf("get list of table attributes: %w", err)
 		}
-
-		reg.mu.Unlock()
+		reg.attrNames.Put(tableNameTup, targetColumns)
 	}
+	reg.mu.Unlock()
 	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
 		return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
