@@ -77,9 +77,21 @@ echo "Assessment data collection started"
 
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
 for script in $SCRIPT_DIR/*.psql; do
+    script_name=$(basename "$script" .psql)
     script_action=$(basename "$script" .psql | sed 's/-/ /g')
     echo "Collecting $script_action..."
-    psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on
+    if [ $script_name == "table-index-iops" ]; then
+        psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial
+        mv table-index-iops.csv table-index-iops-initial.csv
+        
+        # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
+        sleep 120 
+        
+        psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final -v filename=$script_name-initial.csv
+        mv table-index-iops.csv table-index-iops-final.csv
+    else
+        psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on
+    fi
 done
 
 # check for pg_dump version

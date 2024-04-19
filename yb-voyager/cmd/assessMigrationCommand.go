@@ -329,8 +329,8 @@ func populateMetricsCSVIntoAssessmentDB() error {
 	for _, metricFilePath := range metricsFilePath {
 		baseFileName := filepath.Base(metricFilePath)
 		metric := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
-		table_name := strings.Replace(metric, "-", "_", -1)
-		log.Infof("populating metrics from file %s into table %s", metricFilePath, table_name)
+		tableName := strings.Replace(metric, "-", "_", -1)
+		log.Infof("populating metrics from file %s into table %s", metricFilePath, tableName)
 		file, err := os.Open(metricFilePath)
 		if err != nil {
 			log.Warnf("error opening file %s: %v", metricsFilePath, err)
@@ -345,12 +345,17 @@ func populateMetricsCSVIntoAssessmentDB() error {
 			return fmt.Errorf("error reading csv file %s: %w", metricsFilePath, err)
 		}
 
-		err = assessmentDB.BulkInsert(table_name, rows)
-		if err != nil {
-			return fmt.Errorf("error bulk inserting data into %s table: %w", table_name, err)
+		// collecting both initial and final measurement in the same table
+		if strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS) {
+			tableName = migassessment.TABLE_INDEX_IOPS
 		}
 
-		log.Infof("populated metrics from file %s into table %s", metricFilePath, table_name)
+		err = assessmentDB.BulkInsert(tableName, rows)
+		if err != nil {
+			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
+		}
+
+		log.Infof("populated metrics from file %s into table %s", metricFilePath, tableName)
 	}
 
 	err = assessmentDB.PopulateMigrationAssessmentStats()
