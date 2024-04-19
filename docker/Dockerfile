@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y curl perl make libdbi-perl locales && \
     cd yb-voyager/installer_scripts && \
     locale-gen en_US.UTF-8 && \
     yes | ./install-yb-voyager && \
+    cat /tmp/install-yb-voyager.log && \
     . ~/.yb-voyager.rc && \
     apt-get remove -y gcc curl make wget git && \
     rm -rf /yb-voyager /usr/share/icons /usr/share/fonts /usr/share/doc && \
