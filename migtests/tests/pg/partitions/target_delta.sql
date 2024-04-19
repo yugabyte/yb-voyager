@@ -16,6 +16,24 @@ DELETE FROM sales_region WHERE id = 5;
 -- Delete from a specific partition
 DELETE FROM sales_region WHERE id = 99;
 
+-- Insert into the test_partitions_sequences table
+INSERT INTO test_partitions_sequences (id, amount, branch, region) VALUES (1011, 1000, 'Branch 1011', 'Sydney');
+
+-- Insert into a specific partition
+INSERT INTO test_partitions_sequences_b (id, amount, branch, region) VALUES (1012, 2000, 'Branch 1012', 'Boston');
+
+-- Update the test_partitions_sequences table
+UPDATE test_partitions_sequences SET amount = 1500 WHERE id = 13;
+
+-- Update a specific partition
+UPDATE test_partitions_sequences_s SET amount = 2500 WHERE id = 1011 AND region = 'Sydney';
+
+-- Delete from the test_partitions_sequences table
+DELETE FROM test_partitions_sequences WHERE id = 5;
+
+-- Delete from a specific partition
+DELETE FROM test_partitions_sequences WHERE id = 99;
+
 -- Insert into the p1.sales_region table
 INSERT INTO p1.sales_region (id, amount, branch, region) VALUES (1011, 1000, 'Branch 1011', 'Sydney');
 

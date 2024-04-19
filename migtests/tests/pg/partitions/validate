@@ -59,7 +59,11 @@ EXPECTED_ROW_COUNT = {
 	"p1.sales_region":			1000,
 	"public.range_columns_partition_test": 6,
 	"public.range_columns_partition_test_p0": 3,
-	"public.range_columns_partition_test_p1": 3
+	"public.range_columns_partition_test_p1": 3,
+	"public.test_partitions_sequences" : 1000,
+	"public.test_partitions_sequences_l": 333,
+	"public.test_partitions_sequences_s":333,
+	"public.test_partitions_sequences_b":334
 }
 
 # This is for the case when partitions are changed on target, for YB and PG this table is with different partition names
@@ -80,6 +84,7 @@ EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG = {
 
 TABLE_NAME_TO_PARTITION_COUNT = {
 	"public.sales_region": 3,
+	"public.test_partitions_sequences": 3,
 	"p1.sales_region": 3,
 	"public.sales": 3,
 	"public.range_columns_partition_test": 2,
@@ -92,6 +97,11 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
 		"partition_table_name": "sydney",
+		"schema_name": "public"
+	},
+	"List" : {
+		"query": "INSERT INTO test_partitions_sequences  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
+		"partition_table_name": "test_partitions_sequences_s",
 		"schema_name": "public"
 	},
 	"List_partitions_in_different_schema" : {

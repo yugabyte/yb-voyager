@@ -92,12 +92,17 @@ EXPECTED_ROW_COUNT_FF = {
 	"p1.sales_region":			1000,
 	"public.range_columns_partition_test": 10,
 	"public.range_columns_partition_test_p0": 3,
-	"public.range_columns_partition_test_p1": 7
+	"public.range_columns_partition_test_p1": 7,
+	"public.test_partitions_sequences" : 1000,
+	"public.test_partitions_sequences_l": 333,
+	"public.test_partitions_sequences_s":332,
+	"public.test_partitions_sequences_b":335
 }
 
 
 TABLE_NAME_TO_PARTITION_COUNT = {
 	"public.sales_region": 3,
+	"public.test_partitions_sequences":3,
 	"p1.sales_region": 3,
 	"public.sales": 3,
 	"public.range_columns_partition_test": 2,
@@ -110,6 +115,11 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
 		"partition_table_name": "sydney",
+		"schema_name": "public"
+	},
+	"List" : {
+		"query": "INSERT INTO test_partitions_sequences  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
+		"partition_table_name": "test_partitions_sequences_s",
 		"schema_name": "public"
 	},
 	"List_partitions_in_different_schema" : {

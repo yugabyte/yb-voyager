@@ -19,6 +19,19 @@ WITH region_list AS (
      ), amount_list AS (
         SELECT '{1000, 2000, 5000}'::INT[] amount
         ) 
+        INSERT INTO test_partitions_sequences  
+        (amount, branch, region) 
+            SELECT 
+                amount[1 + mod(n, array_length(amount, 1))], 
+                'Branch ' || n as branch, 
+                region[1 + mod(n, array_length(region, 1))] 
+                    FROM amount_list, region_list, generate_series(1,1000) as n;
+
+WITH region_list AS (
+     SELECT '{"London", "Boston", "Sydney"}'::TEXT[] region
+     ), amount_list AS (
+        SELECT '{1000, 2000, 5000}'::INT[] amount
+        ) 
         INSERT INTO p1.sales_region  
         (id, amount, branch, region) 
             SELECT 
@@ -70,7 +83,7 @@ WITH status_list AS (
         ), arr_list AS (
             SELECT '{100, 200, 50, 250}'::INT[] arr
         )
-        INSERT INTO customers 
+        INSERT INTO "Customers" 
         (id, statuses, arr)
             SELECT  n,
                     statuses[1 + mod(n, array_length(statuses, 1))],
