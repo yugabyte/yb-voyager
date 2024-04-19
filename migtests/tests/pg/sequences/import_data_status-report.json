@@ -124,5 +124,12 @@
       "total_count": 2,
       "imported_count": 2,
       "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"sales_region\"",
+      "status": "DONE",
+      "total_count": 1000,
+      "imported_count": 1000,
+      "percentage_complete": 100
     }
 ]

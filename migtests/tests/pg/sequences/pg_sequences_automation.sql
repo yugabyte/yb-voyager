@@ -196,3 +196,22 @@ create table foo_bar(id bigint default nextval('foo_bar_baz'), value text, id2 b
 
 insert into foo_bar (value, value2) values ('Hello', 'World');
 insert into foo_bar (value, value2) values ('World', 'Hello');
+
+
+CREATE TABLE sales_region (id serial, amount int, branch text, region text) PARTITION BY LIST (region);
+CREATE TABLE London PARTITION OF sales_region FOR VALUES IN ('London');
+CREATE TABLE Sydney PARTITION OF sales_region FOR VALUES IN ('Sydney');
+CREATE TABLE Boston PARTITION OF sales_region FOR VALUES IN ('Boston');
+
+WITH region_list AS (
+     SELECT '{"London", "Boston", "Sydney"}'::TEXT[] region
+     ), amount_list AS (
+        SELECT '{1000, 2000, 5000}'::INT[] amount
+        ) 
+        INSERT INTO sales_region  
+        (amount, branch, region) 
+            SELECT 
+                amount[1 + mod(n, array_length(amount, 1))], 
+                'Branch ' || n as branch, 
+                region[1 + mod(n, array_length(region, 1))] 
+                    FROM amount_list, region_list, generate_series(1,1000) as n;

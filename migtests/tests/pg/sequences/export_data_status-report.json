@@ -88,5 +88,10 @@
       "table_name": "schema1.sequence_check1",
       "status": "DONE",
       "exported_count": 1
+    },
+    {
+      "table_name": "sales_region",
+      "status": "DONE",
+      "exported_count": 1000
     }
 ]
