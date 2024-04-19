@@ -65,7 +65,7 @@ func PrintElapsedDuration() {
 	}
 	log.Infof("End time: %s\n", time.Now())
 	timeTakenByCurrentVoyagerInvocation := time.Since(startTime)
-	utils.PrintAndLog("Time taken: %s (%.2f seconds)\n",
+	log.Infof("Time taken: %s (%.2f seconds)\n",
 		timeTakenByCurrentVoyagerInvocation,
 		timeTakenByCurrentVoyagerInvocation.Seconds())
 }
