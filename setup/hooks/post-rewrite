@@ -17,7 +17,6 @@ if [ ! -f "$OUTPUT_TAR" ]; then
     exit 1
 fi
 
-# Detect changes
 changes_untracked=$(git ls-files --error-unmatch "$OUTPUT_TAR" &> /dev/null; echo $?)
 changes_tracked_but_unstaged=$(git diff --quiet "$OUTPUT_TAR"; echo $?)
 changes_staged_but_uncommitted=$(git diff --cached --quiet "$OUTPUT_TAR"; echo $?)

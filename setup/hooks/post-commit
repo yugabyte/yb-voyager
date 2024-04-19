@@ -6,6 +6,10 @@ DIR_NAME="gather-assessment-data"
 OUTPUT_TAR="yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
+if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+    exit 0
+fi
+
 pushd "$REPO_ROOT/$PARENT_DIR" > /dev/null
 tar -czf "$REPO_ROOT/$OUTPUT_TAR" $DIR_NAME
 popd > /dev/null
