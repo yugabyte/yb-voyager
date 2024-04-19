@@ -118,7 +118,7 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 		"schema_name": "public"
 	},
 	"List" : {
-		"query": "INSERT INTO test_partitions_sequences  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
+		"query": "INSERT INTO test_partitions_sequences  (amount, branch, region) VALUES (2000, 'Branch 1001','Sydney') ",
 		"partition_table_name": "test_partitions_sequences_s",
 		"schema_name": "public"
 	},
