@@ -165,7 +165,7 @@ ubuntu_main() {
 		return
 	fi
 	output "Installing packages."
-	sudo apt update 1>&2
+	sudo apt-get update 1>&2
 	sudo apt-get -y install wget  1>&2
 	sudo apt-get -y install sqlite3 1>&2
 
