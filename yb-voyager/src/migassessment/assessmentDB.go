@@ -56,7 +56,8 @@ func InitAssessmentDB() error {
 			object_type		TEXT,
 			seq_reads		INTEGER,
 			row_writes		INTEGER,
-			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_IOPS),
+			measurement_type TEXT,
+			PRIMARY KEY (schema_name, object_name, measurement_type));`, TABLE_INDEX_IOPS),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name		TEXT,
 			object_name		TEXT,
@@ -94,6 +95,8 @@ func InitAssessmentDB() error {
 			column_count		INTEGER,
 			reads               INTEGER,
 			writes              INTEGER,
+			reads_per_second	INTEGER,
+			writes_per_second	INTEGER,
 			is_index            BOOLEAN,
 			parent_table_name   TEXT,
 			size_in_bytes       INTEGER,
@@ -179,7 +182,7 @@ const (
 		NULL AS parent_table_name,
 		tis.size_in_bytes
 	FROM %s trc
-	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name
+	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name
 	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name;`
 
@@ -195,8 +198,41 @@ const (
 		itm.table_schema || '.' || itm.table_name AS parent_table_name,
 		tis.size_in_bytes
 	FROM %s itm
-	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name
+	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name;`
+
+	CreateTempTable = `CREATE TEMP TABLE read_write_rates AS
+	SELECT
+		initial.schema_name,
+		initial.object_name,
+		initial.object_type,
+		(final.seq_reads - initial.seq_reads) / 120 AS seq_reads_per_second,
+		(final.row_writes - initial.row_writes) / 120 AS row_writes_per_second
+	FROM
+		%s AS initial
+	JOIN
+		%s AS final ON initial.schema_name = final.schema_name
+								  AND initial.object_name = final.object_name
+								  AND final.measurement_type = 'final'
+	WHERE
+		initial.measurement_type = 'initial';`
+
+	UpdateStatsWithRates = `UPDATE migration_assessment_stats
+	SET
+		reads_per_second = (SELECT seq_reads_per_second
+							FROM read_write_rates
+							WHERE read_write_rates.schema_name = migration_assessment_stats.schema_name
+							  AND read_write_rates.object_name = migration_assessment_stats.object_name),
+		writes_per_second = (SELECT row_writes_per_second
+							 FROM read_write_rates
+							 WHERE read_write_rates.schema_name = migration_assessment_stats.schema_name
+							   AND read_write_rates.object_name = migration_assessment_stats.object_name)
+	WHERE EXISTS (
+		SELECT 1
+		FROM read_write_rates
+		WHERE read_write_rates.schema_name = migration_assessment_stats.schema_name
+		  AND read_write_rates.object_name = migration_assessment_stats.object_name
+	);`
 )
 
 // populate migration_assessment_stats table using the data from other tables
@@ -204,6 +240,8 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	statements := []string{
 		fmt.Sprintf(InsertTableStats, MIGRATION_ASSESSMENT_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, TABLE_COLUMNS_COUNT),
 		fmt.Sprintf(InsertIndexStats, MIGRATION_ASSESSMENT_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES),
+		fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
+		UpdateStatsWithRates,
 	}
 
 	for _, stmt := range statements {

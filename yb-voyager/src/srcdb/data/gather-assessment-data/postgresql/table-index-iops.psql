@@ -11,7 +11,8 @@ SELECT
     CASE
         WHEN c.relkind = 'r' THEN psut.n_tup_ins + psut.n_tup_upd + psut.n_tup_del
         WHEN c.relkind = 'i' THEN psi.idx_tup_read
-    END AS row_writes
+    END AS row_writes,
+    :'measurement_type' AS measurement_type
 FROM
     pg_class c
 JOIN
