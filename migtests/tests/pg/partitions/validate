@@ -155,7 +155,7 @@ def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_t
 def migration_completed_checks(tgt):    
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 24
+	assert len(table_list) == 28
  
 	table_list = tgt.get_table_names("p1")
 	print("table_list:", table_list)
