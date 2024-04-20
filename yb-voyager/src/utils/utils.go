@@ -206,16 +206,6 @@ func PrintIfTrue(message string, args ...bool) {
 	fmt.Printf("%s", message)
 }
 
-func ParseSchemaAnalysisReport(jsonString string) SchemaReport {
-	byteJson := []byte(jsonString)
-	var report SchemaReport
-	err := json.Unmarshal(byteJson, &report)
-	if err != nil {
-		fmt.Printf("%s\n", err.Error())
-	}
-	return report
-}
-
 func ParseJsonReportFile[T any](path string) (*T, error) {
 	if !FileOrFolderExists(path) {
 		return nil, nil
