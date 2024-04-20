@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -224,7 +225,8 @@ func applyMigrationAssessmentRecommendations() error {
 	}
 
 	log.Infof("parsing assessment report json file for applying recommendations")
-	report, err := utils.ParseJsonReportFile[AssessmentReport](assessmentReportPath)
+	var report AssessmentReport
+	err := jsonfile.NewJsonFile[AssessmentReport](assessmentReportPath).Load(&report)
 	if err != nil {
 		return fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}

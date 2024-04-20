@@ -105,7 +105,6 @@ func InitAssessmentDB() error {
 	}
 
 	for _, cmd := range cmds {
-		log.Infof("")
 		_, err = conn.Exec(cmd)
 		if err != nil {
 			return fmt.Errorf("error while initializing assessment db with query-%s: %w", cmd, err)
