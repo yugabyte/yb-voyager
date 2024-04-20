@@ -206,25 +206,6 @@ func PrintIfTrue(message string, args ...bool) {
 	fmt.Printf("%s", message)
 }
 
-func ParseJsonReportFile[T any](path string) (*T, error) {
-	if !FileOrFolderExists(path) {
-		return nil, nil
-	}
-
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file %q: %w", path, err)
-	}
-
-	var report T
-	err = json.Unmarshal(bytes, &report)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal the data of file %q: %w", path, err)
-	}
-
-	return &report, nil
-}
-
 func GetObjectNameListFromReport(report SchemaReport, objType string) []string {
 	var objectList []string
 	for _, dbObject := range report.SchemaSummary.DBObjects {
