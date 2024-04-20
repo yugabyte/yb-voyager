@@ -113,16 +113,16 @@ func exportSchema() error {
 
 	source.DB().ExportSchema(exportDir, schemaDir)
 
-	err = applyMigrationAssessmentRecommendations()
-	if err != nil {
-		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
-	}
-
 	err = updateIndexesInfoInMetaDB()
 	if err != nil {
 		return err
 	}
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
+
+	err = applyMigrationAssessmentRecommendations()
+	if err != nil {
+		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
+	}
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.SourceDBType = source.DBType
@@ -244,21 +244,7 @@ func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.Sh
 	}
 
 	log.Infof("applying colocated vs sharded table recommendation")
-
-	modifiedFilePath := utils.AddSuffixToFilePath(filePath, "modified")
-	log.Infof("modified file for %s is %s", filepath.Base(filePath), filepath.Base(modifiedFilePath))
-	log.Infof("creating file %q", modifiedFilePath)
-	file, err := os.Create(modifiedFilePath)
-	if err != nil {
-		return fmt.Errorf("open file %q to write modified SQLs as per recommendations: %w", modifiedFilePath, err)
-	}
-	defer func() {
-		err = file.Close()
-		if err != nil {
-			log.Errorf("error closing the file %q: %v", modifiedFilePath, err)
-		}
-	}()
-
+	var newSQLFileContent strings.Builder
 	sqlInfoArr := parseSqlFileForObjectType(filePath, "TABLE")
 	setOrSelectRegexp := regexp.MustCompile(`(?m)^SET .+?;$|^SELECT .+?;$`)
 	lastStmtSetOrSelect := false
@@ -276,11 +262,36 @@ func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.Sh
 			}
 			lastStmtSetOrSelect = false
 		}
-		_, err = file.WriteString(newSQL)
+		_, err := newSQLFileContent.WriteString(newSQL)
 		if err != nil {
-			return fmt.Errorf("write SQL string in file %q: %w", modifiedFilePath, err)
+			return fmt.Errorf("write SQL string to string builder: %w", err)
 		}
 	}
+
+	// rename existing table.sql file to table.sql.orig
+	backupPath := filePath + ".orig"
+	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
+	err := os.Rename(filePath, filePath+".orig")
+	if err != nil {
+		return fmt.Errorf("error renaming file %s: %w", filePath, err)
+	}
+
+	// create new table.sql file for modified schema
+	log.Infof("creating file %q to store the modified recommended schema", filePath)
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+	if _, err = file.WriteString(newSQLFileContent.String()); err != nil {
+		return fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+
+	utils.PrintAndLog("Modified CREATE TABLE statements in %q according to the colocation and sharding recommendations of the assessment report.",
+		utils.GetRelativePathFromCwd(filePath))
+	utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
 	return nil
 }
 

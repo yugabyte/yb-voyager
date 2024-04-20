@@ -565,12 +565,14 @@ func ConvertStringSliceToInterface(slice []string) []interface{} {
 	})
 }
 
-func AddSuffixToFilePath(path string, suffix string) string {
-	ext := filepath.Ext(path)
-	base := filepath.Base(path)
-	dir := filepath.Dir(path)
-
-	filename := strings.TrimSuffix(base, ext)
-	newFilename := fmt.Sprintf("%s_%s%s", filename, suffix, ext)
-	return filepath.Join(dir, newFilename)
+func GetRelativePathFromCwd(fullPath string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fullPath
+	}
+	relativePath, err := filepath.Rel(cwd, fullPath)
+	if err != nil {
+		return fullPath
+	}
+	return relativePath
 }
