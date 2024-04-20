@@ -219,6 +219,7 @@ func applyMigrationAssessmentRecommendations() error {
 
 	assessmentReportPath := lo.Ternary(assessmentReportPath != "", assessmentReportPath,
 		filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json"))
+	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
 	if !utils.FileOrFolderExists(assessmentReportPath) {
 		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
 		return nil
