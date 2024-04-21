@@ -42,11 +42,6 @@ type ShardingTableIOPSRecord struct {
 	RowWrites  int64  `json:"row_writes,string"`
 }
 
-type ShardingParams struct {
-	// add any sharding specific parameters required from user here
-	NumNodes        int `toml:"num_nodes"`
-	NumCoresPerNode int `toml:"num_cores_per_node"`
-}
 
 func ShardingAssessment() error {
 	// load the assessment data

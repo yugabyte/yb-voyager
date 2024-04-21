@@ -48,12 +48,12 @@ var (
 type AssessmentReport struct {
 	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
 
+	Sharding *migassessment.ShardingReport `json:"Sharding"`
+	Sizing   *migassessment.SizingReport   `json:"Sizing"`
+
 	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
-
-	Sharding *migassessment.ShardingReport `json:"Sharding"`
-	Sizing   *migassessment.SizingReport   `json:"Sizing"`
 
 	MigrationAssessmentStats *[]migassessment.TableIndexStats `json:"MigrationAssessmentStats"`
 }
@@ -90,9 +90,9 @@ func init() {
 	registerCommonGlobalFlags(assessMigrationCmd)
 	registerSourceDBConnFlags(assessMigrationCmd, false, false)
 
-	// TODO: clarity on whether this flag should be a mandatory or not
-	assessMigrationCmd.Flags().StringVar(&assessmentParamsFpath, "assessment-params-file", "",
-		"TOML file path to the user provided assessment params.")
+	assessMigrationCmd.Flags().StringVar(&migassessment.TargetYBVersion, "target-yb-version", "",
+		"specifies the target YugabyteDB version for which the migration is assessed. This parameter is required.")
+	assessMigrationCmd.MarkFlagRequired("target-db-version")
 
 	BoolVar(assessMigrationCmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
@@ -172,13 +172,8 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	// load and sets 'assessmentParams' from the user input file
-	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
-	if err != nil {
-		return fmt.Errorf("failed to load assessment parameters: %w", err)
-	}
 
-	err = migassessment.ShardingAssessment()
+	err := migassessment.ShardingAssessment()
 	if err != nil {
 		return fmt.Errorf("failed to perform sharding assessment: %w", err)
 	}
