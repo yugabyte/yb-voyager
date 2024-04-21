@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# script to tar zip a directory after rewrite operations (like rebase or commit amend) and remind user to commit updated tarball, if required
+
+PARENT_DIR="yb-voyager/src/srcdb/data/"
+DIR_NAME="gather-assessment-data"
+OUTPUT_TAR="yb-voyager/src/srcdb/data/gather-assessment-data.tar.gz"
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+pushd "$REPO_ROOT/$PARENT_DIR" > /dev/null
+tar -czf "$REPO_ROOT/$OUTPUT_TAR" $DIR_NAME
+popd > /dev/null
+
+echo "created tarball: ${OUTPUT_TAR}"
+
+if [ ! -f "$OUTPUT_TAR" ]; then
+    echo "Error: $OUTPUT_TAR file is missing, please check and generate it."
+    exit 1
+fi
+
+changes_untracked=$(git ls-files --error-unmatch "$OUTPUT_TAR" &> /dev/null; echo $?)
+changes_tracked_but_unstaged=$(git diff --quiet "$OUTPUT_TAR"; echo $?)
+changes_staged_but_uncommitted=$(git diff --cached --quiet "$OUTPUT_TAR"; echo $?)
+
+if [ $changes_untracked -eq 1 ]; then
+    echo "The tarball is not tracked by git."
+    echo "Please add the updated tarball to your commit:"
+    echo "git add $OUTPUT_TAR"
+    echo "and then commit:"
+    echo "git commit -m 'Added new tarball ${DIR_NAME}.tar.gz'"
+elif [ $changes_tracked_but_unstaged -eq 1 ]; then
+    echo "The tarball has changes that are not staged for commit."
+    echo "Please stage the updated tarball:"
+    echo "git add $OUTPUT_TAR"
+    echo "And then commit:"
+    echo "git commit -m 'Updated ${DIR_NAME}.tar.gz'"
+elif [ $changes_staged_but_uncommitted -eq 1 ]; then
+    echo "The tarball changes are staged but not committed."
+    echo "Please commit the staged changes:"
+    echo "git commit -m 'Updated ${DIR_NAME}.tar.gz'"
+else
+    echo "The tarball '$OUTPUT_TAR' is up to date and already committed."
+fi
