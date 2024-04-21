@@ -74,34 +74,6 @@
             {{end}}
         </table>
 
-        <h2>Unsupported Data Types</h2>
-        <table>
-            <tr>
-                <th>Schema</th>
-                <th>Table</th>
-                <th>Column</th>
-                <th>Data Type</th>
-            </tr>
-            {{range .UnsupportedDataTypes}}
-            <tr>
-                <td>{{.SchemaName}}</td>
-                <td>{{.TableName}}</td>
-                <td>{{.ColumnName}}</td>
-                <td>{{.DataType}}</td>
-            </tr>
-            {{end}}
-        </table>
-
-        <h2>Unsupported Features</h2>
-        {{range .UnsupportedFeatures}}
-        <h3>{{.FeatureName}}</h3>
-        <ul>
-            {{range .ObjectNames}}
-            <li>{{.}}</li>
-            {{end}}
-        </ul>
-        {{end}}
-
         <h2>Recommendations</h2>
         <div class="table-container">
             <div>
@@ -130,6 +102,34 @@
         <p><strong>Storage GB Per Node:</strong> {{.StorageGBPerNode}}</p>
         {{else}}
         <!-- <p>Sizing Report data is not available.</p> -->
+        {{end}}
+
+        <h2>Unsupported Data Types</h2>
+        <table>
+            <tr>
+                <th>Schema</th>
+                <th>Table</th>
+                <th>Column</th>
+                <th>Data Type</th>
+            </tr>
+            {{range .UnsupportedDataTypes}}
+            <tr>
+                <td>{{.SchemaName}}</td>
+                <td>{{.TableName}}</td>
+                <td>{{.ColumnName}}</td>
+                <td>{{.DataType}}</td>
+            </tr>
+            {{end}}
+        </table>
+
+        <h2>Unsupported Features</h2>
+        {{range .UnsupportedFeatures}}
+        <h3>{{.FeatureName}}</h3>
+        <ul>
+            {{range .ObjectNames}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
         {{end}}
     </div>
 </body>
