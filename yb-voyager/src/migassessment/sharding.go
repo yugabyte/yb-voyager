@@ -67,7 +67,7 @@ func ShardingAssessment() error {
 	}
 
 	var tableList []string
-	for _, record := range tableIOPS {
+	for _, record := range tableSizes {
 		tableName := record.SchemaName + "." + record.ObjectName
 		tableList = append(tableList, tableName)
 	}

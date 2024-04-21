@@ -998,7 +998,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		}
 	}()
 
-	sqlInfoArr := createSqlStrInfoArray(file, objType)
+	sqlInfoArr := parseSqlFileForObjectType(file, objType)
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()

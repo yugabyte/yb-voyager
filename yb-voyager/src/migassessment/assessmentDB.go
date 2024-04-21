@@ -18,6 +18,7 @@ package migassessment
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -139,7 +140,7 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 
 	defer func() {
 		err = tx.Rollback()
-		if err != nil {
+		if err != nil && errors.Is(err, sql.ErrTxDone) {
 			log.Warnf("error while rollback the BulkInsert txn: %v", err)
 		}
 	}()

@@ -19,15 +19,25 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
+	"golang.org/x/exp/slices"
+
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+var skipRecommendations utils.BoolStr
+var assessmentReportPath string
 
 var exportSchemaCmd = &cobra.Command{
 	Use: "schema",
@@ -103,8 +113,17 @@ func exportSchema() error {
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
 	source.DB().ExportSchema(exportDir, schemaDir)
-	updateIndexesInfoInMetaDB()
+
+	err = updateIndexesInfoInMetaDB()
+	if err != nil {
+		return err
+	}
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
+
+	err = applyMigrationAssessmentRecommendations()
+	if err != nil {
+		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
+	}
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.SourceDBType = source.DBType
@@ -135,6 +154,12 @@ func init() {
 
 	exportSchemaCmd.Flags().StringVar(&source.StrExcludeObjectTypeList, "exclude-object-type-list", "",
 		"comma separated list of objects to exclude from export. ")
+
+	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-recommendations", false,
+		"disable applying recommendations in the exported schema suggested by the migration assessment report")
+
+	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
+		"path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema")
 }
 
 func schemaIsExported() bool {
@@ -167,22 +192,127 @@ func clearSchemaIsExported() {
 	}
 }
 
-func updateIndexesInfoInMetaDB() {
+func updateIndexesInfoInMetaDB() error {
 	log.Infof("updating indexes info in metaDB")
 	if !utils.ContainsString(source.ExportObjectTypeList, "TABLE") {
 		log.Infof("skipping updating indexes info in metaDB since TABLE object type is not being exported")
-		return
+		return nil
 	}
 	indexesInfo := source.DB().GetIndexesInfo()
 	if indexesInfo == nil {
-		return
+		return nil
 	}
 	err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.SOURCE_INDEXES_INFO_KEY, func(record *[]utils.IndexInfo) {
 		*record = indexesInfo
 	})
 	if err != nil {
-		utils.ErrExit("update indexes info in meta db: %s", err)
+		return fmt.Errorf("failed to update indexes info in meta db: %w", err)
 	}
+	return nil
+}
+
+func applyMigrationAssessmentRecommendations() error {
+	if skipRecommendations {
+		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
+		return nil
+	}
+
+	assessmentReportPath := lo.Ternary(assessmentReportPath != "", assessmentReportPath,
+		filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json"))
+	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
+	if !utils.FileOrFolderExists(assessmentReportPath) {
+		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
+		return nil
+	}
+
+	log.Infof("parsing assessment report json file for applying recommendations")
+	var report AssessmentReport
+	err := jsonfile.NewJsonFile[AssessmentReport](assessmentReportPath).Load(&report)
+	if err != nil {
+		return fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
+	}
+
+	err = applyColocatedVsShardedTableRecommendation(report.Sharding)
+	if err != nil {
+		return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+	}
+	return nil
+}
+
+func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.ShardingReport) error {
+	filePath := utils.GetObjectFilePath(schemaDir, "TABLE")
+	if !utils.FileOrFolderExists(filePath) {
+		log.Warnf("required schema file %s does not exists, returning without applying the recommendations", filePath)
+		return nil
+	}
+
+	log.Infof("applying colocated vs sharded table recommendation")
+	var newSQLFileContent strings.Builder
+	sqlInfoArr := parseSqlFileForObjectType(filePath, "TABLE")
+	setOrSelectRegexp := regexp.MustCompile(`(?m)^SET .+?;$|^SELECT .+?;$`)
+	lastStmtSetOrSelect := false
+	for _, sqlInfo := range sqlInfoArr {
+		newSQL := sqlInfo.formattedStmt
+		if setOrSelectRegexp.MatchString(sqlInfo.formattedStmt) {
+			newSQL += "\n"
+			lastStmtSetOrSelect = true
+		} else {
+			if createTableRegex.MatchString(sqlInfo.stmt) &&
+				slices.Contains(shardingReport.ShardedTables, sqlInfo.objName) {
+				newSQL = applyShardingRecommendation(sqlInfo, lastStmtSetOrSelect)
+			} else {
+				newSQL = appendSpacing(newSQL, lastStmtSetOrSelect)
+			}
+			lastStmtSetOrSelect = false
+		}
+		_, err := newSQLFileContent.WriteString(newSQL)
+		if err != nil {
+			return fmt.Errorf("write SQL string to string builder: %w", err)
+		}
+	}
+
+	// rename existing table.sql file to table.sql.orig
+	backupPath := filePath + ".orig"
+	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
+	err := os.Rename(filePath, filePath+".orig")
+	if err != nil {
+		return fmt.Errorf("error renaming file %s: %w", filePath, err)
+	}
+
+	// create new table.sql file for modified schema
+	log.Infof("creating file %q to store the modified recommended schema", filePath)
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+	if _, err = file.WriteString(newSQLFileContent.String()); err != nil {
+		return fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+
+	utils.PrintAndLog("Modified CREATE TABLE statements in %q according to the colocation and sharding recommendations of the assessment report.",
+		utils.GetRelativePathFromCwd(filePath))
+	utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
+	return nil
+}
+
+func applyShardingRecommendation(sqlInfo sqlInfo, lastStmtSetOrSelect bool) string {
+	newSQL := strings.TrimRight(sqlInfo.formattedStmt, "; ")
+	newSQL += "WITH (COLOCATION = false);\n\n\n"
+	return prependSpacing(newSQL, lastStmtSetOrSelect)
+}
+
+func appendSpacing(sql string, lastStmtSetOrSelect bool) string {
+	return prependSpacing(sql+"\n\n\n", lastStmtSetOrSelect)
+}
+
+func prependSpacing(sql string, condition bool) string {
+	if condition {
+		return "\n\n" + sql
+	}
+	return sql
 }
 
 func createExportSchemaStartedEvent() cp.ExportSchemaStartedEvent {
