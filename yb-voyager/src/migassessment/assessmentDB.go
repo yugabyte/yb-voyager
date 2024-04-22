@@ -40,15 +40,15 @@ const (
 )
 
 type TableIndexStats struct {
-	SchemaName      string  `json:"schema_name"`
-	ObjectName      string  `json:"object_name"`
-	RowCount        *int64  `json:"row_count"` // Pointer to allows null values
-	ColumnCount     *int64  `json:"column_count"`
-	Reads           int64   `json:"reads"`
-	Writes          int64   `json:"writes"`
-	IsIndex         bool    `json:"is_index"`
-	ParentTableName *string `json:"parent_table_name"`
-	SizeInBytes     int64   `json:"size_in_bytes"`
+	SchemaName      string  `json:"SchemaName"`
+	ObjectName      string  `json:"ObjectName"`
+	RowCount        *int64  `json:"RowCount"` // Pointer to allows null values
+	ColumnCount     *int64  `json:"ColumnCount"`
+	Reads           int64   `json:"Reads"`
+	Writes          int64   `json:"Writes"`
+	IsIndex         bool    `json:"IsIndex"`
+	ParentTableName *string `json:"ParentTableName"`
+	SizeInBytes     int64   `json:"SizeInBytes"`
 }
 
 func GetDBFilePath() string {

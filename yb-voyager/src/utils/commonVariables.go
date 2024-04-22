@@ -73,33 +73,33 @@ var WaitChannel = make(chan int)
 // ================== Schema Report ==============================
 
 type SchemaReport struct {
-	SchemaSummary SchemaSummary `json:"summary"`
-	Issues        []Issue       `json:"issues"`
+	SchemaSummary SchemaSummary `json:"Summary"`
+	Issues        []Issue       `json:"Issues"`
 }
 
 type SchemaSummary struct {
-	DBName     string     `json:"dbName,omitempty"`
-	SchemaName string     `json:"schemaName,omitempty"`
-	DBVersion  string     `json:"dbVersion,omitempty"`
-	Notes      []string   `json:"notes,omitempty"`
-	DBObjects  []DBObject `json:"databaseObjects"`
+	DBName     string     `json:"DbName,omitempty"`
+	SchemaName string     `json:"SchemaName,omitempty"`
+	DBVersion  string     `json:"DbVersion,omitempty"`
+	Notes      []string   `json:"Notes,omitempty"`
+	DBObjects  []DBObject `json:"DatabaseObjects"`
 }
 
 type DBObject struct {
-	ObjectType   string `json:"objectType"`
-	TotalCount   int    `json:"totalCount"`
-	InvalidCount int    `json:"invalidCount,omitempty"`
-	ObjectNames  string `json:"objectNames"`
-	Details      string `json:"details,omitempty"`
+	ObjectType   string `json:"ObjectType"`
+	TotalCount   int    `json:"TotalCount"`
+	InvalidCount int    `json:"InvalidCount,omitempty"`
+	ObjectNames  string `json:"ObjectNames"`
+	Details      string `json:"Details,omitempty"`
 }
 
 type Issue struct {
-	ObjectType   string `json:"objectType"`
-	ObjectName   string `json:"objectName"`
-	Reason       string `json:"reason"`
-	SqlStatement string `json:"sqlStatement,omitempty"`
-	FilePath     string `json:"filePath"`
-	Suggestion   string `json:"suggestion"`
+	ObjectType   string `json:"ObjectType"`
+	ObjectName   string `json:"ObjectName"`
+	Reason       string `json:"Reason"`
+	SqlStatement string `json:"SqlStatement,omitempty"`
+	FilePath     string `json:"FilePath"`
+	Suggestion   string `json:"Suggestion"`
 	GH           string `json:"GH"`
 }
 
@@ -112,10 +112,10 @@ type IndexInfo struct {
 }
 
 type TableColumnsDataTypes struct {
-	SchemaName string `json:"schema_name"`
-	TableName  string `json:"table_name"`
-	ColumnName string `json:"column_name"`
-	DataType   string `json:"data_type"`
+	SchemaName string `json:"SchemaName"`
+	TableName  string `json:"TableName"`
+	ColumnName string `json:"ColumnName"`
+	DataType   string `json:"DataType"`
 }
 
 // ================== Segment ==============================
