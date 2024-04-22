@@ -24,7 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var AssessmentDataDir string
+var AssessmentMetricsDir string
 var TargetYBVersion string
 
 type Record map[string]any

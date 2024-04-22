@@ -52,7 +52,7 @@ type TableIndexStats struct {
 }
 
 func GetDBFilePath() string {
-	return filepath.Join(AssessmentDataDir, "assessment.db")
+	return filepath.Join(AssessmentMetricsDir, "assessment.db")
 }
 
 func InitAssessmentDB() error {
