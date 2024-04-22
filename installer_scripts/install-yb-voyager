@@ -96,15 +96,16 @@ main() {
 	# Linux
 	dist=$(cat /etc/os-release | grep -w NAME | awk -F'=' '{print $2}' | tr -d '"')
 	case ${dist} in
+		"CentOS Stream")
+			centos_main
+			;;
 		"CentOS Linux")
 			centos_main
 			;;
 		"AlmaLinux")
-			sudo yum -qy module disable postgresql
 			centos_main
 			;;
 		"Red Hat Enterprise Linux")
-			sudo yum -qy module disable postgresql
 			centos_main
 			;;
 		"Red Hat Enterprise Linux Server")
@@ -122,6 +123,13 @@ main() {
 
 
 centos_main() {
+	# if major version is greater than or equal to 8 then disable postgresql module
+	version=$(source /etc/os-release; echo "$VERSION_ID")
+	res=$(vercomp "$version" "8")
+	if [ "$res" -eq 0 ] || [ "$res" -eq 1 ]; then
+    	sudo dnf -qy module disable postgresql 1>&2
+	fi
+
 	check_binutils_version
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
