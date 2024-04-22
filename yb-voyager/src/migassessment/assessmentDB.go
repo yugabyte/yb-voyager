@@ -23,20 +23,33 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
-	TABLE_INDEX_IOPS           = "table_index_iops"
-	TABLE_INDEX_SIZES          = "table_index_sizes"
-	TABLE_ROW_COUNTS           = "table_row_counts"
-	TABLE_COLUMNS_COUNT        = "table_columns_count"
-	INDEX_TO_TABLE_MAPPING     = "index_to_table_mapping"
-	TABLE_COLUMNS_DATA_TYPES   = "table_columns_data_types"
-	MIGRATION_ASSESSMENT_STATS = "migration_assessment_stats"
+	TABLE_INDEX_IOPS         = "table_index_iops"
+	TABLE_INDEX_SIZES        = "table_index_sizes"
+	TABLE_ROW_COUNTS         = "table_row_counts"
+	TABLE_COLUMNS_COUNT      = "table_columns_count"
+	INDEX_TO_TABLE_MAPPING   = "index_to_table_mapping"
+	TABLE_COLUMNS_DATA_TYPES = "table_columns_data_types"
+	TABLE_INDEX_STATS        = "table_index_stats"
 )
+
+type TableIndexStats struct {
+	SchemaName      string  `json:"schema_name"`
+	ObjectName      string  `json:"object_name"`
+	RowCount        *int64  `json:"row_count"` // Pointer to allows null values
+	ColumnCount     *int64  `json:"column_count"`
+	Reads           int64   `json:"reads"`
+	Writes          int64   `json:"writes"`
+	IsIndex         bool    `json:"is_index"`
+	ParentTableName *string `json:"parent_table_name"`
+	SizeInBytes     int64   `json:"size_in_bytes"`
+}
 
 func GetDBFilePath() string {
 	return filepath.Join(AssessmentDataDir, "assessment.db")
@@ -101,7 +114,7 @@ func InitAssessmentDB() error {
 			is_index            BOOLEAN,
 			parent_table_name   TEXT,
 			size_in_bytes       INTEGER,
-			PRIMARY KEY(schema_name, object_name));`, MIGRATION_ASSESSMENT_STATS),
+			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
 	}
 
 	for _, cmd := range cmds {
@@ -218,29 +231,29 @@ const (
 	WHERE
 		initial.measurement_type = 'initial';`
 
-	UpdateStatsWithRates = `UPDATE migration_assessment_stats
+	UpdateStatsWithRates = `UPDATE table_index_stats
 	SET
 		reads_per_second = (SELECT seq_reads_per_second
 							FROM read_write_rates
-							WHERE read_write_rates.schema_name = migration_assessment_stats.schema_name
-							  AND read_write_rates.object_name = migration_assessment_stats.object_name),
+							WHERE read_write_rates.schema_name = table_index_stats.schema_name
+							  AND read_write_rates.object_name = table_index_stats.object_name),
 		writes_per_second = (SELECT row_writes_per_second
 							 FROM read_write_rates
-							 WHERE read_write_rates.schema_name = migration_assessment_stats.schema_name
-							   AND read_write_rates.object_name = migration_assessment_stats.object_name)
+							 WHERE read_write_rates.schema_name = table_index_stats.schema_name
+							   AND read_write_rates.object_name = table_index_stats.object_name)
 	WHERE EXISTS (
 		SELECT 1
 		FROM read_write_rates
-		WHERE read_write_rates.schema_name = migration_assessment_stats.schema_name
-		  AND read_write_rates.object_name = migration_assessment_stats.object_name
+		WHERE read_write_rates.schema_name = table_index_stats.schema_name
+		  AND read_write_rates.object_name = table_index_stats.object_name
 	);`
 )
 
-// populate migration_assessment_stats table using the data from other tables
+// populate table_index_stats table using the data from other tables
 func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	statements := []string{
-		fmt.Sprintf(InsertTableStats, MIGRATION_ASSESSMENT_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, TABLE_COLUMNS_COUNT),
-		fmt.Sprintf(InsertIndexStats, MIGRATION_ASSESSMENT_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES),
+		fmt.Sprintf(InsertTableStats, TABLE_INDEX_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, TABLE_COLUMNS_COUNT),
+		fmt.Sprintf(InsertIndexStats, TABLE_INDEX_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES),
 		fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
 		UpdateStatsWithRates,
 	}
@@ -252,4 +265,35 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	}
 
 	return nil
+}
+
+func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
+	log.Infof("fetching all stats info from %q table", TABLE_INDEX_STATS)
+	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads, writes, is_index, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
+	rows, err := adb.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying all stats-%s: %w", query, err)
+	}
+	defer rows.Close()
+
+	var stats []TableIndexStats
+	for rows.Next() {
+		var stat TableIndexStats
+		var rowCount, columnCount sql.NullInt64
+		var parentTableName sql.NullString
+		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &stat.Reads, &stat.Writes, &stat.IsIndex, &parentTableName, &stat.SizeInBytes); err != nil {
+			return nil, fmt.Errorf("error scanning row: %w", err)
+		}
+
+		stat.RowCount = lo.Ternary(rowCount.Valid, &rowCount.Int64, nil)
+		stat.ColumnCount = lo.Ternary(columnCount.Valid, &columnCount.Int64, nil)
+		stat.ParentTableName = lo.Ternary(parentTableName.Valid, &parentTableName.String, nil)
+		stats = append(stats, stat)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading rows: %w", err)
+	}
+
+	return &stats, nil
 }
