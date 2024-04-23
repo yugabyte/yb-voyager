@@ -46,6 +46,8 @@ type TableIndexStats struct {
 	ColumnCount     *int64  `json:"ColumnCount"`
 	Reads           *int64  `json:"Reads"`
 	Writes          *int64  `json:"Writes"`
+	ReadsPerSecond  *int64  `json:"ReadsPerSecond"`
+	WritesPerSecond *int64  `json:"WritesPerSecond"`
 	IsIndex         bool    `json:"IsIndex"`
 	ParentTableName *string `json:"ParentTableName"`
 	SizeInBytes     *int64  `json:"SizeInBytes"`
@@ -269,7 +271,8 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 
 func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	log.Infof("fetching all stats info from %q table", TABLE_INDEX_STATS)
-	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads, writes, is_index, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
+	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads, writes, 
+       reads_per_second, writes_per_second, is_index, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
 	rows, err := adb.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying all stats-%s: %w", query, err)
@@ -279,9 +282,10 @@ func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	var stats []TableIndexStats
 	for rows.Next() {
 		var stat TableIndexStats
-		var rowCount, columnCount, reads, writes, sizeInBytes sql.NullInt64
+		var rowCount, columnCount, reads, writes, readsPerSecond, writesPerSecond, sizeInBytes sql.NullInt64
 		var parentTableName sql.NullString
-		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &reads, &writes, &stat.IsIndex, &parentTableName, &sizeInBytes); err != nil {
+		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &reads, &writes,
+			&readsPerSecond, &writesPerSecond, &stat.IsIndex, &parentTableName, &sizeInBytes); err != nil {
 			return nil, fmt.Errorf("error scanning row: %w", err)
 		}
 
@@ -289,6 +293,8 @@ func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 		stat.ColumnCount = lo.Ternary(columnCount.Valid, &columnCount.Int64, nil)
 		stat.Reads = lo.Ternary(reads.Valid, &reads.Int64, nil)
 		stat.Writes = lo.Ternary(writes.Valid, &writes.Int64, nil)
+		stat.ReadsPerSecond = lo.Ternary(readsPerSecond.Valid, &readsPerSecond.Int64, nil)
+		stat.WritesPerSecond = lo.Ternary(writesPerSecond.Valid, &writesPerSecond.Int64, nil)
 		stat.ParentTableName = lo.Ternary(parentTableName.Valid, &parentTableName.String, nil)
 		stat.SizeInBytes = lo.Ternary(sizeInBytes.Valid, &sizeInBytes.Int64, nil)
 		stats = append(stats, stat)

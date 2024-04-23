@@ -21,6 +21,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"github.com/samber/lo"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,7 +29,6 @@ import (
 	"syscall"
 	"text/template"
 
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"

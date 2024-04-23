@@ -33,11 +33,14 @@ type SourceDBMetadata struct {
 	SchemaName      string         `json:"schema_name"`
 	ObjectName      string         `json:"object_name"`
 	RowCount        sql.NullInt64  `json:"row_count,string"`
-	ReadsPerSec     int64          `json:"reads,string"`
-	WritesPerSec    int64          `json:"writes,string"`
-	IsIndex         bool           `json:"isIndex,string"`
+	ColumnCount     sql.NullInt64  `json:"column_count,string"`
+	Reads           int64          `json:"reads,string"`
+	Writes          int64          `json:"writes,string"`
+	ReadsPerSec     int64          `json:"reads_per_second,string"`
+	WritesPerSec    int64          `json:"writes_per_second,string"`
+	IsIndex         bool           `json:"is_index,string"`
 	ParentTableName sql.NullString `json:"parent_table_name"`
-	Size            float64        `json:"size,string"`
+	Size            float64        `json:"size_in_bytes,string"`
 }
 
 var baseDownloadPath = "src/migassessment/resources/remote/"
@@ -47,7 +50,7 @@ var SourceMetaDB *sql.DB
 func SizingAssessment() error {
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
-	createConnectionToExperimentData(assessmentParams.TargetYBVersion)
+	createConnectionToExperimentData(TargetYBVersion)
 	shardedObjects, shardedObjectsSize :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 
@@ -66,6 +69,7 @@ Returns:
 	float64: total size of source db
 */
 func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
+	//err := ConnectSourceMetaDatabase("/Users/shaharukshaikh/code/go/yb-voyager/yb-voyager/stats1/assessment/metadata/assessment.db")
 	err := ConnectSourceMetaDatabase(GetDBFilePath())
 	if err != nil {
 		panic(err)
@@ -401,7 +405,8 @@ Returns:
 	float64: The total size of the source database in gigabytes.
 */
 func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
-	query := "SELECT schema_name, object_name,row_count,reads,writes,isIndex,parent_table_name,size FROM migration_assessment_stats ORDER BY size ASC"
+	query := "SELECT schema_name, object_name,row_count,reads_per_second,writes_per_second,is_index,parent_table_name," +
+		"size_in_bytes FROM table_index_stats ORDER BY size_in_bytes ASC"
 	rows, err := SourceMetaDB.Query(query)
 	if err != nil {
 		fmt.Println("no records found")
@@ -465,7 +470,9 @@ func getExperimentFile(targetYbVersion string) string {
 			filePath = strings.ReplaceAll(filePath, "src/migassessment/resources/", baseDownloadPath)
 		} else {
 			// check if local file exists
+			fmt.Println(filePath)
 			isFileExist := utils.FileOrFolderExists(filePath)
+
 			if !isFileExist {
 				panic("file doesn't exist")
 			}

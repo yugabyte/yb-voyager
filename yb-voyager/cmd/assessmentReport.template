@@ -74,27 +74,6 @@
             {{end}}
         </table>
 
-        <h2>Recommendations</h2>
-        <div class="table-container">
-            <div>
-                <h3>Colocated Tables</h3>
-                <ul>
-                    {{range .Sharding.ColocatedTables}}
-                    <li>{{.}}</li>
-                    {{end}}
-                </ul>
-            </div>
-            <div>
-                <h3>Sharded Tables</h3>
-                <ul>
-                    {{range .Sharding.ShardedTables}}
-                    <li>{{.}}</li>
-                    {{end}}
-                </ul>
-            </div>
-        </div>
-
-
         <h2>Unsupported Data Types</h2>
         <table>
             <tr>
@@ -122,7 +101,7 @@
             {{end}}
         </ul>
         {{end}}
-    </div>
+
             {{with .Sizing}}
                 <h2>Sharding Recommendations</h2>
                     <table>
@@ -153,5 +132,6 @@
             {{else}}
             <!-- <p>Sizing Report data is not available.</p> -->
             {{end}}
+    </div>
 </body>
 </html>
