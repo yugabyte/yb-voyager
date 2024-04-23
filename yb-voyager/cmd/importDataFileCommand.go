@@ -134,18 +134,14 @@ func getFileSizeInfo(importFileTasks []*ImportFileTask) []*datafile.FileEntry {
 	for _, task := range importFileTasks {
 		filePath := task.FilePath
 		tableName := task.TableNameTup
-		fileSize, err := dataStore.FileSize(filePath)
-		if err != nil {
-			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
-		}
 		fileEntry := &datafile.FileEntry{
 			TableName: tableName.ForKey(),
 			FilePath:  filePath,
-			FileSize:  fileSize,
+			FileSize:  task.FileSize,
 			RowCount:  -1, // Not available.
 		}
 		dataFileList = append(dataFileList, fileEntry)
-		log.Infof("File size of %q for table %q: %d", filePath, tableName, fileSize)
+		log.Infof("File size of %q for table %q: %d", filePath, tableName, fileEntry.FileSize)
 	}
 
 	return dataFileList
@@ -180,10 +176,15 @@ func prepareImportFileTasks() []*ImportFileTask {
 			utils.ErrExit("lookup table name in name registry: %v", err)
 		}
 		for _, filePath := range filePaths {
+			fileSize, err := dataStore.FileSize(filePath)
+			if err != nil {
+				utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
+			}
 			task := &ImportFileTask{
 				ID:           i,
 				FilePath:     filePath,
 				TableNameTup: tableNameTuple,
+				FileSize:     fileSize,
 			}
 			result = append(result, task)
 		}
