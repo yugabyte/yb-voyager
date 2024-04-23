@@ -24,12 +24,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var AssessmentMetricsDir string
+var AssessmentMetadataDir string
 var TargetYBVersion string
 
 type Record map[string]any
 
-// type QueryResult []Record
 var Report AssessmentReport
 
 type AssessmentReport struct {

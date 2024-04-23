@@ -19,7 +19,7 @@ SCRIPT_DIR=$(dirname $0)
 SCRIPT_NAME=$(basename $0)
 
 HELP_TEXT="
-Usage: $SCRIPT_NAME <pg_connection_string> <schema_list> <assessment_metrics_dir>
+Usage: $SCRIPT_NAME <pg_connection_string> <schema_list> <assessment_metadata_dir>
 
 Collects PostgreSQL database statistics and schema information.
 Note: The order of the arguments is important and must be followed.
@@ -32,11 +32,11 @@ Arguments:
   schema_list            Comma-separated list of schemas for which statistics are to be collected.
                          Example: 'public,sales,inventory'
 
-  assessment_metrics_dir    The directory path where the assessment metrics will be stored.
+  assessment_metadata_dir    The directory path where the assessment metadata will be stored.
                          This script will attempt to create the directory if it does not exist.
 
 Example:
-  $SCRIPT_NAME 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/metrics'
+  $SCRIPT_NAME 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/metadata'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -49,22 +49,22 @@ fi
 
 # Check if all required arguments are provided
 if [ "$#" -ne 3 ]; then
-    echo "Usage: $SCRIPT_NAME <pg_connection_string> <schema_list> <assessment_metrics_dir>"
+    echo "Usage: $SCRIPT_NAME <pg_connection_string> <schema_list> <assessment_metadata_dir>"
     exit 1
 fi
 
 pg_connection_string=$1
 schema_list=$2
-assessment_metrics_dir=$3
+assessment_metadata_dir=$3
 
-# check if assessment_metrics_dir exists, if not exit 1
-if [ ! -d "$assessment_metrics_dir" ]; then
-    echo "Directory $assessment_metrics_dir does not exist. Please create the directory and try again."
+# check if assessment_metadata_dir exists, if not exit 1
+if [ ! -d "$assessment_metadata_dir" ]; then
+    echo "Directory $assessment_metadata_dir does not exist. Please create the directory and try again."
     exit 1
 fi
 
-# Switch to assessment_metrics_dir and remember the current directory
-pushd "$assessment_metrics_dir" > /dev/null || exit
+# Switch to assessment_metadata_dir and remember the current directory
+pushd "$assessment_metadata_dir" > /dev/null || exit
 
 if [ -z "$PGPASSWORD" ]; then 
     echo -n "Enter PostgreSQL password: "
@@ -87,7 +87,7 @@ if [ "$track_counts_on" != "on" ]; then
 fi
 
 
-echo "Assessment metrics collection started"
+echo "Assessment metadata collection started"
 
 # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
 for script in $SCRIPT_DIR/*.psql; do
@@ -122,4 +122,4 @@ pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*
 # Return to the original directory after operations are done
 popd > /dev/null
 
-echo "Assessment metrics collection completed"
+echo "Assessment metadata collection completed"

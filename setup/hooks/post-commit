@@ -2,8 +2,8 @@
 # script to tar zip a directory after any commit and remind user to commit updated tarball, if required
 
 PARENT_DIR="yb-voyager/src/srcdb/data/"
-DIR_NAME="gather-assessment-metrics"
-OUTPUT_TAR="yb-voyager/src/srcdb/data/gather-assessment-metrics.tar.gz"
+DIR_NAME="gather-assessment-metadata"
+OUTPUT_TAR="yb-voyager/src/srcdb/data/gather-assessment-metadata.tar.gz"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
 if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then

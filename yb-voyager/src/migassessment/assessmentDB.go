@@ -44,15 +44,15 @@ type TableIndexStats struct {
 	ObjectName      string  `json:"ObjectName"`
 	RowCount        *int64  `json:"RowCount"` // Pointer to allows null values
 	ColumnCount     *int64  `json:"ColumnCount"`
-	Reads           int64   `json:"Reads"`
-	Writes          int64   `json:"Writes"`
+	Reads           *int64  `json:"Reads"`
+	Writes          *int64  `json:"Writes"`
 	IsIndex         bool    `json:"IsIndex"`
 	ParentTableName *string `json:"ParentTableName"`
-	SizeInBytes     int64   `json:"SizeInBytes"`
+	SizeInBytes     *int64  `json:"SizeInBytes"`
 }
 
 func GetDBFilePath() string {
-	return filepath.Join(AssessmentMetricsDir, "assessment.db")
+	return filepath.Join(AssessmentMetadataDir, "assessment.db")
 }
 
 func InitAssessmentDB() error {
@@ -279,15 +279,18 @@ func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	var stats []TableIndexStats
 	for rows.Next() {
 		var stat TableIndexStats
-		var rowCount, columnCount sql.NullInt64
+		var rowCount, columnCount, reads, writes, sizeInBytes sql.NullInt64
 		var parentTableName sql.NullString
-		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &stat.Reads, &stat.Writes, &stat.IsIndex, &parentTableName, &stat.SizeInBytes); err != nil {
+		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &reads, &writes, &stat.IsIndex, &parentTableName, &sizeInBytes); err != nil {
 			return nil, fmt.Errorf("error scanning row: %w", err)
 		}
 
 		stat.RowCount = lo.Ternary(rowCount.Valid, &rowCount.Int64, nil)
 		stat.ColumnCount = lo.Ternary(columnCount.Valid, &columnCount.Int64, nil)
+		stat.Reads = lo.Ternary(reads.Valid, &reads.Int64, nil)
+		stat.Writes = lo.Ternary(writes.Valid, &writes.Int64, nil)
 		stat.ParentTableName = lo.Ternary(parentTableName.Valid, &parentTableName.String, nil)
+		stat.SizeInBytes = lo.Ternary(sizeInBytes.Valid, &sizeInBytes.Int64, nil)
 		stats = append(stats, stat)
 	}
 
