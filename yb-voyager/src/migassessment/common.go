@@ -26,7 +26,8 @@ import (
 	"os"
 )
 
-var AssessmentDataDir string
+var AssessmentMetadataDir string
+var TargetYBVersion string
 
 type Record map[string]any
 

@@ -12,45 +12,77 @@ import (
 )
 
 type AttributeNameRegistry struct {
-	dbType    string
-	tdb       TargetDB
-	tconf     *TargetConf
-	attrNames *utils.StructMap[sqlname.NameTuple, []string]
-	mu        sync.Mutex
+	dbType      string
+	tdb         TargetDB
+	tconf       *TargetConf
+	attrNames   *utils.StructMap[sqlname.NameTuple, []string]
+	resultCache map[string]map[string]string
+	mu          sync.Mutex
 }
 
 func NewAttributeNameRegistry(tdb TargetDB, tconf *TargetConf) *AttributeNameRegistry {
 	return &AttributeNameRegistry{
-		dbType:    tconf.TargetDBType,
-		tdb:       tdb,
-		tconf:     tconf,
-		attrNames: utils.NewStructMap[sqlname.NameTuple, []string](),
+		dbType:      tconf.TargetDBType,
+		tdb:         tdb,
+		tconf:       tconf,
+		attrNames:   utils.NewStructMap[sqlname.NameTuple, []string](),
+		resultCache: make(map[string]map[string]string),
 	}
+}
+
+func (reg *AttributeNameRegistry) lookupCachedQuotedAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, bool) {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	resultMap, ok := reg.resultCache[tableNameTup.ForKey()]
+	if !ok {
+		return "", false
+	}
+	result, ok := resultMap[columnName]
+	return result, ok
+}
+
+func (reg *AttributeNameRegistry) cacheQuotedAttributeName(tableNameTup sqlname.NameTuple, columnName, result string) {
+	var resultMap map[string]string
+
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	resultMap, ok := reg.resultCache[tableNameTup.ForKey()]
+	if !ok {
+		resultMap = make(map[string]string)
+		reg.resultCache[tableNameTup.ForKey()] = resultMap
+	}
+	resultMap[columnName] = result
 }
 
 func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error) {
 	var err error
-	targetColumns, ok := reg.attrNames.Get(tableNameTup)
-	if !ok {
-		reg.mu.Lock()
-		// try again in case it's now available
-		targetColumns, ok = reg.attrNames.Get(tableNameTup)
-		if !ok {
-			targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
-			log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
-			if err != nil {
-				return "", fmt.Errorf("get list of table attributes: %w", err)
-			}
-			reg.attrNames.Put(tableNameTup, targetColumns)
-		}
 
-		reg.mu.Unlock()
+	result, ok := reg.lookupCachedQuotedAttributeName(tableNameTup, columnName)
+	if ok {
+		return result, nil
 	}
+	var targetColumns []string
+	reg.mu.Lock()
+	targetColumns, ok = reg.attrNames.Get(tableNameTup)
+	if !ok {
+		targetColumns, err = reg.tdb.GetListOfTableAttributes(tableNameTup)
+		log.Infof("columns of table %s in target db: %v", tableNameTup, targetColumns)
+		if err != nil {
+			reg.mu.Unlock()
+			return "", fmt.Errorf("get list of table attributes: %w", err)
+		}
+		reg.attrNames.Put(tableNameTup, targetColumns)
+	}
+	reg.mu.Unlock()
 	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
 		return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 	}
-	return fmt.Sprintf("%q", c), nil
+	result = fmt.Sprintf("%q", c)
+	reg.cacheQuotedAttributeName(tableNameTup, columnName, result)
+	return result, nil
 }
 
 func (reg *AttributeNameRegistry) QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error) {

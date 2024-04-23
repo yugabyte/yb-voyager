@@ -74,6 +74,27 @@
             {{end}}
         </table>
 
+        <h2>Recommendations</h2>
+        <div class="table-container">
+            <div>
+                <h3>Colocated Tables</h3>
+                <ul>
+                    {{range .Sharding.ColocatedTables}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+            <div>
+                <h3>Sharded Tables</h3>
+                <ul>
+                    {{range .Sharding.ShardedTables}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+        </div>
+
+
         <h2>Unsupported Data Types</h2>
         <table>
             <tr>
@@ -101,37 +122,36 @@
             {{end}}
         </ul>
         {{end}}
-
-        {{with .Sizing}}
-            <h2>Sharding Recommendations</h2>
-                <table>
-                    <tr>
-                        <th>Colocated Tables</th>
-                        <th>Sharded Tables</th>
-                    </tr>
-                    <tr>
-                        <td>{{range .ColocatedTables}}{{.}}<br>{{end}}</td>
-                        <td>{{range .ShardedTables}}{{.}}<br>{{end}}</td>
-                    </tr>
-                </table>
-            <h2>Sizing Recommendations</h2>
-                <table>
-                    <tr>
-                        <th>Parameter</th>
-                        <th>Recommendation</th>
-                    </tr>
-                    <tr><td>Num of Nodes</td><td>{{ .NumNodes }}</td></tr>
-                    <tr><td>vCPU per instance</td><td>{{ .VCPUsPerInstance }}</td></tr>
-                    <tr><td>Memory per instance(GiB)</td><td>{{ .MemoryPerInstance }}</td></tr>
-                    <tr><td>Optimal select connections per node</td><td>{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{else}}{{.OptimalSelectConnectionsPerNode }}{{end}}</td></tr>
-                    <tr><td>Optimal insert connections per node</td><td>{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{else}}{{.OptimalInsertConnectionsPerNode}}{{end}}</td></tr>
-                    <tr><td>Estimated time taken for migration </td><td>{{ .MigrationTimeTakenInMin }} min</td></tr>
-                </table>
-            <h3>Reasoning: </h3>
-            <p>{{ .ColocatedReasoning }}</p>
-        {{else}}
-        <!-- <p>Sizing Report data is not available.</p> -->
-        {{end}}
     </div>
+            {{with .Sizing}}
+                <h2>Sharding Recommendations</h2>
+                    <table>
+                        <tr>
+                            <th>Colocated Tables</th>
+                            <th>Sharded Tables</th>
+                        </tr>
+                        <tr>
+                            <td>{{range .ColocatedTables}}{{.}}<br>{{end}}</td>
+                            <td>{{range .ShardedTables}}{{.}}<br>{{end}}</td>
+                        </tr>
+                    </table>
+                <h2>Sizing Recommendations</h2>
+                    <table>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Recommendation</th>
+                        </tr>
+                        <tr><td>Num of Nodes</td><td>{{ .NumNodes }}</td></tr>
+                        <tr><td>vCPU per instance</td><td>{{ .VCPUsPerInstance }}</td></tr>
+                        <tr><td>Memory per instance(GiB)</td><td>{{ .MemoryPerInstance }}</td></tr>
+                        <tr><td>Optimal select connections per node</td><td>{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{else}}{{.OptimalSelectConnectionsPerNode }}{{end}}</td></tr>
+                        <tr><td>Optimal insert connections per node</td><td>{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{else}}{{.OptimalInsertConnectionsPerNode}}{{end}}</td></tr>
+                        <tr><td>Estimated time taken for migration </td><td>{{ .MigrationTimeTakenInMin }} min</td></tr>
+                    </table>
+                <h3>Reasoning: </h3>
+                <p>{{ .ColocatedReasoning }}</p>
+            {{else}}
+            <!-- <p>Sizing Report data is not available.</p> -->
+            {{end}}
 </body>
 </html>

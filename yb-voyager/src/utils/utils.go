@@ -206,16 +206,6 @@ func PrintIfTrue(message string, args ...bool) {
 	fmt.Printf("%s", message)
 }
 
-func ParseSchemaAnalysisReport(jsonString string) SchemaReport {
-	byteJson := []byte(jsonString)
-	var report SchemaReport
-	err := json.Unmarshal(byteJson, &report)
-	if err != nil {
-		fmt.Printf("%s\n", err.Error())
-	}
-	return report
-}
-
 func GetObjectNameListFromReport(report SchemaReport, objType string) []string {
 	var objectList []string
 	for _, dbObject := range report.SchemaSummary.DBObjects {
@@ -544,4 +534,16 @@ func ConvertStringSliceToInterface(slice []string) []interface{} {
 	return lo.Map(slice, func(s string, _ int) interface{} {
 		return s
 	})
+}
+
+func GetRelativePathFromCwd(fullPath string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fullPath
+	}
+	relativePath, err := filepath.Rel(cwd, fullPath)
+	if err != nil {
+		return fullPath
+	}
+	return relativePath
 }

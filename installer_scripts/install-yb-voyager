@@ -96,15 +96,16 @@ main() {
 	# Linux
 	dist=$(cat /etc/os-release | grep -w NAME | awk -F'=' '{print $2}' | tr -d '"')
 	case ${dist} in
+		"CentOS Stream")
+			centos_main
+			;;
 		"CentOS Linux")
 			centos_main
 			;;
 		"AlmaLinux")
-			sudo yum -qy module disable postgresql
 			centos_main
 			;;
 		"Red Hat Enterprise Linux")
-			sudo yum -qy module disable postgresql
 			centos_main
 			;;
 		"Red Hat Enterprise Linux Server")
@@ -122,6 +123,13 @@ main() {
 
 
 centos_main() {
+	# if major version is greater than or equal to 8 then disable postgresql module
+	version=$(source /etc/os-release; echo "$VERSION_ID")
+	res=$(vercomp "$version" "8")
+	if [ "$res" -eq 0 ] || [ "$res" -eq 1 ]; then
+    	sudo dnf -qy module disable postgresql 1>&2
+	fi
+
 	check_binutils_version
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
@@ -136,7 +144,7 @@ centos_main() {
 	$YUM postgresql14 1>&2
 	$YUM sqlite 1>&2
 	create_pg_dump_args_file
-	create_gather_assessment_data_dir
+	create_gather_assessment_metadata_dir
 	install_golang linux
 	if [ $ONLY_PG == "false" ] ; then
 		$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -165,14 +173,14 @@ ubuntu_main() {
 		return
 	fi
 	output "Installing packages."
-	sudo apt update 1>&2
+	sudo apt-get update 1>&2
 	sudo apt-get -y install wget  1>&2
 	sudo apt-get -y install sqlite3 1>&2
 
 	install_golang linux
 	ubuntu_install_postgres
 	create_pg_dump_args_file
-	create_gather_assessment_data_dir
+	create_gather_assessment_metadata_dir
 	if [ $ONLY_PG == "false" ] ; then
 		sudo apt-get -y install perl  1>&2
 		sudo apt-get -y install libdbi-perl 1>&2
@@ -207,7 +215,7 @@ macos_main() {
 	macos_install_brew
 	macos_install_pg_dump
 	create_pg_dump_args_file
-	create_gather_assessment_data_dir
+	create_gather_assessment_metadata_dir
 	brew install wget
 	brew install sqlite
 	install_golang darwin
@@ -749,19 +757,25 @@ create_pg_dump_args_file() {
 	fi	
 }
 
-create_gather_assessment_data_dir() {
-	scripts_dir="/etc/yb-voyager"
-	sudo mkdir -p $scripts_dir
+create_gather_assessment_metadata_dir() {
+	scripts_parent_dir="/etc/yb-voyager"
+	scripts_dir_path="yb-voyager/src/srcdb/data/"
+	scripts_dir_name="gather-assessment-metadata"
+	sudo mkdir -p $scripts_parent_dir
 
-	output "Installing the latest scripts for gathering assessment data"
+	output "Installing the latest scripts for gathering assessment metadata"
 	if [ "${VERSION}" == "latest" ]
 	then
-		# TODO: fix it, github does not link statically links the raw file contents
-		sudo wget -nv -O /tmp/gather-assessment-data.tar.gz https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/gather-assessment-data
-		sudo tar -xzf /tmp/gather-assessment-data.tar.gz -C $scripts_dir
+		# TODO: Replace the YB_VOYAGER_GIT_HASH_TEMP with the release tagged YB_VOYAGER_GIT_HASH
+		YB_VOYAGER_GIT_HASH_TEMP="96eb3de7374e52279382c0fb01cf74bc5f9bb3fe"
+		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH_TEMP/$scripts_dir_path/${scripts_dir_name}.tar.gz"
+		sudo wget -nv -O /tmp/${scripts_dir_name}.tar.gz $TAR_URL
+		sudo tar -xzf /tmp/${scripts_dir_name}.tar.gz -C $scripts_parent_dir 1>&2
+		sudo rm /tmp/${scripts_dir_name}.tar.gz
 	else
 		pushd $REPO_ROOT > /dev/null
-		sudo cp -r ./yb-voyager/src/srcdb/data/gather-assessment-data $scripts_dir
+		# Synchronizes directory contents, deleting extraneous files and updating any that differ in checksum or timestamps.
+		sudo rsync -avc --delete $REPO_ROOT/$scripts_dir_path/$scripts_dir_name $scripts_parent_dir 1>&2
 		popd > /dev/null
 	fi
 }

@@ -16,7 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -105,6 +107,9 @@ func runExportDataStatusCmdDbzm(streamChanges bool) ([]*exportTableMigStatusOutp
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
+	if status == nil {
+		return nil, nil
+	}
 	InProgressTableSno = status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
 	var row *exportTableMigStatusOutputRow
@@ -145,6 +150,9 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 	}
 

@@ -57,19 +57,9 @@ var importDataStatusCmd = &cobra.Command{
 			importerRole = IMPORT_FILE_ROLE
 		}
 
-		msr, err := metaDB.GetMigrationStatusRecord()
+		err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
 		if err != nil {
-			utils.ErrExit("get migration status record %s", err)
-		}
-
-		if msr.TargetDBConf != nil {
-			err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, false)
-			if err != nil {
-				utils.ErrExit("initialize name registry: %v", err)
-			}
-		} else {
-			color.Cyan(importDataStatusMsg)
-			return
+			utils.ErrExit("initialize name registry: %v", err)
 		}
 		err = runImportDataStatusCmd()
 		if err != nil {
@@ -281,7 +271,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		status = "MIGRATING"
 	}
 	row := &tableMigStatusOutputRow{
-		TableName:          dataFileNt.ForMinOutput(),
+		TableName:          dataFileNt.ForKey(),
 		FileName:           path.Base(dataFile.FilePath),
 		Status:             status,
 		TotalCount:         totalCount,

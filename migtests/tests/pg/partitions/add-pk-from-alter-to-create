@@ -37,7 +37,7 @@ with open(table_file_path, 'w') as file:
             file.write(output.pop(0))
         elif line in alter_tables: # remove the ADD CONTRAINT lines
             pass
-        elif line.startswith('ALTER TABLE') and line.find('ATTACH PARTITION') == -1: # remove the ALTER TABLE with out ATTACH PARTITION lines
+        elif line.startswith('ALTER TABLE') and line.find('ATTACH PARTITION') == -1 and line.find('SET DEFAULT') == -1: # remove the ALTER TABLE with out ATTACH PARTITION lines
             pass
         else:
             file.write(line)

@@ -18,27 +18,41 @@ package migassessment
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
-	TABLE_INDEX_IOPS           = "table_index_iops"
-	TABLE_INDEX_SIZES          = "table_index_sizes"
-	TABLE_ROW_COUNTS           = "table_row_counts"
-	COLUMNS_COUNT              = "columns_count"
-	INDEX_TO_TABLE_MAPPING     = "index_to_table_mapping"
-	TABLE_COLUMNS_DATA_TYPES   = "table_columns_data_types"
-	MIGRATION_ASSESSMENT_STATS = "migration_assessment_stats"
+	TABLE_INDEX_IOPS         = "table_index_iops"
+	TABLE_INDEX_SIZES        = "table_index_sizes"
+	TABLE_ROW_COUNTS         = "table_row_counts"
+	TABLE_COLUMNS_COUNT      = "table_columns_count"
+	INDEX_TO_TABLE_MAPPING   = "index_to_table_mapping"
+	TABLE_COLUMNS_DATA_TYPES = "table_columns_data_types"
+	TABLE_INDEX_STATS        = "table_index_stats"
 )
 
+type TableIndexStats struct {
+	SchemaName      string  `json:"SchemaName"`
+	ObjectName      string  `json:"ObjectName"`
+	RowCount        *int64  `json:"RowCount"` // Pointer to allows null values
+	ColumnCount     *int64  `json:"ColumnCount"`
+	Reads           *int64  `json:"Reads"`
+	Writes          *int64  `json:"Writes"`
+	IsIndex         bool    `json:"IsIndex"`
+	ParentTableName *string `json:"ParentTableName"`
+	SizeInBytes     *int64  `json:"SizeInBytes"`
+}
+
 func GetDBFilePath() string {
-	return filepath.Join(AssessmentDataDir, "assessment.db")
+	return filepath.Join(AssessmentMetadataDir, "assessment.db")
 }
 
 func InitAssessmentDB() error {
@@ -51,52 +65,56 @@ func InitAssessmentDB() error {
 
 	cmds := []string{
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			object_name TEXT,
-			object_type TEXT,
-			seq_reads INTEGER,
-			row_writes INTEGER,
-			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_IOPS),
+			schema_name		TEXT,
+			object_name		TEXT,
+			object_type		TEXT,
+			seq_reads		INTEGER,
+			row_writes		INTEGER,
+			measurement_type TEXT,
+			PRIMARY KEY (schema_name, object_name, measurement_type));`, TABLE_INDEX_IOPS),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			object_name TEXT,
-			object_type TEXT,
-			size REAL,
+			schema_name		TEXT,
+			object_name		TEXT,
+			object_type		TEXT,
+			size_in_bytes	INTEGER,
 			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_SIZES),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			table_name TEXT,
-			row_count INTEGER,
+			schema_name		TEXT,
+			table_name		TEXT,
+			row_count		INTEGER,
 			PRIMARY KEY (schema_name, table_name));`, TABLE_ROW_COUNTS),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			object_name TEXT,
-			object_type TEXT,
-			column_count INTEGER,
-			PRIMARY KEY (schema_name, object_name));`, COLUMNS_COUNT),
+			schema_name		TEXT,
+			object_name		TEXT,
+			object_type		TEXT,
+			column_count	INTEGER,
+			PRIMARY KEY (schema_name, object_name));`, TABLE_COLUMNS_COUNT),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			index_schema TEXT,
-			index_name TEXT,
-			table_schema TEXT,
-			table_name TEXT,
+			index_schema	TEXT,
+			index_name		TEXT,
+			table_schema	TEXT,
+			table_name		TEXT,
 			PRIMARY KEY (index_schema, index_name));`, INDEX_TO_TABLE_MAPPING),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name TEXT,
-			table_name TEXT,
-			column_name TEXT,
-			data_type TEXT,
+			schema_name		TEXT,
+			table_name		TEXT,
+			column_name		TEXT,
+			data_type		TEXT,
 			PRIMARY KEY (schema_name, table_name, column_name));`, TABLE_COLUMNS_DATA_TYPES),
 		// derived from the above metric tables
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name         TEXT,
 			object_name         TEXT,
 			row_count           INTEGER,
+			column_count		INTEGER,
 			reads               INTEGER,
 			writes              INTEGER,
-			isIndex             BOOLEAN,
+			reads_per_second	INTEGER,
+			writes_per_second	INTEGER,
+			is_index            BOOLEAN,
 			parent_table_name   TEXT,
-			size                INTEGER,
-			PRIMARY KEY(schema_name, object_name));`, MIGRATION_ASSESSMENT_STATS),
+			size_in_bytes       INTEGER,
+			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
 	}
 
 	for _, cmd := range cmds {
@@ -135,7 +153,7 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 
 	defer func() {
 		err = tx.Rollback()
-		if err != nil {
+		if err != nil && errors.Is(err, sql.ErrTxDone) {
 			log.Warnf("error while rollback the BulkInsert txn: %v", err)
 		}
 	}()
@@ -165,44 +183,120 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	return nil
 }
 
-// populate migration_assessment_stats table using the data from other tables
-func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
-	populateTableStats := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
-	SELECT
+const (
+	InsertTableStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes, is_index, parent_table_name, size_in_bytes)
+	SELECT 
 		trc.schema_name,
 		trc.table_name AS object_name,
 		trc.row_count,
-		tii.seq_reads as reads,
-		tii.row_writes as writes,
-		0 AS isIndex,
-		NULL AS parent_table_name, 
-		tis.size
+		tcc.column_count,
+		tii.seq_reads AS reads,
+		tii.row_writes AS writes,
+		0 AS is_index,
+		NULL AS parent_table_name,
+		tis.size_in_bytes
 	FROM %s trc
-	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name
-	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name;`,
-		MIGRATION_ASSESSMENT_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES)
+	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial'
+	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name
+	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name;`
 
-	populateIndexStats := fmt.Sprintf(`INSERT INTO %s (schema_name, object_name, row_count, reads, writes, isIndex, parent_table_name, size)
-	SELECT
+	// No insertion into 'column_count' for indexes
+	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, reads, writes, is_index, parent_table_name, size_in_bytes)
+	SELECT 
 		itm.index_schema AS schema_name,
 		itm.index_name AS object_name,
 		NULL AS row_count,
-		tii.seq_reads as reads,
-		tii.row_writes as writes,
-		1 AS isIndex,
+		tii.seq_reads AS reads,
+		tii.row_writes AS writes,
+		1 AS is_index,
 		itm.table_schema || '.' || itm.table_name AS parent_table_name,
-		tis.size
+		tis.size_in_bytes
 	FROM %s itm
-	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name
-	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name;`,
-		MIGRATION_ASSESSMENT_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES)
+	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial'
+	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name;`
 
-	stmts := []string{populateTableStats, populateIndexStats}
-	for _, stmt := range stmts {
-		_, err := adb.db.Exec(stmt)
-		if err != nil {
-			return fmt.Errorf("error executing query-%s on table %s: %w", stmt, MIGRATION_ASSESSMENT_STATS, err)
+	CreateTempTable = `CREATE TEMP TABLE read_write_rates AS
+	SELECT
+		initial.schema_name,
+		initial.object_name,
+		initial.object_type,
+		(final.seq_reads - initial.seq_reads) / 120 AS seq_reads_per_second,
+		(final.row_writes - initial.row_writes) / 120 AS row_writes_per_second
+	FROM
+		%s AS initial
+	JOIN
+		%s AS final ON initial.schema_name = final.schema_name
+								  AND initial.object_name = final.object_name
+								  AND final.measurement_type = 'final'
+	WHERE
+		initial.measurement_type = 'initial';`
+
+	UpdateStatsWithRates = `UPDATE table_index_stats
+	SET
+		reads_per_second = (SELECT seq_reads_per_second
+							FROM read_write_rates
+							WHERE read_write_rates.schema_name = table_index_stats.schema_name
+							  AND read_write_rates.object_name = table_index_stats.object_name),
+		writes_per_second = (SELECT row_writes_per_second
+							 FROM read_write_rates
+							 WHERE read_write_rates.schema_name = table_index_stats.schema_name
+							   AND read_write_rates.object_name = table_index_stats.object_name)
+	WHERE EXISTS (
+		SELECT 1
+		FROM read_write_rates
+		WHERE read_write_rates.schema_name = table_index_stats.schema_name
+		  AND read_write_rates.object_name = table_index_stats.object_name
+	);`
+)
+
+// populate table_index_stats table using the data from other tables
+func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
+	statements := []string{
+		fmt.Sprintf(InsertTableStats, TABLE_INDEX_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, TABLE_COLUMNS_COUNT),
+		fmt.Sprintf(InsertIndexStats, TABLE_INDEX_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES),
+		fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
+		UpdateStatsWithRates,
+	}
+
+	for _, stmt := range statements {
+		if _, err := adb.db.Exec(stmt); err != nil {
+			return fmt.Errorf("error executing statement-%s: %w", stmt, err)
 		}
 	}
+
 	return nil
+}
+
+func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
+	log.Infof("fetching all stats info from %q table", TABLE_INDEX_STATS)
+	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads, writes, is_index, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
+	rows, err := adb.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying all stats-%s: %w", query, err)
+	}
+	defer rows.Close()
+
+	var stats []TableIndexStats
+	for rows.Next() {
+		var stat TableIndexStats
+		var rowCount, columnCount, reads, writes, sizeInBytes sql.NullInt64
+		var parentTableName sql.NullString
+		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &reads, &writes, &stat.IsIndex, &parentTableName, &sizeInBytes); err != nil {
+			return nil, fmt.Errorf("error scanning row: %w", err)
+		}
+
+		stat.RowCount = lo.Ternary(rowCount.Valid, &rowCount.Int64, nil)
+		stat.ColumnCount = lo.Ternary(columnCount.Valid, &columnCount.Int64, nil)
+		stat.Reads = lo.Ternary(reads.Valid, &reads.Int64, nil)
+		stat.Writes = lo.Ternary(writes.Valid, &writes.Int64, nil)
+		stat.ParentTableName = lo.Ternary(parentTableName.Valid, &parentTableName.String, nil)
+		stat.SizeInBytes = lo.Ternary(sizeInBytes.Valid, &sizeInBytes.Int64, nil)
+		stats = append(stats, stat)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading rows: %w", err)
+	}
+
+	return &stats, nil
 }

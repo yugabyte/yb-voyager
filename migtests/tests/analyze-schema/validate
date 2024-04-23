@@ -22,47 +22,47 @@ def main():
 def validate_report_summary(report, expected_summary):
 	print("Ensure that all the expected summary fields are reported.")
 	for key in expected_summary:
-		if key == "dbVersion":
+		if key == "DbVersion":
 			continue
-		assert key in report["summary"], f"expected summary field is not reported: {key}"
-		if key != "databaseObjects":
+		assert key in report["Summary"], f"expected summary field is not reported: {key}"
+		if key != "DatabaseObjects":
 			print(f"expected summary field for {key}: {expected_summary[key]}")
-			print(f"reported summary field for {key}: {report['summary'][key]}")
-			assert expected_summary[key] == report["summary"][key], f"expected summary field value is not reported correctly: {key}"
+			print(f"reported summary field for {key}: {report['Summary'][key]}")
+			assert expected_summary[key] == report["Summary"][key], f"expected summary field value is not reported correctly: {key}"
 		else:
 			validate_database_objects_summary(report, expected_summary)
 
 def validate_database_objects_summary(report, expected_summary):
-    key = "databaseObjects"
+    key = "DatabaseObjects"
     expected_objects = expected_summary.get(key, [])
-    reported_objects = report['summary'].get(key, [])
+    reported_objects = report['Summary'].get(key, [])
 
     assert len(expected_objects) == len(reported_objects), "Number of database objects does not match"
 
     for expected_obj, reported_obj in zip(expected_objects, reported_objects):
-        print(f"validating database object: {expected_obj['objectType']}")
+        print(f"validating database object: {expected_obj['ObjectType']}")
         print(f"expected summary field for {key}: {expected_obj}")
         print(f"reported summary field for {key}: {reported_obj}")
-        assert expected_obj["objectType"] == reported_obj["objectType"], f"Object type mismatch for {expected_obj['objectType']}"
-        assert expected_obj["totalCount"] == reported_obj["totalCount"], f"Total count mismatch for {expected_obj['objectType']}"
+        assert expected_obj["ObjectType"] == reported_obj["ObjectType"], f"Object type mismatch for {expected_obj['ObjectType']}"
+        assert expected_obj["TotalCount"] == reported_obj["TotalCount"], f"Total count mismatch for {expected_obj['ObjectType']}"
 
-        if "details" in expected_obj and "details" in reported_obj:
-            assert expected_obj["details"] == reported_obj["details"], f"Details mismatch for {expected_obj['objectType']}"
+        if "Details" in expected_obj and "Details" in reported_obj:
+            assert expected_obj["Details"] == reported_obj["Details"], f"Details mismatch for {expected_obj['ObjectType']}"
 
-        expected_names = sorted(expected_obj.get("objectNames", "").split(", "))
-        reported_names = sorted(reported_obj.get("objectNames", "").split(", "))
-        assert expected_names == reported_names, f"Object names mismatch for {expected_obj['objectType']}"
+        expected_names = sorted(expected_obj.get("ObjectNames", "").split(", "))
+        reported_names = sorted(reported_obj.get("ObjectNames", "").split(", "))
+        assert expected_names == reported_names, f"Object names mismatch for {expected_obj['ObjectType']}"
 
 def validate_report_issues(report, expected_issues):
-    # filePath reported in the report can be different depending on the machine
+    # FilePath reported in the report can be different depending on the machine
 	# where the test is running. Hence, do not consider it for result matching.
-	for issue in report["issues"]:
-		del issue["filePath"]
+	for issue in report["Issues"]:
+		del issue["FilePath"]
 	print("Ensure that all the expected issues are reported.")
 	for expected_issue in expected_issues:
-		assert expected_issue in report["issues"], f"expected issue is not reported: {expected_issue}"
+		assert expected_issue in report["Issues"], f"expected issue is not reported: {expected_issue}"
 
-	assert len(expected_issues) == len(report["issues"])
+	assert len(expected_issues) == len(report["Issues"])
 	print("Success!")
 
 if __name__ == "__main__":

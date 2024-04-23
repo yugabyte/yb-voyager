@@ -44,6 +44,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -63,10 +64,11 @@ func PrintElapsedDuration() {
 	if startTime == uninitialisedTimestamp {
 		return
 	}
-	utils.PrintAndLog("End time: %s\n", time.Now())
+	log.Infof("End time: %s\n", time.Now())
 	timeTakenByCurrentVoyagerInvocation := time.Since(startTime)
-	utils.PrintAndLog("Time taken: %s\n", timeTakenByCurrentVoyagerInvocation)
-	utils.PrintAndLog("Time taken (in seconds): %f\n", timeTakenByCurrentVoyagerInvocation.Seconds())
+	log.Infof("Time taken: %s (%.2f seconds)\n",
+		timeTakenByCurrentVoyagerInvocation,
+		timeTakenByCurrentVoyagerInvocation.Seconds())
 }
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -409,7 +411,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
-		"assessment", "assessment/data", "assessment/data/schema", "assessment/reports",
+		"assessment", "assessment/metadata", "assessment/metadata/schema", "assessment/reports",
 		"metainfo", "metainfo/data", "metainfo/conf", "metainfo/ssl",
 		"temp", "temp/ora2pg_temp_dir", "temp/schema",
 	}
@@ -467,6 +469,18 @@ func initMetaDB() {
 				"with a new export-dir.", exportDir, utils.YB_VOYAGER_VERSION)
 		}
 		utils.ErrExit(userFacingMsg)
+	}
+}
+
+func initAssessmentDB() {
+	err := migassessment.InitAssessmentDB()
+	if err != nil {
+		utils.ErrExit("error creating and initializing assessment DB: %v", err)
+	}
+
+	assessmentDB, err = migassessment.NewAssessmentDB()
+	if err != nil {
+		utils.ErrExit("error creating assessment DB instance: %v", err)
 	}
 }
 
