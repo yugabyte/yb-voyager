@@ -29,13 +29,10 @@ import (
 )
 
 type SourceDBMetadata struct {
-	SchemaName string        `json:"schema_name"`
-	ObjectName string        `json:"object_name"`
-	RowCount   sql.NullInt64 `json:"row_count,string"`
-	//ColCount        int64  `json:"col_count,string"`
-	//ReadsPerSec     int64  `json:"reads_per_second,string"`
-	ReadsPerSec int64 `json:"reads,string"`
-	//WritesPerSec    int64  `json:"writes_per_second,string"`
+	SchemaName      string         `json:"schema_name"`
+	ObjectName      string         `json:"object_name"`
+	RowCount        sql.NullInt64  `json:"row_count,string"`
+	ReadsPerSec     int64          `json:"reads,string"`
 	WritesPerSec    int64          `json:"writes,string"`
 	IsIndex         bool           `json:"isIndex,string"`
 	ParentTableName sql.NullString `json:"parent_table_name"`
@@ -50,7 +47,8 @@ func SizingAssessment() error {
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
 	createConnectionToExperimentData(assessmentParams.TargetYBVersion)
-	shardedObjects, shardedObjectsSize := generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
+	shardedObjects, shardedObjectsSize :=
+		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 
 	// only use the remaining sharded objects and its size for further recommendation processing
 	generateSizingRecommendations(shardedObjects, shardedObjectsSize)
@@ -103,15 +101,15 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	var index int
 	numSourceObjects := len(sourceTableMetadata) + len(sourceIndexMetadata)
 	row := DB.QueryRow("SELECT * FROM colocated_limits WHERE max_num_tables > ? AND min_num_tables <= ? AND "+
-		"max_colocated_db_size_gb >= ? UNION ALL SELECT * FROM colocated_limits WHERE max_colocated_db_size_gb = (SELECT MAX(max_colocated_db_size_gb) "+
-		"FROM colocated_limits) LIMIT 1;", numSourceObjects, numSourceObjects, totalSourceDBSize)
+		"max_colocated_db_size_gb >= ? UNION ALL SELECT * FROM colocated_limits WHERE max_colocated_db_size_gb = "+
+		"(SELECT MAX(max_colocated_db_size_gb) FROM colocated_limits) LIMIT 1;", numSourceObjects, numSourceObjects,
+		totalSourceDBSize)
 
 	var S float64
 	if err := row.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4]); err != nil {
 		if err == sql.ErrNoRows {
 			log.Println("No rows were returned by the query.")
 		} else {
-			fmt.Println("Error")
 			log.Fatal(err)
 		}
 	}
@@ -495,9 +493,14 @@ func checkFileExistsOnRemoteRepo(fileName string) bool {
 		return false
 	} else {
 		downloadPath := strings.ReplaceAll(fileName, "resources/", baseDownloadPath)
-		out, err := os.Create(downloadPath)
-		defer out.Close()
-		_, err = io.Copy(out, resp.Body)
+		out, _ := os.Create(downloadPath)
+		defer func(out *os.File) {
+			err := out.Close()
+			if err != nil {
+				panic(err)
+			}
+		}(out)
+		_, err := io.Copy(out, resp.Body)
 		return err == nil
 	}
 }

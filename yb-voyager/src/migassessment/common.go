@@ -148,7 +148,7 @@ func convertToMap(rows *sql.Rows) []map[string]interface{} {
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
 		pointers := make([]interface{}, len(columns))
-		for i, _ := range values {
+		for i := range values {
 			pointers[i] = &values[i]
 		}
 		err := rows.Scan(pointers...)
