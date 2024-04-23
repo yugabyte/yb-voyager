@@ -1,50 +1,50 @@
 {
-        "dbName": "dummy_db_name",
-        "schemaName": "public",
-        "dbVersion": "12.0",
-        "databaseObjects": [
+        "DbName": "dummy_db_name",
+        "SchemaName": "public",
+        "DbVersion": "12.0",
+        "DatabaseObjects": [
             {
-                "objectType": "SCHEMA",
-                "totalCount": 1,
-                "objectNames": "hollywood"
+                "ObjectType": "SCHEMA",
+                "TotalCount": 1,
+                "ObjectNames": "hollywood"
             },
             {
-                "objectType": "EXTENSION",
-                "totalCount": 6,
-                "invalidCount": 3,
-                "objectNames": "aws_commons, plperl, hstore, hstore_plperl, pg_visibility, hll",
-                "details": "'hll' extension is supported in YugabyteDB v2.18 onwards. Please verify this extension as per the target YugabyteDB version."
+                "ObjectType": "EXTENSION",
+                "TotalCount": 6,
+                "InvalidCount": 3,
+                "ObjectNames": "aws_commons, plperl, hstore, hstore_plperl, pg_visibility, hll",
+                "Details": "'hll' extension is supported in YugabyteDB v2.18 onwards. Please verify this extension as per the target YugabyteDB version."
             },
             {
-                "objectType": "TABLE",
-                "totalCount": 24,
-                "invalidCount": 21,
-                "objectNames": "sales, test_2, test_7, test_8, table_abc, table_1, test_interval, sales_data, test_6, newtable, table_test, xyz, anydata_test, anytype_test, salaries2, test_3, uritype_test, test_1, test_non_pk_multi_column_list, test_4, test_5, test_9, table_xyz, anydataset_test"
+                "ObjectType": "TABLE",
+                "TotalCount": 24,
+                "InvalidCount": 21,
+                "ObjectNames": "sales, test_2, test_7, test_8, table_abc, table_1, test_interval, sales_data, test_6, newtable, table_test, xyz, anydata_test, anytype_test, salaries2, test_3, uritype_test, test_1, test_non_pk_multi_column_list, test_4, test_5, test_9, table_xyz, anydataset_test"
             },
             {
-                "objectType": "INDEX",
-                "totalCount": 5,
-                "invalidCount": 4,
-                "objectNames": "film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3",
-                "details": "There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+                "ObjectType": "INDEX",
+                "TotalCount": 5,
+                "InvalidCount": 4,
+                "ObjectNames": "film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3",
+                "Details": "There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
             {
-                "objectType": "PROCEDURE",
-                "totalCount": 5,
-                "invalidCount": 3,
-                "objectNames": "foo, foo1, sp_createnachabatch, test, test1"
+                "ObjectType": "PROCEDURE",
+                "TotalCount": 5,
+                "InvalidCount": 3,
+                "ObjectNames": "foo, foo1, sp_createnachabatch, test, test1"
             },
             {
-                "objectType": "VIEW",
-                "totalCount": 2,
-                "invalidCount": 2,
-                "objectNames": "v1, test"
+                "ObjectType": "VIEW",
+                "TotalCount": 2,
+                "InvalidCount": 2,
+                "ObjectNames": "v1, test"
             },
             {
-                "objectType": "TRIGGER",
-                "totalCount": 3,
-                "invalidCount": 3,
-                "objectNames": "transfer_insert, emp_trig, test"
+                "ObjectType": "TRIGGER",
+                "TotalCount": 3,
+                "InvalidCount": 3,
+                "ObjectNames": "transfer_insert, emp_trig, test"
             }
         ]
 }

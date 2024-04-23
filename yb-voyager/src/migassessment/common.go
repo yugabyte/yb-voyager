@@ -21,29 +21,19 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var AssessmentDataDir string
+var AssessmentMetadataDir string
+var TargetYBVersion string
 
 type Record map[string]any
 
-// type QueryResult []Record
 var Report AssessmentReport
 
 type AssessmentReport struct {
 	*ShardingReport `json:"sharding"`
 	*SizingReport   `json:"sizing"`
-}
-
-var assessmentParams = &AssessmentParams{}
-
-type AssessmentParams struct {
-	TargetYBVersion string `toml:"target_yb_version"`
-	ShardingParams  `toml:"sharding"`
-	SizingParams    `toml:"sizing"`
 }
 
 func LoadCSVDataFile[T any](filePath string) ([]*T, error) {
@@ -110,26 +100,4 @@ func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
 		result[rowNum-1] = record
 	}
 	return result, nil
-}
-
-func LoadAssessmentParams(userInputFpath string) error {
-	if userInputFpath == "" {
-		log.Infof("user input file path is empty, skipping loading assessment parameters")
-		return nil
-	}
-	log.Infof("loading assessment parameters from file %s", userInputFpath)
-	tomlData, err := os.ReadFile(userInputFpath)
-	if err != nil {
-		log.Errorf("error reading toml file %s: %v", userInputFpath, err)
-		return fmt.Errorf("error reading toml file %s: %w", userInputFpath, err)
-	}
-
-	err = toml.Unmarshal(tomlData, &assessmentParams)
-	if err != nil {
-		log.Errorf("error unmarshalling toml file's data: %v", err)
-		return fmt.Errorf("error unmarshalling toml file's data: %w", err)
-	}
-
-	utils.PrintAndLog("assessment params: %+v", assessmentParams)
-	return nil
 }

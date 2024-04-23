@@ -38,22 +38,21 @@ import (
 )
 
 var (
-	assessmentParamsFpath string
-	assessmentDataDir     string
-	assessmentDataDirFlag string
-	assessmentReport      AssessmentReport
-	assessmentDB          *migassessment.AssessmentDB
+	assessmentMetadataDir     string
+	assessmentMetadataDirFlag string
+	assessmentReport          AssessmentReport
+	assessmentDB              *migassessment.AssessmentDB
 )
 
 type AssessmentReport struct {
 	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
 
+	Sharding *migassessment.ShardingReport `json:"Sharding"`
+	Sizing   *migassessment.SizingReport   `json:"Sizing"`
+
 	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
-
-	Sharding *migassessment.ShardingReport `json:"Sharding"`
-	Sizing   *migassessment.SizingReport   `json:"Sizing"`
 
 	MigrationAssessmentStats *[]migassessment.TableIndexStats `json:"MigrationAssessmentStats"`
 }
@@ -74,7 +73,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
-		validateAssessmentDataDirFlag()
+		validateAssessmentMetadataDirFlag()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -90,16 +89,16 @@ func init() {
 	registerCommonGlobalFlags(assessMigrationCmd)
 	registerSourceDBConnFlags(assessMigrationCmd, false, false)
 
-	// TODO: clarity on whether this flag should be a mandatory or not
-	assessMigrationCmd.Flags().StringVar(&assessmentParamsFpath, "assessment-params-file", "",
-		"TOML file path to the user provided assessment params.")
+	assessMigrationCmd.Flags().StringVar(&migassessment.TargetYBVersion, "target-yb-version", "",
+		"specifies the target YugabyteDB version for which the migration is assessed. This parameter is required.")
+	assessMigrationCmd.MarkFlagRequired("target-db-version")
 
 	BoolVar(assessMigrationCmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
 	// optional flag to take metadata and stats directory path in case it is not in exportDir
-	assessMigrationCmd.Flags().StringVar(&assessmentDataDirFlag, "assessment-data-dir", "",
-		"Directory path where metadata and stats of source DB are stored. Optional flag, if not provided, "+
+	assessMigrationCmd.Flags().StringVar(&assessmentMetadataDirFlag, "assessment-metadata-dir", "",
+		"Directory path where assessment metadata like source DB metadata and statistics are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
 }
 
@@ -115,25 +114,25 @@ func assessMigration() (err error) {
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
-	// setting schemaDir to use later on - gather assessment data, segregating into schema files per object etc..
-	schemaDir = lo.Ternary(assessmentDataDirFlag != "", filepath.Join(assessmentDataDirFlag, "schema"),
-		filepath.Join(exportDir, "assessment", "data", "schema"))
+	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
+	schemaDir = lo.Ternary(assessmentMetadataDirFlag != "", filepath.Join(assessmentMetadataDirFlag, "schema"),
+		filepath.Join(exportDir, "assessment", "metadata", "schema"))
 
-	assessmentDataDir = lo.Ternary(assessmentDataDirFlag != "", assessmentDataDirFlag,
-		filepath.Join(exportDir, "assessment", "data"))
-	migassessment.AssessmentDataDir = assessmentDataDir
+	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
+		filepath.Join(exportDir, "assessment", "metadata"))
+	migassessment.AssessmentMetadataDir = assessmentMetadataDir
 	initAssessmentDB() // Note: migassessment.AssessmentDataDir needs to be set beforehand
 
-	err = gatherAssessmentData()
+	err = gatherAssessmentMetadata()
 	if err != nil {
-		return fmt.Errorf("failed to gather assessment data: %w", err)
+		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
 
 	parseExportedSchemaFileForAssessment()
 
-	err = populateMetricsCSVIntoAssessmentDB()
+	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
-		return fmt.Errorf("failed to populate metrics CSV into SQLite DB: %w", err)
+		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 
 	err = runAssessment()
@@ -172,13 +171,8 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	// load and sets 'assessmentParams' from the user input file
-	err := migassessment.LoadAssessmentParams(assessmentParamsFpath)
-	if err != nil {
-		return fmt.Errorf("failed to load assessment parameters: %w", err)
-	}
 
-	err = migassessment.ShardingAssessment()
+	err := migassessment.ShardingAssessment()
 	if err != nil {
 		return fmt.Errorf("failed to perform sharding assessment: %w", err)
 	}
@@ -200,14 +194,14 @@ func checkStartCleanForAssessMigration() {
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
 		} else {
-			utils.ErrExit("assessment data or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
+			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
 		}
 	}
 }
 
-func gatherAssessmentData() (err error) {
-	if assessmentDataDirFlag != "" {
-		return nil // assessment data files are provided by the user inside assessmentDataDir
+func gatherAssessmentMetadata() (err error) {
+	if assessmentMetadataDirFlag != "" {
+		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
 
 	// setting schema objects types to export before creating the project directories
@@ -224,29 +218,29 @@ func gatherAssessmentData() (err error) {
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
 	switch source.DBType {
 	case POSTGRESQL:
-		err := gatherAssessmentDataFromPG()
+		err := gatherAssessmentMetadataFromPG()
 		if err != nil {
 			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
 		}
 	default:
 		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
-	utils.PrintAndLog("gathered assessment data files at '%s'", assessmentDataDir)
+	utils.PrintAndLog("gathered assessment metadata files at '%s'", assessmentMetadataDir)
 	return nil
 }
 
-func gatherAssessmentDataFromPG() (err error) {
-	if assessmentDataDirFlag != "" {
+func gatherAssessmentMetadataFromPG() (err error) {
+	if assessmentMetadataDirFlag != "" {
 		return nil
 	}
 
 	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
-	gatherAssessmentDataScriptPath := "/etc/yb-voyager/gather-assessment-data/postgresql/yb-voyager-pg-gather-assessment-data.sh"
+	gatherAssessmentMetadataScriptPath := "/etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh"
 
 	possiblePathsForScript := []string{
-		gatherAssessmentDataScriptPath,
-		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, gatherAssessmentDataScriptPath),
-		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, gatherAssessmentDataScriptPath),
+		gatherAssessmentMetadataScriptPath,
+		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, gatherAssessmentMetadataScriptPath),
+		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, gatherAssessmentMetadataScriptPath),
 	}
 
 	scriptPath := ""
@@ -265,14 +259,14 @@ func gatherAssessmentDataFromPG() (err error) {
 	scriptArgs := []string{
 		source.DB().GetConnectionUriWithoutPassword(),
 		source.Schema,
-		assessmentDataDir,
+		assessmentMetadataDir,
 	}
 
 	cmd := exec.Command(scriptPath, scriptArgs...)
 	log.Infof("running script: %s", cmd.String())
 	cmd.Env = append(cmd.Env, "PGPASSWORD="+source.Password,
 		"PATH="+os.Getenv("PATH"))
-	cmd.Dir = assessmentDataDir
+	cmd.Dir = assessmentMetadataDir
 	cmd.Stdin = os.Stdin
 
 	stdout, err := cmd.StdoutPipe()
@@ -287,7 +281,7 @@ func gatherAssessmentDataFromPG() (err error) {
 
 	err = cmd.Start()
 	if err != nil {
-		return fmt.Errorf("error starting gather assessment data script: %w", err)
+		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
 	}
 
 	go func() {
@@ -314,7 +308,7 @@ func gatherAssessmentDataFromPG() (err error) {
 				}
 			}
 		}
-		return fmt.Errorf("error waiting for gather assessment data script to complete: %w", err)
+		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
 	}
 	return nil
 }
@@ -326,20 +320,20 @@ func parseExportedSchemaFileForAssessment() {
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
-func populateMetricsCSVIntoAssessmentDB() error {
-	metricsFilePath, err := filepath.Glob(filepath.Join(assessmentDataDir, "*.csv"))
+func populateMetadataCSVIntoAssessmentDB() error {
+	metadataFilesPath, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
 	if err != nil {
-		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentDataDir, err)
+		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
 	}
 
-	for _, metricFilePath := range metricsFilePath {
-		baseFileName := filepath.Base(metricFilePath)
+	for _, metadataFilePath := range metadataFilesPath {
+		baseFileName := filepath.Base(metadataFilePath)
 		metric := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
 		tableName := strings.Replace(metric, "-", "_", -1)
-		log.Infof("populating metrics from file %s into table %s", metricFilePath, tableName)
-		file, err := os.Open(metricFilePath)
+		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
+		file, err := os.Open(metadataFilePath)
 		if err != nil {
-			log.Warnf("error opening file %s: %v", metricsFilePath, err)
+			log.Warnf("error opening file %s: %v", metadataFilesPath, err)
 			return nil
 		}
 
@@ -347,8 +341,8 @@ func populateMetricsCSVIntoAssessmentDB() error {
 		csvReader.ReuseRecord = true
 		rows, err := csvReader.ReadAll()
 		if err != nil {
-			log.Errorf("error reading csv file %s: %v", metricsFilePath, err)
-			return fmt.Errorf("error reading csv file %s: %w", metricsFilePath, err)
+			log.Errorf("error reading csv file %s: %v", metadataFilesPath, err)
+			return fmt.Errorf("error reading csv file %s: %w", metadataFilesPath, err)
 		}
 
 		// collecting both initial and final measurement in the same table
@@ -361,7 +355,7 @@ func populateMetricsCSVIntoAssessmentDB() error {
 			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
 		}
 
-		log.Infof("populated metrics from file %s into table %s", metricFilePath, tableName)
+		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
 	}
 
 	err = assessmentDB.PopulateMigrationAssessmentStats()
@@ -451,7 +445,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	var unsupportedDataTypes []utils.TableColumnsDataTypes
 
 	// load file with all column data types
-	filePath := filepath.Join(assessmentDataDir, "table-columns-data-types.csv")
+	filePath := filepath.Join(assessmentMetadataDir, "table-columns-data-types.csv")
 
 	allColumnsDataTypes, err := migassessment.LoadCSVDataFile[utils.TableColumnsDataTypes](filePath)
 	if err != nil {
@@ -523,12 +517,12 @@ func validateSourceDBTypeForAssessMigration() {
 	}
 }
 
-func validateAssessmentDataDirFlag() {
-	if assessmentDataDirFlag != "" {
-		if !utils.FileOrFolderExists(assessmentDataDirFlag) {
-			utils.ErrExit("assessment data directory %q provided with `--assessment-data-dir` flag does not exist", assessmentDataDirFlag)
+func validateAssessmentMetadataDirFlag() {
+	if assessmentMetadataDirFlag != "" {
+		if !utils.FileOrFolderExists(assessmentMetadataDirFlag) {
+			utils.ErrExit("assessment metadata directory %q provided with `--assessment-metadata-dir` flag does not exist", assessmentMetadataDirFlag)
 		} else {
-			log.Infof("using provided assessment data directory: %s", assessmentDataDirFlag)
+			log.Infof("using provided assessment metadata directory: %s", assessmentMetadataDirFlag)
 		}
 	}
 }

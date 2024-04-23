@@ -300,7 +300,7 @@ func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.Sh
 
 func applyShardingRecommendation(sqlInfo sqlInfo, lastStmtSetOrSelect bool) string {
 	newSQL := strings.TrimRight(sqlInfo.formattedStmt, "; ")
-	newSQL += "WITH (COLOCATION = false);\n\n\n"
+	newSQL += " WITH (COLOCATION = false);\n\n\n"
 	return prependSpacing(newSQL, lastStmtSetOrSelect)
 }
 
