@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"io"
 	"math"
 	"net/http"
@@ -66,7 +67,9 @@ Returns:
 */
 func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
 	err := ConnectSourceMetaDatabase(GetDBFilePath())
-	checkErr(err)
+	if err != nil {
+		panic(err)
+	}
 	return getSourceMetadata()
 }
 
@@ -163,7 +166,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
 	}
 
-	FinalReport = &Report{
+	SizingReport = &AssessmentReport{
 		ColocatedTables:         coloObjectNames,
 		ColocatedReasoning:      reasoning,
 		ShardedTables:           shardedObjectNames,
@@ -189,7 +192,7 @@ Parameters:
 	shardedObjectsSize: The total size of sharded objects in gigabytes.
 */
 func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64) {
-	if len(FinalReport.ShardedTables) > 0 {
+	if len(SizingReport.ShardedTables) > 0 {
 		// table limit check
 		arrayOfSupportedCores := checkTableLimits(len(shardedObjectMetadata))
 		// calculate throughput data
@@ -208,11 +211,11 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 		//calculateImpactOfHorizontalScaling(values)
 
 		// get connections per core
-		FinalReport.OptimalSelectConnectionsPerNode, FinalReport.OptimalInsertConnectionsPerNode = getConnectionsPerCore(arrayOfSupportedCores[0])
+		SizingReport.OptimalSelectConnectionsPerNode, SizingReport.OptimalInsertConnectionsPerNode = getConnectionsPerCore(arrayOfSupportedCores[0])
 		// calculate time taken for sharded migration
 		migrationTimeForShardedObjects :=
-			calculateTimeTakenForMigration("sharded", shardedObjectMetadata, FinalReport.VCPUsPerInstance, 4)
-		FinalReport.MigrationTimeTakenInMin += migrationTimeForShardedObjects
+			calculateTimeTakenForMigration("sharded", shardedObjectMetadata, SizingReport.VCPUsPerInstance, 4)
+		SizingReport.MigrationTimeTakenInMin += migrationTimeForShardedObjects
 	}
 }
 
@@ -266,7 +269,7 @@ func checkTableLimits(reqTables int) []int {
 	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
 	selectQuery := "SELECT num_cores FROM sharded_sizing WHERE num_tables > ? AND num_cores >= ? AND " +
 		"dimension LIKE '%TableLimits-3nodeRF=3%' ORDER BY num_cores"
-	rows, err := DB.Query(selectQuery, reqTables, FinalReport.VCPUsPerInstance)
+	rows, err := DB.Query(selectQuery, reqTables, SizingReport.VCPUsPerInstance)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -307,7 +310,7 @@ func getThroughputData(selectThroughput int64, writeThroughput int64) {
 		"ROUND((? / selects_per_core) + 0.5) AS select_total_cores, num_cores, num_nodes FROM sharded_sizing " +
 		"WHERE dimension = 'MaxThroughput' AND num_cores >= ?) AS foo ORDER BY select_total_cores + insert_total_cores," +
 		"num_cores;"
-	rows, err := DB.Query(selectQuery, writeThroughput, selectThroughput, FinalReport.VCPUsPerInstance)
+	rows, err := DB.Query(selectQuery, writeThroughput, selectThroughput, SizingReport.VCPUsPerInstance)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -322,7 +325,7 @@ func getThroughputData(selectThroughput int64, writeThroughput int64) {
 	}
 
 	// add the additional nodes to the total
-	FinalReport.NumNodes += math.Max(math.Ceil((selectTotalCores+insertTotalCores)/float64(FinalReport.VCPUsPerInstance)), 1)
+	SizingReport.NumNodes += math.Max(math.Ceil((selectTotalCores+insertTotalCores)/float64(SizingReport.VCPUsPerInstance)), 1)
 }
 
 /*
@@ -449,7 +452,9 @@ func bytesToGB(sizeInBytes float64) float64 {
 func createConnectionToExperimentData(targetYbVersion string) {
 	filePath := getExperimentFile(targetYbVersion)
 	err := ConnectExperimentDataDatabase(filePath)
-	checkErr(err)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func getExperimentFile(targetYbVersion string) string {
@@ -460,7 +465,7 @@ func getExperimentFile(targetYbVersion string) string {
 			filePath = strings.ReplaceAll(filePath, "src/migassessment/resources/", baseDownloadPath)
 		} else {
 			// check if local file exists
-			isFileExist := checkLocalFileExists(filePath)
+			isFileExist := utils.FileOrFolderExists(filePath)
 			if !isFileExist {
 				panic("file doesn't exist")
 			}
@@ -469,7 +474,7 @@ func getExperimentFile(targetYbVersion string) string {
 		// no network access
 		fmt.Println("No network access. Checking file locally...")
 		// check if local file exists
-		isFileExist := checkLocalFileExists(filePath)
+		isFileExist := utils.FileOrFolderExists(filePath)
 		if !isFileExist {
 			panic("file doesn't exist")
 		}

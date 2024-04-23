@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
@@ -31,9 +30,9 @@ var AssessmentDataDir string
 
 type Record map[string]any
 
-var FinalReport *Report
+var SizingReport *AssessmentReport
 
-type Report struct {
+type AssessmentReport struct {
 	ColocatedTables                 []string
 	ColocatedReasoning              string
 	ShardedTables                   []string
@@ -141,8 +140,6 @@ func LoadAssessmentParams(userInputFpath string) error {
 
 func convertToMap(rows *sql.Rows) []map[string]interface{} {
 	columns, _ := rows.Columns()
-
-	// for each database row / record, a map with the column names and row values is added to the allMaps slice
 	var allMaps []map[string]interface{}
 
 	for rows.Next() {
@@ -152,7 +149,9 @@ func convertToMap(rows *sql.Rows) []map[string]interface{} {
 			pointers[i] = &values[i]
 		}
 		err := rows.Scan(pointers...)
-		checkErr(err)
+		if err != nil {
+			panic(err)
+		}
 		resultMap := make(map[string]interface{})
 		for i, val := range values {
 			//fmt.Printf("Adding key=%s val=%v\n", columns[i], val)
@@ -163,18 +162,7 @@ func convertToMap(rows *sql.Rows) []map[string]interface{} {
 	return allMaps
 }
 
-func checkErr(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 func checkInternetAccess() (ok bool) {
 	_, err := http.Get("http://clients3.google.com/generate_204")
 	return err == nil
-}
-
-func checkLocalFileExists(filePath string) bool {
-	_, err := os.Stat(filePath)
-	return !errors.Is(err, os.ErrNotExist)
 }
