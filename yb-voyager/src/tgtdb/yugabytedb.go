@@ -467,7 +467,7 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	schemaName, tableName := nt.ForCatalogQuery()
 	var result []string
 	query := fmt.Sprintf(
-		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
+		"/*+set(enable_nestloop off)*/ SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'",
 		schemaName, tableName)
 	rows, err := yb.Query(query)
 	if err != nil {
