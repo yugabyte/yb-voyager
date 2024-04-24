@@ -767,7 +767,7 @@ create_gather_assessment_metadata_dir() {
 	if [ "${VERSION}" == "latest" ]
 	then
 		# TODO: Replace the YB_VOYAGER_GIT_HASH_TEMP with the release tagged YB_VOYAGER_GIT_HASH
-		YB_VOYAGER_GIT_HASH_TEMP="96eb3de7374e52279382c0fb01cf74bc5f9bb3fe"
+		YB_VOYAGER_GIT_HASH_TEMP="bd6c645fb233880d282c9691a7df6583bea0ec06"
 		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH_TEMP/$scripts_dir_path/${scripts_dir_name}.tar.gz"
 		sudo wget -nv -O /tmp/${scripts_dir_name}.tar.gz $TAR_URL
 		sudo tar -xzf /tmp/${scripts_dir_name}.tar.gz -C $scripts_parent_dir 1>&2
