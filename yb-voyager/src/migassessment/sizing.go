@@ -563,7 +563,7 @@ func getExperimentFile(targetYbVersion string) string {
 }
 
 func checkAndDownloadFileExistsOnRemoteRepo(fileName string, workingDir string) bool {
-	remotePath := "https://raw.githubusercontent.com/yb-voyager/main/yb-voyager/" + fileName
+	remotePath := "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/" + fileName
 
 	resp, _ := http.Get(remotePath)
 

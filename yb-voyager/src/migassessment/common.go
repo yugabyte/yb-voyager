@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
-	"net/http"
 	"os"
 )
 
@@ -165,6 +164,7 @@ func convertToMap(rows *sql.Rows) []map[string]interface{} {
 }
 
 func checkInternetAccess() (ok bool) {
-	_, err := http.Get("http://clients3.google.com/generate_204")
-	return err == nil
+	/*_, err := http.Get("http://clients3.google.com/generate_204")
+	return err == nil*/
+	return false
 }
