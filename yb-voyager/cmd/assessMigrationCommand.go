@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
@@ -21,6 +22,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"github.com/samber/lo"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,7 +30,6 @@ import (
 	"syscall"
 	"text/template"
 
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -47,12 +48,11 @@ var (
 type AssessmentReport struct {
 	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
 
-	Sharding *migassessment.ShardingReport `json:"Sharding"`
-	Sizing   *migassessment.SizingReport   `json:"Sizing"`
-
 	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
+
+	Sizing *migassessment.AssessmentReport `json:"Sizing"`
 
 	MigrationAssessmentStats *[]migassessment.TableIndexStats `json:"MigrationAssessmentStats"`
 }
@@ -139,6 +139,7 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to run assessment: %w", err)
 	}
+	assessmentReport.Sizing = migassessment.SizingReport
 
 	err = generateAssessmentReport()
 	if err != nil {
@@ -172,12 +173,12 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
 
-	err := migassessment.ShardingAssessment()
+	err := migassessment.SizingAssessment()
 	if err != nil {
-		return fmt.Errorf("failed to perform sharding assessment: %w", err)
+		log.Errorf("failed to perform sizing assessment: %v", err)
+		return fmt.Errorf("failed to perform sizing assessment: %w", err)
 	}
 
-	// migassessment.SizingAssessment()
 	return nil
 }
 
@@ -381,8 +382,7 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
 
-	assessmentReport.Sharding = migassessment.Report.ShardingReport
-	assessmentReport.Sizing = migassessment.Report.SizingReport
+	assessmentReport.Sizing = migassessment.SizingReport
 	assessmentReport.MigrationAssessmentStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
