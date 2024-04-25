@@ -537,7 +537,7 @@ func getExperimentFile(targetYbVersion string) string {
 		panic("Could not get working directory")
 	}
 
-	filePath := "sr	c/migassessment/resources/yb_" + strings.ReplaceAll(targetYbVersion, ".", "_") + "_source.db"
+	filePath := "src/migassessment/resources/yb_" + strings.ReplaceAll(targetYbVersion, ".", "_") + "_source.db"
 	if checkInternetAccess() {
 		remoteFileExists := checkAndDownloadFileExistsOnRemoteRepo(filePath, wd)
 		if remoteFileExists {
