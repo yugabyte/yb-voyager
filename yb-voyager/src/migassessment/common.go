@@ -43,7 +43,8 @@ type AssessmentReport struct {
 	OptimalSelectConnectionsPerNode int64
 	OptimalInsertConnectionsPerNode int64
 	MigrationTimeTakenInMin         float64
-	// ParallelVoyagerImportThreads int64 ==> Optional
+	ParallelVoyagerThreadsSharded   int64
+	ParallelVoyagerThreadsColocated int64
 }
 
 var assessmentParams = &AssessmentParams{}

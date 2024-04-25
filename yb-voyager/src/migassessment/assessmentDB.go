@@ -57,6 +57,10 @@ func GetDBFilePath() string {
 	return filepath.Join(AssessmentMetadataDir, "assessment.db")
 }
 
+func GetTableIndexStatName() string {
+	return TABLE_INDEX_STATS
+}
+
 func InitAssessmentDB() error {
 	assessmentDBPath := GetDBFilePath()
 	log.Infof("initializing assessment db at %s", assessmentDBPath)
