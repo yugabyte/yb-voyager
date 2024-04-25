@@ -757,7 +757,7 @@ create_pg_dump_args_file() {
 	fi	
 }
 
-create_gather_assessment_metadata_dir() {	
+create_gather_assessment_metadata_dir() {
 	scripts_parent_dir="/etc/yb-voyager"
 	scripts_dir_path="yb-voyager/src/srcdb/data/"
 	scripts_dir_name="gather-assessment-metadata"
