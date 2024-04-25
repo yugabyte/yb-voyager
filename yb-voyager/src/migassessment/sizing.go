@@ -30,17 +30,17 @@ import (
 )
 
 type SourceDBMetadata struct {
-	SchemaName      string         `json:"schema_name"`
-	ObjectName      string         `json:"object_name"`
-	RowCount        sql.NullInt64  `json:"row_count,string"`
-	ColumnCount     sql.NullInt64  `json:"column_count,string"`
-	Reads           int64          `json:"reads,string"`
-	Writes          int64          `json:"writes,string"`
-	ReadsPerSec     int64          `json:"reads_per_second,string"`
-	WritesPerSec    int64          `json:"writes_per_second,string"`
-	IsIndex         bool           `json:"is_index,string"`
-	ParentTableName sql.NullString `json:"parent_table_name"`
-	Size            float64        `json:"size_in_bytes,string"`
+	SchemaName      string         `db:"schema_name"`
+	ObjectName      string         `db:"object_name"`
+	RowCount        sql.NullInt64  `db:"row_count,string"`
+	ColumnCount     sql.NullInt64  `db:"column_count,string"`
+	Reads           int64          `db:"reads,string"`
+	Writes          int64          `db:"writes,string"`
+	ReadsPerSec     int64          `db:"reads_per_second,string"`
+	WritesPerSec    int64          `db:"writes_per_second,string"`
+	IsIndex         bool           `db:"is_index,string"`
+	ParentTableName sql.NullString `db:"parent_table_name"`
+	Size            float64        `db:"size_in_bytes,string"`
 }
 
 var baseDownloadPath = "src/migassessment/resources/remote/"
