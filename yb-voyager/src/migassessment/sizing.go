@@ -184,7 +184,6 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		var cumulativeInsertOpsPerSec int64 = 0
 		var cumulativeSizeSum float64 = 0
 		var colocatedObjects []SourceDBMetadata
-		var coloObjectNames []string
 
 		for i, table := range sourceTableMetadata {
 			// check if current table has any indexes and fetch all indexes
