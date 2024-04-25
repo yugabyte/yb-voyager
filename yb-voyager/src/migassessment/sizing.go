@@ -202,16 +202,9 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 			if (neededCores <= r1.numCores.Float64) &&
 				(cumulativeObjectCount <= r1.maxSupportedNumTables.Int64) &&
 				(cumulativeSizeSum <= r1.maxColocatedSizeSupported.Float64) {
-				//index = i
 				colocatedObjects = append(colocatedObjects, table)
-				coloObjectNames = append(coloObjectNames, table.SchemaName+"."+table.ObjectName)
-
 				// append all indexes into colocated
 				colocatedObjects = append(colocatedObjects, indexesOfTable...)
-				// append all index names into colocated result
-				for _, key := range indexesOfTable {
-					coloObjectNames = append(coloObjectNames, key.SchemaName+"."+key.ObjectName)
-				}
 
 			} else {
 				if previousCores.numCores.Float64 != -1 {

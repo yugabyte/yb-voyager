@@ -16,7 +16,6 @@ limitations under the License.
 package migassessment
 
 import (
-	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -137,30 +136,6 @@ func LoadAssessmentParams(userInputFpath string) error {
 	}
 
 	return nil
-}
-
-func convertToMap(rows *sql.Rows) []map[string]interface{} {
-	columns, _ := rows.Columns()
-	var allMaps []map[string]interface{}
-
-	for rows.Next() {
-		values := make([]interface{}, len(columns))
-		pointers := make([]interface{}, len(columns))
-		for i := range values {
-			pointers[i] = &values[i]
-		}
-		err := rows.Scan(pointers...)
-		if err != nil {
-			panic(err)
-		}
-		resultMap := make(map[string]interface{})
-		for i, val := range values {
-			//fmt.Printf("Adding key=%s val=%v\n", columns[i], val)
-			resultMap[columns[i]] = val
-		}
-		allMaps = append(allMaps, resultMap)
-	}
-	return allMaps
 }
 
 func checkInternetAccess() (ok bool) {
