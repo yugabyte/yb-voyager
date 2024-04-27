@@ -13,7 +13,7 @@ LEFT JOIN
     pg_catalog.pg_index i ON i.indexrelid = c.oid AND c.relkind = 'i'
 WHERE 
     (c.relkind = 'r' OR (c.relkind = 'i' AND NOT i.indisprimary))
-    AND n.nspname = ANY(ARRAY[string_to_array(:'schema_list', ',')]);
+    AND n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')]);
 
 
 -- TODO: handle storing the info(column names) with schema name(required in case of multi schema migration)
@@ -21,5 +21,4 @@ WHERE
 
 \copy temp_table TO 'table-index-sizes.csv' WITH CSV HEADER;
 
--- Drop the temporary table
 DROP TABLE temp_table;
