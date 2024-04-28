@@ -428,14 +428,19 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 // execute all events sequentially one by one in a single transaction
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
-	log.Infof("executing batch of %d events", len(batch.Events))
+	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
 	err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
 		tx, err := conn.BeginTx(context.Background(), nil)
 		if err != nil {
 			return false, fmt.Errorf("begin transaction: %w", err)
 		}
-		defer tx.Rollback()
-
+		defer func() {
+			errRollBack := tx.Rollback()
+			if errRollBack != nil && errRollBack != sql.ErrTxDone {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			}
+		}()
+		var rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
 			stmt, err := event.GetSQLStmt(tdb)
@@ -452,17 +457,35 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				event.Op = "c" // reverting state
 			}
-			_, err = tx.Exec(stmt)
+			var res sql.Result
+			res, err = tx.Exec(stmt)
 			if err != nil {
 				log.Errorf("error executing stmt for event with vsn(%d) via query-%s: %v", event.Vsn, stmt, err)
 				return false, fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
+			}
+			var cnt int64
+			cnt, err = res.RowsAffected()
+			if err != nil {
+				log.Errorf("error getting rows Affecterd for event with vsn(%d) in batch(%s)", event.Vsn, batch.ID())
+				return false, fmt.Errorf("failed to get rowsAffected for event with vsn(%d)", event.Vsn)
+			}
+			switch true {
+			case event.Op == "c":
+				rowsAffectedInserts += cnt
+			case event.Op == "d":
+				rowsAffectedDeletes += cnt
+			case event.Op == "u":
+				rowsAffectedUpdates += cnt
+			}
+			if cnt != 1 {
+				log.Warnf("unexpected rows affected for event with vsn(%d) in batch(%s): %d", batch.Events[i].Vsn, batch.ID(), cnt)
 			}
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
 		res, err := tx.Exec(updateVsnQuery)
 		if err != nil {
-			log.Errorf("error executing stmt: %v", err)
+			log.Errorf("error executing stmt for batch(%s): %v", batch.ID(), err)
 			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w", updateVsnQuery, err)
 		} else if rowsAffected, err := res.RowsAffected(); rowsAffected == 0 || err != nil {
 			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, rowsAffected)
@@ -496,6 +519,10 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 
 		if err = tx.Commit(); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
+		}
+
+		if discrepancyFoundInBatch(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates) {
+			log.Infof("Committed batch(%s): batch-size %d rowsAffectedInserts=%d, rowsAffectedInserts=%d rowsAffectedInserts=%d", batch.ID(), len(batch.Events), rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
 		}
 		return false, err
 	})
