@@ -22,13 +22,14 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"github.com/samber/lo"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"text/template"
+
+	"github.com/samber/lo"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -74,6 +75,7 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateAssessmentMetadataDirFlag()
+		validateTargetYbVersionFlag()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -91,7 +93,7 @@ func init() {
 
 	assessMigrationCmd.Flags().StringVar(&migassessment.TargetYBVersion, "target-yb-version", "",
 		"specifies the target YugabyteDB version for which the migration is assessed. This parameter is required.")
-	assessMigrationCmd.MarkFlagRequired("target-db-version")
+	assessMigrationCmd.MarkFlagRequired("target-yb-version")
 
 	BoolVar(assessMigrationCmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
@@ -525,4 +527,16 @@ func validateAssessmentMetadataDirFlag() {
 			log.Infof("using provided assessment metadata directory: %s", assessmentMetadataDirFlag)
 		}
 	}
+}
+
+func validateTargetYbVersionFlag() {
+	for _, supportedVersion := range migassessment.SupportedTargetYBVersions {
+		if strings.HasPrefix(migassessment.TargetYBVersion, supportedVersion) {
+			// Assuming the experiment file will be same for all minor release like 2.20.*
+			migassessment.TargetYBVersion = supportedVersion
+			return
+		}
+	}
+
+	utils.ErrExit("TargetYbVersion=%q is not supported yet", migassessment.TargetYBVersion)
 }
