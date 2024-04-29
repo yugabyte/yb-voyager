@@ -545,7 +545,7 @@ func getExperimentFile(targetYbVersion string, assessmentMetadataDir string) str
 	var filePath string
 	versionSlice := strings.Split(targetYbVersion, ".")
 	if len(versionSlice) < 2 {
-		utils.ErrExit("Invalid yugabyte version `%v` ", targetYbVersion)
+		utils.ErrExit("Invalid target YugabyteDB version `%v`.", targetYbVersion)
 	}
 	targetVersion := versionSlice[0] + "_" + versionSlice[1]
 	fileName := "/yb_" + targetVersion + "_source.db"
