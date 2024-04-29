@@ -195,9 +195,17 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: -1, Valid: true},
 	}
 
-	query := fmt.Sprintf("SELECT max_colocated_db_size_gb,num_cores,mem_per_core,max_num_tables,"+
-		"min_num_tables,max_selects_per_core,max_inserts_per_core FROM %v order by num_cores DESC",
-		COLOCATED_LIMITS_TABLE)
+	query := fmt.Sprintf(`
+		SELECT max_colocated_db_size_gb, 
+			   num_cores, 
+			   mem_per_core, 
+			   max_num_tables, 
+			   min_num_tables, 
+			   max_selects_per_core, 
+			   max_inserts_per_core 
+		FROM %v 
+		ORDER BY num_cores DESC
+	`, COLOCATED_LIMITS_TABLE)
 	rows, err := ExperimentDB.Query(query)
 	if err != nil {
 		return nil, 0.0, ExpDataColocatedLimit{}, nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
@@ -333,8 +341,15 @@ Returns:
 */
 func getConnectionsPerCore(numCores int) (int64, int64, error) {
 	var selectConnectionsPerCore, insertConnectionsPerCore int64
-	selectQuery := fmt.Sprintf("select select_conn_per_node, insert_conn_per_node from %v "+
-		"where dimension like 'MaxThroughput' and num_cores = ? order by num_nodes limit 1", SHARDED_SIZING_TABLE)
+	selectQuery := fmt.Sprintf(`
+		SELECT select_conn_per_node, 
+			   insert_conn_per_node 
+		FROM %v 
+		WHERE dimension LIKE 'MaxThroughput' 
+			AND num_cores = ? 
+		ORDER BY num_nodes 
+		LIMIT 1
+	`, SHARDED_SIZING_TABLE)
 	row := ExperimentDB.QueryRow(selectQuery, numCores)
 
 	if err := row.Scan(&selectConnectionsPerCore, &insertConnectionsPerCore); err != nil {
@@ -365,8 +380,14 @@ Returns:
 */
 func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) {
 	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
-	selectQuery := "SELECT num_cores FROM sharded_sizing WHERE num_tables > ? AND num_cores >= ? AND " +
-		"dimension LIKE '%TableLimits-3nodeRF=3%' ORDER BY num_cores"
+	selectQuery := fmt.Sprintf(`
+			SELECT num_cores 
+			FROM %s 
+			WHERE num_tables > ? 
+				AND num_cores >= ? 
+				AND dimension LIKE '%%TableLimits-3nodeRF=3%%' 
+			ORDER BY num_cores
+		`, SHARDED_SIZING_TABLE)
 	rows, err := ExperimentDB.Query(selectQuery, sourceDBObjects, coresPerNode)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
@@ -412,10 +433,20 @@ func getThroughputData(selectThroughput int64, writeThroughput int64, numCores f
 
 	var currentRow [5]float64
 	var nodesToAdd float64 = 0
-
-	selectQuery := "SELECT foo.* FROM (SELECT id, ROUND((? / inserts_per_core) + 0.5) AS insert_total_cores," +
-		"ROUND((? / selects_per_core) + 0.5) AS select_total_cores, num_cores, num_nodes FROM sharded_sizing " +
-		"WHERE dimension = 'MaxThroughput' AND num_cores >= ?) AS foo ORDER BY num_cores DESC;"
+	selectQuery := fmt.Sprintf(`
+		SELECT foo.* 
+		FROM (
+			SELECT id, 
+				   ROUND((? / inserts_per_core) + 0.5) AS insert_total_cores,
+				   ROUND((? / selects_per_core) + 0.5) AS select_total_cores, 
+				   num_cores, 
+				   num_nodes 
+			FROM %s 
+			WHERE dimension = 'MaxThroughput' 
+				AND num_cores >= ?
+		) AS foo 
+		ORDER BY num_cores DESC;
+	`, SHARDED_SIZING_TABLE)
 	rows, err := ExperimentDB.Query(selectQuery, writeThroughput, selectThroughput, numCores)
 	if err != nil {
 		return 0.0, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
@@ -468,10 +499,25 @@ func calculateTimeTakenAndParallelThreadsForMigration(tableName string, dbObject
 	}
 
 	// find the rows in experiment data about the approx row matching the size
-	selectQuery := fmt.Sprintf("SELECT csv_size_gb, migration_time_secs, parallel_threads from %v where "+
-		"num_cores = ? and mem_per_core = ? and csv_size_gb >= ? UNION ALL "+
-		"SELECT csv_size_gb, migration_time_secs, parallel_threads from sharded_load_time WHERE csv_size_gb = (SELECT MAX(csv_size_gb) "+
-		"FROM sharded_load_time) LIMIT 1;", tableName)
+	selectQuery := fmt.Sprintf(`
+		SELECT csv_size_gb, 
+			   migration_time_secs, 
+			   parallel_threads 
+		FROM %v 
+		WHERE num_cores = ? 
+			AND mem_per_core = ? 
+			AND csv_size_gb >= ? 
+		UNION ALL 
+		SELECT csv_size_gb, 
+			   migration_time_secs, 
+			   parallel_threads 
+		FROM sharded_load_time 
+		WHERE csv_size_gb = (
+			SELECT MAX(csv_size_gb) 
+			FROM sharded_load_time
+		) 
+		LIMIT 1;
+	`, tableName)
 	row := ExperimentDB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size)
 
 	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow, &parallelThreads); err != nil {
@@ -496,8 +542,18 @@ Returns:
 	float64: The total size of the source database in gigabytes.
 */
 func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
-	query := fmt.Sprintf("SELECT schema_name, object_name,row_count,reads_per_second,writes_per_second,"+
-		"is_index,parent_table_name,size_in_bytes FROM %v ORDER BY size_in_bytes ASC", GetTableIndexStatName())
+	query := fmt.Sprintf(`
+		SELECT schema_name, 
+			   object_name, 
+			   row_count, 
+			   reads_per_second, 
+			   writes_per_second, 
+			   is_index, 
+			   parent_table_name, 
+			   size_in_bytes 
+		FROM %v 
+		ORDER BY size_in_bytes ASC
+	`, GetTableIndexStatName())
 	rows, err := sourceDB.Query(query)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
