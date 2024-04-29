@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"net/http"
 	"os"
 )
 
@@ -111,7 +112,6 @@ func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
 }
 
 func checkInternetAccess() (ok bool) {
-	/*_, err := http.Get("http://clients3.google.com/generate_204")
-	return err == nil*/
-	return false
+	_, err := http.Get("http://clients3.google.com/generate_204")
+	return err == nil
 }
