@@ -173,7 +173,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
 
-	err := migassessment.SizingAssessment()
+	err := migassessment.SizingAssessment(assessmentMetadataDir)
 	if err != nil {
 		log.Errorf("failed to perform sizing assessment: %v", err)
 		return fmt.Errorf("failed to perform sizing assessment: %w", err)

@@ -18,6 +18,7 @@ package migassessment
 
 import (
 	"database/sql"
+	_ "embed"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -42,7 +43,7 @@ type SourceDBMetadata struct {
 	Size            float64        `db:"size_in_bytes,string"`
 }
 
-type ColocatedLimits struct {
+type ExpDataColocatedLimit struct {
 	maxColocatedSizeSupported  sql.NullFloat64 `db:"max_colocated_db_size_gb,string"`
 	numCores                   sql.NullFloat64 `db:"num_cores,string"`
 	memPerCore                 sql.NullFloat64 `db:"mem_per_core,string"`
@@ -52,15 +53,20 @@ type ColocatedLimits struct {
 	maxSupportedInsertsPerCore sql.NullFloat64 `db:"max_inserts_per_core,string"`
 }
 
-var baseDownloadPath = "resources/remote/"
 var DB *sql.DB
 var SourceMetaDB *sql.DB
 
-func SizingAssessment() error {
+//go:embed resources/yb_2_20_source.db
+var experimentData220 []byte
+
+//go:embed resources/yb_2024_0_source.db
+var experimentData20240 []byte
+
+func SizingAssessment(assessmentMetadataDir string) error {
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
 
-	createConnectionToExperimentData(TargetYBVersion)
+	createConnectionToExperimentData(TargetYBVersion, assessmentMetadataDir)
 	colocatedObjects, colocatedObjectsSize, coresToUse, shardedObjects :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 
@@ -89,6 +95,8 @@ func SizingAssessment() error {
 		reasoning += fmt.Sprintf("All %v objects of size %0.3fGB as colocated",
 			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
 	}
+
+	//assessmentMetadataDir
 
 	SizingReport = &AssessmentReport{
 		ColocatedTables:                 fetchObjectNames(colocatedObjects),
@@ -124,7 +132,6 @@ Returns:
 	float64: total size of source db
 */
 func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
-	//err := ConnectSourceMetaDatabase("/Users/shaharukshaikh/code/go/yb-voyager/yb-voyager/stats1/assessment/metadata/assessment.db")
 	err := ConnectSourceMetaDatabase(GetDBFilePath())
 	if err != nil {
 		panic(err)
@@ -150,13 +157,13 @@ Returns:
 
 	[]SourceDBMetadata: A slice containing metadata for sharded objects. Used for sharding recommendations.
 	float64: The total size of sharded objects in gigabytes. Used for sharding recommendations.
+	ExpDataColocatedLimit: Information about the instance type to use for the experiment
+	SourceDBMetadata[]: list of sharded objects
 */
 
 func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
-	totalSourceDBSize float64) ([]SourceDBMetadata, float64, ColocatedLimits, []SourceDBMetadata) {
-	//var previousCores float64 = -1
-	//var maxColocatedSizeSupported float64 = 0
-	previousCores := ColocatedLimits{
+	totalSourceDBSize float64) ([]SourceDBMetadata, float64, ExpDataColocatedLimit, []SourceDBMetadata) {
+	previousCores := ExpDataColocatedLimit{
 		maxColocatedSizeSupported:  sql.NullFloat64{Float64: -1, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: -1, Valid: true},
 		memPerCore:                 sql.NullFloat64{Float64: -1, Valid: true},
@@ -173,18 +180,17 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	defer rows.Close()
 
 	for rows.Next() {
-		var r1 ColocatedLimits
-		if err := rows.Scan(&r1.maxColocatedSizeSupported, &r1.numCores, &r1.memPerCore, &r1.maxSupportedNumTables,
-			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
-			log.Fatal(err)
-		}
-
+		var r1 ExpDataColocatedLimit
 		var cumulativeObjectCount int64 = 0
 		var cumulativeSelectOpsPerSec int64 = 0
 		var cumulativeInsertOpsPerSec int64 = 0
 		var cumulativeSizeSum float64 = 0
 		var colocatedObjects []SourceDBMetadata
 
+		if err := rows.Scan(&r1.maxColocatedSizeSupported, &r1.numCores, &r1.memPerCore, &r1.maxSupportedNumTables,
+			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
+			log.Fatal(err)
+		}
 		for i, table := range sourceTableMetadata {
 			// check if current table has any indexes and fetch all indexes
 			indexesOfTable, indexesSizeSum, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
@@ -239,8 +245,15 @@ Parameters:
 
 	shardedObjectMetadata: A slice containing metadata for sharded objects.
 	shardedObjectsSize: The total size of sharded objects in gigabytes.
+
+Returns:
+
+	float64: recommended number of nodes
+	int64: optimal select connections per node recommendation
+	int64: optimal insert connections per node recommendation
 */
-func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64, coresToUse ColocatedLimits) (float64, int64, int64) {
+func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64,
+	coresToUse ExpDataColocatedLimit) (float64, int64, int64) {
 	var numNodes float64 = 0
 	var optimalSelectConnectionsPerNode int64 = 0
 	var optimalInsertConnectionsPerNode int64 = 0
@@ -354,6 +367,11 @@ Parameters:
 
 	selectThroughput: The select throughput metric representing the number of read operations per second.
 	writeThroughput: The write throughput metric representing the number of write operations per second.
+	numCores: number of cores to be used for calculating nodes to be added
+
+Returns:
+
+	float64: recommended number of nodes to be added
 */
 func getThroughputData(selectThroughput int64, writeThroughput int64, numCores float64) float64 {
 
@@ -403,8 +421,8 @@ Returns:
 	float64: The estimated time taken for migration in minutes.
 	int64: Total parallel threads used for migration.
 */
-func calculateTimeTakenAndParallelThreadsForMigration(objectType string, dbObjects []SourceDBMetadata, vCPUPerInstance float64,
-	memPerCore float64) (float64, int64) {
+func calculateTimeTakenAndParallelThreadsForMigration(objectType string, dbObjects []SourceDBMetadata,
+	vCPUPerInstance float64, memPerCore float64) (float64, int64) {
 	// the total size of colocated objects
 	var size float64 = 0
 	var timeTakenOfFetchedRow float64
@@ -515,48 +533,42 @@ func bytesToGB(sizeInBytes float64) float64 {
 	return sizeInGB
 }
 
-func createConnectionToExperimentData(targetYbVersion string) {
-	filePath := getExperimentFile(targetYbVersion)
+func createConnectionToExperimentData(targetYbVersion string, assessmentMetadataDir string) {
+	filePath := getExperimentFile(targetYbVersion, assessmentMetadataDir)
 	err := ConnectExperimentDataDatabase(filePath)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func getExperimentFile(targetYbVersion string) string {
-	wd, err := os.Getwd()
-	if err != nil {
-		panic("Could not get working directory")
+func getExperimentFile(targetYbVersion string, assessmentMetadataDir string) string {
+	var filePath string
+	versionSlice := strings.Split(targetYbVersion, ".")
+	if len(versionSlice) < 2 {
+		utils.ErrExit("Invalid yugabyte version `%v` ", targetYbVersion)
 	}
-
-	filePath := "src/migassessment/resources/yb_" + strings.ReplaceAll(targetYbVersion, ".", "_") + "_source.db"
-	if checkInternetAccess() {
-		remoteFileExists := checkAndDownloadFileExistsOnRemoteRepo(filePath, wd)
-		if remoteFileExists {
-			filePath = strings.ReplaceAll(filePath, "resources/", baseDownloadPath)
-		} else {
-			// check if local file exists
-			isFileExist := utils.FileOrFolderExists(wd + "/" + filePath)
-
-			if !isFileExist {
-				panic("file doesn't exist")
-			}
-		}
+	targetVersion := versionSlice[0] + "_" + versionSlice[1]
+	fileName := "/yb_" + targetVersion + "_source.db"
+	if checkInternetAccess() && checkAndDownloadFileExistsOnRemoteRepo(fileName, assessmentMetadataDir) {
+		filePath = assessmentMetadataDir + fileName
 	} else {
-		// no network access
-		log.Infof("No network access. Checking file locally...")
 		// check if local file exists
-		isFileExist := utils.FileOrFolderExists(wd + "/" + filePath)
-		if !isFileExist {
-			panic("file doesn't exist")
+		filePath = assessmentMetadataDir + fileName
+		switch targetVersion {
+		case "2_20":
+			_ = os.WriteFile(filePath, experimentData220, 0644)
+		case "2024_0":
+			_ = os.WriteFile(filePath, experimentData20240, 0644)
+		default:
+			_ = os.WriteFile(filePath, experimentData20240, 0644)
 		}
 	}
-	return wd + "/" + filePath
+	return filePath
 }
 
-func checkAndDownloadFileExistsOnRemoteRepo(fileName string, workingDir string) bool {
-	remotePath := "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/" + fileName
-
+func checkAndDownloadFileExistsOnRemoteRepo(fileName string, exportDir string) bool {
+	remotePath :=
+		"https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources" + fileName
 	resp, _ := http.Get(remotePath)
 
 	defer func(Body io.ReadCloser) {
@@ -569,7 +581,7 @@ func checkAndDownloadFileExistsOnRemoteRepo(fileName string, workingDir string) 
 	if resp.StatusCode != 200 {
 		return false
 	} else {
-		downloadPath := workingDir + "/" + strings.ReplaceAll(fileName, "resources/", baseDownloadPath)
+		downloadPath := exportDir + fileName
 		out, _ := os.Create(downloadPath)
 		defer func(out *os.File) {
 			err := out.Close()
