@@ -171,8 +171,8 @@ func runAssessment() error {
 
 	err := migassessment.SizingAssessment(assessmentMetadataDir)
 	if err != nil {
-		log.Errorf("failed to perform sizing assessment: %v", err)
-		return fmt.Errorf("failed to perform sizing assessment: %w", err)
+		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
+		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
 	}
 
 	return nil

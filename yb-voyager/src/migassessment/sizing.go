@@ -25,6 +25,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -53,11 +54,6 @@ type ExpDataColocatedLimit struct {
 	maxSupportedInsertsPerCore sql.NullFloat64 `db:"max_inserts_per_core,string"`
 }
 
-var ExperimentDB *sql.DB
-
-// var SourceMetaDB *sql.DB
-var experimentDataFileName = "/yb_2024_0_source.db"
-
 const (
 	COLOCATED_LIMITS_TABLE    = "colocated_limits"
 	SHARDED_SIZING_TABLE      = "sharded_sizing"
@@ -65,6 +61,9 @@ const (
 	SHARDED_LOAD_TIME_TABLE   = "sharded_load_time"
 	GITHUB_RAW_LINK           = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
 )
+
+var ExperimentDB *sql.DB
+var experimentDataFileName = "/yb_2024_0_source.db"
 
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
@@ -76,11 +75,15 @@ func SizingAssessment(assessmentMetadataDir string) error {
 		return fmt.Errorf("failed to load source metadata: %w", err)
 	}
 
-	createConnectionToExperimentData(assessmentMetadataDir)
+	err = createConnectionToExperimentData(assessmentMetadataDir)
+	if err != nil {
+		return fmt.Errorf("failed to connect to experiment data: %w", err)
+	}
+
 	colocatedObjects, colocatedObjectsSize, coresToUse, shardedObjects, err :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 	if err != nil {
-		return fmt.Errorf("generate sharding recommendations: %w", err)
+		return fmt.Errorf("error generating sharding recommendations: %w", err)
 	}
 
 	// only use the remaining sharded objects and its size for further recommendation processing
@@ -118,8 +121,6 @@ func SizingAssessment(assessmentMetadataDir string) error {
 			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
 	}
 
-	//assessmentMetadataDir
-
 	SizingReport = &SizingAssessmentReport{
 		ColocatedTables:                 fetchObjectNames(colocatedObjects),
 		ColocatedReasoning:              reasoning,
@@ -146,7 +147,8 @@ func fetchObjectNames(dbObjects []SourceDBMetadata) []string {
 
 /*
 loadSourceMetadata connects to the assessment metadata of the source database and generates the slice of objects
-for tables and indexes. It also returns the total size of source db in GB
+for tables and indexes. It also returns the total size of source db in GB. Primary key size is not considered in the
+calculation.
 Returns:
 
 	[]SourceDBMetadata: all table objects from source db
@@ -210,7 +212,11 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	if err != nil {
 		return nil, 0.0, ExpDataColocatedLimit{}, nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	for rows.Next() {
 		var r1 ExpDataColocatedLimit
@@ -287,7 +293,8 @@ Returns:
 */
 func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64,
 	coresToUse ExpDataColocatedLimit) (float64, int64, int64, error) {
-	var numNodes float64 = 0
+	// 3 is the minimum number of nodes recommended
+	var numNodes float64 = 3
 	var optimalSelectConnectionsPerNode int64 = 0
 	var optimalInsertConnectionsPerNode int64 = 0
 
@@ -295,7 +302,7 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 		// table limit check
 		arrayOfSupportedCores, err := checkTableLimits(len(shardedObjectMetadata), coresToUse.numCores.Float64)
 		if err != nil {
-			return 0, 0, 0, fmt.Errorf("check table limits: %w", err)
+			return numNodes, 0, 0, fmt.Errorf("check table limits: %w", err)
 		}
 		// calculate throughput data
 		var sumSourceSelectThroughput int64 = 0
@@ -307,9 +314,9 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 
 		throughputData, err := getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput, coresToUse.numCores.Float64)
 		if err != nil {
-			return 0, 0, 0, fmt.Errorf("get throughput data: %w", err)
+			return numNodes, 0, 0, fmt.Errorf("get throughput data: %w", err)
 		}
-		numNodes = math.Max(throughputData+1, 3)
+		numNodes = math.Max(throughputData+1, numNodes)
 		// calculate impact of table count : not in this version
 		//values = calculateTableCountImpact(values, int64(len(srcMeta)))
 
@@ -319,7 +326,7 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 		// get connections per core
 		optimalSelectConnectionsPerNode, optimalInsertConnectionsPerNode, err = getConnectionsPerCore(arrayOfSupportedCores[0])
 		if err != nil {
-			return 0, 0, 0, fmt.Errorf("get connections per core: %w", err)
+			return numNodes, 0, 0, fmt.Errorf("get connections per core: %w", err)
 		}
 	}
 	return numNodes, optimalSelectConnectionsPerNode, optimalInsertConnectionsPerNode, nil
@@ -392,7 +399,11 @@ func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) 
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	var valuesArray []int
 	for rows.Next() {
@@ -410,7 +421,7 @@ func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) 
 	if len(valuesArray) > 0 {
 		return valuesArray, nil
 	} else {
-		return nil, fmt.Errorf("Cannot support %v objects", sourceDBObjects)
+		return nil, fmt.Errorf("cannot support %v objects", sourceDBObjects)
 	}
 }
 
@@ -451,7 +462,11 @@ func getThroughputData(selectThroughput int64, writeThroughput int64, numCores f
 	if err != nil {
 		return 0.0, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	for rows.Next() {
 		if err := rows.Scan(&currentRow[0], &currentRow[1], &currentRow[2], &currentRow[3], &currentRow[4]); err != nil {
@@ -558,7 +573,11 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	// Iterate over the rows
 	var sourceTableMetadata []SourceDBMetadata
@@ -583,7 +602,9 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 	if err := rows.Err(); err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
-	sourceDB.Close()
+	if err := sourceDB.Close(); err != nil {
+		return nil, nil, 0.0, fmt.Errorf("failed to close sourceDB: %w", err)
+	}
 	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, nil
 }
 
@@ -625,32 +646,30 @@ func checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir string) (bool,
 	remotePath := GITHUB_RAW_LINK + experimentDataFileName
 	resp, err := http.Get(remotePath)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to make GET request: %w", err)
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			log.Errorf("failed to close response body: %v", err)
+	defer func() {
+		if closingErr := resp.Body.Close(); closingErr != nil {
+			err = closingErr
 		}
-	}(resp.Body)
+	}()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return false, nil
-	} else {
-		downloadPath := assessmentMetadataDir + experimentDataFileName
-		out, err := os.Create(downloadPath)
-		if err != nil {
-			return false, err
-		}
-		defer func(out *os.File) {
-			err := out.Close()
-			if err != nil {
-				log.Errorf("failed to close file: %v", err)
-			}
-		}(out)
-		_, err = io.Copy(out, resp.Body)
-		return err == nil, err
 	}
+
+	downloadPath := filepath.Join(assessmentMetadataDir, experimentDataFileName)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	err = os.WriteFile(downloadPath, bodyBytes, 0644)
+	if err != nil {
+		return false, fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return true, nil
 }
 
 /*
