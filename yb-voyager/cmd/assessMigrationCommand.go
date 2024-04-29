@@ -22,13 +22,14 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"github.com/samber/lo"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"text/template"
+
+	"github.com/samber/lo"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -103,6 +104,11 @@ func init() {
 }
 
 func assessMigration() (err error) {
+	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
+		filepath.Join(exportDir, "assessment", "metadata"))
+	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
+	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
+
 	checkStartCleanForAssessMigration()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
@@ -114,12 +120,6 @@ func assessMigration() (err error) {
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
-	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
-	schemaDir = lo.Ternary(assessmentMetadataDirFlag != "", filepath.Join(assessmentMetadataDirFlag, "schema"),
-		filepath.Join(exportDir, "assessment", "metadata", "schema"))
-
-	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
-		filepath.Join(exportDir, "assessment", "metadata"))
 	migassessment.AssessmentMetadataDir = assessmentMetadataDir
 	initAssessmentDB() // Note: migassessment.AssessmentDataDir needs to be set beforehand
 
@@ -184,15 +184,17 @@ func runAssessment() error {
 
 func checkStartCleanForAssessMigration() {
 	assessmentDir := filepath.Join(exportDir, "assessment")
-	dataFilesPattern := filepath.Join(assessmentDir, "data", "*.csv")
 	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
-	schemaFilesPattern := filepath.Join(assessmentDir, "data", "schema", "*", "*.sql")
+	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
+	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
+	assessmentDB := filepath.Join(assessmentMetadataDir, "assessment.DB")
 
-	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) ||
+	if utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
 		utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) ||
-		utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern) {
+		utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern) ||
+		utils.FileOrFolderExists(assessmentDB) {
 		if startClean {
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
+			utils.CleanDir(filepath.Join(exportDir, "assessment", "metadata"))
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
 		} else {
 			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
