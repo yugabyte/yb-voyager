@@ -20,11 +20,12 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"math"
 	"net/http"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type SourceDBMetadata struct {
@@ -60,25 +61,40 @@ var experimentData20240 []byte
 
 func SizingAssessment(assessmentMetadataDir string) error {
 	log.Infof("loading metadata files for sharding assessment")
-	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
+	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := loadSourceMetadata()
+	if err != nil {
+		return fmt.Errorf("failed to load source metadata: %w", err)
+	}
 
 	createConnectionToExperimentData(assessmentMetadataDir)
-	colocatedObjects, colocatedObjectsSize, coresToUse, shardedObjects :=
+	colocatedObjects, colocatedObjectsSize, coresToUse, shardedObjects, err :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
+	if err != nil {
+		return fmt.Errorf("generate sharding recommendations: %w", err)
+	}
 
 	// only use the remaining sharded objects and its size for further recommendation processing
-	numNodes, optimalSelectConnections, optimalInsertConnections :=
+	numNodes, optimalSelectConnections, optimalInsertConnections, err :=
 		generateSizingRecommendations(shardedObjects, totalSourceDBSize-colocatedObjectsSize, coresToUse)
+	if err != nil {
+		return fmt.Errorf("generate sizing recommendations: %w", err)
+	}
 
 	// calculate time taken for colocated migration
-	migrationTimeForColocatedObjects, parallelThreadsColocated :=
+	migrationTimeForColocatedObjects, parallelThreadsColocated, err :=
 		calculateTimeTakenAndParallelThreadsForMigration("colocated", colocatedObjects,
 			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
+	if err != nil {
+		return fmt.Errorf("calculate time taken for colocated migration: %w", err)
+	}
 
 	// calculate time taken for sharded migration
-	migrationTimeForShardedObjects, parallelThreadsSharded :=
+	migrationTimeForShardedObjects, parallelThreadsSharded, err :=
 		calculateTimeTakenAndParallelThreadsForMigration("sharded", shardedObjects,
 			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
+	if err != nil {
+		return fmt.Errorf("calculate time taken for sharded migration: %w", err)
+	}
 
 	// reasoning for colocation/sharding
 	reasoning := fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ",
@@ -127,10 +143,10 @@ Returns:
 	[]SourceDBMetadata: all index objects from source db
 	float64: total size of source db
 */
-func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
+func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	err := ConnectSourceMetaDatabase(GetDBFilePath())
 	if err != nil {
-		panic(err)
+		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
 	}
 	return getSourceMetadata()
 }
@@ -158,7 +174,7 @@ Returns:
 */
 
 func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
-	totalSourceDBSize float64) ([]SourceDBMetadata, float64, ExpDataColocatedLimit, []SourceDBMetadata) {
+	totalSourceDBSize float64) ([]SourceDBMetadata, float64, ExpDataColocatedLimit, []SourceDBMetadata, error) {
 	previousCores := ExpDataColocatedLimit{
 		maxColocatedSizeSupported:  sql.NullFloat64{Float64: -1, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: -1, Valid: true},
@@ -169,10 +185,10 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: -1, Valid: true},
 	}
 
-	rows, err := DB.Query("SELECT max_colocated_db_size_gb,num_cores,mem_per_core,max_num_tables," +
-		"min_num_tables,max_selects_per_core,max_inserts_per_core FROM colocated_limits order by num_cores DESC")
+	query := "SELECT max_colocated_db_size_gb,num_cores,mem_per_core,max_num_tables,min_num_tables,max_selects_per_core,max_inserts_per_core FROM colocated_limits order by num_cores DESC"
+	rows, err := DB.Query(query)
 	if err != nil {
-		log.Errorf("no records found in experiment data table: colocated_limits")
+		return nil, 0.0, ExpDataColocatedLimit{}, nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 	}
 	defer rows.Close()
 
@@ -186,7 +202,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 
 		if err := rows.Scan(&r1.maxColocatedSizeSupported, &r1.numCores, &r1.memPerCore, &r1.maxSupportedNumTables,
 			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
-			log.Fatal(err)
+			return nil, 0.0, ExpDataColocatedLimit{}, nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 		}
 		for i, table := range sourceTableMetadata {
 			// check if current table has any indexes and fetch all indexes
@@ -210,7 +226,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 
 			} else {
 				if previousCores.numCores.Float64 != -1 {
-					return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil
+					return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil, nil
 				} else {
 					var shardedObjects []SourceDBMetadata
 
@@ -221,13 +237,13 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 						shardedObjects = append(shardedObjects, indexesOfShardedTable...)
 					}
 
-					return colocatedObjects, cumulativeSizeSum, r1, shardedObjects
+					return colocatedObjects, cumulativeSizeSum, r1, shardedObjects, nil
 				}
 			}
 		}
 		previousCores = r1
 	}
-	return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil
+	return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil, nil
 }
 
 /*
@@ -250,14 +266,17 @@ Returns:
 	int64: optimal insert connections per node recommendation
 */
 func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64,
-	coresToUse ExpDataColocatedLimit) (float64, int64, int64) {
+	coresToUse ExpDataColocatedLimit) (float64, int64, int64, error) {
 	var numNodes float64 = 0
 	var optimalSelectConnectionsPerNode int64 = 0
 	var optimalInsertConnectionsPerNode int64 = 0
 
 	if len(shardedObjectMetadata) > 0 {
 		// table limit check
-		arrayOfSupportedCores := checkTableLimits(len(shardedObjectMetadata), coresToUse.numCores.Float64)
+		arrayOfSupportedCores, err := checkTableLimits(len(shardedObjectMetadata), coresToUse.numCores.Float64)
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("check table limits: %w", err)
+		}
 		// calculate throughput data
 		var sumSourceSelectThroughput int64 = 0
 		var sumSourceWriteThroughput int64 = 0
@@ -266,7 +285,11 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 			sumSourceWriteThroughput += metadata.WritesPerSec
 		}
 
-		numNodes = math.Max(getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput, coresToUse.numCores.Float64)+1, 3)
+		throughputData, err := getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput, coresToUse.numCores.Float64)
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("get throughput data: %w", err)
+		}
+		numNodes = math.Max(throughputData+1, 3)
 		// calculate impact of table count : not in this version
 		//values = calculateTableCountImpact(values, int64(len(srcMeta)))
 
@@ -274,9 +297,12 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 		//calculateImpactOfHorizontalScaling(values)
 
 		// get connections per core
-		optimalSelectConnectionsPerNode, optimalInsertConnectionsPerNode = getConnectionsPerCore(arrayOfSupportedCores[0])
+		optimalSelectConnectionsPerNode, optimalInsertConnectionsPerNode, err = getConnectionsPerCore(arrayOfSupportedCores[0])
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("get connections per core: %w", err)
+		}
 	}
-	return numNodes, optimalSelectConnectionsPerNode, optimalInsertConnectionsPerNode
+	return numNodes, optimalSelectConnectionsPerNode, optimalInsertConnectionsPerNode, nil
 }
 
 /*
@@ -293,7 +319,7 @@ Returns:
 	int64: The optimal number of select connections per core.
 	int64: The optimal number of insert connections per core.
 */
-func getConnectionsPerCore(numCores int) (int64, int64) {
+func getConnectionsPerCore(numCores int) (int64, int64, error) {
 	var selectConnectionsPerCore, insertConnectionsPerCore int64
 	selectQuery := "select select_conn_per_node, insert_conn_per_node from sharded_sizing " +
 		"where dimension like 'MaxThroughput' and num_cores = ? order by num_nodes limit 1"
@@ -303,11 +329,11 @@ func getConnectionsPerCore(numCores int) (int64, int64) {
 		if err == sql.ErrNoRows {
 			log.Errorf("no records found in Experiment data: sharded_sizing")
 		} else {
-			log.Fatal(err)
+			return 0, 0, fmt.Errorf("error while fetching connecctions per core with query [%s]: %w", selectQuery, err)
 		}
 	}
 
-	return selectConnectionsPerCore, insertConnectionsPerCore
+	return selectConnectionsPerCore, insertConnectionsPerCore, nil
 }
 
 /*
@@ -325,13 +351,13 @@ Returns:
 
 	[]int: A slice containing the number of CPU cores that meet the criteria for supporting the specified number of tables.
 */
-func checkTableLimits(sourceDBObjects int, coresPerNode float64) []int {
+func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) {
 	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
 	selectQuery := "SELECT num_cores FROM sharded_sizing WHERE num_tables > ? AND num_cores >= ? AND " +
 		"dimension LIKE '%TableLimits-3nodeRF=3%' ORDER BY num_cores"
 	rows, err := DB.Query(selectQuery, sourceDBObjects, coresPerNode)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
 	}
 	defer rows.Close()
 
@@ -340,18 +366,18 @@ func checkTableLimits(sourceDBObjects int, coresPerNode float64) []int {
 
 		var numCores int
 		if err := rows.Scan(&numCores); err != nil {
-			log.Fatal(err)
+			return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
 		}
 		valuesArray = append(valuesArray, numCores)
 	}
 	if err := rows.Err(); err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
 	}
 
 	if len(valuesArray) > 0 {
-		return valuesArray
+		return valuesArray, nil
 	} else {
-		panic(fmt.Sprintf("Cannot support %v objects", sourceDBObjects))
+		return nil, fmt.Errorf("Cannot support %v objects", sourceDBObjects)
 	}
 }
 
@@ -370,7 +396,7 @@ Returns:
 
 	float64: recommended number of nodes to be added
 */
-func getThroughputData(selectThroughput int64, writeThroughput int64, numCores float64) float64 {
+func getThroughputData(selectThroughput int64, writeThroughput int64, numCores float64) (float64, error) {
 
 	var currentRow [5]float64
 	var nodesToAdd float64 = 0
@@ -380,24 +406,24 @@ func getThroughputData(selectThroughput int64, writeThroughput int64, numCores f
 		"WHERE dimension = 'MaxThroughput' AND num_cores >= ?) AS foo ORDER BY num_cores DESC;"
 	rows, err := DB.Query(selectQuery, writeThroughput, selectThroughput, numCores)
 	if err != nil {
-		log.Fatal(err)
+		return 0.0, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		if err := rows.Scan(&currentRow[0], &currentRow[1], &currentRow[2], &currentRow[3], &currentRow[4]); err != nil {
-			log.Fatal(err)
+			return 0.0, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
 		}
 		nodesNeededForRow := math.Max(math.Ceil((currentRow[1]+currentRow[2])/numCores), 1)
 		if nodesNeededForRow <= 3 {
 			nodesToAdd = nodesNeededForRow
 		} else if nodesNeededForRow <= 5 {
-			return nodesToAdd
+			return nodesToAdd, nil
 		} else {
-			return nodesNeededForRow
+			return nodesNeededForRow, nil
 		}
 	}
-	return nodesToAdd
+	return nodesToAdd, nil
 }
 
 /*
@@ -419,7 +445,7 @@ Returns:
 	int64: Total parallel threads used for migration.
 */
 func calculateTimeTakenAndParallelThreadsForMigration(objectType string, dbObjects []SourceDBMetadata,
-	vCPUPerInstance float64, memPerCore float64) (float64, int64) {
+	vCPUPerInstance float64, memPerCore float64) (float64, int64, error) {
 	// the total size of colocated objects
 	var size float64 = 0
 	var timeTakenOfFetchedRow float64
@@ -440,12 +466,12 @@ func calculateTimeTakenAndParallelThreadsForMigration(objectType string, dbObjec
 		if err == sql.ErrNoRows {
 			log.Errorf("No rows were returned by the query to experiment table: sharded_load_time")
 		} else {
-			log.Fatal(err)
+			return 0.0, 0, fmt.Errorf("error while fetching migration time info with query [%s]: %w", selectQuery, err)
 		}
 	}
 
 	migrationTime := ((timeTakenOfFetchedRow * size) / maxSizeOfFetchedRow) / 60
-	return math.Ceil(migrationTime), parallelThreads
+	return math.Ceil(migrationTime), parallelThreads, nil
 }
 
 func ConnectSourceMetaDatabase(file string) error {
@@ -475,12 +501,12 @@ Returns:
 	[]SourceDBMetadata: Metadata for source database indexes.
 	float64: The total size of the source database in gigabytes.
 */
-func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
+func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	query := fmt.Sprintf("SELECT schema_name, object_name,row_count,reads_per_second,writes_per_second,"+
 		"is_index,parent_table_name,size_in_bytes FROM %v ORDER BY size_in_bytes ASC", GetTableIndexStatName())
 	rows, err := SourceMetaDB.Query(query)
 	if err != nil {
-		log.Errorf("no records found in source metadata")
+		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
 	defer rows.Close()
 
@@ -505,10 +531,10 @@ func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
 		totalSourceDBSize += metadata.Size
 	}
 	if err := rows.Err(); err != nil {
-		log.Fatal(err)
+		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
 	SourceMetaDB.Close()
-	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize
+	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, nil
 }
 
 /*
@@ -530,48 +556,68 @@ func bytesToGB(sizeInBytes float64) float64 {
 	return sizeInGB
 }
 
-func createConnectionToExperimentData(assessmentMetadataDir string) {
-	filePath := getExperimentFile(assessmentMetadataDir)
-	err := ConnectExperimentDataDatabase(filePath)
+func createConnectionToExperimentData(assessmentMetadataDir string) error {
+	filePath, err := getExperimentFile(assessmentMetadataDir)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to get experiment file: %w", err)
 	}
+	err = ConnectExperimentDataDatabase(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to experiment data database: %w", err)
+	}
+	return nil
 }
 
-func getExperimentFile(assessmentMetadataDir string) string {
+func getExperimentFile(assessmentMetadataDir string) (string, error) {
+	fetchedFromRemote := false
 	if checkInternetAccess() {
-		checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir)
-	} else {
-		_ = os.WriteFile(assessmentMetadataDir+fileName, experimentData20240, 0644)
+		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir)
+		if err != nil {
+			return "", err
+		}
+		if existsOnRemote {
+			fetchedFromRemote = true
+		}
 	}
-	return assessmentMetadataDir + fileName
+	if !fetchedFromRemote {
+		err := os.WriteFile(assessmentMetadataDir+fileName, experimentData20240, 0644)
+		if err != nil {
+			return "", fmt.Errorf("failed to write experiment data file: %w", err)
+		}
+	}
+	return assessmentMetadataDir + fileName, nil
 }
 
-func checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir string) bool {
+func checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir string) (bool, error) {
 	remotePath :=
 		"https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources" + fileName
-	resp, _ := http.Get(remotePath)
-
+	resp, err := http.Get(remotePath)
+	if err != nil {
+		return false, err
+	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			panic(err)
+			log.Errorf("failed to close response body: %v", err)
 		}
 	}(resp.Body)
 
 	if resp.StatusCode != 200 {
-		return false
+		return false, nil
 	} else {
 		downloadPath := assessmentMetadataDir + fileName
-		out, _ := os.Create(downloadPath)
+		out, err := os.Create(downloadPath)
+		if err != nil {
+			return false, err
+		}
 		defer func(out *os.File) {
 			err := out.Close()
 			if err != nil {
-				panic(err)
+				log.Errorf("failed to close file: %v", err)
 			}
 		}(out)
-		_, err := io.Copy(out, resp.Body)
-		return err == nil
+		_, err = io.Copy(out, resp.Body)
+		return err == nil, err
 	}
 }
 
