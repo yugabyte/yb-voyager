@@ -19,13 +19,11 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"github.com/pelletier/go-toml/v2"
 	log "github.com/sirupsen/logrus"
 	"os"
 )
 
 var AssessmentMetadataDir string
-var TargetYBVersion string
 
 type Record map[string]any
 
@@ -44,12 +42,6 @@ type SizingAssessmentReport struct {
 	ParallelVoyagerThreadsSharded   int64
 	ParallelVoyagerThreadsColocated int64
 	FailureReasoning                string
-}
-
-var assessmentParams = &AssessmentParams{}
-
-type AssessmentParams struct {
-	TargetYBVersion string `toml:"target_yb_version"`
 }
 
 func LoadCSVDataFile[T any](filePath string) ([]*T, error) {
@@ -116,27 +108,6 @@ func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
 		result[rowNum-1] = record
 	}
 	return result, nil
-}
-
-func LoadAssessmentParams(userInputFpath string) error {
-	if userInputFpath == "" {
-		log.Infof("user input file path is empty, skipping loading assessment parameters")
-		return nil
-	}
-	log.Infof("loading assessment parameters from file %s", userInputFpath)
-	tomlData, err := os.ReadFile(userInputFpath)
-	if err != nil {
-		log.Errorf("error reading toml file %s: %v", userInputFpath, err)
-		return fmt.Errorf("error reading toml file %s: %w", userInputFpath, err)
-	}
-
-	err = toml.Unmarshal(tomlData, &assessmentParams)
-	if err != nil {
-		log.Errorf("error unmarshalling toml file's data: %v", err)
-		return fmt.Errorf("error unmarshalling toml file's data: %w", err)
-	}
-
-	return nil
 }
 
 func checkInternetAccess() (ok bool) {

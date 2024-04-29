@@ -90,10 +90,6 @@ func init() {
 	registerCommonGlobalFlags(assessMigrationCmd)
 	registerSourceDBConnFlags(assessMigrationCmd, false, false)
 
-	assessMigrationCmd.Flags().StringVar(&migassessment.TargetYBVersion, "target-yb-version", "",
-		"specifies the target YugabyteDB version for which the migration is assessed. This parameter is required.")
-	assessMigrationCmd.MarkFlagRequired("target-db-version")
-
 	BoolVar(assessMigrationCmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
