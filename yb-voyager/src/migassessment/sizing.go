@@ -64,13 +64,14 @@ const (
 
 var ExperimentDB *sql.DB
 var experimentDataFileName = "/yb_2024_0_source.db"
+var AssessmentDir string
 
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
 
 func SizingAssessment(assessmentMetadataDir string) error {
 	SizingReport = &SizingAssessmentReport{}
-
+	AssessmentDir = assessmentMetadataDir
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := loadSourceMetadata()
 	if err != nil {
@@ -162,7 +163,11 @@ Returns:
 	float64: total size of source db
 */
 func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
-	SourceMetaDB, err := utils.ConnectToSqliteDatabase(GetSourceMetadataDBFilePath())
+	filePath := GetSourceMetadataDBFilePath()
+	if filePath == "assessment.db" {
+		filePath = filepath.Join(AssessmentDir, "assessment.db")
+	}
+	SourceMetaDB, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
 	}
