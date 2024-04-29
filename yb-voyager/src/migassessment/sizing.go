@@ -55,9 +55,6 @@ var DB *sql.DB
 var SourceMetaDB *sql.DB
 var fileName = "/yb_2024_0_source.db"
 
-//go:embed resources/yb_2_20_source.db
-var experimentData220 []byte
-
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
 
@@ -545,7 +542,7 @@ func getExperimentFile(assessmentMetadataDir string) string {
 	if checkInternetAccess() {
 		checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir)
 	} else {
-		_ = os.WriteFile(assessmentMetadataDir+fileName, experimentData220, 0644)
+		_ = os.WriteFile(assessmentMetadataDir+fileName, experimentData20240, 0644)
 	}
 	return assessmentMetadataDir + fileName
 }
