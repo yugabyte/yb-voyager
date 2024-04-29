@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
@@ -29,6 +30,7 @@ import (
 	"text/template"
 
 	"github.com/samber/lo"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -47,12 +49,11 @@ var (
 type AssessmentReport struct {
 	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
 
-	Sharding *migassessment.ShardingReport `json:"Sharding"`
-	Sizing   *migassessment.SizingReport   `json:"Sizing"`
-
 	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
+
+	Sizing *migassessment.AssessmentReport `json:"Sizing"`
 
 	MigrationAssessmentStats *[]migassessment.TableIndexStats `json:"MigrationAssessmentStats"`
 }
@@ -103,6 +104,11 @@ func init() {
 }
 
 func assessMigration() (err error) {
+	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
+		filepath.Join(exportDir, "assessment", "metadata"))
+	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
+	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
+
 	checkStartCleanForAssessMigration()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
@@ -114,12 +120,6 @@ func assessMigration() (err error) {
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
-	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
-	schemaDir = lo.Ternary(assessmentMetadataDirFlag != "", filepath.Join(assessmentMetadataDirFlag, "schema"),
-		filepath.Join(exportDir, "assessment", "metadata", "schema"))
-
-	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
-		filepath.Join(exportDir, "assessment", "metadata"))
 	migassessment.AssessmentMetadataDir = assessmentMetadataDir
 	initAssessmentDB() // Note: migassessment.AssessmentDataDir needs to be set beforehand
 
@@ -139,6 +139,7 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to run assessment: %w", err)
 	}
+	assessmentReport.Sizing = migassessment.SizingReport
 
 	err = generateAssessmentReport()
 	if err != nil {
@@ -172,26 +173,28 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
 
-	err := migassessment.ShardingAssessment()
+	err := migassessment.SizingAssessment()
 	if err != nil {
-		return fmt.Errorf("failed to perform sharding assessment: %w", err)
+		log.Errorf("failed to perform sizing assessment: %v", err)
+		return fmt.Errorf("failed to perform sizing assessment: %w", err)
 	}
 
-	// migassessment.SizingAssessment()
 	return nil
 }
 
 func checkStartCleanForAssessMigration() {
 	assessmentDir := filepath.Join(exportDir, "assessment")
-	dataFilesPattern := filepath.Join(assessmentDir, "data", "*.csv")
 	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
-	schemaFilesPattern := filepath.Join(assessmentDir, "data", "schema", "*", "*.sql")
+	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
+	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
+	assessmentDB := filepath.Join(assessmentMetadataDir, "assessment.DB")
 
-	if utils.FileOrFolderExistsWithGlobPattern(dataFilesPattern) ||
+	if utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
 		utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) ||
-		utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern) {
+		utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern) ||
+		utils.FileOrFolderExists(assessmentDB) {
 		if startClean {
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "data"))
+			utils.CleanDir(filepath.Join(exportDir, "assessment", "metadata"))
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
 		} else {
 			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
@@ -381,8 +384,7 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
 
-	assessmentReport.Sharding = migassessment.Report.ShardingReport
-	assessmentReport.Sizing = migassessment.Report.SizingReport
+	assessmentReport.Sizing = migassessment.SizingReport
 	assessmentReport.MigrationAssessmentStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)

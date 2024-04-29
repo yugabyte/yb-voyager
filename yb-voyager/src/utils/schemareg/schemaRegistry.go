@@ -123,6 +123,9 @@ func (sreg *SchemaRegistry) Init() error {
 		return fmt.Errorf("failed to read schema dir %s: %w", schemaDir, err)
 	}
 	for _, schemaFile := range schemaFiles {
+		if strings.HasSuffix(schemaFile.Name(), ".tmp") {
+			continue
+		}
 		schemaFilePath := filepath.Join(schemaDir, schemaFile.Name())
 		schemaFile, err := os.Open(schemaFilePath)
 		if err != nil {

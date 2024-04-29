@@ -164,10 +164,10 @@ public class ExportStatus {
             if ((sourceType.equals("postgresql") || sourceType.equals("yb")) && (!t.schemaName.equals("public"))) {
                 fileName = t.schemaName + "." + fileName;
             }
-            String tempPath = String.format("/tmp/%s_%s_schema.json", exporterRole, fileName);
-            File tempFile = new File(tempPath);
             String schemaFilePath = String.format("%s/schemas/%s/%s_schema.json", dataDir, exporterRole, fileName);
             File schemaFile = new File(schemaFilePath);
+            String tempPath = String.format("%s.tmp", schemaFilePath);
+            File tempFile = new File(tempPath);
             // writing to a temp file and moving later to achieve atomic write.
             schemaWriter.writeValue(tempFile, tableSchema);
             Files.move(tempFile.toPath(), schemaFile.toPath(), ATOMIC_MOVE);

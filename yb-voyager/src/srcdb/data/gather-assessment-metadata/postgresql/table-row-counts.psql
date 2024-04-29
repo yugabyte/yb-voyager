@@ -10,7 +10,7 @@ SET vars.schema_list TO :'schema_list';
 
 DO $$
 DECLARE
-    schema_list TEXT[] := string_to_array(current_setting('vars.schema_list'), ',');
+    schema_list TEXT[] := string_to_array(current_setting('vars.schema_list'), '|');
     schema_name TEXT;
     table_record RECORD;
     sql_statement TEXT;
@@ -38,5 +38,4 @@ END $$;
 -- Export the data from the temporary table to a CSV file
 \copy temp_table TO 'table-row-counts.csv' WITH CSV HEADER;
 
--- Drop the temporary table
 DROP TABLE temp_table;

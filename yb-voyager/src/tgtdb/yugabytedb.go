@@ -466,8 +466,10 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
 	schemaName, tableName := nt.ForCatalogQuery()
 	var result []string
+	// The hint /*+set(enable_nestloop off)*/ is used to disable the nested loop join in the query. It makes the query faster.
+	// Without this import data was taking atleast 5 mins to start picking up events in the CDC phase.
 	query := fmt.Sprintf(
-		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
+		"/*+set(enable_nestloop off)*/ SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'",
 		schemaName, tableName)
 	rows, err := yb.Query(query)
 	if err != nil {

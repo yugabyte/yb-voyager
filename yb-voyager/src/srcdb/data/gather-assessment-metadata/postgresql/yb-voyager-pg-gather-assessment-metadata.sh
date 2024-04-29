@@ -29,8 +29,8 @@ Arguments:
                          'postgresql://username:password@hostname:port/dbname'
                          Ensure this string is properly quoted to avoid shell interpretation issues.
 
-  schema_list            Comma-separated list of schemas for which statistics are to be collected.
-                         Example: 'public,sales,inventory'
+  schema_list            Pipe-separated list of schemas for which statistics are to be collected.
+                         Example: 'public|sales|inventory'
 
   assessment_metadata_dir    The directory path where the assessment metadata will be stored.
                          This script will attempt to create the directory if it does not exist.

@@ -232,14 +232,14 @@ func applyMigrationAssessmentRecommendations() error {
 		return fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
-	err = applyColocatedVsShardedTableRecommendation(report.Sharding)
+	err = applyColocatedVsShardedTableRecommendation(report.Sizing)
 	if err != nil {
 		return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 	}
 	return nil
 }
 
-func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.ShardingReport) error {
+func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.AssessmentReport) error {
 	filePath := utils.GetObjectFilePath(schemaDir, "TABLE")
 	if !utils.FileOrFolderExists(filePath) {
 		log.Warnf("required schema file %s does not exists, returning without applying the recommendations", filePath)
