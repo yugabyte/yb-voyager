@@ -43,6 +43,7 @@ type SizingAssessmentReport struct {
 	MigrationTimeTakenInMin         float64
 	ParallelVoyagerThreadsSharded   int64
 	ParallelVoyagerThreadsColocated int64
+	FailureReasoning                string
 }
 
 var assessmentParams = &AssessmentParams{}

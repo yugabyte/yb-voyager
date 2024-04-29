@@ -21,12 +21,10 @@ import (
 	_ "embed"
 	"fmt"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"io"
 	"math"
 	"net/http"
 	"os"
-	"strings"
 )
 
 type SourceDBMetadata struct {
@@ -55,6 +53,7 @@ type ExpDataColocatedLimit struct {
 
 var DB *sql.DB
 var SourceMetaDB *sql.DB
+var fileName = "/yb_2024_0_source.db"
 
 //go:embed resources/yb_2_20_source.db
 var experimentData220 []byte
@@ -66,7 +65,7 @@ func SizingAssessment(assessmentMetadataDir string) error {
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
 
-	createConnectionToExperimentData(TargetYBVersion, assessmentMetadataDir)
+	createConnectionToExperimentData(assessmentMetadataDir)
 	colocatedObjects, colocatedObjectsSize, coresToUse, shardedObjects :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 
@@ -173,7 +172,8 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: -1, Valid: true},
 	}
 
-	rows, err := DB.Query("SELECT * FROM colocated_limits order by num_cores DESC")
+	rows, err := DB.Query("SELECT max_colocated_db_size_gb,num_cores,mem_per_core,max_num_tables," +
+		"min_num_tables,max_selects_per_core,max_inserts_per_core FROM colocated_limits order by num_cores DESC")
 	if err != nil {
 		log.Errorf("no records found in experiment data table: colocated_limits")
 	}
@@ -533,40 +533,24 @@ func bytesToGB(sizeInBytes float64) float64 {
 	return sizeInGB
 }
 
-func createConnectionToExperimentData(targetYbVersion string, assessmentMetadataDir string) {
-	filePath := getExperimentFile(targetYbVersion, assessmentMetadataDir)
+func createConnectionToExperimentData(assessmentMetadataDir string) {
+	filePath := getExperimentFile(assessmentMetadataDir)
 	err := ConnectExperimentDataDatabase(filePath)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func getExperimentFile(targetYbVersion string, assessmentMetadataDir string) string {
-	var filePath string
-	versionSlice := strings.Split(targetYbVersion, ".")
-	if len(versionSlice) < 2 {
-		utils.ErrExit("Invalid target YugabyteDB version `%v`.", targetYbVersion)
-	}
-	targetVersion := versionSlice[0] + "_" + versionSlice[1]
-	fileName := "/yb_" + targetVersion + "_source.db"
-	if checkInternetAccess() && checkAndDownloadFileExistsOnRemoteRepo(fileName, assessmentMetadataDir) {
-		filePath = assessmentMetadataDir + fileName
+func getExperimentFile(assessmentMetadataDir string) string {
+	if checkInternetAccess() {
+		checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir)
 	} else {
-		// check if local file exists
-		filePath = assessmentMetadataDir + fileName
-		switch targetVersion {
-		case "2_20":
-			_ = os.WriteFile(filePath, experimentData220, 0644)
-		case "2024_0":
-			_ = os.WriteFile(filePath, experimentData20240, 0644)
-		default:
-			_ = os.WriteFile(filePath, experimentData20240, 0644)
-		}
+		_ = os.WriteFile(assessmentMetadataDir+fileName, experimentData220, 0644)
 	}
-	return filePath
+	return assessmentMetadataDir + fileName
 }
 
-func checkAndDownloadFileExistsOnRemoteRepo(fileName string, exportDir string) bool {
+func checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir string) bool {
 	remotePath :=
 		"https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources" + fileName
 	resp, _ := http.Get(remotePath)
@@ -581,7 +565,7 @@ func checkAndDownloadFileExistsOnRemoteRepo(fileName string, exportDir string) b
 	if resp.StatusCode != 200 {
 		return false
 	} else {
-		downloadPath := exportDir + fileName
+		downloadPath := assessmentMetadataDir + fileName
 		out, _ := os.Create(downloadPath)
 		defer func(out *os.File) {
 			err := out.Close()
