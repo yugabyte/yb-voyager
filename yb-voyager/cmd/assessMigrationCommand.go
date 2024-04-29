@@ -53,7 +53,7 @@ type AssessmentReport struct {
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
 
-	Sizing *migassessment.AssessmentReport `json:"Sizing"`
+	Sizing *migassessment.SizingAssessmentReport `json:"Sizing"`
 
 	MigrationAssessmentStats *[]migassessment.TableIndexStats `json:"MigrationAssessmentStats"`
 }

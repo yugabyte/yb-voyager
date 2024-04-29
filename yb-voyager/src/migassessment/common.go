@@ -29,9 +29,9 @@ var TargetYBVersion string
 
 type Record map[string]any
 
-var SizingReport *AssessmentReport
+var SizingReport *SizingAssessmentReport
 
-type AssessmentReport struct {
+type SizingAssessmentReport struct {
 	ColocatedTables                 []string
 	ColocatedReasoning              string
 	ShardedTables                   []string

@@ -98,7 +98,7 @@ func SizingAssessment(assessmentMetadataDir string) error {
 
 	//assessmentMetadataDir
 
-	SizingReport = &AssessmentReport{
+	SizingReport = &SizingAssessmentReport{
 		ColocatedTables:                 fetchObjectNames(colocatedObjects),
 		ColocatedReasoning:              reasoning,
 		ShardedTables:                   fetchObjectNames(shardedObjects),
