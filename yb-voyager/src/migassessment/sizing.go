@@ -230,7 +230,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			log.Infof("failed to close the result set for query [%v]", query)
+			log.Warnf("failed to close the result set for query [%v]", query)
 		}
 	}()
 
@@ -417,7 +417,7 @@ func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) 
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			log.Infof("failed to close result set for query: [%s]", selectQuery)
+			log.Warnf("failed to close result set for query: [%s]", selectQuery)
 		}
 	}()
 
@@ -480,7 +480,7 @@ func getThroughputData(selectThroughput int64, writeThroughput int64, numCores f
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			log.Infof("failed to close result set for query: [%s]", selectQuery)
+			log.Warnf("failed to close result set for query: [%s]", selectQuery)
 		}
 	}()
 
@@ -591,7 +591,7 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			log.Infof("failed to close result set for query: [%s]", query)
+			log.Warnf("failed to close result set for query: [%s]", query)
 		}
 	}()
 
@@ -619,7 +619,7 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
 	if err := sourceDB.Close(); err != nil {
-		log.Infof("failed to close connectio to sourceDB metadata")
+		log.Warnf("failed to close connection to sourceDB metadata")
 	}
 	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, nil
 }
@@ -660,14 +660,14 @@ func getExperimentFile() (string, error) {
 
 func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
 	// check if the file exists on remote github repository using the raw link
-	remotePath := GITHUB_RAW_LINK + EXPERIMENT_DATA_FILENAME
+	remotePath := GITHUB_RAW_LINK + "/" + EXPERIMENT_DATA_FILENAME
 	resp, err := http.Get(remotePath)
 	if err != nil {
 		return false, fmt.Errorf("failed to make GET request: %w", err)
 	}
 	defer func() {
 		if closingErr := resp.Body.Close(); closingErr != nil {
-			log.Infof("failed to close the response body for GET api")
+			log.Warnf("failed to close the response body for GET api")
 		}
 	}()
 
