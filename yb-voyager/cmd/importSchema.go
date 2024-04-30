@@ -195,9 +195,9 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 	query := "SELECT yb_is_database_colocated();"
 	err := conn.QueryRow(context.Background(), query).Scan(&isColocated)
 	if err != nil {
-		utils.ErrExit("failed to check if Target DB '%q' is colocated or not: %v", tconf.DBName, err)
+		utils.ErrExit("failed to check if Target DB '%s' is colocated or not: %v", tconf.DBName, err)
 	}
-	log.Infof("target DB '%q' colocoated='%b'", tconf.DBName, isColocated)
+	log.Infof("target DB '%s' colocoated='%t'", tconf.DBName, isColocated)
 	return isColocated
 }
 
