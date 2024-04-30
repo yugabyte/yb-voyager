@@ -557,9 +557,13 @@ func ConnectToSqliteDatabase(dbPath string) (*sql.DB, error) {
 	}
 
 	// Check if the connection is successful
+	//TODO: add retry logic
 	err = db.Ping()
 	if err != nil {
-		db.Close()
+		err := db.Close()
+		if err != nil {
+			return nil, err
+		}
 		return nil, err
 	}
 

@@ -59,16 +59,18 @@ const (
 	SHARDED_SIZING_TABLE      = "sharded_sizing"
 	COLOCATED_LOAD_TIME_TABLE = "colocated_load_time"
 	SHARDED_LOAD_TIME_TABLE   = "sharded_load_time"
-	GITHUB_RAW_LINK           = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
+	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
+	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
+	GITHUB_RAW_LINK          = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
+	EXPERIMENT_DATA_FILENAME = "yb_2024_0_source.db"
 )
 
 var ExperimentDB *sql.DB
-var experimentDataFileName = "/yb_2024_0_source.db"
 
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
 
-func SizingAssessment(assessmentMetadataDir string) error {
+func SizingAssessment() error {
 	SizingReport = &SizingAssessmentReport{}
 
 	log.Infof("loading metadata files for sharding assessment")
@@ -78,7 +80,7 @@ func SizingAssessment(assessmentMetadataDir string) error {
 		return fmt.Errorf("failed to load source metadata: %w", err)
 	}
 
-	err = createConnectionToExperimentData(assessmentMetadataDir)
+	err = createConnectionToExperimentData()
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to connect to experiment data: %v", err)
 		return fmt.Errorf("failed to connect to experiment data: %w", err)
@@ -220,7 +222,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			err = closeErr
+			log.Infof("failed to close the result set for query [%v]", query)
 		}
 	}()
 
@@ -407,7 +409,7 @@ func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) 
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			err = closeErr
+			log.Infof("failed to close result set for query: [%s]", selectQuery)
 		}
 	}()
 
@@ -470,7 +472,7 @@ func getThroughputData(selectThroughput int64, writeThroughput int64, numCores f
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			err = closeErr
+			log.Infof("failed to close result set for query: [%s]", selectQuery)
 		}
 	}()
 
@@ -581,7 +583,7 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			err = closeErr
+			log.Infof("failed to close result set for query: [%s]", query)
 		}
 	}()
 
@@ -609,13 +611,13 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
 	if err := sourceDB.Close(); err != nil {
-		return nil, nil, 0.0, fmt.Errorf("failed to close sourceDB: %w", err)
+		log.Infof("failed to close connectio to sourceDB metadata")
 	}
 	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, nil
 }
 
-func createConnectionToExperimentData(assessmentMetadataDir string) error {
-	filePath, err := getExperimentFile(assessmentMetadataDir)
+func createConnectionToExperimentData() error {
+	filePath, err := getExperimentFile()
 	if err != nil {
 		return fmt.Errorf("failed to get experiment file: %w", err)
 	}
@@ -627,10 +629,10 @@ func createConnectionToExperimentData(assessmentMetadataDir string) error {
 	return nil
 }
 
-func getExperimentFile(assessmentMetadataDir string) (string, error) {
+func getExperimentFile() (string, error) {
 	fetchedFromRemote := false
 	if checkInternetAccess() {
-		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir)
+		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo()
 		if err != nil {
 			return "", err
 		}
@@ -639,24 +641,25 @@ func getExperimentFile(assessmentMetadataDir string) (string, error) {
 		}
 	}
 	if !fetchedFromRemote {
-		err := os.WriteFile(assessmentMetadataDir+experimentDataFileName, experimentData20240, 0644)
+		err := os.WriteFile(filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME), experimentData20240, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to write experiment data file: %w", err)
 		}
 	}
-	return assessmentMetadataDir + experimentDataFileName, nil
+
+	return filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME), nil
 }
 
-func checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir string) (bool, error) {
+func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
 	// check if the file exists on remote github repository using the raw link
-	remotePath := GITHUB_RAW_LINK + experimentDataFileName
+	remotePath := GITHUB_RAW_LINK + EXPERIMENT_DATA_FILENAME
 	resp, err := http.Get(remotePath)
 	if err != nil {
 		return false, fmt.Errorf("failed to make GET request: %w", err)
 	}
 	defer func() {
 		if closingErr := resp.Body.Close(); closingErr != nil {
-			err = closingErr
+			log.Infof("failed to close the response body for GET api")
 		}
 	}()
 
@@ -664,7 +667,7 @@ func checkAndDownloadFileExistsOnRemoteRepo(assessmentMetadataDir string) (bool,
 		return false, nil
 	}
 
-	downloadPath := filepath.Join(assessmentMetadataDir, experimentDataFileName)
+	downloadPath := filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME)
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, fmt.Errorf("failed to read response body: %w", err)
