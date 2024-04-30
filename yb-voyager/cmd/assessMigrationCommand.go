@@ -102,7 +102,6 @@ func init() {
 func assessMigration() (err error) {
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
-	fmt.Println(fmt.Sprintf("Assessment metadata directory: %s", assessmentMetadataDir))
 	/*// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
@@ -132,7 +131,7 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}*/
 
-	err = runAssessment()
+	err = runAssessment(assessmentMetadataDir)
 	if err != nil {
 		return fmt.Errorf("failed to run assessment: %w", err)
 	}
@@ -175,9 +174,9 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	return ev
 }
 
-func runAssessment() error {
+func runAssessment(assessmentMetadataDir string) error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	fmt.Println(fmt.Sprintf("metadata file in run assessment: %v", assessmentMetadataDir))
+
 	err := migassessment.SizingAssessment(assessmentMetadataDir)
 	if err != nil {
 		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
