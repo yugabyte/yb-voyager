@@ -53,7 +53,7 @@ type AssessmentReport struct {
 
 	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
 
-	Sizing *migassessment.AssessmentReport `json:"Sizing"`
+	Sizing *migassessment.SizingAssessmentReport `json:"Sizing"`
 
 	MigrationAssessmentStats *[]migassessment.TableIndexStats `json:"MigrationAssessmentStats"`
 }
@@ -89,10 +89,6 @@ func init() {
 	rootCmd.AddCommand(assessMigrationCmd)
 	registerCommonGlobalFlags(assessMigrationCmd)
 	registerSourceDBConnFlags(assessMigrationCmd, false, false)
-
-	assessMigrationCmd.Flags().StringVar(&migassessment.TargetYBVersion, "target-yb-version", "",
-		"specifies the target YugabyteDB version for which the migration is assessed. This parameter is required.")
-	assessMigrationCmd.MarkFlagRequired("target-db-version")
 
 	BoolVar(assessMigrationCmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
@@ -175,8 +171,8 @@ func runAssessment() error {
 
 	err := migassessment.SizingAssessment()
 	if err != nil {
-		log.Errorf("failed to perform sizing assessment: %v", err)
-		return fmt.Errorf("failed to perform sizing assessment: %w", err)
+		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
+		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
 	}
 
 	return nil

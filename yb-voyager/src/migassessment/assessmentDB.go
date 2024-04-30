@@ -53,12 +53,16 @@ type TableIndexStats struct {
 	SizeInBytes     *int64  `json:"SizeInBytes"`
 }
 
-func GetDBFilePath() string {
+func GetSourceMetadataDBFilePath() string {
 	return filepath.Join(AssessmentMetadataDir, "assessment.db")
 }
 
+func GetTableIndexStatName() string {
+	return TABLE_INDEX_STATS
+}
+
 func InitAssessmentDB() error {
-	assessmentDBPath := GetDBFilePath()
+	assessmentDBPath := GetSourceMetadataDBFilePath()
 	log.Infof("initializing assessment db at %s", assessmentDBPath)
 	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", assessmentDBPath, metadb.SQLITE_OPTIONS))
 	if err != nil {
@@ -138,9 +142,9 @@ type AssessmentDB struct {
 }
 
 func NewAssessmentDB() (*AssessmentDB, error) {
-	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", GetDBFilePath(), metadb.SQLITE_OPTIONS))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", GetSourceMetadataDBFilePath(), metadb.SQLITE_OPTIONS))
 	if err != nil {
-		return nil, fmt.Errorf("error opening assessment db %s: %w", GetDBFilePath(), err)
+		return nil, fmt.Errorf("error opening assessment db %s: %w", GetSourceMetadataDBFilePath(), err)
 	}
 
 	return &AssessmentDB{db: db}, nil
