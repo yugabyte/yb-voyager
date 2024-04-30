@@ -132,10 +132,8 @@ func assessMigration() (err error) {
 	}*/
 
 	err = runAssessment(assessmentMetadataDir)
-	if err != nil {
-		return fmt.Errorf("failed to run assessment: %w", err)
-	}
 	assessmentReport.Sizing = migassessment.SizingReport
+
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = GenerateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
