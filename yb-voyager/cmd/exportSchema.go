@@ -27,8 +27,6 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -217,6 +215,7 @@ func applyMigrationAssessmentRecommendations() error {
 		return nil
 	}
 
+	// TODO: copy the reports to "export-dir/assessment/reports" for further usage
 	assessmentReportPath := lo.Ternary(assessmentReportPath != "", assessmentReportPath,
 		filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json"))
 	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
@@ -226,27 +225,32 @@ func applyMigrationAssessmentRecommendations() error {
 	}
 
 	log.Infof("parsing assessment report json file for applying recommendations")
-	var report AssessmentReport
-	err := jsonfile.NewJsonFile[AssessmentReport](assessmentReportPath).Load(&report)
+	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
 	if err != nil {
 		return fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
-	err = applyColocatedVsShardedTableRecommendation(report.Sizing)
+	shardedTables, err := report.GetShardedTablesRecommendation()
 	if err != nil {
-		return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+		log.Warnf("GetShardedTablesRecommendation: %v", err)
+	} else {
+		err := applyColocatedVsShardedTableRecommendation(shardedTables)
+		if err != nil {
+			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+		}
 	}
+
 	return nil
 }
 
-func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.SizingAssessmentReport) error {
+func applyColocatedVsShardedTableRecommendation(shardedTables []string) error {
 	filePath := utils.GetObjectFilePath(schemaDir, "TABLE")
 	if !utils.FileOrFolderExists(filePath) {
-		log.Warnf("required schema file %s does not exists, returning without applying the recommendations", filePath)
+		utils.PrintAndLog("Required schema file %s does not exists, returning without applying Colocated/Sharded Tables recommendation", filePath)
 		return nil
 	}
 
-	log.Infof("applying colocated vs sharded table recommendation")
+	log.Infof("applying colocated vs sharded tables recommendation")
 	var newSQLFileContent strings.Builder
 	sqlInfoArr := parseSqlFileForObjectType(filePath, "TABLE")
 	setOrSelectRegexp := regexp.MustCompile(`(?m)^SET .+?;$|^SELECT .+?;$`)
@@ -258,7 +262,7 @@ func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.Si
 			lastStmtSetOrSelect = true
 		} else {
 			if createTableRegex.MatchString(sqlInfo.stmt) &&
-				slices.Contains(shardingReport.ShardedTables, sqlInfo.objName) {
+				slices.Contains(shardedTables, sqlInfo.objName) {
 				newSQL = applyShardingRecommendation(sqlInfo, lastStmtSetOrSelect)
 			} else {
 				newSQL = appendSpacing(newSQL, lastStmtSetOrSelect)
