@@ -239,7 +239,7 @@ func applyMigrationAssessmentRecommendations() error {
 	return nil
 }
 
-func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.AssessmentReport) error {
+func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.SizingAssessmentReport) error {
 	filePath := utils.GetObjectFilePath(schemaDir, "TABLE")
 	if !utils.FileOrFolderExists(filePath) {
 		log.Warnf("required schema file %s does not exists, returning without applying the recommendations", filePath)

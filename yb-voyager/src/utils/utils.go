@@ -18,6 +18,7 @@ package utils
 import (
 	"bufio"
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -546,4 +547,44 @@ func GetRelativePathFromCwd(fullPath string) string {
 		return fullPath
 	}
 	return relativePath
+}
+
+func ConnectToSqliteDatabase(dbPath string) (*sql.DB, error) {
+	// Connect to the database
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the connection is successful
+	//TODO: add retry logic
+	err = db.Ping()
+	if err != nil {
+		err := db.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, err
+	}
+
+	return db, nil
+}
+
+/*
+BytesToGB function converts the size of the source object from bytes to GB as it is required for further calculation
+Parameters:
+
+	sizeInBytes: size of source object in bytes
+
+Returns:
+
+	sizeInGB: size of source object in gigabytes
+*/
+func BytesToGB(sizeInBytes float64) float64 {
+	sizeInGB := sizeInBytes / (1024 * 1024 * 1024)
+	// any value less than a 1 MB is considered as 0
+	if sizeInGB < 0.001 {
+		return 0
+	}
+	return sizeInGB
 }
