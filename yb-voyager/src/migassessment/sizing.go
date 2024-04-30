@@ -133,11 +133,11 @@ func SizingAssessment(assessmentMetadataDir string) error {
 	reasoning := fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ",
 		coresToUse.numCores.Float64, coresToUse.numCores.Float64*coresToUse.memPerCore.Float64)
 	if len(shardedObjects) > 0 {
-		reasoning += fmt.Sprintf("%v objects with size %0.3f GB as colocated. "+
-			"Rest %v objects of size %0.3f GB can be imported as sharded tables",
+		reasoning += fmt.Sprintf("%v objects with size %0.4f GB as colocated. "+
+			"Rest %v objects of size %0.4f GB can be imported as sharded tables",
 			len(colocatedObjects), colocatedObjectsSize, len(shardedObjects), totalSourceDBSize-colocatedObjectsSize)
 	} else {
-		reasoning += fmt.Sprintf("All %v objects of size %0.3fGB as colocated",
+		reasoning += fmt.Sprintf("All %v objects of size %0.4fGB as colocated",
 			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
 	}
 	SizingReport.ColocatedReasoning = reasoning
@@ -437,7 +437,7 @@ func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) 
 	if len(valuesArray) > 0 {
 		return valuesArray, nil
 	} else {
-		return nil, fmt.Errorf("cannot support %v objects", sourceDBObjects)
+		return nil, fmt.Errorf("cannot support %v sharded objects", sourceDBObjects)
 	}
 }
 
