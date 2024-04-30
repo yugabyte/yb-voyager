@@ -18,15 +18,16 @@ package migassessment
 
 import (
 	"database/sql"
+	_ "embed"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"io"
 	"math"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
+	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type SourceDBMetadata struct {
@@ -43,38 +44,131 @@ type SourceDBMetadata struct {
 	Size            float64        `db:"size_in_bytes,string"`
 }
 
-var baseDownloadPath = "src/migassessment/resources/remote/"
-var DB *sql.DB
-var SourceMetaDB *sql.DB
+type ExpDataColocatedLimit struct {
+	maxColocatedSizeSupported  sql.NullFloat64 `db:"max_colocated_db_size_gb,string"`
+	numCores                   sql.NullFloat64 `db:"num_cores,string"`
+	memPerCore                 sql.NullFloat64 `db:"mem_per_core,string"`
+	maxSupportedNumTables      sql.NullInt64   `db:"max_num_tables,string"`
+	minSupportedNumTables      sql.NullFloat64 `db:"min_num_tables,string"`
+	maxSupportedSelectsPerCore sql.NullFloat64 `db:"max_selects_per_core,string"`
+	maxSupportedInsertsPerCore sql.NullFloat64 `db:"max_inserts_per_core,string"`
+}
+
+const (
+	COLOCATED_LIMITS_TABLE    = "colocated_limits"
+	SHARDED_SIZING_TABLE      = "sharded_sizing"
+	COLOCATED_LOAD_TIME_TABLE = "colocated_load_time"
+	SHARDED_LOAD_TIME_TABLE   = "sharded_load_time"
+	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
+	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
+	GITHUB_RAW_LINK          = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
+	EXPERIMENT_DATA_FILENAME = "yb_2024_0_source.db"
+)
+
+var ExperimentDB *sql.DB
+
+//go:embed resources/yb_2024_0_source.db
+var experimentData20240 []byte
 
 func SizingAssessment() error {
+	SizingReport = &SizingAssessmentReport{}
+
 	log.Infof("loading metadata files for sharding assessment")
-	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize := loadSourceMetadata()
-	createConnectionToExperimentData(TargetYBVersion)
-	shardedObjects, shardedObjectsSize :=
+	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := loadSourceMetadata()
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("failed to load source metadata: %v", err)
+		return fmt.Errorf("failed to load source metadata: %w", err)
+	}
+
+	err = createConnectionToExperimentData()
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("failed to connect to experiment data: %v", err)
+		return fmt.Errorf("failed to connect to experiment data: %w", err)
+	}
+
+	colocatedObjects, colocatedObjectsSize, coresToUse, shardedObjects, err :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("error generating sharding recommendations: %v", err)
+		return fmt.Errorf("error generating sharding recommendations: %w", err)
+	}
+	SizingReport.ColocatedTables = fetchObjectNames(colocatedObjects)
+	SizingReport.ShardedTables = fetchObjectNames(shardedObjects)
+	SizingReport.VCPUsPerInstance = coresToUse.numCores.Float64
+	SizingReport.MemoryPerInstance = coresToUse.numCores.Float64 * coresToUse.memPerCore.Float64
 
 	// only use the remaining sharded objects and its size for further recommendation processing
-	generateSizingRecommendations(shardedObjects, shardedObjectsSize)
+	numNodes, optimalSelectConnections, optimalInsertConnections, err :=
+		generateSizingRecommendations(shardedObjects, totalSourceDBSize-colocatedObjectsSize, coresToUse)
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("error generate sizing recommendations: %v", err)
+		return fmt.Errorf("error generate sizing recommendations: %w", err)
+	}
+	SizingReport.NumNodes = numNodes
+	SizingReport.OptimalSelectConnectionsPerNode = optimalSelectConnections
+	SizingReport.OptimalInsertConnectionsPerNode = optimalInsertConnections
+
+	// calculate time taken for colocated migration
+	migrationTimeForColocatedObjects, parallelThreadsColocated, err :=
+		calculateTimeTakenAndParallelThreadsForMigration(COLOCATED_LOAD_TIME_TABLE, colocatedObjects,
+			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated migration: %v", err)
+		return fmt.Errorf("calculate time taken for colocated migration: %w", err)
+	}
+	SizingReport.ParallelVoyagerThreadsColocated = parallelThreadsColocated
+
+	// calculate time taken for sharded migration
+	migrationTimeForShardedObjects, parallelThreadsSharded, err :=
+		calculateTimeTakenAndParallelThreadsForMigration(SHARDED_LOAD_TIME_TABLE, shardedObjects,
+			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded migration: %v", err)
+		return fmt.Errorf("calculate time taken for sharded migration: %w", err)
+	}
+	SizingReport.MigrationTimeTakenInMin = migrationTimeForColocatedObjects + migrationTimeForShardedObjects
+	SizingReport.ParallelVoyagerThreadsSharded = parallelThreadsSharded
+
+	// reasoning for colocation/sharding
+	reasoning := fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ",
+		coresToUse.numCores.Float64, coresToUse.numCores.Float64*coresToUse.memPerCore.Float64)
+	if len(shardedObjects) > 0 {
+		reasoning += fmt.Sprintf("%v objects with size %0.3f GB as colocated. "+
+			"Rest %v objects of size %0.3f GB can be imported as sharded tables",
+			len(colocatedObjects), colocatedObjectsSize, len(shardedObjects), totalSourceDBSize-colocatedObjectsSize)
+	} else {
+		reasoning += fmt.Sprintf("All %v objects of size %0.3fGB as colocated",
+			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
+	}
+	SizingReport.ColocatedReasoning = reasoning
+
 	return nil
+}
+
+func fetchObjectNames(dbObjects []SourceDBMetadata) []string {
+	var objectNames []string
+	for _, dbObject := range dbObjects {
+		objectNames = append(objectNames, dbObject.SchemaName+"."+dbObject.ObjectName)
+	}
+	return objectNames
 }
 
 /*
 loadSourceMetadata connects to the assessment metadata of the source database and generates the slice of objects
-for tables and indexes. It also returns the total size of source db in GB
+for tables and indexes. It also returns the total size of source db in GB. Primary key size is not considered in the
+calculation.
 Returns:
 
 	[]SourceDBMetadata: all table objects from source db
 	[]SourceDBMetadata: all index objects from source db
 	float64: total size of source db
 */
-func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
-	//err := ConnectSourceMetaDatabase("/Users/shaharukshaikh/code/go/yb-voyager/yb-voyager/stats1/assessment/metadata/assessment.db")
-	err := ConnectSourceMetaDatabase(GetDBFilePath())
+func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+	SourceMetaDB, err := utils.ConnectToSqliteDatabase(GetSourceMetadataDBFilePath())
 	if err != nil {
-		panic(err)
+		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
 	}
-	return getSourceMetadata()
+	return getSourceMetadata(SourceMetaDB)
 }
 
 /*
@@ -95,91 +189,95 @@ Returns:
 
 	[]SourceDBMetadata: A slice containing metadata for sharded objects. Used for sharding recommendations.
 	float64: The total size of sharded objects in gigabytes. Used for sharding recommendations.
+	ExpDataColocatedLimit: Information about the instance type to use for the experiment
+	SourceDBMetadata[]: list of sharded objects
 */
+
 func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
-	totalSourceDBSize float64) ([]SourceDBMetadata, float64) {
-	var selectedRow [5]string // Assuming 5 columns in the table
-	var cumulativeSum float64
-	var colocatedObjects []SourceDBMetadata
-	var shardedObjects []SourceDBMetadata
-	var shardedObjectsSize float64 = 0
-	var coloObjectNames []string
-	var shardedObjectNames []string
-	var index int
-	numSourceObjects := len(sourceTableMetadata) + len(sourceIndexMetadata)
-	row := DB.QueryRow("SELECT * FROM colocated_limits WHERE max_num_tables > ? AND min_num_tables <= ? AND "+
-		"max_colocated_db_size_gb >= ? UNION ALL SELECT * FROM colocated_limits WHERE max_colocated_db_size_gb = "+
-		"(SELECT MAX(max_colocated_db_size_gb) FROM colocated_limits) LIMIT 1;", numSourceObjects, numSourceObjects,
-		totalSourceDBSize)
+	totalSourceDBSize float64) ([]SourceDBMetadata, float64, ExpDataColocatedLimit, []SourceDBMetadata, error) {
+	previousCores := ExpDataColocatedLimit{
+		maxColocatedSizeSupported:  sql.NullFloat64{Float64: -1, Valid: true},
+		numCores:                   sql.NullFloat64{Float64: -1, Valid: true},
+		memPerCore:                 sql.NullFloat64{Float64: -1, Valid: true},
+		maxSupportedNumTables:      sql.NullInt64{Int64: -1, Valid: true},
+		minSupportedNumTables:      sql.NullFloat64{Float64: -1, Valid: true},
+		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: -1, Valid: true},
+		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: -1, Valid: true},
+	}
 
-	var S float64
-	if err := row.Scan(&selectedRow[0], &selectedRow[1], &selectedRow[2], &selectedRow[3], &selectedRow[4]); err != nil {
-		if err == sql.ErrNoRows {
-			log.Println("No rows were returned by the query.")
-		} else {
-			log.Fatal(err)
+	query := fmt.Sprintf(`
+		SELECT max_colocated_db_size_gb, 
+			   num_cores, 
+			   mem_per_core, 
+			   max_num_tables, 
+			   min_num_tables, 
+			   max_selects_per_core, 
+			   max_inserts_per_core 
+		FROM %v 
+		ORDER BY num_cores DESC
+	`, COLOCATED_LIMITS_TABLE)
+	rows, err := ExperimentDB.Query(query)
+	if err != nil {
+		return nil, 0.0, ExpDataColocatedLimit{}, nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close the result set for query [%v]", query)
 		}
-	}
+	}()
 
-	S, _ = strconv.ParseFloat(selectedRow[0], 64)
-	for i, key := range sourceTableMetadata {
-		// check if current table has any indexes and fetch all indexes
-		indexesOfTable, indexesSizeSum := checkAndFetchIndexes(key, sourceIndexMetadata)
-		cumulativeSum += key.Size + indexesSizeSum
-		if cumulativeSum > S {
-			break
+	for rows.Next() {
+		var r1 ExpDataColocatedLimit
+		var cumulativeObjectCount int64 = 0
+		var cumulativeSelectOpsPerSec int64 = 0
+		var cumulativeInsertOpsPerSec int64 = 0
+		var cumulativeSizeSum float64 = 0
+		var colocatedObjects []SourceDBMetadata
+
+		if err := rows.Scan(&r1.maxColocatedSizeSupported, &r1.numCores, &r1.memPerCore, &r1.maxSupportedNumTables,
+			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
+			return nil, 0.0, ExpDataColocatedLimit{}, nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 		}
-		index = i
-		colocatedObjects = append(colocatedObjects, key)
-		coloObjectNames = append(coloObjectNames, key.SchemaName+"."+key.ObjectName)
+		for i, table := range sourceTableMetadata {
+			// check if current table has any indexes and fetch all indexes
+			indexesOfTable, indexesSizeSum, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
+			cumulativeObjectCount += int64(len(indexesOfTable)) + 1
+			objectTotalSize := table.Size + indexesSizeSum
+			cumulativeSizeSum += objectTotalSize
+			cumulativeSelectOpsPerSec += table.ReadsPerSec + indexReads
+			cumulativeInsertOpsPerSec += table.WritesPerSec + indexWrites
 
-		// append all indexes into colocated
-		colocatedObjects = append(colocatedObjects, indexesOfTable...)
-		// append all index names into colocated result
-		for _, key := range indexesOfTable {
-			coloObjectNames = append(coloObjectNames, key.SchemaName+"."+key.ObjectName)
+			neededCores :=
+				math.Ceil(float64(cumulativeSelectOpsPerSec)/r1.maxSupportedSelectsPerCore.Float64 +
+					float64(cumulativeInsertOpsPerSec)/r1.maxSupportedInsertsPerCore.Float64)
+
+			if (neededCores <= r1.numCores.Float64) &&
+				(cumulativeObjectCount <= r1.maxSupportedNumTables.Int64) &&
+				(cumulativeSizeSum <= r1.maxColocatedSizeSupported.Float64) {
+				colocatedObjects = append(colocatedObjects, table)
+				// append all indexes into colocated
+				colocatedObjects = append(colocatedObjects, indexesOfTable...)
+
+			} else {
+				if previousCores.numCores.Float64 != -1 {
+					return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil, nil
+				} else {
+					var shardedObjects []SourceDBMetadata
+
+					for _, remainingTable := range sourceTableMetadata[i:] {
+						shardedObjects = append(shardedObjects, remainingTable)
+						// fetch all associated indexes
+						indexesOfShardedTable, _, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
+						shardedObjects = append(shardedObjects, indexesOfShardedTable...)
+					}
+
+					return colocatedObjects, cumulativeSizeSum - objectTotalSize, r1, shardedObjects, nil
+				}
+			}
 		}
+		previousCores = r1
 	}
-
-	for _, key := range sourceTableMetadata[index+1:] {
-		shardedObjectNames = append(shardedObjectNames, key.SchemaName+"."+key.ObjectName)
-		shardedObjects = append(shardedObjects, key)
-		// fetch all associated indexes
-		indexesOfTable, indexesSizeSum := checkAndFetchIndexes(key, sourceIndexMetadata)
-		shardedObjects = append(shardedObjects, indexesOfTable...)
-
-		// add the sum of size of sharded objects
-		shardedObjectsSize += key.Size + indexesSizeSum
-		for _, key := range indexesOfTable {
-			shardedObjectNames = append(shardedObjectNames, key.SchemaName+"."+key.ObjectName)
-		}
-	}
-
-	vCPUPerInstance, _ := strconv.ParseFloat(selectedRow[1], 64)
-	memPerCore, _ := strconv.ParseFloat(selectedRow[2], 64)
-
-	reasoning := fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ",
-		vCPUPerInstance, vCPUPerInstance*memPerCore)
-
-	if len(shardedObjectNames) > 0 {
-		reasoning += fmt.Sprintf("%v objects with size %0.3f GB as colocated. "+
-			"Rest %v objects of size %0.3f GB can be imported as sharded tables",
-			len(coloObjectNames), totalSourceDBSize-shardedObjectsSize, len(shardedObjectNames), shardedObjectsSize)
-	} else {
-		reasoning += fmt.Sprintf("All %v objects of size %0.3fGB as colocated",
-			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
-	}
-
-	SizingReport = &AssessmentReport{
-		ColocatedTables:         coloObjectNames,
-		ColocatedReasoning:      reasoning,
-		ShardedTables:           shardedObjectNames,
-		NumNodes:                3,
-		VCPUsPerInstance:        vCPUPerInstance,
-		MemoryPerInstance:       vCPUPerInstance * memPerCore,
-		MigrationTimeTakenInMin: calculateTimeTakenForMigration("colocated", colocatedObjects, vCPUPerInstance, memPerCore),
-	}
-	return shardedObjects, shardedObjectsSize
+	return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil, nil
 }
 
 /*
@@ -194,11 +292,26 @@ Parameters:
 
 	shardedObjectMetadata: A slice containing metadata for sharded objects.
 	shardedObjectsSize: The total size of sharded objects in gigabytes.
+
+Returns:
+
+	float64: recommended number of nodes
+	int64: optimal select connections per node recommendation
+	int64: optimal insert connections per node recommendation
 */
-func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64) {
-	if len(SizingReport.ShardedTables) > 0 {
+func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64,
+	coresToUse ExpDataColocatedLimit) (float64, int64, int64, error) {
+	// 3 is the minimum number of nodes recommended
+	var numNodes float64 = 3
+	var optimalSelectConnectionsPerNode int64 = 0
+	var optimalInsertConnectionsPerNode int64 = 0
+
+	if len(shardedObjectMetadata) > 0 {
 		// table limit check
-		arrayOfSupportedCores := checkTableLimits(len(shardedObjectMetadata))
+		arrayOfSupportedCores, err := checkTableLimits(len(shardedObjectMetadata), coresToUse.numCores.Float64)
+		if err != nil {
+			return numNodes, 0, 0, fmt.Errorf("check table limits: %w", err)
+		}
 		// calculate throughput data
 		var sumSourceSelectThroughput int64 = 0
 		var sumSourceWriteThroughput int64 = 0
@@ -207,20 +320,24 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 			sumSourceWriteThroughput += metadata.WritesPerSec
 		}
 
-		getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput)
+		throughputData, err := getThroughputData(sumSourceSelectThroughput, sumSourceWriteThroughput, coresToUse.numCores.Float64)
+		if err != nil {
+			return numNodes, 0, 0, fmt.Errorf("get throughput data: %w", err)
+		}
+		numNodes = math.Max(throughputData+1, numNodes)
 		// calculate impact of table count : not in this version
 		//values = calculateTableCountImpact(values, int64(len(srcMeta)))
 
-		// calculate impact of horizontal scaling: not in this version
+		// calculate impact of horizontal scaling : not in this version
 		//calculateImpactOfHorizontalScaling(values)
 
 		// get connections per core
-		SizingReport.OptimalSelectConnectionsPerNode, SizingReport.OptimalInsertConnectionsPerNode = getConnectionsPerCore(arrayOfSupportedCores[0])
-		// calculate time taken for sharded migration
-		migrationTimeForShardedObjects :=
-			calculateTimeTakenForMigration("sharded", shardedObjectMetadata, SizingReport.VCPUsPerInstance, 4)
-		SizingReport.MigrationTimeTakenInMin += migrationTimeForShardedObjects
+		optimalSelectConnectionsPerNode, optimalInsertConnectionsPerNode, err = getConnectionsPerCore(arrayOfSupportedCores[0])
+		if err != nil {
+			return numNodes, 0, 0, fmt.Errorf("get connections per core: %w", err)
+		}
 	}
+	return numNodes, optimalSelectConnectionsPerNode, optimalInsertConnectionsPerNode, nil
 }
 
 /*
@@ -237,21 +354,28 @@ Returns:
 	int64: The optimal number of select connections per core.
 	int64: The optimal number of insert connections per core.
 */
-func getConnectionsPerCore(numCores int) (int64, int64) {
+func getConnectionsPerCore(numCores int) (int64, int64, error) {
 	var selectConnectionsPerCore, insertConnectionsPerCore int64
-	selectQuery := "select select_conn_per_node, insert_conn_per_node from sharded_sizing " +
-		"where dimension like 'MaxThroughput' and num_cores = ? order by num_nodes limit 1"
-	row := DB.QueryRow(selectQuery, numCores)
+	selectQuery := fmt.Sprintf(`
+		SELECT select_conn_per_node, 
+			   insert_conn_per_node 
+		FROM %v 
+		WHERE dimension LIKE 'MaxThroughput' 
+			AND num_cores = ? 
+		ORDER BY num_nodes 
+		LIMIT 1
+	`, SHARDED_SIZING_TABLE)
+	row := ExperimentDB.QueryRow(selectQuery, numCores)
 
 	if err := row.Scan(&selectConnectionsPerCore, &insertConnectionsPerCore); err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Println("No rows were returned by the query.")
+			log.Errorf("no records found in Experiment data: sharded_sizing")
 		} else {
-			log.Fatal(err)
+			return 0, 0, fmt.Errorf("error while fetching connecctions per core with query [%s]: %w", selectQuery, err)
 		}
 	}
 
-	return selectConnectionsPerCore, insertConnectionsPerCore
+	return selectConnectionsPerCore, insertConnectionsPerCore, nil
 }
 
 /*
@@ -269,33 +393,43 @@ Returns:
 
 	[]int: A slice containing the number of CPU cores that meet the criteria for supporting the specified number of tables.
 */
-func checkTableLimits(reqTables int) []int {
+func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) {
 	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
-	selectQuery := "SELECT num_cores FROM sharded_sizing WHERE num_tables > ? AND num_cores >= ? AND " +
-		"dimension LIKE '%TableLimits-3nodeRF=3%' ORDER BY num_cores"
-	rows, err := DB.Query(selectQuery, reqTables, SizingReport.VCPUsPerInstance)
+	selectQuery := fmt.Sprintf(`
+			SELECT num_cores 
+			FROM %s 
+			WHERE num_tables > ? 
+				AND num_cores >= ? 
+				AND dimension LIKE '%%TableLimits-3nodeRF=3%%' 
+			ORDER BY num_cores
+		`, SHARDED_SIZING_TABLE)
+	rows, err := ExperimentDB.Query(selectQuery, sourceDBObjects, coresPerNode)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close result set for query: [%s]", selectQuery)
+		}
+	}()
 
 	var valuesArray []int
 	for rows.Next() {
+
 		var numCores int
 		if err := rows.Scan(&numCores); err != nil {
-			log.Fatal(err)
+			return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
 		}
 		valuesArray = append(valuesArray, numCores)
 	}
-
 	if err := rows.Err(); err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
 	}
 
 	if len(valuesArray) > 0 {
-		return valuesArray
+		return valuesArray, nil
 	} else {
-		return nil
+		return nil, fmt.Errorf("cannot support %v objects", sourceDBObjects)
 	}
 }
 
@@ -308,32 +442,58 @@ Parameters:
 
 	selectThroughput: The select throughput metric representing the number of read operations per second.
 	writeThroughput: The write throughput metric representing the number of write operations per second.
+	numCores: number of cores to be used for calculating nodes to be added
+
+Returns:
+
+	float64: recommended number of nodes to be added
 */
-func getThroughputData(selectThroughput int64, writeThroughput int64) {
-	selectQuery := "SELECT foo.* FROM (SELECT id, ROUND((? / inserts_per_core) + 0.5) AS insert_total_cores," +
-		"ROUND((? / selects_per_core) + 0.5) AS select_total_cores, num_cores, num_nodes FROM sharded_sizing " +
-		"WHERE dimension = 'MaxThroughput' AND num_cores >= ?) AS foo ORDER BY select_total_cores + insert_total_cores," +
-		"num_cores;"
-	rows, err := DB.Query(selectQuery, writeThroughput, selectThroughput, SizingReport.VCPUsPerInstance)
+func getThroughputData(selectThroughput int64, writeThroughput int64, numCores float64) (float64, error) {
+
+	var currentRow [5]float64
+	var nodesToAdd float64 = 0
+	selectQuery := fmt.Sprintf(`
+		SELECT foo.* 
+		FROM (
+			SELECT id, 
+				   ROUND((? / inserts_per_core) + 0.5) AS insert_total_cores,
+				   ROUND((? / selects_per_core) + 0.5) AS select_total_cores, 
+				   num_cores, 
+				   num_nodes 
+			FROM %s 
+			WHERE dimension = 'MaxThroughput' 
+				AND num_cores >= ?
+		) AS foo 
+		ORDER BY num_cores DESC;
+	`, SHARDED_SIZING_TABLE)
+	rows, err := ExperimentDB.Query(selectQuery, writeThroughput, selectThroughput, numCores)
 	if err != nil {
-		log.Fatal(err)
+		return 0.0, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close result set for query: [%s]", selectQuery)
+		}
+	}()
 
-	allMaps := convertToMap(rows)
-	var insertTotalCores float64 = 0
-	var selectTotalCores float64 = 0
-	for _, value := range allMaps {
-		insertTotalCores += value["insert_total_cores"].(float64)
-		selectTotalCores += value["select_total_cores"].(float64)
+	for rows.Next() {
+		if err := rows.Scan(&currentRow[0], &currentRow[1], &currentRow[2], &currentRow[3], &currentRow[4]); err != nil {
+			return 0.0, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
+		}
+		nodesNeededForRow := math.Max(math.Ceil((currentRow[1]+currentRow[2])/numCores), 1)
+		if nodesNeededForRow <= 3 {
+			nodesToAdd = nodesNeededForRow
+		} else if nodesNeededForRow <= 5 {
+			return nodesToAdd, nil
+		} else {
+			return nodesNeededForRow, nil
+		}
 	}
-
-	// add the additional nodes to the total
-	SizingReport.NumNodes += math.Max(math.Ceil((selectTotalCores+insertTotalCores)/float64(SizingReport.VCPUsPerInstance)), 1)
+	return nodesToAdd, nil
 }
 
 /*
-calculateTimeTakenForMigration estimates the time taken for migration of database objects based on their type, size,
+calculateTimeTakenAndParallelThreadsForMigration estimates the time taken for migration of database objects based on their type, size,
 and the specified CPU and memory configurations. It calculates the total size of the database objects to be migrated,
 then queries experimental data to find migration time estimates for similar object sizes and configurations. The
 function adjusts the migration time based on the ratio of the total size of the objects to be migrated to the maximum
@@ -348,51 +508,51 @@ Parameters:
 Returns:
 
 	float64: The estimated time taken for migration in minutes.
+	int64: Total parallel threads used for migration.
 */
-func calculateTimeTakenForMigration(objectType string, dbObjects []SourceDBMetadata, vCPUPerInstance float64, memPerCore float64) float64 {
+func calculateTimeTakenAndParallelThreadsForMigration(tableName string, dbObjects []SourceDBMetadata,
+	vCPUPerInstance float64, memPerCore float64) (float64, int64, error) {
 	// the total size of colocated objects
 	var size float64 = 0
 	var timeTakenOfFetchedRow float64
 	var maxSizeOfFetchedRow float64
+	var parallelThreads int64
 	for _, dbObject := range dbObjects {
 		size += dbObject.Size
 	}
 
 	// find the rows in experiment data about the approx row matching the size
-	selectQuery := fmt.Sprintf("SELECT csv_size_gb, migration_time_secs from %v_load_time where "+
-		"num_cores = ? and mem_per_core = ? and csv_size_gb >= ? UNION ALL "+
-		"SELECT csv_size_gb, migration_time_secs from sharded_load_time WHERE csv_size_gb = (SELECT MAX(csv_size_gb) "+
-		"FROM sharded_load_time) LIMIT 1;", objectType)
-	row := DB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size)
+	selectQuery := fmt.Sprintf(`
+		SELECT csv_size_gb, 
+			   migration_time_secs, 
+			   parallel_threads 
+		FROM %v 
+		WHERE num_cores = ? 
+			AND mem_per_core = ? 
+			AND csv_size_gb >= ? 
+		UNION ALL 
+		SELECT csv_size_gb, 
+			   migration_time_secs, 
+			   parallel_threads 
+		FROM sharded_load_time 
+		WHERE csv_size_gb = (
+			SELECT MAX(csv_size_gb) 
+			FROM sharded_load_time
+		) 
+		LIMIT 1;
+	`, tableName)
+	row := ExperimentDB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size)
 
-	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow); err != nil {
+	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow, &parallelThreads); err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Println("No rows were returned by the query.")
+			log.Errorf("No rows were returned by the query to experiment table: sharded_load_time")
 		} else {
-			log.Fatal(err)
+			return 0.0, 0, fmt.Errorf("error while fetching migration time info with query [%s]: %w", selectQuery, err)
 		}
 	}
 
 	migrationTime := ((timeTakenOfFetchedRow * size) / maxSizeOfFetchedRow) / 60
-	return math.Ceil(migrationTime)
-}
-
-func ConnectSourceMetaDatabase(file string) error {
-	db, err := sql.Open("sqlite3", file)
-	if err != nil {
-		return err
-	}
-	SourceMetaDB = db
-	return nil
-}
-
-func ConnectExperimentDataDatabase(file string) error {
-	db, err := sql.Open("sqlite3", file)
-	if err != nil {
-		return err
-	}
-	DB = db
-	return nil
+	return math.Ceil(migrationTime), parallelThreads, nil
 }
 
 /*
@@ -404,14 +564,28 @@ Returns:
 	[]SourceDBMetadata: Metadata for source database indexes.
 	float64: The total size of the source database in gigabytes.
 */
-func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
-	query := "SELECT schema_name, object_name,row_count,reads_per_second,writes_per_second,is_index,parent_table_name," +
-		"size_in_bytes FROM table_index_stats ORDER BY size_in_bytes ASC"
-	rows, err := SourceMetaDB.Query(query)
+func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+	query := fmt.Sprintf(`
+		SELECT schema_name, 
+			   object_name, 
+			   row_count, 
+			   reads_per_second, 
+			   writes_per_second, 
+			   is_index, 
+			   parent_table_name, 
+			   size_in_bytes 
+		FROM %v 
+		ORDER BY size_in_bytes ASC
+	`, GetTableIndexStatName())
+	rows, err := sourceDB.Query(query)
 	if err != nil {
-		fmt.Println("no records found")
+		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close result set for query: [%s]", query)
+		}
+	}()
 
 	// Iterate over the rows
 	var sourceTableMetadata []SourceDBMetadata
@@ -425,7 +599,7 @@ func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
 			log.Fatal(err)
 		}
 		// convert bytes to GB
-		metadata.Size = bytesToGB(metadata.Size)
+		metadata.Size = utils.BytesToGB(metadata.Size)
 		if metadata.IsIndex {
 			sourceIndexMetadata = append(sourceIndexMetadata, metadata)
 		} else {
@@ -434,87 +608,77 @@ func getSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64) {
 		totalSourceDBSize += metadata.Size
 	}
 	if err := rows.Err(); err != nil {
-		log.Fatal(err)
+		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
-	SourceMetaDB.Close()
-	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize
+	if err := sourceDB.Close(); err != nil {
+		log.Warnf("failed to close connection to sourceDB metadata")
+	}
+	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, nil
 }
 
-/*
-bytesToGB function converts the size of the source object from bytes to GB as it is required for further calculation
-Parameters:
-
-	sizeInBytes: size of source object in bytes
-
-Returns:
-
-	sizeInGB: size of source object in gigabytes
-*/
-func bytesToGB(sizeInBytes float64) float64 {
-	return sizeInBytes / (1024 * 1024 * 1024)
-}
-
-func createConnectionToExperimentData(targetYbVersion string) {
-	filePath := getExperimentFile(targetYbVersion)
-	err := ConnectExperimentDataDatabase(filePath)
+func createConnectionToExperimentData() error {
+	filePath, err := getExperimentFile()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to get experiment file: %w", err)
 	}
+	DbConnection, err := utils.ConnectToSqliteDatabase(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to experiment data database: %w", err)
+	}
+	ExperimentDB = DbConnection
+	return nil
 }
 
-func getExperimentFile(targetYbVersion string) string {
-	filePath := "src/migassessment/resources/yb_" + strings.ReplaceAll(targetYbVersion, ".", "_") + "_source.db"
+func getExperimentFile() (string, error) {
+	fetchedFromRemote := false
 	if checkInternetAccess() {
-		remoteFileExists := checkFileExistsOnRemoteRepo(filePath)
-		if remoteFileExists {
-			filePath = strings.ReplaceAll(filePath, "src/migassessment/resources/", baseDownloadPath)
-		} else {
-			// check if local file exists
-			fmt.Println(filePath)
-			isFileExist := utils.FileOrFolderExists(filePath)
-
-			if !isFileExist {
-				panic("file doesn't exist")
-			}
+		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo()
+		if err != nil {
+			return "", err
 		}
-	} else {
-		// no network access
-		fmt.Println("No network access. Checking file locally...")
-		// check if local file exists
-		isFileExist := utils.FileOrFolderExists(filePath)
-		if !isFileExist {
-			panic("file doesn't exist")
+		if existsOnRemote {
+			fetchedFromRemote = true
 		}
 	}
-	return filePath
+	if !fetchedFromRemote {
+		err := os.WriteFile(filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME), experimentData20240, 0644)
+		if err != nil {
+			return "", fmt.Errorf("failed to write experiment data file: %w", err)
+		}
+	}
+
+	return filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME), nil
 }
 
-func checkFileExistsOnRemoteRepo(fileName string) bool {
-	remotePath := "https://raw.githubusercontent.com/yb-voyager/sshaikh/mat/yb-voyager/" + fileName
-	resp, _ := http.Get(remotePath)
-
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(resp.Body)
-
-	if resp.StatusCode != 200 {
-		//fmt.Println("File does not exist on remote location")
-		return false
-	} else {
-		downloadPath := strings.ReplaceAll(fileName, "resources/", baseDownloadPath)
-		out, _ := os.Create(downloadPath)
-		defer func(out *os.File) {
-			err := out.Close()
-			if err != nil {
-				panic(err)
-			}
-		}(out)
-		_, err := io.Copy(out, resp.Body)
-		return err == nil
+func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
+	// check if the file exists on remote github repository using the raw link
+	remotePath := GITHUB_RAW_LINK + "/" + EXPERIMENT_DATA_FILENAME
+	resp, err := http.Get(remotePath)
+	if err != nil {
+		return false, fmt.Errorf("failed to make GET request: %w", err)
 	}
+	defer func() {
+		if closingErr := resp.Body.Close(); closingErr != nil {
+			log.Warnf("failed to close the response body for GET api")
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, nil
+	}
+
+	downloadPath := filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	err = os.WriteFile(downloadPath, bodyBytes, 0644)
+	if err != nil {
+		return false, fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return true, nil
 }
 
 /*
@@ -531,15 +695,22 @@ Returns:
 
 	[]SourceDBMetadata: Metadata for indexes associated with the specified table.
 	float64: The total size of indexes associated with the specified table.
+	int64 : sum of read ops per second for all indexes of the table
+	int64 : sum of write ops per second for all indexes of the table
 */
-func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, float64) {
+func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, float64, int64, int64) {
 	indexesOfTable := make([]SourceDBMetadata, 0)
 	var indexesSizeSum float64 = 0
+	var cumulativeSelectOpsPerSecIdx int64 = 0
+	var cumulativeInsertOpsPerSecIdx int64 = 0
 	for _, index := range indexes {
 		if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
 			indexesOfTable = append(indexesOfTable, index)
 			indexesSizeSum += index.Size
+			cumulativeSelectOpsPerSecIdx += index.ReadsPerSec
+			cumulativeInsertOpsPerSecIdx += index.WritesPerSec
 		}
 	}
-	return indexesOfTable, indexesSizeSum
+
+	return indexesOfTable, indexesSizeSum, cumulativeSelectOpsPerSecIdx, cumulativeInsertOpsPerSecIdx
 }
