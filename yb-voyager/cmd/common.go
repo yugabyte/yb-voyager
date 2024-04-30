@@ -939,3 +939,39 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	}
 	return nil
 }
+
+// =====================================================================
+
+type AssessmentReport struct {
+	SchemaSummary        utils.SchemaSummary                   `json:"SchemaSummary"`
+	UnsupportedDataTypes []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
+	UnsupportedFeatures  []UnsupportedFeature                  `json:"UnsupportedFeatures"`
+	Sizing               *migassessment.SizingAssessmentReport `json:"Sizing"`
+	TableIndexStats      *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+}
+
+func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
+	var report AssessmentReport
+	err := jsonfile.NewJsonFile[AssessmentReport](reportPath).Load(&report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse json report file %q: %w", reportPath, err)
+	}
+
+	return &report, nil
+}
+
+func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
+	if ar.Sizing == nil {
+		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
+	}
+
+	return ar.Sizing.ShardedTables, nil
+}
+
+func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error) {
+	if ar.Sizing == nil {
+		return nil, fmt.Errorf("sizing report is null, can't fetch colocated tables")
+	}
+
+	return ar.Sizing.ColocatedTables, nil
+}

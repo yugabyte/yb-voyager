@@ -46,18 +46,6 @@ var (
 	assessmentDB              *migassessment.AssessmentDB
 )
 
-type AssessmentReport struct {
-	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
-
-	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
-
-	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
-
-	Sizing *migassessment.SizingAssessmentReport `json:"Sizing"`
-
-	MigrationAssessmentStats *[]migassessment.TableIndexStats `json:"MigrationAssessmentStats"`
-}
-
 type UnsupportedFeature struct {
 	FeatureName string   `json:"FeatureName"`
 	ObjectNames []string `json:"ObjectNames"`
@@ -381,7 +369,7 @@ func generateAssessmentReport() (err error) {
 	}
 
 	assessmentReport.Sizing = migassessment.SizingReport
-	assessmentReport.MigrationAssessmentStats, err = assessmentDB.FetchAllStats()
+	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
 	}
