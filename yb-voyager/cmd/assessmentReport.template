@@ -102,8 +102,8 @@
         </ul>
         {{end}}
             {{with .Sizing}}
+            <h2>Sharding Recommendations</h2>
                 {{ if eq .FailureReasoning "" }}
-                    <h2>Sharding Recommendations</h2>
                         <table>
                             <tr>
                                 <th>Colocated Tables</th>
