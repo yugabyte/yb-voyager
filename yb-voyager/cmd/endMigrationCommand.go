@@ -160,6 +160,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("creating reports directory for backup: %v", err)
 	}
 
+	saveMigrationAssessmentReport()
 	saveSchemaAnalysisReport()
 	if streamChangesMode {
 		saveDataMigrationReport(msr)
@@ -168,6 +169,40 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 			saveDataExportReport()
 		}
 		saveDataImportReport(msr)
+	}
+}
+
+func saveMigrationAssessmentReport() {
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "assessmentReport.*"))
+	migrationAssessmentDone, err := IsMigrationAssessmentDone()
+	if err != nil {
+		utils.ErrExit("checking if migration assessment is done: %v", err)
+	}
+	if alreadyBackedUp {
+		utils.PrintAndLog("assessment report is already present at %q", filepath.Join(backupDir, "reports", "assessmentReport.*"))
+		return
+	} else if !migrationAssessmentDone {
+		utils.PrintAndLog("no assessment report to save as assessment command is not executed as part of migration workflow")
+		return
+	}
+	utils.PrintAndLog("saving assessment report...")
+	files, err := os.ReadDir(filepath.Join(exportDir, "assessment", "reports"))
+	if err != nil {
+		utils.ErrExit("reading assessment reports directory: %v", err)
+	}
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "assessmentReport.") {
+			continue
+		}
+		oldPath := filepath.Join(exportDir, "assessment", "reports", file.Name())
+		newPath := filepath.Join(backupDir, "reports", file.Name())
+		cmd := exec.Command("mv", oldPath, newPath)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			utils.ErrExit("moving assessment report: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved assessment report %q to %q", oldPath, newPath)
+		}
 	}
 }
 
@@ -752,7 +787,7 @@ func init() {
 
 	BoolVar(endMigrationCmd.Flags(), &backupSchemaFiles, "backup-schema-files", false, "backup migration schema files")
 	BoolVar(endMigrationCmd.Flags(), &backupDataFiles, "backup-data-files", false, "backup snapshot data files")
-	BoolVar(endMigrationCmd.Flags(), &saveMigrationReports, "save-migration-reports", false, "save schema and data migration reports")
+	BoolVar(endMigrationCmd.Flags(), &saveMigrationReports, "save-migration-reports", false, "save migration assessment report, analyze schema report and data migration reports")
 	BoolVar(endMigrationCmd.Flags(), &backupLogFiles, "backup-log-files", false, "backup yb-voyager log files for this migration")
 	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory is where all the backup files of schema, data, logs and reports will be saved")
 

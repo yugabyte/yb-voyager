@@ -34,6 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -145,7 +146,29 @@ func assessMigration() (err error) {
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
+	err = SetMigrationAssessmentDoneInMSR()
+	if err != nil {
+		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
+	}
 	return nil
+}
+
+func SetMigrationAssessmentDoneInMSR() error {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.IsMigrationAssessmentDone = true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record with migration assessment done flag: %w", err)
+	}
+	return nil
+}
+
+func IsMigrationAssessmentDone() (bool, error) {
+	record, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return false, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	return record.IsMigrationAssessmentDone, nil
 }
 
 func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
