@@ -19,9 +19,13 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var AssessmentMetadataDir string
@@ -55,7 +59,12 @@ func LoadCSVDataFile[T any](filePath string) ([]*T, error) {
 
 	for _, record := range records {
 		var tmplRec T
-		bs, err := json.Marshal(record)
+		camelCaseRecord := make(Record)
+		for key, value := range record {
+			camelCaseRecord[convertSnakeCaseToCamelCase(key)] = value
+		}
+
+		bs, err := json.Marshal(camelCaseRecord)
 		if err != nil {
 			log.Errorf("error marshalling record: %v", err)
 			return nil, fmt.Errorf("error marshalling record: %w", err)
@@ -109,6 +118,15 @@ func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
 		result[rowNum-1] = record
 	}
 	return result, nil
+}
+
+// converts snake_case column names to camelCase to match JSON tags
+func convertSnakeCaseToCamelCase(str string) string {
+	parts := strings.Split(str, "_")
+	for i := 1; i < len(parts); i++ {
+		parts[i] = cases.Title(language.English, cases.NoLower).String(parts[i])
+	}
+	return strings.Join(parts, "")
 }
 
 func checkInternetAccess() (ok bool) {
