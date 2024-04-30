@@ -239,6 +239,7 @@ func exportData() bool {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
 			return false
 		}
+		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList)
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 			// pg live migration. Steps are as follows:
 			// 1. create publication, replication slot.
@@ -279,7 +280,6 @@ func exportData() bool {
 			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
-		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList)
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
