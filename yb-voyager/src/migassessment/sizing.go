@@ -250,8 +250,8 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 			// check if current table has any indexes and fetch all indexes
 			indexesOfTable, indexesSizeSum, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
 			cumulativeObjectCount += int64(len(indexesOfTable)) + 1
-
-			cumulativeSizeSum += table.Size + indexesSizeSum
+			objectTotalSize := table.Size + indexesSizeSum
+			cumulativeSizeSum += objectTotalSize
 			cumulativeSelectOpsPerSec += table.ReadsPerSec + indexReads
 			cumulativeInsertOpsPerSec += table.WritesPerSec + indexWrites
 
@@ -279,7 +279,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 						shardedObjects = append(shardedObjects, indexesOfShardedTable...)
 					}
 
-					return colocatedObjects, cumulativeSizeSum, r1, shardedObjects, nil
+					return colocatedObjects, cumulativeSizeSum - objectTotalSize, r1, shardedObjects, nil
 				}
 			}
 		}
