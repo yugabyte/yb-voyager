@@ -665,11 +665,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
-
-		if discrepancyFoundInBatch(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates) {
-			log.Infof("Committed batch(%s): batch-size %d rowsAffectedInserts=%d, rowsAffectedInserts=%d rowsAffectedInserts=%d", batch.ID(), len(batch.Events), rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
-		}
-
+		logDiscrepancyInEventBatchIfAny(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
 		return false, err
 	})
 	if err != nil {
@@ -686,10 +682,17 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	return nil
 }
 
-func discrepancyFoundInBatch(batch *EventBatch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64) bool {
-	return !(rowsAffectedInserts == batch.EventCounts.NumInserts &&
+func logDiscrepancyInEventBatchIfAny(batch *EventBatch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64) {
+	if !(rowsAffectedInserts == batch.EventCounts.NumInserts &&
 		rowsAffectedInserts == batch.EventCounts.NumDeletes &&
-		rowsAffectedInserts == batch.EventCounts.NumUpdates)
+		rowsAffectedInserts == batch.EventCounts.NumUpdates) {
+		var vsns []int64
+		for _, e := range batch.Events {
+			vsns = append(vsns, e.Vsn)
+		}
+		log.Warnf("Discrepancy in committed batch(%s) with inserts=%d, deletes=%d and updates=%d: got rowsAffectedInserts=%d, rowsAffectedDeletes=%d rowsAffectedUpdates=%d. Vsns in batch %v",
+			batch.ID(), batch.EventCounts.NumInserts, batch.EventCounts.NumDeletes, batch.EventCounts.NumUpdates, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates, vsns)
+	}
 }
 
 //==============================================================================

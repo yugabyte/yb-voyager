@@ -574,10 +574,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
 
-		if discrepancyFoundInBatch(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates) {
-			log.Infof("Committed batch(%s): batch-size %d rowsAffectedInserts=%d, rowsAffectedInserts=%d rowsAffectedInserts=%d", batch.ID(), len(batch.Events), rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
-		}
-		
+		logDiscrepancyInEventBatchIfAny(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
+
 		return false, err
 	})
 	if err != nil {
