@@ -137,7 +137,7 @@ func assessMigration() (err error) {
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = GenerateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
-		return fmt.Errorf("failed to generate assessment report JSON: %w", err)
+		log.Errorf("failed to run assessment: %v", err)
 	}
 	err = generateAssessmentReportHtml(assessmentReportDir)
 	if err != nil {
