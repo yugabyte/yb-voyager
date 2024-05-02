@@ -188,13 +188,11 @@ func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
 
 	assessmentAlreadyDone := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
-	utils.PrintAndLog("metadataDirPassedByUser: %v", metadataDirPassedByUser)
-	utils.PrintAndLog("Assessment already done: %v", assessmentAlreadyDone)
 	if !metadataDirPassedByUser {
 		assessmentAlreadyDone = assessmentAlreadyDone || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
 			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
 	}
-	utils.PrintAndLog("Assessment already done: %v", assessmentAlreadyDone)
+
 	if assessmentAlreadyDone {
 		if startClean {
 			utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
