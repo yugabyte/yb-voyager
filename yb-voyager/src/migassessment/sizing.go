@@ -400,7 +400,7 @@ func getConnectionsPerCore(numCores int) (int64, int64, error) {
 
 	if err := row.Scan(&selectConnectionsPerCore, &insertConnectionsPerCore); err != nil {
 		if err == sql.ErrNoRows {
-			log.Errorf("no records found in Experiment data: sharded_sizing")
+			log.Errorf("no records found in Experiment data: %v", SHARDED_SIZING_TABLE)
 		} else {
 			return 0, 0, fmt.Errorf("error while fetching connecctions per core with query [%s]: %w", selectQuery, err)
 		}
@@ -567,18 +567,19 @@ func calculateTimeTakenAndParallelThreadsForImport(tableName string, dbObjects [
 		SELECT csv_size_gb, 
 			   migration_time_secs, 
 			   parallel_threads 
-		FROM sharded_load_time 
+		FROM %v 
 		WHERE csv_size_gb = (
 			SELECT MAX(csv_size_gb) 
-			FROM sharded_load_time
+			FROM %v
+			WHERE num_cores = ?
 		) 
 		LIMIT 1;
-	`, tableName)
-	row := ExperimentDB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size)
+	`, tableName, tableName, tableName)
+	row := ExperimentDB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size, vCPUPerInstance)
 
 	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow, &parallelThreads); err != nil {
 		if err == sql.ErrNoRows {
-			log.Errorf("No rows were returned by the query to experiment table: sharded_load_time")
+			log.Errorf("No rows were returned by the query to experiment table: %v", tableName)
 		} else {
 			return 0.0, 0, fmt.Errorf("error while fetching import time info with query [%s]: %w", selectQuery, err)
 		}
