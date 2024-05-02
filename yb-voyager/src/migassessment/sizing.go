@@ -278,7 +278,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 				}
 				if cumulativeSizeSum > r1.maxColocatedSizeSupported.Float64 {
 					currentReasoning = "Max colocated database size reached: " + currentReasoning +
-						fmt.Sprintf("support %v objects with %v size as colocated. ",
+						fmt.Sprintf("support %v objects with %0.4f size as colocated. ",
 							len(colocatedObjects), cumulativeSizeSum-objectTotalSize)
 				}
 
