@@ -16,16 +16,7 @@ limitations under the License.
 package migassessment
 
 import (
-	"encoding/csv"
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"os"
-	"strings"
-
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 var AssessmentMetadataDir string
@@ -47,86 +38,6 @@ type SizingAssessmentReport struct {
 	ParallelVoyagerThreadsSharded   int64
 	ParallelVoyagerThreadsColocated int64
 	FailureReasoning                string
-}
-
-func LoadCSVDataFile[T any](filePath string) ([]*T, error) {
-	result := make([]*T, 0)
-	records, err := loadCSVDataFileGeneric(filePath)
-	if err != nil {
-		log.Errorf("error loading csv data file %s: %v", filePath, err)
-		return nil, fmt.Errorf("error loading csv data file %s: %w", filePath, err)
-	}
-
-	for _, record := range records {
-		var tmplRec T
-		camelCaseRecord := make(Record)
-		for key, value := range record {
-			camelCaseRecord[convertSnakeCaseToCamelCase(key)] = value
-		}
-
-		bs, err := json.Marshal(camelCaseRecord)
-		if err != nil {
-			log.Errorf("error marshalling record: %v", err)
-			return nil, fmt.Errorf("error marshalling record: %w", err)
-		}
-		err = json.Unmarshal(bs, &tmplRec)
-		if err != nil {
-			log.Errorf("error unmarshalling record: %v", err)
-			return nil, fmt.Errorf("error unmarshalling record: %w", err)
-		}
-		result = append(result, &tmplRec)
-	}
-	return result, nil
-}
-
-func loadCSVDataFileGeneric(filePath string) ([]Record, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		log.Warnf("error opening file %s: %v", filePath, err)
-		return nil, nil
-	}
-
-	defer func() {
-		err := file.Close()
-		if err != nil {
-			log.Errorf("error closing file %s: %v", filePath, err)
-		}
-	}()
-
-	csvReader := csv.NewReader(file)
-	csvReader.ReuseRecord = true
-
-	rows, err := csvReader.ReadAll()
-	if err != nil {
-		log.Errorf("error reading csv file %s: %v", filePath, err)
-		return nil, fmt.Errorf("error reading csv file %s: %w", filePath, err)
-	}
-
-	if len(rows) == 0 {
-		log.Warnf("file '%s' is empty, no records", filePath)
-		return nil, nil
-	}
-
-	columnNames := rows[0]
-	result := make([]Record, len(rows)-1)
-	for rowNum := 1; rowNum < len(rows); rowNum++ {
-		record := make(Record)
-		row := rows[rowNum]
-		for columnIdx, columnName := range columnNames {
-			record[columnName] = row[columnIdx]
-		}
-		result[rowNum-1] = record
-	}
-	return result, nil
-}
-
-// converts snake_case column names to camelCase to match JSON tags
-func convertSnakeCaseToCamelCase(str string) string {
-	parts := strings.Split(str, "_")
-	for i := 1; i < len(parts); i++ {
-		parts[i] = cases.Title(language.English, cases.NoLower).String(parts[i])
-	}
-	return strings.Join(parts, "")
 }
 
 func checkInternetAccess() (ok bool) {

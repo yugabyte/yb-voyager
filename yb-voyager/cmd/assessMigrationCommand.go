@@ -442,19 +442,36 @@ func fetchUnsupportedFeaturesForPG(schemaAnalysisReport utils.SchemaReport) ([]U
 func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, error) {
 	var unsupportedDataTypes []utils.TableColumnsDataTypes
 
-	// load file with all column data types
-	filePath := filepath.Join(assessmentMetadataDir, "table-columns-data-types.csv")
-
-	allColumnsDataTypes, err := migassessment.LoadCSVDataFile[utils.TableColumnsDataTypes](filePath)
+	query := fmt.Sprintf(`SELECT schema_name, table_name, column_name, data_type FROM %s`,
+		migassessment.TABLE_COLUMNS_DATA_TYPES)
+	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load table columns data types file: %w", err)
+		return nil, err
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", err)
+		}
+	}()
+
+	var allColumnsDataTypes []utils.TableColumnsDataTypes
+	for rows.Next() {
+		var columnDataTypes utils.TableColumnsDataTypes
+		err := rows.Scan(&columnDataTypes.SchemaName, &columnDataTypes.TableName,
+			&columnDataTypes.ColumnName, &columnDataTypes.DataType)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows: %w", err)
+		}
+
+		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
 	// filter columns with unsupported data types using srcdb.PostgresUnsupportedDataTypesForDbzm
 	pgUnsupportedDataTypes := srcdb.PostgresUnsupportedDataTypesForDbzm
 	for i := 0; i < len(allColumnsDataTypes); i++ {
 		if utils.ContainsAnySubstringFromSlice(pgUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
-			unsupportedDataTypes = append(unsupportedDataTypes, *allColumnsDataTypes[i])
+			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
 	}
 
