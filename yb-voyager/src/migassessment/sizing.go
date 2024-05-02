@@ -86,61 +86,49 @@ func SizingAssessment() error {
 		return fmt.Errorf("failed to connect to experiment data: %w", err)
 	}
 
-	colocatedObjects, colocatedObjectsSize, coresToUse, shardedObjects, err :=
+	colocatedObjects, _, coresToUse, shardedObjects, shardingReasoning, err :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error generating sharding recommendations: %v", err)
 		return fmt.Errorf("error generating sharding recommendations: %w", err)
 	}
-	SizingReport.ColocatedTables = fetchObjectNames(colocatedObjects)
-	SizingReport.ShardedTables = fetchObjectNames(shardedObjects)
-	SizingReport.VCPUsPerInstance = coresToUse.numCores.Float64
-	SizingReport.MemoryPerInstance = coresToUse.numCores.Float64 * coresToUse.memPerCore.Float64
 
 	// only use the remaining sharded objects and its size for further recommendation processing
 	numNodes, optimalSelectConnections, optimalInsertConnections, err :=
-		generateSizingRecommendations(shardedObjects, totalSourceDBSize-colocatedObjectsSize, coresToUse)
+		generateSizingRecommendations(shardedObjects, len(colocatedObjects), coresToUse)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error generate sizing recommendations: %v", err)
 		return fmt.Errorf("error generate sizing recommendations: %w", err)
 	}
+
+	// calculate time taken for colocated import
+	importTimeForColocatedObjects, parallelThreadsColocated, err :=
+		calculateTimeTakenAndParallelThreadsForImport(COLOCATED_LOAD_TIME_TABLE, colocatedObjects,
+			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated objects import: %v", err)
+		return fmt.Errorf("calculate time taken for colocated object import: %w", err)
+	}
+
+	// calculate time taken for sharded import
+	importTimeForShardedObjects, parallelThreadsSharded, err :=
+		calculateTimeTakenAndParallelThreadsForImport(SHARDED_LOAD_TIME_TABLE, shardedObjects,
+			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded objects import: %v", err)
+		return fmt.Errorf("calculate time taken for sharded objects import: %w", err)
+	}
+
+	SizingReport.ColocatedTables = fetchObjectNames(colocatedObjects)
+	SizingReport.ShardedTables = fetchObjectNames(shardedObjects)
+	SizingReport.VCPUsPerInstance = coresToUse.numCores.Float64
+	SizingReport.MemoryPerInstance = coresToUse.numCores.Float64 * coresToUse.memPerCore.Float64
 	SizingReport.NumNodes = numNodes
 	SizingReport.OptimalSelectConnectionsPerNode = optimalSelectConnections
 	SizingReport.OptimalInsertConnectionsPerNode = optimalInsertConnections
-
-	// calculate time taken for colocated migration
-	migrationTimeForColocatedObjects, parallelThreadsColocated, err :=
-		calculateTimeTakenAndParallelThreadsForMigration(COLOCATED_LOAD_TIME_TABLE, colocatedObjects,
-			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
-	if err != nil {
-		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated migration: %v", err)
-		return fmt.Errorf("calculate time taken for colocated migration: %w", err)
-	}
-	SizingReport.ParallelVoyagerThreadsColocated = parallelThreadsColocated
-
-	// calculate time taken for sharded migration
-	migrationTimeForShardedObjects, parallelThreadsSharded, err :=
-		calculateTimeTakenAndParallelThreadsForMigration(SHARDED_LOAD_TIME_TABLE, shardedObjects,
-			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
-	if err != nil {
-		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded migration: %v", err)
-		return fmt.Errorf("calculate time taken for sharded migration: %w", err)
-	}
-	SizingReport.MigrationTimeTakenInMin = migrationTimeForColocatedObjects + migrationTimeForShardedObjects
-	SizingReport.ParallelVoyagerThreadsSharded = parallelThreadsSharded
-
-	// reasoning for colocation/sharding
-	reasoning := fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could fit: ",
-		coresToUse.numCores.Float64, coresToUse.numCores.Float64*coresToUse.memPerCore.Float64)
-	if len(shardedObjects) > 0 {
-		reasoning += fmt.Sprintf("%v objects with size %0.3f GB as colocated. "+
-			"Rest %v objects of size %0.3f GB can be imported as sharded tables",
-			len(colocatedObjects), colocatedObjectsSize, len(shardedObjects), totalSourceDBSize-colocatedObjectsSize)
-	} else {
-		reasoning += fmt.Sprintf("All %v objects of size %0.3fGB as colocated",
-			len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
-	}
-	SizingReport.ColocatedReasoning = reasoning
+	SizingReport.ParallelVoyagerThreads = math.Min(float64(parallelThreadsColocated), float64(parallelThreadsSharded))
+	SizingReport.ColocatedReasoning = shardingReasoning
+	SizingReport.ImportTimeTakenInMin = importTimeForColocatedObjects + importTimeForShardedObjects
 
 	return nil
 }
@@ -177,8 +165,8 @@ It calculates the required number of nodes, CPU cores, and memory for colocated 
 objects(in increasing order of size) as colocated and scales vertically to achieve it going upto 16 cores.
 Then onwards, we make the rest of the objects as sharded. The function returns a slice containing metadata for sharded
 objects and the total size of sharded objects. Additionally, it updates a global report structure with information on
-colocated and sharded tables, recommended instance configurations, and migration time estimates for colocated object
-migration.
+colocated and sharded tables, recommended instance configurations, and import time estimates for colocated object
+import.
 Parameters:
 
 	sourceTableMetadata: A slice containing metadata for source database tables.
@@ -191,10 +179,12 @@ Returns:
 	float64: The total size of sharded objects in gigabytes. Used for sharding recommendations.
 	ExpDataColocatedLimit: Information about the instance type to use for the experiment
 	SourceDBMetadata[]: list of sharded objects
+	string: reasoning for decision-making.
 */
 
 func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
-	totalSourceDBSize float64) ([]SourceDBMetadata, float64, ExpDataColocatedLimit, []SourceDBMetadata, error) {
+	totalSourceDBSize float64) ([]SourceDBMetadata, float64, ExpDataColocatedLimit, []SourceDBMetadata, string, error) {
+	var previousReasoning string
 	previousCores := ExpDataColocatedLimit{
 		maxColocatedSizeSupported:  sql.NullFloat64{Float64: -1, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: -1, Valid: true},
@@ -218,7 +208,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 	`, COLOCATED_LIMITS_TABLE)
 	rows, err := ExperimentDB.Query(query)
 	if err != nil {
-		return nil, 0.0, ExpDataColocatedLimit{}, nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
+		return nil, 0.0, ExpDataColocatedLimit{}, nil, "", fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -233,11 +223,16 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		var cumulativeInsertOpsPerSec int64 = 0
 		var cumulativeSizeSum float64 = 0
 		var colocatedObjects []SourceDBMetadata
+		var currentReasoning string
+		var allObjectsColocated bool = true
 
 		if err := rows.Scan(&r1.maxColocatedSizeSupported, &r1.numCores, &r1.memPerCore, &r1.maxSupportedNumTables,
 			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
-			return nil, 0.0, ExpDataColocatedLimit{}, nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
+			return nil, 0.0, ExpDataColocatedLimit{}, nil, previousReasoning, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 		}
+		currentReasoning = fmt.Sprintf(" Recommended instance with %vvCPU and %vGiB memory could ",
+			r1.numCores.Float64, r1.numCores.Float64*r1.memPerCore.Float64)
+
 		for i, table := range sourceTableMetadata {
 			// check if current table has any indexes and fetch all indexes
 			indexesOfTable, indexesSizeSum, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
@@ -259,25 +254,57 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 				colocatedObjects = append(colocatedObjects, indexesOfTable...)
 
 			} else {
+				allObjectsColocated = false
+				if neededCores > r1.numCores.Float64 {
+					currentReasoning = "Max throughput for instance type reached: " + currentReasoning +
+						fmt.Sprintf("support %v objects with which require %v select ops/sec and %v insert "+
+							"ops/sec in total. ", len(colocatedObjects),
+							cumulativeSelectOpsPerSec-table.ReadsPerSec-indexReads,
+							cumulativeInsertOpsPerSec-table.WritesPerSec-indexWrites)
+				}
+				if cumulativeObjectCount > r1.maxSupportedNumTables.Int64 {
+					currentReasoning = "Max supported number of tables reached: " + currentReasoning +
+						fmt.Sprintf("support %v objects as colocated. ", len(colocatedObjects))
+				}
+				if cumulativeSizeSum > r1.maxColocatedSizeSupported.Float64 {
+					currentReasoning = "Max colocated database size reached: " + currentReasoning +
+						fmt.Sprintf("support %v objects with %v size as colocated. ",
+							len(colocatedObjects), cumulativeSizeSum-objectTotalSize)
+				}
+
 				if previousCores.numCores.Float64 != -1 {
-					return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil, nil
+					return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil, previousReasoning, nil
 				} else {
 					var shardedObjects []SourceDBMetadata
+					var cumulativeSizeSharded float64 = 0
+					var cumulativeReadsSharded int64 = 0
+					var cumulativeWritesSharded int64 = 0
 
 					for _, remainingTable := range sourceTableMetadata[i:] {
 						shardedObjects = append(shardedObjects, remainingTable)
 						// fetch all associated indexes
-						indexesOfShardedTable, _, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
+						indexesOfShardedTable, indexesSizeSumSharded, cumulativeSelectsIdx, cumulativeInsertsIdx :=
+							checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
 						shardedObjects = append(shardedObjects, indexesOfShardedTable...)
+						cumulativeSizeSharded += remainingTable.Size + indexesSizeSumSharded
+						cumulativeReadsSharded += remainingTable.ReadsPerSec + cumulativeSelectsIdx
+						cumulativeWritesSharded += remainingTable.WritesPerSec + cumulativeInsertsIdx
 					}
-
-					return colocatedObjects, cumulativeSizeSum - objectTotalSize, r1, shardedObjects, nil
+					currentReasoning += fmt.Sprintf("Rest %v objects with %0.4f GiB size and %v select ops/sec and"+
+						" %v write ops/sec requirement need to be migrated as sharded.", len(shardedObjects),
+						cumulativeSizeSharded, cumulativeReadsSharded, cumulativeWritesSharded)
+					return colocatedObjects, cumulativeSizeSum - objectTotalSize, r1, shardedObjects, currentReasoning, nil
 				}
 			}
 		}
+		previousReasoning = currentReasoning
+		if allObjectsColocated {
+			previousReasoning += fmt.Sprintf("all %v objects of size %0.4fGB as colocated",
+				len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
+		}
 		previousCores = r1
 	}
-	return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil, nil
+	return append(sourceTableMetadata, sourceIndexMetadata...), totalSourceDBSize, previousCores, nil, previousReasoning, nil
 }
 
 /*
@@ -286,12 +313,13 @@ table limits and throughput data. It checks table limits to determine the maximu
 given number of sharded objects. The function calculates aggregate select and write throughput data for the sharded
 objects and then analyzes the throughput data to generate additional recommendations. It calculates optimal connections
 per node, considering the supported CPU cores, and updates the global report structure with the calculated values.
-Additionally, the function estimates the migration time for sharded objects and adds it to the total migration time in
+Additionally, the function estimates the import time for sharded objects and adds it to the total import time in
 the report.
 Parameters:
 
 	shardedObjectMetadata: A slice containing metadata for sharded objects.
-	shardedObjectsSize: The total size of sharded objects in gigabytes.
+	numColocatedObjects: Total number of colocated objects.
+	coresToUse: cores to use for sizing recommendation.
 
 Returns:
 
@@ -299,7 +327,7 @@ Returns:
 	int64: optimal select connections per node recommendation
 	int64: optimal insert connections per node recommendation
 */
-func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, shardedObjectsSize float64,
+func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, numColocatedObjects int,
 	coresToUse ExpDataColocatedLimit) (float64, int64, int64, error) {
 	// 3 is the minimum number of nodes recommended
 	var numNodes float64 = 3
@@ -308,7 +336,8 @@ func generateSizingRecommendations(shardedObjectMetadata []SourceDBMetadata, sha
 
 	if len(shardedObjectMetadata) > 0 {
 		// table limit check
-		arrayOfSupportedCores, err := checkTableLimits(len(shardedObjectMetadata), coresToUse.numCores.Float64)
+		arrayOfSupportedCores, err :=
+			checkTableLimits(len(shardedObjectMetadata), coresToUse.numCores.Float64, numColocatedObjects)
 		if err != nil {
 			return numNodes, 0, 0, fmt.Errorf("check table limits: %w", err)
 		}
@@ -387,13 +416,14 @@ retrieved data by the number of CPU cores. The function returns a slice containi
 the specified conditions. If no suitable CPU core values are found, it returns nil.
 Parameters:
 
-	reqTables: The required number of tables for which CPU core limits need to be checked.
+	numShardedObjects: The required number of tables for which CPU core limits need to be checked.
+	numColocatedObjects: The number of colocated objects. Only used for reasoning in this function.
 
 Returns:
 
 	[]int: A slice containing the number of CPU cores that meet the criteria for supporting the specified number of tables.
 */
-func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) {
+func checkTableLimits(numShardedObjects int, coresPerNode float64, numColocatedObjects int) ([]int, error) {
 	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
 	selectQuery := fmt.Sprintf(`
 			SELECT num_cores 
@@ -403,7 +433,7 @@ func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) 
 				AND dimension LIKE '%%TableLimits-3nodeRF=3%%' 
 			ORDER BY num_cores
 		`, SHARDED_SIZING_TABLE)
-	rows, err := ExperimentDB.Query(selectQuery, sourceDBObjects, coresPerNode)
+	rows, err := ExperimentDB.Query(selectQuery, numShardedObjects, coresPerNode)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
 	}
@@ -429,7 +459,8 @@ func checkTableLimits(sourceDBObjects int, coresPerNode float64) ([]int, error) 
 	if len(valuesArray) > 0 {
 		return valuesArray, nil
 	} else {
-		return nil, fmt.Errorf("cannot support %v objects", sourceDBObjects)
+		return nil, fmt.Errorf("cannot support %v colocated objects and %v sharded objects",
+			numColocatedObjects, numShardedObjects)
 	}
 }
 
@@ -493,24 +524,24 @@ func getThroughputData(selectThroughput int64, writeThroughput int64, numCores f
 }
 
 /*
-calculateTimeTakenAndParallelThreadsForMigration estimates the time taken for migration of database objects based on their type, size,
+calculateTimeTakenAndParallelThreadsForImport estimates the time taken for import of database objects based on their type, size,
 and the specified CPU and memory configurations. It calculates the total size of the database objects to be migrated,
-then queries experimental data to find migration time estimates for similar object sizes and configurations. The
-function adjusts the migration time based on the ratio of the total size of the objects to be migrated to the maximum
-size found in the experimental data. The migration time is then converted from seconds to minutes and returned.
+then queries experimental data to find import time estimates for similar object sizes and configurations. The
+function adjusts the import time based on the ratio of the total size of the objects to be migrated to the maximum
+size found in the experimental data. The import time is then converted from seconds to minutes and returned.
 Parameters:
 
 	objectType: A string indicating the type of database objects to be migrated (e.g., "colocated" or "sharded").
 	dbObjects: A slice containing metadata for the database objects to be migrated.
-	vCPUPerInstance: The number of virtual CPUs per instance used for migration.
-	memPerCore: The memory allocated per CPU core used for migration.
+	vCPUPerInstance: The number of virtual CPUs per instance used for import.
+	memPerCore: The memory allocated per CPU core used for import.
 
 Returns:
 
-	float64: The estimated time taken for migration in minutes.
-	int64: Total parallel threads used for migration.
+	float64: The estimated time taken for import in minutes.
+	int64: Total parallel threads used for import.
 */
-func calculateTimeTakenAndParallelThreadsForMigration(tableName string, dbObjects []SourceDBMetadata,
+func calculateTimeTakenAndParallelThreadsForImport(tableName string, dbObjects []SourceDBMetadata,
 	vCPUPerInstance float64, memPerCore float64) (float64, int64, error) {
 	// the total size of colocated objects
 	var size float64 = 0
@@ -547,12 +578,12 @@ func calculateTimeTakenAndParallelThreadsForMigration(tableName string, dbObject
 		if err == sql.ErrNoRows {
 			log.Errorf("No rows were returned by the query to experiment table: sharded_load_time")
 		} else {
-			return 0.0, 0, fmt.Errorf("error while fetching migration time info with query [%s]: %w", selectQuery, err)
+			return 0.0, 0, fmt.Errorf("error while fetching import time info with query [%s]: %w", selectQuery, err)
 		}
 	}
 
-	migrationTime := ((timeTakenOfFetchedRow * size) / maxSizeOfFetchedRow) / 60
-	return math.Ceil(migrationTime), parallelThreads, nil
+	importTime := ((timeTakenOfFetchedRow * size) / maxSizeOfFetchedRow) / 60
+	return math.Ceil(importTime), parallelThreads, nil
 }
 
 /*

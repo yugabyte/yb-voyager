@@ -28,7 +28,7 @@ var AssessmentMetadataDir string
 
 type Record map[string]any
 
-var SizingReport *SizingAssessmentReport
+var SizingReport = &SizingAssessmentReport{}
 
 type SizingAssessmentReport struct {
 	ColocatedTables                 []string
@@ -39,9 +39,8 @@ type SizingAssessmentReport struct {
 	MemoryPerInstance               float64
 	OptimalSelectConnectionsPerNode int64
 	OptimalInsertConnectionsPerNode int64
-	MigrationTimeTakenInMin         float64
-	ParallelVoyagerThreadsSharded   int64
-	ParallelVoyagerThreadsColocated int64
+	ImportTimeTakenInMin            float64
+	ParallelVoyagerThreads          float64
 	FailureReasoning                string
 }
 
