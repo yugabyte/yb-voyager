@@ -104,6 +104,7 @@
             {{with .Sizing}}
             <h2>Sharding Recommendations</h2>
                 {{ if eq .FailureReasoning "" }}
+                    {{ with .SizingRecommendation }}
                         <table>
                             <tr>
                                 <th>Colocated Tables</th>
@@ -130,6 +131,7 @@
                         </table>
                     <h3>Reasoning: </h3>
                     <p>{{ .ColocatedReasoning }}</p>
+                {{ end }}
                 {{else}}
                     <p>Could not perform sizing assessment:  {{ .FailureReasoning }}</p>
                 {{ end }}

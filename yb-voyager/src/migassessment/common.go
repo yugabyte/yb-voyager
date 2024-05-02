@@ -30,7 +30,7 @@ type Record map[string]any
 
 var SizingReport = &SizingAssessmentReport{}
 
-type SizingAssessmentReport struct {
+type SizingRecommendation struct {
 	ColocatedTables                 []string
 	ColocatedReasoning              string
 	ShardedTables                   []string
@@ -41,7 +41,11 @@ type SizingAssessmentReport struct {
 	OptimalInsertConnectionsPerNode int64
 	ImportTimeTakenInMin            float64
 	ParallelVoyagerThreads          float64
-	FailureReasoning                string
+}
+
+type SizingAssessmentReport struct {
+	SizingRecommendation SizingRecommendation
+	FailureReasoning     string
 }
 
 func LoadCSVDataFile[T any](filePath string) ([]*T, error) {

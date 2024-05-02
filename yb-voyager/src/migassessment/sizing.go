@@ -71,7 +71,6 @@ var ExperimentDB *sql.DB
 var experimentData20240 []byte
 
 func SizingAssessment() error {
-	SizingReport = &SizingAssessmentReport{}
 
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := loadSourceMetadata()
@@ -86,7 +85,7 @@ func SizingAssessment() error {
 		return fmt.Errorf("failed to connect to experiment data: %w", err)
 	}
 
-	colocatedObjects, _, coresToUse, shardedObjects, shardingReasoning, err :=
+	colocatedObjects, _, coresToUse, shardedObjects, reasoning, err :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error generating sharding recommendations: %v", err)
@@ -118,17 +117,19 @@ func SizingAssessment() error {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded objects import: %v", err)
 		return fmt.Errorf("calculate time taken for sharded objects import: %w", err)
 	}
-
-	SizingReport.ColocatedTables = fetchObjectNames(colocatedObjects)
-	SizingReport.ShardedTables = fetchObjectNames(shardedObjects)
-	SizingReport.VCPUsPerInstance = coresToUse.numCores.Float64
-	SizingReport.MemoryPerInstance = coresToUse.numCores.Float64 * coresToUse.memPerCore.Float64
-	SizingReport.NumNodes = numNodes
-	SizingReport.OptimalSelectConnectionsPerNode = optimalSelectConnections
-	SizingReport.OptimalInsertConnectionsPerNode = optimalInsertConnections
-	SizingReport.ParallelVoyagerThreads = math.Min(float64(parallelThreadsColocated), float64(parallelThreadsSharded))
-	SizingReport.ColocatedReasoning = shardingReasoning
-	SizingReport.ImportTimeTakenInMin = importTimeForColocatedObjects + importTimeForShardedObjects
+	sizingRecommendation := &SizingRecommendation{
+		ColocatedTables:                 fetchObjectNames(colocatedObjects),
+		ShardedTables:                   fetchObjectNames(shardedObjects),
+		VCPUsPerInstance:                coresToUse.numCores.Float64,
+		MemoryPerInstance:               coresToUse.numCores.Float64 * coresToUse.memPerCore.Float64,
+		NumNodes:                        numNodes,
+		OptimalSelectConnectionsPerNode: optimalSelectConnections,
+		OptimalInsertConnectionsPerNode: optimalInsertConnections,
+		ParallelVoyagerThreads:          math.Min(float64(parallelThreadsColocated), float64(parallelThreadsSharded)),
+		ColocatedReasoning:              reasoning,
+		ImportTimeTakenInMin:            importTimeForColocatedObjects + importTimeForShardedObjects,
+	}
+	SizingReport.SizingRecommendation = *sizingRecommendation
 
 	return nil
 }
@@ -299,7 +300,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		}
 		previousReasoning = currentReasoning
 		if allObjectsColocated {
-			previousReasoning += fmt.Sprintf("all %v objects of size %0.4fGB as colocated",
+			previousReasoning += fmt.Sprintf("fit all %v objects of size %0.4fGB as colocated",
 				len(sourceTableMetadata)+len(sourceIndexMetadata), totalSourceDBSize)
 		}
 		previousCores = r1
