@@ -19,12 +19,14 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var AssessmentMetadataDir string
+var AssessmentDir string
 
 type Record map[string]any
 

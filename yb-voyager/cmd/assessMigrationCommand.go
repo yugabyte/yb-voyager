@@ -116,6 +116,8 @@ func assessMigration() (err error) {
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
+	assessmentDir := filepath.Join(exportDir, "assessment")
+	migassessment.AssessmentDir = assessmentDir
 	migassessment.AssessmentMetadataDir = assessmentMetadataDir
 	initAssessmentDB() // Note: migassessment.AssessmentDataDir needs to be set beforehand
 
@@ -180,20 +182,24 @@ func runAssessment() error {
 
 func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
-	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", "assessmentReport.*")
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
-	assessmentDB := filepath.Join(assessmentMetadataDir, "assessment.DB")
+	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.DB")
 
-	assessmentAlreadyDone := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExists(assessmentDB)
+	assessmentAlreadyDone := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
+	utils.PrintAndLog("metadataDirPassedByUser: %v", metadataDirPassedByUser)
+	utils.PrintAndLog("Assessment already done: %v", assessmentAlreadyDone)
 	if !metadataDirPassedByUser {
 		assessmentAlreadyDone = assessmentAlreadyDone || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
 			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
 	}
+	utils.PrintAndLog("Assessment already done: %v", assessmentAlreadyDone)
 	if assessmentAlreadyDone {
 		if startClean {
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "metadata"))
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
+			utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
+			utils.CleanDir(filepath.Join(assessmentDir, "reports"))
+			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
 		} else {
 			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
 		}
