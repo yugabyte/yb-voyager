@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
@@ -76,7 +77,7 @@ WHERE c.relname = '%s' AND n.nspname = '%s' AND a.attname NOT IN ('tableoid', 'c
 type PostgreSQL struct {
 	source *Source
 
-	db *pgx.Conn
+	db *sql.DB
 }
 
 func newPostgreSQL(s *Source) *PostgreSQL {
@@ -84,7 +85,9 @@ func newPostgreSQL(s *Source) *PostgreSQL {
 }
 
 func (pg *PostgreSQL) Connect() error {
-	db, err := pgx.Connect(context.Background(), pg.getConnectionUri())
+	db, err := sql.Open("pgx", pg.getConnectionUri())
+	db.SetMaxOpenConns(1)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 	pg.db = db
 	return err
 }
@@ -95,7 +98,7 @@ func (pg *PostgreSQL) Disconnect() {
 		return
 	}
 
-	err := pg.db.Close(context.Background())
+	err := pg.db.Close()
 	if err != nil {
 		log.Infof("Failed to close connection to the source database: %s", err)
 	}
@@ -106,17 +109,17 @@ func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 }
 
 func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
-	// new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
-	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
-	if err != nil {
-		utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
-	}
-	defer conn.Close(context.Background())
+	// // new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
+	// conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
+	// if err != nil {
+	// 	utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
+	// }
+	// defer conn.Close(context.Background())
 
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 	log.Infof("Querying row count of table %q", tableName)
-	err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
+	err := pg.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
 		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
 	}
@@ -130,7 +133,7 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 		"where oid = '%s'::regclass", tableName.ForOutput())
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
-	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
+	err := pg.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
 		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
 	}
@@ -142,7 +145,7 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 func (pg *PostgreSQL) GetVersion() string {
 	var version string
 	query := "SELECT setting from pg_settings where name = 'server_version'"
-	err := pg.db.QueryRow(context.Background(), query).Scan(&version)
+	err := pg.db.QueryRow(query).Scan(&version)
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
@@ -162,7 +165,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	querySchemaList := "'" + strings.Join(trimmedList, "','") + "'"
 	chkSchemaExistsQuery := fmt.Sprintf(`SELECT schema_name
 	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
-	rows, err := pg.db.Query(context.Background(), chkSchemaExistsQuery)
+	rows, err := pg.db.Query(chkSchemaExistsQuery)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for checking mentioned schema(s) present or not: %v\n", chkSchemaExistsQuery, err)
 	}
@@ -191,7 +194,7 @@ func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema = '%s';`, schemaName)
 
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for table names: %w", query, err)
 	}
@@ -219,7 +222,7 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema IN (%s);`, querySchemaList)
 
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
 	}
@@ -392,7 +395,7 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
 	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
 	}
@@ -413,7 +416,7 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 func (pg *PostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	var sequenceNames []string
 	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences where schemaname = '%s';`, schemaName)
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
 	}
@@ -436,7 +439,7 @@ func (pg *PostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
 func (pg *PostgreSQL) GetCharset() (string, error) {
 	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", pg.source.DBName)
 	encoding := ""
-	err := pg.db.QueryRow(context.Background(), query).Scan(&encoding)
+	err := pg.db.QueryRow(query).Scan(&encoding)
 	if err != nil {
 		return "", fmt.Errorf("error in querying database encoding: %w", err)
 	}
@@ -453,7 +456,7 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 	for _, tableName := range tableList {
 		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.ForUserQuery())
 		var empty bool
-		err := pg.db.QueryRow(context.Background(), query).Scan(&empty)
+		err := pg.db.QueryRow(query).Scan(&empty)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				empty = true
@@ -474,7 +477,7 @@ func (pg *PostgreSQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []
 	var columns, dataTypes, dataTypesOwner []string
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, sname, tname)
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
 	}
@@ -531,7 +534,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
 	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
 
-	err := pg.db.QueryRow(context.Background(), query).Scan(&parentTable)
+	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != pgx.ErrNoRows && err != nil {
 		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
 	}
@@ -548,7 +551,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, sname, tname)
 
 		var columeName, sequenceName, schemaName string
-		rows, err := pg.db.Query(context.Background(), query)
+		rows, err := pg.db.Query(query)
 		if err != nil {
 			log.Infof("Query to find column to sequence mapping: %s", query)
 			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
@@ -619,7 +622,7 @@ FROM pg_inherits
     JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
 WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
 		utils.ErrExit("failed to find the partitions for table %s:", tableName, err)
@@ -652,7 +655,7 @@ func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 	querySchemaList = lo.Uniq(querySchemaList)
 	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
 	log.Infof("query to get unique key columns: %s", query)
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("querying unique key columns: %w", err)
 	}
@@ -753,14 +756,14 @@ func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName str
 }
 
 func (pg *PostgreSQL) DropPublication(publicationName string) error {
-	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
-	if err != nil {
-		utils.ErrExit("failed to connect to the source database for dropping publication: %s", err)
-	}
-	defer conn.Close(context.Background())
+	// conn, err := pgx.Connect(pg.getConnectionUri())
+	// if err != nil {
+	// 	utils.ErrExit("failed to connect to the source database for dropping publication: %s", err)
+	// }
+	// defer conn.Close(context.Background())
 
 	log.Infof("dropping publication: %s", publicationName)
-	res, err := conn.Exec(context.Background(), fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
+	res, err := pg.db.Exec(fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
 	log.Infof("drop publication result: %v", res)
 	if err != nil {
 		return fmt.Errorf("drop publication(%s): %v", publicationName, err)
@@ -779,7 +782,7 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	schemaList := strings.Split(pg.source.Schema, "|")
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for primary key: %v", query, err)
 	}
@@ -812,7 +815,7 @@ func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.Na
     WHERE (n.nspname || '.' || c.relname) IN (%s)
     AND c.relkind = 'r'
     AND c.relreplident <> 'f';`, strings.Join(qualifiedTableNames, ","))
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(query)
 	if err != nil {
 		return fmt.Errorf("error in querying(%q) source database for replica identity: %v", query, err)
 	}
