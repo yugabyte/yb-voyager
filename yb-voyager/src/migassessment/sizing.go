@@ -270,7 +270,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 				}
 				if cumulativeSizeSum > r1.maxColocatedSizeSupported.Float64 {
 					currentReasoning = "Max colocated database size reached: " + currentReasoning +
-						fmt.Sprintf("support %v objects with %0.4f size as colocated. ",
+						fmt.Sprintf("support %v objects with %0.4f GB size as colocated. ",
 							len(colocatedObjects), cumulativeSizeSum-objectTotalSize)
 				}
 
@@ -292,7 +292,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 						cumulativeReadsSharded += remainingTable.ReadsPerSec + cumulativeSelectsIdx
 						cumulativeWritesSharded += remainingTable.WritesPerSec + cumulativeInsertsIdx
 					}
-					currentReasoning += fmt.Sprintf("Rest %v objects with %0.4f GiB size and %v select ops/sec and"+
+					currentReasoning += fmt.Sprintf("Rest %v objects with %0.4f GB size and %v select ops/sec and"+
 						" %v write ops/sec requirement need to be migrated as sharded.", len(shardedObjects),
 						cumulativeSizeSharded, cumulativeReadsSharded, cumulativeWritesSharded)
 					return colocatedObjects, cumulativeSizeSum - objectTotalSize, r1, shardedObjects, currentReasoning, nil
