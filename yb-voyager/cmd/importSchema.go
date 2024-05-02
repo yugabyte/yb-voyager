@@ -119,7 +119,7 @@ func importSchema() {
 	}
 
 	if !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
-		"Use a colocated databse if your schema contains colocated tables. Do you still want to continue") {
+		"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
 		utils.ErrExit("Exiting...")
 	}
 
