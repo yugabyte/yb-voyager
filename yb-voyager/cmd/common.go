@@ -944,9 +944,9 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 
 type AssessmentReport struct {
 	SchemaSummary        utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing               *migassessment.SizingAssessmentReport `json:"Sizing"`
 	UnsupportedDataTypes []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
 	UnsupportedFeatures  []UnsupportedFeature                  `json:"UnsupportedFeatures"`
-	Sizing               *migassessment.SizingAssessmentReport `json:"Sizing"`
 	TableIndexStats      *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 }
 

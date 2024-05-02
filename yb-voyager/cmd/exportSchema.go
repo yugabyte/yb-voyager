@@ -232,9 +232,9 @@ func applyMigrationAssessmentRecommendations() error {
 
 	shardedTables, err := report.GetShardedTablesRecommendation()
 	if err != nil {
-		log.Warnf("GetShardedTablesRecommendation: %v", err)
+		return fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
 	} else {
-		err := applyColocatedVsShardedTableRecommendation(shardedTables)
+		err := applyShardedTablesRecommendation(shardedTables)
 		if err != nil {
 			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
@@ -243,7 +243,12 @@ func applyMigrationAssessmentRecommendations() error {
 	return nil
 }
 
-func applyColocatedVsShardedTableRecommendation(shardedTables []string) error {
+func applyShardedTablesRecommendation(shardedTables []string) error {
+	if shardedTables == nil {
+		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
+		return nil
+	}
+
 	filePath := utils.GetObjectFilePath(schemaDir, "TABLE")
 	if !utils.FileOrFolderExists(filePath) {
 		utils.PrintAndLog("Required schema file %s does not exists, returning without applying Colocated/Sharded Tables recommendation", filePath)
