@@ -267,7 +267,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 				allObjectsColocated = false
 				if neededCores > r1.numCores.Float64 {
 					currentReasoning = "Max throughput for instance type reached: " + currentReasoning +
-						fmt.Sprintf("support %v objects with which require %v select ops/sec and %v insert "+
+						fmt.Sprintf("support %v objects which require %v select ops/sec and %v insert "+
 							"ops/sec in total. ", len(colocatedObjects),
 							cumulativeSelectOpsPerSec-table.ReadsPerSec-indexReads,
 							cumulativeInsertOpsPerSec-table.WritesPerSec-indexWrites)

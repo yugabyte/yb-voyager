@@ -138,6 +138,7 @@ func assessMigration() (err error) {
 	err = GenerateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
 		log.Errorf("failed to run assessment: %v", err)
+		fmt.Printf("failed to run assessment: %v", err)
 	}
 	err = generateAssessmentReportHtml(assessmentReportDir)
 	if err != nil {
