@@ -42,7 +42,8 @@ volume_dirs=("--export-dir"
 "--source-ssl-key" 
 "--source-ssl-root-cert"
 "--table-list-file-path"
-"--exclude-table-list-file-path")
+"--exclude-table-list-file-path"
+"--assessment-metadata-dir")
 
 # Loop through the array and capture the environment variables
 for var_name in "${variables[@]}"; do
