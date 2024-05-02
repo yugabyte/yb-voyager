@@ -28,7 +28,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
-	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mcuadros/go-version"
 	"github.com/samber/lo"
@@ -458,7 +457,7 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 		var empty bool
 		err := pg.db.QueryRow(query).Scan(&empty)
 		if err != nil {
-			if err == pgx.ErrNoRows {
+			if err == sql.ErrNoRows {
 				empty = true
 			} else {
 				utils.ErrExit("error in querying table %v: %v", tableName, err)
@@ -535,7 +534,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
-	if err != pgx.ErrNoRows && err != nil {
+	if err != sql.ErrNoRows && err != nil {
 		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
 	}
 
