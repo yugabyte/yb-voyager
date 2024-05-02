@@ -20,12 +20,13 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"io"
 	"math"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -628,7 +629,7 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 		var metadata SourceDBMetadata
 		if err := rows.Scan(&metadata.SchemaName, &metadata.ObjectName, &metadata.RowCount, &metadata.ReadsPerSec, &metadata.WritesPerSec,
 			&metadata.IsIndex, &metadata.ParentTableName, &metadata.Size); err != nil {
-			log.Fatal(err)
+			return nil, nil, 0.0, fmt.Errorf("failed to read from result set of query source metadata [%s]: %w", query, err)
 		}
 		// convert bytes to GB
 		metadata.Size = utils.BytesToGB(metadata.Size)

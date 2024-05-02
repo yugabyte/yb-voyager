@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	"github.com/goccy/go-json"
-
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 
@@ -418,6 +417,10 @@ func NewEventBatch(events []*Event, chanNo int) *EventBatch {
 
 func (eb *EventBatch) GetLastVsn() int64 {
 	return eb.Events[len(eb.Events)-1].Vsn
+}
+
+func (eb *EventBatch) ID() string {
+	return fmt.Sprintf("%d:%d", eb.Events[0].Vsn, eb.GetLastVsn())
 }
 
 func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) string {
