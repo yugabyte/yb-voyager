@@ -105,7 +105,7 @@ func assessMigration() (err error) {
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
-	checkStartCleanForAssessMigration()
+	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	err = retrieveMigrationUUID()
@@ -178,17 +178,19 @@ func runAssessment() error {
 	return nil
 }
 
-func checkStartCleanForAssessMigration() {
+func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
 	assessmentDB := filepath.Join(assessmentMetadataDir, "assessment.DB")
 
-	if utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
-		utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) ||
-		utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern) ||
-		utils.FileOrFolderExists(assessmentDB) {
+	assessmentAlreadyDone := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExists(assessmentDB)
+	if !metadataDirPassedByUser {
+		assessmentAlreadyDone = assessmentAlreadyDone || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
+			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
+	}
+	if assessmentAlreadyDone {
 		if startClean {
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "metadata"))
 			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
