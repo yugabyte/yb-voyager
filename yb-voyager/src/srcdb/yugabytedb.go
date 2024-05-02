@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -475,7 +474,7 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 		var empty bool
 		err := yb.db.QueryRow(query).Scan(&empty)
 		if err != nil {
-			if err == pgx.ErrNoRows {
+			if err == sql.ErrNoRows {
 				empty = true
 			} else {
 				utils.ErrExit("error in querying table %v: %v", tableName, err)
@@ -581,7 +580,7 @@ func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {
 	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
 
 	err := yb.db.QueryRow(query).Scan(&parentTable)
-	if err != pgx.ErrNoRows && err != nil {
+	if err != sql.ErrNoRows && err != nil {
 		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
 	}
 
