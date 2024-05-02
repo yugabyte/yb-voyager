@@ -104,6 +104,7 @@
             {{with .Sizing}}
             <h2>Sharding Recommendations</h2>
                 {{ if eq .FailureReasoning "" }}
+                    {{ with .SizingRecommendation }}
                         <table>
                             <tr>
                                 <th>Colocated Tables</th>
@@ -125,12 +126,12 @@
                             <tr><td>Memory per instance(GiB)</td><td>{{ .MemoryPerInstance }}</td></tr>
                             <tr><td>Optimal select connections per node</td><td>{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{else}}{{.OptimalSelectConnectionsPerNode }}{{end}}</td></tr>
                             <tr><td>Optimal insert connections per node</td><td>{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{else}}{{.OptimalInsertConnectionsPerNode}}{{end}}</td></tr>
-                            <tr><td>Parallel Voyager Threads for Colocated</td><td>{{ .ParallelVoyagerThreadsColocated }}</td></tr>
-                            <tr><td>Parallel Voyager Threads for Sharded</td><td>{{ .ParallelVoyagerThreadsSharded }}</td></tr>
-                            <tr><td>Estimated time taken for migration </td><td>{{ .MigrationTimeTakenInMin }} min</td></tr>
+                            <tr><td>Parallel Voyager Threads</td><td>{{ .ParallelVoyagerThreads }}</td></tr>
+                            <tr><td>Estimated time taken for data import </td><td>{{ .ImportTimeTakenInMin }} min</td></tr>
                         </table>
                     <h3>Reasoning: </h3>
                     <p>{{ .ColocatedReasoning }}</p>
+                {{ end }}
                 {{else}}
                     <p>Could not perform sizing assessment:  {{ .FailureReasoning }}</p>
                 {{ end }}

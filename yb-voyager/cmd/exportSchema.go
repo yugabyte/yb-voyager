@@ -258,7 +258,7 @@ func applyColocatedVsShardedTableRecommendation(shardingReport *migassessment.Si
 			lastStmtSetOrSelect = true
 		} else {
 			if createTableRegex.MatchString(sqlInfo.stmt) &&
-				slices.Contains(shardingReport.ShardedTables, sqlInfo.objName) {
+				slices.Contains(shardingReport.SizingRecommendation.ShardedTables, sqlInfo.objName) {
 				newSQL = applyShardingRecommendation(sqlInfo, lastStmtSetOrSelect)
 			} else {
 				newSQL = appendSpacing(newSQL, lastStmtSetOrSelect)
