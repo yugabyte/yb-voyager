@@ -310,3 +310,11 @@ func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 
 	return &stats, nil
 }
+
+func (adb *AssessmentDB) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	rows, err := adb.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error executing query-%s: %w", query, err)
+	}
+	return rows, nil
+}
