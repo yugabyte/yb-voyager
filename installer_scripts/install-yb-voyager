@@ -838,8 +838,8 @@ ubuntu_install_oic() {
 		echo "$1 is already installed."
 	else
 		rpm_name="$1-21.5.0.0.0-1.x86_64.rpm"
-		wget -nv https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name} 1>&2
-		sudo alien -i ${rpm_name} 1>&2
+		wget -nv https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name}
+		sudo alien -i ${rpm_name}
 		rm ${rpm_name}
 	fi
 }
