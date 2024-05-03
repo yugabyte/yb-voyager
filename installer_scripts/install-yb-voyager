@@ -823,25 +823,15 @@ ubuntu_install_postgres() {
 
 ubuntu_install_oracle_instant_clients() {
 	output "Installing Oracle Instant Clients."
-	sudo apt-get -y install alien 1>&2
-	ubuntu_install_oic oracle-instantclient-tools
-	ubuntu_install_oic oracle-instantclient-basic
-	ubuntu_install_oic oracle-instantclient-devel
-	ubuntu_install_oic oracle-instantclient-jdbc
-	ubuntu_install_oic oracle-instantclient-sqlplus
+	wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
+	sudo apt-get install ./yb-apt-repo_1.0.0_all.deb
+	sudo apt-get update
+	sudo apt-get install oracle-instantclient-tools=21.5.0.0.0-1
+	sudo apt-get install oracle-instantclient-basic=21.5.0.0.0-1
+	sudo apt-get install oracle-instantclient-devel=21.5.0.0.0-1
+	sudo apt-get install oracle-instantclient-jdbc=21.5.0.0.0-1
+	sudo apt-get install oracle-instantclient-sqlplus=21.5.0.0.0-1
 	output "Installed Oracle Instance Clients."
-}
-
-ubuntu_install_oic() {
-	if dpkg -l | grep -q -w $1
-	then
-		echo "$1 is already installed."
-	else
-		rpm_name="$1-21.5.0.0.0-1.x86_64.rpm"
-		wget -nv https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name}
-		sudo alien -i ${rpm_name}
-		rm ${rpm_name}
-	fi
 }
 
 #=============================================================================
