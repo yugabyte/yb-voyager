@@ -155,7 +155,7 @@ func assessMigration() (err error) {
 
 func SetMigrationAssessmentDoneInMSR() error {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.IsMigrationAssessmentDone = true
+		record.MigrationAssessmentDone = true
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update migration status record with migration assessment done flag: %w", err)
@@ -168,7 +168,7 @@ func IsMigrationAssessmentDone() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to get migration status record: %w", err)
 	}
-	return record.IsMigrationAssessmentDone, nil
+	return record.MigrationAssessmentDone, nil
 }
 
 func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
