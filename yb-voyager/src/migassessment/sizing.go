@@ -295,6 +295,9 @@ func getSupportedInstanceForSizeAndCountOfObjects(sourceTableMetadata []SourceDB
 func getShardingRecommendation(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
 	numCoresSupported []ExpDataColocatedLimit, numColocatedObjectsSupported int) ([]SourceDBMetadata, ExpDataColocatedLimit, []SourceDBMetadata, string, error) {
 	var previousReasoning string
+	var shardedObjectsTopLevel []SourceDBMetadata
+	var colocatedObjectsTopLevel []SourceDBMetadata
+
 	previousCores := ExpDataColocatedLimit{
 		maxColocatedSizeSupported:  sql.NullFloat64{Float64: -1, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: -1, Valid: true},
@@ -311,6 +314,7 @@ func getShardingRecommendation(sourceTableMetadata []SourceDBMetadata, sourceInd
 		var colocatedObjects []SourceDBMetadata
 		var currentReasoning string
 		var allObjectsColocated = true
+
 		fmt.Println("Operating on core: ", r1.numCores.Float64)
 		currentReasoning = fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could ",
 			r1.numCores.Float64, r1.numCores.Float64*r1.memPerCore.Float64)
@@ -334,34 +338,31 @@ func getShardingRecommendation(sourceTableMetadata []SourceDBMetadata, sourceInd
 			}
 		}
 
-		if numTablesColocated < numColocatedObjectsSupported {
+		if numTablesColocated > 0 && numTablesColocated < len(sourceTableMetadata) {
 			allObjectsColocated = false
+			var cumulativeSizeSharded float64 = 0
+			var cumulativeReadsSharded int64 = 0
+			var cumulativeWritesSharded int64 = 0
+			var shardedObjects []SourceDBMetadata
 
-			if previousCores.numCores.Float64 != -1 {
-				return append(sourceTableMetadata, sourceIndexMetadata...), previousCores, nil, previousReasoning, nil
-			} else {
-				var shardedObjects []SourceDBMetadata
-				var cumulativeSizeSharded float64 = 0
-				var cumulativeReadsSharded int64 = 0
-				var cumulativeWritesSharded int64 = 0
-
-				for _, remainingTable := range sourceTableMetadata[numTablesColocated:] {
-					fmt.Printf("adding table %v as sharded\n", remainingTable.ObjectName)
-					shardedObjects = append(shardedObjects, remainingTable)
-					// fetch all associated indexes
-					indexesOfShardedTable, indexesSizeSumSharded, cumulativeSelectsIdx, cumulativeInsertsIdx :=
-						checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
-					shardedObjects = append(shardedObjects, indexesOfShardedTable...)
-					cumulativeSizeSharded += remainingTable.Size + indexesSizeSumSharded
-					cumulativeReadsSharded += remainingTable.ReadsPerSec + cumulativeSelectsIdx
-					cumulativeWritesSharded += remainingTable.WritesPerSec + cumulativeInsertsIdx
-				}
-				currentReasoning += fmt.Sprintf("support %v objects as colocated. Rest %v objects with %0.4f GB size and %v select ops/sec and"+
-					" %v write ops/sec requirement need to be migrated as sharded.", len(colocatedObjects),
-					len(shardedObjects), cumulativeSizeSharded, cumulativeReadsSharded, cumulativeWritesSharded)
-				return colocatedObjects, r1, shardedObjects, currentReasoning, nil
+			for _, remainingTable := range sourceTableMetadata[numTablesColocated:] {
+				fmt.Printf("adding table %v as sharded\n", remainingTable.ObjectName)
+				shardedObjects = append(shardedObjects, remainingTable)
+				// fetch all associated indexes
+				indexesOfShardedTable, indexesSizeSumSharded, cumulativeSelectsIdx, cumulativeInsertsIdx :=
+					checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
+				shardedObjects = append(shardedObjects, indexesOfShardedTable...)
+				cumulativeSizeSharded += remainingTable.Size + indexesSizeSumSharded
+				cumulativeReadsSharded += remainingTable.ReadsPerSec + cumulativeSelectsIdx
+				cumulativeWritesSharded += remainingTable.WritesPerSec + cumulativeInsertsIdx
 			}
+			currentReasoning += fmt.Sprintf("support %v objects of size %0.4f as colocated. Rest %v objects with %0.4f GB size and %v select ops/sec and"+
+				" %v write ops/sec requirement need to be migrated as sharded.", len(colocatedObjects), calculateSize(colocatedObjects),
+				len(shardedObjects), cumulativeSizeSharded, cumulativeReadsSharded, cumulativeWritesSharded)
+			//return colocatedObjects, r1, shardedObjects, currentReasoning, nil
+			shardedObjectsTopLevel = shardedObjects
 		}
+		colocatedObjectsTopLevel = colocatedObjects
 		previousReasoning = currentReasoning
 		if allObjectsColocated {
 			previousReasoning += fmt.Sprintf("fit all %v objects as colocated",
@@ -369,7 +370,15 @@ func getShardingRecommendation(sourceTableMetadata []SourceDBMetadata, sourceInd
 		}
 		previousCores = r1
 	}
-	return append(sourceTableMetadata, sourceIndexMetadata...), previousCores, nil, previousReasoning, nil
+	return colocatedObjectsTopLevel, previousCores, shardedObjectsTopLevel, previousReasoning, nil
+}
+
+func calculateSize(colocatedObjects []SourceDBMetadata) float64 {
+	var size float64 = 0
+	for _, val := range colocatedObjects {
+		size += val.Size
+	}
+	return size
 }
 
 func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
