@@ -93,7 +93,7 @@ func assessMigration() (err error) {
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
-	checkStartCleanForAssessMigration()
+	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	err = retrieveMigrationUUID()
@@ -104,8 +104,9 @@ func assessMigration() (err error) {
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
-	migassessment.AssessmentMetadataDir = assessmentMetadataDir
-	initAssessmentDB() // Note: migassessment.AssessmentDataDir needs to be set beforehand
+	assessmentDir := filepath.Join(exportDir, "assessment")
+	migassessment.AssessmentDir = assessmentDir
+	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
 	err = gatherAssessmentMetadata()
 	if err != nil {
@@ -166,20 +167,24 @@ func runAssessment() error {
 	return nil
 }
 
-func checkStartCleanForAssessMigration() {
+func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
-	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", "assessmentReport.*")
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
-	assessmentDB := filepath.Join(assessmentMetadataDir, "assessment.DB")
+	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
 
-	if utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
-		utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) ||
-		utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern) ||
-		utils.FileOrFolderExists(assessmentDB) {
+	assessmentAlreadyDone := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
+	if !metadataDirPassedByUser {
+		assessmentAlreadyDone = assessmentAlreadyDone || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
+			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
+	}
+
+	if assessmentAlreadyDone {
 		if startClean {
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "metadata"))
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
+			utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
+			utils.CleanDir(filepath.Join(assessmentDir, "reports"))
+			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
 		} else {
 			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
 		}

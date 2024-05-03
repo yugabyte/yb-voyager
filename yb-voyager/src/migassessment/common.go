@@ -19,7 +19,7 @@ import (
 	"net/http"
 )
 
-var AssessmentMetadataDir string
+var AssessmentDir string
 
 type Record map[string]any
 

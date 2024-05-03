@@ -54,7 +54,7 @@ type TableIndexStats struct {
 }
 
 func GetSourceMetadataDBFilePath() string {
-	return filepath.Join(AssessmentMetadataDir, "assessment.db")
+	return filepath.Join(AssessmentDir, "dbs", "assessment.db")
 }
 
 func GetTableIndexStatName() string {
