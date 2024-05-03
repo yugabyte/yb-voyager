@@ -39,8 +39,8 @@ type SizingRecommendation struct {
 	MemoryPerInstance               float64
 	OptimalSelectConnectionsPerNode int64
 	OptimalInsertConnectionsPerNode int64
-	ImportTimeTakenInMin            float64
-	ParallelVoyagerThreads          float64
+	EstimatedTimeInMinForImport     float64
+	ParallelVoyagerJobs             float64
 }
 
 type SizingAssessmentReport struct {

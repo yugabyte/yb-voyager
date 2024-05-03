@@ -102,8 +102,8 @@ func SizingAssessment() error {
 	}
 
 	// calculate time taken for colocated import
-	importTimeForColocatedObjects, parallelThreadsColocated, err :=
-		calculateTimeTakenAndParallelThreadsForImport(COLOCATED_LOAD_TIME_TABLE, colocatedObjects,
+	importTimeForColocatedObjects, parallelVoyagerJobsColocated, err :=
+		calculateTimeTakenAndParallelJobsForImport(COLOCATED_LOAD_TIME_TABLE, colocatedObjects,
 			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated objects import: %v", err)
@@ -111,8 +111,8 @@ func SizingAssessment() error {
 	}
 
 	// calculate time taken for sharded import
-	importTimeForShardedObjects, parallelThreadsSharded, err :=
-		calculateTimeTakenAndParallelThreadsForImport(SHARDED_LOAD_TIME_TABLE, shardedObjects,
+	importTimeForShardedObjects, parallelVoyagerJobsSharded, err :=
+		calculateTimeTakenAndParallelJobsForImport(SHARDED_LOAD_TIME_TABLE, shardedObjects,
 			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded objects import: %v", err)
@@ -126,9 +126,9 @@ func SizingAssessment() error {
 		NumNodes:                        numNodes,
 		OptimalSelectConnectionsPerNode: optimalSelectConnections,
 		OptimalInsertConnectionsPerNode: optimalInsertConnections,
-		ParallelVoyagerThreads:          math.Min(float64(parallelThreadsColocated), float64(parallelThreadsSharded)),
+		ParallelVoyagerJobs:             math.Min(float64(parallelVoyagerJobsColocated), float64(parallelVoyagerJobsSharded)),
 		ColocatedReasoning:              reasoning,
-		ImportTimeTakenInMin:            importTimeForColocatedObjects + importTimeForShardedObjects,
+		EstimatedTimeInMinForImport:     importTimeForColocatedObjects + importTimeForShardedObjects,
 	}
 	SizingReport.SizingRecommendation = *sizingRecommendation
 
@@ -232,7 +232,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
 			return nil, 0.0, ExpDataColocatedLimit{}, nil, previousReasoning, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 		}
-		currentReasoning = fmt.Sprintf(" Recommended instance with %vvCPU and %vGiB memory could ",
+		currentReasoning = fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could ",
 			r1.numCores.Float64, r1.numCores.Float64*r1.memPerCore.Float64)
 
 		for i, table := range sourceTableMetadata {
@@ -526,14 +526,14 @@ func getThroughputData(selectThroughput int64, writeThroughput int64, numCores f
 }
 
 /*
-calculateTimeTakenAndParallelThreadsForImport estimates the time taken for import of database objects based on their type, size,
+calculateTimeTakenAndParallelJobsForImport estimates the time taken for import of database objects based on their type, size,
 and the specified CPU and memory configurations. It calculates the total size of the database objects to be migrated,
 then queries experimental data to find import time estimates for similar object sizes and configurations. The
 function adjusts the import time based on the ratio of the total size of the objects to be migrated to the maximum
 size found in the experimental data. The import time is then converted from seconds to minutes and returned.
 Parameters:
 
-	objectType: A string indicating the type of database objects to be migrated (e.g., "colocated" or "sharded").
+	tableName: A string indicating the type of database objects to be imported (e.g., "colocated" or "sharded").
 	dbObjects: A slice containing metadata for the database objects to be migrated.
 	vCPUPerInstance: The number of virtual CPUs per instance used for import.
 	memPerCore: The memory allocated per CPU core used for import.
@@ -543,7 +543,7 @@ Returns:
 	float64: The estimated time taken for import in minutes.
 	int64: Total parallel threads used for import.
 */
-func calculateTimeTakenAndParallelThreadsForImport(tableName string, dbObjects []SourceDBMetadata,
+func calculateTimeTakenAndParallelJobsForImport(tableName string, dbObjects []SourceDBMetadata,
 	vCPUPerInstance float64, memPerCore float64) (float64, int64, error) {
 	// the total size of colocated objects
 	var size float64 = 0
