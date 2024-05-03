@@ -118,8 +118,7 @@ func assessMigration() (err error) {
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
-	migassessment.AssessmentMetadataDir = assessmentMetadataDir
-	initAssessmentDB() // Note: migassessment.AssessmentDataDir needs to be set beforehand
+	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
 	err = gatherAssessmentMetadata()
 	if err != nil {

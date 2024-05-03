@@ -25,7 +25,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var AssessmentMetadataDir string
 var AssessmentDir string
 
 type Record map[string]any
