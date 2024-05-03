@@ -965,7 +965,7 @@ func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
 		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
 	}
 
-	return ar.Sizing.ShardedTables, nil
+	return ar.Sizing.SizingRecommendation.ShardedTables, nil
 }
 
 func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error) {
@@ -973,5 +973,5 @@ func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error)
 		return nil, fmt.Errorf("sizing report is null, can't fetch colocated tables")
 	}
 
-	return ar.Sizing.ColocatedTables, nil
+	return ar.Sizing.SizingRecommendation.ColocatedTables, nil
 }

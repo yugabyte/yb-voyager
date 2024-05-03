@@ -582,8 +582,8 @@ Returns:
 */
 func BytesToGB(sizeInBytes float64) float64 {
 	sizeInGB := sizeInBytes / (1024 * 1024 * 1024)
-	// any value less than a 1 MB is considered as 0
-	if sizeInGB < 0.001 {
+	// any value less than a 0.1 MB is considered as 0
+	if sizeInGB < 0.0001 {
 		return 0
 	}
 	return sizeInGB

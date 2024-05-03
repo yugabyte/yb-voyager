@@ -23,9 +23,9 @@ var AssessmentDir string
 
 type Record map[string]any
 
-var SizingReport *SizingAssessmentReport
+var SizingReport = &SizingAssessmentReport{}
 
-type SizingAssessmentReport struct {
+type SizingRecommendation struct {
 	ColocatedTables                 []string
 	ColocatedReasoning              string
 	ShardedTables                   []string
@@ -34,10 +34,13 @@ type SizingAssessmentReport struct {
 	MemoryPerInstance               float64
 	OptimalSelectConnectionsPerNode int64
 	OptimalInsertConnectionsPerNode int64
-	MigrationTimeTakenInMin         float64
-	ParallelVoyagerThreadsSharded   int64
-	ParallelVoyagerThreadsColocated int64
-	FailureReasoning                string
+	EstimatedTimeInMinForImport     float64
+	ParallelVoyagerJobs             float64
+}
+
+type SizingAssessmentReport struct {
+	SizingRecommendation SizingRecommendation
+	FailureReasoning     string
 }
 
 func checkInternetAccess() (ok bool) {
