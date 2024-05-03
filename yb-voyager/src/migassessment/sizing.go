@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -53,6 +54,17 @@ type ExpDataColocatedLimit struct {
 	minSupportedNumTables      sql.NullFloat64 `db:"min_num_tables,string"`
 	maxSupportedSelectsPerCore sql.NullFloat64 `db:"max_selects_per_core,string"`
 	maxSupportedInsertsPerCore sql.NullFloat64 `db:"max_inserts_per_core,string"`
+}
+
+type ByNumCores []ExpDataColocatedLimit
+
+func (a ByNumCores) Len() int      { return len(a) }
+func (a ByNumCores) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByNumCores) Less(i, j int) bool {
+	if !a[i].numCores.Valid || !a[j].numCores.Valid {
+		return false
+	}
+	return a[i].numCores.Float64 > a[j].numCores.Float64
 }
 
 const (
@@ -86,12 +98,16 @@ func SizingAssessment(assessmentMetadataDir string) error {
 		return fmt.Errorf("failed to connect to experiment data: %w", err)
 	}
 
-	colocatedObjects, _, coresToUse, shardedObjects, reasoning, err :=
+	supportedCores, maxColocatedObjectsSupported, _ :=
+		getSupportedInstanceForSizeAndCountOfObjects(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
+	colocatedObjects, coresToUse, shardedObjects, reasoning, err :=
+		getShardingRecommendation(sourceTableMetadata, sourceIndexMetadata, supportedCores, maxColocatedObjectsSupported)
+	/*colocatedObjects, _, coresToUse, shardedObjects, reasoning, err :=
 		generateShardingRecommendations(sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error generating sharding recommendations: %v", err)
 		return fmt.Errorf("error generating sharding recommendations: %w", err)
-	}
+	}*/
 
 	// only use the remaining sharded objects and its size for further recommendation processing
 	numNodes, optimalSelectConnections, optimalInsertConnections, err :=
@@ -191,6 +207,170 @@ Returns:
 	SourceDBMetadata[]: list of sharded objects
 	string: reasoning for decision-making.
 */
+
+// func 1:based on the size and number of tables, returns the instance type(num cores)
+func getSupportedInstanceForSizeAndCountOfObjects(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
+	totalSourceDBSize float64) ([]ExpDataColocatedLimit, int, error) {
+	coresAndObjectLimits := make(map[ExpDataColocatedLimit]int)
+
+	query := fmt.Sprintf(`
+		SELECT max_colocated_db_size_gb, 
+			   num_cores, 
+			   mem_per_core, 
+			   max_num_tables, 
+			   min_num_tables, 
+			   max_selects_per_core, 
+			   max_inserts_per_core 
+		FROM %v 
+		ORDER BY num_cores DESC
+	`, COLOCATED_LIMITS_TABLE)
+	rows, err := ExperimentDB.Query(query)
+	if err != nil {
+		return nil, 0, nil
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close the result set for query [%v]", query)
+		}
+	}()
+
+	for rows.Next() {
+		var r1 ExpDataColocatedLimit
+		var cumulativeObjectCount int64 = 0
+		var cumulativeSizeSum float64 = 0
+		var numColocatedObjects = 0
+
+		if err := rows.Scan(&r1.maxColocatedSizeSupported, &r1.numCores, &r1.memPerCore, &r1.maxSupportedNumTables,
+			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
+			return nil, 0, nil
+		}
+
+		for _, table := range sourceTableMetadata {
+			// check if current table has any indexes and fetch all indexes
+			indexesOfTable, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+			cumulativeObjectCount += int64(len(indexesOfTable)) + 1
+			objectTotalSize := table.Size + indexesSizeSum
+			cumulativeSizeSum += objectTotalSize
+
+			if (cumulativeObjectCount <= r1.maxSupportedNumTables.Int64) &&
+				(cumulativeSizeSum <= r1.maxColocatedSizeSupported.Float64) {
+				numColocatedObjects += 1
+
+			} else {
+				if cumulativeObjectCount > r1.maxSupportedNumTables.Int64 {
+					fmt.Printf("Reached object count limit for core: %v and count: %v\n", r1.numCores.Float64, r1.maxSupportedNumTables.Int64)
+				}
+				if cumulativeSizeSum > r1.maxColocatedSizeSupported.Float64 {
+					fmt.Printf("Reached max size supported for core: %v and size: %v\n", r1.numCores.Float64, r1.maxColocatedSizeSupported.Float64)
+				}
+				break
+			}
+		}
+		coresAndObjectLimits[r1] = numColocatedObjects
+	}
+
+	var numColocatedObjectsSupported = 0
+	for _, value := range coresAndObjectLimits {
+		if value > numColocatedObjectsSupported {
+			numColocatedObjectsSupported = value
+		}
+	}
+	var outputToReturn []ExpDataColocatedLimit
+	for key, value := range coresAndObjectLimits {
+		if value == numColocatedObjectsSupported {
+			outputToReturn = append(outputToReturn, key)
+		}
+	}
+	// sort by num
+	sort.Sort(ByNumCores(outputToReturn))
+	/*for _, value := range outputToReturn {
+		fmt.Println("cores which satisfy the requirement: ", value)
+	}*/
+	fmt.Println("numColocatedObjectsSupported : ", numColocatedObjectsSupported)
+	return outputToReturn, numColocatedObjectsSupported, nil
+
+}
+
+// func 2: loop through num cores in second
+func getShardingRecommendation(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
+	numCoresSupported []ExpDataColocatedLimit, numColocatedObjectsSupported int) ([]SourceDBMetadata, ExpDataColocatedLimit, []SourceDBMetadata, string, error) {
+	var previousReasoning string
+	previousCores := ExpDataColocatedLimit{
+		maxColocatedSizeSupported:  sql.NullFloat64{Float64: -1, Valid: true},
+		numCores:                   sql.NullFloat64{Float64: -1, Valid: true},
+		memPerCore:                 sql.NullFloat64{Float64: -1, Valid: true},
+		maxSupportedNumTables:      sql.NullInt64{Int64: -1, Valid: true},
+		minSupportedNumTables:      sql.NullFloat64{Float64: -1, Valid: true},
+		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: -1, Valid: true},
+		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: -1, Valid: true},
+	}
+
+	for _, r1 := range numCoresSupported {
+		var cumulativeSelectOpsPerSec int64 = 0
+		var cumulativeInsertOpsPerSec int64 = 0
+		var colocatedObjects []SourceDBMetadata
+		var currentReasoning string
+		var allObjectsColocated = true
+		fmt.Println("Operating on core: ", r1.numCores.Float64)
+		currentReasoning = fmt.Sprintf("Recommended instance with %vvCPU and %vGiB memory could ",
+			r1.numCores.Float64, r1.numCores.Float64*r1.memPerCore.Float64)
+		var numTablesColocated = 0
+		var neededCores float64 = 0
+		for _, table := range sourceTableMetadata[:numColocatedObjectsSupported] {
+			// check if current table has any indexes and fetch all indexes
+			indexesOfTable, _, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
+			cumulativeSelectOpsPerSec += table.ReadsPerSec + indexReads
+			cumulativeInsertOpsPerSec += table.WritesPerSec + indexWrites
+
+			neededCores =
+				math.Ceil(float64(cumulativeSelectOpsPerSec)/r1.maxSupportedSelectsPerCore.Float64 +
+					float64(cumulativeInsertOpsPerSec)/r1.maxSupportedInsertsPerCore.Float64)
+
+			if neededCores <= r1.numCores.Float64 {
+				colocatedObjects = append(colocatedObjects, table)
+				// append all indexes into colocated
+				colocatedObjects = append(colocatedObjects, indexesOfTable...)
+				numTablesColocated += 1
+			}
+		}
+
+		if numTablesColocated < numColocatedObjectsSupported {
+			allObjectsColocated = false
+
+			if previousCores.numCores.Float64 != -1 {
+				return append(sourceTableMetadata, sourceIndexMetadata...), previousCores, nil, previousReasoning, nil
+			} else {
+				var shardedObjects []SourceDBMetadata
+				var cumulativeSizeSharded float64 = 0
+				var cumulativeReadsSharded int64 = 0
+				var cumulativeWritesSharded int64 = 0
+
+				for _, remainingTable := range sourceTableMetadata[numTablesColocated:] {
+					fmt.Printf("adding table %v as sharded\n", remainingTable.ObjectName)
+					shardedObjects = append(shardedObjects, remainingTable)
+					// fetch all associated indexes
+					indexesOfShardedTable, indexesSizeSumSharded, cumulativeSelectsIdx, cumulativeInsertsIdx :=
+						checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
+					shardedObjects = append(shardedObjects, indexesOfShardedTable...)
+					cumulativeSizeSharded += remainingTable.Size + indexesSizeSumSharded
+					cumulativeReadsSharded += remainingTable.ReadsPerSec + cumulativeSelectsIdx
+					cumulativeWritesSharded += remainingTable.WritesPerSec + cumulativeInsertsIdx
+				}
+				currentReasoning += fmt.Sprintf("support %v objects as colocated. Rest %v objects with %0.4f GB size and %v select ops/sec and"+
+					" %v write ops/sec requirement need to be migrated as sharded.", len(colocatedObjects),
+					len(shardedObjects), cumulativeSizeSharded, cumulativeReadsSharded, cumulativeWritesSharded)
+				return colocatedObjects, r1, shardedObjects, currentReasoning, nil
+			}
+		}
+		previousReasoning = currentReasoning
+		if allObjectsColocated {
+			previousReasoning += fmt.Sprintf("fit all %v objects as colocated",
+				len(sourceTableMetadata)+len(sourceIndexMetadata))
+		}
+		previousCores = r1
+	}
+	return append(sourceTableMetadata, sourceIndexMetadata...), previousCores, nil, previousReasoning, nil
+}
 
 func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
 	totalSourceDBSize float64) ([]SourceDBMetadata, float64, ExpDataColocatedLimit, []SourceDBMetadata, string, error) {
