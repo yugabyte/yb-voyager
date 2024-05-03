@@ -133,8 +133,7 @@ func assessMigration() (err error) {
 
 	err = runAssessment()
 	if err != nil {
-		log.Errorf("failed to run assessment: %v", err)
-		fmt.Printf("failed to run assessment: %v", err)
+		utils.PrintAndLog("failed to run assessment: %v", err)
 	}
 	assessmentReport.Sizing = migassessment.SizingReport
 

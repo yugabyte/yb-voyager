@@ -106,8 +106,8 @@ func SizingAssessment() error {
 		calculateTimeTakenAndParallelJobsForImport(COLOCATED_LOAD_TIME_TABLE, colocatedObjects,
 			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
 	if err != nil {
-		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated objects import: %v", err)
-		return fmt.Errorf("calculate time taken for colocated object import: %w", err)
+		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
+		return fmt.Errorf("calculate time taken for colocated data import: %w", err)
 	}
 
 	// calculate time taken for sharded import
@@ -115,8 +115,8 @@ func SizingAssessment() error {
 		calculateTimeTakenAndParallelJobsForImport(SHARDED_LOAD_TIME_TABLE, shardedObjects,
 			coresToUse.numCores.Float64, coresToUse.memPerCore.Float64)
 	if err != nil {
-		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded objects import: %v", err)
-		return fmt.Errorf("calculate time taken for sharded objects import: %w", err)
+		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
+		return fmt.Errorf("calculate time taken for sharded data import: %w", err)
 	}
 	sizingRecommendation := &SizingRecommendation{
 		ColocatedTables:                 fetchObjectNames(colocatedObjects),
@@ -226,7 +226,7 @@ func generateShardingRecommendations(sourceTableMetadata []SourceDBMetadata, sou
 		var cumulativeSizeSum float64 = 0
 		var colocatedObjects []SourceDBMetadata
 		var currentReasoning string
-		var allObjectsColocated bool = true
+		var allObjectsColocated = true
 
 		if err := rows.Scan(&r1.maxColocatedSizeSupported, &r1.numCores, &r1.memPerCore, &r1.maxSupportedNumTables,
 			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
