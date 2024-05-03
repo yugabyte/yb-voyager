@@ -56,7 +56,9 @@
         <h2>Schema Summary</h2>
         <p><strong>Database Name:</strong> {{.SchemaSummary.DBName}}</p>
         <p><strong>Schema Name:</strong> {{.SchemaSummary.SchemaName}}</p>
-        <p><strong>Database Version:</strong> {{.SchemaSummary.DBVersion}}</p>
+        {{with .SchemaSummary.DBVersion}}
+        <p><strong>Database Version:</strong> {{.}}</p>
+        {{end}}
 
         <h2>Database Objects</h2>
         <table>
