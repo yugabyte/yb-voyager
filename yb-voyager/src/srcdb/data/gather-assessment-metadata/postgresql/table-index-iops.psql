@@ -2,7 +2,13 @@ CREATE TEMP TABLE temp_table AS
 SELECT
     n.nspname AS schema_name,
     c.relname AS object_name,
-    CASE WHEN c.relkind = 'r' THEN 'table' ELSE 'index' END AS object_type,
+    CASE 
+        WHEN c.relkind = 'r' THEN 'table' 
+        WHEN c.relkind = 'p' THEN 'partitioned table'
+        WHEN c.relkind = 'i' THEN 'index'
+        WHEN c.relkind = 'I' THEN 'partitioned index'
+        ELSE 'unknown'
+    END AS object_type,
     CASE 
         WHEN c.relkind = 'r' THEN psut.seq_tup_read
         WHEN c.relkind = 'i' THEN psi.idx_scan
@@ -24,8 +30,7 @@ LEFT JOIN
     pg_index pi ON pi.indexrelid = c.oid
 WHERE
     n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
-    AND (c.relkind = 'r' OR (c.relkind = 'i' AND NOT pi.indisprimary))
-    AND (psut.schemaname = n.nspname OR psi.schemaname = n.nspname);
+    AND (c.relkind IN ('r', 'p', 'i', 'I')) AND NOT (c.relkind IN ('i', 'I') AND pi.indisprimary);
 
 -- Now you can use the temporary table to fetch the data
 \copy temp_table TO 'table-index-iops.csv' WITH CSV HEADER;

@@ -1,4 +1,3 @@
--- Create a temporary table to store the query results
 CREATE TEMP TABLE temp_table AS
 SELECT
     n.nspname AS schema_name,
@@ -9,22 +8,17 @@ SELECT
         WHEN c.relkind = 'i' THEN 'index'
         WHEN c.relkind = 'I' THEN 'partitioned index'
         ELSE 'unknown'
-    END AS object_type,
-    pg_catalog.pg_relation_size(c.oid) AS size_in_bytes
-FROM 
-    pg_catalog.pg_class c
-JOIN 
-    pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    END AS object_type
+FROM
+    pg_class c
+JOIN
+    pg_namespace n ON c.relnamespace = n.oid
 LEFT JOIN
     pg_catalog.pg_index pi ON pi.indexrelid = c.oid AND (c.relkind = 'i' OR c.relkind = 'I')
 WHERE 
     (c.relkind IN ('r', 'p', 'i', 'I')) AND NOT (c.relkind IN ('i', 'I') AND pi.indisprimary)
     AND n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')]);
 
-
--- TODO: handle storing the info(column names) with schema name(required in case of multi schema migration)
--- Output the contents of the temporary table to a CSV file
-
-\copy temp_table TO 'table-index-sizes.csv' WITH CSV HEADER;
+\copy temp_table to 'object-type-mapping.csv' WITH CSV HEADER;
 
 DROP TABLE temp_table;
