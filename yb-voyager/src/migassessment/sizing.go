@@ -541,7 +541,7 @@ Parameters:
 Returns:
 
 	float64: The estimated time taken for import in minutes.
-	int64: Total parallel threads used for import.
+	int64: Total parallel jobs used for import.
 */
 func calculateTimeTakenAndParallelJobsForImport(tableName string, dbObjects []SourceDBMetadata,
 	vCPUPerInstance float64, memPerCore float64) (float64, int64, error) {
@@ -549,7 +549,7 @@ func calculateTimeTakenAndParallelJobsForImport(tableName string, dbObjects []So
 	var size float64 = 0
 	var timeTakenOfFetchedRow float64
 	var maxSizeOfFetchedRow float64
-	var parallelThreads int64
+	var parallelJobs int64
 	for _, dbObject := range dbObjects {
 		size += dbObject.Size
 	}
@@ -577,7 +577,7 @@ func calculateTimeTakenAndParallelJobsForImport(tableName string, dbObjects []So
 	`, tableName, tableName, tableName)
 	row := ExperimentDB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size, vCPUPerInstance)
 
-	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow, &parallelThreads); err != nil {
+	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow, &parallelJobs); err != nil {
 		if err == sql.ErrNoRows {
 			log.Errorf("No rows were returned by the query to experiment table: %v", tableName)
 		} else {
@@ -586,7 +586,7 @@ func calculateTimeTakenAndParallelJobsForImport(tableName string, dbObjects []So
 	}
 
 	importTime := ((timeTakenOfFetchedRow * size) / maxSizeOfFetchedRow) / 60
-	return math.Ceil(importTime), parallelThreads, nil
+	return math.Ceil(importTime), parallelJobs, nil
 }
 
 /*
