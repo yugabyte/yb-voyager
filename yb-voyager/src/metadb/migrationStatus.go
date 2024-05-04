@@ -43,6 +43,7 @@ type MigrationStatusRecord struct {
 	SourceRenameTablesMap                           map[string]string `json:"SourceRenameTablesMap"` // map of source table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
 	TargetRenameTablesMap                           map[string]string `json:"TargetRenameTablesMap"` // map of target table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
 	IsExportTableListSet                            bool              `json:"IsExportTableListSet"`
+	MigrationAssessmentDone                         bool              `json:"MigrationAssessmentDone"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

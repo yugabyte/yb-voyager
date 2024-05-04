@@ -93,10 +93,12 @@ const (
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK          = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
-	EXPERIMENT_DATA_FILENAME = "assessment.db"
+	EXPERIMENT_DATA_FILENAME = "yb_2024_0_source.db"
+	DBS_DIR                  = "dbs"
 )
 
 var ExperimentDB *sql.DB
+var experimentDBPath = filepath.Join(AssessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
 
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
@@ -586,12 +588,13 @@ Returns:
 func loadSourceMetadata(assessmentMetadataDir string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	filePath := GetSourceMetadataDBFilePath()
 	if filePath == "assessment.db" {
-		if AssessmentMetadataDir == "" {
+		if AssessmentDir == "" {
 			filePath = filepath.Join(assessmentMetadataDir, "assessment.db")
 		} else {
-			filePath = filepath.Join(AssessmentMetadataDir, "assessment.db")
+			filePath = filepath.Join(AssessmentDir, "assessment.db")
 		}
 	}
+	fmt.Println("source metadata file path:", filePath)
 	SourceMetaDB, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
@@ -749,13 +752,13 @@ func getExperimentFile() (string, error) {
 		}
 	}
 	if !fetchedFromRemote {
-		err := os.WriteFile(filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME), experimentData20240, 0644)
+		err := os.WriteFile(experimentDBPath, experimentData20240, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to write experiment data file: %w", err)
 		}
 	}
 
-	return filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME), nil
+	return experimentDBPath, nil
 }
 
 func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
@@ -775,7 +778,7 @@ func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
 		return false, nil
 	}
 
-	downloadPath := filepath.Join(AssessmentMetadataDir, EXPERIMENT_DATA_FILENAME)
+	downloadPath := experimentDBPath
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, fmt.Errorf("failed to read response body: %w", err)

@@ -411,7 +411,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
-		"assessment", "assessment/metadata", "assessment/metadata/schema", "assessment/reports",
+		"assessment", "assessment/metadata", "assessment/dbs", "assessment/metadata/schema", "assessment/reports",
 		"metainfo", "metainfo/data", "metainfo/conf", "metainfo/ssl",
 		"temp", "temp/ora2pg_temp_dir", "temp/schema",
 	}
@@ -938,4 +938,40 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 		return fmt.Errorf("update migration status record: %v", err)
 	}
 	return nil
+}
+
+// =====================================================================
+
+type AssessmentReport struct {
+	SchemaSummary        utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing               *migassessment.SizingAssessmentReport `json:"Sizing"`
+	UnsupportedDataTypes []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
+	UnsupportedFeatures  []UnsupportedFeature                  `json:"UnsupportedFeatures"`
+	TableIndexStats      *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+}
+
+func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
+	var report AssessmentReport
+	err := jsonfile.NewJsonFile[AssessmentReport](reportPath).Load(&report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse json report file %q: %w", reportPath, err)
+	}
+
+	return &report, nil
+}
+
+func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
+	if ar.Sizing == nil {
+		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
+	}
+
+	return ar.Sizing.SizingRecommendation.ShardedTables, nil
+}
+
+func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error) {
+	if ar.Sizing == nil {
+		return nil, fmt.Errorf("sizing report is null, can't fetch colocated tables")
+	}
+
+	return ar.Sizing.SizingRecommendation.ColocatedTables, nil
 }
