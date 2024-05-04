@@ -203,12 +203,12 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 	if len(shardedObjects) > 0 {
 		shardedObjectsSize, shardedReads, shardedWrites := getObjectsSize(shardedObjects)
 		shardedReasoning := fmt.Sprintf("%v object(s) with %0.4fGB size and throughput requirement of %v reads/sec"+
-			"and %v writes/sec ", len(shardedObjects), shardedObjectsSize,
+			" and %v writes/sec ", len(shardedObjects), shardedObjectsSize,
 			shardedReads, shardedWrites)
 		if len(colocatedObjects) > 0 {
 			reasoning += "Rest " + shardedReasoning + "need to imported as sharded. "
 		} else {
-			reasoning += shardedReasoning + "as sharded tables"
+			reasoning += shardedReasoning + "as sharded"
 		}
 
 	}
