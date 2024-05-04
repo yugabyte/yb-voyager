@@ -192,11 +192,14 @@ func SizingAssessment(assessmentMetadataDir string) error {
 
 func getReasoning(recommendation IntermediateRecommendation, shardedObjects []SourceDBMetadata, colocatedObjects []SourceDBMetadata) string {
 	colocatedObjectsSize, colocatedReads, colocatedWrites := getObjectsSize(colocatedObjects)
-	reasoning := fmt.Sprintf("Recommended instance type with %v vCPU and %vGiB memory could fit %v objects"+
-		" with %0.4fGB size and throughput requirement of %v reads/sec and %v writes/sec as colocated.",
-		recommendation.VCPUsPerInstance, recommendation.VCPUsPerInstance*recommendation.MemoryPerCore,
-		len(colocatedObjects), colocatedObjectsSize, colocatedReads, colocatedWrites)
+	reasoning := fmt.Sprintf("Recommended instance type with %v vCPU and %vGiB memory could fit ",
+		recommendation.VCPUsPerInstance, recommendation.VCPUsPerInstance*recommendation.MemoryPerCore)
 
+	if len(colocatedObjects) > 0 {
+		reasoning += fmt.Sprintf("%v objects with %0.4fGB size and throughput requirement of %v reads/sec"+
+			" and %v writes/sec as colocated.", len(colocatedObjects), colocatedObjectsSize, colocatedReads,
+			colocatedWrites)
+	}
 	if len(shardedObjects) > 0 {
 		shardedObjectsSize, shardedReads, shardedWrites := getObjectsSize(shardedObjects)
 		reasoning += fmt.Sprintf(" Rest %v objects with %0.4fGB size and throughput requirement of %v reads/sec"+
