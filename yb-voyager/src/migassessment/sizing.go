@@ -196,15 +196,21 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 		recommendation.VCPUsPerInstance, recommendation.VCPUsPerInstance*recommendation.MemoryPerCore)
 
 	if len(colocatedObjects) > 0 {
-		reasoning += fmt.Sprintf("%v objects with %0.4fGB size and throughput requirement of %v reads/sec"+
+		reasoning += fmt.Sprintf("%v object(s) with %0.4fGB size and throughput requirement of %v reads/sec"+
 			" and %v writes/sec as colocated.", len(colocatedObjects), colocatedObjectsSize, colocatedReads,
 			colocatedWrites)
 	}
 	if len(shardedObjects) > 0 {
 		shardedObjectsSize, shardedReads, shardedWrites := getObjectsSize(shardedObjects)
-		reasoning += fmt.Sprintf(" Rest %v objects with %0.4fGB size and throughput requirement of %v reads/sec"+
-			"and %v writes/sec need to be imported as sharded.", len(shardedObjects), shardedObjectsSize,
+		shardedReasoning := fmt.Sprintf("%v object(s) with %0.4fGB size and throughput requirement of %v reads/sec"+
+			"and %v writes/sec ", len(shardedObjects), shardedObjectsSize,
 			shardedReads, shardedWrites)
+		if len(colocatedObjects) > 0 {
+			reasoning += "Rest " + shardedReasoning + "need to imported as sharded. "
+		} else {
+			reasoning += shardedReasoning + "as sharded tables"
+		}
+
 	}
 	return reasoning
 }
