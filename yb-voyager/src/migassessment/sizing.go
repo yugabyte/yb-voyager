@@ -154,7 +154,7 @@ func SizingAssessment() error {
 
 	if finalSizingRecommendation.FailureReasoning != "" {
 		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
-		return fmt.Errorf("error picking best recommendation: %w", finalSizingRecommendation.FailureReasoning)
+		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendation.FailureReasoning)
 	}
 
 	colocatedObjects := getListOfIndexesAlongWithObjects(finalSizingRecommendation.ColocatedTables, sourceIndexMetadata)
