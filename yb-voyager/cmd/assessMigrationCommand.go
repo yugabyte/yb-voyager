@@ -34,6 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -90,7 +91,7 @@ func init() {
 func assessMigration() (err error) {
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
-	/*// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
+	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
 	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
@@ -118,42 +119,36 @@ func assessMigration() (err error) {
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
-	}*/
+	}
 
-	err = runAssessment(assessmentMetadataDir)
-	assessmentReport.Sizing = migassessment.SizingReport
-
-	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
-	err = GenerateAssessmentReportJson(assessmentReportDir)
+	err = runAssessment()
 	if err != nil {
 		utils.PrintAndLog("failed to run assessment: %v", err)
 	}
-	err = generateAssessmentReportHtml(assessmentReportDir)
+	assessmentReport.Sizing = migassessment.SizingReport
+
+	err = generateAssessmentReport()
 	if err != nil {
-		return fmt.Errorf("failed to generate assessment report HTML: %w", err)
-	}
-	/*err = generateAssessmentReport()
-		if err != nil {
-			return fmt.Errorf("failed to generate assessment report: %w", err)
-		}
-
-		utils.PrintAndLog("Migration assessment completed successfully.")
-		completedEvent := createMigrationAssessmentCompletedEvent()
-		controlPlane.MigrationAssessmentCompleted(completedEvent)
-		err = SetMigrationAssessmentDoneInMSR()
-		if err != nil {
-			return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
-		}
-		return nil
+		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
 
-	func SetMigrationAssessmentDoneInMSR() error {
-		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.MigrationAssessmentDone = true
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update migration status record with migration assessment done flag: %w", err)
-		} */
+	utils.PrintAndLog("Migration assessment completed successfully.")
+	completedEvent := createMigrationAssessmentCompletedEvent()
+	controlPlane.MigrationAssessmentCompleted(completedEvent)
+	err = SetMigrationAssessmentDoneInMSR()
+	if err != nil {
+		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
+	}
+	return nil
+}
+
+func SetMigrationAssessmentDoneInMSR() error {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.MigrationAssessmentDone = true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record with migration assessment done flag: %w", err)
+	}
 	return nil
 }
 
@@ -183,10 +178,10 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	return ev
 }
 
-func runAssessment(assessmentMetadataDir string) error {
+func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
 
-	err := migassessment.SizingAssessment(assessmentMetadataDir)
+	err := migassessment.SizingAssessment()
 	if err != nil {
 		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
 		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
@@ -408,7 +403,7 @@ func generateAssessmentReport() (err error) {
 	}
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
-	err = GenerateAssessmentReportJson(assessmentReportDir)
+	err = generateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report JSON: %w", err)
 	}
@@ -499,7 +494,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	return unsupportedDataTypes, nil
 }
 
-func GenerateAssessmentReportJson(reportDir string) error {
+func generateAssessmentReportJson(reportDir string) error {
 	jsonReportFilePath := filepath.Join(reportDir, "assessmentReport.json")
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")

@@ -106,10 +106,10 @@ func getExperimentDBPath() string {
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
 
-func SizingAssessment(assessmentMetadataDir string) error {
+func SizingAssessment() error {
 
 	log.Infof("loading metadata files for sharding assessment")
-	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata(assessmentMetadataDir)
+	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata()
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to load source metadata: %v", err)
 		return fmt.Errorf("failed to load source metadata: %w", err)
@@ -588,16 +588,8 @@ Returns:
 	[]SourceDBMetadata: all index objects from source db
 	float64: total size of source db
 */
-func loadSourceMetadata(assessmentMetadataDir string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+func loadSourceMetadata() ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	filePath := GetSourceMetadataDBFilePath()
-	if filePath == "assessment.db" {
-		if AssessmentDir == "" {
-			filePath = filepath.Join(assessmentMetadataDir, "assessment.db")
-		} else {
-			filePath = filepath.Join(AssessmentDir, "assessment.db")
-		}
-	}
-	fmt.Println("source metadata file path:", filePath)
 	SourceMetaDB, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
