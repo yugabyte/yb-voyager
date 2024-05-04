@@ -142,33 +142,19 @@ func SizingAssessment(assessmentMetadataDir string) error {
 	sizingRecommendationPerCore = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
 		colocatedLimits, sizingRecommendationPerCore)
 
-	fmt.Println("After table size")
-	for core, sizing := range sizingRecommendationPerCore {
-		fmt.Printf("sharded tables count for %v cores %v\n", core, len(sizing.ShardedTables))
-	}
-
 	sizingRecommendationPerCore = shardingBasedOnOperations(sourceIndexMetadata, colocatedLimits, sizingRecommendationPerCore)
-
-	fmt.Println("\n\nAfter operations")
-	for core, sizing := range sizingRecommendationPerCore {
-		fmt.Printf("sharded tables count for %v cores %v\n", core, len(sizing.ShardedTables))
-	}
 
 	sizingRecommendationPerCore = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
 
-	fmt.Println("\n\nAfter table limit")
-	for core, sizing := range sizingRecommendationPerCore {
-		fmt.Printf("sharded tables count for %v cores %v\n", core, len(sizing.ShardedTables))
-	}
 	sizingRecommendationPerCore = findNumNodesNeeded(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCore)
 
 	finalSizingRecommendation := pickBestRecommendation(sizingRecommendationPerCore)
-	fmt.Println(finalSizingRecommendation)
+
 	if finalSizingRecommendation.FailureReasoning != "" {
 		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
 		return fmt.Errorf("error picking best recommendation: %w", finalSizingRecommendation.FailureReasoning)
 	}
-	//fmt.Println("Final sizing sharded tables: ", finalSizingRecommendation.ShardedTables)
+
 	colocatedObjects := getListOfIndexesAlongWithObjects(finalSizingRecommendation.ColocatedTables, sourceIndexMetadata)
 	shardedObjects := getListOfIndexesAlongWithObjects(finalSizingRecommendation.ShardedTables, sourceIndexMetadata)
 
@@ -199,12 +185,41 @@ func SizingAssessment(assessmentMetadataDir string) error {
 		OptimalSelectConnectionsPerNode: finalSizingRecommendation.OptimalSelectConnectionsPerNode,
 		OptimalInsertConnectionsPerNode: finalSizingRecommendation.OptimalInsertConnectionsPerNode,
 		ParallelVoyagerJobs:             math.Min(float64(parallelVoyagerJobsColocated), float64(parallelVoyagerJobsSharded)),
-		ColocatedReasoning:              "",
+		ColocatedReasoning:              getReasoning(finalSizingRecommendation, shardedObjects, colocatedObjects),
 		EstimatedTimeInMinForImport:     importTimeForColocatedObjects + importTimeForShardedObjects,
 	}
 	SizingReport.SizingRecommendation = *sizingRecommendation
 
 	return nil
+}
+
+func getReasoning(recommendation IntermediateRecommendation, shardedObjects []SourceDBMetadata, colocatedObjects []SourceDBMetadata) string {
+	colocatedObjectsSize, colocatedReads, colocatedWrites := getObjectsSize(colocatedObjects)
+	reasoning := fmt.Sprintf("Recommended instance type with %v vCPU and %vGiB memory could fit %v objects"+
+		" with %0.4fGB size and throughput requirement of %v reads/sec and %v writes/sec as colocated.",
+		recommendation.VCPUsPerInstance, recommendation.VCPUsPerInstance*recommendation.MemoryPerCore,
+		len(colocatedObjects), colocatedObjectsSize, colocatedReads, colocatedWrites)
+
+	if len(shardedObjects) > 0 {
+		shardedObjectsSize, shardedReads, shardedWrites := getObjectsSize(shardedObjects)
+		reasoning += fmt.Sprintf(" Rest %v objects with %0.4fGB size and throughput requirement of %v reads/sec"+
+			"and %v writes/sec need to be imported as sharded.", len(shardedObjects), shardedObjectsSize,
+			shardedReads, shardedWrites)
+	}
+	return reasoning
+}
+
+func getObjectsSize(objects []SourceDBMetadata) (float64, int64, int64) {
+	var objectsSize float64 = 0
+	var objectSelectOps int64 = 0
+	var objectInsertOps int64 = 0
+
+	for _, object := range objects {
+		objectsSize += object.Size
+		objectSelectOps += object.ReadsPerSec
+		objectInsertOps += object.WritesPerSec
+	}
+	return objectsSize, objectSelectOps, objectInsertOps
 }
 
 func getListOfIndexesAlongWithObjects(tableList []SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata) []SourceDBMetadata {
