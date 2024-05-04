@@ -163,6 +163,11 @@ func SizingAssessment(assessmentMetadataDir string) error {
 	sizingRecommendationPerCore = findNumNodesNeeded(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCore)
 
 	finalSizingRecommendation := pickBestRecommendation(sizingRecommendationPerCore)
+	fmt.Println(finalSizingRecommendation)
+	if finalSizingRecommendation.FailureReasoning != "" {
+		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
+		return fmt.Errorf("error picking best recommendation: %w", finalSizingRecommendation.FailureReasoning)
+	}
 	//fmt.Println("Final sizing sharded tables: ", finalSizingRecommendation.ShardedTables)
 	colocatedObjects := getListOfIndexesAlongWithObjects(finalSizingRecommendation.ColocatedTables, sourceIndexMetadata)
 	shardedObjects := getListOfIndexesAlongWithObjects(finalSizingRecommendation.ShardedTables, sourceIndexMetadata)
@@ -216,16 +221,28 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 	// find the one with least number of nodes
 	var minCores int = math.MaxUint32
 	var finalRecommendation IntermediateRecommendation
+	var foundRecommendation bool = false
+	var maxCores int = math.MinInt32
+
 	for _, rec := range recommendation {
-		if minCores > int(rec.NumNodes)*rec.VCPUsPerInstance {
-			finalRecommendation = rec
-			minCores = int(rec.NumNodes) * rec.VCPUsPerInstance
-		} else if minCores == int(rec.NumNodes)*rec.VCPUsPerInstance {
-			// recommend the higher core machine is the number of cores are same across machines.
-			if rec.VCPUsPerInstance > finalRecommendation.VCPUsPerInstance {
+		if maxCores < rec.VCPUsPerInstance {
+			maxCores = rec.VCPUsPerInstance
+		}
+		if rec.FailureReasoning == "" {
+			foundRecommendation = true
+			if minCores > int(rec.NumNodes)*rec.VCPUsPerInstance {
 				finalRecommendation = rec
+				minCores = int(rec.NumNodes) * rec.VCPUsPerInstance
+			} else if minCores == int(rec.NumNodes)*rec.VCPUsPerInstance {
+				// recommend the higher core machine is the number of cores are same across machines.
+				if rec.VCPUsPerInstance > finalRecommendation.VCPUsPerInstance {
+					finalRecommendation = rec
+				}
 			}
 		}
+	}
+	if !foundRecommendation {
+		finalRecommendation = recommendation[maxCores]
 	}
 	return finalRecommendation
 }
@@ -305,12 +322,14 @@ func loadShardedThroughput() ([]ExpDataShardedThroughput, error) {
 }
 
 func checkShardedTableLimit(sourceIndexMetadata []SourceDBMetadata, shardedLimits []ExpDataShardedLimit, recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
-	var totalObjectCount int64 = 0
+
 	for _, shardedLimit := range shardedLimits {
+		var totalObjectCount int64 = 0
 		previousRecommendation := recommendation[int(shardedLimit.numCores.Float64)]
 		for _, table := range previousRecommendation.ShardedTables {
 			indexes, _, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
 			totalObjectCount += int64(len(indexes)) + 1
+
 		}
 		if totalObjectCount > shardedLimit.maxSupportedNumTables.Int64 {
 			failureReasoning := fmt.Sprintf("Cannot support %v sharded objects on a machine with %v cores and %v "+
@@ -645,7 +664,6 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 		FROM %v 
 		ORDER BY size_in_bytes ASC
 	`, GetTableIndexStatName())
-	//fmt.Println(query)
 	rows, err := sourceDB.Query(query)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
