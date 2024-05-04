@@ -25,11 +25,10 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -464,7 +463,7 @@ TODO(future): figure out the sql error codes for prepared statements which have 
 and needs to be prepared again
 */
 func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
-	log.Infof("executing batch of %d events", len(batch.Events))
+	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
 	ybBatch := pgx.Batch{}
 	stmtToPrepare := make(map[string]string)
 	// processing batch events to convert into prepared or unprepared statements based on Op type
@@ -495,7 +494,12 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err != nil {
 			return false, fmt.Errorf("error creating tx: %w", err)
 		}
-		defer tx.Rollback(ctx)
+		defer func() {
+			errRollBack := tx.Rollback(ctx)
+			if errRollBack != nil && errRollBack != pgx.ErrTxClosed {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			}
+		}()
 
 		for name, stmt := range stmtToPrepare {
 			err := pg.connPool.PrepareStatement(conn, name, stmt)
@@ -504,21 +508,32 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				return false, fmt.Errorf("error preparing stmt: %w", err)
 			}
 		}
-
+		var rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64
 		br := tx.SendBatch(ctx, &ybBatch)
 		closeBatch := func() error {
 			if closeErr := br.Close(); closeErr != nil {
-				log.Errorf("error closing batch: %v", closeErr)
+				log.Errorf("error closing batch(%s): %v", batch.ID(), closeErr)
 				return closeErr
 			}
 			return nil
 		}
 		for i := 0; i < len(batch.Events); i++ {
-			_, err := br.Exec()
+			res, err := br.Exec()
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
 				closeBatch()
 				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+			}
+			switch true {
+			case res.Insert():
+				rowsAffectedInserts += res.RowsAffected()
+			case res.Delete():
+				rowsAffectedDeletes += res.RowsAffected()
+			case res.Update():
+				rowsAffectedUpdates += res.RowsAffected()
+			}
+			if res.RowsAffected() != 1 {
+				log.Warnf("unexpected rows affected for event with vsn(%d) in batch(%s): %d", batch.Events[i].Vsn, batch.ID(), res.RowsAffected())
 			}
 		}
 		err = closeBatch()
@@ -529,7 +544,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
 		res, err := tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
-			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
+			log.Errorf("error executing stmt for batch(%s): %v , rowsAffected: %v", batch.ID(), err, res.RowsAffected())
 			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w, rowsAffected: %v",
 				updateVsnQuery, err, res.RowsAffected())
 		}
@@ -558,6 +573,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
+
+		logDiscrepancyInEventBatchIfAny(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
 
 		return false, err
 	})

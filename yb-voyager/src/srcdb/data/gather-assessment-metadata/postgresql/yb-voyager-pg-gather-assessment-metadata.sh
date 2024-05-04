@@ -15,7 +15,7 @@
 
 set -e
 
-SCRIPT_DIR=$(dirname $0)
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE:-$0}" )" &> /dev/null && pwd ) 
 SCRIPT_NAME=$(basename $0)
 
 HELP_TEXT="
@@ -36,7 +36,7 @@ Arguments:
                          This script will attempt to create the directory if it does not exist.
 
 Example:
-  $SCRIPT_NAME 'postgresql://user:pass@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/metadata'
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/metadata'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
