@@ -94,12 +94,9 @@ const (
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK          = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
 	EXPERIMENT_DATA_FILENAME = "assessment.db"
-	DBS_DIR                  = "dbs"
 )
 
 var ExperimentDB *sql.DB
-
-//var experimentDBPath = filepath.Join(AssessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
 
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
