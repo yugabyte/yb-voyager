@@ -196,7 +196,8 @@ func SizingAssessment() error {
 }
 
 /*
-pickBestRecommendation selects the best recommendation from a map of recommendations based on certain criteria.
+pickBestRecommendation selects the best recommendation from a map of recommendations by optimizing for the cores. Hence,
+we chose the setup where the number of cores is less.
 Parameters:
   - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
