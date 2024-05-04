@@ -98,7 +98,10 @@ const (
 )
 
 var ExperimentDB *sql.DB
-var experimentDBPath = filepath.Join(AssessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
+
+func getExperimentDBPath() string {
+	return filepath.Join(AssessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
+}
 
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
@@ -752,13 +755,13 @@ func getExperimentFile() (string, error) {
 		}
 	}
 	if !fetchedFromRemote {
-		err := os.WriteFile(experimentDBPath, experimentData20240, 0644)
+		err := os.WriteFile(getExperimentDBPath(), experimentData20240, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to write experiment data file: %w", err)
 		}
 	}
 
-	return experimentDBPath, nil
+	return getExperimentDBPath(), nil
 }
 
 func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
@@ -778,7 +781,7 @@ func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
 		return false, nil
 	}
 
-	downloadPath := experimentDBPath
+	downloadPath := getExperimentDBPath()
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, fmt.Errorf("failed to read response body: %w", err)
