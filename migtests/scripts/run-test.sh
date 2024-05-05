@@ -61,7 +61,18 @@ main() {
 
 	step "Assess Migration"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-		assess_migration
+	    assess_migration
+
+		step "Validate Assessment Reports"
+	    # Checking if the assessment reports were created
+	    if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
+	        echo "Assessment reports created successfully."
+	        #TODO: Further validation to be added
+	    else
+	        echo "Error: Assessment reports were not created successfully."
+	        cat_log_file "yb-voyager-assess-migration.log"
+			exit 1
+	    fi
 	fi
 
 	step "Export schema."
