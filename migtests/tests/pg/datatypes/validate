@@ -51,7 +51,7 @@ EXPECTED_COLOCATION_OF_TABLES = {
 	'datatypes1': 't',  
 	'datetime_type': 't', 
 	'datatypes2': 't',
-	'datetime_type2': 't', 
+	'datetime_type2': 'f', 
 	'null_and_default' : 't',
 	'decimal_types': 't',
 }
