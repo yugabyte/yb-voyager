@@ -54,8 +54,8 @@ type UnsupportedFeature struct {
 
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
-	Short: "Assess the migration from PostgreSQL source database to YugabyteDB.",
-	Long:  `Assess the migration from PostgreSQL source database to YugabyteDB.`,
+	Short: "Assess the migration from source (PostgreSQL) database to YugabyteDB.",
+	Long:  `Assess the migration from source (PostgreSQL) database to YugabyteDB.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateSourceDBTypeForAssessMigration()
@@ -75,7 +75,7 @@ var assessMigrationCmd = &cobra.Command{
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&source.DBType, "source-db-type", "postgresql",
+	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type: (postgresql)\n")
 
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
