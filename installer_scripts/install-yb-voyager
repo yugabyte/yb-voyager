@@ -768,7 +768,9 @@ create_gather_assessment_metadata_dir() {
 	output "Installing the latest scripts for gathering assessment metadata"
 	if [ "${VERSION}" == "latest" ]
 	then
-		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/$scripts_dir_path/${scripts_dir_name}.tar.gz"
+		# TODO: Replace the YB_VOYAGER_GIT_HASH_TEMP with the release tagged YB_VOYAGER_GIT_HASH
+		YB_VOYAGER_GIT_HASH_TEMP="7d4dfa30926e287c864de5f67b3859c447da669d"
+		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH_TEMP/$scripts_dir_path/${scripts_dir_name}.tar.gz"
 		sudo wget -nv -O /tmp/${scripts_dir_name}.tar.gz $TAR_URL
 		sudo tar -xzf /tmp/${scripts_dir_name}.tar.gz -C $scripts_parent_dir 1>&2
 		sudo rm /tmp/${scripts_dir_name}.tar.gz
