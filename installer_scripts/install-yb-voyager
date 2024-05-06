@@ -14,7 +14,7 @@ VERSION="latest"
 VOYAGER_RELEASE_TAG=${VOYAGER_RELEASE_TAG:-"v1.7.0-rc1"}
 DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-1.7.0-rc1"}
 
-# the hash corresponds to the yb-voyager/v1.6.5 tag
+# the hash corresponds to the yb-voyager/v1.7.0-rc1 tag
 YB_VOYAGER_GIT_HASH="02213557c948480fc290b9379bb0ed3fbdbc9c8cdc6b13c0da53a17facd5a371" 
 
 
