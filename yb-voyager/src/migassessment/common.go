@@ -30,8 +30,8 @@ type SizingRecommendation struct {
 	ColocatedReasoning              string
 	ShardedTables                   []string
 	NumNodes                        float64
-	VCPUsPerInstance                float64
-	MemoryPerInstance               float64
+	VCPUsPerInstance                int
+	MemoryPerInstance               int
 	OptimalSelectConnectionsPerNode int64
 	OptimalInsertConnectionsPerNode int64
 	EstimatedTimeInMinForImport     float64
