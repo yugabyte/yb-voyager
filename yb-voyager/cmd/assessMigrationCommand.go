@@ -209,7 +209,7 @@ func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 			utils.CleanDir(filepath.Join(assessmentDir, "reports"))
 			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
 		} else {
-			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
+			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
 		}
 	}
 }
