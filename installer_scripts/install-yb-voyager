@@ -15,7 +15,7 @@ VOYAGER_RELEASE_TAG=${VOYAGER_RELEASE_TAG:-"v1.7.0-rc1"}
 DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-1.7.0-rc1"}
 
 # the hash corresponds to the yb-voyager/v1.7.0-rc1 tag
-YB_VOYAGER_GIT_HASH="02213557c948480fc290b9379bb0ed3fbdbc9c8cdc6b13c0da53a17facd5a371" 
+YB_VOYAGER_GIT_HASH="e0d47e87b1550a4bfa9c31446737167fa5fa7e70" 
 
 
 ONLY_PG="false"
@@ -768,9 +768,7 @@ create_gather_assessment_metadata_dir() {
 	output "Installing the latest scripts for gathering assessment metadata"
 	if [ "${VERSION}" == "latest" ]
 	then
-		# TODO: Replace the YB_VOYAGER_GIT_HASH_TEMP with the release tagged YB_VOYAGER_GIT_HASH
-		YB_VOYAGER_GIT_HASH_TEMP="bd6c645fb233880d282c9691a7df6583bea0ec06"
-		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH_TEMP/$scripts_dir_path/${scripts_dir_name}.tar.gz"
+		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/$scripts_dir_path/${scripts_dir_name}.tar.gz"
 		sudo wget -nv -O /tmp/${scripts_dir_name}.tar.gz $TAR_URL
 		sudo tar -xzf /tmp/${scripts_dir_name}.tar.gz -C $scripts_parent_dir 1>&2
 		sudo rm /tmp/${scripts_dir_name}.tar.gz
