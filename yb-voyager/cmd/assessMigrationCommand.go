@@ -45,6 +45,7 @@ var (
 	assessmentMetadataDirFlag string
 	assessmentReport          AssessmentReport
 	assessmentDB              *migassessment.AssessmentDB
+	sleepIntervalForIOPS      int64
 )
 
 type UnsupportedFeature struct {
@@ -64,6 +65,10 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateAssessmentMetadataDirFlag()
+		cmd.MarkFlagRequired("source-db-user")
+		cmd.MarkFlagRequired("source-db-name")
+		//Update this later as per db-types TODO
+		cmd.MarkFlagRequired("source-db-schema")
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -127,6 +132,10 @@ func init() {
 	assessMigrationCmd.Flags().StringVar(&assessmentMetadataDirFlag, "assessment-metadata-dir", "",
 		"Directory path where assessment metadata like source DB metadata and statistics are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
+
+	assessMigrationCmd.Flags().Int64Var(&sleepIntervalForIOPS, "sleep-interval", 120, 
+	"Sleep interval to be used to calculate IOPS on source database in seconds (default: 120)")
+
 }
 
 func assessMigration() (err error) {
@@ -316,6 +325,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		source.DB().GetConnectionUriWithoutPassword(),
 		source.Schema,
 		assessmentMetadataDir,
+		fmt.Sprintf("%d",sleepIntervalForIOPS),
 	}
 
 	cmd := exec.Command(scriptPath, scriptArgs...)
