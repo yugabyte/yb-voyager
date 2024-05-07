@@ -133,8 +133,8 @@ func init() {
 		"Directory path where assessment metadata like source DB metadata and statistics are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
 
-	assessMigrationCmd.Flags().Int64Var(&sleepIntervalForIOPS, "sleep-interval", 120, 
-	"Sleep interval to be used to calculate IOPS on source database in seconds (default: 120)")
+	assessMigrationCmd.Flags().Int64Var(&sleepIntervalForIOPS, "sleep-interval", 120,
+		"Sleep interval to be used to calculate IOPS on source database in seconds (default: 120)")
 
 }
 
@@ -325,7 +325,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		source.DB().GetConnectionUriWithoutPassword(),
 		source.Schema,
 		assessmentMetadataDir,
-		fmt.Sprintf("%d",sleepIntervalForIOPS),
+		fmt.Sprintf("%d", sleepIntervalForIOPS),
 	}
 
 	cmd := exec.Command(scriptPath, scriptArgs...)

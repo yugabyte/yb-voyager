@@ -79,7 +79,7 @@ type SchemaReport struct {
 
 type SchemaSummary struct {
 	DBName      string     `json:"DbName,omitempty"`
-	SchemaNames  string     `json:"SchemaName(s),omitempty"`
+	SchemaNames string     `json:"SchemaName(s),omitempty"`
 	DBVersion   string     `json:"DbVersion,omitempty"`
 	Notes       []string   `json:"Notes,omitempty"`
 	DBObjects   []DBObject `json:"DatabaseObjects"`
