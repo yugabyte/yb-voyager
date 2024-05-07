@@ -103,8 +103,6 @@ for script in $SCRIPT_DIR/*.psql; do
         
         psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final -v filename=$script_name-initial.csv
         mv table-index-iops.csv table-index-iops-final.csv
-    elif [ $script_name == "table-row-counts" ]; then
-        continue
     else
         psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on
     fi

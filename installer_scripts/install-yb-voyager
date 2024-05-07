@@ -452,7 +452,6 @@ rebuild_voyager_local() {
 	install_yb_voyager
 	create_gather_assessment_metadata_dir
 	rebuild_debezium_server_voyager_plugin_local
-	create_gather_assessment_metadata_dir
 }
 
 get_passed_options() {
