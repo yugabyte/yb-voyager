@@ -849,6 +849,7 @@ ubuntu_install_oracle_instant_clients() {
 	sudo apt-get install -y oracle-instantclient-jdbc=21.5.0.0.0-1 1>&2
 	sudo apt-get install -y oracle-instantclient-sqlplus=21.5.0.0.0-1 1>&2
 	sudo apt-get remove -y yb-apt-repo 1>&2
+	rm -f yb-apt-repo_1.0.0_all.deb 1>&2
 	output "Installed Oracle Instance Clients."
 }
 
