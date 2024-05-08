@@ -42,11 +42,11 @@ import (
 )
 
 var (
-	assessmentMetadataDir      string
-	assessmentMetadataDirFlag  string
-	assessmentReport           AssessmentReport
-	assessmentDB               *migassessment.AssessmentDB
-	measurementIntervalForIOPS int64
+	assessmentMetadataDir     string
+	assessmentMetadataDirFlag string
+	assessmentReport          AssessmentReport
+	assessmentDB              *migassessment.AssessmentDB
+	captureIntervalForIOPS    int64
 )
 
 type UnsupportedFeature struct {
@@ -144,8 +144,8 @@ func init() {
 		"Directory path where assessment metadata like source DB metadata and statistics are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
 
-	assessMigrationCmd.Flags().Int64Var(&measurementIntervalForIOPS, "iops-measurement-interval", 120,
-		"Interval to be used to measure IOPS on source database in seconds (default: 120)")
+	assessMigrationCmd.Flags().Int64Var(&captureIntervalForIOPS, "iops-capture-interval", 120,
+		"Interval to be used to capture IOPS on source database in seconds (default: 120)")
 
 }
 
@@ -336,7 +336,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		source.DB().GetConnectionUriWithoutPassword(),
 		source.Schema,
 		assessmentMetadataDir,
-		fmt.Sprintf("%d", measurementIntervalForIOPS),
+		fmt.Sprintf("%d", captureIntervalForIOPS),
 	}
 
 	cmd := exec.Command(scriptPath, scriptArgs...)
