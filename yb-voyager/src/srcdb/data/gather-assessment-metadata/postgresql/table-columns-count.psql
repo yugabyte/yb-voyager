@@ -3,14 +3,19 @@ SELECT
     n.nspname AS schema_name,
     c.relname AS object_name,
     CASE 
-        WHEN c.relkind = 'r' THEN 'table'
-        ELSE 'index'
+        WHEN c.relkind = 'r' THEN 'table' 
+        WHEN c.relkind = 'p' THEN 'partitioned table'
+        WHEN c.relkind = 'i' THEN 'index'
+        WHEN c.relkind = 'I' THEN 'partitioned index'
+        ELSE 'unknown'
     END AS object_type,
     CASE
-        WHEN c.relkind = 'r' THEN
-            (SELECT COUNT(*) FROM pg_attribute WHERE attrelid = c.oid AND attnum > 0)
-        ELSE
-            (SELECT COUNT(*) FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indexrelid WHERE i.indrelid = c.oid)
+        WHEN c.relkind IN ('r', 'p') THEN
+            (SELECT COUNT(*) FROM pg_attribute WHERE attrelid = c.oid AND attnum > 0 AND NOT attisdropped)
+        WHEN c.relkind IN ('i', 'I') AND NOT EXISTS (
+            SELECT 1 FROM pg_index WHERE indexrelid = c.oid AND indisprimary
+        ) THEN
+            (SELECT COUNT(*) FROM pg_attribute WHERE attrelid = c.oid AND attnum > 0 AND NOT attisdropped)
     END AS column_count
 FROM
     pg_class c
@@ -19,7 +24,7 @@ JOIN
 LEFT JOIN
     pg_index pi ON pi.indexrelid = c.oid
 WHERE
-    (c.relkind = 'r' OR (c.relkind = 'i' AND NOT pi.indisprimary))
+    (c.relkind IN ('r', 'p', 'i', 'I')) AND NOT (c.relkind IN ('i', 'I') AND pi.indisprimary)
     AND n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')]);
 
 \copy temp_table to 'table-columns-count.csv' WITH CSV HEADER;

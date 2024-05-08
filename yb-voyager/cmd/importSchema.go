@@ -118,6 +118,11 @@ func importSchema() {
 		installOrafceIfRequired(conn)
 	}
 
+	if !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
+		"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
+		utils.ErrExit("Exiting...")
+	}
+
 	var objectList []string
 	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
 	if !flagPostSnapshotImport { // Pre data load.
@@ -183,6 +188,17 @@ func importSchema() {
 	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
 	callhome.PackAndSendPayload(exportDir)
+}
+
+func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
+	var isColocated bool
+	query := "SELECT yb_is_database_colocated();"
+	err := conn.QueryRow(context.Background(), query).Scan(&isColocated)
+	if err != nil {
+		utils.ErrExit("failed to check if Target DB '%s' is colocated or not: %v", tconf.DBName, err)
+	}
+	log.Infof("target DB '%s' colocoated='%t'", tconf.DBName, isColocated)
+	return isColocated
 }
 
 func dumpStatements(stmts []string, filePath string) {

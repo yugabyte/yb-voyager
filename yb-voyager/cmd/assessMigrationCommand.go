@@ -30,10 +30,11 @@ import (
 	"text/template"
 
 	"github.com/samber/lo"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -46,18 +47,6 @@ var (
 	assessmentDB              *migassessment.AssessmentDB
 )
 
-type AssessmentReport struct {
-	SchemaSummary utils.SchemaSummary `json:"SchemaSummary"`
-
-	UnsupportedDataTypes []utils.TableColumnsDataTypes `json:"UnsupportedDataTypes"`
-
-	UnsupportedFeatures []UnsupportedFeature `json:"UnsupportedFeatures"`
-
-	Sizing *migassessment.SizingAssessmentReport `json:"Sizing"`
-
-	MigrationAssessmentStats *[]migassessment.TableIndexStats `json:"MigrationAssessmentStats"`
-}
-
 type UnsupportedFeature struct {
 	FeatureName string   `json:"FeatureName"`
 	ObjectNames []string `json:"ObjectNames"`
@@ -65,8 +54,8 @@ type UnsupportedFeature struct {
 
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
-	Short: "Assess the migration from source database to YugabyteDB.",
-	Long:  `Assess the migration from source database to YugabyteDB.`,
+	Short: "Assess the migration from source (PostgreSQL) database to YugabyteDB.",
+	Long:  `Assess the migration from source (PostgreSQL) database to YugabyteDB.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateSourceDBTypeForAssessMigration()
@@ -85,10 +74,51 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
+func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
+		"source database type: (postgresql)\n")
+
+	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
+		"source database server host")
+
+	cmd.Flags().IntVar(&source.Port, "source-db-port", 0,
+		"source database server port number. Default: PostgreSQL(5432)")
+
+	cmd.Flags().StringVar(&source.User, "source-db-user", "",
+		"connect to source database as the specified user")
+
+	// TODO: All sensitive parameters can be taken from the environment variable
+	cmd.Flags().StringVar(&source.Password, "source-db-password", "",
+		"source password to connect as the specified user. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+
+	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
+		"source database name to be migrated to YugabyteDB")
+
+	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
+		"source schema name(s) to export\n"+
+			`Note: in case of multiple schemas, use a comma separated list of schemas: "schema1,schema2,schema3"`)
+
+	// TODO SSL related more args will come. Explore them later.
+	cmd.Flags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
+		"Path of the file containing source SSL Certificate")
+
+	cmd.Flags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
+		"specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full)")
+
+	cmd.Flags().StringVar(&source.SSLKey, "source-ssl-key", "",
+		"Path of the file containing source SSL Key")
+
+	cmd.Flags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
+		"Path of the file containing source SSL Root Certificate")
+
+	cmd.Flags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
+		"Path of the file containing source SSL Root Certificate Revocation List (CRL)")
+}
+
 func init() {
 	rootCmd.AddCommand(assessMigrationCmd)
 	registerCommonGlobalFlags(assessMigrationCmd)
-	registerSourceDBConnFlags(assessMigrationCmd, false, false)
+	registerSourceDBConnFlagsForAM(assessMigrationCmd)
 
 	BoolVar(assessMigrationCmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
@@ -105,7 +135,7 @@ func assessMigration() (err error) {
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
-	checkStartCleanForAssessMigration()
+	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	err = retrieveMigrationUUID()
@@ -116,8 +146,9 @@ func assessMigration() (err error) {
 	startEvent := createMigrationAssessmentStartedEvent()
 	controlPlane.MigrationAssessmentStarted(startEvent)
 
-	migassessment.AssessmentMetadataDir = assessmentMetadataDir
-	initAssessmentDB() // Note: migassessment.AssessmentDataDir needs to be set beforehand
+	assessmentDir := filepath.Join(exportDir, "assessment")
+	migassessment.AssessmentDir = assessmentDir
+	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
 	err = gatherAssessmentMetadata()
 	if err != nil {
@@ -133,7 +164,7 @@ func assessMigration() (err error) {
 
 	err = runAssessment()
 	if err != nil {
-		return fmt.Errorf("failed to run assessment: %w", err)
+		utils.PrintAndLog("failed to run assessment: %v", err)
 	}
 	assessmentReport.Sizing = migassessment.SizingReport
 
@@ -145,7 +176,29 @@ func assessMigration() (err error) {
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
+	err = SetMigrationAssessmentDoneInMSR()
+	if err != nil {
+		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
+	}
 	return nil
+}
+
+func SetMigrationAssessmentDoneInMSR() error {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.MigrationAssessmentDone = true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record with migration assessment done flag: %w", err)
+	}
+	return nil
+}
+
+func IsMigrationAssessmentDone() (bool, error) {
+	record, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return false, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	return record.MigrationAssessmentDone, nil
 }
 
 func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
@@ -178,22 +231,26 @@ func runAssessment() error {
 	return nil
 }
 
-func checkStartCleanForAssessMigration() {
+func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
-	reportsFilePattern := filepath.Join(assessmentDir, "reports", "report.*")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", "assessmentReport.*")
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
-	assessmentDB := filepath.Join(assessmentMetadataDir, "assessment.DB")
+	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
 
-	if utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
-		utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) ||
-		utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern) ||
-		utils.FileOrFolderExists(assessmentDB) {
+	assessmentAlreadyDone := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
+	if !metadataDirPassedByUser {
+		assessmentAlreadyDone = assessmentAlreadyDone || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
+			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
+	}
+
+	if assessmentAlreadyDone {
 		if startClean {
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "metadata"))
-			utils.CleanDir(filepath.Join(exportDir, "assessment", "reports"))
+			utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
+			utils.CleanDir(filepath.Join(assessmentDir, "reports"))
+			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
 		} else {
-			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. ", assessmentDir)
+			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
 		}
 	}
 }
@@ -381,7 +438,7 @@ func generateAssessmentReport() (err error) {
 	}
 
 	assessmentReport.Sizing = migassessment.SizingReport
-	assessmentReport.MigrationAssessmentStats, err = assessmentDB.FetchAllStats()
+	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
 	}
@@ -442,19 +499,36 @@ func fetchUnsupportedFeaturesForPG(schemaAnalysisReport utils.SchemaReport) ([]U
 func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, error) {
 	var unsupportedDataTypes []utils.TableColumnsDataTypes
 
-	// load file with all column data types
-	filePath := filepath.Join(assessmentMetadataDir, "table-columns-data-types.csv")
-
-	allColumnsDataTypes, err := migassessment.LoadCSVDataFile[utils.TableColumnsDataTypes](filePath)
+	query := fmt.Sprintf(`SELECT schema_name, table_name, column_name, data_type FROM %s`,
+		migassessment.TABLE_COLUMNS_DATA_TYPES)
+	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load table columns data types file: %w", err)
+		return nil, err
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", err)
+		}
+	}()
+
+	var allColumnsDataTypes []utils.TableColumnsDataTypes
+	for rows.Next() {
+		var columnDataTypes utils.TableColumnsDataTypes
+		err := rows.Scan(&columnDataTypes.SchemaName, &columnDataTypes.TableName,
+			&columnDataTypes.ColumnName, &columnDataTypes.DataType)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows: %w", err)
+		}
+
+		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
 	// filter columns with unsupported data types using srcdb.PostgresUnsupportedDataTypesForDbzm
 	pgUnsupportedDataTypes := srcdb.PostgresUnsupportedDataTypesForDbzm
 	for i := 0; i < len(allColumnsDataTypes); i++ {
 		if utils.ContainsAnySubstringFromSlice(pgUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
-			unsupportedDataTypes = append(unsupportedDataTypes, *allColumnsDataTypes[i])
+			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
 	}
 
