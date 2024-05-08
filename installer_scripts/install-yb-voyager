@@ -841,14 +841,14 @@ ubuntu_install_postgres() {
 ubuntu_install_oracle_instant_clients() {
 	output "Installing Oracle Instant Clients."
 	wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
-	sudo apt-get install ./yb-apt-repo_1.0.0_all.deb
-	sudo apt-get update
-	sudo apt-get install oracle-instantclient-tools=21.5.0.0.0-1
-	sudo apt-get install oracle-instantclient-basic=21.5.0.0.0-1
-	sudo apt-get install oracle-instantclient-devel=21.5.0.0.0-1
-	sudo apt-get install oracle-instantclient-jdbc=21.5.0.0.0-1
-	sudo apt-get install oracle-instantclient-sqlplus=21.5.0.0.0-1
-	sudo apt-get remove yb-apt-repo
+	sudo apt-get install -y ./yb-apt-repo_1.0.0_all.deb 1>&2
+	sudo apt-get update -y 1>&2
+	sudo apt-get install -y oracle-instantclient-tools=21.5.0.0.0-1 1>&2
+	sudo apt-get install -y oracle-instantclient-basic=21.5.0.0.0-1 1>&2
+	sudo apt-get install -y oracle-instantclient-devel=21.5.0.0.0-1 1>&2
+	sudo apt-get install -y oracle-instantclient-jdbc=21.5.0.0.0-1 1>&2
+	sudo apt-get install -y oracle-instantclient-sqlplus=21.5.0.0.0-1 1>&2
+	sudo apt-get remove -y yb-apt-repo 1>&2
 	output "Installed Oracle Instance Clients."
 }
 
