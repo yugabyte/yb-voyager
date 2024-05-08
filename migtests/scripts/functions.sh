@@ -664,7 +664,7 @@ assess_migration() {
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
 		--start-clean t
-		--sleep-interval 0
+		--iops-measurement-interval 0
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then

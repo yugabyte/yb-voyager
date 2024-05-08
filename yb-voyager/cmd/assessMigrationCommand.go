@@ -32,6 +32,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -41,11 +42,11 @@ import (
 )
 
 var (
-	assessmentMetadataDir     string
-	assessmentMetadataDirFlag string
-	assessmentReport          AssessmentReport
-	assessmentDB              *migassessment.AssessmentDB
-	sleepIntervalForIOPS      int64
+	assessmentMetadataDir      string
+	assessmentMetadataDirFlag  string
+	assessmentReport           AssessmentReport
+	assessmentDB               *migassessment.AssessmentDB
+	measurementIntervalForIOPS int64
 )
 
 type UnsupportedFeature struct {
@@ -64,11 +65,21 @@ var assessMigrationCmd = &cobra.Command{
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
-		validateAssessmentMetadataDirFlag()
-		cmd.MarkFlagRequired("source-db-user")
-		cmd.MarkFlagRequired("source-db-name")
-		//Update this later as per db-types TODO
-		cmd.MarkFlagRequired("source-db-schema")
+		if cmd.Flags().Changed("assessment-metadata-dir") {
+			validateAssessmentMetadataDirFlag()
+			cmd.Flags().VisitAll(func(f *pflag.Flag) {
+				if f.Changed {
+					if strings.Contains(strings.ToLower(f.Name), "source") && f.Name != "source-db-type" {
+						utils.ErrExit("No need of `--source-*` connection related flags as `--assessment-metadata-dir` is provided.\nPlease re-run the command without these flags")
+					}
+				}
+			})
+		} else {
+			cmd.MarkFlagRequired("source-db-user")
+			cmd.MarkFlagRequired("source-db-name")
+			//Update this later as per db-types TODO
+			cmd.MarkFlagRequired("source-db-schema")
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -133,8 +144,8 @@ func init() {
 		"Directory path where assessment metadata like source DB metadata and statistics are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
 
-	assessMigrationCmd.Flags().Int64Var(&sleepIntervalForIOPS, "sleep-interval", 120,
-		"Sleep interval to be used to calculate IOPS on source database in seconds (default: 120)")
+	assessMigrationCmd.Flags().Int64Var(&measurementIntervalForIOPS, "iops-measurement-interval", 120,
+		"Interval to be used to measure IOPS on source database in seconds (default: 120)")
 
 }
 
@@ -325,7 +336,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		source.DB().GetConnectionUriWithoutPassword(),
 		source.Schema,
 		assessmentMetadataDir,
-		fmt.Sprintf("%d", sleepIntervalForIOPS),
+		fmt.Sprintf("%d", measurementIntervalForIOPS),
 	}
 
 	cmd := exec.Command(scriptPath, scriptArgs...)
