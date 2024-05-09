@@ -116,12 +116,13 @@ func exportSchema() error {
 	if err != nil {
 		return err
 	}
-	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
 	err = applyMigrationAssessmentRecommendations()
 	if err != nil {
 		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
 	}
+
+	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.SourceDBType = source.DBType
@@ -239,6 +240,7 @@ func applyMigrationAssessmentRecommendations() error {
 			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
 	}
+	utils.PrintAndLog("Applied assessment recommendations.")
 
 	return nil
 }
