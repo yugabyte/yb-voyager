@@ -166,7 +166,6 @@ func assessMigration() (err error) {
 	if err != nil {
 		utils.PrintAndLog("failed to run assessment: %v", err)
 	}
-	assessmentReport.Sizing = migassessment.SizingReport
 
 	err = generateAssessmentReport()
 	if err != nil {
@@ -228,6 +227,13 @@ func runAssessment() error {
 		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
 	}
 
+	assessmentReport.Sizing = migassessment.SizingReport
+
+	shardedTables, _ := assessmentReport.GetShardedTablesRecommendation()
+	colocatedTables, _ := assessmentReport.GetColocatedTablesRecommendation()
+	log.Infof("Recommendation: colocated tables: %v", colocatedTables)
+	log.Infof("Recommendation: sharded tables: %v", shardedTables)
+	log.Infof("Recommendation: Cluster size: %s", assessmentReport.GetClusterSizingRecommendation())
 	return nil
 }
 
@@ -568,7 +574,10 @@ func generateAssessmentReportHtml(reportDir string) error {
 	}()
 
 	log.Infof("creating template for assessment report...")
-	tmpl := template.Must(template.New("report").Parse(string(bytesTemplate)))
+	funcMap := template.FuncMap{
+		"split": split,
+	}
+	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
 	log.Infof("execute template for assessment report...")
 	err = tmpl.Execute(file, assessmentReport)
@@ -578,6 +587,10 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
+}
+
+func split(value string, delimiter string) []string {
+	return strings.Split(value, delimiter)
 }
 
 func validateSourceDBTypeForAssessMigration() {
