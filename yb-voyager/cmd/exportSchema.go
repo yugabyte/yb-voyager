@@ -275,6 +275,7 @@ func applyShardedTablesRecommendation(shardedTables []string) (err error) {
 			modifiedSqlStmt, err = applyShardingRecommendation(&sqlInfo)
 			if err != nil {
 				log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
+				fmt.Printf("unable to apply sharding recommendation for table=%q, ignoring the recommendation and continue...\n", sqlInfo.objName)
 				modifiedSqlStmt = sqlInfo.formattedStmt
 			}
 		} else {
