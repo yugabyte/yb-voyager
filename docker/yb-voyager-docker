@@ -46,8 +46,6 @@ volume_dirs=("--export-dir"
 "--assessment-metadata-dir"
 "--assessment-report-path")
 
-file_name="voyager-metadata.txt"
-
 # Loop through the array and capture the environment variables
 for var_name in "${variables[@]}"; do
   var=$(env | grep -E "$var_name")
