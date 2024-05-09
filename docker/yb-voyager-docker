@@ -169,7 +169,7 @@ then
 fi
 
 # If the command is end migration then map the paths saved in the file to the container. There are multiple flag names and paths saved in the file.
-if [[ ${argv[0]} == "end" ] && [ ${argv[1]} == "migration" ] && [ -f $file_name ]] 
+if [ "${argv[0]}" == "end" ] && [ "${argv[1]}" == "migration" ] && [ -f "$file_name" ]
 then
     while IFS= read -r line
     do
