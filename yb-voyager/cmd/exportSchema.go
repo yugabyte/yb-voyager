@@ -270,7 +270,7 @@ func applyShardedTablesRecommendation(shardedTables []string) (err error) {
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
 		// parsing only the Recommended Sharded Tables
-		if sqlInfo.objName != "" && !slices.Contains(shardedTables, sqlInfo.objName) {
+		if sqlInfo.objName != "" && slices.Contains(shardedTables, sqlInfo.objName) {
 			log.Infof("applying sharding recommendation for table=%q", sqlInfo.objName)
 			modifiedSqlStmt, err = applyShardingRecommendation(&sqlInfo)
 			if err != nil {
