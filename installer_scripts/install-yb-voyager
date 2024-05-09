@@ -843,14 +843,34 @@ ubuntu_install_oracle_instant_clients() {
 	wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
 	sudo apt-get install -y ./yb-apt-repo_1.0.0_all.deb 1>&2
 	sudo apt-get update -y 1>&2
-	sudo apt-get install -y oracle-instantclient-tools=21.5.0.0.0-1 1>&2
-	sudo apt-get install -y oracle-instantclient-basic=21.5.0.0.0-1 1>&2
-	sudo apt-get install -y oracle-instantclient-devel=21.5.0.0.0-1 1>&2
-	sudo apt-get install -y oracle-instantclient-jdbc=21.5.0.0.0-1 1>&2
-	sudo apt-get install -y oracle-instantclient-sqlplus=21.5.0.0.0-1 1>&2
+	ubuntu_install_oic oracle-instantclient-tools
+	ubuntu_install_oic oracle-instantclient-basic
+	ubuntu_install_oic oracle-instantclient-devel
+	ubuntu_install_oic oracle-instantclient-jdbc
+	ubuntu_install_oic oracle-instantclient-sqlplus
 	sudo apt-get remove -y yb-apt-repo 1>&2
 	rm -f yb-apt-repo_1.0.0_all.deb 1>&2
 	output "Installed Oracle Instance Clients."
+}
+
+ubuntu_install_oic() {
+	local package_name="$1"
+    
+    # Check if package is installed
+    if dpkg -l | grep -q "$package_name"; then
+        # Extract installed version
+        installed_version=$(dpkg -l | grep "$package_name" | awk '{print $3}')
+        # Check if installed version is greater than or equal to 21.5.0.0.0-1
+        if dpkg --compare-versions "$installed_version" ">=" "21.5.0.0.0-1"; then
+            output "$package_name is already installed and up to date."
+        else
+            # Install specific version
+            sudo apt-get install -y "$package_name=21.5.0.0.0-1" 1>&2
+        fi
+    else
+        # Install if package is not installed
+        sudo apt-get install -y "$package_name=21.5.0.0.0-1" 1>&2
+    fi
 }
 
 #=============================================================================
