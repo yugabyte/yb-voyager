@@ -104,6 +104,8 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type: (postgresql)\n")
 
+	cmd.MarkFlagRequired("source-db-type")
+
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 
@@ -155,7 +157,7 @@ func init() {
 			"it will be assumed to be present at default path inside the export directory.")
 
 	assessMigrationCmd.Flags().Int64Var(&intervalForCapturingIOPS, "iops-capture-interval", 120,
-		"Interval to be used to capture IOPS on source database in seconds (default: 120)")
+		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s) (default: 120)")
 
 }
 
