@@ -275,8 +275,12 @@ func applyShardedTablesRecommendation(shardedTables []string) (err error) {
 			modifiedSqlStmt, err = applyShardingRecommendation(&sqlInfo)
 			if err != nil {
 				log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
-				fmt.Printf("unable to apply sharding recommendation for table=%q, ignoring the recommendation and continue...\n", sqlInfo.objName)
+				fmt.Printf("Unable to apply sharding recommendation for table=%q, continuing without applying...\n", sqlInfo.objName)
+				fmt.Printf("Please manually add the clause \"WITH (colocation = false)\" to the CREATE TABLE DDL of the '%s' table.\n", sqlInfo.objName)
 				modifiedSqlStmt = sqlInfo.formattedStmt
+			} else {
+				log.Infof("original ddl - %s", sqlInfo.stmt)
+				log.Infof("modified ddl - %s", modifiedSqlStmt)
 			}
 		} else {
 			modifiedSqlStmt = sqlInfo.formattedStmt
@@ -333,14 +337,14 @@ func applyShardingRecommendation(sqlInfo *sqlInfo) (string, error) {
 	}
 
 	if len(parseTree.Stmts) == 0 {
-		log.Infof("parse tree is empty, returning")
+		log.Warnf("parse tree is empty for stmt=%s for table '%s'", stmt, sqlInfo.objName)
 		return stmt, nil
 	}
 
 	// Access the first statement directly
 	createStmtNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 	if !ok { // return the original sql if it's not a CreateStmt
-		log.Warnf("stmt=%s is not createTable as per the parse tree, expected tablename=%s", stmt, sqlInfo.objName)
+		log.Infof("stmt=%s is not createTable as per the parse tree, expected tablename=%s", stmt, sqlInfo.objName)
 		return stmt, nil
 	}
 	createTableStmt := createStmtNode.CreateStmt
@@ -350,20 +354,20 @@ func applyShardingRecommendation(sqlInfo *sqlInfo) (string, error) {
 		Arg:     pg_query.MakeStrNode("false"),
 	}
 
+	nodeForColocationOption := &pg_query.Node_DefElem{
+		DefElem: colocationOption,
+	}
+
 	log.Infof("adding colocation option in the parse tree for table %s", sqlInfo.objName)
 	if createTableStmt.Options == nil {
 		createTableStmt.Options = []*pg_query.Node{
 			{
-				Node: &pg_query.Node_DefElem{
-					DefElem: colocationOption,
-				},
+				Node: nodeForColocationOption,
 			},
 		}
 	} else {
 		createTableStmt.Options = append(createTableStmt.Options, &pg_query.Node{
-			Node: &pg_query.Node_DefElem{
-				DefElem: colocationOption,
-			},
+			Node: nodeForColocationOption,
 		})
 	}
 
