@@ -102,7 +102,7 @@ do
 	then
 		map_host_path_inside_container
 		# If the flag is --source-ssl-cert, --source-ssl-key, --source-ssl-root-cert then save them in a local text file. Store both flag and the path in the file. Save each flag in a new line.
-        if [[ " ${store_in_file[@]} " =~ " ${v} " ]]
+        if [[ " ${flags_to_store[@]} " =~ " ${v} " ]]
         then
             echo "${v} ${dir_path}" >> $file_name
         fi
