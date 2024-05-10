@@ -45,7 +45,21 @@ var (
 	assessmentMetadataDirFlag string
 	assessmentReport          AssessmentReport
 	assessmentDB              *migassessment.AssessmentDB
+	intervalForCapturingIOPS  int64
 )
+var sourceConnectionFlags = []string{
+	"source-db-host",
+	"source-db-password",
+	"source-db-name",
+	"source-db-port",
+	"source-db-schema",
+	"source-db-user",
+	"source-ssl-cert",
+	"source-ssl-crl",
+	"source-ssl-key",
+	"source-ssl-mode",
+	"source-ssl-root-cert",
+}
 
 type UnsupportedFeature struct {
 	FeatureName string   `json:"FeatureName"`
@@ -63,7 +77,19 @@ var assessMigrationCmd = &cobra.Command{
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
-		validateAssessmentMetadataDirFlag()
+		if cmd.Flags().Changed("assessment-metadata-dir") {
+			validateAssessmentMetadataDirFlag()
+			for _, f := range sourceConnectionFlags {
+				if cmd.Flags().Changed(f) {
+					utils.ErrExit("Cannot pass `--source-*` connection related flags when `--assessment-metadata-dir` is provided.\nPlease re-run the command without these flags")
+				}
+			}
+		} else {
+			cmd.MarkFlagRequired("source-db-user")
+			cmd.MarkFlagRequired("source-db-name")
+			//Update this later as per db-types TODO
+			cmd.MarkFlagRequired("source-db-schema")
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -77,6 +103,8 @@ var assessMigrationCmd = &cobra.Command{
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type: (postgresql)\n")
+
+	cmd.MarkFlagRequired("source-db-type")
 
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
@@ -127,6 +155,10 @@ func init() {
 	assessMigrationCmd.Flags().StringVar(&assessmentMetadataDirFlag, "assessment-metadata-dir", "",
 		"Directory path where assessment metadata like source DB metadata and statistics are stored. Optional flag, if not provided, "+
 			"it will be assumed to be present at default path inside the export directory.")
+
+	assessMigrationCmd.Flags().Int64Var(&intervalForCapturingIOPS, "iops-capture-interval", 120,
+		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s).")
+
 }
 
 func assessMigration() (err error) {
@@ -322,6 +354,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		source.DB().GetConnectionUriWithoutPassword(),
 		source.Schema,
 		assessmentMetadataDir,
+		fmt.Sprintf("%d", intervalForCapturingIOPS),
 	}
 
 	cmd := exec.Command(scriptPath, scriptArgs...)
