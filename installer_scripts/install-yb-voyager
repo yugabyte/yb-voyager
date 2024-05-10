@@ -855,21 +855,22 @@ ubuntu_install_oracle_instant_clients() {
 
 ubuntu_install_oic() {
 	local package_name="$1"
+	expected_version="21.5.0.0.0-1"
     
     # Check if package is installed
     if dpkg -l | grep -q "$package_name"; then
         # Extract installed version
         installed_version=$(dpkg -l | grep "$package_name" | awk '{print $3}')
         # Check if installed version is greater than or equal to 21.5.0.0.0-1
-        if dpkg --compare-versions "$installed_version" ">=" "21.5.0.0.0-1"; then
+        if dpkg --compare-versions "$installed_version" ">=" "$expected_version"; then
             output "$package_name is already installed and up to date."
         else
             # Install specific version
-            sudo apt-get install -y "$package_name=21.5.0.0.0-1" 1>&2
+            sudo apt-get install -y "$package_name=$expected_version" 1>&2
         fi
     else
         # Install if package is not installed
-        sudo apt-get install -y "$package_name=21.5.0.0.0-1" 1>&2
+        sudo apt-get install -y "$package_name=$expected_version" 1>&2
     fi
 }
 
