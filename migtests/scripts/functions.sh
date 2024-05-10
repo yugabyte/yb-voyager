@@ -693,4 +693,25 @@ assess_migration() {
 	yb-voyager assess-migration ${args} $*
 }
 
+validate_failure_reasoning() {
+    assessment_report="$1"
+
+    # Check if assessment report exists
+    if [ ! -f "$assessment_report" ]; then
+        echo "Error: Assessment report '$assessment_report' not found."
+        exit 1
+    fi
+
+    # Check if FailureReasoning is empty or not
+    failure_reasoning=$(jq -r '.Sizing.FailureReasoning' "$assessment_report")
+    if [ -z "$failure_reasoning" ]; then
+        echo "FailureReasoning is empty. Assessment passed."
+    else
+        echo "Error: FailureReasoning is not empty. Assessment failed."
+        echo "FailureReasoning: $failure_reasoning"
+        cat_log_file "yb-voyager-assess-migration.log"
+        exit 1
+    fi
+}
+
 
