@@ -232,6 +232,18 @@ func IsMigrationAssessmentDone() (bool, error) {
 	return record.MigrationAssessmentDone, nil
 }
 
+func ClearMigrationAssessmentDone() error {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if record.MigrationAssessmentDone {
+			record.MigrationAssessmentDone = false
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to clear migration status record with migration assessment done flag: %w", err)
+	}
+	return nil
+}
+
 func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
 	ev := &cp.MigrationAssessmentStartedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
@@ -287,6 +299,10 @@ func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 			utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
 			utils.CleanDir(filepath.Join(assessmentDir, "reports"))
 			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
+			err := ClearMigrationAssessmentDone()
+			if err != nil {
+				utils.ErrExit("failed to start clean: %v", err)
+			}
 		} else {
 			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
 		}
