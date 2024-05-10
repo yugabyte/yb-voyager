@@ -696,12 +696,6 @@ assess_migration() {
 validate_failure_reasoning() {
     assessment_report="$1"
 
-    # Check if assessment report exists
-    if [ ! -f "$assessment_report" ]; then
-        echo "Error: Assessment report '$assessment_report' not found."
-        exit 1
-    fi
-
     # Check if FailureReasoning is empty or not
     failure_reasoning=$(jq -r '.Sizing.FailureReasoning' "$assessment_report")
     if [ -z "$failure_reasoning" ]; then
