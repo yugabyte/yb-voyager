@@ -231,7 +231,7 @@ func applyMigrationAssessmentRecommendations() error {
 		return fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
-	shardedTables, err := report.GetShardedTablesRecommendation()
+	shardedTables, err := report.GetColocatedTablesRecommendation()
 	if err != nil {
 		return fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
 	} else {
