@@ -40,7 +40,7 @@ Arguments:
                             
 
 Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/metadata' '60'
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' '60'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
