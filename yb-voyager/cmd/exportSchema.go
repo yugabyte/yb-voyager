@@ -19,19 +19,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"golang.org/x/exp/slices"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 )
 
 var skipRecommendations utils.BoolStr
@@ -245,7 +245,7 @@ func applyMigrationAssessmentRecommendations() error {
 	return nil
 }
 
-func applyShardedTablesRecommendation(shardedTables []string) error {
+func applyShardedTablesRecommendation(shardedTables []string) (err error) {
 	if shardedTables == nil {
 		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
 		return nil
@@ -260,23 +260,33 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 	log.Infof("applying colocated vs sharded tables recommendation")
 	var newSQLFileContent strings.Builder
 	sqlInfoArr := parseSqlFileForObjectType(filePath, "TABLE")
-	setOrSelectRegexp := regexp.MustCompile(`(?m)^SET .+?;$|^SELECT .+?;$`)
-	lastStmtSetOrSelect := false
 	for _, sqlInfo := range sqlInfoArr {
-		newSQL := sqlInfo.formattedStmt
-		if setOrSelectRegexp.MatchString(sqlInfo.formattedStmt) {
-			newSQL += "\n"
-			lastStmtSetOrSelect = true
-		} else {
-			if createTableRegex.MatchString(sqlInfo.stmt) &&
-				slices.Contains(shardedTables, sqlInfo.objName) {
-				newSQL = applyShardingRecommendation(sqlInfo, lastStmtSetOrSelect)
+		var modifiedSqlStmt string
+		/*
+			We can rely on pg_query to detect if it is CreateTable and also table name
+			but due to time constraint this module can't be tested thoroughly so relying on the existing as much as possible
+
+			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
+			But avoiding that also specially for cases where the SQL syntax can be invalid
+		*/
+		// parsing only the Recommended Sharded Tables
+		if sqlInfo.objName != "" && slices.Contains(shardedTables, sqlInfo.objName) {
+			log.Infof("applying sharding recommendation for table=%q", sqlInfo.objName)
+			modifiedSqlStmt, err = applyShardingRecommendation(&sqlInfo)
+			if err != nil {
+				log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
+				fmt.Printf("Unable to apply sharding recommendation for table=%q, continuing without applying...\n", sqlInfo.objName)
+				fmt.Printf("Please manually add the clause \"WITH (colocation = false)\" to the CREATE TABLE DDL of the '%s' table.\n", sqlInfo.objName)
+				modifiedSqlStmt = sqlInfo.formattedStmt
 			} else {
-				newSQL = appendSpacing(newSQL, lastStmtSetOrSelect)
+				log.Infof("original ddl - %s", sqlInfo.stmt)
+				log.Infof("modified ddl - %s", modifiedSqlStmt)
 			}
-			lastStmtSetOrSelect = false
+		} else {
+			modifiedSqlStmt = sqlInfo.formattedStmt
 		}
-		_, err := newSQLFileContent.WriteString(newSQL)
+
+		_, err = newSQLFileContent.WriteString(modifiedSqlStmt + "\n\n")
 		if err != nil {
 			return fmt.Errorf("write SQL string to string builder: %w", err)
 		}
@@ -285,7 +295,7 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 	// rename existing table.sql file to table.sql.orig
 	backupPath := filePath + ".orig"
 	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
-	err := os.Rename(filePath, filePath+".orig")
+	err = os.Rename(filePath, filePath+".orig")
 	if err != nil {
 		return fmt.Errorf("error renaming file %s: %w", filePath, err)
 	}
@@ -309,32 +319,75 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 	return nil
 }
 
-func applyShardingRecommendation(sqlInfo sqlInfo, lastStmtSetOrSelect bool) string {
-	newSQL := strings.TrimRight(sqlInfo.formattedStmt, "; ")
-	newSQL += " WITH (COLOCATION = false);\n\n\n"
-	return prependSpacing(newSQL, lastStmtSetOrSelect)
-}
+/*
+applyShardingRecommendation uses pg_query module to parse the given SQL stmt
+In case of any errors or unexpected behaviour it return the original DDL
+so in worse only recommendation of that table won't be followed.
 
-func appendSpacing(sql string, lastStmtSetOrSelect bool) string {
-	return prependSpacing(sql+"\n\n\n", lastStmtSetOrSelect)
-}
+# It can handle cases like multiple options in WITH clause
 
-func prependSpacing(sql string, condition bool) string {
-	if condition {
-		return "\n\n" + sql
+Drawback: pg_query module doesn't have functionality to format the query after parsing
+so the CREATE TABLE for sharding recommended tables will be one-liner
+*/
+func applyShardingRecommendation(sqlInfo *sqlInfo) (string, error) {
+	stmt := sqlInfo.stmt
+	parseTree, err := pg_query.Parse(stmt)
+	if err != nil {
+		return stmt, fmt.Errorf("error parsing the stmt-%s: %v", stmt, err)
 	}
-	return sql
+
+	if len(parseTree.Stmts) == 0 {
+		log.Warnf("parse tree is empty for stmt=%s for table '%s'", stmt, sqlInfo.objName)
+		return stmt, nil
+	}
+
+	// Access the first statement directly
+	createStmtNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+	if !ok { // return the original sql if it's not a CreateStmt
+		log.Infof("stmt=%s is not createTable as per the parse tree, expected tablename=%s", stmt, sqlInfo.objName)
+		return stmt, nil
+	}
+	createTableStmt := createStmtNode.CreateStmt
+
+	colocationOption := &pg_query.DefElem{
+		Defname: COLOCATION_CLAUSE,
+		Arg:     pg_query.MakeStrNode("false"),
+	}
+
+	nodeForColocationOption := &pg_query.Node_DefElem{
+		DefElem: colocationOption,
+	}
+
+	log.Infof("adding colocation option in the parse tree for table %s", sqlInfo.objName)
+	if createTableStmt.Options == nil {
+		createTableStmt.Options = []*pg_query.Node{
+			{
+				Node: nodeForColocationOption,
+			},
+		}
+	} else {
+		createTableStmt.Options = append(createTableStmt.Options, &pg_query.Node{
+			Node: nodeForColocationOption,
+		})
+	}
+
+	log.Infof("deparsing the query after updating stmt's parse tree")
+	modifiedQuery, err := pg_query.Deparse(parseTree)
+	if err != nil {
+		return stmt, fmt.Errorf("error deparsing the parseTree into the query: %w", err)
+	}
+
+	// adding semi-colon at the end
+	return fmt.Sprintf("%s;", modifiedQuery), nil
 }
 
 func createExportSchemaStartedEvent() cp.ExportSchemaStartedEvent {
-
 	result := cp.ExportSchemaStartedEvent{}
 	initBaseSourceEvent(&result.BaseEvent, "EXPORT SCHEMA")
 	return result
 }
 
 func createExportSchemaCompletedEvent() cp.ExportSchemaCompletedEvent {
-
 	result := cp.ExportSchemaCompletedEvent{}
 	initBaseSourceEvent(&result.BaseEvent, "EXPORT SCHEMA")
 	return result
