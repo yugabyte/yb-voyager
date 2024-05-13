@@ -40,7 +40,7 @@ Arguments:
                             
 
 Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public,sales' '/path/to/assessment/metadata' '60'
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' '60'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -135,6 +135,8 @@ fi
 
 mkdir -p schema
 echo "Collecting schema information..."
+echo "Running the command"
+echo "pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql""
 pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql"
 
 # Return to the original directory after operations are done
