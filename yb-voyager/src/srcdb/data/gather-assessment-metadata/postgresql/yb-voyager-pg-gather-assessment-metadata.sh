@@ -135,8 +135,6 @@ fi
 
 mkdir -p schema
 echo "Collecting schema information..."
-echo "Running the command"
-echo "pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql""
 pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql"
 
 # Return to the original directory after operations are done
