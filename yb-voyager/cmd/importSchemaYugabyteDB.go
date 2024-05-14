@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -72,7 +73,7 @@ func importDeferredStatements() {
 				break
 			} else {
 				log.Infof("failed retry of deferred stmt: %s\n%v", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt), err)
-				errString := "/*\n" + err.Error() + "\n*/\n"
+				errString := fmt.Sprintf("/*\n%s\n*/\n", err.Error())
 				failedSqlStmtInIthIteration = append(failedSqlStmtInIthIteration, errString+deferredSqlStmts[j].formattedStmt)
 				err = conn.Close(context.Background())
 				if err != nil {
