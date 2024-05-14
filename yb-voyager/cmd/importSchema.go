@@ -176,7 +176,7 @@ func importSchema() {
 		importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 	}
 
-	importDefferedStatements()
+	importDeferredStatements()
 	log.Info("Schema import is complete.")
 
 	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))

@@ -25,7 +25,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var defferedSqlStmts []sqlInfo
+var deferredSqlStmts []sqlInfo
 var failedSqlStmts []string
 
 func importSchemaInternal(exportDir string, importObjectList []string,
@@ -42,38 +42,38 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 }
 
 /*
-Try re-executing each DDL from deffered list.
+Try re-executing each DDL from deferred list.
 If fails, silently avoid the error.
-Else remove from defferedSQLStmts list
+Else remove from deferredSQLStmts list
 At the end, add the unsuccessful ones to a failedSqlStmts list and report to the user
 */
-func importDefferedStatements() {
-	if len(defferedSqlStmts) == 0 {
+func importDeferredStatements() {
+	if len(deferredSqlStmts) == 0 {
 		return
 	}
-	log.Infof("Number of statements in defferedSQLStmts list: %d\n", len(defferedSqlStmts))
+	log.Infof("Number of statements in deferredSQLStmts list: %d\n", len(deferredSqlStmts))
 
 	utils.PrintAndLog("\nExecuting the remaining SQL statements...\n\n")
-	maxIterations := len(defferedSqlStmts)
+	maxIterations := len(deferredSqlStmts)
 	conn := newTargetConn()
 	defer func() { conn.Close(context.Background()) }()
 
 	var err error
 	// max loop iterations to remove all errors
-	for i := 1; i <= maxIterations && len(defferedSqlStmts) > 0; i++ {
-		for j := 0; j < len(defferedSqlStmts); {
-			_, err = conn.Exec(context.Background(), defferedSqlStmts[j].formattedStmt)
+	for i := 1; i <= maxIterations && len(deferredSqlStmts) > 0; i++ {
+		for j := 0; j < len(deferredSqlStmts); {
+			_, err = conn.Exec(context.Background(), deferredSqlStmts[j].formattedStmt)
 			if err == nil {
-				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt))
+				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt))
 				// removing successfully executed SQL
-				defferedSqlStmts = append(defferedSqlStmts[:j], defferedSqlStmts[j+1:]...)
+				deferredSqlStmts = append(deferredSqlStmts[:j], deferredSqlStmts[j+1:]...)
 				break // no increment in j
 			} else {
-				log.Infof("failed retry of deffered stmt: %s\n%v", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt), err)
+				log.Infof("failed retry of deferred stmt: %s\n%v", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt), err)
 				// fails to execute in final attempt
 				if i == maxIterations {
 					errString := "/*\n" + err.Error() + "\n*/\n"
-					failedSqlStmts = append(failedSqlStmts, errString+defferedSqlStmts[j].formattedStmt)
+					failedSqlStmts = append(failedSqlStmts, errString+deferredSqlStmts[j].formattedStmt)
 				}
 				conn.Close(context.Background())
 				conn = newTargetConn()
