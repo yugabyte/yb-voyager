@@ -208,7 +208,9 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 
 func dumpStatements(stmts []string, filePath string) {
 	if len(stmts) == 0 {
-		if !flagPostSnapshotImport && utils.FileOrFolderExists(filePath)==true {
+		if flagPostSnapshotImport {
+			// nothing
+		} else if utils.FileOrFolderExists(filePath) {
 			err := os.Remove(filePath)
 			if err != nil {
 				utils.ErrExit("remove file: %v", err)
