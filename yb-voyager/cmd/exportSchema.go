@@ -231,7 +231,7 @@ func applyMigrationAssessmentRecommendations() error {
 		return fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
-	shardedTables, err := report.GetColocatedTablesRecommendation()
+	shardedTables, err := report.GetShardedTablesRecommendation()
 	if err != nil {
 		return fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
 	} else {
@@ -269,15 +269,17 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
 		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables)
-		if match && err != nil {
+		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
-			fmt.Printf("Unable to apply sharding recommendation for table=%q, continuing without applying...\n", sqlInfo.objName)
-			fmt.Printf("Please manually add the clause \"WITH (colocation = false)\" to the CREATE TABLE DDL of the '%s' table.\n", sqlInfo.objName)
-		} else if err != nil {
-			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
-		} else if match && err == nil {
-			log.Infof("original ddl - %s", sqlInfo.stmt)
-			log.Infof("modified ddl - %s", modifiedSqlStmt)
+			if match {
+				utils.PrintAndLog("Unable to apply sharding recommendation for table=%q, continuing without applying...\n", sqlInfo.objName)
+				utils.PrintAndLog("Please manually add the clause \"WITH (colocation = false)\" to the CREATE TABLE DDL of the '%s' table.\n", sqlInfo.objName)
+			}
+		} else {
+			if match {
+				log.Infof("original ddl - %s", sqlInfo.stmt)
+				log.Infof("modified ddl - %s", modifiedSqlStmt)
+			}
 		}
 
 		_, err = newSQLFileContent.WriteString(modifiedSqlStmt + "\n\n")
