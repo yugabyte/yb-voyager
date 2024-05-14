@@ -61,24 +61,35 @@ func importDeferredStatements() {
 	var err error
 	// max loop iterations to remove all errors
 	for i := 1; i <= maxIterations && len(deferredSqlStmts) > 0; i++ {
-		for j := 0; j < len(deferredSqlStmts); {
+		beforeDeferredSqlCount := len(deferredSqlStmts)
+		var failedSqlStmtInIthIteration []string
+		for j := 0; j < len(deferredSqlStmts); j++ {
 			_, err = conn.Exec(context.Background(), deferredSqlStmts[j].formattedStmt)
 			if err == nil {
 				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt))
 				// removing successfully executed SQL
 				deferredSqlStmts = append(deferredSqlStmts[:j], deferredSqlStmts[j+1:]...)
-				break // no increment in j
+				break
 			} else {
 				log.Infof("failed retry of deferred stmt: %s\n%v", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt), err)
-				// fails to execute in final attempt
-				if i == maxIterations {
-					errString := "/*\n" + err.Error() + "\n*/\n"
-					failedSqlStmts = append(failedSqlStmts, errString+deferredSqlStmts[j].formattedStmt)
+				errString := "/*\n" + err.Error() + "\n*/\n"
+				failedSqlStmtInIthIteration = append(failedSqlStmtInIthIteration, errString+deferredSqlStmts[j].formattedStmt)
+				err = conn.Close(context.Background())
+				if err != nil {
+					log.Warnf("error while closing the connection due to failed deferred stmt: %v", err)
 				}
-				conn.Close(context.Background())
 				conn = newTargetConn()
-				j++
 			}
+		}
+
+		afterDeferredSqlCount := len(deferredSqlStmts)
+		if afterDeferredSqlCount == 0 {
+			log.Infof("all of the deferred statements executed successfully in the %d iteration", i)
+		} else if beforeDeferredSqlCount == afterDeferredSqlCount {
+			// no need for further iterations since the deferred list will remain same
+			log.Infof("none of the deferred statements executed successfully in the %d iteration", i)
+			failedSqlStmts = failedSqlStmtInIthIteration
+			break
 		}
 	}
 }
