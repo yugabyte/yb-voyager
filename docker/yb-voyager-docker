@@ -58,7 +58,7 @@ flags_to_store=("--source-ssl-cert"
 "--source-ssl-key"
 "--source-ssl-root-cert")
 
-file_name="voyager-metadata.txt"
+file_name="/tmp/voyager-docker-metadata.txt"
 
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
 

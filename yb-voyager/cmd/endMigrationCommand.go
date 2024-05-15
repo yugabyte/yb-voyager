@@ -92,6 +92,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 		utils.PrintAndLog("saved the backup at %q", backupDir)
 	}
 
+	cleanupDockerScriptMetadata()
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
 }
@@ -780,6 +781,16 @@ func getFreeDiskSpace(path string) (uint64, error) {
 	// calculate the free space in bytes
 	freeSpace := stat.Bfree * uint64(stat.Bsize)
 	return freeSpace, nil
+}
+
+func cleanupDockerScriptMetadata() {
+	dockerMetadataFilePath := "/tmp/voyager-docker-metadata.txt"
+	if utils.FileOrFolderExists(dockerMetadataFilePath) {
+		err := os.Remove(dockerMetadataFilePath)
+		if err != nil {
+			utils.ErrExit("removing docker metadata file %q: %v", dockerMetadataFilePath, err)
+		}
+	}
 }
 
 func init() {
