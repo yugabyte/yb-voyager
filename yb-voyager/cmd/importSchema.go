@@ -176,7 +176,7 @@ func importSchema() {
 		importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 	}
 
-	importDefferedStatements()
+	importDeferredStatements()
 	log.Info("Schema import is complete.")
 
 	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
@@ -208,7 +208,9 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 
 func dumpStatements(stmts []string, filePath string) {
 	if len(stmts) == 0 {
-		if utils.FileOrFolderExists(filePath) {
+		if flagPostSnapshotImport {
+			// nothing
+		} else if utils.FileOrFolderExists(filePath) {
 			err := os.Remove(filePath)
 			if err != nil {
 				utils.ErrExit("remove file: %v", err)
@@ -218,7 +220,13 @@ func dumpStatements(stmts []string, filePath string) {
 		return
 	}
 
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	var fileMode int
+	if flagPostSnapshotImport {
+		fileMode = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	} else {
+		fileMode = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	}
+	file, err := os.OpenFile(filePath, fileMode, 0644)
 	if err != nil {
 		utils.ErrExit("open file: %v", err)
 	}
