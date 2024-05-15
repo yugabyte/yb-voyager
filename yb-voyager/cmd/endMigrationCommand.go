@@ -788,6 +788,7 @@ func cleanupDockerScriptMetadata() {
 	if utils.FileOrFolderExists(dockerMetadataFilePath) {
 		err := os.Remove(dockerMetadataFilePath)
 		if err != nil {
+			fmt.Println("cleaning up docker script metadata...")
 			utils.ErrExit("removing docker metadata file %q: %v", dockerMetadataFilePath, err)
 		}
 	}
