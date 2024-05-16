@@ -654,4 +654,58 @@ EOF
 
 }
 
+assess_migration() {
+	args="--export-dir ${EXPORT_DIR}
+		--source-db-type ${SOURCE_DB_TYPE}
+		--source-db-host ${SOURCE_DB_HOST}
+		--source-db-port ${SOURCE_DB_PORT}
+		--source-db-user ${SOURCE_DB_USER}
+		--source-db-password ${SOURCE_DB_PASSWORD}
+		--source-db-name ${SOURCE_DB_NAME}
+		--send-diagnostics=false --yes
+		--start-clean t
+		--iops-capture-interval 0
+	"
+	if [ "${SOURCE_DB_SCHEMA}" != "" ]
+	then
+		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+	fi
+	if [ "${SOURCE_DB_SSL_MODE}" != "" ]
+	then
+		args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_CERT}" != "" ]
+	then
+		args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_KEY}" != "" ]
+	then
+		args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]
+	then
+		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
+	fi
+	
+	yb-voyager assess-migration ${args} $*
+}
+
+validate_failure_reasoning() {
+    assessment_report="$1"
+
+    # Check if FailureReasoning is empty or not
+    failure_reasoning=$(jq -r '.Sizing.FailureReasoning' "$assessment_report")
+    if [ -z "$failure_reasoning" ]; then
+        echo "FailureReasoning is empty. Assessment passed."
+    else
+        echo "Error: FailureReasoning is not empty. Assessment failed."
+        echo "FailureReasoning: $failure_reasoning"
+        cat_log_file "yb-voyager-assess-migration.log"
+        exit 1
+    fi
+}
+
 

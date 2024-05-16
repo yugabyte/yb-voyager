@@ -35,8 +35,12 @@ const (
 	TABLE_ROW_COUNTS         = "table_row_counts"
 	TABLE_COLUMNS_COUNT      = "table_columns_count"
 	INDEX_TO_TABLE_MAPPING   = "index_to_table_mapping"
+	OBJECT_TYPE_MAPPING      = "object_type_mapping"
 	TABLE_COLUMNS_DATA_TYPES = "table_columns_data_types"
 	TABLE_INDEX_STATS        = "table_index_stats"
+
+	PARTITIONED_TABLE_OBJECT_TYPE = "partitioned table"
+	PARTITIONED_INDEX_OBJECT_TYPE = "partitioned index"
 )
 
 type TableIndexStats struct {
@@ -49,12 +53,13 @@ type TableIndexStats struct {
 	ReadsPerSecond  *int64  `json:"ReadsPerSecond"`
 	WritesPerSecond *int64  `json:"WritesPerSecond"`
 	IsIndex         bool    `json:"IsIndex"`
+	ObjectType      string  `json:"ObjectType"`
 	ParentTableName *string `json:"ParentTableName"`
 	SizeInBytes     *int64  `json:"SizeInBytes"`
 }
 
 func GetSourceMetadataDBFilePath() string {
-	return filepath.Join(AssessmentMetadataDir, "assessment.db")
+	return filepath.Join(AssessmentDir, "dbs", "assessment.db")
 }
 
 func GetTableIndexStatName() string {
@@ -102,6 +107,11 @@ func InitAssessmentDB() error {
 			table_name		TEXT,
 			PRIMARY KEY (index_schema, index_name));`, INDEX_TO_TABLE_MAPPING),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			schema_name     TEXT,
+			object_name     TEXT,
+			object_type     TEXT,
+			PRIMARY KEY (schema_name, object_name));`, OBJECT_TYPE_MAPPING),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name		TEXT,
 			table_name		TEXT,
 			column_name		TEXT,
@@ -118,6 +128,7 @@ func InitAssessmentDB() error {
 			reads_per_second	INTEGER,
 			writes_per_second	INTEGER,
 			is_index            BOOLEAN,
+			object_type			TEXT,
 			parent_table_name   TEXT,
 			size_in_bytes       INTEGER,
 			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
@@ -190,7 +201,7 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 }
 
 const (
-	InsertTableStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes, is_index, parent_table_name, size_in_bytes)
+	InsertTableStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes, is_index, object_type, parent_table_name, size_in_bytes)
 	SELECT 
 		trc.schema_name,
 		trc.table_name AS object_name,
@@ -199,15 +210,18 @@ const (
 		tii.seq_reads AS reads,
 		tii.row_writes AS writes,
 		0 AS is_index,
+		otm.object_type,
 		NULL AS parent_table_name,
 		tis.size_in_bytes
 	FROM %s trc
 	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name
-	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name;`
+	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name
+	LEFT JOIN %s otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name
+	WHERE otm.object_type NOT IN ('%s', '%s');`
 
 	// No insertion into 'column_count' for indexes
-	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, reads, writes, is_index, parent_table_name, size_in_bytes)
+	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, reads, writes, is_index, object_type, parent_table_name, size_in_bytes)
 	SELECT 
 		itm.index_schema AS schema_name,
 		itm.index_name AS object_name,
@@ -215,11 +229,14 @@ const (
 		tii.seq_reads AS reads,
 		tii.row_writes AS writes,
 		1 AS is_index,
+		otm.object_type,
 		itm.table_schema || '.' || itm.table_name AS parent_table_name,
 		tis.size_in_bytes
 	FROM %s itm
 	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial'
-	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name;`
+	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name
+	LEFT JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name
+	WHERE otm.object_type NOT IN ('%s', '%s');`
 
 	CreateTempTable = `CREATE TEMP TABLE read_write_rates AS
 	SELECT
@@ -258,8 +275,10 @@ const (
 // populate table_index_stats table using the data from other tables
 func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	statements := []string{
-		fmt.Sprintf(InsertTableStats, TABLE_INDEX_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES, TABLE_COLUMNS_COUNT),
-		fmt.Sprintf(InsertIndexStats, TABLE_INDEX_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES),
+		fmt.Sprintf(InsertTableStats, TABLE_INDEX_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES,
+			TABLE_COLUMNS_COUNT, OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
+		fmt.Sprintf(InsertIndexStats, TABLE_INDEX_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES,
+			OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
 		fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
 		UpdateStatsWithRates,
 	}
@@ -309,4 +328,12 @@ func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	}
 
 	return &stats, nil
+}
+
+func (adb *AssessmentDB) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	rows, err := adb.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error executing query-%s: %w", query, err)
+	}
+	return rows, nil
 }

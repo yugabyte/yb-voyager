@@ -126,6 +126,16 @@ func importSchema() {
 		objectList = utils.SetDifference(objectList, objectsToImportAfterData)
 		if len(objectList) == 0 {
 			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
+		} else {
+			assessmentDone, err := IsMigrationAssessmentDone()
+			if err != nil {
+				utils.ErrExit("failed to check if migration assessment done: %v", err)
+			}
+
+			if assessmentDone && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
+				"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
+				utils.ErrExit("Exiting...")
+			}
 		}
 	} else { // Post data load.
 		objectList = objectsToImportAfterData
@@ -166,7 +176,7 @@ func importSchema() {
 		importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 	}
 
-	importDefferedStatements()
+	importDeferredStatements()
 	log.Info("Schema import is complete.")
 
 	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
@@ -185,9 +195,22 @@ func importSchema() {
 	callhome.PackAndSendPayload(exportDir)
 }
 
+func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
+	var isColocated bool
+	query := "SELECT yb_is_database_colocated();"
+	err := conn.QueryRow(context.Background(), query).Scan(&isColocated)
+	if err != nil {
+		utils.ErrExit("failed to check if Target DB '%s' is colocated or not: %v", tconf.DBName, err)
+	}
+	log.Infof("target DB '%s' colocoated='%t'", tconf.DBName, isColocated)
+	return isColocated
+}
+
 func dumpStatements(stmts []string, filePath string) {
 	if len(stmts) == 0 {
-		if utils.FileOrFolderExists(filePath) {
+		if flagPostSnapshotImport {
+			// nothing
+		} else if utils.FileOrFolderExists(filePath) {
 			err := os.Remove(filePath)
 			if err != nil {
 				utils.ErrExit("remove file: %v", err)
@@ -197,7 +220,13 @@ func dumpStatements(stmts []string, filePath string) {
 		return
 	}
 
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	var fileMode int
+	if flagPostSnapshotImport {
+		fileMode = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	} else {
+		fileMode = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	}
+	file, err := os.OpenFile(filePath, fileMode, 0644)
 	if err != nil {
 		utils.ErrExit("open file: %v", err)
 	}
