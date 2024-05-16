@@ -126,7 +126,7 @@ do
 	if [[ " ${volume_dirs[@]} " =~ " ${v} " ]]
 	then
 		map_host_path_inside_container
-		# If the flag is --source-ssl-cert, --source-ssl-key, --source-ssl-root-cert then save them in a local text file. Store both flag and the path in the file. Save each flag in a new line.
+		# If the flag is in flags_to_store array then save them in a local text file. Store both flag and the path in the file. Save each flag in a new line.
         if [[ " ${flags_to_store[@]} " =~ " ${v} " ]]
         then
             echo "${v} ${dir_path}" >> $file_name
