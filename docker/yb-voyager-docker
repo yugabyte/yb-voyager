@@ -61,7 +61,7 @@ flags_to_store=("--source-ssl-cert"
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
 
 # command is like yb-voyager export data. The command name is export data.
-command_name=${argv[1]}-${argv[2]}
+command_name=${argv[0]}-${argv[1]}
 file_name="/tmp/docker-metadata-${command_name}.txt"
 export_dir=""
 
@@ -103,7 +103,10 @@ do
 	if [[ ${v} == "-e" ]]
 	then
 		v="--export-dir"
-		export_dir=${argv[${i+1}]}
+	fi
+	if [[ ${v} == "--export-dir" ]]
+	then
+		export_dir=${argv[$(( $i + 1 ))]}
 	fi
 	# if v is present in volume_dirs array
 	if [[ " ${volume_dirs[@]} " =~ " ${v} " ]]
@@ -172,7 +175,7 @@ do
 done
 
 # If the metadata file exists then move it to the export_dir and overwrite any existing file.
-if [ -f "$file_name" ]
+if [ -f "$file_name" -a -n "$export_dir" ]
 then
 	mv $file_name $export_dir
 fi
