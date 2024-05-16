@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -46,6 +47,8 @@ func newMySQL(s *Source) *MySQL {
 
 func (ms *MySQL) Connect() error {
 	db, err := sql.Open("mysql", ms.getConnectionUri())
+	db.SetMaxOpenConns(1)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 	ms.db = db
 	return err
 }
@@ -284,7 +287,7 @@ func (ms *MySQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
 
 	query := fmt.Sprintf(`SELECT table_name, column_name FROM information_schema.columns
 		WHERE table_schema = '%s' AND extra = 'auto_increment'`,
-			schemaName)
+		schemaName)
 	log.Infof("Querying '%s' for auto increment column of all tables in the database %q", query, schemaName)
 	var sequences []string
 	rows, err := ms.db.Query(query)
