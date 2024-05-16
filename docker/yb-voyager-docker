@@ -56,12 +56,26 @@ done
 
 flags_to_store=("--source-ssl-cert"
 "--source-ssl-key"
-"--source-ssl-root-cert")
+"--source-ssl-root-cert"
+" --source-ssl-crl"
+"--target-ssl-root-cert"
+"--target-ssl-crl"
+"--target-ssl-cert"
+"--target-ssl-key"
+"--source-replica-ssl-cert"
+"--source-replica-ssl-crl"
+"--source-replica-ssl-key"
+"--source-replica-ssl-root-cert")
 
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
 
-# command is like yb-voyager export data. The command name is export data.
+# if command is like yb-voyager export data. The command name is export data.
 command_name=${argv[0]}-${argv[1]}
+# if argv[2] is "from" or "to" then command name is like import data from source or import data to target
+if [[ ${argv[2]} == "from" || ${argv[2]} == "to" ]]
+then
+	command_name=${argv[0]}-${argv[1]}-${argv[2]}-${argv[3]}
+fi
 file_name="/tmp/docker-metadata-${command_name}.txt"
 export_dir=""
 
@@ -185,8 +199,8 @@ then
 	tty="-it"
 fi
 
-# If the command is end migration then map the paths saved in the metadata files to the container.
-if [ "${argv[0]}" == "end" ] && [ "${argv[1]}" == "migration" ] 
+# If the command is end migration or export data from target or import data to source or get data-migration-report then map the paths saved in the metadata files to the container.
+if [[ ${command_name} == "end-migration" || ${command_name} == "export-data-from-target" || ${command_name} == "import-data-to-source" || ${command_name} == "get-data-migration-report" ]]
 then
     # There are multiple files saved in export dir which start with docker-metadata-*. Read each file and map the paths to the container.
 	for file in $(ls $export_dir/docker-metadata-*)
