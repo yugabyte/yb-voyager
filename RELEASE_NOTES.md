@@ -5,7 +5,7 @@
 Included here are the release notes for the [YugabyteDB Voyager](https://docs.yugabyte.com/preview/migrate/) v1 release series. Content will be added as new notable features and changes are available in the patch releases of the YugabyteDB v1 series.
 
 
-## v1.7 - May 15, 2024
+## v1.7 - May 16, 2024
 
 ### New features
 
