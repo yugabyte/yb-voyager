@@ -76,7 +76,7 @@ if [[ ${argv[2]} == "from" || ${argv[2]} == "to" ]]
 then
 	command_name=${argv[0]}-${argv[1]}-${argv[2]}-${argv[3]}
 fi
-file_name="/tmp/docker-metadata-${command_name}.txt"
+command_metadata_file_name="/tmp/docker-metadata-${command_name}.txt"
 export_dir=""
 
 map_host_path_inside_container() {
@@ -107,9 +107,9 @@ map_host_path_inside_container() {
 		fi
 }
 
-if [ -f "$file_name" ]
+if [ -f "$command_metadata_file_name" ]
 then
-	rm $file_name
+	rm $command_metadata_file_name
 fi
 while [ $i -lt $# ]
 do
@@ -129,7 +129,7 @@ do
 		# If the flag is in flags_to_store array then save them in a local text file. Store both flag and the path in the file. Save each flag in a new line.
         if [[ " ${flags_to_store[@]} " =~ " ${v} " ]]
         then
-            echo "${v} ${dir_path}" >> $file_name
+            echo "${v} ${dir_path}" >> $command_metadata_file_name
         fi
 		i=$(( $i + 1))
 		continue
@@ -189,9 +189,14 @@ do
 done
 
 # If the metadata file exists then move it to the export_dir and overwrite any existing file.
-if [ -f "$file_name" -a -n "$export_dir" ]
+if [ -f "$command_metadata_file_name" -a -n "$export_dir" ]
 then
-	mv $file_name $export_dir
+	# Check if the meta directory exists in the export_dir. If not, create it.
+	if [ ! -d "$export_dir/metainfo" ]
+	then
+		mkdir -p $export_dir/metainfo
+	fi
+	mv $command_metadata_file_name $export_dir/metainfo
 fi
 
 if [ -t 1 ] 
@@ -203,7 +208,7 @@ fi
 if [[ ${command_name} == "end-migration" || ${command_name} == "export-data-from-target" || ${command_name} == "import-data-to-source" || ${command_name} == "get-data-migration-report" ]]
 then
     # There are multiple files saved in export dir which start with docker-metadata-*. Read each file and map the paths to the container.
-	for file in $(ls $export_dir/docker-metadata-*)
+	for file in $(ls $export_dir/metainfo/docker-metadata-*)
 	do
 		while read line
 		do
