@@ -58,9 +58,12 @@ flags_to_store=("--source-ssl-cert"
 "--source-ssl-key"
 "--source-ssl-root-cert")
 
-file_name="/tmp/voyager-docker-metadata.txt"
-
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
+
+# command is like yb-voyager export data. The command name is export data.
+command_name=${argv[1]}-${argv[2]}
+file_name="/tmp/docker-metadata-${command_name}.txt"
+export_dir=""
 
 map_host_path_inside_container() {
 		flag_name=$1
@@ -90,12 +93,17 @@ map_host_path_inside_container() {
 		fi
 }
 
+if [ -f "$file_name" ]
+then
+	rm $file_name
+fi
 while [ $i -lt $# ]
 do
 	v=${argv[${i}]}
 	if [[ ${v} == "-e" ]]
 	then
 		v="--export-dir"
+		export_dir=${argv[${i+1}]}
 	fi
 	# if v is present in volume_dirs array
 	if [[ " ${volume_dirs[@]} " =~ " ${v} " ]]
@@ -163,19 +171,30 @@ do
     i=$(( $i + 1))
 done
 
+# If the metadata file exists then move it to the export_dir and overwrite any existing file.
+if [ -f "$file_name" ]
+then
+	mv $file_name $export_dir
+fi
+
 if [ -t 1 ] 
 then 
 	tty="-it"
 fi
 
-# If the command is end migration then map the paths saved in the file to the container. There are multiple flag names and paths saved in the file.
-if [ "${argv[0]}" == "end" ] && [ "${argv[1]}" == "migration" ] && [ -f "$file_name" ]
+# If the command is end migration then map the paths saved in the metadata files to the container.
+if [ "${argv[0]}" == "end" ] && [ "${argv[1]}" == "migration" ] 
 then
-    while IFS= read -r line
-    do
-        IFS=' ' read -r -a array <<< "$line"
-        map_host_path_inside_container "${array[0]}" "${array[1]}"
-    done < $file_name
+    # There are multiple files saved in export dir which start with docker-metadata-*. Read each file and map the paths to the container.
+	for file in $(ls $export_dir/docker-metadata-*)
+	do
+		while read line
+		do
+			flag_name=$(echo $line | awk '{print $1}')
+			dir_path=$(echo $line | awk '{print $2}')
+			map_host_path_inside_container $flag_name $dir_path
+		done < $file
+	done
 fi
 
 dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --pid=host --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
