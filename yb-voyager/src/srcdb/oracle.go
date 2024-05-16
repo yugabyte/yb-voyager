@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -46,6 +47,8 @@ func newOracle(s *Source) *Oracle {
 
 func (ora *Oracle) Connect() error {
 	db, err := sql.Open("godror", ora.getConnectionUri())
+	db.SetMaxOpenConns(1)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 	ora.db = db
 	return err
 }
@@ -568,6 +571,7 @@ WHEN OTHERS THEN
 		RAISE;
 	END IF;
 END;`
+
 //(-942) exception is for table doesn't exists
 
 func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
