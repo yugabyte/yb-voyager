@@ -369,6 +369,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 		if err != nil {
 			utils.ErrExit("Failed to query %q for auto increment column of %q: %s", query, table.String(), err)
 		}
+		defer rows.Close()
 		if rows.Next() {
 			err = rows.Scan(&columnName)
 			if err != nil {
@@ -379,6 +380,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 			sequenceName := fmt.Sprintf("%s_%s_seq", tname, columnName)
 			columnToSequenceMap[qualifiedColumeName] = sequenceName
 		}
+		_ = rows.Close()
 	}
 	return columnToSequenceMap
 }
