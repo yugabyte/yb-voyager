@@ -555,6 +555,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 			log.Infof("Query to find column to sequence mapping: %s", query)
 			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
 		}
+		defer rows.Close()
 		for rows.Next() {
 			err := rows.Scan(&columeName, &sequenceName, &schemaName)
 			if err != nil {
@@ -563,6 +564,10 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
+		}
+		err = rows.Close()
+		if err != nil {
+			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
 		}
 	}
 

@@ -380,7 +380,10 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 			sequenceName := fmt.Sprintf("%s_%s_seq", tname, columnName)
 			columnToSequenceMap[qualifiedColumeName] = sequenceName
 		}
-		_ = rows.Close()
+		err = rows.Close()
+		if err != nil {
+			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
+		}
 	}
 	return columnToSequenceMap
 }

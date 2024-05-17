@@ -412,6 +412,7 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 		if err != nil {
 			utils.ErrExit("failed to query %q for finding identity column: %v", query, err)
 		}
+		defer rows.Close()
 		for rows.Next() {
 			var columnName string
 			err := rows.Scan(&columnName)
@@ -420,6 +421,10 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf("%s_%s_seq", tname, columnName)
+		}
+		err = rows.Close()
+		if err != nil {
+			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
 		}
 	}
 
