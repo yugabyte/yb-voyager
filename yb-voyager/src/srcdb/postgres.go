@@ -168,6 +168,12 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for checking mentioned schema(s) present or not: %v\n", chkSchemaExistsQuery, err)
 	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", chkSchemaExistsQuery, closeErr)
+		}
+	}()
 	var listOfSchemaPresent []string
 	var tableSchemaName string
 
@@ -178,7 +184,6 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 		}
 		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
 	}
-	defer rows.Close()
 
 	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
 	if len(schemaNotPresent) > 0 {
@@ -197,7 +202,12 @@ func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for table names: %w", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 
 	var tableNames []string
 	var tableName string
@@ -225,7 +235,12 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 
 	var tableNames []*sqlname.SourceName
 	var tableName, tableSchema string
@@ -398,7 +413,12 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 
 	var sequenceName, sequenceSchema string
 	for rows.Next() {
@@ -419,7 +439,12 @@ func (pg *PostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 
 	var sequenceName string
 	for rows.Next() {
@@ -480,7 +505,12 @@ func (pg *PostgreSQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	for rows.Next() {
 		var column, dataType, dataTypeOwner string
 		err = rows.Scan(&column, &dataType, &dataTypeOwner)
@@ -555,7 +585,12 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 			log.Infof("Query to find column to sequence mapping: %s", query)
 			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
 		}
-		defer rows.Close()
+		defer func() {
+			closeErr := rows.Close()
+			if closeErr != nil {
+				log.Warnf("close rows for table %s query %q: %v", table.String(), query, closeErr)
+			}
+		}()
 		for rows.Next() {
 			err := rows.Scan(&columeName, &sequenceName, &schemaName)
 			if err != nil {
@@ -631,7 +666,12 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
 		utils.ErrExit("failed to find the partitions for table %s:", tableName, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	for rows.Next() {
 		var childSchema, childTable string
 		err := rows.Scan(&childSchema, &childTable)
@@ -663,7 +703,12 @@ func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 	if err != nil {
 		return nil, fmt.Errorf("querying unique key columns: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 
 	for rows.Next() {
 		var schemaName, tableName, colName string
@@ -790,7 +835,12 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for primary key: %v", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	for rows.Next() {
 		var schemaName, tableName string
 		var pkCount int
@@ -823,7 +873,12 @@ func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.Na
 	if err != nil {
 		return fmt.Errorf("error in querying(%q) source database for replica identity: %v", query, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	for rows.Next() {
 		var tableWithSchema string
 		err := rows.Scan(&tableWithSchema)

@@ -130,7 +130,12 @@ func (ora *Oracle) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for table names: %v", err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	for rows.Next() {
 		var tableName string
 		err = rows.Scan(&tableName)
@@ -215,7 +220,12 @@ func (ora *Oracle) GetIndexesInfo() []utils.IndexInfo {
 	if err != nil {
 		utils.ErrExit("error in querying source database for indexes info: %v", err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	var indexesInfo []utils.IndexInfo
 	for rows.Next() {
 		var indexName, indexType, tableName, columns string
@@ -412,7 +422,12 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 		if err != nil {
 			utils.ErrExit("failed to query %q for finding identity column: %v", query, err)
 		}
-		defer rows.Close()
+		defer func() {
+			closeErr := rows.Close()
+			if closeErr != nil {
+				log.Warnf("close rows for table %s query %q: %v", table.String(), query, closeErr)
+			}
+		}()
 		for rows.Next() {
 			var columnName string
 			err := rows.Scan(&columnName)
@@ -548,7 +563,12 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) 
 	if err != nil {
 		return nil, fmt.Errorf("querying unique key columns for tables: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 
 	for rows.Next() {
 		var tableName string
@@ -608,7 +628,12 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for unsupported tables: %v", err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	var nonPKTables []string
 	for rows.Next() {
 		var count int

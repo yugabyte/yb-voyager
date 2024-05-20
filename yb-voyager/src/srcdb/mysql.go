@@ -120,7 +120,12 @@ func (ms *MySQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for table names: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	for rows.Next() {
 		var tableName string
 		err = rows.Scan(&tableName)
@@ -369,7 +374,12 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 		if err != nil {
 			utils.ErrExit("Failed to query %q for auto increment column of %q: %s", query, table.String(), err)
 		}
-		defer rows.Close()
+		defer func() {
+			closeErr := rows.Close()
+			if closeErr != nil {
+				log.Warnf("close rows for table %s query %q: %v", table.String(), query, closeErr)
+			}
+		}()
 		if rows.Next() {
 			err = rows.Scan(&columnName)
 			if err != nil {
@@ -471,7 +481,12 @@ func (ms *MySQL) GetNonPKTables() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query %q for primary key of %q: %w", query, ms.source.DBName, err)
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
 	var nonPKTables []string
 	for rows.Next() {
 		var count int
