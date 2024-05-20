@@ -74,6 +74,11 @@ def fetch_sharded_and_colocated_tables(json_file):
 		data = json.load(file)
 	sharded_tables = data['Sizing']['SizingRecommendation']['ShardedTables']
 	colocated_tables = data['Sizing']['SizingRecommendation']['ColocatedTables']
+
+	if sharded_tables is None:
+		sharded_tables = []
+	if colocated_tables is None:
+		colocated_tables = []
 	return sharded_tables, colocated_tables
 
 class PostgresDB:
