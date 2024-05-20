@@ -422,8 +422,7 @@ import_data() {
 import_data_to_source_replica() {
 	args="
 	--export-dir ${EXPORT_DIR}
-	--source-replica-db-user ${SOURCE_REPLICA_DB_USER}
-	--source-replica-db-host ${SOURCE_REPLICA_DB_HOST} 
+	--source-replica-db-user ${SOURCE_REPLICA_DB_USER} 
 	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
 	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
 	--start-clean true
@@ -435,6 +434,12 @@ import_data_to_source_replica() {
 	if [ "${SOURCE_REPLICA_DB_SCHEMA}" != "" ]
 	then
 		args="${args} --source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA}"
+	fi
+	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
+	then
+		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
+	else
+		args="${args} --source-replica-db-host ${SOURCE_REPLICA_DB_HOST}"
 	fi
 	yb-voyager import data to source-replica ${args} $*
 }
