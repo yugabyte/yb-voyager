@@ -286,12 +286,19 @@ export_data() {
 	then
 		args="${args} --table-list ${TABLE_LIST}"
 	fi
+	if [ "${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}" != "" ]
+	then
+	    args="${args} --oracle-cdb-tns-alias ${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}"
+	fi
 
 	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
 	then
-		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
-	else
-		args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
+	    args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
+	fi
+
+	if [ "${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}" = "" ] && [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" = "" ]
+	then
+	    args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
 	fi
 
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
