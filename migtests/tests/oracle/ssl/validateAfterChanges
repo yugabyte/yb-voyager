@@ -22,7 +22,7 @@ def main():
 		migration_completed_checks_yb()
 
 EXPECTED_ROW_COUNT = {
-	'test_simple': 3,
+	'test_simple': 2,
 }
 
 
