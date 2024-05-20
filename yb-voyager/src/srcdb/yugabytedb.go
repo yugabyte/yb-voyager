@@ -72,13 +72,6 @@ func (yb *YugabyteDB) CheckRequiredToolsAreInstalled() {
 }
 
 func (yb *YugabyteDB) GetTableRowCount(tableName sqlname.NameTuple) int64 {
-	// // new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
-	// conn, err := pgx.Connect(context.Background(), yb.getConnectionUri())
-	// if err != nil {
-	// 	utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
-	// }
-	// defer conn.Close(context.Background())
-
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 	log.Infof("Querying row count of table %q", tableName)

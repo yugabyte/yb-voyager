@@ -108,13 +108,6 @@ func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 }
 
 func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
-	// // new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
-	// conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
-	// if err != nil {
-	// 	utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
-	// }
-	// defer conn.Close(context.Background())
-
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 	log.Infof("Querying row count of table %q", tableName)
@@ -805,12 +798,6 @@ func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName str
 }
 
 func (pg *PostgreSQL) DropPublication(publicationName string) error {
-	// conn, err := pgx.Connect(pg.getConnectionUri())
-	// if err != nil {
-	// 	utils.ErrExit("failed to connect to the source database for dropping publication: %s", err)
-	// }
-	// defer conn.Close(context.Background())
-
 	log.Infof("dropping publication: %s", publicationName)
 	res, err := pg.db.Exec(fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
 	log.Infof("drop publication result: %v", res)
