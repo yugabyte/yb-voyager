@@ -23,7 +23,11 @@ export QUEUE_SEGMENT_MAX_BYTES=400
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Order of env.sh import matters.
-source ${TEST_DIR}/env.sh
+if [ -f "${TEST_DIR}/live_env.sh" ]; then
+    source "${TEST_DIR}/live_env.sh"
+else
+    source "${TEST_DIR}/env.sh"
+fi
 
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 then
