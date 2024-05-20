@@ -442,9 +442,9 @@ import_data_to_source_replica() {
 	then
 		args="${args} --source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA}"
 	fi
-	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
+	if [ "${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}" != "" ]
 	then
-		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
+		args="${args} --oracle-tns-alias ORCLPDB1SSL"
 	else
 		args="${args} --source-replica-db-host ${SOURCE_REPLICA_DB_HOST}"
 	fi
