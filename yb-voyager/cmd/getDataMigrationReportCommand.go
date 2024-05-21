@@ -188,7 +188,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	var targetEventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	if msr.TargetDBConf != nil {
-		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableNameTups)
+		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target")
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for target DB: %w\n", err)
 		}
@@ -201,13 +201,22 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 	var replicaEventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	if fFEnabled {
+		// In this case we need to lookup in a namereg where role is SOURCE_REPLICA_DB_IMPORTER_ROLE so that
+		// look up happens properly for source_replica names as here reg is the map of target->source-replica tablename
 		oldNameReg := namereg.NameReg
 		namereg.NameReg = *nameRegistryForSourceReplicaRole
-		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableNameTups)
+		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica")
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for source-replica DB: %w\n", err)
 		}
-		replicaEventsImportedMap, err = getImportedEventsMap("source-replica", tableNameTups, msr.SourceReplicaDBConf)
+		sourceReplicaTups := make([]sqlname.NameTuple, len(tableNameTups))
+		for i, ntup := range tableNameTups {
+			sourceReplicaTups[i], err = namereg.NameReg.LookupTableName(ntup.ForKey())
+			if err != nil {
+				utils.ErrExit("lookup table %s: %v", ntup.ForKey(), err)
+			}
+		}
+		replicaEventsImportedMap, err = getImportedEventsMap("source-replica", sourceReplicaTups, msr.SourceReplicaDBConf)
 		if err != nil {
 			utils.ErrExit("error while getting imported events counts for source-replica DB: %w\n", err)
 		}
@@ -330,17 +339,6 @@ func getImportedEventsMap(dbType string, tableNameTups []sqlname.NameTuple, targ
 	case "source":
 		importerRole = SOURCE_DB_IMPORTER_ROLE
 	}
-	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
-		var err error
-		sourceReplicaTups := make([]sqlname.NameTuple, len(tableNameTups))
-		for i, ntup := range tableNameTups {
-			sourceReplicaTups[i], err = namereg.NameReg.LookupTableName(ntup.ForKey())
-			if err != nil {
-				return nil, fmt.Errorf("lookup table %s: %v", ntup.ForKey(), err)
-			}
-		}
-		tableNameTups = sourceReplicaTups
-	}
 	//reinitialise targetDB
 	tconf = *targetConf
 	tdb = tgtdb.NewTargetDB(&tconf)
@@ -369,6 +367,8 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameT
 	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		var err error
 		tblName := tableNameTup.ForKey()
+		//In case of source-replica role namereg is the map of target->source-replica name 
+		//and hence ForKey() returns source-relica name so we need to get that from reg
 		tableNameTup, err = nameRegistryForSourceReplicaRole.LookupTableName(tblName)
 		if err != nil {
 			return fmt.Errorf("lookup %s in source replica name registry: %v", tblName, err)
