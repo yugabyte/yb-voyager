@@ -527,8 +527,11 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 
 func GetLogMiningFlushTableName(migrationUUID uuid.UUID) string {
 	// SQL tables doesn't support '-' in the name
-	convertedMigUUID := strings.Replace(migrationUUID.String(), "-", "_", -1)
-	return fmt.Sprintf("VOYAGER_LOG_MINING_FLUSH_%s", convertedMigUUID)
+	//TODO: bug in debezium and fixed with latest 2.7 will have to take it up when we do the upgrade of debezium
+	//https://issues.redhat.com/browse/DBZ-7819
+	// convertedMigUUID := strings.Replace(migrationUUID.String(), "-", "_", -1)
+	// return fmt.Sprintf("VOYAGER_LOG_MINING_FLUSH_%s", convertedMigUUID)
+	return "LOG_MINING_FLUSH"
 }
 
 func ConvertStringSliceToInterface(slice []string) []interface{} {
