@@ -232,6 +232,7 @@ func exportData() bool {
 	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
+
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
 		if err != nil {
@@ -547,7 +548,13 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	tableListFromDB := source.DB().GetAllTableNames()
 	var err error
 	var fullTableList []sqlname.NameTuple
+	logMiningFlushTable := utils.GetLogMiningFlushTableName(migrationUUID)
 	for _, t := range tableListFromDB {
+		if source.DBType == ORACLE {
+			if t.ObjectName.Unquoted == logMiningFlushTable {
+				continue
+			}
+		}
 		schema, table := t.SchemaName.Unquoted, t.ObjectName.Unquoted
 		defaultSchemaName, _ := getDefaultSourceSchemaName()
 		//For partitions case there is no defined mapping and
@@ -813,11 +820,6 @@ func clearMigrationStateIfRequired() {
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {
 			utils.ErrExit("Failed to truncate tables in metadb: %s", err)
-		}
-		//For dropping VOYAGER_LOG_MINING_FLUSH_{migrationUUID} table in oracle on start-clean
-		err = source.DB().ClearMigrationState(migrationUUID, exportDir)
-		if err != nil {
-			utils.ErrExit("failed to clear migration state: %s", err)
 		}
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {

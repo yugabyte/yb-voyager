@@ -327,10 +327,8 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 		}
 	}
 
-	logMiningFlushTable := utils.GetLogMiningFlushTableName(migrationUUID)
 	for _, table := range tableList {
-		_, tname := table.ForCatalogQuery()
-		if !slices.Contains(unsupportedTableList, table) && tname != logMiningFlushTable {
+		if !slices.Contains(unsupportedTableList, table) {
 			filteredTableList = append(filteredTableList, table)
 		}
 	}
