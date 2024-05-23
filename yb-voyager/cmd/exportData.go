@@ -552,6 +552,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	for _, t := range tableListFromDB {
 		if source.DBType == ORACLE {
 			if t.ObjectName.Unquoted == logMiningFlushTable {
+				//Ignore this table as this is for debezium's internal use
 				continue
 			}
 		}
