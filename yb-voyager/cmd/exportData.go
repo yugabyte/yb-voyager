@@ -548,14 +548,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 	tableListFromDB := source.DB().GetAllTableNames()
 	var err error
 	var fullTableList []sqlname.NameTuple
-	logMiningFlushTable := utils.GetLogMiningFlushTableName(migrationUUID)
 	for _, t := range tableListFromDB {
-		if source.DBType == ORACLE {
-			if t.ObjectName.Unquoted == logMiningFlushTable {
-				//Ignore this table as this is for debezium's internal use
-				continue
-			}
-		}
 		schema, table := t.SchemaName.Unquoted, t.ObjectName.Unquoted
 		defaultSchemaName, _ := getDefaultSourceSchemaName()
 		//For partitions case there is no defined mapping and

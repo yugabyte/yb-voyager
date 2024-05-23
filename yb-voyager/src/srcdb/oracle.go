@@ -142,6 +142,10 @@ func (ora *Oracle) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for table names: %v", err)
 		}
+		if strings.HasPrefix(tableName, "VOYAGER_LOG_MINING_FLUSH_") {
+			//Ignore this table as this is for debezium's internal use
+			continue
+		}
 		tableNames = append(tableNames, tableName)
 	}
 
