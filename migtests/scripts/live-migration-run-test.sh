@@ -74,6 +74,8 @@ main() {
 			cat_log_file "yb-voyager-assess-migration.log"
 			exit 1
 		fi
+
+		post_assess_migration
 	fi
 
 	step "Export schema."
