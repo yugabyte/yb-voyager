@@ -134,6 +134,10 @@ func (ora *Oracle) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for table names: %v", err)
 		}
+		if strings.HasPrefix(tableName, "VOYAGER_LOG_MINING_FLUSH_") {
+			//Ignore this table as this is for debezium's internal use
+			continue
+		}
 		tableNames = append(tableNames, tableName)
 	}
 
@@ -314,10 +318,8 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 		}
 	}
 
-	logMiningFlushTable := utils.GetLogMiningFlushTableName(migrationUUID)
 	for _, table := range tableList {
-		_, tname := table.ForCatalogQuery()
-		if !slices.Contains(unsupportedTableList, table) && tname != logMiningFlushTable {
+		if !slices.Contains(unsupportedTableList, table) {
 			filteredTableList = append(filteredTableList, table)
 		}
 	}
