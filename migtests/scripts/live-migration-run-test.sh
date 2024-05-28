@@ -169,11 +169,11 @@ main() {
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back false --yes
 
-	for ((i = 0; i < 5; i++)); do
+	for ((i = 0; i < 10; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
-        if [ "$i" -eq 4 ]; then
+        if [ "$i" -eq 9 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"		
