@@ -16,14 +16,16 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
+	_ "embed"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -915,118 +917,51 @@ func initializeSummaryMap() {
 
 }
 
-func generateHTMLReport(Report utils.SchemaReport) string {
-	//appending to doc line by line for better readability
+//go:embed templates/schema_analysis_report.html
+var schemaAnalysisHtmlTmpl string
 
-	//reading source db metainfo
-	msr, err := metaDB.GetMigrationStatusRecord()
+//go:embed templates/schema_analysis_report.txt
+var schemaAnalysisTxtTmpl string
+
+func applyTemplate(Report utils.SchemaReport, templateString string) (string, error) {
+	tmpl, err := template.New("schema_analysis_report").Funcs(funcMap).Parse(templateString)
 	if err != nil {
-		utils.ErrExit("generate html report: load migration status record: %s", err)
+		return "", fmt.Errorf("failed to parse template file: %w", err)
 	}
 
-	//Broad details
-	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
-	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.SchemaSummary.DBName + "</td></tr>"
-	htmlstring += "<tr><th>Schema Name(s)</th><td>" + strings.Join(Report.SchemaSummary.SchemaNames, ",") + "</td></tr>"
-	htmlstring += "<tr><th>" + strings.ToUpper(msr.SourceDBConf.DBType) + " Version</th><td>" + Report.SchemaSummary.DBVersion + "</td></tr></table>"
-
-	//Summary of report
-	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Valid Count</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
-	for i := 0; i < len(Report.SchemaSummary.DBObjects); i++ {
-		if Report.SchemaSummary.DBObjects[i].TotalCount != 0 {
-			htmlstring += "<tr><th>" + Report.SchemaSummary.DBObjects[i].ObjectType + "</th><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount-Report.SchemaSummary.DBObjects[i].InvalidCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.SchemaSummary.DBObjects[i].InvalidCount) + "</td><td width='40%'>" + Report.SchemaSummary.DBObjects[i].ObjectNames + "</td><td width='30%'>" + Report.SchemaSummary.DBObjects[i].Details + "</td></tr>"
-		}
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, Report)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute parse template file: %w", err)
 	}
-	htmlstring += "</table><br>"
 
-	//Issues/Error messages
-	htmlstring += "<ul list-style-type='disc'>"
-	for i := 0; i < len(Report.Issues); i++ {
-		if Report.Issues[i].ObjectType != "" {
-			htmlstring += "<li>Issue in Object " + Report.Issues[i].ObjectType + ":</li><ul>"
-		} else {
-			htmlstring += "<li>Issue " + Report.Issues[i].ObjectType + ":</li><ul>"
-		}
-		if Report.Issues[i].ObjectName != "" {
-			htmlstring += "<li>Object Name: " + Report.Issues[i].ObjectName + "</li>"
-		}
-		if Report.Issues[i].Reason != "" {
-			htmlstring += "<li>Reason: " + Report.Issues[i].Reason + "</li>"
-		}
-		if Report.Issues[i].SqlStatement != "" {
-			htmlstring += "<li>SQL Statement: " + Report.Issues[i].SqlStatement + "</li>"
-		}
-		if Report.Issues[i].FilePath != "" {
-			htmlstring += "<li>File Path: " + Report.Issues[i].FilePath + "<a href='" + Report.Issues[i].FilePath + "'> [Preview]</a></li>"
-		}
-		if Report.Issues[i].Suggestion != "" {
-			htmlstring += "<li>Suggestion: " + Report.Issues[i].Suggestion + "</li>"
-		}
-		if Report.Issues[i].GH != "" {
-			htmlstring += "<li><a href='" + Report.Issues[i].GH + "'>Github Issue Link</a></li>"
-		}
-		htmlstring += "</ul>"
-	}
-	htmlstring += "</ul>"
-	if len(Report.SchemaSummary.Notes) > 0 {
-		htmlstring += "<h3>Notes</h3>"
-		htmlstring += "<ul list-style-type='disc'>"
-		for i := 0; i < len(Report.SchemaSummary.Notes); i++ {
-			htmlstring += "<li>" + Report.SchemaSummary.Notes[i] + "</li>"
-		}
-		htmlstring += "</ul>"
-	}
-	htmlstring += "</body></html>"
-	return htmlstring
-
+	return buf.String(), nil
 }
 
-func generateTxtReport(Report utils.SchemaReport) string {
-	txtstring := "+---------------------------+\n"
-	txtstring += "| Database Migration Report |\n"
-	txtstring += "+---------------------------+\n"
-	txtstring += "Database Name\t" + Report.SchemaSummary.DBName + "\n"
-	txtstring += "Schema Name(s)\t" + strings.Join(Report.SchemaSummary.SchemaNames, ",") + "\n"
-	txtstring += "DB Version\t" + Report.SchemaSummary.DBVersion + "\n\n"
-	txtstring += "Objects:\n\n"
-	//if names for json objects need to be changed make sure to change the tab spaces accordingly as well.
-	for i := 0; i < len(Report.SchemaSummary.DBObjects); i++ {
-		if Report.SchemaSummary.DBObjects[i].TotalCount != 0 {
-			txtstring += fmt.Sprintf("%-16s", "Object:") + Report.SchemaSummary.DBObjects[i].ObjectType + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Total Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Valid Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].TotalCount-Report.SchemaSummary.DBObjects[i].InvalidCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Invalid Count:") + strconv.Itoa(Report.SchemaSummary.DBObjects[i].InvalidCount) + "\n"
-			txtstring += fmt.Sprintf("%-16s", "Object Names:") + Report.SchemaSummary.DBObjects[i].ObjectNames + "\n"
-			if Report.SchemaSummary.DBObjects[i].Details != "" {
-				txtstring += fmt.Sprintf("%-16s", "Details:") + Report.SchemaSummary.DBObjects[i].Details + "\n"
+var funcMap = template.FuncMap{
+	"join": func(arr []string, sep string) string {
+		return strings.Join(arr, sep)
+	},
+	"sub": func(a int, b int) int {
+		return a - b
+	},
+	"add": func(a int, b int) int {
+		return a + b
+	},
+	"sumDbObjects": func(dbObjects []utils.DBObject, field string) int {
+		total := 0
+		for _, obj := range dbObjects {
+			switch field {
+			case "TotalCount":
+				total += obj.TotalCount
+			case "InvalidCount":
+				total += obj.InvalidCount
+			case "ValidCount":
+				total += obj.TotalCount - obj.InvalidCount
 			}
-			txtstring += "\n"
 		}
-	}
-	if len(Report.Issues) != 0 {
-		txtstring += "Issues:\n\n"
-	}
-	for i := 0; i < len(Report.Issues); i++ {
-		txtstring += "Error in Object " + Report.Issues[i].ObjectType + ":\n"
-		txtstring += "-Object Name: " + Report.Issues[i].ObjectName + "\n"
-		txtstring += "-Reason: " + Report.Issues[i].Reason + "\n"
-		txtstring += "-SQL Statement: " + Report.Issues[i].SqlStatement + "\n"
-		txtstring += "-File Path: " + Report.Issues[i].FilePath + "\n"
-		if Report.Issues[i].Suggestion != "" {
-			txtstring += "-Suggestion: " + Report.Issues[i].Suggestion + "\n"
-		}
-		if Report.Issues[i].GH != "" {
-			txtstring += "-Github Issue Link: " + Report.Issues[i].GH + "\n"
-		}
-		txtstring += "\n"
-	}
-	if len(Report.SchemaSummary.Notes) > 0 {
-		txtstring += "Notes:\n\n"
-		for i := 0; i < len(Report.SchemaSummary.Notes); i++ {
-			txtstring += strconv.Itoa(i+1) + ". " + Report.SchemaSummary.Notes[i] + "\n"
-		}
-	}
-	return txtstring
+		return total
+	},
 }
 
 // add info to the 'reportStruct' variable and return
@@ -1086,20 +1021,27 @@ func analyzeSchema() {
 
 	switch analyzeSchemaReportFormat {
 	case "html":
-		htmlReport := generateHTMLReport(schemaAnalysisReport)
-		finalReport = utils.PrettifyHtmlString(htmlReport)
-	case "json":
-		jsonBytes, err := json.Marshal(schemaAnalysisReport)
+		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisHtmlTmpl)
 		if err != nil {
-			panic(err)
+			utils.ErrExit("failed to apply template for html schema analysis report: %v", err)
 		}
-		reportJsonString := string(jsonBytes)
-		finalReport = utils.PrettifyJsonString(reportJsonString)
+	case "json":
+		jsonReportBytes, err := json.MarshalIndent(schemaAnalysisReport, "", "    ")
+		if err != nil {
+			utils.ErrExit("failed to marshal the report struct into json schema analysis report: %v", err)
+		}
+		finalReport = string(jsonReportBytes)
 	case "txt":
-		finalReport = generateTxtReport(schemaAnalysisReport)
+		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisTxtTmpl)
+		if err != nil {
+			utils.ErrExit("failed to apply template for txt schema analysis report: %v", err)
+		}
 	case "xml":
-		byteReport, _ := xml.MarshalIndent(schemaAnalysisReport, "", "\t")
-		finalReport = string(byteReport)
+		xmlReportBytes, err := xml.MarshalIndent(schemaAnalysisReport, "", "\t")
+		if err != nil {
+			utils.ErrExit("failed to marshal the report struct into xml schema analysis report: %v", err)
+		}
+		finalReport = string(xmlReportBytes)
 	default:
 		panic(fmt.Sprintf("invalid report format: %q", analyzeSchemaReportFormat))
 	}
