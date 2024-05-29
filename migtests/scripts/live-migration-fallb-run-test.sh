@@ -174,11 +174,11 @@ main() {
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true --yes
 
-	for ((i = 0; i < 15; i++)); do
+	for ((i = 0; i < 20; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
-        if [ "$i" -eq 14 ]; then
+        if [ "$i" -eq 19 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
@@ -202,11 +202,11 @@ main() {
 	step "Initiating cutover to source"
 	yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} --yes
 
-	for ((i = 0; i < 10; i++)); do
+	for ((i = 0; i < 15; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
-        if [ "$i" -eq 9 ]; then
+        if [ "$i" -eq 14 ]; then
             tail_log_file "yb-voyager-import-data-to-source.log"
             tail_log_file "yb-voyager-export-data-from-target.log"
 			tail_log_file "debezium-target_db_exporter_fb.log"
