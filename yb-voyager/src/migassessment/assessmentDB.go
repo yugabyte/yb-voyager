@@ -176,6 +176,9 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	}()
 
 	columnNames := records[0]
+	// for i, v := range columnNames {
+	// 	columnNames[i] = strings.ToLower(v)
+	// }
 	stmtStr := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, table,
 		strings.Join(columnNames, ", "), strings.Repeat("?, ", len(columnNames)-1)+"?")
 
