@@ -323,15 +323,14 @@ func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMeta
 	recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 	// Iterate over each intermediate recommendation where failureReasoning is empty
 	totalTabletsRequired := 0
-	for _, rec := range recommendation {
+	for index, rec := range recommendation {
 		if len(rec.ShardedTables) != 0 && rec.FailureReasoning == "" {
 			// Iterate over each table and its indexes to find out how many tablets are needed
 			for _, table := range rec.ShardedTables {
 				// check and fetch indexes size data for table
 				_, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
-				threshold, tabletsRequired := getThresholdAndTablets(table.Size + indexesSizeSum)
+				_, tabletsRequired := getThresholdAndTablets(table.Size + indexesSizeSum)
 				totalTabletsRequired += tabletsRequired
-				fmt.Printf("Table %s with size %f GB requires %d tablets from threshold %f", table.ObjectName, table.Size, tabletsRequired, threshold)
 			}
 			// assuming table limits is also a tablet limit
 			// get shardedLimit of current recommendation
@@ -339,12 +338,8 @@ func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMeta
 				if record.numCores.Valid && int(record.numCores.Float64) == rec.VCPUsPerInstance {
 					nodesRequired := math.Ceil(float64(totalTabletsRequired) / float64(record.maxSupportedNumTables.Int64))
 					// update recommendation to use the maximum of the existing recommended nodes and nodes calculated based on tablets
-					if nodesRequired > rec.NumNodes {
-						fmt.Printf("Tablets required %d, existing recommendation: %f new recommendation: %f\n", totalTabletsRequired, rec.NumNodes, nodesRequired)
-					} else {
-						fmt.Printf("Tablets required %d, existing recommendation: %f. Staying with current recommendation\n", totalTabletsRequired, rec.NumNodes)
-					}
 					rec.NumNodes = math.Max(rec.NumNodes, nodesRequired)
+					recommendation[index] = rec
 				}
 			}
 		}
