@@ -17,10 +17,12 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
@@ -56,7 +58,11 @@ var importSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		importSchema()
+		err := importSchema()
+		if err != nil {
+			sendCallHomeImportSchema(ERRORED, err.Error())
+			utils.ErrExit("error in importing schema: %s", err)
+		}
 	},
 }
 
@@ -73,10 +79,10 @@ var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
 var invalidTargetIndexesCache map[string]bool
 
-func importSchema() {
+func importSchema() error {
 	err := retrieveMigrationUUID()
 	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
+		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
@@ -84,7 +90,7 @@ func importSchema() {
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err = tdb.Init()
 		if err != nil {
-			utils.ErrExit("failed to initialize the target DB: %s", err)
+			return fmt.Errorf("failed to initialize the target DB: %s", err)
 		}
 	}
 
@@ -93,7 +99,7 @@ func importSchema() {
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		utils.ErrExit("Unable to connect to target YugabyteDB database: %v", err)
+		return fmt.Errorf("unable to connect to target YugabyteDB database: %v", err)
 	}
 	defer conn.Close(context.Background())
 
@@ -101,12 +107,9 @@ func importSchema() {
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err = conn.QueryRow(context.Background(), query).Scan(&targetDBVersion)
 	if err != nil {
-		utils.ErrExit("get target db version: %s", err)
+		return fmt.Errorf("get target db version: %s", err)
 	}
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
-
-	payload := callhome.GetPayload(exportDir, migrationUUID)
-	payload.TargetDBVersion = targetDBVersion
 
 	if !flagPostSnapshotImport {
 		filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
@@ -163,17 +166,26 @@ func importSchema() {
 		return false
 	}
 	skipFn := isSkipStatement
-	importSchemaInternal(exportDir, objectList, skipFn)
+	err = importSchemaInternal(exportDir, objectList, skipFn)
+	if err != nil {
+		return err
+	}
 
 	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 	skipFn = func(objType, stmt string) bool {
 		return !isSkipStatement(objType, stmt)
 	}
 	if slices.Contains(objectList, "SEQUENCE") {
-		importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
+		err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
+		if err != nil {
+			return err
+		}
 	}
 	if slices.Contains(objectList, "TABLE") {
-		importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
+		err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
+		if err != nil {
+			return err
+		}
 	}
 
 	importDeferredStatements()
@@ -192,7 +204,49 @@ func importSchema() {
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
 	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
-	callhome.PackAndSendPayload(exportDir)
+	sendCallHomeImportSchema(COMPLETED, "")
+	return nil
+}
+
+func sendCallHomeImportSchema(status string, errMsg string) {
+	var payload callhome.Payload
+	payload.MigrationUUID = migrationUUID
+	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+
+	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.Status = status
+	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+	targetDBDetails := callhome.TargetDBDetails{
+		Host:      tconf.Host,
+		DBVersion: tconf.DBVersion,
+		//TODO: more info
+	}
+	str, err := json.Marshal(targetDBDetails)
+	if err != nil {
+		log.Errorf("error in parsing sourcedb details: %v", err)
+	}
+	payload.TargetDBDetails = string(str)
+	var errorsList []string
+	for _, stmt := range failedSqlStmts {
+		parts := strings.Split(stmt, "*/\n")
+		errorsList = append(errorsList, strings.Trim(parts[0], "/*\n"))
+	}
+	if status == ERRORED {
+		errorsList = append(errorsList, errMsg)
+	}
+	exportSchemaPayload := callhome.ImportSchemaPhasePayload{
+		ContinueOnError:    bool(tconf.ContinueOnError),
+		Errors:             errorsList,
+		PostSnapshotImport: bool(flagPostSnapshotImport),
+		StartClean:         bool(startClean),
+	}
+	bytes, err := json.Marshal(exportSchemaPayload)
+	if err != nil {
+		log.Errorf("error in parsing payload: %v", err)
+	}
+	payload.PhasePayload = string(bytes)
+	callhome.PackAndSendPayload(&payload)
 }
 
 func isYBDatabaseIsColocated(conn *pgx.Conn) bool {

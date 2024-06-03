@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -1125,7 +1126,6 @@ func analyzeSchema() {
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 
-	payload := callhome.GetPayload(exportDir, migrationUUID)
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
@@ -1134,20 +1134,38 @@ func analyzeSchema() {
 	issues, err := json.Marshal(callhomeIssues)
 	if err != nil {
 		log.Errorf("Error while parsing 'issues' json: %v", err)
-	} else {
-		payload.Issues = string(issues)
 	}
 	dbobjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
 	if err != nil {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
-	} else {
-		payload.DBObjects = string(dbobjects)
 	}
 
-	callhome.PackAndSendPayload(exportDir)
+	sendCallHomeAnalyzeSchema(string(issues), string(dbobjects))
 
 	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
+}
+
+func sendCallHomeAnalyzeSchema(issues, dbObjects string) {
+
+	var payload callhome.Payload
+	payload.MigrationUUID = migrationUUID
+	payload.MigrationPhase = ANALYZE_PHASE
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+	analyzePayload := callhome.AnalyzePhasePayload{
+		Issues:          issues,
+		DatabaseObjects: dbObjects,
+	}
+	analyzePayloadStr, err := json.Marshal(analyzePayload)
+	if err != nil {
+		log.Errorf("Error while parsing 'database_objects' json: %v", err)
+	}
+	payload.PhasePayload = string(analyzePayloadStr)
+	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.Status = COMPLETED
+	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+
+	callhome.PackAndSendPayload(&payload)
 }
 
 var analyzeSchemaCmd = &cobra.Command{

@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -392,8 +393,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		importDataStartEvent := createSnapshotImportStartedEvent()
 		controlPlane.SnapshotImportStarted(&importDataStartEvent)
 	}
-
-	payload := callhome.GetPayload(exportDir, migrationUUID)
 	updateTargetConfInMigrationStatus()
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -423,9 +422,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	targetDBVersion := tdb.GetVersion()
 
 	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
-
-	payload.TargetDBVersion = targetDBVersion
-	//payload.NodeCount = len(tconfs) // TODO: Figure out way to populate NodeCount.
 
 	err = tdb.CreateVoyagerSchema()
 	if err != nil {
@@ -516,11 +512,13 @@ func importData(importFileTasks []*ImportFileTask) {
 			time.Sleep(time.Second * 2)
 		}
 		utils.PrintAndLog("snapshot data import complete\n\n")
-		callhome.PackAndSendPayload(exportDir)
 	}
 
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
-		executePostSnapshotImportSqls()
+		errImport := executePostSnapshotImportSqls()
+		if errImport != nil {
+			utils.ErrExit("Error in importing post-snapshot-import sql: %v", err)
+		}
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
@@ -578,6 +576,57 @@ func importData(importFileTasks []*ImportFileTask) {
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
 	}
+	sendCallHomeImportData(COMPLETED)
+}
+
+func sendCallHomeImportData(status string) {
+	//TODO do this for INPROGRESS in interval  for long running import data
+	var payload callhome.Payload
+	payload.MigrationUUID = migrationUUID
+	switch importType {
+	case SNAPSHOT_ONLY:
+		payload.MigrationType = OFFLINE
+	case SNAPSHOT_AND_CHANGES:
+		payload.MigrationType = LIVE_MIGRATION
+	}
+	targetDBDetails := callhome.TargetDBDetails{
+		Host: tconf.Host,
+		// DBType:    tconf.DBType,
+		DBVersion: tconf.DBVersion,
+		//TODO: add support for more info
+	}
+	bytes, err := json.Marshal(targetDBDetails)
+	if err != nil {
+		log.Errorf("error in parsing sourcedb details: %v", err)
+	}
+	payload.SourceDBDetails = string(bytes)
+	payload.MigrationPhase = IMPORT_DATA_PHASE
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+	importDataPayload := callhome.ImportDataPhasePayload{
+		ParallelJobs: int64(tconf.Parallelism),
+		StartClean:   bool(startClean),
+	}
+	importDataPayloadStr, err := json.Marshal(importDataPayload)
+	if err != nil {
+		log.Errorf("error in parsing the export data payload: %v", err)
+	}
+	importRowsMap, err := getImportedSnapshotRowsMap("target")
+	if err != nil {
+		log.Errorf("error in getting the import data: %v", err)
+	}
+	importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+		importDataPayload.TotalRows += value
+		if value > importDataPayload.LargestTableRows {
+			importDataPayload.LargestTableRows = value
+		}
+		return true, nil
+	})
+	payload.PhasePayload = string(importDataPayloadStr)
+	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.Status = status
+	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+
+	callhome.PackAndSendPayload(&payload)
 }
 
 func disableGeneratedAlwaysAsIdentityColumns(tables []sqlname.NameTuple) {
@@ -877,12 +926,16 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func executePostSnapshotImportSqls() {
+func executePostSnapshotImportSqls() error {
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s\n", "")
-		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
+		err := executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
@@ -988,7 +1041,7 @@ func dropIdx(conn *pgx.Conn, idxName string) error {
 	return nil
 }
 
-func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
+func executeSqlFile(file string, objType string, skipFn func(string, string) bool) error {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 	conn := newTargetConn()
 
@@ -1024,8 +1077,10 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		if err != nil {
 			conn.Close(context.Background())
 			conn = nil
+			return fmt.Errorf("error in executing stmts on target: %s", err)
 		}
 	}
+	return nil
 }
 
 func setOrafceSearchPath(conn *pgx.Conn) {
@@ -1091,7 +1146,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
-				utils.ErrExit("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+				return fmt.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
@@ -1125,7 +1180,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				errString := "/*\n" + err.Error() + "\n*/\n"
 				failedSqlStmts = append(failedSqlStmts, errString+sqlInfo.formattedStmt)
 			} else {
-				utils.ErrExit("error: %s\n", err)
+				return err
 			}
 		}
 	}

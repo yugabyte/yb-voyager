@@ -28,11 +28,13 @@ import (
 	"strings"
 	"syscall"
 	"text/template"
+	"time"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
@@ -95,9 +97,49 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
+			sendCallHomeAssessMigration(ERRORED, err.Error())
 			utils.ErrExit("failed to assess migration: %v", err)
 		}
+		sendCallHomeAssessMigration(COMPLETED, "")
 	},
+}
+
+func sendCallHomeAssessMigration(status string, errMsg string) {
+	var payload callhome.Payload
+	payload.MigrationUUID = migrationUUID
+	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+
+	//TOOD: source details if given else assesment dir means script used
+	assessPayload := callhome.AssessMigrationPhasePayload{
+		UnsupportedFeatures:  "", // TODOD
+		UnsupportedDataTypes: "",
+	}
+	if status == ERRORED {
+		assessPayload.Error = errMsg
+	}
+	if assessmentMetadataDirFlag == "" {
+		sourceDBDetails := callhome.SourceDBDetails{
+			Host:      source.Host,
+			DBType:    source.DBType,
+			DBVersion: source.DBVersion,
+		}
+		str, err := json.Marshal(sourceDBDetails)
+		if err != nil {
+			log.Errorf("error in parsing sourcedb details: %v", err)
+		}
+		payload.SourceDBDetails = string(str)
+	}
+	assessPayloadStr, err := json.Marshal(assessPayload)
+	if err != nil {
+		log.Errorf("Error while parsing 'database_objects' json: %v", err)
+	}
+	payload.PhasePayload = string(assessPayloadStr)
+	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.Status = status
+	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+
+	callhome.PackAndSendPayload(&payload)
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {

@@ -22,24 +22,28 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var deferredSqlStmts []sqlInfo
 var failedSqlStmts []string
 
 func importSchemaInternal(exportDir string, importObjectList []string,
-	skipFn func(string, string) bool) {
+	skipFn func(string, string) bool) error {
 	schemaDir := filepath.Join(exportDir, "schema")
 	for _, importObjectType := range importObjectList {
 		importObjectFilePath := utils.GetObjectFilePath(schemaDir, importObjectType)
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
-		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
+		err := executeSqlFile(importObjectFilePath, importObjectType, skipFn)
+		if err != nil {
+			return err
+		}
 	}
-
+	return nil
 }
 
 /*

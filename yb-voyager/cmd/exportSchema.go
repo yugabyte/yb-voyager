@@ -16,22 +16,23 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/samber/lo"
-	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
-	"golang.org/x/exp/slices"
-
-	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"time"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
+	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var skipRecommendations utils.BoolStr
@@ -124,10 +125,7 @@ func exportSchema() error {
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
-	payload := callhome.GetPayload(exportDir, migrationUUID)
-	payload.SourceDBType = source.DBType
-	payload.SourceDBVersion = sourceDBVersion
-	callhome.PackAndSendPayload(exportDir)
+	sendCallHomeExportSchema()
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
@@ -135,6 +133,38 @@ func exportSchema() error {
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
 	return nil
+}
+
+func sendCallHomeExportSchema() {
+
+	var payload callhome.Payload
+	payload.MigrationUUID = migrationUUID
+	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+
+	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.Status = COMPLETED
+	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+	sourceDBDetails := callhome.SourceDBDetails{
+		Host:      source.Host,
+		DBType:    source.DBType,
+		DBVersion: source.DBVersion,
+	}
+	str, err := json.Marshal(sourceDBDetails)
+	if err != nil {
+		log.Errorf("error in parsing sourcedb details: %v", err)
+	}
+	payload.SourceDBDetails = string(str)
+	exportDataPayload := callhome.ExportSchemaPhasePayload{
+		StartClean: bool(startClean),
+	}
+	str, err = json.Marshal(exportDataPayload)
+	if err != nil {
+		log.Errorf("error in parsing payload: %v", err)
+	}
+	payload.PhasePayload = string(str)
+	callhome.PackAndSendPayload(&payload)
+
 }
 
 func init() {
