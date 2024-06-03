@@ -14,18 +14,18 @@ SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
 -- Create a temporary table to hold the data
 CREATE GLOBAL TEMPORARY TABLE temp_table_columns_&session_id
 ON COMMIT PRESERVE ROWS AS
-SELECT
-    owner AS schema_name,
-    table_name,
-    column_name,
-    data_type
-FROM
-    dba_tab_columns
-WHERE
-    owner = '&1';
+    SELECT
+        owner AS schema_name,
+        table_name,
+        column_name,
+        data_type
+    FROM
+        dba_tab_columns
+    WHERE
+        owner = '&1';
 
 -- Select the data into the CSV file
-SPOOL table-columns-datatypes.csv
+SPOOL table-columns-data-types.csv
 SELECT schema_name, table_name, column_name, data_type FROM temp_table_columns_&session_id;
 SPOOL OFF
 

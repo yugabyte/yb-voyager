@@ -14,20 +14,19 @@ SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
 -- Create a temporary table to hold the data
 CREATE GLOBAL TEMPORARY TABLE temp_object_type_mapping_&session_id
 ON COMMIT PRESERVE ROWS AS
-SELECT
-    owner AS schema_name,
-    object_type,
-    COUNT(*) AS object_count
-FROM
-    dba_objects
-WHERE
-    owner = '&1'
-GROUP BY
-    owner, object_type;
+    SELECT
+        owner AS schema_name,
+        -- TODO: handle the partitioned table support later
+        object_name || NVL2(subobject_name, '_' || subobject_name, '') AS object_name,
+        object_type
+    FROM
+        dba_objects
+    WHERE
+        owner = '&1';
 
 -- Select the data into the CSV file
 SPOOL object-type-mapping.csv
-SELECT schema_name, object_type, object_count FROM temp_object_type_mapping_&session_id;
+SELECT schema_name, object_name, object_type FROM temp_object_type_mapping_&session_id;
 SPOOL OFF
 
 -- Drop the temporary table

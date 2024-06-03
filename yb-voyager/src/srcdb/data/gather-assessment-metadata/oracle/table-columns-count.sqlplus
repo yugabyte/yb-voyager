@@ -14,20 +14,36 @@ SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
 -- Create a temporary table to hold the data
 CREATE GLOBAL TEMPORARY TABLE temp_table_columns_count_&session_id
 ON COMMIT PRESERVE ROWS AS
-SELECT
-    owner AS schema_name,
-    table_name,
-    COUNT(*) AS column_count
-FROM
-    dba_tab_columns
-WHERE
-    owner = '&1'
-GROUP BY
-    owner, table_name;
+    SELECT 
+        t.owner AS schema_name,
+        t.table_name AS object_name,
+        'table' AS object_type,
+        COUNT(*) AS column_count
+    FROM 
+        dba_tab_columns t
+    WHERE 
+        t.owner = '&1'
+    GROUP BY 
+        t.owner, t.table_name
+    UNION ALL
+    SELECT
+        i.index_owner AS schema_name,
+        i.index_name AS object_name,
+        'index' AS object_type,
+        COUNT(*) AS column_count
+    FROM
+        dba_ind_columns i
+    JOIN
+        dba_indexes idx ON i.index_owner = idx.owner AND i.index_name = idx.index_name
+    WHERE
+        i.index_owner = '&1'
+        AND idx.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
+    GROUP BY
+        i.index_owner, i.index_name;
 
 -- Select the data into the CSV file
 SPOOL table-columns-count.csv
-SELECT schema_name, table_name, column_count FROM temp_table_columns_count_&session_id;
+SELECT schema_name, object_name, object_type, column_count FROM temp_table_columns_count_&session_id;
 SPOOL OFF
 
 -- Drop the temporary table

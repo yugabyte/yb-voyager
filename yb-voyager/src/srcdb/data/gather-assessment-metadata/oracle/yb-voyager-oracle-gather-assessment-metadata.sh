@@ -34,7 +34,7 @@ Arguments:
                               This script will attempt to create the directory if it does not exist.
 
 Example:
-  ORACLE_PASSWORD=<password> $SCRIPT_NAME 'system@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = voyager-oracle.cbtcvpszcgdq.us-west-2.rds.amazonaws.com)(PORT = 1521))(CONNECT_DATA = (SID = DMS)))' 'HR' '/path/to/assessment/metadata'
+  ORACLE_PASSWORD=<password> $SCRIPT_NAME 'system@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = hostname)(PORT = 1521))(CONNECT_DATA = (SID = ABC)))' 'HR' '/path/to/assessment/metadata'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -66,13 +66,10 @@ fi
 
 # Resolve the absolute path of assessment_metadata_dir
 assessment_metadata_dir=$(cd "$assessment_metadata_dir" && pwd)
-
 # Switch to assessment_metadata_dir and remember the current directory
 pushd "$assessment_metadata_dir" > /dev/null || exit
 
 username=$(echo $oracle_connection_string | grep -oP '^[^/@]+')
-echo "username: $username"
-
 # Use the ORACLE_PASSWORD environment variable for the password
 if [ -z "$ORACLE_PASSWORD" ]; then 
     echo -n "Enter Oracle password: "
@@ -82,14 +79,14 @@ fi
 
 oracle_connection_string="${username}/${ORACLE_PASSWORD}@${oracle_connection_string#*@}"
 
-echo "Assessment metadata collection started"
+echo "Assessment metadata collection started for '$schema_name' schema"
 
 # Loop through each SQLPlus script and execute it
 for script in $SCRIPT_DIR/*.sqlplus; do
     script_name=$(basename "$script" .sqlplus)
     script_action=$(basename "$script" .sqlplus | sed 's/-/ /g')
     echo "Collecting $script_action..."
-    sqlplus_command="sqlplus -S \"$oracle_connection_string\" @\"$script\" \"$schema_name\""
+    sqlplus_command="sqlplus -S '$oracle_connection_string' @$script '$schema_name'"
     eval $sqlplus_command
 
      # Post-processing step to remove the first line if it's empty in the generated CSV file
@@ -102,10 +99,45 @@ done
 # Function to parse Oracle connection string and generate ORACLE_DSN
 parse_oracle_dsn() {
     local conn_str=$1
-    local host=$(echo $conn_str | grep -oP '(?<=HOST = )[^)]+')
-    local sid=$(echo $conn_str | grep -oP '(?<=SID = )[^)]+')
-    local port=$(echo $conn_str | grep -oP '(?<=PORT = )[^)]+')
-    echo "dbi:Oracle:host=$host;service_name=$sid;port=$port"
+    local host service_name sid port
+
+    # Use a single awk command to extract the values
+    eval $(echo "$conn_str" | awk -F'[()]' '
+        {
+            for (i = 1; i <= NF; i++) {
+                if ($i ~ /HOST *=/) {
+                    split($i, a, "=");
+                    host=a[2];
+                    gsub(/^[ \t]+|[ \t]+$/, "", host);
+                } else if ($i ~ /SERVICE_NAME *=/) {
+                    split($i, a, "=");
+                    service_name=a[2];
+                    gsub(/^[ \t]+|[ \t]+$/, "", service_name);
+                } else if ($i ~ /SID *=/) {
+                    split($i, a, "=");
+                    sid=a[2];
+                    gsub(/^[ \t]+|[ \t]+$/, "", sid);
+                } else if ($i ~ /PORT *=/) {
+                    split($i, a, "=");
+                    port=a[2];
+                    gsub(/^[ \t]+|[ \t]+$/, "", port);
+                }
+            }
+        }
+        END {
+            if (service_name) {
+                printf "host=%s service_name=%s port=%s", host, service_name, port
+            } else {
+                printf "host=%s sid=%s port=%s", host, sid, port
+            }
+        }')
+
+    # Construct the ORACLE_DSN
+    if [ -n "$service_name" ]; then
+        echo "dbi:Oracle:host=$host;service_name=$service_name;port=$port"
+    else
+        echo "dbi:Oracle:host=$host;sid=$sid;port=$port"
+    fi
 }
 
 ORACLE_DSN_VALUE=$(parse_oracle_dsn "$oracle_connection_string")
