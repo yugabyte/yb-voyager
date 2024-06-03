@@ -592,7 +592,7 @@ func sendCallHomeImportData(status string) {
 	targetDBDetails := callhome.TargetDBDetails{
 		Host: tconf.Host,
 		// DBType:    tconf.DBType,
-		DBVersion: tconf.DBVersion,
+		DBVersion: tdb.GetVersion(),
 		//TODO: add support for more info
 	}
 	bytes, err := json.Marshal(targetDBDetails)
@@ -624,7 +624,7 @@ func sendCallHomeImportData(status string) {
 	payload.PhasePayload = string(importDataPayloadStr)
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 	payload.Status = status
-	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 
 	callhome.PackAndSendPayload(&payload)
 }
@@ -1077,7 +1077,9 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		if err != nil {
 			conn.Close(context.Background())
 			conn = nil
-			return fmt.Errorf("error in executing stmts on target: %s", err)
+			if !tconf.ContinueOnError {
+				return fmt.Errorf("error in executing stmts on target: %s", err)
+			}
 		}
 	}
 	return nil

@@ -144,11 +144,11 @@ func sendCallHomeExportSchema() {
 
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 	payload.Status = COMPLETED
-	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 	sourceDBDetails := callhome.SourceDBDetails{
 		Host:      source.Host,
 		DBType:    source.DBType,
-		DBVersion: source.DBVersion,
+		DBVersion: source.DB().GetVersion(),
 	}
 	str, err := json.Marshal(sourceDBDetails)
 	if err != nil {

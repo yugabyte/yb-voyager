@@ -122,7 +122,7 @@ func sendCallHomeAssessMigration(status string, errMsg string) {
 		sourceDBDetails := callhome.SourceDBDetails{
 			Host:      source.Host,
 			DBType:    source.DBType,
-			DBVersion: source.DBVersion,
+			DBVersion: source.DB().GetVersion(),
 		}
 		str, err := json.Marshal(sourceDBDetails)
 		if err != nil {
@@ -137,7 +137,7 @@ func sendCallHomeAssessMigration(status string, errMsg string) {
 	payload.PhasePayload = string(assessPayloadStr)
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 	payload.Status = status
-	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 
 	callhome.PackAndSendPayload(&payload)
 }

@@ -1163,7 +1163,7 @@ func sendCallHomeAnalyzeSchema(issues, dbObjects string) {
 	payload.PhasePayload = string(analyzePayloadStr)
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 	payload.Status = COMPLETED
-	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 
 	callhome.PackAndSendPayload(&payload)
 }

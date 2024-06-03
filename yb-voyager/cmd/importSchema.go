@@ -216,10 +216,10 @@ func sendCallHomeImportSchema(status string, errMsg string) {
 
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 	payload.Status = status
-	payload.TimeTaken = int64(time.Since(startTime).Microseconds())
+	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 	targetDBDetails := callhome.TargetDBDetails{
 		Host:      tconf.Host,
-		DBVersion: tconf.DBVersion,
+		DBVersion: tdb.GetVersion(),
 		//TODO: more info
 	}
 	str, err := json.Marshal(targetDBDetails)
