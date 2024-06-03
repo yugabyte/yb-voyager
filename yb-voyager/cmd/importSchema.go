@@ -80,12 +80,10 @@ func importSchema() {
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
-	if flagPostSnapshotImport {
-		tdb = tgtdb.NewTargetDB(&tconf)
-		err = tdb.Init()
-		if err != nil {
-			utils.ErrExit("failed to initialize the target DB: %s", err)
-		}
+	tdb = tgtdb.NewTargetDB(&tconf)
+	err = tdb.Init()
+	if err != nil {
+		utils.ErrExit("failed to initialize the target DB: %s", err)
 	}
 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
@@ -119,27 +117,26 @@ func importSchema() {
 	}
 
 	var objectList []string
-	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
-	if !flagPostSnapshotImport { // Pre data load.
-		// This list also has defined the order to create object type in target YugabyteDB.
+	// Pre data load.
+	// This list also has defined the order to create object type in target YugabyteDB.
+	// if post snapshot import, no objects should be imported.
+	if !flagPostSnapshotImport {
 		objectList = utils.GetSchemaObjectList(sourceDBType)
-		objectList = utils.SetDifference(objectList, objectsToImportAfterData)
-		if len(objectList) == 0 {
-			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
-		} else {
-			assessmentDone, err := IsMigrationAssessmentDone()
-			if err != nil {
-				utils.ErrExit("failed to check if migration assessment done: %v", err)
-			}
-
-			if assessmentDone && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
-				"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
-				utils.ErrExit("Exiting...")
-			}
-		}
-	} else { // Post data load.
-		objectList = objectsToImportAfterData
 	}
+	if len(objectList) == 0 {
+		utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
+	} else {
+		assessmentDone, err := IsMigrationAssessmentDone()
+		if err != nil {
+			utils.ErrExit("failed to check if migration assessment done: %v", err)
+		}
+
+		if assessmentDone && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
+			"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
+			utils.ErrExit("Exiting...")
+		}
+	}
+
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("list of schema objects to import: %v", objectList)
 	// Import some statements only after importing everything else

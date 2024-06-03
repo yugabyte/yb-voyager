@@ -127,6 +127,8 @@ func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 	if sourceDBType == "postgresql" && !slices.Contains(finalImportObjectList, "SCHEMA") && !bool(flagPostSnapshotImport) { // Schema should be migrated by default.
 		finalImportObjectList = append([]string{"SCHEMA"}, finalImportObjectList...)
 	}
+
+	// TODO: rethink if this is required.
 	if !flagPostSnapshotImport {
 		finalImportObjectList = append(finalImportObjectList, []string{"UNIQUE INDEX"}...)
 	}

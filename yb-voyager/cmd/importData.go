@@ -1064,7 +1064,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 		}
 
-		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
+		if strings.Contains(objType, "INDEX") {
 			err = beforeIndexCreation(sqlInfo, conn, objType)
 			if err != nil {
 				return fmt.Errorf("before index creation: %w", err)
