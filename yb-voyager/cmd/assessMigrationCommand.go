@@ -555,7 +555,7 @@ func getAssessmentReportContentFromAnalyzeSchema() (err error) {
 }
 
 func fetchUnsupportedFeaturesOfSourceInYb(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
-	switch sourceDBType {
+	switch source.DBType {
 	case POSTGRESQL:
 		return fetchUnsupportedFeaturesForPG(schemaAnalysisReport)
 	case ORACLE:
