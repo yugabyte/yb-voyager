@@ -79,14 +79,6 @@ func InitAssessmentDB() error {
 			schema_name		TEXT,
 			object_name		TEXT,
 			object_type		TEXT,
-			seq_reads		INTEGER,
-			row_writes		INTEGER,
-			measurement_type TEXT,
-			PRIMARY KEY (schema_name, object_name, measurement_type));`, TABLE_INDEX_IOPS),
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			schema_name		TEXT,
-			object_name		TEXT,
-			object_type		TEXT,
 			size_in_bytes	INTEGER,
 			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_SIZES),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -134,6 +126,17 @@ func InitAssessmentDB() error {
 			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
 	}
 
+	if SourceDBType == "postgresql" {
+		cmds = append(cmds, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			schema_name		TEXT,
+			object_name		TEXT,
+			object_type		TEXT,
+			seq_reads		INTEGER,
+			row_writes		INTEGER,
+			measurement_type TEXT,
+			PRIMARY KEY (schema_name, object_name, measurement_type));`, TABLE_INDEX_IOPS))
+	}
+
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)
 		if err != nil {
@@ -152,7 +155,8 @@ type AssessmentDB struct {
 	db *sql.DB
 }
 
-func NewAssessmentDB() (*AssessmentDB, error) {
+func NewAssessmentDB(sourceDBType string) (*AssessmentDB, error) {
+	SourceDBType = sourceDBType
 	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", GetSourceMetadataDBFilePath(), metadb.SQLITE_OPTIONS))
 	if err != nil {
 		return nil, fmt.Errorf("error opening assessment db %s: %w", GetSourceMetadataDBFilePath(), err)
@@ -176,9 +180,6 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	}()
 
 	columnNames := records[0]
-	// for i, v := range columnNames {
-	// 	columnNames[i] = strings.ToLower(v)
-	// }
 	stmtStr := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`, table,
 		strings.Join(columnNames, ", "), strings.Repeat("?, ", len(columnNames)-1)+"?")
 
@@ -220,7 +221,27 @@ const (
 	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name
 	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name
-	LEFT JOIN %s otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name
+	JOIN %s otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name
+	WHERE otm.object_type NOT IN ('%s', '%s');`
+
+	InsertTableStatsWithoutIOPS = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes,reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
+	SELECT 
+		trc.schema_name,
+		trc.table_name AS object_name,
+		trc.row_count,
+		tcc.column_count,
+		0 as reads,
+		0 as writes,
+		0 as reads_per_second,
+		0 as writes_per_second,
+		0 AS is_index,
+		otm.object_type,
+		NULL AS parent_table_name,
+		tis.size_in_bytes
+	FROM %s trc
+	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name
+	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name
+	JOIN %s otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name
 	WHERE otm.object_type NOT IN ('%s', '%s');`
 
 	// No insertion into 'column_count' for indexes
@@ -238,7 +259,25 @@ const (
 	FROM %s itm
 	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name
-	LEFT JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name
+	JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name
+	WHERE otm.object_type NOT IN ('%s', '%s');`
+
+	InsertIndexStatsWithoutIOPS = `INSERT INTO %s (schema_name, object_name, row_count, reads, writes, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
+	SELECT 
+		itm.index_schema AS schema_name,
+		itm.index_name AS object_name,
+		NULL AS row_count,
+		0 as reads,
+		0 as writes,
+		0 as reads_per_second,
+		0 as writes_per_second,
+		1 AS is_index,
+		otm.object_type,
+		itm.table_schema || '.' || itm.table_name AS parent_table_name,
+		tis.size_in_bytes
+	FROM %s itm
+	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name
+	JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name
 	WHERE otm.object_type NOT IN ('%s', '%s');`
 
 	CreateTempTable = `CREATE TEMP TABLE read_write_rates AS
@@ -277,13 +316,27 @@ const (
 
 // populate table_index_stats table using the data from other tables
 func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
-	statements := []string{
-		fmt.Sprintf(InsertTableStats, TABLE_INDEX_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES,
-			TABLE_COLUMNS_COUNT, OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
-		fmt.Sprintf(InsertIndexStats, TABLE_INDEX_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES,
-			OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
-		fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
-		UpdateStatsWithRates,
+	var statements []string
+
+	switch SourceDBType {
+	case "postgresql":
+		statements = []string{
+			fmt.Sprintf(InsertTableStats, TABLE_INDEX_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES,
+				TABLE_COLUMNS_COUNT, OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
+			fmt.Sprintf(InsertIndexStats, TABLE_INDEX_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES,
+				OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
+			fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
+			UpdateStatsWithRates,
+		}
+	case "oracle":
+		statements = []string{
+			fmt.Sprintf(InsertTableStatsWithoutIOPS, TABLE_INDEX_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_SIZES,
+				TABLE_COLUMNS_COUNT, OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
+			fmt.Sprintf(InsertIndexStatsWithoutIOPS, TABLE_INDEX_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_SIZES,
+				OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
+		}
+	default:
+		panic("invalid source db type")
 	}
 
 	for _, stmt := range statements {
