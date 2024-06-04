@@ -133,13 +133,13 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		callhome.PackAndSendPayload(exportDir)
 
 		setDataIsExported()
-		color.Green("Export of data complete \u2705")
+		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
-		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
+		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
 		atexit.Exit(1)
 	}
