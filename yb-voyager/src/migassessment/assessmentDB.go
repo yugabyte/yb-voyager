@@ -156,7 +156,6 @@ type AssessmentDB struct {
 }
 
 func NewAssessmentDB(sourceDBType string) (*AssessmentDB, error) {
-	SourceDBType = sourceDBType
 	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", GetSourceMetadataDBFilePath(), metadb.SQLITE_OPTIONS))
 	if err != nil {
 		return nil, fmt.Errorf("error opening assessment db %s: %w", GetSourceMetadataDBFilePath(), err)

@@ -66,7 +66,7 @@ iops_capture_interval=120
 # Override default sleep interval if a fourth argument is provided
 if [ "$#" -eq 4 ]; then
     iops_capture_interval=$4
-    echo "Using sleep interval: $iops_capture_interval seconds"
+    echo "sleep interval for calculating iops: $iops_capture_interval seconds"
 fi
 
 
