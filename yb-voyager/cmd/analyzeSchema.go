@@ -24,7 +24,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -1140,30 +1139,26 @@ func analyzeSchema() {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
 	}
 
-	sendCallHomeAnalyzeSchema(string(issues), string(dbobjects))
+	packAndSendAnalyzeSchemaPayload(string(issues), string(dbobjects))
 
 	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 
-func sendCallHomeAnalyzeSchema(issues, dbObjects string) {
+func packAndSendAnalyzeSchemaPayload(issues, dbObjects string) {
 
-	var payload callhome.Payload
-	payload.MigrationUUID = migrationUUID
+	payload := createCallhomePayload()
 	payload.MigrationPhase = ANALYZE_PHASE
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	analyzePayload := callhome.AnalyzePhasePayload{
 		Issues:          issues,
 		DatabaseObjects: dbObjects,
 	}
-	analyzePayloadStr, err := json.Marshal(analyzePayload)
+	analyzePayloadBytes, err := json.Marshal(analyzePayload)
 	if err != nil {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
 	}
-	payload.PhasePayload = string(analyzePayloadStr)
-	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.PhasePayload = string(analyzePayloadBytes)
 	payload.Status = COMPLETED
-	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 
 	callhome.PackAndSendPayload(&payload)
 }

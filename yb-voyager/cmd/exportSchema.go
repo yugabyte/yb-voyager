@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
@@ -125,7 +124,7 @@ func exportSchema() error {
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
-	sendCallHomeExportSchema()
+	packAndSendExportSchemaPayload()
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
@@ -135,34 +134,29 @@ func exportSchema() error {
 	return nil
 }
 
-func sendCallHomeExportSchema() {
+func packAndSendExportSchemaPayload() {
 
-	var payload callhome.Payload
-	payload.MigrationUUID = migrationUUID
+	payload := createCallhomePayload()
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
-
-	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 	payload.Status = COMPLETED
-	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 	sourceDBDetails := callhome.SourceDBDetails{
 		Host:      source.Host,
 		DBType:    source.DBType,
 		DBVersion: source.DB().GetVersion(),
 	}
-	str, err := json.Marshal(sourceDBDetails)
+	sourceDbBytes, err := json.Marshal(sourceDBDetails)
 	if err != nil {
 		log.Errorf("error in parsing sourcedb details: %v", err)
 	}
-	payload.SourceDBDetails = string(str)
-	exportDataPayload := callhome.ExportSchemaPhasePayload{
+	payload.SourceDBDetails = string(sourceDbBytes)
+	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean: bool(startClean),
 	}
-	str, err = json.Marshal(exportDataPayload)
+	exportSchemaPayloadBytes, err := json.Marshal(exportSchemaPayload)
 	if err != nil {
 		log.Errorf("error in parsing payload: %v", err)
 	}
-	payload.PhasePayload = string(str)
+	payload.PhasePayload = string(exportSchemaPayloadBytes)
 	callhome.PackAndSendPayload(&payload)
 
 }

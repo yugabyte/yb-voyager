@@ -36,6 +36,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -819,6 +820,17 @@ func getCloneConnectionUri(clone *TargetConf) string {
 	return cloneConnectionUri
 }
 
+func(yb *TargetYugabyteDB) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
+	targetConfs := yb.getYBServers()
+	totalCores, _ := fetchCores(targetConfs) // no need to handle error in case we couldn't fine cores
+	return &callhome.TargetDBDetails{
+		Host: yb.tconf.Host,
+		NodeCount: len(targetConfs),
+		Cores: totalCores,
+		DBVersion: yb.GetVersion(),
+	}
+}
+
 func isSeedTargetHost(tconf *TargetConf, names ...string) bool {
 	var allIPs []string
 	for _, name := range names {
@@ -858,15 +870,15 @@ func testAndFilterYbServers(tconfs []*TargetConf) []*TargetConf {
 	return availableTargets
 }
 
-func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int) int {
-	totalCores := 0
+func fetchCores(tconfs []*TargetConf) (int, error) {
 	targetCores := 0
+	totalCores := 0
 	for _, tconf := range tconfs {
 		log.Infof("Determining CPU core count on: %s", utils.GetRedactedURLs([]string{tconf.Uri})[0])
 		conn, err := pgx.Connect(context.Background(), tconf.Uri)
 		if err != nil {
 			log.Warnf("Unable to reach target while querying cores: %v", err)
-			return len(tconfs) * defaultParallelismFactor
+			return 0, err
 		}
 		defer conn.Close(context.Background())
 
@@ -874,22 +886,30 @@ func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int
 		_, err = conn.Exec(context.Background(), cmd)
 		if err != nil {
 			log.Warnf("Unable to create tables on target DB: %v", err)
-			return len(tconfs) * defaultParallelismFactor
+			return 0, err
 		}
 
 		cmd = "COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';"
 		_, err = conn.Exec(context.Background(), cmd)
 		if err != nil {
 			log.Warnf("Error while running query %s on host %s: %v", cmd, utils.GetRedactedURLs([]string{tconf.Uri}), err)
-			return len(tconfs) * defaultParallelismFactor
+			return 0, err
 		}
 
 		cmd = "SELECT num_cores FROM yb_voyager_cores;"
 		if err = conn.QueryRow(context.Background(), cmd).Scan(&targetCores); err != nil {
 			log.Warnf("Error while running query %s: %v", cmd, err)
-			return len(tconfs) * defaultParallelismFactor
+			return 0, err
 		}
 		totalCores += targetCores
+	}
+	return totalCores, nil
+}
+
+func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int) int {
+	totalCores, err := fetchCores(tconfs)
+	if err != nil {
+		return len(tconfs) * defaultParallelismFactor
 	}
 	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
 		return 3

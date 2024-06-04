@@ -575,38 +575,32 @@ func importData(importFileTasks []*ImportFileTask) {
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
+		packAndSendImportDataPayload(COMPLETED) // TODO: later for other import data commands
 	}
-	sendCallHomeImportData(COMPLETED)
+	
 }
 
-func sendCallHomeImportData(status string) {
-	//TODO do this for INPROGRESS in interval  for long running import data
-	var payload callhome.Payload
-	payload.MigrationUUID = migrationUUID
+func packAndSendImportDataPayload(status string) {
+	//TODO send this for INPROGRESS status in some fixed interval for long running import data
+	payload := createCallhomePayload()
 	switch importType {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE
 	case SNAPSHOT_AND_CHANGES:
 		payload.MigrationType = LIVE_MIGRATION
 	}
-	targetDBDetails := callhome.TargetDBDetails{
-		Host: tconf.Host,
-		// DBType:    tconf.DBType,
-		DBVersion: tdb.GetVersion(),
-		//TODO: add support for more info
-	}
+	targetDBDetails := tdb.GetCallhomeTargetDBInfo()
 	bytes, err := json.Marshal(targetDBDetails)
 	if err != nil {
 		log.Errorf("error in parsing sourcedb details: %v", err)
 	}
 	payload.SourceDBDetails = string(bytes)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	importDataPayload := callhome.ImportDataPhasePayload{
 		ParallelJobs: int64(tconf.Parallelism),
 		StartClean:   bool(startClean),
 	}
-	importDataPayloadStr, err := json.Marshal(importDataPayload)
+	importDataPayloadBytes, err := json.Marshal(importDataPayload)
 	if err != nil {
 		log.Errorf("error in parsing the export data payload: %v", err)
 	}
@@ -621,10 +615,8 @@ func sendCallHomeImportData(status string) {
 		}
 		return true, nil
 	})
-	payload.PhasePayload = string(importDataPayloadStr)
-	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.PhasePayload = string(importDataPayloadBytes)
 	payload.Status = status
-	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 
 	callhome.PackAndSendPayload(&payload)
 }

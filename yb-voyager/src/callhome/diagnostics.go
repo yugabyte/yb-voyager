@@ -40,6 +40,23 @@ var (
 	CALL_HOME_SERVICE_PORT = 80
 )
 
+/*
+Call-home diagnostics table looks like this - 
+CREATE TABLE diagnostics (
+    migration_uuid UUID,
+    phase_start_time TIMESTAMP WITH TIME ZONE,
+    source_db_details JSONB,
+    target_db_details JSONB,
+    yb_voyager_version TEXT,
+    migration_phase TEXT,
+    phase_payload JSONB,
+    migration_type TEXT,
+    source_db_size BIGINT,
+    time_taken BIGINT,
+    status TEXT,
+    PRIMARY KEY (migration_uuid, phase_start_time, migration_phase)
+);
+*/
 type Payload struct {
 	MigrationUUID    uuid.UUID `json:"migration_uuid"`
 	PhaseStartTime   string    `json:"phase_start_time"`
@@ -92,9 +109,7 @@ type AnalyzePhasePayload struct {
 type ExportDataPhasePayload struct {
 	ParallelJobs     int64 `json:"parallel_jobs"`
 	TotalRows        int64 `json:"total_rows"`
-	TotalSize        int64 `json:"total_size"`
 	LargestTableRows int64 `json:"largest_table_rows"`
-	LargestTableSize int64 `json:"largest_table_size"`
 	StartClean       bool  `json:"start_clean"`
 
 	//..more info
@@ -112,9 +127,7 @@ type ImportSchemaPhasePayload struct {
 type ImportDataPhasePayload struct {
 	ParallelJobs     int64 `json:"parallel_jobs"`
 	TotalRows        int64 `json:"total_rows"`
-	TotalSize        int64 `json:"total_size"`
 	LargestTableRows int64 `json:"largest_table_rows"`
-	LargestTableSize int64 `json:"largest_table_size"`
 	StartClean       bool  `json:"start_clean"`
 
 	//..more info

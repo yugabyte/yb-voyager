@@ -40,6 +40,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -988,4 +989,16 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes",
 		ar.Sizing.SizingRecommendation.NumNodes, ar.Sizing.SizingRecommendation.VCPUsPerInstance,
 		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport)
+}
+
+// ==========================================================================
+
+func createCallhomePayload() callhome.Payload {
+	var payload callhome.Payload
+	payload.MigrationUUID = migrationUUID
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.TimeTaken = int64(time.Since(startTime).Seconds())
+
+	return payload
 }

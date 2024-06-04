@@ -28,7 +28,6 @@ import (
 	"strings"
 	"syscall"
 	"text/template"
-	"time"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -97,23 +96,29 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
-			sendCallHomeAssessMigration(ERRORED, err.Error())
+			packAndSendAssessMigrationPayload(ERRORED, err.Error())
 			utils.ErrExit("failed to assess migration: %v", err)
 		}
-		sendCallHomeAssessMigration(COMPLETED, "")
+		packAndSendAssessMigrationPayload(COMPLETED, "")
 	},
 }
 
-func sendCallHomeAssessMigration(status string, errMsg string) {
-	var payload callhome.Payload
-	payload.MigrationUUID = migrationUUID
+func packAndSendAssessMigrationPayload(status string, errMsg string) {
+	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 
-	//TOOD: source details if given else assesment dir means script used
+	featuresBytes, err := json.Marshal(assessmentReport.UnsupportedFeatures)
+	if err != nil {
+		utils.ErrExit("error in parsing unsupported features from assessment report: %s", err)
+	}
+	datatypesBytes, err := json.Marshal(assessmentReport.UnsupportedDataTypes)
+	if err != nil {
+		utils.ErrExit("error in parsing unsupported features from assessment report: %s", err)
+	}
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		UnsupportedFeatures:  "", // TODOD
-		UnsupportedDataTypes: "",
+		UnsupportedFeatures:  string(featuresBytes),
+		UnsupportedDataTypes: string(datatypesBytes),
+		//TODO: add TABLE INDEX STATs
 	}
 	if status == ERRORED {
 		assessPayload.Error = errMsg
@@ -130,14 +135,12 @@ func sendCallHomeAssessMigration(status string, errMsg string) {
 		}
 		payload.SourceDBDetails = string(str)
 	}
-	assessPayloadStr, err := json.Marshal(assessPayload)
+	assessPayloadBytes, err := json.Marshal(assessPayload)
 	if err != nil {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
 	}
-	payload.PhasePayload = string(assessPayloadStr)
-	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.PhasePayload = string(assessPayloadBytes)
 	payload.Status = status
-	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 
 	callhome.PackAndSendPayload(&payload)
 }

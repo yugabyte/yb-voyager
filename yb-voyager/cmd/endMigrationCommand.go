@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/samber/lo"
@@ -98,28 +97,25 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
-	sendCallHomeEndMigration()
+	packAndSendEndMigrationPayload()
 }
 
-func sendCallHomeEndMigration() {
-	var payload callhome.Payload
-	payload.MigrationUUID = migrationUUID
+func packAndSendEndMigrationPayload() {
+
+	payload := createCallhomePayload()
 	payload.MigrationPhase = END_MIGRATION_PHASE
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	endMigrationPayload := callhome.EndMigrationPhasePayload{
 		BackupLogFiles:       bool(backupLogFiles),
 		BackupSchemaFiles:    bool(backupSchemaFiles),
 		BackupDataFiles:      bool(backupDataFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
 	}
-	str, err := json.Marshal(endMigrationPayload)
+	payloadBytes, err := json.Marshal(endMigrationPayload)
 	if err != nil {
 		utils.ErrExit("error in parsing end mgiration phase payload: %v", err)
 	}
-	payload.PhasePayload = string(str)
-	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.PhasePayload = string(payloadBytes)
 	payload.Status = COMPLETED
-	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 
 	callhome.PackAndSendPayload(&payload)
 }

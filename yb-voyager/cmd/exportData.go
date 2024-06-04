@@ -129,7 +129,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		sendCallHomeExportData(COMPLETED)
+		packAndSendExportDataPayload(COMPLETED)
 
 		setDataIsExported()
 		color.Green("Export of data complete \u2705")
@@ -137,18 +137,20 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		startFallBackSetupIfRequired()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
-		sendCallHomeExportData(STOPPED)
+		packAndSendExportDataPayload(STOPPED)
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
-		sendCallHomeExportData(ERRORED)
+		packAndSendExportDataPayload(ERRORED)
 		atexit.Exit(1)
 	}
 }
 
-func sendCallHomeExportData(status string) { //TODO: INPROGRESS statu for long running export data
-	var payload callhome.Payload
-	payload.MigrationUUID = migrationUUID
+func packAndSendExportDataPayload(status string) { 
+	//TODO: send this INPROGRESS status in some fixed for long running export data
+
+	payload := createCallhomePayload()
+
 	switch exportType {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE
@@ -160,14 +162,13 @@ func sendCallHomeExportData(status string) { //TODO: INPROGRESS statu for long r
 		DBType:    source.DBType,
 		DBVersion: source.DB().GetVersion(),
 	}
-	bytes, err := json.Marshal(sourceDBDetails)
+	sourceDbBytes, err := json.Marshal(sourceDBDetails)
 	if err != nil {
 		log.Errorf("error in parsing sourcedb details: %v", err)
 	}
-	payload.SourceDBDetails = string(bytes)
+	payload.SourceDBDetails = string(sourceDbBytes)
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	exportDataPayload := callhome.ExportDataPhasePayload{
 		ParallelJobs: int64(source.NumConnections),
 		StartClean:   bool(startClean),
@@ -193,14 +194,12 @@ func sendCallHomeExportData(status string) { //TODO: INPROGRESS statu for long r
 		return true, nil
 	})
 
-	exportDataPayloadStr, err := json.Marshal(exportDataPayload)
+	exportDataPayloadBytes, err := json.Marshal(exportDataPayload)
 	if err != nil {
 		log.Errorf("error in parsing the export data payload: %v", err)
 	}
-	payload.PhasePayload = string(exportDataPayloadStr)
-	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.PhasePayload = string(exportDataPayloadBytes)
 	payload.Status = status
-	payload.TimeTaken = int64(time.Since(startTime).Seconds())
 
 	callhome.PackAndSendPayload(&payload)
 }

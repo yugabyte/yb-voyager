@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
@@ -60,7 +59,7 @@ var importSchemaCmd = &cobra.Command{
 		tconf.ImportMode = true
 		err := importSchema()
 		if err != nil {
-			sendCallHomeImportSchema(ERRORED, err.Error())
+			packAndSendImportSchemaPayload(ERRORED, err.Error())
 			utils.ErrExit("error in importing schema: %s", err)
 		}
 	},
@@ -204,24 +203,16 @@ func importSchema() error {
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
 	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
-	sendCallHomeImportSchema(COMPLETED, "")
+	packAndSendImportSchemaPayload(COMPLETED, "")
 	return nil
 }
 
-func sendCallHomeImportSchema(status string, errMsg string) {
-	var payload callhome.Payload
-	payload.MigrationUUID = migrationUUID
-	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+func packAndSendImportSchemaPayload(status string, errMsg string) {
 
-	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload := createCallhomePayload()
+	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
-	payload.TimeTaken = int64(time.Since(startTime).Seconds())
-	targetDBDetails := callhome.TargetDBDetails{
-		Host:      tconf.Host,
-		DBVersion: tdb.GetVersion(),
-		//TODO: more info
-	}
+	targetDBDetails := tdb.GetCallhomeTargetDBInfo()
 	str, err := json.Marshal(targetDBDetails)
 	if err != nil {
 		log.Errorf("error in parsing sourcedb details: %v", err)
@@ -235,17 +226,17 @@ func sendCallHomeImportSchema(status string, errMsg string) {
 	if status == ERRORED {
 		errorsList = append(errorsList, errMsg)
 	}
-	exportSchemaPayload := callhome.ImportSchemaPhasePayload{
+	importSchemaPayload := callhome.ImportSchemaPhasePayload{
 		ContinueOnError:    bool(tconf.ContinueOnError),
 		Errors:             errorsList,
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
 	}
-	bytes, err := json.Marshal(exportSchemaPayload)
+	importSchemaPayloadBytes, err := json.Marshal(importSchemaPayload)
 	if err != nil {
 		log.Errorf("error in parsing payload: %v", err)
 	}
-	payload.PhasePayload = string(bytes)
+	payload.PhasePayload = string(importSchemaPayloadBytes)
 	callhome.PackAndSendPayload(&payload)
 }
 
