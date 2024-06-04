@@ -365,7 +365,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		return nil
 	}
 
-	scriptPath, err := findScriptPath("/etc/yb-voyager/gather-assessment-metadata/oracle/yb-voyager-pg-gather-assessment-metadata.sh")
+	scriptPath, err := findScriptPath("/etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh")
 	if err != nil {
 		return err
 	}
