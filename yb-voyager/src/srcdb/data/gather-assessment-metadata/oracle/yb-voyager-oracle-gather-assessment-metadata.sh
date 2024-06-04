@@ -151,7 +151,7 @@ fi
 rm -rf schema && mkdir -p schema
 echo "Collecting schema information..."
 
-ORACLE_HOME_VALUE="${ORACLE_HOME:-"/usr/lib/oracle/21/client64"}"
+ORACLE_HOME_VALUE="${ORACLE_HOME:-'/usr/lib/oracle/21/client64'}"
 ORACLE_USER_VALUE=$username
 SCHEMA_VALUE=$schema_name
 DISABLE_COMMENT_VALUE="1"
@@ -186,9 +186,7 @@ for type in "${types[@]}"; do
     output_dir="$assessment_metadata_dir/schema/${ltype}s"
     output_file="$ltype.sql"
     mkdir -p $output_dir
-    # echo "Exporting ${type} to $output_dir/$output_file..."
     ora2pg_cmd="ORA2PG_PASSWD=$ORACLE_PASSWORD ora2pg -p -q -t $type -o $output_file -b $output_dir -c $OUTPUT_FILE_PATH --no_header"
-    # echo "executing: $ora2pg_cmd"
     eval $ora2pg_cmd
 done
 

@@ -34,12 +34,15 @@ ON COMMIT PRESERVE ROWS AS
         dba_indexes i
     JOIN
         dba_segments s ON i.owner = s.owner AND i.index_name = s.segment_name
-    LEFT JOIN
-        dba_constraints c ON i.owner = c.owner AND i.index_name = c.index_name AND c.constraint_type = 'P'
     WHERE
-        i.owner = 'ASSESS_MIGRATION'
+        i.owner = '&1'
         AND i.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'BITMAP JOIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
-        AND c.constraint_name IS NULL;
+        AND i.index_name NOT IN (
+            SELECT index_name
+            FROM dba_constraints
+            WHERE owner = '&1'
+            AND constraint_type IN ('P', 'U')
+        );
 
 -- Select the data into the CSV file
 SPOOL table-index-sizes.csv

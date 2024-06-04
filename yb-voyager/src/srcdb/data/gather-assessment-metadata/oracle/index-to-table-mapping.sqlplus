@@ -14,7 +14,7 @@ SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
 -- Create a temporary table to hold the data
 CREATE GLOBAL TEMPORARY TABLE temp_index_to_table_mapping_&session_id
 ON COMMIT PRESERVE ROWS AS
-    SELECT 
+    SELECT
         i.owner AS index_schema,
         i.index_name AS index_name,
         i.table_owner AS table_schema,
@@ -22,8 +22,14 @@ ON COMMIT PRESERVE ROWS AS
     FROM 
         dba_indexes i
     WHERE
-        i.owner = 'ASSESS_MIGRATION_NP'
-        AND i.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV');
+        i.owner = '&1'
+        AND i.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
+        AND i.index_name NOT IN (
+            SELECT index_name
+            FROM dba_constraints
+            WHERE owner = '&1'
+            AND constraint_type IN ('P', 'U') -- ignoring primary and unique keys
+        );
 
 -- Select the data into the CSV file
 SPOOL index-to-table-mapping.csv
