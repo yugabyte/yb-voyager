@@ -208,16 +208,22 @@ func importSchema() error {
 }
 
 func packAndSendImportSchemaPayload(status string, errMsg string) {
-
 	payload := createCallhomePayload()
 	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
-	targetDBDetails := tdb.GetCallhomeTargetDBInfo()
-	str, err := json.Marshal(targetDBDetails)
+	var targetDBDetails *callhome.TargetDBDetails
+	tdb = tgtdb.NewTargetDB(&tconf)
+	err := tdb.Init()
+	if err != nil {
+		log.Errorf("error in connecting to target db: %v", err)
+	} else {
+		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
+	}
+	targetDBDetailsBytes, err := json.Marshal(targetDBDetails)
 	if err != nil {
 		log.Errorf("error in parsing sourcedb details: %v", err)
 	}
-	payload.TargetDBDetails = string(str)
+	payload.TargetDBDetails = string(targetDBDetailsBytes)
 	var errorsList []string
 	for _, stmt := range failedSqlStmts {
 		parts := strings.Split(stmt, "*/\n")

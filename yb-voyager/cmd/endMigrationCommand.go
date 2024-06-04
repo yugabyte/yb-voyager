@@ -276,7 +276,7 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 
-	strCmd := fmt.Sprintf("./yb-voyager get data-migration-report --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s", exportDir)
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
 	saveCommandOutput(liveMigrationReportCmd, "data migration report", "", dataMigrationReportPath)
@@ -289,7 +289,7 @@ func saveDataExportReport() {
 	}
 
 	utils.PrintAndLog("saving data export report...")
-	strCmd := fmt.Sprintf("./yb-voyager export data status --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s", exportDir)
 	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
 	saveCommandOutput(exportDataStatusCmd, "export data status", exportDataStatusMsg, exportDataReportFilePath)
 }
@@ -311,7 +311,7 @@ func saveDataImportReport(msr *metadb.MigrationStatusRecord) {
 	}
 
 	utils.PrintAndLog("saving data import report...")
-	strCmd := fmt.Sprintf("./yb-voyager import data status --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager import data status --export-dir %s", exportDir)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
 	saveCommandOutput(importDataStatusCmd, "import data status", importDataStatusMsg, importDataReportFilePath)
 }

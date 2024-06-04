@@ -124,6 +124,11 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		assessPayload.Error = errMsg
 	}
 	if assessmentMetadataDirFlag == "" {
+		err = source.DB().Connect()
+		if err != nil {
+			log.Errorf("error in connecting with source: %v", err)
+		}
+		defer source.DB().Disconnect()
 		sourceDBDetails := callhome.SourceDBDetails{
 			Host:      source.Host,
 			DBType:    source.DBType,

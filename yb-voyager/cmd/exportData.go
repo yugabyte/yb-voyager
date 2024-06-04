@@ -157,6 +157,11 @@ func packAndSendExportDataPayload(status string) {
 	case SNAPSHOT_AND_CHANGES:
 		payload.MigrationType = LIVE_MIGRATION
 	}
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the source db: %s", err)
+	}
+	defer source.DB().Disconnect()
 	sourceDBDetails := callhome.SourceDBDetails{
 		Host:      source.Host,
 		DBType:    source.DBType,
