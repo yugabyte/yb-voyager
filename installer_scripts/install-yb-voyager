@@ -667,8 +667,8 @@ install_ora2pg() {
 
 	output "Installing perl DB drivers required for ora2pg."
 	wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
-	sudo apt-get install ./yb-apt-repo_1.0.0_all.deb
-	sudo apt-get install libcompress-zlib-perl libdbd-oracle-perl libdbi-perl libdbd-mysql-perl 1>&2
+	sudo apt-get install -y ./yb-apt-repo_1.0.0_all.deb
+	sudo apt-get install -y libcompress-zlib-perl libdbd-oracle-perl libdbi-perl libdbd-mysql-perl 1>&2
 
 	output "Installing ora2pg."
 	wget -nv https://github.com/darold/ora2pg/archive/${ORA2PG_VERSION}.tar.gz 1>&2
