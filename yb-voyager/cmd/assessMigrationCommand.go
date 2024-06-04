@@ -134,11 +134,11 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			DBType:    source.DBType,
 			DBVersion: source.DB().GetVersion(),
 		}
-		str, err := json.Marshal(sourceDBDetails)
+		sourceDBBytes, err := json.Marshal(sourceDBDetails)
 		if err != nil {
 			log.Errorf("error in parsing sourcedb details: %v", err)
 		}
-		payload.SourceDBDetails = string(str)
+		payload.SourceDBDetails = string(sourceDBBytes)
 	}
 	assessPayloadBytes, err := json.Marshal(assessPayload)
 	if err != nil {

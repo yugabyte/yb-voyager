@@ -41,7 +41,8 @@ var (
 )
 
 /*
-Call-home diagnostics table looks like this - 
+
+Call-home diagnostics table structure - 
 CREATE TABLE diagnostics (
     migration_uuid UUID,
     phase_start_time TIMESTAMP WITH TIME ZONE,
@@ -56,6 +57,7 @@ CREATE TABLE diagnostics (
     status TEXT,
     PRIMARY KEY (migration_uuid, phase_start_time, migration_phase)
 );
+
 */
 type Payload struct {
 	MigrationUUID    uuid.UUID `json:"migration_uuid"`
@@ -74,13 +76,13 @@ type SourceDBDetails struct {
 	Host      string `json:"host"`
 	DBType    string `json:"db_type"`
 	DBVersion string `json:"db_version"`
-	DBSize    int    `json:"total_db_size"`
+	DBSize    int    `json:"total_db_size"` //TODO add
+
 	//...more info
 }
 
 type TargetDBDetails struct {
 	Host string `json:"host"`
-	// DBType string `json:"db_type"`
 	DBVersion string `json:"db_version"`
 	NodeCount int    `json:"node_count"`
 	Cores     int    `json:"cores"`
@@ -98,6 +100,7 @@ type AssessMigrationPhasePayload struct {
 
 type ExportSchemaPhasePayload struct {
 	StartClean bool `json:"start_clean"`
+	SkipRecommendations bool `json:"skip_recommendations"`
 }
 
 type AnalyzePhasePayload struct {
