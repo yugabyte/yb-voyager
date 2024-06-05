@@ -15,14 +15,16 @@ SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
 CREATE GLOBAL TEMPORARY TABLE temp_table_columns_&session_id
 ON COMMIT PRESERVE ROWS AS
     SELECT
-        owner AS schema_name,
-        table_name,
+        t.owner AS schema_name,
+        t.table_name,
         column_name,
         data_type
     FROM
-        dba_tab_columns
+        dba_tab_columns t
+    JOIN
+        dba_tables tab ON t.owner = tab.owner AND t.table_name = tab.table_name
     WHERE
-        owner = '&1';
+        t.owner = 'ASSESS_MIGRATION';
 
 -- Select the data into the CSV file
 SPOOL table-columns-data-types.csv
