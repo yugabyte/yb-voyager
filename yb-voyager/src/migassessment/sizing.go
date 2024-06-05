@@ -327,9 +327,16 @@ func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMeta
 		if len(rec.ShardedTables) != 0 && rec.FailureReasoning == "" {
 			// Iterate over each table and its indexes to find out how many tablets are needed
 			for _, table := range rec.ShardedTables {
-				// check and fetch indexes size data for table
-				_, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
-				_, tabletsRequired := getThresholdAndTablets(table.Size + indexesSizeSum)
+				_, tabletsRequired := getThresholdAndTablets(table.Size)
+				for _, index := range sourceIndexMetadata {
+					if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
+						// calculating tablets required for each of the index
+						_, tabletsRequiredForIndex := getThresholdAndTablets(index.Size)
+						// tablets required for each table is the sum of tablets required for the table and its indexes
+						tabletsRequired += tabletsRequiredForIndex
+					}
+				}
+				// adding total tablets required across all tables
 				totalTabletsRequired += tabletsRequired
 			}
 			// assuming table limits is also a tablet limit
