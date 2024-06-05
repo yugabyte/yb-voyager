@@ -223,11 +223,12 @@ const (
 	WHERE otm.object_type NOT IN ('%s', '%s');`
 
 	// No insertion into 'column_count' for indexes
-	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, reads, writes, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
+	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
 	SELECT 
 		itm.index_schema AS schema_name,
 		itm.index_name AS object_name,
 		NULL AS row_count,
+		tcc.column_count,
 		COALESCE(tii.seq_reads, 0) AS reads,
 		COALESCE(tii.row_writes, 0) AS writes,
 		0 AS reads_per_second,
@@ -239,6 +240,7 @@ const (
 	FROM %s itm
 	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name
+	LEFT JOIN %s tcc ON itm.index_schema = tcc.schema_name AND itm.index_name = tcc.object_name
 	JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name
 	WHERE otm.object_type NOT IN ('%s', '%s');`
 
@@ -282,7 +284,7 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 		fmt.Sprintf(InsertTableStats, TABLE_INDEX_STATS, TABLE_ROW_COUNTS, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES,
 			TABLE_COLUMNS_COUNT, OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
 		fmt.Sprintf(InsertIndexStats, TABLE_INDEX_STATS, INDEX_TO_TABLE_MAPPING, TABLE_INDEX_IOPS, TABLE_INDEX_SIZES,
-			OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
+			TABLE_COLUMNS_COUNT, OBJECT_TYPE_MAPPING, PARTITIONED_TABLE_OBJECT_TYPE, PARTITIONED_INDEX_OBJECT_TYPE),
 	}
 
 	switch SourceDBType {
