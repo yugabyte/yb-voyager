@@ -214,7 +214,7 @@ const (
 		0 AS is_index,
 		otm.object_type,
 		NULL AS parent_table_name,
-		tis.size_in_bytes
+		COALESCE(tis.size_in_bytes, 0)
 	FROM %s trc
 	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name

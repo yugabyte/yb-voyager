@@ -42,7 +42,8 @@ ON COMMIT PRESERVE ROWS AS
             FROM dba_constraints
             WHERE owner = '&1'
             AND constraint_type IN ('P', 'U')
-        );
+        )
+        AND i.index_name NOT LIKE 'SYS_%';
 
 -- Select the data into the CSV file
 SPOOL table-index-sizes.csv

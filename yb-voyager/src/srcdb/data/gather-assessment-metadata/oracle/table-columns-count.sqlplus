@@ -46,6 +46,7 @@ ON COMMIT PRESERVE ROWS AS
             WHERE owner = '&1'
             AND constraint_type IN ('P', 'U')
         )
+        AND i.index_name NOT LIKE 'SYS_%'
     GROUP BY
         i.index_owner, i.index_name;
 
