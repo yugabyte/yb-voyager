@@ -684,8 +684,8 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 func logDiscrepancyInEventBatchIfAny(batch *EventBatch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64) {
 	if !(rowsAffectedInserts == batch.EventCounts.NumInserts &&
-		rowsAffectedInserts == batch.EventCounts.NumDeletes &&
-		rowsAffectedInserts == batch.EventCounts.NumUpdates) {
+		rowsAffectedDeletes == batch.EventCounts.NumDeletes &&
+		rowsAffectedUpdates == batch.EventCounts.NumUpdates) {
 		var vsns []int64
 		for _, e := range batch.Events {
 			vsns = append(vsns, e.Vsn)
