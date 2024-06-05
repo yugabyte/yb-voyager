@@ -96,10 +96,10 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
-			packAndSendAssessMigrationPayload(ERRORED, err.Error())
+			packAndSendAssessMigrationPayload(ERROR, err.Error())
 			utils.ErrExit("failed to assess migration: %v", err)
 		}
-		packAndSendAssessMigrationPayload(COMPLETED, "")
+		packAndSendAssessMigrationPayload(COMPLETE, "")
 	},
 }
 
@@ -120,7 +120,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		UnsupportedDataTypes: string(datatypesBytes),
 		//TODO: add TABLE INDEX STATs
 	}
-	if status == ERRORED {
+	if status == ERROR {
 		assessPayload.Error = errMsg
 	}
 	if assessmentMetadataDirFlag == "" {
@@ -148,6 +148,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	payload.Status = status
 
 	callhome.PackAndSendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {

@@ -1125,6 +1125,16 @@ func analyzeSchema() {
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 
+	packAndSendAnalyzeSchemaPayload(COMPLETE)
+
+	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
+	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
+}
+
+func packAndSendAnalyzeSchemaPayload(status string) {
+
+	payload := createCallhomePayload()
+	payload.MigrationPhase = ANALYZE_PHASE
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
@@ -1134,33 +1144,23 @@ func analyzeSchema() {
 	if err != nil {
 		log.Errorf("Error while parsing 'issues' json: %v", err)
 	}
-	dbobjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
+	dbObjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
 	if err != nil {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
 	}
-
-	packAndSendAnalyzeSchemaPayload(string(issues), string(dbobjects))
-
-	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
-	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
-}
-
-func packAndSendAnalyzeSchemaPayload(issues, dbObjects string) {
-
-	payload := createCallhomePayload()
-	payload.MigrationPhase = ANALYZE_PHASE
 	analyzePayload := callhome.AnalyzePhasePayload{
-		Issues:          issues,
-		DatabaseObjects: dbObjects,
+		Issues:          string(issues),
+		DatabaseObjects: string(dbObjects),
 	}
 	analyzePayloadBytes, err := json.Marshal(analyzePayload)
 	if err != nil {
 		log.Errorf("Error while parsing 'database_objects' json: %v", err)
 	}
 	payload.PhasePayload = string(analyzePayloadBytes)
-	payload.Status = COMPLETED
+	payload.Status = status
 
 	callhome.PackAndSendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 var analyzeSchemaCmd = &cobra.Command{

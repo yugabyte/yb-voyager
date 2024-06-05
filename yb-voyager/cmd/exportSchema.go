@@ -96,6 +96,7 @@ func exportSchema() error {
 		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db: %w", err)
 	}
+	source.DBVersion = source.DB().GetVersion()
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
@@ -124,7 +125,7 @@ func exportSchema() error {
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
-	packAndSendExportSchemaPayload()
+	packAndSendExportSchemaPayload(COMPLETE)
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
@@ -134,15 +135,15 @@ func exportSchema() error {
 	return nil
 }
 
-func packAndSendExportSchemaPayload() {
+func packAndSendExportSchemaPayload(status string) {
 
 	payload := createCallhomePayload()
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
-	payload.Status = COMPLETED
+	payload.Status = status
 	sourceDBDetails := callhome.SourceDBDetails{
 		Host:      source.Host,
 		DBType:    source.DBType,
-		DBVersion: source.DB().GetVersion(),
+		DBVersion: source.DBVersion,
 	}
 	sourceDbBytes, err := json.Marshal(sourceDBDetails)
 	if err != nil {
@@ -151,7 +152,7 @@ func packAndSendExportSchemaPayload() {
 	payload.SourceDBDetails = string(sourceDbBytes)
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean: bool(startClean),
-		SkipRecommendations: bool(skipRecommendations),
+		AppliedRecomendations: !bool(skipRecommendations),
 	}
 	exportSchemaPayloadBytes, err := json.Marshal(exportSchemaPayload)
 	if err != nil {
@@ -159,6 +160,7 @@ func packAndSendExportSchemaPayload() {
 	}
 	payload.PhasePayload = string(exportSchemaPayloadBytes)
 	callhome.PackAndSendPayload(&payload)
+	callHomePayloadSent = true
 
 }
 

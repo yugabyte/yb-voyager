@@ -59,7 +59,7 @@ var importSchemaCmd = &cobra.Command{
 		tconf.ImportMode = true
 		err := importSchema()
 		if err != nil {
-			packAndSendImportSchemaPayload(ERRORED, err.Error())
+			packAndSendImportSchemaPayload(ERROR, err.Error())
 			utils.ErrExit("error in importing schema: %s", err)
 		}
 	},
@@ -93,6 +93,11 @@ func importSchema() error {
 		}
 	}
 
+	targetDBDetails = &callhome.TargetDBDetails{
+		Host: tconf.Host,
+	}
+
+ 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
@@ -108,6 +113,7 @@ func importSchema() error {
 	if err != nil {
 		return fmt.Errorf("get target db version: %s", err)
 	}
+	targetDBDetails.DBVersion = targetDBVersion
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
 
 	if !flagPostSnapshotImport {
@@ -203,7 +209,7 @@ func importSchema() error {
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
 	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
-	packAndSendImportSchemaPayload(COMPLETED, "")
+	packAndSendImportSchemaPayload(COMPLETE, "")
 	return nil
 }
 
@@ -211,14 +217,6 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	payload := createCallhomePayload()
 	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
-	var targetDBDetails *callhome.TargetDBDetails
-	tdb = tgtdb.NewTargetDB(&tconf)
-	err := tdb.Init()
-	if err != nil {
-		log.Errorf("error in connecting to target db: %v", err)
-	} else {
-		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
-	}
 	targetDBDetailsBytes, err := json.Marshal(targetDBDetails)
 	if err != nil {
 		log.Errorf("error in parsing sourcedb details: %v", err)
@@ -229,7 +227,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		parts := strings.Split(stmt, "*/\n")
 		errorsList = append(errorsList, strings.Trim(parts[0], "/*\n"))
 	}
-	if status == ERRORED {
+	if status == ERROR {
 		errorsList = append(errorsList, errMsg)
 	}
 	importSchemaPayload := callhome.ImportSchemaPhasePayload{
@@ -244,6 +242,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	}
 	payload.PhasePayload = string(importSchemaPayloadBytes)
 	callhome.PackAndSendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 func isYBDatabaseIsColocated(conn *pgx.Conn) bool {

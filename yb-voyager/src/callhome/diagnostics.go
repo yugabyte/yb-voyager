@@ -41,23 +41,22 @@ var (
 )
 
 /*
-
-Call-home diagnostics table structure - 
+Call-home diagnostics table structure -
 CREATE TABLE diagnostics (
-    migration_uuid UUID,
-    phase_start_time TIMESTAMP WITH TIME ZONE,
-    source_db_details JSONB,
-    target_db_details JSONB,
-    yb_voyager_version TEXT,
-    migration_phase TEXT,
-    phase_payload JSONB,
-    migration_type TEXT,
-    source_db_size BIGINT,
-    time_taken BIGINT,
-    status TEXT,
-    PRIMARY KEY (migration_uuid, phase_start_time, migration_phase)
-);
 
+	migration_uuid UUID,
+	phase_start_time TIMESTAMP WITH TIME ZONE,
+	source_db_details JSONB,
+	target_db_details JSONB,
+	yb_voyager_version TEXT,
+	migration_phase TEXT,
+	phase_payload JSONB,
+	migration_type TEXT,
+	time_taken_sec NUMERIC(20,2),
+	status TEXT,
+	PRIMARY KEY (migration_uuid, phase_start_time, migration_phase)
+
+);
 */
 type Payload struct {
 	MigrationUUID    uuid.UUID `json:"migration_uuid"`
@@ -68,7 +67,7 @@ type Payload struct {
 	MigrationPhase   string    `json:"migration_phase"`
 	PhasePayload     string    `json:"phase_payload"`
 	MigrationType    string    `json:"migration_type"`
-	TimeTaken        int64     `json:"time_taken"`
+	TimeTakenSec     float64   `json:"time_taken_sec"`
 	Status           string    `json:"status"`
 }
 
@@ -82,7 +81,7 @@ type SourceDBDetails struct {
 }
 
 type TargetDBDetails struct {
-	Host string `json:"host"`
+	Host      string `json:"host"`
 	DBVersion string `json:"db_version"`
 	NodeCount int    `json:"node_count"`
 	Cores     int    `json:"cores"`
@@ -99,8 +98,10 @@ type AssessMigrationPhasePayload struct {
 }
 
 type ExportSchemaPhasePayload struct {
-	StartClean bool `json:"start_clean"`
-	SkipRecommendations bool `json:"skip_recommendations"`
+	StartClean            bool `json:"start_clean"`
+	AppliedRecomendations bool `json:"applied_recommendations"`
+
+	//..more info
 }
 
 type AnalyzePhasePayload struct {

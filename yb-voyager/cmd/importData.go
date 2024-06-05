@@ -65,6 +65,7 @@ var valueConverter dbzm.ValueConverter
 
 var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
+var targetDBDetails *callhome.TargetDBDetails
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -123,6 +124,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
+	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 
 	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, bool(startClean))
 	if err != nil {
@@ -575,9 +577,9 @@ func importData(importFileTasks []*ImportFileTask) {
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETED) // TODO: later for other import data commands
+		packAndSendImportDataPayload(COMPLETE) // TODO: later for other import data commands
 	}
-	
+
 }
 
 func packAndSendImportDataPayload(status string) {
@@ -589,20 +591,15 @@ func packAndSendImportDataPayload(status string) {
 	case SNAPSHOT_AND_CHANGES:
 		payload.MigrationType = LIVE_MIGRATION
 	}
-	targetDBDetails := tdb.GetCallhomeTargetDBInfo()
 	bytes, err := json.Marshal(targetDBDetails)
 	if err != nil {
 		log.Errorf("error in parsing sourcedb details: %v", err)
 	}
-	payload.SourceDBDetails = string(bytes)
+	payload.TargetDBDetails = string(bytes)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
 		ParallelJobs: int64(tconf.Parallelism),
 		StartClean:   bool(startClean),
-	}
-	importDataPayloadBytes, err := json.Marshal(importDataPayload)
-	if err != nil {
-		log.Errorf("error in parsing the export data payload: %v", err)
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
@@ -615,10 +612,15 @@ func packAndSendImportDataPayload(status string) {
 		}
 		return true, nil
 	})
+	importDataPayloadBytes, err := json.Marshal(importDataPayload)
+	if err != nil {
+		log.Errorf("error in parsing the export data payload: %v", err)
+	}
 	payload.PhasePayload = string(importDataPayloadBytes)
 	payload.Status = status
 
 	callhome.PackAndSendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 func disableGeneratedAlwaysAsIdentityColumns(tables []sqlname.NameTuple) {

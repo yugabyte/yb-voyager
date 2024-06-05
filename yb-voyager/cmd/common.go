@@ -998,7 +998,30 @@ func createCallhomePayload() callhome.Payload {
 	payload.MigrationUUID = migrationUUID
 	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
-	payload.TimeTaken = int64(time.Since(startTime).Seconds())
+	payload.TimeTakenSec = time.Since(startTime).Seconds()
 
 	return payload
+}
+
+func PackAndSendCallhomePayloadOnExit() {
+	if callHomePayloadSent {
+		return
+	}
+	switch currentCommand {
+	case assessMigrationCmd.CommandPath():
+		packAndSendAssessMigrationPayload(EXIT, "Exiting....")
+	case exportSchemaCmd.CommandPath():
+		packAndSendExportSchemaPayload(EXIT)
+	case analyzeSchemaCmd.CommandPath():
+		packAndSendAnalyzeSchemaPayload(EXIT)
+	case importSchemaCmd.CommandPath():
+		packAndSendImportSchemaPayload(EXIT, "Exiting....")
+	case exportDataCmd.CommandPath():
+		packAndSendExportDataPayload(EXIT)
+	case importDataCmd.CommandPath():
+		packAndSendImportDataPayload(EXIT)
+	case endMigrationCmd.CommandPath():
+		packAndSendEndMigrationPayload(EXIT)
+		//..more cases
+	}
 }

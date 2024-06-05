@@ -129,7 +129,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		packAndSendExportDataPayload(COMPLETED)
+		packAndSendExportDataPayload(COMPLETE)
 
 		setDataIsExported()
 		color.Green("Export of data complete \u2705")
@@ -137,16 +137,16 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		startFallBackSetupIfRequired()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
-		packAndSendExportDataPayload(STOPPED)
+		packAndSendExportDataPayload(EXIT)
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
-		packAndSendExportDataPayload(ERRORED)
+		packAndSendExportDataPayload(ERROR)
 		atexit.Exit(1)
 	}
 }
 
-func packAndSendExportDataPayload(status string) { 
+func packAndSendExportDataPayload(status string) {
 	//TODO: send this INPROGRESS status in some fixed for long running export data
 
 	payload := createCallhomePayload()
@@ -157,15 +157,10 @@ func packAndSendExportDataPayload(status string) {
 	case SNAPSHOT_AND_CHANGES:
 		payload.MigrationType = LIVE_MIGRATION
 	}
-	err := source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to the source db: %s", err)
-	}
-	defer source.DB().Disconnect()
 	sourceDBDetails := callhome.SourceDBDetails{
 		Host:      source.Host,
 		DBType:    source.DBType,
-		DBVersion: source.DB().GetVersion(),
+		DBVersion: source.DBVersion,
 	}
 	sourceDbBytes, err := json.Marshal(sourceDBDetails)
 	if err != nil {
@@ -207,6 +202,7 @@ func packAndSendExportDataPayload(status string) {
 	payload.Status = status
 
 	callhome.PackAndSendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 func exportData() bool {
@@ -214,6 +210,7 @@ func exportData() bool {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
+	source.DBVersion = source.DB().GetVersion()
 	defer source.DB().Disconnect()
 	clearMigrationStateIfRequired()
 	checkSourceDBCharset()

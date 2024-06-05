@@ -97,10 +97,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
-	packAndSendEndMigrationPayload()
+	packAndSendEndMigrationPayload(COMPLETE)
 }
 
-func packAndSendEndMigrationPayload() {
+func packAndSendEndMigrationPayload(status string) {
 
 	payload := createCallhomePayload()
 	payload.MigrationPhase = END_MIGRATION_PHASE
@@ -115,9 +115,10 @@ func packAndSendEndMigrationPayload() {
 		utils.ErrExit("error in parsing end mgiration phase payload: %v", err)
 	}
 	payload.PhasePayload = string(payloadBytes)
-	payload.Status = COMPLETED
+	payload.Status = status
 
 	callhome.PackAndSendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 func backupSchemaFilesFn() {
