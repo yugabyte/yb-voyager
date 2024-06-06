@@ -1143,6 +1143,11 @@ func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error
 		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 	}
 	if invalidTargetIndexesCache == nil {
+		tdb = tgtdb.NewTargetDB(&tconf)I
+		err = tdb.Init()
+		if err != nil {
+			return fmt.Errorf("failed to initialize the target DB: %s", err)
+		}
 		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
 		if err != nil {
 			return fmt.Errorf("failed to fetch invalid indexes: %w", err)

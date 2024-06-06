@@ -31,7 +31,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -80,12 +79,6 @@ func importSchema() {
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
-	tdb = tgtdb.NewTargetDB(&tconf)
-	err = tdb.Init()
-	if err != nil {
-		utils.ErrExit("failed to initialize the target DB: %s", err)
-	}
-
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
@@ -122,10 +115,9 @@ func importSchema() {
 	// if post snapshot import, no objects should be imported.
 	if !flagPostSnapshotImport {
 		objectList = utils.GetSchemaObjectList(sourceDBType)
-	}
-	if len(objectList) == 0 {
-		utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
-	} else {
+		if len(objectList) == 0 {
+			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
+		}
 		assessmentDone, err := IsMigrationAssessmentDone()
 		if err != nil {
 			utils.ErrExit("failed to check if migration assessment done: %v", err)
@@ -135,48 +127,47 @@ func importSchema() {
 			"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
 			utils.ErrExit("Exiting...")
 		}
-	}
-
-	objectList = applySchemaObjectFilterFlags(objectList)
-	log.Infof("list of schema objects to import: %v", objectList)
-	// Import some statements only after importing everything else
-	isSkipStatement := func(objType, stmt string) bool {
-		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		switch objType {
-		case "SEQUENCE":
-			// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name');
-			// ALTER SEQUENCE sequence_name OWNED BY table_name.column_name;
-			return strings.HasPrefix(stmt, "ALTER TABLE") || strings.HasPrefix(stmt, "ALTER SEQUENCE")
-		case "TABLE":
-			// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
-			return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
-		case "UNIQUE INDEX":
-			// skips all the INDEX DDLs, Except CREATE UNIQUE INDEX index_name ON table ... (column_name);
-			return !strings.Contains(stmt, objType)
-		case "INDEX":
-			// skips all the CREATE UNIQUE INDEX index_name ON table ... (column_name);
-			return strings.Contains(stmt, "UNIQUE INDEX")
+		objectList = applySchemaObjectFilterFlags(objectList)
+		log.Infof("list of schema objects to import: %v", objectList)
+		// Import some statements only after importing everything else
+		isSkipStatement := func(objType, stmt string) bool {
+			stmt = strings.ToUpper(strings.TrimSpace(stmt))
+			switch objType {
+			case "SEQUENCE":
+				// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name');
+				// ALTER SEQUENCE sequence_name OWNED BY table_name.column_name;
+				return strings.HasPrefix(stmt, "ALTER TABLE") || strings.HasPrefix(stmt, "ALTER SEQUENCE")
+			case "TABLE":
+				// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
+				return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
+			case "UNIQUE INDEX":
+				// skips all the INDEX DDLs, Except CREATE UNIQUE INDEX index_name ON table ... (column_name);
+				return !strings.Contains(stmt, objType)
+			case "INDEX":
+				// skips all the CREATE UNIQUE INDEX index_name ON table ... (column_name);
+				return strings.Contains(stmt, "UNIQUE INDEX")
+			}
+			return false
 		}
-		return false
-	}
-	skipFn := isSkipStatement
-	importSchemaInternal(exportDir, objectList, skipFn)
+		skipFn := isSkipStatement
+		importSchemaInternal(exportDir, objectList, skipFn)
 
-	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
-	skipFn = func(objType, stmt string) bool {
-		return !isSkipStatement(objType, stmt)
-	}
-	if slices.Contains(objectList, "SEQUENCE") {
-		importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
-	}
-	if slices.Contains(objectList, "TABLE") {
-		importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
-	}
+		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
+		skipFn = func(objType, stmt string) bool {
+			return !isSkipStatement(objType, stmt)
+		}
+		if slices.Contains(objectList, "SEQUENCE") {
+			importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
+		}
+		if slices.Contains(objectList, "TABLE") {
+			importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
+		}
 
-	importDeferredStatements()
-	log.Info("Schema import is complete.")
+		importDeferredStatements()
+		log.Info("Schema import is complete.")
 
-	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+		dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+	}
 
 	if flagPostSnapshotImport {
 		if flagRefreshMViews {
