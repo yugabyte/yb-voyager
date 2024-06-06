@@ -12,9 +12,9 @@
             },
             {
                 "ObjectType": "EXTENSION",
-                "TotalCount": 6,
+                "TotalCount": 7,
                 "InvalidCount": 3,
-                "ObjectNames": "aws_commons, plperl, hstore, hstore_plperl, pg_visibility, hll",
+                "ObjectNames": "aws_commons, plperl, hstore, hstore_plperl, pg_visibility, hll, \"uuid-ossp\"",
                 "Details": "'hll' extension is supported in YugabyteDB v2.18 onwards. Please verify this extension as per the target YugabyteDB version."
             },
             {
