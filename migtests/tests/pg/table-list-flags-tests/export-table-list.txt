@@ -1,1 +1,1 @@
-session_*,"Recipients","*Case*",orders,products
+session_*,"Recipients","*Case*",orders,products,"WITH"
