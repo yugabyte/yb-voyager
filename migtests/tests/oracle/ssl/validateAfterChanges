@@ -26,7 +26,7 @@ EXPECTED_ROW_COUNT = {
 }
 
 
-EXPECTED_ROW_COUNT_FF = {
+EXPECTED_ROW_COUNT_FF_FB = {
 	'test_simple': 3,
 }
 
