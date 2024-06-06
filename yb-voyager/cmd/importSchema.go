@@ -233,7 +233,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		errorsList = append(errorsList, errMsg)
 	} else {
 		if len(errorsList) > 0 {
-			status = COMPLETE_WITH_ERRORS
+			payload.Status = COMPLETE_WITH_ERRORS
 		}
 	}
 	importSchemaPayload := callhome.ImportSchemaPhasePayload{

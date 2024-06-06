@@ -1049,6 +1049,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 	}()
 
 	sqlInfoArr := parseSqlFileForObjectType(file, objType)
+	var err error
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
@@ -1070,12 +1071,12 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			}
 		}
 
-		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
+		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
 			conn.Close(context.Background())
 			conn = nil
-			if !tconf.ContinueOnError {
-				return fmt.Errorf("error in executing stmts on target: %s", err)
+			if !bool(tconf.ContinueOnError) && !slices.Contains(deferredSqlStmts, sqlInfo){
+				return fmt.Errorf("error in executing stmts : %v", err)
 			}
 		}
 	}
