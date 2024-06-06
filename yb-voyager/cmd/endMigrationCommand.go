@@ -101,7 +101,9 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func packAndSendEndMigrationPayload(status string) {
-
+	if !callhome.SendDiagnostics {
+		return
+	}
 	payload := createCallhomePayload()
 	payload.MigrationPhase = END_MIGRATION_PHASE
 	endMigrationPayload := callhome.EndMigrationPhasePayload{
@@ -117,7 +119,7 @@ func packAndSendEndMigrationPayload(status string) {
 	payload.PhasePayload = string(payloadBytes)
 	payload.Status = status
 
-	callhome.PackAndSendPayload(&payload)
+	callhome.SendPayload(&payload)
 	callHomePayloadSent = true
 }
 

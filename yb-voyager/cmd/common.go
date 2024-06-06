@@ -1004,7 +1004,7 @@ func createCallhomePayload() callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
-	if callHomePayloadSent || !bool(callhome.SendDiagnostics) {
+	if callHomePayloadSent {
 		return
 	}
 	switch currentCommand {

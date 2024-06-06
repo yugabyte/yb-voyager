@@ -584,6 +584,9 @@ func importData(importFileTasks []*ImportFileTask) {
 
 func packAndSendImportDataPayload(status string) {
 	//TODO send this for INPROGRESS status in some fixed interval for long running import data
+	if !callhome.SendDiagnostics {
+		return
+	}
 	payload := createCallhomePayload()
 	switch importType {
 	case SNAPSHOT_ONLY:
@@ -619,7 +622,7 @@ func packAndSendImportDataPayload(status string) {
 	payload.PhasePayload = string(importDataPayloadBytes)
 	payload.Status = status
 
-	callhome.PackAndSendPayload(&payload)
+	callhome.SendPayload(&payload)
 	callHomePayloadSent = true
 }
 

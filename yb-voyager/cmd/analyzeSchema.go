@@ -1132,7 +1132,9 @@ func analyzeSchema() {
 }
 
 func packAndSendAnalyzeSchemaPayload(status string) {
-
+	if !callhome.SendDiagnostics {
+		return
+	}
 	payload := createCallhomePayload()
 	payload.MigrationPhase = ANALYZE_PHASE
 	var callhomeIssues []utils.Issue
@@ -1159,7 +1161,7 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	payload.PhasePayload = string(analyzePayloadBytes)
 	payload.Status = status
 
-	callhome.PackAndSendPayload(&payload)
+	callhome.SendPayload(&payload)
 	callHomePayloadSent = true
 }
 

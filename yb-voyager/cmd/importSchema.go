@@ -97,7 +97,6 @@ func importSchema() error {
 		Host: tconf.Host,
 	}
 
- 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
@@ -214,6 +213,9 @@ func importSchema() error {
 }
 
 func packAndSendImportSchemaPayload(status string, errMsg string) {
+	if !callhome.SendDiagnostics {
+		return
+	}
 	payload := createCallhomePayload()
 	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
@@ -245,7 +247,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		log.Errorf("error in parsing payload: %v", err)
 	}
 	payload.PhasePayload = string(importSchemaPayloadBytes)
-	callhome.PackAndSendPayload(&payload)
+	callhome.SendPayload(&payload)
 	callHomePayloadSent = true
 }
 

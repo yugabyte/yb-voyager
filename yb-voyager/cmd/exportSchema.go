@@ -136,7 +136,9 @@ func exportSchema() error {
 }
 
 func packAndSendExportSchemaPayload(status string) {
-
+	if !callhome.SendDiagnostics {
+		return
+	}
 	payload := createCallhomePayload()
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
@@ -159,7 +161,7 @@ func packAndSendExportSchemaPayload(status string) {
 		log.Errorf("error in parsing payload: %v", err)
 	}
 	payload.PhasePayload = string(exportSchemaPayloadBytes)
-	callhome.PackAndSendPayload(&payload)
+	callhome.SendPayload(&payload)
 	callHomePayloadSent = true
 
 }

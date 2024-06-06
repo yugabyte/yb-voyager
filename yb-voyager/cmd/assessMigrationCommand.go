@@ -104,6 +104,9 @@ var assessMigrationCmd = &cobra.Command{
 }
 
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
+	if !callhome.SendDiagnostics {
+		return
+	}
 	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 
@@ -142,7 +145,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	payload.PhasePayload = string(assessPayloadBytes)
 	payload.Status = status
 
-	callhome.PackAndSendPayload(&payload)
+	callhome.SendPayload(&payload)
 	callHomePayloadSent = true
 }
 

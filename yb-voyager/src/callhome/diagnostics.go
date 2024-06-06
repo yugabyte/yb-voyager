@@ -185,11 +185,7 @@ func readCallHomeServiceEnv() {
 }
 
 // Send http request to flask servers after saving locally
-func PackAndSendPayload(payload *Payload) {
-	if !SendDiagnostics {
-		return
-	}
-
+func SendPayload(payload *Payload) {
 	//for local call-home setup
 	readCallHomeServiceEnv()
 
