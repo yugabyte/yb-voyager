@@ -22,8 +22,9 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var deferredSqlStmts []sqlInfo
@@ -60,6 +61,7 @@ func importDeferredStatements() {
 	defer func() { conn.Close(context.Background()) }()
 
 	var err error
+	var finalFailedDeferredStmts []string
 	// max loop iterations to remove all errors
 	for i := 1; i <= maxIterations && len(deferredSqlStmts) > 0; i++ {
 		beforeDeferredSqlCount := len(deferredSqlStmts)
@@ -89,10 +91,11 @@ func importDeferredStatements() {
 		} else if beforeDeferredSqlCount == afterDeferredSqlCount {
 			// no need for further iterations since the deferred list will remain same
 			log.Infof("none of the deferred statements executed successfully in the %d iteration", i)
-			failedSqlStmts = failedSqlStmtInIthIteration
+			finalFailedDeferredStmts = failedSqlStmtInIthIteration
 			break
 		}
 	}
+	failedSqlStmts = append(failedSqlStmts, finalFailedDeferredStmts...)
 }
 
 func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
