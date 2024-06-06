@@ -147,7 +147,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func packAndSendExportDataPayload(status string) {
-	//TODO: send this INPROGRESS status in some fixed for long running export data
+	//TODO: send this INPROGRESS status in some fixed interval for long running export data
 
 	payload := createCallhomePayload()
 
@@ -174,12 +174,10 @@ func packAndSendExportDataPayload(status string) {
 		StartClean:   bool(startClean),
 	}
 
-	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
-	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			log.Errorf("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
+			log.Errorf("Failed to read export status file: %v", err)
 		}
 	}
 	exportedSnapshotRow, _, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
