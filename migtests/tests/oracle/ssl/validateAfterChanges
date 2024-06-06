@@ -7,16 +7,32 @@ import collections
 import oracle
 
 def main():
+
 	test_type_flags = common.valparser()
 	
-	migration_completed_checks_yb()
-
 	if test_type_flags['ff_enabled'] == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
 		migration_completed_checks_ff()
+	elif test_type_flags['fb_enabled'] == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_fb()
+	else:
+		migration_completed_checks_yb()
 
 EXPECTED_ROW_COUNT = {
-	'test_simple': 1,
+	'test_simple': 2,
 }
+
+
+EXPECTED_ROW_COUNT_FF_FB = {
+	'test_simple': 3,
+}
+
+def change_expected_values():
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
 
 def migration_completed_checks_yb():
 	print("Running tests on YB")
@@ -29,6 +45,12 @@ def migration_completed_checks_ff():
 	global db_schema
 	db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
 	oracle.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_fb():
+	print("Running tests on Oracle source")
+	global db_schema
+	db_schema = os.environ.get("SOURCE_DB_SCHEMA")
+	oracle.run_checks(migration_completed_checks, db_type="source")
 
 def migration_completed_checks(tgt):
 	# Validation to check for matching row counts
