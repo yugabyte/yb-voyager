@@ -65,12 +65,13 @@ const (
 	IMPORT_DATA_PHASE      = "import-data"
 	END_MIGRATION_PHASE    = "end-migration"
 	ASSESS_MIGRATION_PHASE = "assess-migration"
-	OFFLINE                = "offline"
-	LIVE_MIGRATION         = "live migration"
-	ERROR                  = "ERROR"
-	EXIT                   = "EXIT"
-	COMPLETE               = "COMPLETE"
-	//more phases
+	//...more phases
+	OFFLINE             = "offline"
+	LIVE_MIGRATION      = "live migration"
+	ERROR               = "ERROR"
+	EXIT                = "EXIT"
+	COMPLETE            = "COMPLETE"
+	COMPLETE_WITH_ERRORS = "COMPLETE-WITH-ERRORS"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

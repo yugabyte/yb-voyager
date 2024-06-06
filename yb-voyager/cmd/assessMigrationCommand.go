@@ -109,11 +109,11 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 	featuresBytes, err := json.Marshal(assessmentReport.UnsupportedFeatures)
 	if err != nil {
-		utils.ErrExit("error in parsing unsupported features from assessment report: %s", err)
+		log.Errorf("error in parsing unsupported features from assessment report: %s", err)
 	}
 	datatypesBytes, err := json.Marshal(assessmentReport.UnsupportedDataTypes)
 	if err != nil {
-		utils.ErrExit("error in parsing unsupported features from assessment report: %s", err)
+		log.Errorf("error in parsing unsupported features from assessment report: %s", err)
 	}
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		UnsupportedFeatures:  string(featuresBytes),
@@ -124,15 +124,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		assessPayload.Error = errMsg
 	}
 	if assessmentMetadataDirFlag == "" {
-		err = source.DB().Connect()
-		if err != nil {
-			log.Errorf("error in connecting with source: %v", err)
-		}
-		defer source.DB().Disconnect()
 		sourceDBDetails := callhome.SourceDBDetails{
 			Host:      source.Host,
 			DBType:    source.DBType,
-			DBVersion: source.DB().GetVersion(),
+			DBVersion: source.DBVersion,
 		}
 		sourceDBBytes, err := json.Marshal(sourceDBDetails)
 		if err != nil {
@@ -479,6 +474,12 @@ func parseExportedSchemaFileForAssessment() {
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("error connecting source db: %v", err)
+	}
+	source.DBVersion = source.DB().GetVersion()
+	source.DB().Disconnect()
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 

@@ -98,8 +98,8 @@ type AssessMigrationPhasePayload struct {
 }
 
 type ExportSchemaPhasePayload struct {
-	StartClean            bool `json:"start_clean"`
-	AppliedRecomendations bool `json:"applied_recommendations"`
+	StartClean             bool `json:"start_clean"`
+	AppliedRecommendations bool `json:"applied_recommendations"`
 
 	//..more info
 }
@@ -154,6 +154,8 @@ type EndMigrationPhasePayload struct {
 	BackupDataFiles      bool `json:"backup_data_files"`
 	BackupSchemaFiles    bool `json:"backup_schema_files"`
 	SaveMigrationReports bool `json:"save_migration_reports"`
+
+	//..more info
 }
 
 // [For development] Read ENV VARS for value of SendDiagnostics

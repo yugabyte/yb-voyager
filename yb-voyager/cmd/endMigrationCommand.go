@@ -112,7 +112,7 @@ func packAndSendEndMigrationPayload(status string) {
 	}
 	payloadBytes, err := json.Marshal(endMigrationPayload)
 	if err != nil {
-		utils.ErrExit("error in parsing end mgiration phase payload: %v", err)
+		log.Errorf("error in parsing end mgiration phase payload: %v", err)
 	}
 	payload.PhasePayload = string(payloadBytes)
 	payload.Status = status

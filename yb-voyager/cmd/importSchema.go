@@ -229,6 +229,10 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	}
 	if status == ERROR {
 		errorsList = append(errorsList, errMsg)
+	} else {
+		if len(errorsList) > 0 {
+			status = COMPLETE_WITH_ERRORS
+		}
 	}
 	importSchemaPayload := callhome.ImportSchemaPhasePayload{
 		ContinueOnError:    bool(tconf.ContinueOnError),

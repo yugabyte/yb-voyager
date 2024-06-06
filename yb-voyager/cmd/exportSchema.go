@@ -151,8 +151,8 @@ func packAndSendExportSchemaPayload(status string) {
 	}
 	payload.SourceDBDetails = string(sourceDbBytes)
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
-		StartClean: bool(startClean),
-		AppliedRecomendations: !bool(skipRecommendations),
+		StartClean:             bool(startClean),
+		AppliedRecommendations: !bool(skipRecommendations),
 	}
 	exportSchemaPayloadBytes, err := json.Marshal(exportSchemaPayload)
 	if err != nil {
