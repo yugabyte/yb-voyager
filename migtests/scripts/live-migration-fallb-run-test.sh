@@ -154,11 +154,11 @@ main() {
 
 	sleep 60 
 
-	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import true --refresh-mviews=true
-
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'true'
+
+	step "Post Snapshot Import Phase; Refreshing MViews if present."
+	import_schema --post-snapshot-import true --refresh-mviews=true
 
 	step "Inserting new events"
 	run_sql_file source_delta.sql

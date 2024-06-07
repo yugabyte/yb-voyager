@@ -136,16 +136,16 @@ main() {
 	step "Import data."
 	import_data
 	
-	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import true --refresh-mviews=true
-	run_ysql ${TARGET_DB_NAME} "\di"
-	run_ysql ${TARGET_DB_NAME} "\dft" 
-
 	step "Run validations."
 	if [ -x "${TEST_DIR}/validate" ]
 	then
 		 "${TEST_DIR}/validate"
 	fi
+
+	step "Post Snapshot Import Phase: Refreshing MViews if present."
+	import_schema --post-snapshot-import true --refresh-mviews=true
+	run_ysql ${TARGET_DB_NAME} "\di"
+	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run export-data-status"
 	export_data_status
