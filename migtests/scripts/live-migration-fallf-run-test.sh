@@ -189,12 +189,12 @@ main() {
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; kill_process -${archive_changes_pid}; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	sleep 60
+
+	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
+	import_schema --post-snapshot-import true --refresh-mviews true
 	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false'
-
-	step "Post Snapshot Import Phase; Refreshing MViews if present."
-	import_schema --post-snapshot-import true --refresh-mviews=true
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
