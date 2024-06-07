@@ -31,7 +31,7 @@ EXPECTED_ROW_COUNT_FF_FB = {
 }
 
 def change_expected_values():
-	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF_FB.items():
 		EXPECTED_ROW_COUNT[table_name] = row_count
 
 def migration_completed_checks_yb():
