@@ -195,7 +195,7 @@ func importSchema() error {
 	importDeferredStatements()
 	log.Info("Schema import is complete.")
 
-	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+	dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 
 	if flagPostSnapshotImport {
 		if flagRefreshMViews {
@@ -225,7 +225,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	}
 	payload.TargetDBDetails = string(targetDBDetailsBytes)
 	var errorsList []string
-	for _, stmt := range failedSqlStmts {
+	for _, stmt := range finalFailedSqlStmts {
 		parts := strings.Split(stmt, "*/\n")
 		errorsList = append(errorsList, strings.Trim(parts[0], "/*\n"))
 	}
