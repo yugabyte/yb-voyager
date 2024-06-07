@@ -166,8 +166,7 @@ func (tdb *TargetOracleDB) GetVersion() string {
 func (tdb *TargetOracleDB) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
 	return &callhome.TargetDBDetails{
 		DBVersion: tdb.GetVersion(),
-		Host: tdb.tconf.Host,
-
+		Host:      tdb.tconf.Host,
 	}
 }
 

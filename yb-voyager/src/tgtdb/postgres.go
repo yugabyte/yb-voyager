@@ -239,12 +239,12 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 	return nil
 }
 
-func(pg *TargetPostgreSQL) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
+func (pg *TargetPostgreSQL) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
 	totalCores, _ := fetchCores([]*TargetConf{pg.tconf})
 	return &callhome.TargetDBDetails{
-		Host: pg.tconf.Host,
+		Host:      pg.tconf.Host,
 		NodeCount: 1,
-		Cores: totalCores,
+		Cores:     totalCores,
 		DBVersion: pg.GetVersion(),
 	}
 }

@@ -211,7 +211,7 @@ func packAndSendExportDataPayload(status string) {
 				}
 				return true, nil
 			})
-		} 
+		}
 		switch source.DBType {
 		case POSTGRESQL:
 			exportDataPayload.ExportDataMechanism = "pg_dump"

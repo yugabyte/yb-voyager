@@ -50,7 +50,7 @@ type TargetDB interface {
 	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	InvalidIndexes() (map[string]bool, error)
-	GetCallhomeTargetDBInfo() *callhome.TargetDBDetails  
+	GetCallhomeTargetDBInfo() *callhome.TargetDBDetails
 	// NOTE: The following four methods should not be used for arbitrary query
 	// execution on TargetDB. The should be only used from higher level
 	// abstractions like ImportDataState.

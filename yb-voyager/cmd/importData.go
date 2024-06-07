@@ -1076,7 +1076,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		if err != nil {
 			conn.Close(context.Background())
 			conn = nil
-			if !bool(tconf.ContinueOnError) && !slices.Contains(deferredSqlStmts, sqlInfo){
+			if !bool(tconf.ContinueOnError) && !slices.Contains(deferredSqlStmts, sqlInfo) {
 				return fmt.Errorf("error in executing stmts : %v", err)
 			}
 		}

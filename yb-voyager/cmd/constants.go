@@ -66,11 +66,11 @@ const (
 	END_MIGRATION_PHASE    = "end-migration"
 	ASSESS_MIGRATION_PHASE = "assess-migration"
 	//...more phases
-	OFFLINE             = "offline"
-	LIVE_MIGRATION      = "live migration"
-	ERROR               = "ERROR"
-	EXIT                = "EXIT"
-	COMPLETE            = "COMPLETE"
+	OFFLINE              = "offline"
+	LIVE_MIGRATION       = "live migration"
+	ERROR                = "ERROR"
+	EXIT                 = "EXIT"
+	COMPLETE             = "COMPLETE"
 	COMPLETE_WITH_ERRORS = "COMPLETE-WITH-ERRORS"
 )
 

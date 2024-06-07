@@ -77,7 +77,6 @@ type SourceDBDetails struct {
 	DBVersion string `json:"db_version"`
 	DBSize    int    `json:"total_db_size"` //TODO add
 
-	//...more info
 }
 
 type TargetDBDetails struct {
@@ -85,30 +84,22 @@ type TargetDBDetails struct {
 	DBVersion string `json:"db_version"`
 	NodeCount int    `json:"node_count"`
 	Cores     int    `json:"cores"`
-
-	//...more info
 }
 
 type AssessMigrationPhasePayload struct {
 	UnsupportedFeatures  string `json:"unsupported_features"`
 	UnsupportedDataTypes string `json:"unsupported_datatypes"`
 	Error                string `json:"error,omitempty"`
-
-	//..more info
 }
 
 type ExportSchemaPhasePayload struct {
 	StartClean             bool `json:"start_clean"`
 	AppliedRecommendations bool `json:"applied_recommendations"`
-
-	//..more info
 }
 
 type AnalyzePhasePayload struct {
 	Issues          string `json:"issues"`
 	DatabaseObjects string `json:"database_objects"`
-
-	//..more info
 }
 type ExportDataPhasePayload struct {
 	ParallelJobs        int64  `json:"parallel_jobs"`
@@ -116,8 +107,6 @@ type ExportDataPhasePayload struct {
 	LargestTableRows    int64  `json:"largest_table_rows"`
 	StartClean          bool   `json:"start_clean"`
 	ExportDataMechanism string `json:"export_data_mechanism"`
-
-	//..more info
 }
 
 type ImportSchemaPhasePayload struct {
@@ -125,8 +114,6 @@ type ImportSchemaPhasePayload struct {
 	Errors             []string `json:"errors"`
 	PostSnapshotImport bool     `json:"post_snapshot_import"`
 	StartClean         bool     `json:"start_clean"`
-
-	//..more info
 }
 
 type ImportDataPhasePayload struct {
@@ -134,8 +121,6 @@ type ImportDataPhasePayload struct {
 	TotalRows        int64 `json:"total_rows"`
 	LargestTableRows int64 `json:"largest_table_rows"`
 	StartClean       bool  `json:"start_clean"`
-
-	//..more info
 }
 
 type ImportDataFilePhasePayload struct {
@@ -146,8 +131,6 @@ type ImportDataFilePhasePayload struct {
 	LargestTableSize int64  `json:"largest_table_size"`
 	FileStorageType  string `json:"file_storage_type"`
 	StartClean       bool   `json:"start_clean"`
-
-	//..more info
 }
 
 type EndMigrationPhasePayload struct {
@@ -155,8 +138,6 @@ type EndMigrationPhasePayload struct {
 	BackupDataFiles      bool `json:"backup_data_files"`
 	BackupSchemaFiles    bool `json:"backup_schema_files"`
 	SaveMigrationReports bool `json:"save_migration_reports"`
-
-	//..more info
 }
 
 // [For development] Read ENV VARS for value of SendDiagnostics
