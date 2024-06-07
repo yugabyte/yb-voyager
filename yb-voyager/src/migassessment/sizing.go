@@ -92,11 +92,17 @@ const (
 	SHARDED_LOAD_TIME_TABLE   = "sharded_load_time"
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
-	GITHUB_RAW_LINK          = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
-	EXPERIMENT_DATA_FILENAME = "yb_2024_0_source.db"
-	DBS_DIR                  = "dbs"
-	SIZE_UNIT_GB             = "GB"
-	SIZE_UNIT_MB             = "MB"
+	GITHUB_RAW_LINK               = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
+	EXPERIMENT_DATA_FILENAME      = "yb_2024_0_source.db"
+	DBS_DIR                       = "dbs"
+	SIZE_UNIT_GB                  = "GB"
+	SIZE_UNIT_MB                  = "MB"
+	LOW_PHASE_SHARD_COUNT         = 8
+	LOW_PHASE_SIZE_THRESHOLD_GB   = 0.512
+	HIGH_PHASE_SHARD_COUNT        = 24
+	HIGH_PHASE_SIZE_THRESHOLD_GB  = 10
+	FINAL_PHASE_SIZE_THRESHOLD_GB = 100
+	MAX_TABLETS_PER_TABLE         = 256
 )
 
 var ExperimentDB *sql.DB
@@ -150,8 +156,9 @@ func SizingAssessment() error {
 
 	sizingRecommendationPerCore = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
 
-	sizingRecommendationPerCore = findNumNodesNeeded(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCore)
+	sizingRecommendationPerCore = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCore)
 
+	sizingRecommendationPerCore = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
 	finalSizingRecommendation := pickBestRecommendation(sizingRecommendationPerCore)
 
 	if finalSizingRecommendation.FailureReasoning != "" {
@@ -249,7 +256,7 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 }
 
 /*
-findNumNodesNeeded calculates the number of nodes needed based on sharded throughput limits and updates the recommendation accordingly.
+findNumNodesNeededBasedOnThroughputRequirement calculates the number of nodes needed based on sharded throughput limits and updates the recommendation accordingly.
 Parameters:
   - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
   - shardedLimits: A slice of ExpDataShardedThroughput structs representing sharded throughput limits.
@@ -258,7 +265,7 @@ Parameters:
 Returns:
   - An updated map of recommendations with the number of nodes needed.
 */
-func findNumNodesNeeded(sourceIndexMetadata []SourceDBMetadata, shardedLimits []ExpDataShardedThroughput,
+func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []SourceDBMetadata, shardedLimits []ExpDataShardedThroughput,
 	recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 	// Iterate over sharded throughput limits
 	for _, shardedLimit := range shardedLimits {
@@ -309,6 +316,106 @@ func findNumNodesNeeded(sourceIndexMetadata []SourceDBMetadata, shardedLimits []
 	}
 	// Return updated recommendation map
 	return recommendation
+}
+
+func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMetadata,
+	shardedLimits []ExpDataShardedLimit,
+	recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
+	// Iterate over each intermediate recommendation where failureReasoning is empty
+	for i, rec := range recommendation {
+		totalTabletsRequired := 0
+		if len(rec.ShardedTables) != 0 && rec.FailureReasoning == "" {
+			// Iterate over each table and its indexes to find out how many tablets are needed
+			for _, table := range rec.ShardedTables {
+				_, tabletsRequired := getThresholdAndTablets(table.Size)
+				for _, index := range sourceIndexMetadata {
+					if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
+						// calculating tablets required for each of the index
+						_, tabletsRequiredForIndex := getThresholdAndTablets(index.Size)
+						// tablets required for each table is the sum of tablets required for the table and its indexes
+						tabletsRequired += tabletsRequiredForIndex
+					}
+				}
+				// adding total tablets required across all tables
+				totalTabletsRequired += tabletsRequired
+			}
+			// assuming table limits is also a tablet limit
+			// get shardedLimit of current recommendation
+			for _, record := range shardedLimits {
+				if record.numCores.Valid && int(record.numCores.Float64) == rec.VCPUsPerInstance {
+					// considering RF=3, hence total required tablets would be 3 times the totalTabletsRequired
+					nodesRequired := math.Ceil(float64(totalTabletsRequired*3) / float64(record.maxSupportedNumTables.Int64))
+					// update recommendation to use the maximum of the existing recommended nodes and nodes calculated based on tablets
+					rec.NumNodes = math.Max(rec.NumNodes, nodesRequired)
+					recommendation[i] = rec
+				}
+			}
+		}
+	}
+	// return updated recommendations
+	return recommendation
+}
+
+/*
+getThresholdAndTablets determines the size threshold and number of tablets needed for a given table size.
+
+Parameters:
+- sizeGB: float64 - The size of the table in gigabytes.
+
+Returns:
+- float64: The size threshold in gigabytes for the table based on the phase.
+- int: The number of tablets needed for the table.
+
+Description:
+This function calculates which size threshold applies to a table based on its size and determines the number of tablets required.
+- For sizes up to the low phase limit (8 shards of 512 MB each, up to 4 GB), the low phase threshold is used.
+- Intermediate phase upto 80 GB is calculated based on 8 tablets of 10 GB each.
+- For sizes up to the high phase limit (24 shards of 10 GB each, up to 240 GB), the high phase threshold is used.
+- For larger sizes, the final phase threshold (100 GB) is used.
+*/
+func getThresholdAndTablets(sizeGB float64) (float64, int) {
+	var tablets = math.Ceil(sizeGB / LOW_PHASE_SIZE_THRESHOLD_GB)
+
+	if tablets <= LOW_PHASE_SHARD_COUNT {
+		// table size is less than 4GB, hence 8 tablets of 512MB each will be enough
+		return LOW_PHASE_SIZE_THRESHOLD_GB, int(tablets)
+	} else {
+		// table size is more than 4GB.
+		// find out the per tablet size if it is less than 10GB which is high phase threshold
+		perTabletSize := sizeGB / LOW_PHASE_SHARD_COUNT
+		if perTabletSize <= HIGH_PHASE_SIZE_THRESHOLD_GB {
+			// tablet count is still 8 but the size of each tablet is less than 10GB(table size < 80GB).
+			return HIGH_PHASE_SIZE_THRESHOLD_GB, LOW_PHASE_SHARD_COUNT
+		} else {
+			// table size is > 80GB, hence we need to increase the tablet count
+			tablets = math.Ceil(LOW_PHASE_SHARD_COUNT + (sizeGB-LOW_PHASE_SHARD_COUNT*HIGH_PHASE_SIZE_THRESHOLD_GB)/HIGH_PHASE_SIZE_THRESHOLD_GB)
+			if tablets <= HIGH_PHASE_SHARD_COUNT {
+				// this means that table size is less than 240GB, hence 24 tablets of 10GB each will be enough
+				return HIGH_PHASE_SIZE_THRESHOLD_GB, int(tablets)
+			} else {
+				// table size is more than 240 GB.
+				// find out the per tablet size if it is less than 100GB which is final phase threshold
+				perTabletSize = sizeGB / HIGH_PHASE_SHARD_COUNT
+				if perTabletSize <= FINAL_PHASE_SIZE_THRESHOLD_GB {
+					// tablet count is still 24 but the size of each tablet is less than 100GB(table size < 2400GB).
+					return FINAL_PHASE_SIZE_THRESHOLD_GB, HIGH_PHASE_SHARD_COUNT
+				} else {
+					// table size is > 2400GB, hence we need to increase the tablet count
+					tablets = math.Ceil(HIGH_PHASE_SHARD_COUNT + (sizeGB-HIGH_PHASE_SHARD_COUNT*FINAL_PHASE_SIZE_THRESHOLD_GB)/FINAL_PHASE_SIZE_THRESHOLD_GB)
+					if tablets <= MAX_TABLETS_PER_TABLE {
+						// this means that table size is less than 25600GB. So 256 tablets of 100GB each will be enough
+						return FINAL_PHASE_SIZE_THRESHOLD_GB, int(tablets)
+					} else {
+						// to support table size > 25600GB, tablets per table limit in YugabyteDB needs to be
+						// set to 0(meaning no limit). Refer doc:
+						//https://docs.yugabyte.com/preview/architecture/docdb-sharding/tablet-splitting/#final-phase
+						tablets = math.Ceil(MAX_TABLETS_PER_TABLE + (sizeGB-MAX_TABLETS_PER_TABLE*FINAL_PHASE_SIZE_THRESHOLD_GB)/FINAL_PHASE_SIZE_THRESHOLD_GB)
+						return FINAL_PHASE_SIZE_THRESHOLD_GB, int(tablets)
+					}
+				}
+			}
+		}
+	}
 }
 
 /*
