@@ -90,6 +90,16 @@ type AssessMigrationPhasePayload struct {
 	UnsupportedFeatures  string `json:"unsupported_features"`
 	UnsupportedDataTypes string `json:"unsupported_datatypes"`
 	Error                string `json:"error,omitempty"`
+	TableSizingStats     string `json:"table_sizing_stats"`
+	IndexSizingStats     string `json:"index_sizing_stats"`
+}
+
+type ObjectSizingStats struct {
+	SchemaName      string `json:"SchemaName"`
+	ObjectName      string `json:"ObjectName"`
+	ReadsPerSecond  int64 `json:"ReadsPerSecond"`
+	WritesPerSecond int64 `json:"WritesPerSecond"`
+	SizeInBytes     int64 `json:"SizeInBytes"`
 }
 
 type ExportSchemaPhasePayload struct {

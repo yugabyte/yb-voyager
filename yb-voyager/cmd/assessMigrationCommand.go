@@ -118,10 +118,34 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if err != nil {
 		log.Errorf("error in parsing unsupported features from assessment report: %s", err)
 	}
+	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
+	for _, stat := range *assessmentReport.TableIndexStats {
+		newStat := callhome.ObjectSizingStats{
+			SchemaName:      stat.SchemaName,
+			ObjectName:      stat.ObjectName,
+			ReadsPerSecond:  *stat.ReadsPerSecond,
+			WritesPerSecond: *stat.WritesPerSecond,
+			SizeInBytes:     *stat.SizeInBytes,
+		}
+		if stat.IsIndex {
+			indexSizingStats = append(indexSizingStats, newStat)
+		} else {
+			tableSizingStats = append(tableSizingStats, newStat)
+		}
+	}
+	tableBytes, err := json.Marshal(tableSizingStats)
+	if err != nil {
+		log.Errorf("error in parsing the table sizing stats: %v", err)
+	}
+	indexBytes, err := json.Marshal(indexSizingStats)
+	if err != nil {
+		log.Errorf("error in parsing the index sizing stats: %v", err)
+	}
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		UnsupportedFeatures:  string(featuresBytes),
 		UnsupportedDataTypes: string(datatypesBytes),
-		//TODO: add TABLE INDEX STATs
+		TableSizingStats:     string(tableBytes),
+		IndexSizingStats:     string(indexBytes),
 	}
 	if status == ERROR {
 		assessPayload.Error = errMsg
