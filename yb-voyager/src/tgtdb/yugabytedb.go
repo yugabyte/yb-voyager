@@ -1142,31 +1142,6 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	return rows.Next()
 }
 
-func (yb *TargetYugabyteDB) InvalidIndexes() (map[string]bool, error) {
-	var result = make(map[string]bool)
-	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
-	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
-	rows, err := yb.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying invalid indexes: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var fullyQualifiedIndexName string
-		err := rows.Scan(&fullyQualifiedIndexName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
-		}
-		// if schema is not provided by catalog table, then it is public schema
-		if !strings.Contains(fullyQualifiedIndexName, ".") {
-			fullyQualifiedIndexName = fmt.Sprintf("public.%s", fullyQualifiedIndexName)
-		}
-		result[fullyQualifiedIndexName] = true
-	}
-	return result, nil
-}
-
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
 	schema := BATCH_METADATA_TABLE_SCHEMA
