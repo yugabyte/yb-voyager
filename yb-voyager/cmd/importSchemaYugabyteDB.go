@@ -128,7 +128,6 @@ func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 		finalImportObjectList = append([]string{"SCHEMA"}, finalImportObjectList...)
 	}
 
-	// TODO: rethink if this is required.
 	if !flagPostSnapshotImport {
 		finalImportObjectList = append(finalImportObjectList, []string{"UNIQUE INDEX"}...)
 	}
