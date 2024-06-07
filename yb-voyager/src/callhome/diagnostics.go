@@ -111,10 +111,11 @@ type AnalyzePhasePayload struct {
 	//..more info
 }
 type ExportDataPhasePayload struct {
-	ParallelJobs     int64 `json:"parallel_jobs"`
-	TotalRows        int64 `json:"total_rows"`
-	LargestTableRows int64 `json:"largest_table_rows"`
-	StartClean       bool  `json:"start_clean"`
+	ParallelJobs        int64  `json:"parallel_jobs"`
+	TotalRows           int64  `json:"total_rows"`
+	LargestTableRows    int64  `json:"largest_table_rows"`
+	StartClean          bool   `json:"start_clean"`
+	ExportDataMechanism string `json:"export_data_mechanism"`
 
 	//..more info
 }

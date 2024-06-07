@@ -607,14 +607,15 @@ func packAndSendImportDataPayload(status string) {
 	importRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
 		log.Errorf("error in getting the import data: %v", err)
+	} else {
+		importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+			importDataPayload.TotalRows += value
+			if value > importDataPayload.LargestTableRows {
+				importDataPayload.LargestTableRows = value
+			}
+			return true, nil
+		})
 	}
-	importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
-		importDataPayload.TotalRows += value
-		if value > importDataPayload.LargestTableRows {
-			importDataPayload.LargestTableRows = value
-		}
-		return true, nil
-	})
 	importDataPayloadBytes, err := json.Marshal(importDataPayload)
 	if err != nil {
 		log.Errorf("error in parsing the export data payload: %v", err)
