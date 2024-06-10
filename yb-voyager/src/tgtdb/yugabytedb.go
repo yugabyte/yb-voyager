@@ -909,7 +909,9 @@ func fetchCores(tconfs []*TargetConf) (int, error) {
 func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int) int {
 	totalCores, err := fetchCores(tconfs)
 	if err != nil {
-		return len(tconfs) * defaultParallelismFactor
+		defaultParallelJobs := len(tconfs) * defaultParallelismFactor
+		log.Errorf("error while fetching the cores information and using default parallelism: %v : %v ", defaultParallelJobs, err)
+		return defaultParallelJobs
 	}
 	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
 		return 3

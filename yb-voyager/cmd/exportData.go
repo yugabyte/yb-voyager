@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -168,7 +167,7 @@ func packAndSendExportDataPayload(status string) {
 	}
 	sourceDbBytes, err := json.Marshal(sourceDBDetails)
 	if err != nil {
-		log.Errorf("error in parsing sourcedb details: %v", err)
+		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
 	}
 	payload.SourceDBDetails = string(sourceDbBytes)
 
@@ -178,52 +177,11 @@ func packAndSendExportDataPayload(status string) {
 		StartClean:   bool(startClean),
 	}
 
-	if useDebezium {
-		exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-		dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
-		if err != nil {
-			log.Errorf("error in reading export status: %v", err)
-		}
-		if dbzmStatus != nil {
-			for _, tableExportStatus := range dbzmStatus.Tables {
-				exportDataPayload.TotalRows += tableExportStatus.ExportedRowCountSnapshot
-				if tableExportStatus.ExportedRowCountSnapshot > exportDataPayload.LargestTableRows {
-					exportDataPayload.LargestTableRows = tableExportStatus.ExportedRowCountSnapshot
-				}
-			}
-		}
-		exportDataPayload.ExportDataMechanism = "debezium"
-	} else {
-		if exportSnapshotStatusFile != nil {
-			exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
-			if err != nil {
-				if !errors.Is(err, fs.ErrNotExist) {
-					log.Errorf("Failed to read export status file: %v", err)
-				}
-			}
-			exportedSnapshotRow, _, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
-			if err != nil {
-				log.Errorf("error while getting exported snapshot rows map: %v", err)
-			}
-			exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
-				exportDataPayload.TotalRows += value
-				if value >= exportDataPayload.LargestTableRows {
-					exportDataPayload.LargestTableRows = value
-				}
-				return true, nil
-			})
-		}
-		switch source.DBType {
-		case POSTGRESQL:
-			exportDataPayload.ExportDataMechanism = "pg_dump"
-		case ORACLE, MYSQL:
-			exportDataPayload.ExportDataMechanism = "ora2pg"
-		}
-	}
+	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
 
 	exportDataPayloadBytes, err := json.Marshal(exportDataPayload)
 	if err != nil {
-		log.Errorf("error in parsing the export data payload: %v", err)
+		log.Errorf("callhome: error in parsing the export data payload: %v", err)
 	}
 	payload.PhasePayload = string(exportDataPayloadBytes)
 	payload.Status = status

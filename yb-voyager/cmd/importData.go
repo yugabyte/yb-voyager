@@ -596,7 +596,7 @@ func packAndSendImportDataPayload(status string) {
 	}
 	bytes, err := json.Marshal(targetDBDetails)
 	if err != nil {
-		log.Errorf("error in parsing sourcedb details: %v", err)
+		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
 	}
 	payload.TargetDBDetails = string(bytes)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
@@ -606,7 +606,7 @@ func packAndSendImportDataPayload(status string) {
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
-		log.Errorf("error in getting the import data: %v", err)
+		log.Errorf("callhome: error in getting the import data: %v", err)
 	} else {
 		importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 			importDataPayload.TotalRows += value
@@ -618,7 +618,7 @@ func packAndSendImportDataPayload(status string) {
 	}
 	importDataPayloadBytes, err := json.Marshal(importDataPayload)
 	if err != nil {
-		log.Errorf("error in parsing the export data payload: %v", err)
+		log.Errorf("callhome: error in parsing the export data payload: %v", err)
 	}
 	payload.PhasePayload = string(importDataPayloadBytes)
 	payload.Status = status

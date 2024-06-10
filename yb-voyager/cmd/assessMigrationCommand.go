@@ -112,11 +112,11 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 	featuresBytes, err := json.Marshal(assessmentReport.UnsupportedFeatures)
 	if err != nil {
-		log.Errorf("error in parsing unsupported features from assessment report: %s", err)
+		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
 	}
 	datatypesBytes, err := json.Marshal(assessmentReport.UnsupportedDataTypes)
 	if err != nil {
-		log.Errorf("error in parsing unsupported features from assessment report: %s", err)
+		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
 	}
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	for _, stat := range *assessmentReport.TableIndexStats {
@@ -135,11 +135,11 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	}
 	tableBytes, err := json.Marshal(tableSizingStats)
 	if err != nil {
-		log.Errorf("error in parsing the table sizing stats: %v", err)
+		log.Errorf("callhome: error in parsing the table sizing stats: %v", err)
 	}
 	indexBytes, err := json.Marshal(indexSizingStats)
 	if err != nil {
-		log.Errorf("error in parsing the index sizing stats: %v", err)
+		log.Errorf("callhome: error in parsing the index sizing stats: %v", err)
 	}
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		UnsupportedFeatures:  string(featuresBytes),
@@ -159,13 +159,13 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}
 		sourceDBBytes, err := json.Marshal(sourceDBDetails)
 		if err != nil {
-			log.Errorf("error in parsing sourcedb details: %v", err)
+			log.Errorf("callhome: error in parsing sourcedb details: %v", err)
 		}
 		payload.SourceDBDetails = string(sourceDBBytes)
 	}
 	assessPayloadBytes, err := json.Marshal(assessPayload)
 	if err != nil {
-		log.Errorf("Error while parsing 'database_objects' json: %v", err)
+		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
 	}
 	payload.PhasePayload = string(assessPayloadBytes)
 	payload.Status = status

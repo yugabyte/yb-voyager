@@ -1086,11 +1086,11 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	}
 	issues, err := json.Marshal(callhomeIssues)
 	if err != nil {
-		log.Errorf("Error while parsing 'issues' json: %v", err)
+		log.Errorf("callhome: error while parsing 'issues' json: %v", err)
 	}
 	dbObjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
 	if err != nil {
-		log.Errorf("Error while parsing 'database_objects' json: %v", err)
+		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
 	}
 	analyzePayload := callhome.AnalyzePhasePayload{
 		Issues:          string(issues),
@@ -1098,7 +1098,7 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	}
 	analyzePayloadBytes, err := json.Marshal(analyzePayload)
 	if err != nil {
-		log.Errorf("Error while parsing 'database_objects' json: %v", err)
+		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
 	}
 	payload.PhasePayload = string(analyzePayloadBytes)
 	payload.Status = status

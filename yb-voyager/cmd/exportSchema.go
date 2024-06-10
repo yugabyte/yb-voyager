@@ -155,7 +155,7 @@ func packAndSendExportSchemaPayload(status string) {
 	}
 	sourceDbBytes, err := json.Marshal(sourceDBDetails)
 	if err != nil {
-		log.Errorf("error in parsing sourcedb details: %v", err)
+		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
 	}
 	payload.SourceDBDetails = string(sourceDbBytes)
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
@@ -164,7 +164,7 @@ func packAndSendExportSchemaPayload(status string) {
 	}
 	exportSchemaPayloadBytes, err := json.Marshal(exportSchemaPayload)
 	if err != nil {
-		log.Errorf("error in parsing payload: %v", err)
+		log.Errorf("callhome: error in parsing payload: %v", err)
 	}
 	payload.PhasePayload = string(exportSchemaPayloadBytes)
 	callhome.SendPayload(&payload)

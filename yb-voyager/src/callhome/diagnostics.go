@@ -75,7 +75,7 @@ type SourceDBDetails struct {
 	Host      string `json:"host"`
 	DBType    string `json:"db_type"`
 	DBVersion string `json:"db_version"`
-	DBSize    int64  `json:"total_db_size"` //TODO add
+	DBSize    int64  `json:"total_db_size"` //bytes
 
 }
 
@@ -178,6 +178,11 @@ func readCallHomeServiceEnv() {
 
 // Send http request to flask servers after saving locally
 func SendPayload(payload *Payload) {
+
+	if !SendDiagnostics {
+		return
+	}
+
 	//for local call-home setup
 	readCallHomeServiceEnv()
 

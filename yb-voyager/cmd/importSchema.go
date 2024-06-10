@@ -62,6 +62,7 @@ var importSchemaCmd = &cobra.Command{
 			packAndSendImportSchemaPayload(ERROR, err.Error())
 			utils.ErrExit("error in importing schema: %s", err)
 		}
+		packAndSendImportSchemaPayload(COMPLETE, "")
 	},
 }
 
@@ -208,7 +209,6 @@ func importSchema() error {
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
 	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
-	packAndSendImportSchemaPayload(COMPLETE, "")
 	return nil
 }
 
@@ -221,7 +221,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	payload.Status = status
 	targetDBDetailsBytes, err := json.Marshal(targetDBDetails)
 	if err != nil {
-		log.Errorf("error in parsing sourcedb details: %v", err)
+		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
 	}
 	payload.TargetDBDetails = string(targetDBDetailsBytes)
 	var errorsList []string
@@ -244,7 +244,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	}
 	importSchemaPayloadBytes, err := json.Marshal(importSchemaPayload)
 	if err != nil {
-		log.Errorf("error in parsing payload: %v", err)
+		log.Errorf("callhome: error in parsing payload: %v", err)
 	}
 	payload.PhasePayload = string(importSchemaPayloadBytes)
 	callhome.SendPayload(&payload)
