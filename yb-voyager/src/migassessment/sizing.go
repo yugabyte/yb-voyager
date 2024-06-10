@@ -105,8 +105,6 @@ const (
 	MAX_TABLETS_PER_TABLE         = 256
 )
 
-var ExperimentDB *sql.DB
-
 func getExperimentDBPath() string {
 	return filepath.Join(AssessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
 }
@@ -123,25 +121,25 @@ func SizingAssessment() error {
 		return fmt.Errorf("failed to load source metadata: %w", err)
 	}
 
-	err = createConnectionToExperimentData()
+	experimentDB, err := createConnectionToExperimentData()
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to connect to experiment data: %v", err)
 		return fmt.Errorf("failed to connect to experiment data: %w", err)
 	}
 
-	colocatedLimits, err := loadColocatedLimit()
+	colocatedLimits, err := loadColocatedLimit(experimentDB)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the colocated limits: %v", err)
 		return fmt.Errorf("error fetching the colocated limits: %w", err)
 	}
 
-	shardedLimits, err := loadShardedTableLimits()
+	shardedLimits, err := loadShardedTableLimits(experimentDB)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the sharded limits: %v", err)
 		return fmt.Errorf("error fetching the colocated limits: %w", err)
 	}
 
-	shardedThroughput, err := loadShardedThroughput()
+	shardedThroughput, err := loadShardedThroughput(experimentDB)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the sharded throughput: %v", err)
 		return fmt.Errorf("error fetching the sharded throughput: %w", err)
@@ -174,7 +172,7 @@ func SizingAssessment() error {
 	// calculate time taken for colocated import
 	importTimeForColocatedObjects, parallelVoyagerJobsColocated, err :=
 		calculateTimeTakenAndParallelJobsForImport(COLOCATED_LOAD_TIME_TABLE, colocatedObjects,
-			finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore)
+			finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore, experimentDB)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
 		return fmt.Errorf("calculate time taken for colocated data import: %w", err)
@@ -183,7 +181,7 @@ func SizingAssessment() error {
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, parallelVoyagerJobsSharded, err :=
 		calculateTimeTakenAndParallelJobsForImport(SHARDED_LOAD_TIME_TABLE, shardedObjects,
-			finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore)
+			finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore, experimentDB)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
 		return fmt.Errorf("calculate time taken for sharded data import: %w", err)
@@ -318,6 +316,17 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 	return recommendation
 }
 
+/*
+findNumNodesNeededBasedOnTabletsRequired calculates the number of nodes needed based on tablets required by each
+table and its indexes and updates the recommendation accordingly.
+Parameters:
+  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - shardedLimits: A slice of ExpDataShardedThroughput structs representing sharded throughput limits.
+  - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
+
+Returns:
+  - An updated map of recommendations with the number of nodes needed.
+*/
 func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMetadata,
 	shardedLimits []ExpDataShardedLimit,
 	recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
@@ -631,7 +640,7 @@ Returns:
   - A slice of ExpDataColocatedLimit structs containing the fetched colocated limits.
   - An error if there was any issue during the data retrieval process.
 */
-func loadColocatedLimit() ([]ExpDataColocatedLimit, error) {
+func loadColocatedLimit(experimentDB *sql.DB) ([]ExpDataColocatedLimit, error) {
 	var colocatedLimits []ExpDataColocatedLimit
 	query := fmt.Sprintf(`
 		SELECT max_colocated_db_size_gb, 
@@ -644,7 +653,7 @@ func loadColocatedLimit() ([]ExpDataColocatedLimit, error) {
 		FROM %v 
 		ORDER BY num_cores DESC
 	`, COLOCATED_LIMITS_TABLE)
-	rows, err := ExperimentDB.Query(query)
+	rows, err := experimentDB.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 	}
@@ -674,7 +683,7 @@ Returns:
   - A slice of ExpDataShardedLimit structs containing the fetched sharded table limits.
   - An error if there was any issue during the data retrieval process.
 */
-func loadShardedTableLimits() ([]ExpDataShardedLimit, error) {
+func loadShardedTableLimits(experimentDB *sql.DB) ([]ExpDataShardedLimit, error) {
 	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
 	selectQuery := fmt.Sprintf(`
 			SELECT num_cores, memory_per_core, num_tables 
@@ -682,7 +691,7 @@ func loadShardedTableLimits() ([]ExpDataShardedLimit, error) {
 			WHERE dimension LIKE '%%TableLimits-3nodeRF=3%%' 
 			ORDER BY num_cores
 		`, SHARDED_SIZING_TABLE)
-	rows, err := ExperimentDB.Query(selectQuery)
+	rows, err := experimentDB.Query(selectQuery)
 
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching cores info with query [%s]: %w", selectQuery, err)
@@ -713,7 +722,7 @@ Returns:
   - A slice of ExpDataShardedThroughput structs containing the fetched sharded throughput information.
   - An error if there was any issue during the data retrieval process.
 */
-func loadShardedThroughput() ([]ExpDataShardedThroughput, error) {
+func loadShardedThroughput(experimentDB *sql.DB) ([]ExpDataShardedThroughput, error) {
 	selectQuery := fmt.Sprintf(`
 			SELECT inserts_per_core,
 				   selects_per_core, 
@@ -725,7 +734,7 @@ func loadShardedThroughput() ([]ExpDataShardedThroughput, error) {
 			WHERE dimension = 'MaxThroughput' 
 			ORDER BY num_cores DESC;
 	`, SHARDED_SIZING_TABLE)
-	rows, err := ExperimentDB.Query(selectQuery)
+	rows, err := experimentDB.Query(selectQuery)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
 	}
@@ -808,7 +817,7 @@ Returns:
 	int64: Total parallel jobs used for import.
 */
 func calculateTimeTakenAndParallelJobsForImport(tableName string, dbObjects []SourceDBMetadata,
-	vCPUPerInstance int, memPerCore int) (float64, int64, error) {
+	vCPUPerInstance int, memPerCore int, experimentDB *sql.DB) (float64, int64, error) {
 	// the total size of objects
 	var size float64 = 0
 	var timeTakenOfFetchedRow float64
@@ -838,7 +847,7 @@ func calculateTimeTakenAndParallelJobsForImport(tableName string, dbObjects []So
 		AND num_cores = ?
 		LIMIT 1;
 	`, tableName, tableName, tableName)
-	row := ExperimentDB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size, vCPUPerInstance)
+	row := experimentDB.QueryRow(selectQuery, vCPUPerInstance, memPerCore, size, vCPUPerInstance)
 
 	if err := row.Scan(&maxSizeOfFetchedRow, &timeTakenOfFetchedRow, &parallelJobs); err != nil {
 		if err == sql.ErrNoRows {
@@ -983,7 +992,7 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 			sizeUnitSharded, shardedReads, shardedWrites)
 		// If colocated objects exist, add sharded objects information as rest of the objects need to be migrated as sharded
 		if len(colocatedObjects) > 0 {
-			reasoning += " Rest " + shardedReasoning + " need to be migrated as range partitioned tables"
+			reasoning += " Rest " + shardedReasoning + "need to be migrated as range partitioned tables"
 		} else {
 			reasoning += shardedReasoning + "as sharded."
 		}
@@ -1051,17 +1060,16 @@ func getListOfIndexesAlongWithObjects(tableList []SourceDBMetadata,
 	return indexesAndObject, cumulativeIndexCount
 }
 
-func createConnectionToExperimentData() error {
+func createConnectionToExperimentData() (*sql.DB, error) {
 	filePath, err := getExperimentFile()
 	if err != nil {
-		return fmt.Errorf("failed to get experiment file: %w", err)
+		return nil, fmt.Errorf("failed to get experiment file: %w", err)
 	}
 	DbConnection, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to connect to experiment data database: %w", err)
+		return nil, fmt.Errorf("failed to connect to experiment data database: %w", err)
 	}
-	ExperimentDB = DbConnection
-	return nil
+	return DbConnection, nil
 }
 
 func getExperimentFile() (string, error) {
