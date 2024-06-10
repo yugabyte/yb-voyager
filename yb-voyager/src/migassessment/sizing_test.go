@@ -90,7 +90,7 @@ func TestGetSourceMetadata_SuccessReadingSourceMetadata(t *testing.T) {
 	// check if the total indexes are equal to expected indexes
 	assert.Len(t, sourceIndexMetadata, 1)
 	// check if the total size of the source database is equal to the expected size
-	assert.True(t, 1.07 == Round(totalSourceDBSize, 2))
+	assert.Equal(t, 1.07, Round(totalSourceDBSize, 2))
 	// check if the values of the source table metadata are equal to the expected values
 	assert.Equal(t, "public", sourceTableMetadata[0].SchemaName)
 	assert.Equal(t, "table1", sourceTableMetadata[0].ObjectName)
