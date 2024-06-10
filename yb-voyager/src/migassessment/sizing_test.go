@@ -26,11 +26,8 @@ import (
 	"testing"
 )
 
-const (
-	SOURCEDB_SELECT_QUERY = "SELECT schema_name, object_name, row_count, reads_per_second, writes_per_second, " +
-		"is_index, parent_table_name, size_in_bytes FROM table_index_stats ORDER BY size_in_bytes ASC"
-)
-
+var SourceDbSelectQuery = "SELECT schema_name, object_name, row_count, reads_per_second, writes_per_second, " +
+	"is_index, parent_table_name, size_in_bytes FROM table_index_stats ORDER BY size_in_bytes ASC"
 var SourceDBColumns = []string{"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
 	"is_index", "parent_table_name", "size_in_bytes"}
 
@@ -76,13 +73,14 @@ var colocatedLimits = []ExpDataColocatedLimit{
 /*
 ===== 	Test functions to test getSourceMetadata function	=====
 */
-func TestGetSourceMetadata_Success(t *testing.T) {
+// verify successfully able to connect and load the source metadata
+func TestGetSourceMetadata_SuccessReadingSourceMetadata(t *testing.T) {
 	db, mock := createMockDB(t)
 	rows := sqlmock.NewRows(SourceDBColumns).
 		AddRow("public", "table1", 1000, 10, 5, false, "", 1048576000).
 		AddRow("public", "index1", 0, 0, 0, true, "table1", 104857600)
 
-	mock.ExpectQuery(SOURCEDB_SELECT_QUERY).WillReturnRows(rows)
+	mock.ExpectQuery(SourceDbSelectQuery).WillReturnRows(rows)
 
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadata(db)
 	// assert if there are errors
@@ -100,9 +98,10 @@ func TestGetSourceMetadata_Success(t *testing.T) {
 	assert.Equal(t, "index1", sourceIndexMetadata[0].ObjectName)
 }
 
-func TestGetSourceMetadata_QueryError(t *testing.T) {
+// if table_index_stat does not exist in the assessment.db or one of the required column does not exist in the table
+func TestGetSourceMetadata_QueryErrorIfTableDoesNotExistOrColumnsUnavailable(t *testing.T) {
 	db, mock := createMockDB(t)
-	mock.ExpectQuery(SOURCEDB_SELECT_QUERY).WillReturnError(errors.New("query error"))
+	mock.ExpectQuery(SourceDbSelectQuery).WillReturnError(errors.New("query error"))
 
 	_, _, _, err := getSourceMetadata(db)
 	assert.Error(t, err)
@@ -110,12 +109,14 @@ func TestGetSourceMetadata_QueryError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to query source metadata")
 }
 
+// verify if the all columns datatypes are correct. Expecting failure in case of unsupported data type. Example:
+// expected column value is int but in assessment.db, float value is provided. Hence, it will fail to read/typecast
 func TestGetSourceMetadata_RowScanError(t *testing.T) {
 	db, mock := createMockDB(t)
 	// 4th column is expected to be int, but as it is float, it will throw an error
 	rows := sqlmock.NewRows(SourceDBColumns).AddRow("public", "table1", 1000, 10.5, 5, false, "", 1048576000).
 		RowError(1, errors.New("row scan error"))
-	mock.ExpectQuery(SOURCEDB_SELECT_QUERY).WillReturnRows(rows)
+	mock.ExpectQuery(SourceDbSelectQuery).WillReturnRows(rows)
 
 	_, _, _, err := getSourceMetadata(db)
 	assert.Error(t, err)
@@ -123,10 +124,11 @@ func TestGetSourceMetadata_RowScanError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to read from result set of query source metadata")
 }
 
+// verify if there are no rows in the source metadata
 func TestGetSourceMetadata_NoRows(t *testing.T) {
 	db, mock := createMockDB(t)
 	rows := sqlmock.NewRows(SourceDBColumns)
-	mock.ExpectQuery(SOURCEDB_SELECT_QUERY).WillReturnRows(rows)
+	mock.ExpectQuery(SourceDbSelectQuery).WillReturnRows(rows)
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadata(db)
 
 	assert.NoError(t, err)
@@ -139,7 +141,8 @@ func TestGetSourceMetadata_NoRows(t *testing.T) {
 /*
 ===== 	Test functions to test shardingBasedOnTableSizeAndCount function	=====
 */
-func TestShardingBasedOnTableSizeAndCount_Basic(t *testing.T) {
+// validate if the source table of size in colocated limit is correctly placed in colocated table recommendation
+func TestShardingBasedOnTableSizeAndCount_TableWithSizePlacedInColocated(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: "table1", Size: 100},
 	}
@@ -181,16 +184,22 @@ func TestShardingBasedOnTableSizeAndCount_Basic(t *testing.T) {
 		},
 	}
 
-	actualRecommendation := shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+	actualRecommendation :=
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
 	assert.Equal(t, expectedRecommendation, actualRecommendation)
 }
 
-func TestShardingBasedOnTableSizeAndCount_WithIndexes(t *testing.T) {
+// validate if the source table and index of size in colocated limit is correctly placed in colocated table
+// recommendation
+func TestShardingBasedOnTableSizeAndCount_WithIndexes_ColocateAll(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: "table1", Size: 100},
 	}
 	sourceIndexMetadata := []SourceDBMetadata{
-		{SchemaName: "public", ObjectName: "index1", Size: 20, IsIndex: true, ParentTableName: sql.NullString{String: "table1", Valid: true}},
+		{
+			SchemaName: "public", ObjectName: "index1", Size: 10, IsIndex: true,
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+		},
 	}
 	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
 
@@ -200,45 +209,44 @@ func TestShardingBasedOnTableSizeAndCount_WithIndexes(t *testing.T) {
 				{SchemaName: "public", ObjectName: "table1", Size: 100},
 			},
 			ShardedTables: nil,
-			ColocatedSize: 100, // Table size
-			ShardedSize:   0,
+			ColocatedSize: 110, // Table size + index size
 		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
 				{SchemaName: "public", ObjectName: "table1", Size: 100},
 			},
 			ShardedTables: nil,
-			ColocatedSize: 100, // Table size + index size
-			ShardedSize:   0,
+			ColocatedSize: 110, // Table size + index size
 		},
 		8: {
 			ColocatedTables: []SourceDBMetadata{
 				{SchemaName: "public", ObjectName: "table1", Size: 100},
 			},
 			ShardedTables: nil,
-			ColocatedSize: 100, // Table size + index size
-			ShardedSize:   0,
+			ColocatedSize: 110, // Table size + index size
 		},
 		16: {
 			ColocatedTables: []SourceDBMetadata{
 				{SchemaName: "public", ObjectName: "table1", Size: 100},
 			},
 			ShardedTables: nil,
-			ColocatedSize: 100, // Table size + index size
-			ShardedSize:   0,
+			ColocatedSize: 110, // Table size + index size
 		},
 	}
 
-	result := shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+	result :=
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
 	assert.Equal(t, expectedRecommendation, result)
 }
 
+// validate if the source table and index of size in colocated limit exceeds the size limit and respective tables need
+// to be put in sharded
 func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededBySize(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: "table1", Size: 110},
 		{SchemaName: "public", ObjectName: "table2", Size: 500},
 	}
-	sourceIndexMetadata := []SourceDBMetadata{}
+	var sourceIndexMetadata []SourceDBMetadata
 	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
 
 	expectedRecommendation := map[int]IntermediateRecommendation{
@@ -284,18 +292,22 @@ func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededBySize(t *testin
 		},
 	}
 
-	result := shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+	result :=
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
 	assert.Equal(t, expectedRecommendation, result)
 }
 
+// validate if the source table and index of size in colocated limit exceeds limit of maximum supported num objects
+// and respective tables need to be put in sharded
 func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededByCount(t *testing.T) {
 	const numTables = 16000
 	sourceTableMetadata := make([]SourceDBMetadata, numTables)
 	for i := 0; i < numTables; i++ {
-		sourceTableMetadata[i] = SourceDBMetadata{SchemaName: "public", ObjectName: fmt.Sprintf("table%v", i), Size: 0.0001}
+		sourceTableMetadata[i] =
+			SourceDBMetadata{SchemaName: "public", ObjectName: fmt.Sprintf("table%v", i), Size: 0.0001}
 	}
 
-	sourceIndexMetadata := []SourceDBMetadata{}
+	var sourceIndexMetadata []SourceDBMetadata
 	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
 
 	expectedResults := make(map[int]map[string]int)
@@ -316,19 +328,21 @@ func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededByCount(t *testi
 		"lenShardedTables":   11000,
 	}
 
-	actualRecommendationsResult := shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+	actualRecommendationsResult :=
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
 	for key, rec := range actualRecommendationsResult {
 		assert.Equal(t, expectedResults[key]["lenColocatedTables"], len(rec.ColocatedTables))
 		assert.Equal(t, expectedResults[key]["lenShardedTables"], len(rec.ShardedTables))
 	}
 }
 
+// validate if the tables of size more than max colocated size supported are put in the sharded tables
 func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: "table1", Size: 600},
 		{SchemaName: "public", ObjectName: "table2", Size: 500},
 	}
-	sourceIndexMetadata := []SourceDBMetadata{}
+	var sourceIndexMetadata []SourceDBMetadata
 	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
 
 	expectedResults := make(map[int]map[string]int)
@@ -349,9 +363,12 @@ func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 		"lenShardedTables":   2,
 	}
 
-	result := shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+	result :=
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
 	for key, rec := range result {
+		// assert that there are no colocated tables
 		assert.Equal(t, expectedResults[key]["lenColocatedTables"], len(rec.ColocatedTables))
+		// assert that there are 2 sharded tables
 		assert.Equal(t, expectedResults[key]["lenShardedTables"], len(rec.ShardedTables))
 	}
 }
@@ -359,35 +376,97 @@ func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 /*
 ===== 	Test functions to test shardingBasedOnOperations function	=====
 */
-func TestShardingBasedOnOperations(t *testing.T) {
+// validate that table throughput requirements are supported and sharding is not needed
+func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
+	// Define test data
+	sourceIndexMetadata := []SourceDBMetadata{
+		{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+	}
+	recommendation := map[int]IntermediateRecommendation{
+		2: {
+			ColocatedTables: []SourceDBMetadata{
+				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+			},
+			ShardedTables: []SourceDBMetadata{},
+			ColocatedSize: 10.0,
+			ShardedSize:   0.0,
+		},
+		4: {
+			ColocatedTables: []SourceDBMetadata{
+				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+			},
+			ShardedTables: []SourceDBMetadata{},
+			ColocatedSize: 10.0,
+			ShardedSize:   0.0,
+		},
+		8: {
+			ColocatedTables: []SourceDBMetadata{
+				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+			},
+			ShardedTables: []SourceDBMetadata{},
+			ColocatedSize: 10.0,
+			ShardedSize:   0.0,
+		},
+		16: {
+			ColocatedTables: []SourceDBMetadata{
+				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+			},
+			ShardedTables: []SourceDBMetadata{},
+			ColocatedSize: 10.0,
+			ShardedSize:   0.0,
+		},
+	}
+
+	// Run the function
+	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedLimits, recommendation)
+
+	// expected is that the table should be removed from colocated and added to sharded as the ops requirement is high
+	for _, rec := range updatedRecommendation {
+		assert.Empty(t, rec.ShardedTables)
+		assert.Len(t, rec.ColocatedTables, 1)
+		assert.Equal(t, "table1", rec.ColocatedTables[0].ObjectName)
+	}
+}
+
+// validate that the tables should be removed from colocated and added to sharded as the ops requirement is higher than
+// supported
+func TestShardingBasedOnOperations_CannotSupportOpsAndNeedsSharding(t *testing.T) {
 	// Define test data
 	sourceIndexMetadata := []SourceDBMetadata{
 		{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
 	}
 	recommendation := map[int]IntermediateRecommendation{
 		2: {
-			ColocatedTables: []SourceDBMetadata{{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000}},
-			ShardedTables:   []SourceDBMetadata{},
-			ColocatedSize:   10.0,
-			ShardedSize:     0.0,
+			ColocatedTables: []SourceDBMetadata{
+				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
+			},
+			ShardedTables: []SourceDBMetadata{},
+			ColocatedSize: 10.0,
+			ShardedSize:   0.0,
 		},
 		4: {
-			ColocatedTables: []SourceDBMetadata{{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000}},
-			ShardedTables:   []SourceDBMetadata{},
-			ColocatedSize:   10.0,
-			ShardedSize:     0.0,
+			ColocatedTables: []SourceDBMetadata{
+				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
+			},
+			ShardedTables: []SourceDBMetadata{},
+			ColocatedSize: 10.0,
+			ShardedSize:   0.0,
 		},
 		8: {
-			ColocatedTables: []SourceDBMetadata{{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000}},
-			ShardedTables:   []SourceDBMetadata{},
-			ColocatedSize:   10.0,
-			ShardedSize:     0.0,
+			ColocatedTables: []SourceDBMetadata{
+				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
+			},
+			ShardedTables: []SourceDBMetadata{},
+			ColocatedSize: 10.0,
+			ShardedSize:   0.0,
 		},
 		16: {
-			ColocatedTables: []SourceDBMetadata{{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000}},
-			ShardedTables:   []SourceDBMetadata{},
-			ColocatedSize:   10.0,
-			ShardedSize:     0.0,
+			ColocatedTables: []SourceDBMetadata{
+				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
+			},
+			ShardedTables: []SourceDBMetadata{},
+			ColocatedSize: 10.0,
+			ShardedSize:   0.0,
 		},
 	}
 
@@ -405,14 +484,45 @@ func TestShardingBasedOnOperations(t *testing.T) {
 /*
 ===== 	Test functions to test checkShardedTableLimit function	=====
 */
-func TestCheckShardedTableLimit(t *testing.T) {
+// validate that the sharded table limits is not exceeded and failure reasoning should be empty
+func TestCheckShardedTableLimit_WithinLimit(t *testing.T) {
 	// Define test data
 	var sourceIndexMetadata []SourceDBMetadata
-
 	shardedLimits := []ExpDataShardedLimit{
-		{numCores: sql.NullFloat64{Float64: 16, Valid: true}, maxSupportedNumTables: sql.NullInt64{Int64: 1, Valid: true}},
+		{
+			numCores:              sql.NullFloat64{Float64: 16, Valid: true},
+			maxSupportedNumTables: sql.NullInt64{Int64: 100, Valid: true},
+		},
+	}
+	recommendation := map[int]IntermediateRecommendation{
+		16: {
+			ShardedTables: []SourceDBMetadata{
+				{SchemaName: "public", ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+				{SchemaName: "public", ObjectName: "table2", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+			},
+			VCPUsPerInstance: 16,
+			MemoryPerCore:    4,
+		},
 	}
 
+	// Run the function
+	updatedRecommendation := checkShardedTableLimit(sourceIndexMetadata, shardedLimits, recommendation)
+	for _, rec := range updatedRecommendation {
+		// failure reasoning should be empty
+		assert.Empty(t, rec.FailureReasoning)
+	}
+}
+
+// validate that the sharded table limits is exceeded and failure reasoning is generated as expected
+func TestCheckShardedTableLimit_LimitExceeded(t *testing.T) {
+	// Define test data
+	var sourceIndexMetadata []SourceDBMetadata
+	shardedLimits := []ExpDataShardedLimit{
+		{
+			numCores:              sql.NullFloat64{Float64: 16, Valid: true},
+			maxSupportedNumTables: sql.NullInt64{Int64: 1, Valid: true},
+		},
+	}
 	recommendation := map[int]IntermediateRecommendation{
 		16: {
 			ShardedTables: []SourceDBMetadata{
@@ -439,7 +549,8 @@ func TestCheckShardedTableLimit(t *testing.T) {
 /*
 ===== 	Test functions to test findNumNodesNeededBasedOnThroughputRequirement function	=====
 */
-func TestFindNumNodesNeededBasedOnThroughputRequirement_Positive(t *testing.T) {
+// validate that the throughput requirements are supported and no scaling is needed
+func TestFindNumNodesNeededBasedOnThroughputRequirement_CanSupportOps(t *testing.T) {
 	// Define test data
 	sourceIndexMetadata := []SourceDBMetadata{
 		{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
@@ -464,7 +575,8 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_Positive(t *testing.T) {
 	}
 
 	// Run the function
-	updatedRecommendation := findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedLimits, recommendation)
+	updatedRecommendation :=
+		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedLimits, recommendation)
 
 	// for 4 cores data, expected results are
 	var expectedOptimalSelectConnectionsPerNode int64 = 50
@@ -478,7 +590,8 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_Positive(t *testing.T) {
 	assert.Equal(t, expectedNumNodesNeeded, recommendationToVerify.NumNodes)
 }
 
-func TestFindNumNodesNeededBasedOnThroughputRequirement_Negative(t *testing.T) {
+// validate that the throughput requirements cannot be supported by existing nodes and scaling is needed
+func TestFindNumNodesNeededBasedOnThroughputRequirement_NeedMoreNodes(t *testing.T) {
 	// Define test data
 	var sourceIndexMetadata []SourceDBMetadata
 
@@ -492,14 +605,17 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_Negative(t *testing.T) {
 
 	recommendation := map[int]IntermediateRecommendation{
 		4: {
-			ShardedTables:    []SourceDBMetadata{{ObjectName: "table2", Size: 20.0, ReadsPerSec: 2000, WritesPerSec: 5000}},
+			ShardedTables: []SourceDBMetadata{
+				{ObjectName: "table2", Size: 20.0, ReadsPerSec: 2000, WritesPerSec: 5000},
+			},
 			VCPUsPerInstance: 4,
 			MemoryPerCore:    4,
 		},
 	}
 
 	// Run the function
-	updatedRecommendation := findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedLimits, recommendation)
+	updatedRecommendation :=
+		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedLimits, recommendation)
 
 	// validate the expected number of nodes
 	assert.Equal(t, updatedRecommendation[4].NumNodes, float64(15))
@@ -508,18 +624,16 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_Negative(t *testing.T) {
 /*
 ===== 	Test functions to test findNumNodesNeededBasedOnTabletsRequired function	=====
 */
-
-func TestFindNumNodesNeededBasedOnTabletsRequired_Positive_NoChange(t *testing.T) {
+// validate that the tablets requirements are supported and no scaling is needed
+func TestFindNumNodesNeededBasedOnTabletsRequired_CanSupportTablets(t *testing.T) {
 	// Define test data
 	var sourceIndexMetadata []SourceDBMetadata
-
 	shardedLimits := []ExpDataShardedLimit{
 		{
 			numCores:              sql.NullFloat64{Float64: 4, Valid: true},
 			maxSupportedNumTables: sql.NullInt64{Int64: 20, Valid: true},
 		},
 	}
-
 	recommendation := map[int]IntermediateRecommendation{
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
@@ -533,26 +647,26 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_Positive_NoChange(t *testing.T
 	}
 
 	// Run the function
-	updatedRecommendation := findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, recommendation)
+	updatedRecommendation :=
+		findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, recommendation)
 
 	// check if the num nodes in updated recommendation is same as before(3) meaning no scaling is required
 	assert.Equal(t, float64(3), updatedRecommendation[4].NumNodes)
 }
 
-func TestFindNumNodesNeededBasedOnTabletsRequired_Positive(t *testing.T) {
+// validate that the tablets cannot be supported by existing nodes and scaling is needed
+func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 	// Define test data
 	sourceIndexMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: "index1", Size: 7, ParentTableName: sql.NullString{String: "public.table1"}},
 		{SchemaName: "public", ObjectName: "index2", Size: 3, ParentTableName: sql.NullString{String: "public.table2"}},
 	}
-
 	shardedLimits := []ExpDataShardedLimit{
 		{
 			numCores:              sql.NullFloat64{Float64: 4, Valid: true},
 			maxSupportedNumTables: sql.NullInt64{Int64: 20, Valid: true},
 		},
 	}
-
 	recommendation := map[int]IntermediateRecommendation{
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
@@ -566,7 +680,8 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_Positive(t *testing.T) {
 	}
 
 	// Run the function
-	updatedRecommendation := findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, recommendation)
+	updatedRecommendation :=
+		findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, recommendation)
 
 	// check if the num nodes in updated recommendation has increased. Meaning scaling is required.
 	assert.Equal(t, float64(6), updatedRecommendation[4].NumNodes)
@@ -575,8 +690,8 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_Positive(t *testing.T) {
 /*
 ===== 	Test functions to test pickBestRecommendation function	=====
 */
-
-func TestPickBestRecommendation(t *testing.T) {
+// validate if the recommendation with optimal nodes and cores is picked up
+func TestPickBestRecommendation_PickOneWithOptimalNodesAndCores(t *testing.T) {
 	recommendations := map[int]IntermediateRecommendation{
 		4: {
 			VCPUsPerInstance: 4,
@@ -594,16 +709,65 @@ func TestPickBestRecommendation(t *testing.T) {
 	assert.Equal(t, 8, bestPick.VCPUsPerInstance)
 }
 
+// validate if the recommendation with optimal nodes is picked up when some of the recommendation has failure reasoning
+func TestPickBestRecommendation_PickOneWithOptimalNodesAndCoresWhenSomeHasFailures(t *testing.T) {
+	recommendations := map[int]IntermediateRecommendation{
+		4: {
+			VCPUsPerInstance: 4,
+			NumNodes:         10,
+			FailureReasoning: "has some failure",
+		},
+		8: {
+			VCPUsPerInstance: 8,
+			NumNodes:         3,
+			FailureReasoning: "has some failure as well",
+		},
+		16: {
+			VCPUsPerInstance: 16,
+			NumNodes:         3,
+			FailureReasoning: "",
+		},
+	}
+	bestPick := pickBestRecommendation(recommendations)
+	// validate the best recommendation which is 16 vcpus per instance is picked up
+	assert.Equal(t, 16, bestPick.VCPUsPerInstance)
+}
+
+// validate if the recommendation with optimal nodes and cores is picked up for showing failure reasoning
+func TestPickBestRecommendation_PickLastMaxCoreRecommendationWhenNoneCanSupport(t *testing.T) {
+	recommendations := map[int]IntermediateRecommendation{
+		4: {
+			VCPUsPerInstance: 4,
+			NumNodes:         10,
+			FailureReasoning: "has some failure reasoning",
+		},
+		8: {
+			VCPUsPerInstance: 8,
+			NumNodes:         3,
+			FailureReasoning: "has some failure reasoning",
+		},
+		16: {
+			VCPUsPerInstance: 16,
+			NumNodes:         3,
+			FailureReasoning: "has some failure reasoning",
+		},
+	}
+	bestPick := pickBestRecommendation(recommendations)
+	// validate the best recommendation which is 16 vcpus per instance is picked up
+	assert.Equal(t, 16, bestPick.VCPUsPerInstance)
+}
+
 /*
 ===== 	Test functions to test calculateTimeTakenAndParallelJobsForImport function	=====
 */
-
-func TestCalculateTimeTakenAndParallelJobsForImport_Positive(t *testing.T) {
+// validate the formula to calculate the import time
+func TestCalculateTimeTakenAndParallelJobsForImport_ValidateFormulaToCalculateImportTime(t *testing.T) {
 	db, mock := createMockDB(t)
 	// Define the mock response for the query
 	rows := sqlmock.NewRows([]string{"csv_size_gb", "migration_time_secs", "parallel_threads"}).
 		AddRow(100, 6000, 4)
-	mock.ExpectQuery("(?i)SELECT csv_size_gb, migration_time_secs, parallel_threads FROM .* WHERE num_cores = .*").
+	mock.ExpectQuery(
+		"(?i)SELECT csv_size_gb, migration_time_secs, parallel_threads FROM .* WHERE num_cores = .*").
 		WithArgs(4, 4, 50.0, 4).
 		WillReturnRows(rows)
 
@@ -611,7 +775,8 @@ func TestCalculateTimeTakenAndParallelJobsForImport_Positive(t *testing.T) {
 	dbObjects := []SourceDBMetadata{{Size: 30.0}, {Size: 20.0}}
 
 	// Call the function
-	estimatedTime, parallelJobs, err := calculateTimeTakenAndParallelJobsForImport(COLOCATED_LOAD_TIME_TABLE, dbObjects, 4, 4, db)
+	estimatedTime, parallelJobs, err :=
+		calculateTimeTakenAndParallelJobsForImport(COLOCATED_LOAD_TIME_TABLE, dbObjects, 4, 4, db)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -619,9 +784,9 @@ func TestCalculateTimeTakenAndParallelJobsForImport_Positive(t *testing.T) {
 	// Define expected results
 	expectedTime := 50.0 // Calculated as ((6000 * 50) / 100) / 60
 	expectedJobs := int64(4)
-
 	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
-		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)", estimatedTime, parallelJobs, expectedTime, expectedJobs)
+		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
+			estimatedTime, parallelJobs, expectedTime, expectedJobs)
 	}
 
 	// Ensure all expectations were met
@@ -633,6 +798,7 @@ func TestCalculateTimeTakenAndParallelJobsForImport_Positive(t *testing.T) {
 /*
 ===== 	Test functions to test getReasoning function	=====
 */
+// validate reasoning when there are no objects(empty colocated and sharded objects)
 func TestGetReasoning_NoObjects(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 4, MemoryPerCore: 16}
 	var shardedObjects []SourceDBMetadata
@@ -645,6 +811,7 @@ func TestGetReasoning_NoObjects(t *testing.T) {
 	}
 }
 
+// validate reasoning when there are only colocated objects
 func TestGetReasoning_OnlyColocatedObjects(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 8, MemoryPerCore: 8}
 	var shardedObjects []SourceDBMetadata
@@ -652,7 +819,9 @@ func TestGetReasoning_OnlyColocatedObjects(t *testing.T) {
 		{Size: 50.0, ReadsPerSec: 1000, WritesPerSec: 500},
 		{Size: 30.0, ReadsPerSec: 2000, WritesPerSec: 1500},
 	}
-	expected := "Recommended instance type with 8 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 explicit/implicit indexes) with 80.00 GB size and throughput requirement of 3000 reads/sec and 2000 writes/sec as colocated."
+	expected := "Recommended instance type with 8 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 " +
+		"explicit/implicit indexes) with 80.00 GB size and throughput requirement of 3000 reads/sec and " +
+		"2000 writes/sec as colocated."
 
 	result := getReasoning(recommendation, shardedObjects, 0, colocatedObjects, 0)
 	if result != expected {
@@ -660,6 +829,7 @@ func TestGetReasoning_OnlyColocatedObjects(t *testing.T) {
 	}
 }
 
+// validate reasoning when there are only sharded objects
 func TestGetReasoning_OnlyShardedObjects(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 16, MemoryPerCore: 4}
 	shardedObjects := []SourceDBMetadata{
@@ -667,7 +837,9 @@ func TestGetReasoning_OnlyShardedObjects(t *testing.T) {
 		{Size: 200.0, ReadsPerSec: 5000, WritesPerSec: 4000},
 	}
 	var colocatedObjects []SourceDBMetadata
-	expected := "Recommended instance type with 16 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 explicit/implicit indexes) with 300.00 GB size and throughput requirement of 9000 reads/sec and 7000 writes/sec as sharded."
+	expected := "Recommended instance type with 16 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 " +
+		"explicit/implicit indexes) with 300.00 GB size and throughput requirement of 9000 reads/sec and " +
+		"7000 writes/sec as sharded."
 
 	result := getReasoning(recommendation, shardedObjects, 0, colocatedObjects, 0)
 	if result != expected {
@@ -675,6 +847,7 @@ func TestGetReasoning_OnlyShardedObjects(t *testing.T) {
 	}
 }
 
+// validate reasoning when there are colocated and sharded objects
 func TestGetReasoning_ColocatedAndShardedObjects(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 32, MemoryPerCore: 2}
 	shardedObjects := []SourceDBMetadata{
@@ -684,7 +857,11 @@ func TestGetReasoning_ColocatedAndShardedObjects(t *testing.T) {
 		{Size: 70.0, ReadsPerSec: 3000, WritesPerSec: 2000},
 		{Size: 50.0, ReadsPerSec: 2000, WritesPerSec: 1000},
 	}
-	expected := "Recommended instance type with 32 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 explicit/implicit indexes) with 120.00 GB size and throughput requirement of 5000 reads/sec and 3000 writes/sec as colocated. Rest 1 objects(1 tables and 0 explicit/implicit indexes) with 150.00 GB size and throughput requirement of 7000 reads/sec and 6000 writes/sec need to be migrated as range partitioned tables"
+	expected := "Recommended instance type with 32 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 " +
+		"explicit/implicit indexes) with 120.00 GB size and throughput requirement of 5000 reads/sec and " +
+		"3000 writes/sec as colocated. Rest 1 objects(1 tables and 0 explicit/implicit indexes) with 150.00 GB " +
+		"size and throughput requirement of 7000 reads/sec and 6000 writes/sec need to be migrated as range " +
+		"partitioned tables"
 
 	result := getReasoning(recommendation, shardedObjects, 0, colocatedObjects, 0)
 	if result != expected {
@@ -692,6 +869,7 @@ func TestGetReasoning_ColocatedAndShardedObjects(t *testing.T) {
 	}
 }
 
+// validate reasoning when there are colocated and sharded objects with indexes
 func TestGetReasoning_Indexes(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 4, MemoryPerCore: 16}
 	shardedObjects := []SourceDBMetadata{
@@ -700,7 +878,11 @@ func TestGetReasoning_Indexes(t *testing.T) {
 	colocatedObjects := []SourceDBMetadata{
 		{Size: 100.0, ReadsPerSec: 3000, WritesPerSec: 2000},
 	}
-	expected := "Recommended instance type with 4 vCPU and 64 GiB memory could fit 1 objects(0 tables and 1 explicit/implicit indexes) with 100.00 GB size and throughput requirement of 3000 reads/sec and 2000 writes/sec as colocated. Rest 1 objects(0 tables and 1 explicit/implicit indexes) with 200.00 GB size and throughput requirement of 6000 reads/sec and 4000 writes/sec need to be migrated as range partitioned tables"
+	expected := "Recommended instance type with 4 vCPU and 64 GiB memory could fit 1 objects(0 tables and " +
+		"1 explicit/implicit indexes) with 100.00 GB size and throughput requirement of 3000 reads/sec and " +
+		"2000 writes/sec as colocated. Rest 1 objects(0 tables and 1 explicit/implicit indexes) with 200.00 GB size " +
+		"and throughput requirement of 6000 reads/sec and 4000 writes/sec need to be migrated as range " +
+		"partitioned tables"
 
 	result := getReasoning(recommendation, shardedObjects, 1, colocatedObjects, 1)
 	if result != expected {
