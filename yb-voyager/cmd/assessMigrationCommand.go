@@ -735,10 +735,19 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
-	// filter columns with unsupported data types using srcdb.PostgresUnsupportedDataTypesForDbzm
-	pgUnsupportedDataTypes := srcdb.PostgresUnsupportedDataTypesForDbzm
+	var sourceUnsupportedDataTypes []string
+	switch source.DBType {
+	case POSTGRESQL:
+		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
+	case ORACLE:
+		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
+	default:
+		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
+	}
+
+	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
-		if utils.ContainsAnySubstringFromSlice(pgUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		if utils.ContainsAnySubstringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
 	}
