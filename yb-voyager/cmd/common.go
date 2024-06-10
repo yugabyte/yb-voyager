@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -60,6 +61,7 @@ var (
 	metaDB               *metadb.MetaDB
 	PARENT_COMMAND_USAGE = "Parent command. Refer to the sub-commands for usage help."
 	startTime            time.Time
+	callhomeStartTime    time.Time
 )
 
 func PrintElapsedDuration() {
@@ -998,9 +1000,9 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 func createCallhomePayload() callhome.Payload {
 	var payload callhome.Payload
 	payload.MigrationUUID = migrationUUID
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+	payload.PhaseStartTime = callhomeStartTime.UTC().Format("2006-01-02T15:04:05.999999")
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
-	payload.TimeTakenSec = time.Since(startTime).Seconds()
+	payload.TimeTakenSec = time.Since(callhomeStartTime).Seconds()
 
 	return payload
 }
@@ -1018,9 +1020,9 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendAnalyzeSchemaPayload(EXIT)
 	case importSchemaCmd.CommandPath():
 		packAndSendImportSchemaPayload(EXIT, "Exiting....")
-	case exportDataCmd.CommandPath():
+	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
 		packAndSendExportDataPayload(EXIT)
-	case importDataCmd.CommandPath():
+	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
 		packAndSendImportDataPayload(EXIT)
 	case endMigrationCmd.CommandPath():
 		packAndSendEndMigrationPayload(EXIT)
@@ -1069,6 +1071,29 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 			exportDataPayload.ExportDataMechanism = "pg_dump"
 		case ORACLE, MYSQL:
 			exportDataPayload.ExportDataMechanism = "ora2pg"
+		}
+	}
+}
+
+func sendCallhomePayloadAtIntervals(ctx context.Context) {
+	sendTicker := time.NewTicker(20 * time.Minute) //TODO: confirm if this is fine
+	defer sendTicker.Stop()
+	for range sendTicker.C {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			switch currentCommand {
+			case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
+				packAndSendExportDataPayload(INPROGRESS)
+			case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
+				packAndSendImportDataPayload(INPROGRESS)
+			}
+			//updating the callhomeStartTime for the next payload to set the start time and time taken appropriately
+			callhomeStartTime = time.Now()
+			//marking this as false to take care of sending EXIT status payload in case command exits in between the interval duration
+			callHomePayloadSent = false
+
 		}
 	}
 }

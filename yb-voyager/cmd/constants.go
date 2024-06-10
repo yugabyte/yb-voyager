@@ -72,6 +72,7 @@ const (
 	EXIT                 = "EXIT"
 	COMPLETE             = "COMPLETE"
 	COMPLETE_WITH_ERRORS = "COMPLETE-WITH-ERRORS"
+	INPROGRESS           = "IN-PROGRESS"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
