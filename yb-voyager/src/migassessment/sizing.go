@@ -97,7 +97,7 @@ const (
 	DBS_DIR                       = "dbs"
 	SIZE_UNIT_GB                  = "GB"
 	SIZE_UNIT_MB                  = "MB"
-	LOW_PHASE_SHARD_COUNT         = 8
+	LOW_PHASE_SHARD_COUNT         = 1
 	LOW_PHASE_SIZE_THRESHOLD_GB   = 0.512
 	HIGH_PHASE_SHARD_COUNT        = 24
 	HIGH_PHASE_SIZE_THRESHOLD_GB  = 10
