@@ -383,6 +383,16 @@ func (yb *YugabyteDB) GetCharset() (string, error) {
 	return encoding, nil
 }
 
+func (yb *YugabyteDB) GetDatabaseSize() (int64, error) {
+	var dbSize int64
+	query := fmt.Sprintf("select pg_database_size('%s'); ", yb.source.DBName)
+	err := yb.db.QueryRow(query).Scan(&dbSize)
+	if err != nil {
+		return 0, fmt.Errorf("error in querying database encoding: %w", err)
+	}
+	return dbSize, nil
+}
+
 func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
 	query := fmt.Sprintf(`SELECT typname
 						FROM pg_type t

@@ -96,11 +96,16 @@ func exportSchema() error {
 		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db: %w", err)
 	}
-	source.DBVersion = source.DB().GetVersion()
+
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	sourceDBVersion := source.DB().GetVersion()
+	source.DBVersion = sourceDBVersion
+	source.DBSize, err = source.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+	}
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
 	err = retrieveMigrationUUID()
 	if err != nil {
@@ -146,6 +151,7 @@ func packAndSendExportSchemaPayload(status string) {
 		Host:      source.Host,
 		DBType:    source.DBType,
 		DBVersion: source.DBVersion,
+		DBSize:    source.DBSize,
 	}
 	sourceDbBytes, err := json.Marshal(sourceDBDetails)
 	if err != nil {

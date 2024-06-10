@@ -247,6 +247,16 @@ func (ms *MySQL) GetCharset() (string, error) {
 	return charset, nil
 }
 
+func (ms *MySQL) GetDatabaseSize() (int64, error) {
+	var dbSize int64
+	query := fmt.Sprintf("SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema = '%s'", ms.source.DBName)
+	err := ms.db.QueryRow(query).Scan(&dbSize)
+	if err != nil {
+		return 0, fmt.Errorf("error in querying database encoding: %w", err)
+	}
+	return dbSize, nil
+}
+
 func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }

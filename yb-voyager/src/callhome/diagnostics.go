@@ -75,7 +75,7 @@ type SourceDBDetails struct {
 	Host      string `json:"host"`
 	DBType    string `json:"db_type"`
 	DBVersion string `json:"db_version"`
-	DBSize    int    `json:"total_db_size"` //TODO add
+	DBSize    int64  `json:"total_db_size"` //TODO add
 
 }
 
@@ -97,9 +97,9 @@ type AssessMigrationPhasePayload struct {
 type ObjectSizingStats struct {
 	SchemaName      string `json:"SchemaName"`
 	ObjectName      string `json:"ObjectName"`
-	ReadsPerSecond  int64 `json:"ReadsPerSecond"`
-	WritesPerSecond int64 `json:"WritesPerSecond"`
-	SizeInBytes     int64 `json:"SizeInBytes"`
+	ReadsPerSecond  int64  `json:"ReadsPerSecond"`
+	WritesPerSecond int64  `json:"WritesPerSecond"`
+	SizeInBytes     int64  `json:"SizeInBytes"`
 }
 
 type ExportSchemaPhasePayload struct {

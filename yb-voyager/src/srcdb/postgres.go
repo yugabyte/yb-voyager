@@ -463,6 +463,16 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	return encoding, nil
 }
 
+func (pg *PostgreSQL) GetDatabaseSize() (int64, error) {
+	var dbSize int64
+	query := fmt.Sprintf("select pg_database_size('%s'); ", pg.source.DBName)
+	err := pg.db.QueryRow(query).Scan(&dbSize)
+	if err != nil {
+		return 0, fmt.Errorf("error in querying database encoding: %w", err)
+	}
+	return dbSize, nil
+}
+
 func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
