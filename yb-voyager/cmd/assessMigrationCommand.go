@@ -158,7 +158,7 @@ func init() {
 			"it will be assumed to be present at default path inside the export directory.")
 
 	assessMigrationCmd.Flags().Int64Var(&intervalForCapturingIOPS, "iops-capture-interval", 120,
-		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). (valid for PostgreSQL)")
+		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). (only valid for PostgreSQL)")
 
 }
 
@@ -351,7 +351,7 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 		return nil
 	}
 
-	scriptPath, err := findScriptPath("/etc/yb-voyager/gather-assessment-metadata/oracle/yb-voyager-oracle-gather-assessment-metadata.sh")
+	scriptPath, err := findGatherMetadataScriptPath(ORACLE)
 	if err != nil {
 		return err
 	}
@@ -366,7 +366,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		return nil
 	}
 
-	scriptPath, err := findScriptPath("/etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh")
+	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
 	if err != nil {
 		return err
 	}
@@ -376,17 +376,27 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%d", intervalForCapturingIOPS))
 }
 
-func findScriptPath(scriptPath string) (string, error) {
-	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
+func findGatherMetadataScriptPath(dbType string) (string, error) {
+	var defaultScriptPath string
+	switch dbType {
+	case POSTGRESQL:
+		defaultScriptPath = "/etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh"
+	case ORACLE:
+		defaultScriptPath = "/etc/yb-voyager/gather-assessment-metadata/oracle/yb-voyager-oracle-gather-assessment-metadata.sh"
+	default:
+		panic(fmt.Sprintf("invalid source db type %q", dbType))
+	}
 
+	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
 	possiblePathsForScript := []string{
-		scriptPath,
-		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, scriptPath),
-		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, scriptPath),
+		defaultScriptPath,
+		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, defaultScriptPath),
+		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, defaultScriptPath),
 	}
 
 	for _, path := range possiblePathsForScript {
 		if utils.FileOrFolderExists(path) {
+			log.Infof("found the gather assessment metadata script at: %s", path)
 			return path, nil
 		}
 	}
@@ -446,6 +456,11 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scri
 	return nil
 }
 
+/*
+It is due to the differences in how tools like ora2pg, and pg_dump exports the schema
+pg_dump - export schema in single .sql file which is later on segregated by voyager in respective .sql file
+ora2pg - export schema in given .sql file, and we have to call it for each object type to export schema
+*/
 func parseExportedSchemaFileForAssessmentIfRequired() {
 	if source.DBType == ORACLE {
 		return // already parsed into schema files while exporting
