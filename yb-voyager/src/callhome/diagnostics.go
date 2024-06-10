@@ -135,9 +135,7 @@ type ImportDataPhasePayload struct {
 
 type ImportDataFilePhasePayload struct {
 	ParallelJobs     int64  `json:"parallel_jobs"`
-	TotalRows        int64  `json:"total_rows"`
 	TotalSize        int64  `json:"total_size"`
-	LargestTableRows int64  `json:"largest_table_rows"`
 	LargestTableSize int64  `json:"largest_table_size"`
 	FileStorageType  string `json:"file_storage_type"`
 	StartClean       bool   `json:"start_clean"`

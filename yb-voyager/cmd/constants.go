@@ -65,9 +65,17 @@ const (
 	IMPORT_DATA_PHASE      = "import-data"
 	END_MIGRATION_PHASE    = "end-migration"
 	ASSESS_MIGRATION_PHASE = "assess-migration"
+	IMPORT_DATA_FILE_PHASE = "import-data-file"
 	//...more phases
-	OFFLINE              = "offline"
-	LIVE_MIGRATION       = "live migration"
+	OFFLINE        = "offline"
+	LIVE_MIGRATION = "live migration"
+	BULK_DATA_LOAD = "bulk data load from flat files"
+
+	AWS_S3      = "AWS-S3"
+	GCS_BUCKETS = "GCS-Buckets"
+	AZURE_BLOBS = "Azure-blob-storage"
+	LOCAL_DISK  = "Local-disk"
+	//status
 	ERROR                = "ERROR"
 	EXIT                 = "EXIT"
 	COMPLETE             = "COMPLETE"

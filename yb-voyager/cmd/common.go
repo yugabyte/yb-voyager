@@ -923,6 +923,34 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	return snapshotRowsMap, nil
 }
 
+func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { //used for import data file case right now
+	importerRole = IMPORT_FILE_ROLE
+	state := NewImportDataState(exportDir)
+	dataFileDescriptor, err := prepareDummyDescriptor(state)
+	if err != nil {
+		return nil, fmt.Errorf("prepare dummy descriptor: %w", err)
+	}
+	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+	dataFilePathNtMap := map[string]sqlname.NameTuple{}
+	for _, fileEntry := range dataFileDescriptor.DataFileList {
+		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+		}
+		dataFilePathNtMap[fileEntry.FilePath] = nt
+	}
+
+	for dataFilePath, nt := range dataFilePathNtMap {
+		byteCount, err := state.GetImportedByteCount(dataFilePath, nt)
+		if err != nil {
+			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
+		}
+		exisitingByteCount, _ := snapshotRowsMap.Get(nt)
+		snapshotRowsMap.Put(nt, exisitingByteCount+byteCount)
+	}
+	return snapshotRowsMap, nil
+}
+
 func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	minQuotedTableList := lo.Uniq(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
 		// Store list of tables in MSR with root table in case of partitions
@@ -1026,6 +1054,8 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendImportDataPayload(EXIT)
 	case endMigrationCmd.CommandPath():
 		packAndSendEndMigrationPayload(EXIT)
+	case importDataFileCmd.CommandPath():
+		packAndSendImportDataFilePayload(EXIT)
 		//..more cases
 	}
 }
@@ -1088,6 +1118,8 @@ func sendCallhomePayloadAtIntervals(ctx context.Context) {
 				packAndSendExportDataPayload(INPROGRESS)
 			case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
 				packAndSendImportDataPayload(INPROGRESS)
+			case importDataFileCmd.CommandPath():
+				packAndSendImportDataFilePayload(INPROGRESS)
 			}
 			//updating the callhomeStartTime for the next payload to set the start time and time taken appropriately
 			callhomeStartTime = time.Now()
