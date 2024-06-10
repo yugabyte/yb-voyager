@@ -249,6 +249,8 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 	// If no valid recommendation was found, select the recommendation with the maximum number of cores
 	if !foundRecommendation {
 		finalRecommendation = recommendation[maxCores]
+		// notify customers to reach out to the Yugabyte customer support team for further assistance
+		finalRecommendation.FailureReasoning = "Unable to determine appropriate sizing recommendation. Please reach out to the Yugabyte customer support team at https://support.yugabyte.com for further assistance."
 	}
 
 	// Return the best recommendation
