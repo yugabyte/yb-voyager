@@ -24,7 +24,7 @@ ON COMMIT PRESERVE ROWS AS
     JOIN
         dba_tables tab ON t.owner = tab.owner AND t.table_name = tab.table_name
     WHERE
-        t.owner = 'ASSESS_MIGRATION';
+        t.owner = '&1';
 
 -- Select the data into the CSV file
 SPOOL table-columns-data-types.csv

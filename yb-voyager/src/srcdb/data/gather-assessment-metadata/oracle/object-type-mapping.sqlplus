@@ -22,7 +22,19 @@ ON COMMIT PRESERVE ROWS AS
     FROM
         dba_objects
     WHERE
-        owner = '&1';
+        owner = '&1'
+        AND object_type IN ('TABLE', 'TABLE PARTITION', 'TABLE SUBPARTITION', 'INDEX PARTITION')
+    UNION ALL
+    SELECT
+        owner AS schema_name,
+        index_name AS object_name,
+        index_type || ' INDEX' AS object_type
+    FROM
+        dba_indexes
+    WHERE
+        owner = '&1'
+        AND table_name NOT LIKE 'DR$%'
+        AND table_name NOT LIKE 'AQ$%';
 
 -- Select the data into the CSV file
 SPOOL object-type-mapping.csv

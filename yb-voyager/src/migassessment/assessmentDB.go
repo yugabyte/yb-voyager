@@ -219,7 +219,7 @@ const (
 	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name
 	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name
-	JOIN %s otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name
+	LEFT JOIN %s otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name
 	WHERE otm.object_type NOT IN ('%s', '%s');`
 
 	// No insertion into 'column_count' for indexes
@@ -241,7 +241,7 @@ const (
 	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial'
 	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name
 	LEFT JOIN %s tcc ON itm.index_schema = tcc.schema_name AND itm.index_name = tcc.object_name
-	JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name
+	LEFT JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name
 	WHERE otm.object_type NOT IN ('%s', '%s');`
 
 	CreateTempTable = `CREATE TEMP TABLE read_write_rates AS
