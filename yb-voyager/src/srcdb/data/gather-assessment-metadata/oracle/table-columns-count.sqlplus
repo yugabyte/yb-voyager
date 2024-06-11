@@ -1,0 +1,62 @@
+SET ECHO OFF
+SET FEEDBACK OFF
+SET HEADING ON
+SET MARKUP CSV ON DELIMITER , QUOTE OFF
+SET PAGESIZE 0
+SET TRIMSPOOL ON
+SET TERMOUT OFF
+SET VERIFY OFF
+
+-- Get the session ID
+COLUMN session_id NEW_VALUE session_id
+SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
+
+-- Create a temporary table to hold the data
+CREATE GLOBAL TEMPORARY TABLE temp_table_columns_count_&session_id
+ON COMMIT PRESERVE ROWS AS
+    SELECT 
+        t.owner AS schema_name,
+        t.table_name AS object_name,
+        'table' AS object_type,
+        COUNT(*) AS column_count
+    FROM 
+        dba_tab_columns t
+    JOIN
+        dba_tables tab ON t.owner = tab.owner AND t.table_name = tab.table_name
+    WHERE 
+        t.owner = '&1'
+    GROUP BY 
+        t.owner, t.table_name
+    UNION ALL
+    SELECT
+        i.index_owner AS schema_name,
+        i.index_name AS object_name,
+        'index' AS object_type,
+        COUNT(*) AS column_count
+    FROM
+        dba_ind_columns i
+    JOIN
+        dba_indexes idx ON i.index_owner = idx.owner AND i.index_name = idx.index_name
+    WHERE
+        i.index_owner = '&1'
+        AND idx.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
+        AND i.index_name NOT IN (
+            SELECT index_name
+            FROM dba_constraints
+            WHERE owner = '&1'
+            AND constraint_type IN ('P', 'U')
+        )
+        AND i.index_name NOT LIKE 'SYS_%'
+    GROUP BY
+        i.index_owner, i.index_name;
+
+-- Select the data into the CSV file
+SPOOL table-columns-count.csv
+SELECT schema_name, object_name, object_type, column_count FROM temp_table_columns_count_&session_id;
+SPOOL OFF
+
+-- Drop the temporary table
+TRUNCATE TABLE temp_table_columns_count_&session_id;
+DROP TABLE temp_table_columns_count_&session_id;
+
+EXIT
