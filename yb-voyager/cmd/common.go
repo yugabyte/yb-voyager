@@ -61,7 +61,6 @@ var (
 	metaDB               *metadb.MetaDB
 	PARENT_COMMAND_USAGE = "Parent command. Refer to the sub-commands for usage help."
 	startTime            time.Time
-	callhomeStartTime    time.Time
 )
 
 func PrintElapsedDuration() {
@@ -1028,9 +1027,10 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 func createCallhomePayload() callhome.Payload {
 	var payload callhome.Payload
 	payload.MigrationUUID = migrationUUID
-	payload.PhaseStartTime = callhomeStartTime.UTC().Format("2006-01-02T15:04:05.999999")
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
-	payload.TimeTakenSec = time.Since(callhomeStartTime).Seconds()
+	payload.TimeTakenSec = time.Since(startTime).Seconds()
+	payload.CollectedAt = time.Now().UTC().Format("2006-01-02T15:04:05.999999")
 
 	return payload
 }
@@ -1106,7 +1106,7 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 }
 
 func sendCallhomePayloadAtIntervals(ctx context.Context) {
-	sendTicker := time.NewTicker(20 * time.Minute) //TODO: confirm if this is fine
+	sendTicker := time.NewTicker(30 * time.Second) //TODO: confirm if this is fine
 	defer sendTicker.Stop()
 	for range sendTicker.C {
 		select {
@@ -1121,8 +1121,6 @@ func sendCallhomePayloadAtIntervals(ctx context.Context) {
 			case importDataFileCmd.CommandPath():
 				packAndSendImportDataFilePayload(INPROGRESS)
 			}
-			//updating the callhomeStartTime for the next payload to set the start time and time taken appropriately
-			callhomeStartTime = time.Now()
 			//marking this as false to take care of sending EXIT status payload in case command exits in between the interval duration
 			callHomePayloadSent = false
 

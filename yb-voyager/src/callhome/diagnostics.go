@@ -43,9 +43,9 @@ var (
 /*
 Call-home diagnostics table structure -
 CREATE TABLE diagnostics (
-
 	migration_uuid UUID,
 	phase_start_time TIMESTAMP WITH TIME ZONE,
+	collected_at TIMESTAMP WITH TIME ZONE,
 	source_db_details JSONB,
 	target_db_details JSONB,
 	yb_voyager_version TEXT,
@@ -54,13 +54,13 @@ CREATE TABLE diagnostics (
 	migration_type TEXT,
 	time_taken_sec NUMERIC(20,2),
 	status TEXT,
-	PRIMARY KEY (migration_uuid, phase_start_time, migration_phase)
-
+	PRIMARY KEY (migration_uuid, phase_start_time, migration_phase, collected_at)
 );
 */
 type Payload struct {
 	MigrationUUID    uuid.UUID `json:"migration_uuid"`
 	PhaseStartTime   string    `json:"phase_start_time"`
+	CollectedAt      string    `json:"collected_at"`
 	SourceDBDetails  string    `json:"source_db_details"`
 	TargetDBDetails  string    `json:"target_db_details"`
 	YBVoyagerVersion string    `json:"yb_voyager_version"`
