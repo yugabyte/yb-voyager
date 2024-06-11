@@ -53,9 +53,10 @@ type sqlInfo struct {
 }
 
 var (
-	anything                     = `.*`
-	ws                           = `[\s\n\t]+`
-	optionalWS                   = `[\s\n\t]*` //optional white spaces
+	anything   = `.*`
+	ws         = `[\s\n\t]+`
+	optionalWS = `[\s\n\t]*` //optional white spaces
+	//TODO: fix this ident regex for the proper PG identifiers syntax - refer: https://github.com/yugabyte/yb-voyager/pull/1547#discussion_r1629282309
 	ident                        = `[a-zA-Z0-9_."-]+`
 	ifExists                     = opt("IF", "EXISTS")
 	ifNotExists                  = opt("IF", "NOT", "EXISTS")
