@@ -146,7 +146,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func packAndSendExportDataPayload(status string) {
-	//TODO: send this INPROGRESS status in some fixed interval for long running export data
 
 	if !callhome.SendDiagnostics {
 		return

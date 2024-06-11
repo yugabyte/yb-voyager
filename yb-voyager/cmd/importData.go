@@ -583,7 +583,7 @@ func importData(importFileTasks []*ImportFileTask) {
 }
 
 func packAndSendImportDataPayload(status string) {
-	//TODO send this for INPROGRESS status in some fixed interval for long running import data
+	
 	if !callhome.SendDiagnostics {
 		return
 	}
