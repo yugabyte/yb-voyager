@@ -1106,7 +1106,7 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 }
 
 func sendCallhomePayloadAtIntervals(ctx context.Context) {
-	sendTicker := time.NewTicker(30 * time.Second) //TODO: confirm if this is fine
+	sendTicker := time.NewTicker(20 * time.Minute) //TODO: confirm if this is fine
 	defer sendTicker.Stop()
 	for range sendTicker.C {
 		select {
