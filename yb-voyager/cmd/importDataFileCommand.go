@@ -93,7 +93,7 @@ var importDataFileCmd = &cobra.Command{
 		importFileTasks := prepareImportFileTasks()
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks)
-		packAndSendImportDataFilePayload(COMPLETED)
+		packAndSendImportDataFilePayload(COMPLETE)
 
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
