@@ -43,6 +43,7 @@ var (
 /*
 Call-home diagnostics table structure -
 CREATE TABLE diagnostics (
+
 	migration_uuid UUID,
 	phase_start_time TIMESTAMP WITH TIME ZONE,
 	collected_at TIMESTAMP WITH TIME ZONE,
@@ -55,6 +56,7 @@ CREATE TABLE diagnostics (
 	time_taken_sec NUMERIC(20,2),
 	status TEXT,
 	PRIMARY KEY (migration_uuid, phase_start_time, migration_phase, collected_at)
+
 );
 */
 type Payload struct {
@@ -134,11 +136,21 @@ type ImportDataPhasePayload struct {
 }
 
 type ImportDataFilePhasePayload struct {
-	ParallelJobs     int64  `json:"parallel_jobs"`
-	TotalSize        int64  `json:"total_size"`
-	LargestTableSize int64  `json:"largest_table_size"`
-	FileStorageType  string `json:"file_storage_type"`
-	StartClean       bool   `json:"start_clean"`
+	ParallelJobs       int64  `json:"parallel_jobs"`
+	TotalSize          int64  `json:"total_size"`
+	LargestTableSize   int64  `json:"largest_table_size"`
+	FileStorageType    string `json:"file_storage_type"`
+	StartClean         bool   `json:"start_clean"`
+	DataFileParameters string `json:"data_file_parameters"`
+}
+
+type DataFileParameters struct {
+	FileFormat string `json:"FileFormat"`
+	Delimiter  string `json:"Delimiter"`
+	HasHeader  bool   `json:"HasHeader"`
+	QuoteChar  string `json:"QuoteChar,omitempty"`
+	EscapeChar string `json:"EscapeChar,omitempty"`
+	NullString string `json:"NullString,omitempty"`
 }
 
 type EndMigrationPhasePayload struct {

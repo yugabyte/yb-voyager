@@ -338,9 +338,22 @@ func packAndSendImportDataFilePayload(status string) {
 	}
 	payload.TargetDBDetails = string(bytes)
 	payload.MigrationPhase = IMPORT_DATA_FILE_PHASE
+	dataFileParameters := callhome.DataFileParameters{
+		FileFormat: fileFormat,
+		HasHeader:  bool(hasHeader),
+		Delimiter:  delimiter,
+		EscapeChar: escapeChar,
+		QuoteChar:  quoteChar,
+		NullString: nullString,
+	}
+	parametersBytes, err := json.Marshal(dataFileParameters)
+	if err != nil {
+		log.Errorf("callhome: error in parsing dataFileParameters: %v", err)
+	}
 	importDataFilePayload := callhome.ImportDataFilePhasePayload{
-		ParallelJobs: int64(tconf.Parallelism),
-		StartClean:   bool(startClean),
+		ParallelJobs:       int64(tconf.Parallelism),
+		StartClean:         bool(startClean),
+		DataFileParameters: string(parametersBytes),
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):
