@@ -2,9 +2,9 @@ name: "PG: Migration Tests"
 
 on:
   push:
-    branches: ['main']
+    branches: ['priyanshi/call-home-initial']
   pull_request:
-    branches: ['main']
+    branches: ['priyanshi/call-home-initial']
 
 jobs:
   run-pg-migration-tests:
