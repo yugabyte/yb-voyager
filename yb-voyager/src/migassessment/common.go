@@ -20,6 +20,7 @@ import (
 )
 
 var AssessmentDir string
+var SourceDBType string
 
 type Record map[string]any
 
