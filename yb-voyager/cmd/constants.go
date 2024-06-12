@@ -56,7 +56,22 @@ const (
 	ROW_UPDATE_STATUS_NOT_STARTED   = 0
 	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
 	ROW_UPDATE_STATUS_COMPLETED     = 3
-	COLOCATION_CLAUSE				= "colocation"
+	COLOCATION_CLAUSE               = "colocation"
+	//phase names used in call-home payload
+	ANALYZE_PHASE          = "analyze-schema"
+	EXPORT_SCHEMA_PHASE    = "export-schema"
+	EXPORT_DATA_PHASE      = "export-data"
+	IMPORT_SCHEMA_PHASE    = "import-schema"
+	IMPORT_DATA_PHASE      = "import-data"
+	END_MIGRATION_PHASE    = "end-migration"
+	ASSESS_MIGRATION_PHASE = "assess-migration"
+	//...more phases
+	OFFLINE              = "offline"
+	LIVE_MIGRATION       = "live migration"
+	ERROR                = "ERROR"
+	EXIT                 = "EXIT"
+	COMPLETE             = "COMPLETE"
+	COMPLETE_WITH_ERRORS = "COMPLETE-WITH-ERRORS"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
