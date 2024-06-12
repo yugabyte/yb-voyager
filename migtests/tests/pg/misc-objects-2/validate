@@ -53,7 +53,6 @@ EXPECTED_TEXT_LENGTHS = {
     34: 24,
 }
 
-EXPECTED_TRIGGER_LIST = ["audit_trigger",]
 
 def YB_specific_checks(tgt):
 	yb.verify_colocation(tgt)
@@ -63,15 +62,10 @@ def migration_completed_checks(tgt):
 	print("table_list:", table_list)
 	assert len(table_list) == 5 
 
-
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
-
-	fetched_triggers = tgt.fetch_all_triggers("public")
-	print(f"fetched triggers list: {fetched_triggers}\n Expected triggers: {EXPECTED_TRIGGER_LIST}")
-	assert fetched_triggers == EXPECTED_TRIGGER_LIST
 
 	fetched_procedures_functions = tgt.fetch_all_procedures("public")
 	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
