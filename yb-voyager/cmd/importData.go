@@ -587,12 +587,13 @@ func packAndSendImportDataPayload(status string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
+	//basic payload details
 	payload := createCallhomePayload()
 	switch importType {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE
 	case SNAPSHOT_AND_CHANGES:
-		payload.MigrationType = LIVE_MIGRATION
+		payload.MigrationType = LIVE_MIGRATION //TODO: add FF/FB details
 	}
 	bytes, err := json.Marshal(targetDBDetails)
 	if err != nil {
@@ -604,6 +605,8 @@ func packAndSendImportDataPayload(status string) {
 		ParallelJobs: int64(tconf.Parallelism),
 		StartClean:   bool(startClean),
 	}
+
+	//Getting the imported snapshot details
 	importRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
 		log.Errorf("callhome: error in getting the import data: %v", err)
@@ -616,6 +619,7 @@ func packAndSendImportDataPayload(status string) {
 			return true, nil
 		})
 	}
+
 	importDataPayloadBytes, err := json.Marshal(importDataPayload)
 	if err != nil {
 		log.Errorf("callhome: error in parsing the export data payload: %v", err)

@@ -470,6 +470,7 @@ func (pg *PostgreSQL) GetDatabaseSize() (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error in querying database encoding: %w", err)
 	}
+	log.Infof("Total Database size of PG sourceDB: %v", dbSize)
 	return dbSize, nil
 }
 

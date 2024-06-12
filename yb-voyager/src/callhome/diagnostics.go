@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -53,7 +54,7 @@ CREATE TABLE diagnostics (
 	migration_phase TEXT,
 	phase_payload JSONB,
 	migration_type TEXT,
-	time_taken_sec NUMERIC(20,2),
+	time_taken_sec bigint,
 	status TEXT,
 	PRIMARY KEY (migration_uuid, phase_start_time, migration_phase, collected_at)
 
@@ -69,7 +70,7 @@ type Payload struct {
 	MigrationPhase   string    `json:"migration_phase"`
 	PhasePayload     string    `json:"phase_payload"`
 	MigrationType    string    `json:"migration_type"`
-	TimeTakenSec     float64   `json:"time_taken_sec"`
+	TimeTakenSec     int64     `json:"time_taken_sec"`
 	Status           string    `json:"status"`
 }
 
@@ -94,6 +95,7 @@ type AssessMigrationPhasePayload struct {
 	Error                string `json:"error,omitempty"`
 	TableSizingStats     string `json:"table_sizing_stats"`
 	IndexSizingStats     string `json:"index_sizing_stats"`
+	SchemaSummary        string `json:"schema_summary"`
 }
 
 type ObjectSizingStats struct {
@@ -173,9 +175,7 @@ func ReadEnvSendDiagnostics() {
 func readCallHomeServiceEnv() {
 	host := os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST")
 	port := os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT")
-	if host != "" {
-		CALL_HOME_SERVICE_HOST = host
-	}
+	CALL_HOME_SERVICE_HOST = lo.Ternary(host != "", host, CALL_HOME_SERVICE_HOST)
 
 	if port != "" {
 		portNum, err := strconv.Atoi(port)

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1029,7 +1030,7 @@ func createCallhomePayload() callhome.Payload {
 	payload.MigrationUUID = migrationUUID
 	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
-	payload.TimeTakenSec = time.Since(startTime).Seconds()
+	payload.TimeTakenSec = int64(math.Ceil(time.Since(startTime).Seconds()))
 	payload.CollectedAt = time.Now().UTC().Format("2006-01-02T15:04:05.999999")
 
 	return payload
@@ -1061,7 +1062,9 @@ func PackAndSendCallhomePayloadOnExit() {
 }
 
 func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDataPhasePayload) {
+	//Updating the payload with totalRows and LargestTableRows for both debezium/non-debezium case
 	if useDebezium {
+		//debezium case reading export_status.json file
 		exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 		dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 		if err != nil {
@@ -1077,6 +1080,7 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 		}
 		exportDataPayload.ExportDataMechanism = "debezium"
 	} else {
+		//non-debezium case reading the export_snapshot_status.json file
 		if exportSnapshotStatusFile != nil {
 			exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 			if err != nil {

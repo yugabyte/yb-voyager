@@ -84,11 +84,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
-			conn.Close(context.Background())
-			conn = nil
-			if !bool(tconf.ContinueOnError) && !slices.Contains(deferredSqlStmts, sqlInfo) {
-				return fmt.Errorf("error in executing stmts : %v", err)
-			}
+			return err
 		}
 	}
 	return nil
@@ -107,6 +103,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
 			err = beforeIndexCreation(sqlInfo, conn, objType)
 			if err != nil {
+				(*conn).Close(context.Background())
+				*conn = nil
 				return fmt.Errorf("before index creation: %w", err)
 			}
 		}
@@ -131,6 +129,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
+				(*conn).Close(context.Background())
+				*conn = nil
 				return fmt.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
 			}
 
@@ -138,6 +138,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// `err` is already being used for retries, so using `err2`
 			err2 := dropIdx(*conn, fullyQualifiedObjName)
 			if err2 != nil {
+				(*conn).Close(context.Background())
+				*conn = nil
 				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
 			continue
@@ -155,8 +157,10 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		break // no more iteration in case of non retriable error
 	}
 	if err != nil {
+		(*conn).Close(context.Background())
+		*conn = nil
 		if missingRequiredSchemaObject(err) {
-			// Do nothing
+			// Do nothing for deferred case
 		} else {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
@@ -168,6 +172,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				return err
 			}
 		}
+		return nil
 	}
 	return err
 }
