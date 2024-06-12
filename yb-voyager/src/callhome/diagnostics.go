@@ -56,7 +56,7 @@ CREATE TABLE diagnostics (
 	migration_type TEXT,
 	time_taken_sec bigint,
 	status TEXT,
-	PRIMARY KEY (migration_uuid, phase_start_time, migration_phase, collected_at)
+	PRIMARY KEY (migration_uuid, migration_phase, collected_at)
 
 );
 */
