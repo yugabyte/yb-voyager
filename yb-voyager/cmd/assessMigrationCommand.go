@@ -689,7 +689,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	return nil
 }
 
-var filterIssues = func(featureName, issueReason string, unsupportedFeatures []UnsupportedFeature) {
+var filterIssues = func(featureName, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
 	log.Info("filtering issues for feature: ", featureName)
 	objectNames := make([]string, 0)
 	for _, issue := range schemaAnalysisReport.Issues {
@@ -697,23 +697,23 @@ var filterIssues = func(featureName, issueReason string, unsupportedFeatures []U
 			objectNames = append(objectNames, issue.ObjectName)
 		}
 	}
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
+	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	filterIssues("GIST indexes", GIST_INDEX_ISSUE_REASON, unsupportedFeatures)
-	filterIssues("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, unsupportedFeatures)
-	filterIssues("Inherited tables", INHERITANCE_ISSUE_REASON, unsupportedFeatures)
-	filterIssues("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, unsupportedFeatures)
+	filterIssues("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssues("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssues("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssues("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	filterIssues("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, unsupportedFeatures)
+	filterIssues("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
