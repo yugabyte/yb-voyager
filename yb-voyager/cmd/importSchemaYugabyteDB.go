@@ -86,9 +86,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		if err != nil {
 			conn.Close(context.Background())
 			conn = nil
-			if !bool(tconf.ContinueOnError) && !slices.Contains(deferredSqlStmts, sqlInfo) {
-				return fmt.Errorf("error in executing stmts : %v", err)
-			}
+			return err
 		}
 	}
 	return nil
@@ -156,7 +154,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	}
 	if err != nil {
 		if missingRequiredSchemaObject(err) {
-			// Do nothing
+			// Do nothing for deferred case
 		} else {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
@@ -168,6 +166,9 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				return err
 			}
 		}
+		(*conn).Close(context.Background())
+		*conn = nil
+		return nil
 	}
 	return err
 }
