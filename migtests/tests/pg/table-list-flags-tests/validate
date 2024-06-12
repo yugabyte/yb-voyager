@@ -16,7 +16,10 @@ EXPECTED_ROW_COUNT = {
 	'session_log2': 0,
 	'Case_Sensitive_Columns': 5,
 	'Mixed_Case_Table_Name_Test': 5,
-	'Recipients':1,
+	'Recipients': 1,
+	'WITH': 3,
+	'with_example2': 3,
+	'with_example1': 0
 }
 
 def YB_specific_checks(tgt):
@@ -25,7 +28,7 @@ def YB_specific_checks(tgt):
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 8
+	assert len(table_list) == 11
 
 
 	got_row_count = tgt.row_count_of_all_tables("public")
