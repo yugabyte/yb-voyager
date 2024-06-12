@@ -166,7 +166,7 @@ func importSchema() {
 		importDeferredStatements()
 		log.Info("Schema import is complete.")
 
-		dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+		dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 	}
 
 	if flagPostSnapshotImport {

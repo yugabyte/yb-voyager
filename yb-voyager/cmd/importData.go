@@ -988,45 +988,6 @@ func dropIdx(conn *pgx.Conn, idxName string) error {
 	return nil
 }
 
-func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
-	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
-	conn := newTargetConn()
-
-	defer func() {
-		if conn != nil {
-			conn.Close(context.Background())
-		}
-	}()
-
-	sqlInfoArr := parseSqlFileForObjectType(file, objType)
-	for _, sqlInfo := range sqlInfoArr {
-		if conn == nil {
-			conn = newTargetConn()
-		}
-
-		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
-			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
-		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
-			continue
-		}
-
-		if objType == "TABLE" {
-			stmt := strings.ToUpper(sqlInfo.stmt)
-			skip := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
-			if skip {
-				//skipping DDLS like ALTER TABLE ... REPLICA IDENTITY .. as this is not supported in YB
-				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
-				continue
-			}
-		}
-
-		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
-		if err != nil {
-			conn.Close(context.Background())
-			conn = nil
-		}
-	}
-}
 
 func setOrafceSearchPath(conn *pgx.Conn) {
 	// append oracle schema in the search_path for orafce
@@ -1052,84 +1013,6 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
-}
-
-func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
-	var err error
-	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
-	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
-		if retryCount > 0 { // Not the first iteration.
-			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
-			time.Sleep(time.Second * 5)
-			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
-		}
-
-		if strings.Contains(objType, "INDEX") {
-			err = beforeIndexCreation(sqlInfo, conn, objType)
-			if err != nil {
-				return fmt.Errorf("before index creation: %w", err)
-			}
-		}
-		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
-		if err == nil {
-			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
-			return nil
-		}
-
-		log.Errorf("DDL Execution Failed for %q: %s", sqlInfo.formattedStmt, err)
-		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
-			// creating fresh connection
-			(*conn).Close(context.Background())
-			*conn = newTargetConn()
-			continue
-		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
-			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
-			// creating fresh connection
-			(*conn).Close(context.Background())
-			*conn = newTargetConn()
-
-			// Extract the schema name and add to the index name
-			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
-			if err != nil {
-				utils.ErrExit("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
-			}
-
-			// DROP INDEX in case INVALID index got created
-			// `err` is already being used for retries, so using `err2`
-			err2 := dropIdx(*conn, fullyQualifiedObjName)
-			if err2 != nil {
-				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
-			}
-			continue
-		} else if missingRequiredSchemaObject(err) {
-			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
-			deferredSqlStmts = append(deferredSqlStmts, sqlInfo)
-		} else if isAlreadyExists(err.Error()) {
-			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
-			// schema already exists on the target YB db, the create schema statement fails with
-			// "already exists" error. Ignore the error.
-			if bool(tconf.IgnoreIfExists) || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
-				err = nil
-			}
-		}
-		break // no more iteration in case of non retriable error
-	}
-	if err != nil {
-		if missingRequiredSchemaObject(err) {
-			// Do nothing
-		} else {
-			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
-			color.Red(fmt.Sprintf("%s\n", err.Error()))
-			if tconf.ContinueOnError {
-				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
-				errString := "/*\n" + err.Error() + "\n*/\n"
-				failedSqlStmts = append(failedSqlStmts, errString+sqlInfo.formattedStmt)
-			} else {
-				utils.ErrExit("error: %s\n", err)
-			}
-		}
-	}
-	return err
 }
 
 // TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
