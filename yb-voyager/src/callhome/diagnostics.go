@@ -53,7 +53,7 @@ CREATE TABLE diagnostics (
 	migration_phase TEXT,
 	phase_payload JSONB,
 	migration_type TEXT,
-	time_taken_sec NUMERIC(20,2),
+	time_taken_sec bigint,
 	status TEXT,
 	PRIMARY KEY (migration_uuid, phase_start_time, migration_phase)
 
@@ -68,7 +68,7 @@ type Payload struct {
 	MigrationPhase   string    `json:"migration_phase"`
 	PhasePayload     string    `json:"phase_payload"`
 	MigrationType    string    `json:"migration_type"`
-	TimeTakenSec     float64   `json:"time_taken_sec"`
+	TimeTakenSec     int64     `json:"time_taken_sec"`
 	Status           string    `json:"status"`
 }
 
