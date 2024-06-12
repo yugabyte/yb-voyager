@@ -1030,7 +1030,7 @@ func createCallhomePayload() callhome.Payload {
 	payload.MigrationUUID = migrationUUID
 	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
-	payload.TimeTakenSec = int64(math.Ceil(time.Since(startTime).Seconds()))
+	payload.TimeTakenSec = int(math.Ceil(time.Since(startTime).Seconds()))
 	payload.CollectedAt = time.Now().UTC().Format("2006-01-02T15:04:05.999999")
 
 	return payload
