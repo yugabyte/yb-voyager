@@ -122,7 +122,7 @@ main() {
 	step "Run Schema validations."
 	if [ -x "${TEST_DIR}/validate-schema" ]
 	then
-		 "${TEST_DIR}/validate"
+		 "${TEST_DIR}/validate-schema"
 	fi
 
 	step "Export data."
