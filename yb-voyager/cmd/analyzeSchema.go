@@ -1068,7 +1068,18 @@ func analyzeSchema() {
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 
-	payload := callhome.GetPayload(exportDir, migrationUUID)
+	packAndSendAnalyzeSchemaPayload(COMPLETE)
+
+	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
+	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
+}
+
+func packAndSendAnalyzeSchemaPayload(status string) {
+	if !callhome.SendDiagnostics {
+		return
+	}
+	payload := createCallhomePayload()
+	payload.MigrationPhase = ANALYZE_PHASE
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
@@ -1076,21 +1087,25 @@ func analyzeSchema() {
 	}
 	issues, err := json.Marshal(callhomeIssues)
 	if err != nil {
-		log.Errorf("Error while parsing 'issues' json: %v", err)
-	} else {
-		payload.Issues = string(issues)
+		log.Errorf("callhome: error while parsing 'issues' json: %v", err)
 	}
-	dbobjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
+	dbObjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
 	if err != nil {
-		log.Errorf("Error while parsing 'database_objects' json: %v", err)
-	} else {
-		payload.DBObjects = string(dbobjects)
+		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
 	}
+	analyzePayload := callhome.AnalyzePhasePayload{
+		Issues:          string(issues),
+		DatabaseObjects: string(dbObjects),
+	}
+	analyzePayloadBytes, err := json.Marshal(analyzePayload)
+	if err != nil {
+		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
+	}
+	payload.PhasePayload = string(analyzePayloadBytes)
+	payload.Status = status
 
-	callhome.PackAndSendPayload(exportDir)
-
-	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
-	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
+	callhome.SendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 var analyzeSchemaCmd = &cobra.Command{

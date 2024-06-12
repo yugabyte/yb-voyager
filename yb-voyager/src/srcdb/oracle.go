@@ -293,6 +293,17 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
+func (ora *Oracle) GetDatabaseSize() (int64, error) {
+	var dbSize int64
+	query := fmt.Sprintf("SELECT SUM(BYTES) FROM DBA_SEGMENTS WHERE OWNER = '%s'", ora.source.Schema)
+	err := ora.db.QueryRow(query).Scan(&dbSize)
+	if err != nil {
+		return 0, fmt.Errorf("error in querying database encoding: %w", err)
+	}
+	log.Infof("Total Database size of Oracle sourceDB: %v", dbSize)
+	return dbSize, nil
+}
+
 func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 

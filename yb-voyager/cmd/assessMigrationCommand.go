@@ -34,6 +34,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
@@ -96,9 +97,105 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
+			packAndSendAssessMigrationPayload(ERROR, err.Error())
 			utils.ErrExit("failed to assess migration: %v", err)
 		}
+		packAndSendAssessMigrationPayload(COMPLETE, "")
 	},
+}
+
+func packAndSendAssessMigrationPayload(status string, errMsg string) {
+	if !callhome.SendDiagnostics {
+		return
+	}
+	payload := createCallhomePayload()
+	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
+
+	featuresBytes, err := json.Marshal(assessmentReport.UnsupportedFeatures)
+	if err != nil {
+		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
+	}
+	datatypesBytes, err := json.Marshal(assessmentReport.UnsupportedDataTypes)
+	if err != nil {
+		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
+	}
+	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
+	if assessmentReport.TableIndexStats != nil {
+		for _, stat := range *assessmentReport.TableIndexStats {
+			newStat := callhome.ObjectSizingStats{
+				SchemaName:      stat.SchemaName,
+				ObjectName:      stat.ObjectName,
+				ReadsPerSecond:  *stat.ReadsPerSecond,
+				WritesPerSecond: *stat.WritesPerSecond,
+				SizeInBytes:     *stat.SizeInBytes,
+			}
+			if stat.IsIndex {
+				indexSizingStats = append(indexSizingStats, newStat)
+			} else {
+				tableSizingStats = append(tableSizingStats, newStat)
+			}
+		}
+	}
+	tableBytes, err := json.Marshal(tableSizingStats)
+	if err != nil {
+		log.Errorf("callhome: error in parsing the table sizing stats: %v", err)
+	}
+	indexBytes, err := json.Marshal(indexSizingStats)
+	if err != nil {
+		log.Errorf("callhome: error in parsing the index sizing stats: %v", err)
+	}
+	schemaSummaryCopy := utils.SchemaSummary{
+		SchemaNames: assessmentReport.SchemaSummary.SchemaNames,
+		Notes:       assessmentReport.SchemaSummary.Notes,
+	}
+	for _, dbObject := range assessmentReport.SchemaSummary.DBObjects {
+		//Creating a copy and not adding objectNames here, as those will anyway be available
+		//at analyze-schema step so no need to have non-relevant information to not clutter the payload
+		//only counts are useful at this point
+		dbObjectCopy := utils.DBObject{
+			ObjectType:   dbObject.ObjectType,
+			TotalCount:   dbObject.TotalCount,
+			InvalidCount: dbObject.InvalidCount,
+			Details:      dbObject.Details,
+		}
+		schemaSummaryCopy.DBObjects = append(schemaSummaryCopy.DBObjects, dbObjectCopy)
+	}
+	schemaSummaryCopyBytes, err := json.Marshal(schemaSummaryCopy)
+	if err != nil {
+		log.Errorf("callhome: error parsing schema summary: %v", err)
+	}
+	assessPayload := callhome.AssessMigrationPhasePayload{
+		UnsupportedFeatures:  string(featuresBytes),
+		UnsupportedDataTypes: string(datatypesBytes),
+		TableSizingStats:     string(tableBytes),
+		IndexSizingStats:     string(indexBytes),
+		SchemaSummary:        string(schemaSummaryCopyBytes),
+	}
+	if status == ERROR {
+		assessPayload.Error = errMsg
+	}
+	if assessmentMetadataDirFlag == "" {
+		sourceDBDetails := callhome.SourceDBDetails{
+			Host:      source.Host,
+			DBType:    source.DBType,
+			DBVersion: source.DBVersion,
+			DBSize:    source.DBSize,
+		}
+		sourceDBBytes, err := json.Marshal(sourceDBDetails)
+		if err != nil {
+			log.Errorf("callhome: error in parsing sourcedb details: %v", err)
+		}
+		payload.SourceDBDetails = string(sourceDBBytes)
+	}
+	assessPayloadBytes, err := json.Marshal(assessPayload)
+	if err != nil {
+		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
+	}
+	payload.PhasePayload = string(assessPayloadBytes)
+	payload.Status = status
+
+	callhome.SendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
@@ -469,6 +566,16 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("error connecting source db: %v", err)
+	}
+	source.DBVersion = source.DB().GetVersion()
+	source.DBSize, err = source.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+	}
+	source.DB().Disconnect()
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 

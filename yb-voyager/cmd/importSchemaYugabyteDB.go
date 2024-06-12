@@ -34,19 +34,22 @@ var deferredSqlStmts []sqlInfo
 var finalFailedSqlStmts []string
 
 func importSchemaInternal(exportDir string, importObjectList []string,
-	skipFn func(string, string) bool) {
+	skipFn func(string, string) bool) error {
 	schemaDir := filepath.Join(exportDir, "schema")
 	for _, importObjectType := range importObjectList {
 		importObjectFilePath := utils.GetObjectFilePath(schemaDir, importObjectType)
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
-		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
+		err := executeSqlFile(importObjectFilePath, importObjectType, skipFn)
+		if err != nil {
+			return err
+		}
 	}
-
+	return nil
 }
 
-func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
+func executeSqlFile(file string, objType string, skipFn func(string, string) bool) error {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 	conn := newTargetConn()
 
@@ -57,6 +60,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 	}()
 
 	sqlInfoArr := parseSqlFileForObjectType(file, objType)
+	var err error
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
@@ -78,12 +82,12 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			}
 		}
 
-		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
+		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
-			conn.Close(context.Background())
-			conn = nil
+			return err
 		}
 	}
+	return nil
 }
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
@@ -99,6 +103,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
 			err = beforeIndexCreation(sqlInfo, conn, objType)
 			if err != nil {
+				(*conn).Close(context.Background())
+				*conn = nil
 				return fmt.Errorf("before index creation: %w", err)
 			}
 		}
@@ -123,13 +129,17 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
-				utils.ErrExit("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+				(*conn).Close(context.Background())
+				*conn = nil
+				return fmt.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
 			// `err` is already being used for retries, so using `err2`
 			err2 := dropIdx(*conn, fullyQualifiedObjName)
 			if err2 != nil {
+				(*conn).Close(context.Background())
+				*conn = nil
 				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
 			continue
@@ -147,8 +157,10 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		break // no more iteration in case of non retriable error
 	}
 	if err != nil {
+		(*conn).Close(context.Background())
+		*conn = nil
 		if missingRequiredSchemaObject(err) {
-			// Do nothing
+			// Do nothing for deferred case
 		} else {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
@@ -157,9 +169,10 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				errString := "/*\n" + err.Error() + "\n*/\n"
 				finalFailedSqlStmts = append(finalFailedSqlStmts, errString+sqlInfo.formattedStmt)
 			} else {
-				utils.ErrExit("error: %s\n", err)
+				return err
 			}
 		}
+		return nil
 	}
 	return err
 }
