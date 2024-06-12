@@ -119,18 +119,20 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
 	}
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
-	for _, stat := range *assessmentReport.TableIndexStats {
-		newStat := callhome.ObjectSizingStats{
-			SchemaName:      stat.SchemaName,
-			ObjectName:      stat.ObjectName,
-			ReadsPerSecond:  *stat.ReadsPerSecond,
-			WritesPerSecond: *stat.WritesPerSecond,
-			SizeInBytes:     *stat.SizeInBytes,
-		}
-		if stat.IsIndex {
-			indexSizingStats = append(indexSizingStats, newStat)
-		} else {
-			tableSizingStats = append(tableSizingStats, newStat)
+	if assessmentReport.TableIndexStats != nil {
+		for _, stat := range *assessmentReport.TableIndexStats {
+			newStat := callhome.ObjectSizingStats{
+				SchemaName:      stat.SchemaName,
+				ObjectName:      stat.ObjectName,
+				ReadsPerSecond:  *stat.ReadsPerSecond,
+				WritesPerSecond: *stat.WritesPerSecond,
+				SizeInBytes:     *stat.SizeInBytes,
+			}
+			if stat.IsIndex {
+				indexSizingStats = append(indexSizingStats, newStat)
+			} else {
+				tableSizingStats = append(tableSizingStats, newStat)
+			}
 		}
 	}
 	tableBytes, err := json.Marshal(tableSizingStats)
@@ -141,11 +143,32 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if err != nil {
 		log.Errorf("callhome: error in parsing the index sizing stats: %v", err)
 	}
+	schemaSummaryCopy := utils.SchemaSummary{
+		SchemaNames: assessmentReport.SchemaSummary.SchemaNames,
+		Notes:       assessmentReport.SchemaSummary.Notes,
+	}
+	for _, dbObject := range assessmentReport.SchemaSummary.DBObjects {
+		//Creating a copy and not adding objectNames here, as those will anyway be available
+		//at analyze-schema step so no need to have non-relevant information to not clutter the payload
+		//only counts are useful at this point
+		dbObjectCopy := utils.DBObject{
+			ObjectType:   dbObject.ObjectType,
+			TotalCount:   dbObject.TotalCount,
+			InvalidCount: dbObject.InvalidCount,
+			Details:      dbObject.Details,
+		}
+		schemaSummaryCopy.DBObjects = append(schemaSummaryCopy.DBObjects, dbObjectCopy)
+	}
+	schemaSummaryCopyBytes, err := json.Marshal(schemaSummaryCopy)
+	if err != nil {
+		log.Errorf("callhome: error parsing schema summary: %v", err)
+	}
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		UnsupportedFeatures:  string(featuresBytes),
 		UnsupportedDataTypes: string(datatypesBytes),
 		TableSizingStats:     string(tableBytes),
 		IndexSizingStats:     string(indexBytes),
+		SchemaSummary:        string(schemaSummaryCopyBytes),
 	}
 	if status == ERROR {
 		assessPayload.Error = errMsg

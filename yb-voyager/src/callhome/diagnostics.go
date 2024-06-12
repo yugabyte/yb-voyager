@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -92,6 +93,7 @@ type AssessMigrationPhasePayload struct {
 	Error                string `json:"error,omitempty"`
 	TableSizingStats     string `json:"table_sizing_stats"`
 	IndexSizingStats     string `json:"index_sizing_stats"`
+	SchemaSummary        string `json:"schema_summary"`
 }
 
 type ObjectSizingStats struct {
@@ -163,9 +165,7 @@ func ReadEnvSendDiagnostics() {
 func readCallHomeServiceEnv() {
 	host := os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST")
 	port := os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT")
-	if host != "" {
-		CALL_HOME_SERVICE_HOST = host
-	}
+	CALL_HOME_SERVICE_HOST = lo.Ternary(host != "", host, CALL_HOME_SERVICE_HOST)
 
 	if port != "" {
 		portNum, err := strconv.Atoi(port)
