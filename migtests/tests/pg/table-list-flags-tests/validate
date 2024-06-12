@@ -17,8 +17,8 @@ EXPECTED_ROW_COUNT = {
 	'Case_Sensitive_Columns': 5,
 	'Mixed_Case_Table_Name_Test': 5,
 	'Recipients': 1,
-	'WITH': 0,
-	'with_example2': 0,
+	'WITH': 3,
+	'with_example2': 3,
 	'with_example1': 0
 }
 

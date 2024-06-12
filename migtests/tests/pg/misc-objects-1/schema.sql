@@ -171,6 +171,12 @@ WITH (
     autovacuum_analyze_scale_factor = 0.05  /* Scale factor for analyze */
 );
 
+-- Insert statements for the "WITH" table
+INSERT INTO "WITH" ("WITH") VALUES ('Value 1');
+INSERT INTO "WITH" ("WITH") VALUES ('Value 2');
+INSERT INTO "WITH" ("WITH") VALUES ('Value 3');
+
+
 -- WITH clause in comments variation 1
 
 CREATE TABLE with_example1 (
@@ -196,6 +202,11 @@ WITH (
        Comment
     */
 );
+
+-- Insert statements for the with_example1 table
+INSERT INTO with_example1 (name) VALUES ('John Doe');
+INSERT INTO with_example1 (name) VALUES ('Jane Smith');
+INSERT INTO with_example1 (name) VALUES ('Alice Johnson');
 
 
 -- WITH clause in comments variation 2
@@ -223,6 +234,11 @@ WITH (
 )
 */
 ;
+
+-- Insert statements for the with_example2 table
+INSERT INTO with_example2 (name) VALUES ('Michael Brown');
+INSERT INTO with_example2 (name) VALUES ('Emily Davis');
+INSERT INTO with_example2 (name) VALUES ('William Wilson');
 
 
 
