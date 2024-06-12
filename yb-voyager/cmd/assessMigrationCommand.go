@@ -32,6 +32,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -254,7 +255,7 @@ func init() {
 			"it will be assumed to be present at default path inside the export directory.")
 
 	assessMigrationCmd.Flags().Int64Var(&intervalForCapturingIOPS, "iops-capture-interval", 120,
-		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s).")
+		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). (only valid for PostgreSQL)")
 
 }
 
@@ -277,6 +278,7 @@ func assessMigration() (err error) {
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
+	migassessment.SourceDBType = source.DBType
 	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
 	err = gatherAssessmentMetadata()
@@ -284,7 +286,7 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
 
-	parseExportedSchemaFileForAssessment()
+	parseExportedSchemaFileForAssessmentIfRequired()
 
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
@@ -429,6 +431,11 @@ func gatherAssessmentMetadata() (err error) {
 		if err != nil {
 			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
 		}
+	case ORACLE:
+		err := gatherAssessmentMetadataFromOracle()
+		if err != nil {
+			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
+		}
 	default:
 		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
@@ -436,44 +443,69 @@ func gatherAssessmentMetadata() (err error) {
 	return nil
 }
 
+func gatherAssessmentMetadataFromOracle() (err error) {
+	if assessmentMetadataDirFlag != "" {
+		return nil
+	}
+
+	scriptPath, err := findGatherMetadataScriptPath(ORACLE)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("using script: %s", scriptPath)
+	return runGatherAssessmentMetadataScript(scriptPath, []string{"ORACLE_PASSWORD=" + source.Password},
+		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schema), assessmentMetadataDir)
+}
+
 func gatherAssessmentMetadataFromPG() (err error) {
 	if assessmentMetadataDirFlag != "" {
 		return nil
 	}
 
-	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
-	gatherAssessmentMetadataScriptPath := "/etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh"
-
-	possiblePathsForScript := []string{
-		gatherAssessmentMetadataScriptPath,
-		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, gatherAssessmentMetadataScriptPath),
-		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, gatherAssessmentMetadataScriptPath),
-	}
-
-	scriptPath := ""
-	for _, path := range possiblePathsForScript {
-		if utils.FileOrFolderExists(path) {
-			scriptPath = path
-			break
-		}
-	}
-
-	if scriptPath == "" {
-		return fmt.Errorf("script not found in possible paths: %v", possiblePathsForScript)
+	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
+	if err != nil {
+		return err
 	}
 
 	log.Infof("using script: %s", scriptPath)
-	scriptArgs := []string{
-		source.DB().GetConnectionUriWithoutPassword(),
-		source.Schema,
-		assessmentMetadataDir,
-		fmt.Sprintf("%d", intervalForCapturingIOPS),
+	return runGatherAssessmentMetadataScript(scriptPath, []string{"PGPASSWORD=" + source.Password},
+		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%d", intervalForCapturingIOPS))
+}
+
+func findGatherMetadataScriptPath(dbType string) (string, error) {
+	var defaultScriptPath string
+	switch dbType {
+	case POSTGRESQL:
+		defaultScriptPath = "/etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh"
+	case ORACLE:
+		defaultScriptPath = "/etc/yb-voyager/gather-assessment-metadata/oracle/yb-voyager-oracle-gather-assessment-metadata.sh"
+	default:
+		panic(fmt.Sprintf("invalid source db type %q", dbType))
 	}
 
+	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
+	possiblePathsForScript := []string{
+		defaultScriptPath,
+		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, defaultScriptPath),
+		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, defaultScriptPath),
+	}
+
+	for _, path := range possiblePathsForScript {
+		if utils.FileOrFolderExists(path) {
+			log.Infof("found the gather assessment metadata script at: %s", path)
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("script not found in possible paths: %v", possiblePathsForScript)
+}
+
+func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scriptArgs ...string) error {
 	cmd := exec.Command(scriptPath, scriptArgs...)
 	log.Infof("running script: %s", cmd.String())
-	cmd.Env = append(cmd.Env, "PGPASSWORD="+source.Password,
-		"PATH="+os.Getenv("PATH"))
+	cmd.Env = append(cmd.Env, envVars...)
+	cmd.Env = append(cmd.Env, "PATH="+os.Getenv("PATH"))
 	cmd.Dir = assessmentMetadataDir
 	cmd.Stdin = os.Stdin
 
@@ -521,7 +553,16 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	return nil
 }
 
-func parseExportedSchemaFileForAssessment() {
+/*
+It is due to the differences in how tools like ora2pg, and pg_dump exports the schema
+pg_dump - export schema in single .sql file which is later on segregated by voyager in respective .sql file
+ora2pg - export schema in given .sql file, and we have to call it for each object type to export schema
+*/
+func parseExportedSchemaFileForAssessmentIfRequired() {
+	if source.DBType == ORACLE {
+		return // already parsed into schema files while exporting
+	}
+
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
@@ -551,7 +592,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
 		file, err := os.Open(metadataFilePath)
 		if err != nil {
-			log.Warnf("error opening file %s: %v", metadataFilesPath, err)
+			log.Warnf("error opening file %s: %v", metadataFilePath, err)
 			return nil
 		}
 
@@ -559,8 +600,8 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		csvReader.ReuseRecord = true
 		rows, err := csvReader.ReadAll()
 		if err != nil {
-			log.Errorf("error reading csv file %s: %v", metadataFilesPath, err)
-			return fmt.Errorf("error reading csv file %s: %w", metadataFilesPath, err)
+			log.Errorf("error reading csv file %s: %v", metadataFilePath, err)
+			return fmt.Errorf("error reading csv file %s: %w", metadataFilePath, err)
 		}
 
 		// collecting both initial and final measurement in the same table
@@ -627,13 +668,24 @@ func getAssessmentReportContentFromAnalyzeSchema() (err error) {
 		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
 	}
 
-	unsupportedFeatures, err := fetchUnsupportedFeaturesForPG(schemaAnalysisReport)
+	unsupportedFeatures, err := fetchUnsupportedFeaturesOfSourceInYb(schemaAnalysisReport)
 	if err != nil {
 		return fmt.Errorf("failed to fetch unsupported features: %w", err)
 	}
 	assessmentReport.UnsupportedFeatures = unsupportedFeatures
 
 	return nil
+}
+
+func fetchUnsupportedFeaturesOfSourceInYb(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
+	switch source.DBType {
+	case POSTGRESQL:
+		return fetchUnsupportedFeaturesForPG(schemaAnalysisReport)
+	case ORACLE:
+		return nil, nil
+	default:
+		panic("unsupported source db type")
+	}
 }
 
 func fetchUnsupportedFeaturesForPG(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
@@ -750,11 +802,14 @@ func split(value string, delimiter string) []string {
 }
 
 func validateSourceDBTypeForAssessMigration() {
-	switch source.DBType {
-	case POSTGRESQL:
-		return
-	default:
-		utils.ErrExit("source DB Type %q is not yet supported for migration assessment", source.DBType)
+	if source.DBType == "" {
+		utils.ErrExit("Error: required flag \"source-db-type\" not set")
+	}
+
+	assessMigrationSupportedDBTypes := []string{POSTGRESQL, ORACLE}
+	source.DBType = strings.ToLower(source.DBType)
+	if !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
+		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types for assess-migration are: %v", assessMigrationSupportedDBTypes, source.DBType)
 	}
 }
 

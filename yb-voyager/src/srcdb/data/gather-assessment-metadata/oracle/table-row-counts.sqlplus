@@ -1,0 +1,35 @@
+SET ECHO OFF
+SET FEEDBACK OFF
+SET HEADING ON
+SET MARKUP CSV ON DELIMITER , QUOTE OFF
+SET PAGESIZE 0
+SET TRIMSPOOL ON
+SET TERMOUT OFF
+SET VERIFY OFF
+
+-- Get the session ID
+COLUMN session_id NEW_VALUE session_id
+SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
+
+-- Create a temporary table to hold the row counts
+CREATE GLOBAL TEMPORARY TABLE temp_table_row_counts_&session_id
+ON COMMIT PRESERVE ROWS AS
+    SELECT 
+        owner AS schema_name,
+        table_name,
+        0 AS row_count
+    FROM 
+        dba_tables
+    WHERE 
+        owner = '&1';
+
+-- Select the data into the CSV file
+SPOOL table-row-counts.csv
+SELECT schema_name, table_name, row_count FROM temp_table_row_counts_&session_id;
+SPOOL OFF
+
+-- Drop the temporary table
+TRUNCATE TABLE temp_table_row_counts_&session_id;
+DROP TABLE temp_table_row_counts_&session_id;
+
+EXIT;

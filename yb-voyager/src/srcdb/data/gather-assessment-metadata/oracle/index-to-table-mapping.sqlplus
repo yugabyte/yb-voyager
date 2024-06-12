@@ -1,0 +1,44 @@
+SET ECHO OFF
+SET FEEDBACK OFF
+SET HEADING ON
+SET MARKUP CSV ON DELIMITER , QUOTE OFF
+SET PAGESIZE 0
+SET TRIMSPOOL ON
+SET TERMOUT OFF
+SET VERIFY OFF
+
+-- Get the session ID
+COLUMN session_id NEW_VALUE session_id
+SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
+
+-- Create a temporary table to hold the data
+CREATE GLOBAL TEMPORARY TABLE temp_index_to_table_mapping_&session_id
+ON COMMIT PRESERVE ROWS AS
+    SELECT
+        i.owner AS index_schema,
+        i.index_name AS index_name,
+        i.table_owner AS table_schema,
+        i.table_name AS table_name
+    FROM 
+        dba_indexes i
+    WHERE
+        i.owner = '&1'
+        AND i.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
+        AND i.index_name NOT IN (
+            SELECT index_name
+            FROM dba_constraints
+            WHERE owner = '&1'
+            AND constraint_type IN ('P', 'U') -- ignoring primary and unique keys
+        )
+        AND i.index_name NOT LIKE 'SYS_%';
+
+-- Select the data into the CSV file
+SPOOL index-to-table-mapping.csv
+SELECT index_schema, index_name, table_schema, table_name FROM temp_index_to_table_mapping_&session_id;
+SPOOL OFF
+
+-- Drop the temporary table
+TRUNCATE TABLE temp_index_to_table_mapping_&session_id;
+DROP TABLE temp_index_to_table_mapping_&session_id;
+
+EXIT

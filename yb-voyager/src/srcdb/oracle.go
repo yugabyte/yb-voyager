@@ -182,20 +182,20 @@ func (ora *Oracle) getConnectionUri() string {
 func (ora *Oracle) GetConnectionUriWithoutPassword() string {
 	source := ora.source
 	connectionString := GetOracleConnectionString(source.Host, source.Port, source.DBName, source.DBSid, source.TNSAlias)
-	return fmt.Sprintf(`user="%s" connectString="%s"`, source.User, connectionString)
+	return fmt.Sprintf(`%s@%s`, source.User, connectionString)
 }
 
 func GetOracleConnectionString(host string, port int, dbname string, dbsid string, tnsalias string) string {
 	switch true {
 	case dbsid != "":
-		return fmt.Sprintf(`(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))`,
+		return fmt.Sprintf(`(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = %s)(PORT = %d))(CONNECT_DATA = (SID = %s)))`,
 			host, port, dbsid)
 
 	case tnsalias != "":
 		return tnsalias
 
 	case dbname != "":
-		return fmt.Sprintf(`(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))`,
+		return fmt.Sprintf(`(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = %s)(PORT = %d))(CONNECT_DATA = (SERVICE_NAME = %s)))`,
 			host, port, dbname)
 	}
 	return ""

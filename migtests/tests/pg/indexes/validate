@@ -4,7 +4,7 @@ import yb
 
 def main():
 	yb.run_checks(migration_completed_checks)
-
+	yb.run_checks(YB_specific_checks)
 
 #=============================================================================
 
@@ -31,6 +31,9 @@ EXPECTED_INDEX_COUNT = {
 	'covering_index_test': 1,
 	'gin_index_test': 1,
 }
+
+def YB_specific_checks(tgt):
+	yb.verify_colocation(tgt)
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
