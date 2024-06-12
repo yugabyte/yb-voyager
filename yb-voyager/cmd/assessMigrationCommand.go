@@ -482,13 +482,16 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		baseFileName := filepath.Base(metadataFilePath)
 		metric := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
 		tableName := strings.Replace(metric, "-", "_", -1)
+		// collecting both initial and final measurement in the same table
+		tableName = lo.Ternary(strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS),
+			migassessment.TABLE_INDEX_IOPS, tableName)
+
 		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
 		file, err := os.Open(metadataFilePath)
 		if err != nil {
 			log.Warnf("error opening file %s: %v", metadataFilePath, err)
 			return nil
 		}
-
 		csvReader := csv.NewReader(file)
 		csvReader.ReuseRecord = true
 		rows, err := csvReader.ReadAll()
@@ -497,16 +500,10 @@ func populateMetadataCSVIntoAssessmentDB() error {
 			return fmt.Errorf("error reading csv file %s: %w", metadataFilePath, err)
 		}
 
-		// collecting both initial and final measurement in the same table
-		if strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS) {
-			tableName = migassessment.TABLE_INDEX_IOPS
-		}
-
 		err = assessmentDB.BulkInsert(tableName, rows)
 		if err != nil {
 			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
 		}
-
 		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
 	}
 
