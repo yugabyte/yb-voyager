@@ -62,7 +62,9 @@ main() {
 
 	step "Assess Migration"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-		assess_migration
+		assess_migration || {
+			cat_log_file ${EXPORT_DIR}/assessment/metadata/assessment.log
+		}
 
 		step "Validate Assessment Reports"
 		# Checking if the assessment reports were created
