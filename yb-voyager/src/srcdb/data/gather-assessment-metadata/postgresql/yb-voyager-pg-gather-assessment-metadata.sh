@@ -117,13 +117,12 @@ main() {
         read continue_execution
         continue_execution=$(echo "$continue_execution" | tr '[:upper:]' '[:lower:]') # converting to lower case for easier comparison
         if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
-            echo "Exiting..."
+            print_and_log "INFO" "Exiting..."
             exit 2
         fi
     fi
 
     print_and_log "INFO" "Assessment metadata collection started for '$schema_list' schemas"
-    # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
         script_action=$(basename "$script" .psql | sed 's/-/ /g')
@@ -131,7 +130,7 @@ main() {
         if [ $script_name == "table-index-iops" ]; then
             psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on -v measurement_type=initial"
             log "INFO" "Executing initial IOPS collection: $psql_command"
-            eval $psql_command
+            eval $psql_command 2>&1  | tee -a "$LOG_FILE"
             mv table-index-iops.csv table-index-iops-initial.csv
             
             log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
@@ -140,12 +139,12 @@ main() {
             
             psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on -v measurement_type=final"
             log "INFO" "Executing final IOPS collection: $psql_command"
-            eval $psql_command
+            eval $psql_command 2>&1  | tee -a "$LOG_FILE"
             mv table-index-iops.csv table-index-iops-final.csv
         else
             psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on"
             log "INFO" "Executing script: $psql_command"
-            eval $psql_command
+            eval $psql_command 2>&1  | tee -a "$LOG_FILE"
         fi
     done
 
@@ -153,7 +152,7 @@ main() {
     pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
     log "INFO" "extracted pg_dump version: $pg_dump_version"
     if [ "$pg_dump_version" -lt 14 ]; then
-        echo "pg_dump version is less than 14. Please upgrade to version 14 or higher."
+        print_and_log "ERROR" "pg_dump version is less than 14. Please upgrade to version 14 or higher."
         exit 1
     fi
 
@@ -161,7 +160,7 @@ main() {
     print_and_log "INFO" "Collecting schema information..."
     pg_dump_command="pg_dump $pg_connection_string --schema-only --schema='$schema_list' --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file=\"schema/schema.sql\""
     log "INFO" "Executing pg_dump: $pg_dump_command"
-    eval $pg_dump_command
+    eval $pg_dump_command 2>&1  | tee -a "$LOG_FILE"
 
     # Return to the original directory after operations are done
     popd > /dev/null

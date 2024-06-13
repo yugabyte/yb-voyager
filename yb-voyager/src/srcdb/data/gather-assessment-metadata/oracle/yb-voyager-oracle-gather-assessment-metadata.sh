@@ -154,7 +154,7 @@ main() {
         print_and_log "INFO" "Collecting $script_action..."
         sqlplus_command="sqlplus -S '$oracle_connection_string' @$script '$schema_name'"
         log "INFO" "executing sqlplus_command: $sqlplus_command"
-        eval $sqlplus_command
+        eval $sqlplus_command 2>&1  | tee -a "$LOG_FILE"
 
         # Post-processing step to remove the first line if it's empty in the generated CSV file
         csv_file_path="$assessment_metadata_dir/${script_name%.sqlplus}.csv"
@@ -211,12 +211,12 @@ main() {
         ltype=$(echo $type | tr '[:upper:]' '[:lower:]')
         output_dir="$assessment_metadata_dir/schema/${ltype}s"
         output_file="$ltype.sql"
-        log "INFO" "For type: $type - ltype: $ltype, output_dir: $output_dir, output_file: $output_file"
+        log "INFO" "For type $type - ltype: $ltype, output_dir: $output_dir, output_file: $output_file"
         mkdir -p $output_dir
 
         ora2pg_cmd="ORA2PG_PASSWD=$ORACLE_PASSWORD ora2pg -p -q -t $type -o $output_file -b $output_dir -c $OUTPUT_FILE_PATH --no_header"
         log "INFO" "executing ora2pg command for type $type: $ora2pg_cmd"
-        eval $ora2pg_cmd
+        eval $ora2pg_cmd 2>&1 | tee -a "$LOG_FILE"
     done
 
     # Return to the original directory after operations are done
