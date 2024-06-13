@@ -119,6 +119,12 @@ main() {
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
+	step "Run Schema validations."
+	if [ -x "${TEST_DIR}/validate-schema" ]
+	then
+		 "${TEST_DIR}/validate-schema"
+	fi
+
 	step "Export data."
 	# false if exit code of export_data is non-zero
 	export_data --export-type "snapshot-and-changes" || { 

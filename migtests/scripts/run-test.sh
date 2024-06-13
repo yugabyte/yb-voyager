@@ -133,6 +133,12 @@ main() {
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
+	step "Run Schema validations."
+	if [ -x "${TEST_DIR}/validate-schema" ]
+	then
+		 "${TEST_DIR}/validate-schema"
+	fi
+
 	step "Import data."
 	import_data
 	
