@@ -77,8 +77,8 @@ type SourceDBDetails struct {
 	Host      string `json:"host"`
 	DBType    string `json:"db_type"`
 	DBVersion string `json:"db_version"`
-	DBSize    int64  `json:"total_db_size"` //bytes
-
+	DBSize    int64  `json:"total_db_size"`  //bytes
+	Role      string `json:"role,omitempty"` //for differentiating replica details
 }
 
 type TargetDBDetails struct {
@@ -118,7 +118,10 @@ type ExportDataPhasePayload struct {
 	TotalRows           int64  `json:"total_rows"`
 	LargestTableRows    int64  `json:"largest_table_rows"`
 	StartClean          bool   `json:"start_clean"`
-	ExportDataMechanism string `json:"export_data_mechanism"`
+	ExportDataMechanism string `json:"export_data_mechanism,omitempty"`
+	LiveMigrationPhase  string `json:"live_migration_phase,omitempty"`
+	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
+	EventsExportRate    int64  `json:"events_export_rate,omitempty"`
 }
 
 type ImportSchemaPhasePayload struct {
@@ -129,10 +132,13 @@ type ImportSchemaPhasePayload struct {
 }
 
 type ImportDataPhasePayload struct {
-	ParallelJobs     int64 `json:"parallel_jobs"`
-	TotalRows        int64 `json:"total_rows"`
-	LargestTableRows int64 `json:"largest_table_rows"`
-	StartClean       bool  `json:"start_clean"`
+	ParallelJobs        int64  `json:"parallel_jobs"`
+	TotalRows           int64  `json:"total_rows"`
+	LargestTableRows    int64  `json:"largest_table_rows"`
+	StartClean          bool   `json:"start_clean"`
+	LiveMigrationPhase  string `json:"live_migration_phase,omitempty"`
+	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
+	EventsImportRate    int64  `json:"events_import_rate,omitempty"`
 }
 
 type ImportDataFilePhasePayload struct {

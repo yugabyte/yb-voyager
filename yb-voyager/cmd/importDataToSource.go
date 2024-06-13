@@ -16,10 +16,15 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -81,4 +86,51 @@ func initTargetConfFromSourceConf() error {
 	tconf.OracleHome = sconf.OracleHome
 	tconf.Uri = sconf.Uri
 	return nil
+}
+
+func packAndSendImportDataToSourcePayload(status string) {
+
+	if !callhome.SendDiagnostics {
+		return
+	}
+	payload := createCallhomePayload()
+	payload.MigrationType = LIVE_MIGRATION_WITH_FALLBACK
+
+	sourceDBDetails := callhome.SourceDBDetails{
+		Host:      tconf.Host,
+		DBType:    tconf.TargetDBType,
+		DBVersion: targetDBDetails.DBVersion,
+	}
+	bytes, err := json.Marshal(sourceDBDetails)
+	if err != nil {
+		log.Errorf("callhome: error in parsing sourceDBDetails: %v", err)
+	}
+	payload.SourceDBDetails = string(bytes)
+
+	payload.MigrationPhase = IMPORT_DATA_SOURCE_PHASE
+	importDataPayload := callhome.ImportDataPhasePayload{
+		ParallelJobs: int64(tconf.Parallelism),
+		StartClean:   bool(startClean),
+	}
+
+	if changeStreamingIsEnabled(importType) {
+		if cutoverToSourceByImport {
+			importDataPayload.LiveMigrationPhase = CUTOVER_TO_SOURCE
+		} else {
+			importDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
+		}
+		importDataPayload.EventsImportRate = callhomeEventsImportRate
+		importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
+
+	}
+
+	importDataPayloadBytes, err := json.Marshal(importDataPayload)
+	if err != nil {
+		log.Errorf("callhome: error in parsing the export data payload: %v", err)
+	}
+	payload.PhasePayload = string(importDataPayloadBytes)
+	payload.Status = status
+
+	callhome.SendPayload(&payload)
+	callHomePayloadSent = true
 }

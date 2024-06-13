@@ -58,29 +58,37 @@ const (
 	ROW_UPDATE_STATUS_COMPLETED     = 3
 	COLOCATION_CLAUSE               = "colocation"
 	//phase names used in call-home payload
-	ANALYZE_PHASE          = "analyze-schema"
-	EXPORT_SCHEMA_PHASE    = "export-schema"
-	EXPORT_DATA_PHASE      = "export-data"
-	IMPORT_SCHEMA_PHASE    = "import-schema"
-	IMPORT_DATA_PHASE      = "import-data"
-	END_MIGRATION_PHASE    = "end-migration"
-	ASSESS_MIGRATION_PHASE = "assess-migration"
-	IMPORT_DATA_FILE_PHASE = "import-data-file"
+	ANALYZE_PHASE                    = "analyze-schema"
+	EXPORT_SCHEMA_PHASE              = "export-schema"
+	EXPORT_DATA_PHASE                = "export-data"
+	IMPORT_SCHEMA_PHASE              = "import-schema"
+	IMPORT_DATA_PHASE                = "import-data"
+	IMPORT_DATA_SOURCE_REPLICA_PHASE = "import-data-to-source-repilca"
+	IMPORT_DATA_SOURCE_PHASE         = "import-data-to-source"
+	END_MIGRATION_PHASE              = "end-migration"
+	ASSESS_MIGRATION_PHASE           = "assess-migration"
+	IMPORT_DATA_FILE_PHASE           = "import-data-file"
 	//...more phases
 	OFFLINE        = "offline"
 	LIVE_MIGRATION = "live migration"
 	BULK_DATA_LOAD = "bulk data load from flat files"
+
+	LIVE_MIGRATION_WITH_FALL_FORWARD = "live migration with fall-forward"
+	LIVE_MIGRATION_WITH_FALLBACK     = "live migration with fall-back"
 
 	AWS_S3      = "AWS-S3"
 	GCS_BUCKETS = "GCS-Buckets"
 	AZURE_BLOBS = "Azure-blob-storage"
 	LOCAL_DISK  = "Local-disk"
 	//status
-	ERROR                = "ERROR"
-	EXIT                 = "EXIT"
-	COMPLETE             = "COMPLETE"
-	COMPLETE_WITH_ERRORS = "COMPLETE-WITH-ERRORS"
-	INPROGRESS           = "IN-PROGRESS"
+	ERROR                     = "ERROR"
+	EXIT                      = "EXIT"
+	COMPLETE                  = "COMPLETE"
+	COMPLETE_WITH_ERRORS      = "COMPLETE-WITH-ERRORS"
+	INPROGRESS                = "IN-PROGRESS"
+	CUTOVER_TO_TARGET         = "cutover-to-target"
+	CUTOVER_TO_SOURCE         = "cutover-to-source"
+	CUTOVER_TO_SOURCE_REPLICA = "cutover-to-source-replica"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

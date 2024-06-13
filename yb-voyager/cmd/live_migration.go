@@ -30,6 +30,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
@@ -46,6 +47,8 @@ var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
 var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
+var callhomeTotalImportEvents, callhomeEventsImportRate int64
+var cutoverToTargetByImport, cutoverToSourceReplicaByImport, cutoverToSourceByImport bool
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 100)
@@ -175,6 +178,18 @@ func streamChangesFromSegment(
 		if event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE ||
 			event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
 			event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
+
+			if callhome.SendDiagnostics {
+				switch true {
+				case event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE:
+					cutoverToTargetByImport = true
+				case event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE:
+					cutoverToSourceReplicaByImport = true
+				case event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE:
+					cutoverToSourceByImport = true
+				}
+			}
+
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
@@ -349,6 +364,10 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
+		if callhome.SendDiagnostics {
+			callhomeTotalImportEvents = statsReporter.TotalEventsImported
+			callhomeEventsImportRate = statsReporter.EventsImportRateLast3Min
+		}
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
 	}

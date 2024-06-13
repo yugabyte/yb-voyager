@@ -50,6 +50,8 @@ import (
 )
 
 var exporterRole string = SOURCE_DB_EXPORTER_ROLE
+var isExportLiveMigrationInSnapshot bool
+var cutoverToTargetByExport, cutoverToSourceByExport, cutoverToSourceReplicaByExport bool
 
 var exportDataCmd = &cobra.Command{
 	Use: "data",
@@ -128,7 +130,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		packAndSendExportDataPayload(COMPLETE)
+		sendPayloadAsPerExporterRole(COMPLETE)
 
 		setDataIsExported()
 		color.Green("Export of data complete")
@@ -136,17 +138,28 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		startFallBackSetupIfRequired()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
-		packAndSendExportDataPayload(EXIT)
+		sendPayloadAsPerExporterRole(EXIT)
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
-		packAndSendExportDataPayload(ERROR)
+		sendPayloadAsPerExporterRole(ERROR)
 		atexit.Exit(1)
 	}
 }
 
+func sendPayloadAsPerExporterRole(status string) {
+	if !callhome.SendDiagnostics {
+		return
+	}
+	switch exporterRole {
+	case SOURCE_DB_EXPORTER_ROLE:
+		packAndSendExportDataPayload(status)
+	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
+		packAndSendExportDataFromTargetPayload(status)
+	}
+}
+
 func packAndSendExportDataPayload(status string) {
-	//TODO: send this INPROGRESS status in some fixed interval for long running export data
 
 	if !callhome.SendDiagnostics {
 		return
@@ -178,6 +191,22 @@ func packAndSendExportDataPayload(status string) {
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
+
+	if changeStreamingIsEnabled(exportType) {
+		exportDataPayload.ExportDataMechanism = "" //unsetting this as not required
+		if isExportLiveMigrationInSnapshot {
+			exportDataPayload.LiveMigrationPhase = dbzm.MODE_SNAPSHOT
+		} else {
+			if cutoverToTargetByExport {
+				exportDataPayload.LiveMigrationPhase = CUTOVER_TO_TARGET
+			} else {
+				exportDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
+			}
+			exportDataPayload.TotalExportedEvents = callhomeTotalExportEvents
+			exportDataPayload.EventsExportRate = callhomeEventsExportRate
+		}
+
+	}
 
 	exportDataPayloadBytes, err := json.Marshal(exportDataPayload)
 	if err != nil {
@@ -284,6 +313,7 @@ func exportData() bool {
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
+		isExportLiveMigrationInSnapshot = true
 		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
 		if err != nil {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
@@ -358,6 +388,18 @@ func exportData() bool {
 			if err != nil {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
+
+			if callhome.SendDiagnostics {
+				switch exporterRole {
+				case SOURCE_DB_EXPORTER_ROLE:
+					cutoverToTargetByExport = true
+				case TARGET_DB_EXPORTER_FF_ROLE:
+					cutoverToSourceReplicaByExport = true
+				case TARGET_DB_EXPORTER_FB_ROLE:
+					cutoverToSourceByExport = true
+				}
+			}
+
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}

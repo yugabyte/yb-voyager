@@ -55,6 +55,7 @@ var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
 var identityColumnsMetaDBKey string
+var isImportLiveMigrationInSnapshot bool
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -159,6 +160,8 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
+
+	isImportLiveMigrationInSnapshot = true
 
 	importData(importFileTasks)
 	tdb.Finalize()
@@ -527,7 +530,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			if importerRole != SOURCE_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
-
+			isImportLiveMigrationInSnapshot = false
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
 			if err != nil {
@@ -574,10 +577,15 @@ func importData(importFileTasks []*ImportFileTask) {
 
 	fmt.Printf("\nImport data complete.\n")
 
-	if importerRole == TARGET_DB_IMPORTER_ROLE {
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE) // TODO: later for other import data commands
+		packAndSendImportDataPayload(COMPLETE)
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		packAndSendImportDataToSrcReplicaPayload(COMPLETE)
+	case SOURCE_DB_IMPORTER_ROLE:
+		packAndSendImportDataToSourcePayload(COMPLETE)
 	}
 
 }
@@ -616,6 +624,21 @@ func packAndSendImportDataPayload(status string) {
 			return true, nil
 		})
 	}
+
+	if changeStreamingIsEnabled(importType) {
+		if isImportLiveMigrationInSnapshot {
+			importDataPayload.LiveMigrationPhase = dbzm.MODE_SNAPSHOT
+		} else {
+			if cutoverToTargetByImport {
+				importDataPayload.LiveMigrationPhase = CUTOVER_TO_TARGET
+			} else {
+				importDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
+			}
+			importDataPayload.EventsImportRate = callhomeEventsImportRate
+			importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
+		}
+	}
+
 	importDataPayloadBytes, err := json.Marshal(importDataPayload)
 	if err != nil {
 		log.Errorf("callhome: error in parsing the export data payload: %v", err)

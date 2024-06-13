@@ -16,10 +16,15 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -107,4 +112,53 @@ func initSourceConfFromTargetConf() error {
 	source.SSLQueryString = targetConf.SSLQueryString
 	source.Uri = targetConf.Uri
 	return nil
+}
+
+func packAndSendExportDataFromTargetPayload(status string) {
+	if !callhome.SendDiagnostics {
+		return
+	}
+	payload := createCallhomePayload()
+	payload.MigrationType = LIVE_MIGRATION
+
+	targetDBDetails := callhome.TargetDBDetails{
+		Host:      source.Host,
+		DBVersion: source.DBVersion,
+	}
+	targetDBBytes, err := json.Marshal(targetDBDetails)
+	if err != nil {
+		log.Errorf("callhome: error parsing targetDB Details: %v", err)
+	}
+	payload.SourceDBDetails = string(targetDBBytes)
+
+	payload.MigrationPhase = EXPORT_DATA_PHASE
+	exportDataPayload := callhome.ExportDataPhasePayload{
+		ParallelJobs: int64(source.NumConnections),
+		StartClean:   bool(startClean),
+	}
+
+	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
+
+	if changeStreamingIsEnabled(exportType) {
+		exportDataPayload.ExportDataMechanism = "" //unsetting this as not required
+		if cutoverToSourceByExport {
+			exportDataPayload.LiveMigrationPhase = CUTOVER_TO_SOURCE
+		} else if cutoverToSourceReplicaByExport {
+			exportDataPayload.LiveMigrationPhase = CUTOVER_TO_SOURCE_REPLICA
+		} else {
+			exportDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
+		}
+		exportDataPayload.TotalExportedEvents = callhomeTotalExportEvents
+		exportDataPayload.EventsExportRate = callhomeEventsExportRate
+	}
+
+	exportDataPayloadBytes, err := json.Marshal(exportDataPayload)
+	if err != nil {
+		log.Errorf("callhome: error in parsing the export data payload: %v", err)
+	}
+	payload.PhasePayload = string(exportDataPayloadBytes)
+	payload.Status = status
+
+	callhome.SendPayload(&payload)
+	callHomePayloadSent = true
 }

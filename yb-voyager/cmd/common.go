@@ -1052,6 +1052,8 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendExportDataPayload(EXIT)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
 		packAndSendImportDataPayload(EXIT)
+	case importDataToSourceReplicaCmd.CommandPath():
+		packAndSendImportDataToSrcReplicaPayload(EXIT)
 	case endMigrationCmd.CommandPath():
 		packAndSendEndMigrationPayload(EXIT)
 	case importDataFileCmd.CommandPath():
@@ -1118,6 +1120,8 @@ func sendCallhomePayloadAtIntervals(ctx context.Context) {
 				packAndSendExportDataPayload(INPROGRESS)
 			case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
 				packAndSendImportDataPayload(INPROGRESS)
+			case importDataToSourceReplicaCmd.CommandPath():
+				packAndSendImportDataToSrcReplicaPayload(INPROGRESS)
 			case importDataFileCmd.CommandPath():
 				packAndSendImportDataFilePayload(INPROGRESS)
 			}

@@ -16,11 +16,17 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var importDataToSourceReplicaCmd = &cobra.Command{
@@ -81,4 +87,67 @@ func updateFallForwardEnabledInMetaDB() {
 	if err != nil {
 		utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
 	}
+}
+
+func packAndSendImportDataToSrcReplicaPayload(status string) {
+	//TODO send this for INPROGRESS status in some fixed interval for long running import data
+	if !callhome.SendDiagnostics {
+		return
+	}
+	payload := createCallhomePayload()
+	payload.MigrationType = LIVE_MIGRATION_WITH_FALL_FORWARD
+
+	sourceDBDetails := callhome.SourceDBDetails{
+		Host:      tconf.Host,
+		DBType:    tconf.TargetDBType,
+		DBVersion: targetDBDetails.DBVersion,
+		Role:      "replica",
+	}
+	bytes, err := json.Marshal(sourceDBDetails)
+	if err != nil {
+		log.Errorf("callhome: error in parsing sourceDBDetails: %v", err)
+	}
+	payload.SourceDBDetails = string(bytes)
+
+	payload.MigrationPhase = IMPORT_DATA_SOURCE_REPLICA_PHASE
+	importDataPayload := callhome.ImportDataPhasePayload{
+		ParallelJobs: int64(tconf.Parallelism),
+		StartClean:   bool(startClean),
+	}
+	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
+	if err != nil {
+		log.Errorf("callhome: error in getting the import data: %v", err)
+	} else {
+		importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+			importDataPayload.TotalRows += value
+			if value > importDataPayload.LargestTableRows {
+				importDataPayload.LargestTableRows = value
+			}
+			return true, nil
+		})
+	}
+
+	if changeStreamingIsEnabled(importType) {
+		if isImportLiveMigrationInSnapshot {
+			importDataPayload.LiveMigrationPhase = dbzm.MODE_SNAPSHOT
+		} else {
+			if cutoverToSourceReplicaByImport {
+				importDataPayload.LiveMigrationPhase = CUTOVER_TO_SOURCE_REPLICA
+			} else {
+				importDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
+			}
+			importDataPayload.EventsImportRate = callhomeEventsImportRate
+			importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
+		}
+	}
+
+	importDataPayloadBytes, err := json.Marshal(importDataPayload)
+	if err != nil {
+		log.Errorf("callhome: error in parsing the export data payload: %v", err)
+	}
+	payload.PhasePayload = string(importDataPayloadBytes)
+	payload.Status = status
+
+	callhome.SendPayload(&payload)
+	callHomePayloadSent = true
 }
