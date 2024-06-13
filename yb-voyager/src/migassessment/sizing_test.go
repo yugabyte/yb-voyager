@@ -26,9 +26,9 @@ import (
 	"testing"
 )
 
-var SourceDbSelectQuery = "SELECT schema_name, object_name, row_count, reads_per_second, writes_per_second, " +
-	"is_index, parent_table_name, size_in_bytes FROM table_index_stats ORDER BY size_in_bytes ASC"
-var SourceDBColumns = []string{"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
+var AssessmentDbSelectQuery = fmt.Sprintf("SELECT schema_name, object_name, row_count, reads_per_second, writes_per_second, "+
+	"is_index, parent_table_name, size_in_bytes FROM %v ORDER BY size_in_bytes ASC", TABLE_INDEX_STATS)
+var AssessmentDBColumns = []string{"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
 	"is_index", "parent_table_name", "size_in_bytes"}
 
 var colocatedLimits = []ExpDataColocatedLimit{
@@ -76,11 +76,11 @@ var colocatedLimits = []ExpDataColocatedLimit{
 // verify successfully able to connect and load the source metadata
 func TestGetSourceMetadata_SuccessReadingSourceMetadata(t *testing.T) {
 	db, mock := createMockDB(t)
-	rows := sqlmock.NewRows(SourceDBColumns).
+	rows := sqlmock.NewRows(AssessmentDBColumns).
 		AddRow("public", "table1", 1000, 10, 5, false, "", 1048576000).
 		AddRow("public", "index1", 0, 0, 0, true, "table1", 104857600)
 
-	mock.ExpectQuery(SourceDbSelectQuery).WillReturnRows(rows)
+	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadata(db)
 	// assert if there are errors
@@ -101,7 +101,7 @@ func TestGetSourceMetadata_SuccessReadingSourceMetadata(t *testing.T) {
 // if table_index_stat does not exist in the assessment.db or one of the required column does not exist in the table
 func TestGetSourceMetadata_QueryErrorIfTableDoesNotExistOrColumnsUnavailable(t *testing.T) {
 	db, mock := createMockDB(t)
-	mock.ExpectQuery(SourceDbSelectQuery).WillReturnError(errors.New("query error"))
+	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnError(errors.New("query error"))
 
 	_, _, _, err := getSourceMetadata(db)
 	assert.Error(t, err)
@@ -114,9 +114,9 @@ func TestGetSourceMetadata_QueryErrorIfTableDoesNotExistOrColumnsUnavailable(t *
 func TestGetSourceMetadata_RowScanError(t *testing.T) {
 	db, mock := createMockDB(t)
 	// 4th column is expected to be int, but as it is float, it will throw an error
-	rows := sqlmock.NewRows(SourceDBColumns).AddRow("public", "table1", 1000, 10.5, 5, false, "", 1048576000).
+	rows := sqlmock.NewRows(AssessmentDBColumns).AddRow("public", "table1", 1000, 10.5, 5, false, "", 1048576000).
 		RowError(1, errors.New("row scan error"))
-	mock.ExpectQuery(SourceDbSelectQuery).WillReturnRows(rows)
+	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
 	_, _, _, err := getSourceMetadata(db)
 	assert.Error(t, err)
@@ -127,8 +127,8 @@ func TestGetSourceMetadata_RowScanError(t *testing.T) {
 // verify if there are no rows in the source metadata
 func TestGetSourceMetadata_NoRows(t *testing.T) {
 	db, mock := createMockDB(t)
-	rows := sqlmock.NewRows(SourceDBColumns)
-	mock.ExpectQuery(SourceDbSelectQuery).WillReturnRows(rows)
+	rows := sqlmock.NewRows(AssessmentDBColumns)
+	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadata(db)
 
 	assert.NoError(t, err)
