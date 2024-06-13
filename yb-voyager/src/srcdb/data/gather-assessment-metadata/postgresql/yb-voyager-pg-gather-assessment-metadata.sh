@@ -62,7 +62,6 @@ fi
 
 # Set default iops interval
 iops_capture_interval=120
-
 # Override default sleep interval if a fourth argument is provided
 if [ "$#" -eq 4 ]; then
     iops_capture_interval=$4
@@ -73,71 +72,102 @@ fi
 pg_connection_string=$1
 schema_list=$2
 assessment_metadata_dir=$3
-
-
 # check if assessment_metadata_dir exists, if not exit 1
 if [ ! -d "$assessment_metadata_dir" ]; then
     echo "Directory $assessment_metadata_dir does not exist. Please create the directory and try again."
     exit 1
 fi
 
-# Switch to assessment_metadata_dir and remember the current directory
-pushd "$assessment_metadata_dir" > /dev/null || exit
+LOG_FILE=$assessment_metadata_dir/assessment.log
+log() {
+    local level="$1"
+    shift
+    local message="$@"
+    echo "[$(date -u +'%Y-%m-%d %H:%M:%S')] [$level] $message" | tee -a "$LOG_FILE" > /dev/null
+}
 
-if [ -z "$PGPASSWORD" ]; then 
-    echo -n "Enter PostgreSQL password: "
-    read -s PGPASSWORD
-    echo
-    export PGPASSWORD
-fi
+print_and_log() {
+    local level="$1"
+    shift
+    local message="$@"
+    echo "$message"
+    log "$level" "$message"
+}
 
+main() {
+    # Resolve the absolute path of assessment_metadata_dir
+    assessment_metadata_dir=$(cd "$assessment_metadata_dir" && pwd)
+    
+    # Switch to assessment_metadata_dir and remember the current directory
+    log "INFO" "switch to assessment_metadata_dir='$assessment_metadata_dir'"
+    pushd "$assessment_metadata_dir" > /dev/null || exit
 
-track_counts_on=$(psql $pg_connection_string -tAqc "SELECT setting FROM pg_settings WHERE name = 'track_counts';")
-if [ "$track_counts_on" != "on" ]; then
-    echo "Warning: track_counts is not enabled in the PostgreSQL configuration."
-    echo "It's required for calculating reads/writes per second stats of tables/indexes. Do you still want to continue? (Y/N): "
-    read continue_execution
-    continue_execution=$(echo "$continue_execution" | tr '[:upper:]' '[:lower:]') # converting to lower case for easier comparison
-    if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
-        echo "Exiting..."
-        exit 2
+    if [ -z "$PGPASSWORD" ]; then 
+        echo -n "Enter PostgreSQL password: "
+        read -s PGPASSWORD
+        echo
+        export PGPASSWORD
     fi
-fi
 
 
-echo "Assessment metadata collection started"
-
-# TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
-for script in $SCRIPT_DIR/*.psql; do
-    script_name=$(basename "$script" .psql)
-    script_action=$(basename "$script" .psql | sed 's/-/ /g')
-    echo "Collecting $script_action..."
-    if [ $script_name == "table-index-iops" ]; then
-        psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial
-        mv table-index-iops.csv table-index-iops-initial.csv
-        
-        # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
-        sleep $iops_capture_interval 
-        
-        psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final -v filename=$script_name-initial.csv
-        mv table-index-iops.csv table-index-iops-final.csv
-    else
-        psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on
+    track_counts_on=$(psql $pg_connection_string -tAqc "SELECT setting FROM pg_settings WHERE name = 'track_counts';")
+    if [ "$track_counts_on" != "on" ]; then
+        print_and_log "WARN" "Warning: track_counts is not enabled in the PostgreSQL configuration."
+        echo "It's required for calculating reads/writes per second stats of tables/indexes. Do you still want to continue? (Y/N): "
+        read continue_execution
+        continue_execution=$(echo "$continue_execution" | tr '[:upper:]' '[:lower:]') # converting to lower case for easier comparison
+        if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
+            echo "Exiting..."
+            exit 2
+        fi
     fi
-done
 
-# check for pg_dump version
-pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
-if [ "$pg_dump_version" -lt 14 ]; then
-    echo "pg_dump version is less than 14. Please upgrade to version 14 or higher."
-    exit 1
-fi
+    print_and_log "INFO" "Assessment metadata collection started for '$schema_list' schemas"
+    # TODO: Test and handle(if required) the queries for case-sensitive and reserved keywords cases
+    for script in $SCRIPT_DIR/*.psql; do
+        script_name=$(basename "$script" .psql)
+        script_action=$(basename "$script" .psql | sed 's/-/ /g')
+        print_and_log "INFO" "Collecting $script_action..."
+        if [ $script_name == "table-index-iops" ]; then
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
+            log "INFO" "Executing initial IOPS collection: $psql_command"
+            eval $psql_command
+            mv table-index-iops.csv table-index-iops-initial.csv
+            
+            log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
+            # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
+            sleep $iops_capture_interval 
+            
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
+            log "INFO" "Executing final IOPS collection: $psql_command"
+            eval $psql_command
+            mv table-index-iops.csv table-index-iops-final.csv
+        else
+            psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
+            log "INFO" "Executing script: $psql_command"
+            eval $psql_command
+        fi
+    done
 
-mkdir -p schema
-echo "Collecting schema information..."
-pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension="*" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file="schema/schema.sql"
+    # check for pg_dump version
+    pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
+    log "INFO" "extracted pg_dump version: $pg_dump_version"
+    if [ "$pg_dump_version" -lt 14 ]; then
+        echo "pg_dump version is less than 14. Please upgrade to version 14 or higher."
+        exit 1
+    fi
 
-# Return to the original directory after operations are done
-popd > /dev/null
+    mkdir -p schema
+    print_and_log "INFO" "Collecting schema information..."
+    pg_dump_command="pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file=\"schema/schema.sql\""
+    log "INFO" "Executing pg_dump: $pg_dump_command"
+    eval $pg_dump_command
 
-echo "Assessment metadata collection completed"
+    # Return to the original directory after operations are done
+    popd > /dev/null
+
+    print_and_log "INFO" "Assessment metadata collection completed"
+}
+
+main
