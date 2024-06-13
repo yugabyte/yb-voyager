@@ -162,6 +162,9 @@ func NewAssessmentDB(sourceDBType string) (*AssessmentDB, error) {
 }
 
 func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
+	if len(records) == 0 {
+		return nil
+	}
 	ctx := context.Background()
 	tx, err := adb.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
