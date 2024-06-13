@@ -464,14 +464,44 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 }
 
 func (pg *PostgreSQL) GetDatabaseSize() (int64, error) {
-	var dbSize int64
-	query := fmt.Sprintf("select pg_database_size('%s'); ", pg.source.DBName)
-	err := pg.db.QueryRow(query).Scan(&dbSize)
+	var totalSchemasSize, totalSize int64
+	schemaList := strings.Join(strings.Split(pg.source.Schema, "|"), "','")
+	query := fmt.Sprintf(`SELECT
+    nspname AS schema_name,
+    SUM(pg_total_relation_size(pg_class.oid)) AS total_size
+FROM
+    pg_class
+    JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+WHERE
+    nspname in ('%s')  
+GROUP BY
+    nspname;`, schemaList)
+
+	rows, err := pg.db.Query(query)
 	if err != nil {
-		return 0, fmt.Errorf("error in querying database encoding: %w", err)
+		return 0, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
 	}
-	log.Infof("Total Database size of PG sourceDB: %v", dbSize)
-	return dbSize, nil
+
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+
+	var schemaName string
+	for rows.Next() {
+		err = rows.Scan(&schemaName, &totalSize)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for sequence names: %v", err)
+		}
+		totalSchemasSize += totalSize
+	}
+	if rows.Err() != nil {
+		return 0, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
+	}
+	log.Infof("Total size of all PG sourceDB schemas ('%s'): %v", schemaList, totalSchemasSize)
+	return totalSchemasSize, nil
 }
 
 func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
