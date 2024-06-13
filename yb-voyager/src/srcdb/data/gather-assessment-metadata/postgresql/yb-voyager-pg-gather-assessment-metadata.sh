@@ -129,7 +129,7 @@ main() {
         script_action=$(basename "$script" .psql | sed 's/-/ /g')
         print_and_log "INFO" "Collecting $script_action..."
         if [ $script_name == "table-index-iops" ]; then
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on -v measurement_type=initial"
             log "INFO" "Executing initial IOPS collection: $psql_command"
             eval $psql_command
             mv table-index-iops.csv table-index-iops-initial.csv
@@ -138,13 +138,12 @@ main() {
             # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
             sleep $iops_capture_interval 
             
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on -v measurement_type=final"
             log "INFO" "Executing final IOPS collection: $psql_command"
             eval $psql_command
             mv table-index-iops.csv table-index-iops-final.csv
         else
-            psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on"
             log "INFO" "Executing script: $psql_command"
             eval $psql_command
         fi
@@ -160,7 +159,7 @@ main() {
 
     mkdir -p schema
     print_and_log "INFO" "Collecting schema information..."
-    pg_dump_command="pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file=\"schema/schema.sql\""
+    pg_dump_command="pg_dump $pg_connection_string --schema-only --schema='$schema_list' --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file=\"schema/schema.sql\""
     log "INFO" "Executing pg_dump: $pg_dump_command"
     eval $pg_dump_command
 

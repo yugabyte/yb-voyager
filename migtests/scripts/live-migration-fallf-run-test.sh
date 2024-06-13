@@ -76,7 +76,8 @@ main() {
 	step "Assess Migration"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		assess_migration || {
-			cat_log_file ${EXPORT_DIR}/assessment/metadata/assessment.log
+			cat_log_file "yb-voyager-assess-migration.log"
+			cat_file ${EXPORT_DIR}/assessment/metadata/assessment.log
 		}
 
 		step "Validate Assessment Reports"
