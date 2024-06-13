@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -127,10 +128,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		tableRowCount := getExportedRowCountSnapshot(exportDir)
-		callhome.GetPayload(exportDir, migrationUUID)
-		callhome.UpdateDataStats(exportDir, tableRowCount)
-		callhome.PackAndSendPayload(exportDir)
+		packAndSendExportDataPayload(COMPLETE)
 
 		setDataIsExported()
 		color.Green("Export of data complete")
@@ -138,17 +136,69 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		startFallBackSetupIfRequired()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
+		packAndSendExportDataPayload(EXIT)
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
+		packAndSendExportDataPayload(ERROR)
 		atexit.Exit(1)
 	}
+}
+
+func packAndSendExportDataPayload(status string) {
+	//TODO: send this INPROGRESS status in some fixed interval for long running export data
+
+	if !callhome.SendDiagnostics {
+		return
+	}
+	payload := createCallhomePayload()
+
+	switch exportType {
+	case SNAPSHOT_ONLY:
+		payload.MigrationType = OFFLINE
+	case SNAPSHOT_AND_CHANGES:
+		payload.MigrationType = LIVE_MIGRATION
+	}
+	sourceDBDetails := callhome.SourceDBDetails{
+		Host:      source.Host,
+		DBType:    source.DBType,
+		DBVersion: source.DBVersion,
+		DBSize:    source.DBSize,
+	}
+	sourceDbBytes, err := json.Marshal(sourceDBDetails)
+	if err != nil {
+		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
+	}
+	payload.SourceDBDetails = string(sourceDbBytes)
+
+	payload.MigrationPhase = EXPORT_DATA_PHASE
+	exportDataPayload := callhome.ExportDataPhasePayload{
+		ParallelJobs: int64(source.NumConnections),
+		StartClean:   bool(startClean),
+	}
+
+	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
+
+	exportDataPayloadBytes, err := json.Marshal(exportDataPayload)
+	if err != nil {
+		log.Errorf("callhome: error in parsing the export data payload: %v", err)
+	}
+	payload.PhasePayload = string(exportDataPayloadBytes)
+	payload.Status = status
+
+	callhome.SendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
+	}
+	source.DBVersion = source.DB().GetVersion()
+	source.DBSize, err = source.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
 	defer source.DB().Disconnect()
 	clearMigrationStateIfRequired()

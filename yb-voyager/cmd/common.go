@@ -16,7 +16,10 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,6 +43,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -988,4 +992,87 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes",
 		ar.Sizing.SizingRecommendation.NumNodes, ar.Sizing.SizingRecommendation.VCPUsPerInstance,
 		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport)
+}
+
+// ==========================================================================
+
+func createCallhomePayload() callhome.Payload {
+	var payload callhome.Payload
+	payload.MigrationUUID = migrationUUID
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
+	payload.TimeTakenSec = int(math.Ceil(time.Since(startTime).Seconds()))
+
+	return payload
+}
+
+func PackAndSendCallhomePayloadOnExit() {
+	if callHomePayloadSent {
+		return
+	}
+	switch currentCommand {
+	case assessMigrationCmd.CommandPath():
+		packAndSendAssessMigrationPayload(EXIT, "Exiting....")
+	case exportSchemaCmd.CommandPath():
+		packAndSendExportSchemaPayload(EXIT)
+	case analyzeSchemaCmd.CommandPath():
+		packAndSendAnalyzeSchemaPayload(EXIT)
+	case importSchemaCmd.CommandPath():
+		packAndSendImportSchemaPayload(EXIT, "Exiting....")
+	case exportDataCmd.CommandPath():
+		packAndSendExportDataPayload(EXIT)
+	case importDataCmd.CommandPath():
+		packAndSendImportDataPayload(EXIT)
+	case endMigrationCmd.CommandPath():
+		packAndSendEndMigrationPayload(EXIT)
+		//..more cases
+	}
+}
+
+func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDataPhasePayload) {
+	//Updating the payload with totalRows and LargestTableRows for both debezium/non-debezium case
+	if useDebezium {
+		//debezium case reading export_status.json file
+		exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
+		dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
+		if err != nil {
+			log.Errorf("callhome: error in reading export status: %v", err)
+		}
+		if dbzmStatus != nil {
+			for _, tableExportStatus := range dbzmStatus.Tables {
+				exportDataPayload.TotalRows += tableExportStatus.ExportedRowCountSnapshot
+				if tableExportStatus.ExportedRowCountSnapshot > exportDataPayload.LargestTableRows {
+					exportDataPayload.LargestTableRows = tableExportStatus.ExportedRowCountSnapshot
+				}
+			}
+		}
+		exportDataPayload.ExportDataMechanism = "debezium"
+	} else {
+		//non-debezium case reading the export_snapshot_status.json file
+		if exportSnapshotStatusFile != nil {
+			exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
+			if err != nil {
+				if !errors.Is(err, fs.ErrNotExist) {
+					log.Errorf("callhome: failed to read export status file: %v", err)
+				}
+			}
+			exportedSnapshotRow, _, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
+			if err != nil {
+				log.Errorf("callhome: error while getting exported snapshot rows map: %v", err)
+			}
+			exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+				exportDataPayload.TotalRows += value
+				if value >= exportDataPayload.LargestTableRows {
+					exportDataPayload.LargestTableRows = value
+				}
+				return true, nil
+			})
+		}
+		switch source.DBType {
+		case POSTGRESQL:
+			exportDataPayload.ExportDataMechanism = "pg_dump"
+		case ORACLE, MYSQL:
+			exportDataPayload.ExportDataMechanism = "ora2pg"
+		}
+	}
 }

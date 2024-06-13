@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,7 +56,12 @@ var importSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		importSchema()
+		err := importSchema()
+		if err != nil {
+			packAndSendImportSchemaPayload(ERROR, err.Error())
+			utils.ErrExit("error in importing schema: %s", err)
+		}
+		packAndSendImportSchemaPayload(COMPLETE, "")
 	},
 }
 
@@ -72,19 +78,23 @@ var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
 var invalidTargetIndexesCache map[string]bool
 
-func importSchema() {
+func importSchema() error {
 	err := retrieveMigrationUUID()
 	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
+		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
+
+	targetDBDetails = &callhome.TargetDBDetails{
+		Host: tconf.Host,
+	}
 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		utils.ErrExit("Unable to connect to target YugabyteDB database: %v", err)
+		return fmt.Errorf("unable to connect to target YugabyteDB database: %v", err)
 	}
 	defer conn.Close(context.Background())
 
@@ -92,12 +102,10 @@ func importSchema() {
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err = conn.QueryRow(context.Background(), query).Scan(&targetDBVersion)
 	if err != nil {
-		utils.ErrExit("get target db version: %s", err)
+		return fmt.Errorf("get target db version: %s", err)
 	}
+	targetDBDetails.DBVersion = targetDBVersion
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
-
-	payload := callhome.GetPayload(exportDir, migrationUUID)
-	payload.TargetDBVersion = targetDBVersion
 
 	if !flagPostSnapshotImport {
 		filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
@@ -150,18 +158,27 @@ func importSchema() {
 			return false
 		}
 		skipFn := isSkipStatement
-		importSchemaInternal(exportDir, objectList, skipFn)
+		err = importSchemaInternal(exportDir, objectList, skipFn)
+    if err != nil {
+      return err
+    }
 
 		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 		skipFn = func(objType, stmt string) bool {
 			return !isSkipStatement(objType, stmt)
 		}
 		if slices.Contains(objectList, "SEQUENCE") {
-			importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
-		}
-		if slices.Contains(objectList, "TABLE") {
-			importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
-		}
+      err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
+      if err != nil {
+        return err
+      }
+    }
+    if slices.Contains(objectList, "TABLE") {
+      err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
+      if err != nil {
+        return err
+      }
+    }
 
 		importDeferredStatements()
 		log.Info("Schema import is complete.")
@@ -178,7 +195,55 @@ func importSchema() {
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
 	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
-	callhome.PackAndSendPayload(exportDir)
+	return nil
+}
+
+func packAndSendImportSchemaPayload(status string, errMsg string) {
+	if !callhome.SendDiagnostics {
+		return
+	}
+	//Basic details in the payload
+	payload := createCallhomePayload()
+	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
+	payload.Status = status
+	targetDBDetailsBytes, err := json.Marshal(targetDBDetails)
+	if err != nil {
+		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
+	}
+	payload.TargetDBDetails = string(targetDBDetailsBytes)
+
+	//Handling the error cases in import schema with/without continue-on-error
+	var errorsList []string
+	//e.g for finalFailedSqlStmts - [`/*\nERROR: changing primary key of a partitioned table is not yet implemented (SQLSTATE XX000)*/\n
+	//	ALTER TABLE ONLY public.customers\n ADD CONSTRAINT customers_pkey PRIMARY KEY (id, statuses, arr);`]
+	for _, stmt := range finalFailedSqlStmts {
+		//parts - ["/*\nERROR: changing primary key of a partitioned table is not yet implemented (SQLSTATE XX000)" "ALTER TABLE ONLY public.customers\n ADD CONSTRAINT customers_pkey PRIMARY KEY (id, statuses, arr);"]
+		parts := strings.Split(stmt, "*/\n") 
+		errorsList = append(errorsList, strings.Trim(parts[0], "/*\n")) //trimming the prefix of `/*\n` from parts[0] (the error msg)
+	}
+	if status == ERROR {
+		errorsList = append(errorsList, errMsg)
+	} else {
+		if len(errorsList) > 0 {
+			payload.Status = COMPLETE_WITH_ERRORS
+		}
+	}
+
+	//import-schema specific payload details
+	importSchemaPayload := callhome.ImportSchemaPhasePayload{
+		ContinueOnError:    bool(tconf.ContinueOnError),
+		Errors:             errorsList,
+		PostSnapshotImport: bool(flagPostSnapshotImport),
+		StartClean:         bool(startClean),
+	}
+	importSchemaPayloadBytes, err := json.Marshal(importSchemaPayload)
+	if err != nil {
+		log.Errorf("callhome: error in parsing payload: %v", err)
+	}
+
+	payload.PhasePayload = string(importSchemaPayloadBytes)
+	callhome.SendPayload(&payload)
+	callHomePayloadSent = true
 }
 
 func isYBDatabaseIsColocated(conn *pgx.Conn) bool {

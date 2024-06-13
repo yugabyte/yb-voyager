@@ -49,6 +49,8 @@ var (
 	perfProfile              utils.BoolStr
 	ProcessShutdownRequested bool
 	controlPlane             cp.ControlPlane
+	currentCommand           string
+	callHomePayloadSent      bool
 )
 
 var rootCmd = &cobra.Command{
@@ -58,6 +60,7 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		currentCommand = cmd.CommandPath()
 		if !shouldRunPersistentPreRun(cmd) {
 			return
 		}
