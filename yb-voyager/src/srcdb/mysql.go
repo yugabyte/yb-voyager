@@ -254,6 +254,7 @@ func (ms *MySQL) GetDatabaseSize() (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error in querying database encoding: %w", err)
 	}
+	log.Infof("Total Database size of MySQL sourceDB: %v", dbSize)
 	return dbSize, nil
 }
 

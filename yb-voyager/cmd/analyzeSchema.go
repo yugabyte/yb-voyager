@@ -55,10 +55,11 @@ type sqlInfo struct {
 }
 
 var (
-	anything                     = `.*`
-	ws                           = `[\s\n\t]+`
-	optionalWS                   = `[\s\n\t]*` //optional white spaces
-	ident                        = `[a-zA-Z0-9_."]+`
+	anything   = `.*`
+	ws         = `[\s\n\t]+`
+	optionalWS = `[\s\n\t]*` //optional white spaces
+	//TODO: fix this ident regex for the proper PG identifiers syntax - refer: https://github.com/yugabyte/yb-voyager/pull/1547#discussion_r1629282309
+	ident                        = `[a-zA-Z0-9_."-]+`
 	ifExists                     = opt("IF", "EXISTS")
 	ifNotExists                  = opt("IF", "NOT", "EXISTS")
 	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
@@ -72,7 +73,7 @@ var (
 		"orafce", "pageinspect", "pg_buffercache", "pg_cron", "pg_freespacemap", "pg_hint_plan", "pg_prewarm", "pg_stat_monitor",
 		"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
 		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
-		"tsm_system_time", "unaccent", "uuid-ossp", "yb_pg_metrics", "yb_test_extension",
+		"tsm_system_time", "unaccent", `"uuid-ossp"`, "yb_pg_metrics", "yb_test_extension",
 	}
 )
 

@@ -2,9 +2,9 @@ name: Go
 
 on:
   push:
-    branches: [priyanshi/call-home-initial]
+    branches: [main]
   pull_request:
-    branches: [priyanshi/call-home-initial]
+    branches: [main]
 
 jobs:
 
