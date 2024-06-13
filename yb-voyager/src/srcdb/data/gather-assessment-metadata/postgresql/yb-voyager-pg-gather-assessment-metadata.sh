@@ -78,7 +78,7 @@ if [ ! -d "$assessment_metadata_dir" ]; then
     exit 1
 fi
 
-LOG_FILE=$assessment_metadata_dir/assessment.log
+LOG_FILE=$assessment_metadata_dir/yb-voyager-assessment.log
 log() {
     local level="$1"
     shift
