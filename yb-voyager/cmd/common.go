@@ -1112,6 +1112,10 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 
 func sendCallhomePayloadAtIntervals() {
 	for {
+		if callHomeCompletePayloadSent {
+			//for just that corner case if there is some timing clash where complete and in-progress payload are sent together 
+			break
+		}
 		switch currentCommand {
 		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
 			packAndSendExportDataPayload(INPROGRESS)
