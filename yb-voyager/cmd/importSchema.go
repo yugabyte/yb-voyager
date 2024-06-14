@@ -232,7 +232,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	//	ALTER TABLE ONLY public.customers\n ADD CONSTRAINT customers_pkey PRIMARY KEY (id, statuses, arr);`]
 	for _, stmt := range finalFailedSqlStmts {
 		//parts - ["/*\nERROR: changing primary key of a partitioned table is not yet implemented (SQLSTATE XX000)" "ALTER TABLE ONLY public.customers\n ADD CONSTRAINT customers_pkey PRIMARY KEY (id, statuses, arr);"]
-		parts := strings.Split(stmt, "*/\n") 
+		parts := strings.Split(stmt, "*/\n")
 		errorsList = append(errorsList, strings.Trim(parts[0], "/*\n")) //trimming the prefix of `/*\n` from parts[0] (the error msg)
 	}
 	if status == ERROR {
@@ -256,8 +256,10 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	}
 
 	payload.PhasePayload = string(importSchemaPayloadBytes)
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func isYBDatabaseIsColocated(conn *pgx.Conn) bool {

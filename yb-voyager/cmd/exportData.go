@@ -185,8 +185,10 @@ func packAndSendExportDataPayload(status string) {
 	payload.PhasePayload = string(exportDataPayloadBytes)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func exportData() bool {

@@ -70,7 +70,7 @@ type Payload struct {
 	MigrationPhase   string    `json:"migration_phase"`
 	PhasePayload     string    `json:"phase_payload"`
 	MigrationType    string    `json:"migration_type"`
-	TimeTakenSec     int     `json:"time_taken_sec"`
+	TimeTakenSec     int       `json:"time_taken_sec"`
 	Status           string    `json:"status"`
 }
 
@@ -187,10 +187,10 @@ func readCallHomeServiceEnv() {
 }
 
 // Send http request to flask servers after saving locally
-func SendPayload(payload *Payload) {
+func SendPayload(payload *Payload) error {
 
 	if !SendDiagnostics {
-		return
+		return nil
 	}
 
 	//for local call-home setup
@@ -198,8 +198,7 @@ func SendPayload(payload *Payload) {
 
 	postBody, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error while creating http request for diagnostics: %v", err)
-		return
+		return fmt.Errorf("error while creating http request for diagnostics: %v", err)
 	}
 	requestBody := bytes.NewBuffer(postBody)
 
@@ -208,17 +207,16 @@ func SendPayload(payload *Payload) {
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 
 	if err != nil {
-		log.Errorf("Error while sending diagnostic data: %v", err)
-		return
+		return fmt.Errorf("error while sending diagnostic data: %v", err)
 	}
 
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Errorf("Error while reading HTTP response from call-home server: %v", err)
-		return
+		return fmt.Errorf("error while reading HTTP response from call-home server: %v", err)
 	}
 	log.Infof("HTTP response after sending diagnostic.json: %s\n", string(body))
 
+	return nil
 }

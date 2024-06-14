@@ -583,7 +583,7 @@ func importData(importFileTasks []*ImportFileTask) {
 }
 
 func packAndSendImportDataPayload(status string) {
-	
+
 	if !callhome.SendDiagnostics {
 		return
 	}
@@ -627,8 +627,10 @@ func packAndSendImportDataPayload(status string) {
 	payload.PhasePayload = string(importDataPayloadBytes)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func disableGeneratedAlwaysAsIdentityColumns(tables []sqlname.NameTuple) {

@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -904,12 +903,14 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
 	dataFilePathNtMap := map[string]sqlname.NameTuple{}
-	for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
-		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
-		if err != nil {
-			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+	if snapshotDataFileDescriptor != nil {
+		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+			if err != nil {
+				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+			}
+			dataFilePathNtMap[fileEntry.FilePath] = nt
 		}
-		dataFilePathNtMap[fileEntry.FilePath] = nt
 	}
 
 	for dataFilePath, nt := range dataFilePathNtMap {
@@ -1037,7 +1038,7 @@ func createCallhomePayload() callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
-	if callHomePayloadSent {
+	if callHomeCompletePayloadSent {
 		return
 	}
 	switch currentCommand {
@@ -1109,25 +1110,16 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 	}
 }
 
-func sendCallhomePayloadAtIntervals(ctx context.Context) {
-	sendTicker := time.NewTicker(20 * time.Minute) //TODO: confirm if this is fine
-	defer sendTicker.Stop()
-	for range sendTicker.C {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			switch currentCommand {
-			case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-				packAndSendExportDataPayload(INPROGRESS)
-			case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-				packAndSendImportDataPayload(INPROGRESS)
-			case importDataFileCmd.CommandPath():
-				packAndSendImportDataFilePayload(INPROGRESS)
-			}
-			//marking this as false to take care of sending EXIT status payload in case command exits in between the interval duration
-			callHomePayloadSent = false
-
+func sendCallhomePayloadAtIntervals() {
+	for {
+		switch currentCommand {
+		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
+			packAndSendExportDataPayload(INPROGRESS)
+		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
+			packAndSendImportDataPayload(INPROGRESS)
+		case importDataFileCmd.CommandPath():
+			packAndSendImportDataFilePayload(INPROGRESS)
 		}
+		time.Sleep(20 * time.Minute)
 	}
 }

@@ -1104,8 +1104,10 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	payload.PhasePayload = string(analyzePayloadBytes)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 var analyzeSchemaCmd = &cobra.Command{

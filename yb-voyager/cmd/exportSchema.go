@@ -167,9 +167,11 @@ func packAndSendExportSchemaPayload(status string) {
 		log.Errorf("callhome: error in parsing payload: %v", err)
 	}
 	payload.PhasePayload = string(exportSchemaPayloadBytes)
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
 
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func init() {

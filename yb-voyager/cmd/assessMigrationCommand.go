@@ -194,8 +194,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	payload.PhasePayload = string(assessPayloadBytes)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {

@@ -384,8 +384,10 @@ func packAndSendImportDataFilePayload(status string) {
 	payload.PhasePayload = string(importDataFilePayloadBytes)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func setDefaultForNullString() {
