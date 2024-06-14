@@ -160,8 +160,8 @@ func packAndSendExportSchemaPayload(status string) {
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
 
 	err := callhome.SendPayload(&payload)
-	if err == nil && status == COMPLETE {
-		callHomeCompletePayloadSent = true
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
 	}
 }
 

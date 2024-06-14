@@ -247,8 +247,8 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
 	err := callhome.SendPayload(&payload)
-	if err == nil && status == COMPLETE {
-		callHomeCompletePayloadSent = true
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
 	}
 }
 
