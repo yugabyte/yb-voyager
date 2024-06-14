@@ -150,8 +150,8 @@ func packAndSendExportDataFromTargetPayload(status string) {
 	payload.Status = status
 
 	err := callhome.SendPayload(&payload)
-	if err == nil && status == COMPLETE {
-		callHomeCompletePayloadSent = true
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
 	}
 
 }
