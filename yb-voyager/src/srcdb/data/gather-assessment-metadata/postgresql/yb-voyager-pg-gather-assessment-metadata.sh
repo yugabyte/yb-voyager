@@ -94,6 +94,31 @@ print_and_log() {
     log "$level" "$message"
 }
 
+# Function used to quote the shell_variables where cmds are defined as strings and later used with eval command
+# for example: psql_command and pg_dump_command
+quote_string() {
+    local str="$1"
+
+    # Check if the string is already quoted with single or double quotes
+    if [[ $str == \'*\' ]] || [[ $str == \"*\" ]]; then
+        echo "$str"
+    else # otherwise, add single quotes around the string
+        echo "'$str'"
+    fi
+}
+
+# the error returned by the command in `eval $command 2>&1 | tee -a "$LOG_FILE"` was getting ignored
+# this function checks the PIPESTATUS[0] of the first command
+run_command() {
+    local command="$1"
+    # print and log the stderr/stdout of the command
+    eval $command 2>&1 | tee -a "$LOG_FILE"
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        log "ERROR" "command failed: $command"
+        exit 1
+    fi
+}
+
 main() {
     # Resolve the absolute path of assessment_metadata_dir
     assessment_metadata_dir=$(cd "$assessment_metadata_dir" && pwd)
@@ -106,9 +131,9 @@ main() {
         echo -n "Enter PostgreSQL password: "
         read -s PGPASSWORD
         echo
-        export PGPASSWORD
     fi
-
+    # exporting irrespective it was set or not
+    export PGPASSWORD
 
     track_counts_on=$(psql $pg_connection_string -tAqc "SELECT setting FROM pg_settings WHERE name = 'track_counts';")
     if [ "$track_counts_on" != "on" ]; then
@@ -122,29 +147,33 @@ main() {
         fi
     fi
 
+    # quote the required shell variables
+    pg_connection_string=$(quote_string "$pg_connection_string")
+    schema_list=$(quote_string "$schema_list")
+
     print_and_log "INFO" "Assessment metadata collection started for '$schema_list' schemas"
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
         script_action=$(basename "$script" .psql | sed 's/-/ /g')
         print_and_log "INFO" "Collecting $script_action..."
         if [ $script_name == "table-index-iops" ]; then
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on -v measurement_type=initial"
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
             log "INFO" "Executing initial IOPS collection: $psql_command"
-            eval $psql_command 2>&1  | tee -a "$LOG_FILE"
+            run_command "$psql_command"
             mv table-index-iops.csv table-index-iops-initial.csv
             
             log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
             # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
             sleep $iops_capture_interval 
             
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on -v measurement_type=final"
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
             log "INFO" "Executing final IOPS collection: $psql_command"
-            eval $psql_command 2>&1  | tee -a "$LOG_FILE"
+            run_command "$psql_command"
             mv table-index-iops.csv table-index-iops-final.csv
         else
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list='$schema_list' -v ON_ERROR_STOP=on"
+            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
             log "INFO" "Executing script: $psql_command"
-            eval $psql_command 2>&1  | tee -a "$LOG_FILE"
+            run_command "$psql_command"
         fi
     done
 
@@ -158,9 +187,9 @@ main() {
 
     mkdir -p schema
     print_and_log "INFO" "Collecting schema information..."
-    pg_dump_command="pg_dump $pg_connection_string --schema-only --schema='$schema_list' --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file=\"schema/schema.sql\""
+    pg_dump_command="pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file='schema/schema.sql'"
     log "INFO" "Executing pg_dump: $pg_dump_command"
-    eval $pg_dump_command 2>&1  | tee -a "$LOG_FILE"
+    run_command "$pg_dump_command"
 
     # Return to the original directory after operations are done
     popd > /dev/null

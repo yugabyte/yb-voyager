@@ -78,6 +78,19 @@ print_and_log() {
     log "$level" "$message"
 }
 
+# Function used to quote the shell_variables where cmds are defined as strings and later used with eval command
+# for example: sqlplus_commnad
+quote_string() {
+    local str="$1"
+
+    # Check if the string is already quoted with single or double quotes
+    if [[ $str == \'*\' ]] || [[ $str == \"*\" ]]; then
+        echo "$str"
+    else # otherwise, add single quotes around the string
+        echo "'$str'"
+    fi
+}
+
 # Function to parse Oracle connection string and generate ORACLE_DSN
 parse_oracle_dsn() {
     local conn_str=$1
@@ -127,6 +140,18 @@ parse_oracle_dsn() {
     echo "$ORACLE_DSN"
 }
 
+# the error returned by the command in `eval $command 2>&1 | tee -a "$LOG_FILE"` was getting ignored
+# this function checks the PIPESTATUS[0] of the first command
+run_command() {
+    local command="$1"
+    # print and log the stderr/stdout of the command
+    eval $command 2>&1 | tee -a "$LOG_FILE"
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        log "ERROR" "command failed: $command"
+        exit 1
+    fi
+}
+
 main() {
     # Resolve the absolute path of assessment_metadata_dir
     assessment_metadata_dir=$(cd "$assessment_metadata_dir" && pwd)
@@ -143,18 +168,23 @@ main() {
         read -s ORACLE_PASSWORD
         echo
     fi
+    # exporting irrespective ORACLE_PASSWORD was set or not
+    export ORA2PG_PASSWD=$ORACLE_PASSWORD
 
     oracle_connection_string="${username}/${ORACLE_PASSWORD}@${oracle_connection_string#*@}"
     log "INFO" "Constructed Oracle connection string"
 
+    # quote the required shell variables
+    oracle_connection_string=$(quote_string "$oracle_connection_string")
+    
     print_and_log "INFO" "Assessment metadata collection started for '$schema_name' schema"
     for script in $SCRIPT_DIR/*.sqlplus; do # Loop through each SQLPlus script and execute it
         script_name=$(basename "$script" .sqlplus)
         script_action=$(basename "$script" .sqlplus | sed 's/-/ /g')
         print_and_log "INFO" "Collecting $script_action..."
-        sqlplus_command="sqlplus -S '$oracle_connection_string' @$script '$schema_name'"
+        sqlplus_command="sqlplus -S $oracle_connection_string @$script $schema_name"
         log "INFO" "executing sqlplus_command: $sqlplus_command"
-        eval $sqlplus_command 2>&1  | tee -a "$LOG_FILE"
+        run_command "$sqlplus_command"
 
         # Post-processing step to remove the first line if it's empty in the generated CSV file
         csv_file_path="$assessment_metadata_dir/${script_name%.sqlplus}.csv"
@@ -214,9 +244,9 @@ main() {
         log "INFO" "For type $type - ltype: $ltype, output_dir: $output_dir, output_file: $output_file"
         mkdir -p $output_dir
 
-        ora2pg_cmd="ORA2PG_PASSWD=$ORACLE_PASSWORD ora2pg -p -q -t $type -o $output_file -b $output_dir -c $OUTPUT_FILE_PATH --no_header"
+        ora2pg_cmd="ora2pg -p -q -t $type -o $output_file -b $output_dir -c $OUTPUT_FILE_PATH --no_header"
         log "INFO" "executing ora2pg command for type $type: $ora2pg_cmd"
-        eval $ora2pg_cmd 2>&1 | tee -a "$LOG_FILE"
+        run_command "$ora2pg_cmd"
     done
 
     # Return to the original directory after operations are done
