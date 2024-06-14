@@ -424,7 +424,7 @@ func updateCallhomeEventsStats() {
 		}
 		callhomeEventsExportRate = throughputInLast3Min
 		callhomeTotalExportEvents = totalEventCount
-		time.Sleep(18 * time.Minute)
+		time.Sleep(12 * time.Minute)
 	}
 }
 

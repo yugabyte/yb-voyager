@@ -137,7 +137,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		startFallBackSetupIfRequired()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
-		sendPayloadAsPerExporterRole(EXIT)
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")

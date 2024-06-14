@@ -131,8 +131,6 @@ func packAndSendExportDataFromTargetPayload(status string) {
 		StartClean:   bool(startClean),
 	}
 
-	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
-
 	if changeStreamingIsEnabled(exportType) {
 		exportDataPayload.ExportDataMechanism = "" //unsetting this as not required
 		if cutoverToSourceByExport {
