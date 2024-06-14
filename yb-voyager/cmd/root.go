@@ -40,17 +40,17 @@ import (
 )
 
 var (
-	cfgFile                     string
-	exportDir                   string
-	schemaDir                   string
-	startClean                  utils.BoolStr
-	lockFile                    *lockfile.Lockfile
-	migrationUUID               uuid.UUID
-	perfProfile                 utils.BoolStr
-	ProcessShutdownRequested    bool
-	controlPlane                cp.ControlPlane
-	currentCommand              string
-	callHomeCompletePayloadSent bool
+	cfgFile                            string
+	exportDir                          string
+	schemaDir                          string
+	startClean                         utils.BoolStr
+	lockFile                           *lockfile.Lockfile
+	migrationUUID                      uuid.UUID
+	perfProfile                        utils.BoolStr
+	ProcessShutdownRequested           bool
+	controlPlane                       cp.ControlPlane
+	currentCommand                     string
+	callHomeErrorOrCompletePayloadSent bool
 )
 
 var rootCmd = &cobra.Command{

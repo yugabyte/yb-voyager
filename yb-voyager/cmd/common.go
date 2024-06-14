@@ -1033,7 +1033,7 @@ func createCallhomePayload() callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
-	if callHomeCompletePayloadSent {
+	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
 	switch currentCommand {
@@ -1112,7 +1112,7 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 
 func sendCallhomePayloadAtIntervals() {
 	for {
-		if callHomeCompletePayloadSent {
+		if callHomeErrorOrCompletePayloadSent {
 			//for just that corner case if there is some timing clash where complete and in-progress payload are sent together
 			break
 		}
