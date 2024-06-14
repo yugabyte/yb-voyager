@@ -1047,15 +1047,18 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendImportSchemaPayload(EXIT, "Exiting....")
 	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
 		packAndSendExportDataPayload(EXIT)
+	case exportDataFromTargetCmd.CommandPath():
+		packAndSendExportDataFromTargetPayload(EXIT)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
 		packAndSendImportDataPayload(EXIT)
+	case importDataToSourceCmd.CommandPath():
+		packAndSendImportDataToSourcePayload(EXIT)
 	case importDataToSourceReplicaCmd.CommandPath():
 		packAndSendImportDataToSrcReplicaPayload(EXIT)
 	case endMigrationCmd.CommandPath():
 		packAndSendEndMigrationPayload(EXIT)
 	case importDataFileCmd.CommandPath():
 		packAndSendImportDataFilePayload(EXIT)
-		//..more cases
 	}
 }
 
@@ -1113,12 +1116,16 @@ func sendCallhomePayloadAtIntervals() {
 			//for just that corner case if there is some timing clash where complete and in-progress payload are sent together
 			break
 		}
-		time.Sleep(15 * time.Minute)
+		time.Sleep(20 * time.Minute)
 		switch currentCommand {
 		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
 			packAndSendExportDataPayload(INPROGRESS)
+		case exportDataFromTargetCmd.CommandPath():
+			packAndSendExportDataFromTargetPayload(INPROGRESS)
 		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
 			packAndSendImportDataPayload(INPROGRESS)
+		case importDataToSourceCmd.CommandPath():
+			packAndSendImportDataToSourcePayload(INPROGRESS)
 		case importDataToSourceReplicaCmd.CommandPath():
 			packAndSendImportDataToSrcReplicaPayload(INPROGRESS)
 		case importDataFileCmd.CommandPath():
