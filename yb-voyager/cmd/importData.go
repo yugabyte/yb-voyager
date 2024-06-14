@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -591,7 +590,7 @@ func importData(importFileTasks []*ImportFileTask) {
 }
 
 func packAndSendImportDataPayload(status string) {
-	
+
 	if !callhome.SendDiagnostics {
 		return
 	}
@@ -603,11 +602,7 @@ func packAndSendImportDataPayload(status string) {
 	case SNAPSHOT_AND_CHANGES:
 		payload.MigrationType = LIVE_MIGRATION //TODO: add FF/FB details
 	}
-	bytes, err := json.Marshal(targetDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-	}
-	payload.TargetDBDetails = string(bytes)
+	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
 		ParallelJobs: int64(tconf.Parallelism),
@@ -642,15 +637,13 @@ func packAndSendImportDataPayload(status string) {
 		}
 	}
 
-	importDataPayloadBytes, err := json.Marshal(importDataPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the export data payload: %v", err)
-	}
-	payload.PhasePayload = string(importDataPayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func disableGeneratedAlwaysAsIdentityColumns(tables []sqlname.NameTuple) {

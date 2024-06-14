@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -220,11 +219,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	payload := createCallhomePayload()
 	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
-	targetDBDetailsBytes, err := json.Marshal(targetDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-	}
-	payload.TargetDBDetails = string(targetDBDetailsBytes)
+	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 
 	//Handling the error cases in import schema with/without continue-on-error
 	var errorsList []string
@@ -232,7 +227,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	//	ALTER TABLE ONLY public.customers\n ADD CONSTRAINT customers_pkey PRIMARY KEY (id, statuses, arr);`]
 	for _, stmt := range finalFailedSqlStmts {
 		//parts - ["/*\nERROR: changing primary key of a partitioned table is not yet implemented (SQLSTATE XX000)" "ALTER TABLE ONLY public.customers\n ADD CONSTRAINT customers_pkey PRIMARY KEY (id, statuses, arr);"]
-		parts := strings.Split(stmt, "*/\n") 
+		parts := strings.Split(stmt, "*/\n")
 		errorsList = append(errorsList, strings.Trim(parts[0], "/*\n")) //trimming the prefix of `/*\n` from parts[0] (the error msg)
 	}
 	if status == ERROR {
@@ -250,14 +245,11 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
 	}
-	importSchemaPayloadBytes, err := json.Marshal(importSchemaPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing payload: %v", err)
+	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
+	err := callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
 	}
-
-	payload.PhasePayload = string(importSchemaPayloadBytes)
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
 }
 
 func isYBDatabaseIsColocated(conn *pgx.Conn) bool {

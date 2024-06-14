@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -904,12 +903,14 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
 	dataFilePathNtMap := map[string]sqlname.NameTuple{}
-	for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
-		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
-		if err != nil {
-			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+	if snapshotDataFileDescriptor != nil {
+		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+			if err != nil {
+				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+			}
+			dataFilePathNtMap[fileEntry.FilePath] = nt
 		}
-		dataFilePathNtMap[fileEntry.FilePath] = nt
 	}
 
 	for dataFilePath, nt := range dataFilePathNtMap {
@@ -931,17 +932,12 @@ func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { 
 		return nil, fmt.Errorf("prepare dummy descriptor: %w", err)
 	}
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
-	dataFilePathNtMap := map[string]sqlname.NameTuple{}
 	for _, fileEntry := range dataFileDescriptor.DataFileList {
 		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 		if err != nil {
 			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 		}
-		dataFilePathNtMap[fileEntry.FilePath] = nt
-	}
-
-	for dataFilePath, nt := range dataFilePathNtMap {
-		byteCount, err := state.GetImportedByteCount(dataFilePath, nt)
+		byteCount, err := state.GetImportedByteCount(fileEntry.FilePath, nt)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
 		}
@@ -1037,7 +1033,7 @@ func createCallhomePayload() callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
-	if callHomePayloadSent {
+	if callHomeCompletePayloadSent {
 		return
 	}
 	switch currentCommand {
@@ -1111,27 +1107,22 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 	}
 }
 
-func sendCallhomePayloadAtIntervals(ctx context.Context) {
-	sendTicker := time.NewTicker(20 * time.Minute) //TODO: confirm if this is fine
-	defer sendTicker.Stop()
-	for range sendTicker.C {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			switch currentCommand {
-			case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-				packAndSendExportDataPayload(INPROGRESS)
-			case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-				packAndSendImportDataPayload(INPROGRESS)
-			case importDataToSourceReplicaCmd.CommandPath():
-				packAndSendImportDataToSrcReplicaPayload(INPROGRESS)
-			case importDataFileCmd.CommandPath():
-				packAndSendImportDataFilePayload(INPROGRESS)
-			}
-			//marking this as false to take care of sending EXIT status payload in case command exits in between the interval duration
-			callHomePayloadSent = false
-
+func sendCallhomePayloadAtIntervals() {
+	for {
+		if callHomeCompletePayloadSent {
+			//for just that corner case if there is some timing clash where complete and in-progress payload are sent together
+			break
+		}
+		time.Sleep(15 * time.Minute)
+		switch currentCommand {
+		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
+			packAndSendExportDataPayload(INPROGRESS)
+		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
+			packAndSendImportDataPayload(INPROGRESS)
+		case importDataToSourceReplicaCmd.CommandPath():
+			packAndSendImportDataToSrcReplicaPayload(INPROGRESS)
+		case importDataFileCmd.CommandPath():
+			packAndSendImportDataFilePayload(INPROGRESS)
 		}
 	}
 }

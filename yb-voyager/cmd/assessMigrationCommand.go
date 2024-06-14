@@ -111,14 +111,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 
-	featuresBytes, err := json.Marshal(assessmentReport.UnsupportedFeatures)
-	if err != nil {
-		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
-	}
-	datatypesBytes, err := json.Marshal(assessmentReport.UnsupportedDataTypes)
-	if err != nil {
-		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
-	}
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
@@ -136,14 +128,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			}
 		}
 	}
-	tableBytes, err := json.Marshal(tableSizingStats)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the table sizing stats: %v", err)
-	}
-	indexBytes, err := json.Marshal(indexSizingStats)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the index sizing stats: %v", err)
-	}
 	schemaSummaryCopy := utils.SchemaSummary{
 		SchemaNames: assessmentReport.SchemaSummary.SchemaNames,
 		Notes:       assessmentReport.SchemaSummary.Notes,
@@ -160,16 +144,13 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}
 		schemaSummaryCopy.DBObjects = append(schemaSummaryCopy.DBObjects, dbObjectCopy)
 	}
-	schemaSummaryCopyBytes, err := json.Marshal(schemaSummaryCopy)
-	if err != nil {
-		log.Errorf("callhome: error parsing schema summary: %v", err)
-	}
+
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		UnsupportedFeatures:  string(featuresBytes),
-		UnsupportedDataTypes: string(datatypesBytes),
-		TableSizingStats:     string(tableBytes),
-		IndexSizingStats:     string(indexBytes),
-		SchemaSummary:        string(schemaSummaryCopyBytes),
+		UnsupportedFeatures:  callhome.MarshalledJsonString(assessmentReport.UnsupportedFeatures),
+		UnsupportedDataTypes: callhome.MarshalledJsonString(assessmentReport.UnsupportedDataTypes),
+		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
+		IndexSizingStats:     callhome.MarshalledJsonString(indexSizingStats),
+		SchemaSummary:        callhome.MarshalledJsonString(schemaSummaryCopy),
 	}
 	if status == ERROR {
 		assessPayload.Error = errMsg
@@ -181,21 +162,15 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			DBVersion: source.DBVersion,
 			DBSize:    source.DBSize,
 		}
-		sourceDBBytes, err := json.Marshal(sourceDBDetails)
-		if err != nil {
-			log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-		}
-		payload.SourceDBDetails = string(sourceDBBytes)
+		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
-	assessPayloadBytes, err := json.Marshal(assessPayload)
-	if err != nil {
-		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
-	}
-	payload.PhasePayload = string(assessPayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err := callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {

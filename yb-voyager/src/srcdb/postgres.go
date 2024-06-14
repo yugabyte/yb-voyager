@@ -465,7 +465,7 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 
 func (pg *PostgreSQL) GetDatabaseSize() (int64, error) {
 	var totalSchemasSize, totalSize int64
-	schemaList := strings.Join(strings.Split(pg.source.Schema, "|"), "','")
+	schemaList := strings.Replace(pg.source.Schema, "|", "','", -1)
 	query := fmt.Sprintf(`SELECT
     nspname AS schema_name,
     SUM(pg_total_relation_size(pg_class.oid)) AS total_size
@@ -479,7 +479,7 @@ GROUP BY
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		return 0, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+		return -1, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
 	}
 
 	defer func() {
@@ -493,12 +493,12 @@ GROUP BY
 	for rows.Next() {
 		err = rows.Scan(&schemaName, &totalSize)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for sequence names: %v", err)
+			return -1, fmt.Errorf("error in scanning query rows for schemas ('%s'): %v", schemaList, err)
 		}
 		totalSchemasSize += totalSize
 	}
 	if rows.Err() != nil {
-		return 0, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
+		return -1, fmt.Errorf("error in scanning query rows for schemas('%s'): %v", schemaList, rows.Err())
 	}
 	log.Infof("Total size of all PG sourceDB schemas ('%s'): %v", schemaList, totalSchemasSize)
 	return totalSchemasSize, nil

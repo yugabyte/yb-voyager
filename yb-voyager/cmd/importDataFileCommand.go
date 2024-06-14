@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -332,11 +331,7 @@ func packAndSendImportDataFilePayload(status string) {
 	}
 	payload := createCallhomePayload()
 	payload.MigrationType = BULK_DATA_LOAD
-	bytes, err := json.Marshal(targetDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-	}
-	payload.TargetDBDetails = string(bytes)
+	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_FILE_PHASE
 	dataFileParameters := callhome.DataFileParameters{
 		FileFormat: fileFormat,
@@ -346,14 +341,10 @@ func packAndSendImportDataFilePayload(status string) {
 		QuoteChar:  quoteChar,
 		NullString: nullString,
 	}
-	parametersBytes, err := json.Marshal(dataFileParameters)
-	if err != nil {
-		log.Errorf("callhome: error in parsing dataFileParameters: %v", err)
-	}
 	importDataFilePayload := callhome.ImportDataFilePhasePayload{
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),
-		DataFileParameters: string(parametersBytes),
+		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):
@@ -377,15 +368,13 @@ func packAndSendImportDataFilePayload(status string) {
 			return true, nil
 		})
 	}
-	importDataFilePayloadBytes, err := json.Marshal(importDataFilePayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the export data payload: %v", err)
-	}
-	payload.PhasePayload = string(importDataFilePayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(importDataFilePayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func setDefaultForNullString() {

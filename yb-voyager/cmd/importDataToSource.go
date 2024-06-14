@@ -16,11 +16,9 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -101,11 +99,7 @@ func packAndSendImportDataToSourcePayload(status string) {
 		DBType:    tconf.TargetDBType,
 		DBVersion: targetDBDetails.DBVersion,
 	}
-	bytes, err := json.Marshal(sourceDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error in parsing sourceDBDetails: %v", err)
-	}
-	payload.SourceDBDetails = string(bytes)
+	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
@@ -124,13 +118,11 @@ func packAndSendImportDataToSourcePayload(status string) {
 
 	}
 
-	importDataPayloadBytes, err := json.Marshal(importDataPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the export data payload: %v", err)
-	}
-	payload.PhasePayload = string(importDataPayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err := callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }

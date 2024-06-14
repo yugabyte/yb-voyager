@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -153,23 +152,17 @@ func packAndSendExportSchemaPayload(status string) {
 		DBVersion: source.DBVersion,
 		DBSize:    source.DBSize,
 	}
-	sourceDbBytes, err := json.Marshal(sourceDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-	}
-	payload.SourceDBDetails = string(sourceDbBytes)
+	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean:             bool(startClean),
 		AppliedRecommendations: !bool(skipRecommendations),
 	}
-	exportSchemaPayloadBytes, err := json.Marshal(exportSchemaPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing payload: %v", err)
-	}
-	payload.PhasePayload = string(exportSchemaPayloadBytes)
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
 
+	err := callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
 }
 
 func init() {

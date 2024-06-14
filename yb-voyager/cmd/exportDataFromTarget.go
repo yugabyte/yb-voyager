@@ -16,11 +16,9 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/samber/lo"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -125,11 +123,7 @@ func packAndSendExportDataFromTargetPayload(status string) {
 		Host:      source.Host,
 		DBVersion: source.DBVersion,
 	}
-	targetDBBytes, err := json.Marshal(targetDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error parsing targetDB Details: %v", err)
-	}
-	payload.SourceDBDetails = string(targetDBBytes)
+	payload.SourceDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
@@ -152,13 +146,12 @@ func packAndSendExportDataFromTargetPayload(status string) {
 		exportDataPayload.EventsExportRate = callhomeEventsExportRate
 	}
 
-	exportDataPayloadBytes, err := json.Marshal(exportDataPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the export data payload: %v", err)
-	}
-	payload.PhasePayload = string(exportDataPayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(exportDataPayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err := callhome.SendPayload(&payload)
+	if err == nil && status == COMPLETE {
+		callHomeCompletePayloadSent = true
+	}
+
 }
