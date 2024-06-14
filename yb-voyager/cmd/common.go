@@ -932,17 +932,12 @@ func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { 
 		return nil, fmt.Errorf("prepare dummy descriptor: %w", err)
 	}
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
-	dataFilePathNtMap := map[string]sqlname.NameTuple{}
 	for _, fileEntry := range dataFileDescriptor.DataFileList {
 		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 		if err != nil {
 			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 		}
-		dataFilePathNtMap[fileEntry.FilePath] = nt
-	}
-
-	for dataFilePath, nt := range dataFilePathNtMap {
-		byteCount, err := state.GetImportedByteCount(dataFilePath, nt)
+		byteCount, err := state.GetImportedByteCount(fileEntry.FilePath, nt)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
 		}
@@ -1113,9 +1108,10 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 func sendCallhomePayloadAtIntervals() {
 	for {
 		if callHomeCompletePayloadSent {
-			//for just that corner case if there is some timing clash where complete and in-progress payload are sent together 
+			//for just that corner case if there is some timing clash where complete and in-progress payload are sent together
 			break
 		}
+		time.Sleep(15 * time.Minute)
 		switch currentCommand {
 		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
 			packAndSendExportDataPayload(INPROGRESS)
@@ -1124,6 +1120,5 @@ func sendCallhomePayloadAtIntervals() {
 		case importDataFileCmd.CommandPath():
 			packAndSendImportDataFilePayload(INPROGRESS)
 		}
-		time.Sleep(20 * time.Minute)
 	}
 }

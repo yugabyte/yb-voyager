@@ -1085,26 +1085,14 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
 		callhomeIssues = append(callhomeIssues, issue)
 	}
-	issues, err := json.Marshal(callhomeIssues)
-	if err != nil {
-		log.Errorf("callhome: error while parsing 'issues' json: %v", err)
-	}
-	dbObjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
-	if err != nil {
-		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
-	}
 	analyzePayload := callhome.AnalyzePhasePayload{
-		Issues:          string(issues),
-		DatabaseObjects: string(dbObjects),
+		Issues:          callhome.MarshalledJsonString(callhomeIssues),
+		DatabaseObjects: callhome.MarshalledJsonString(schemaAnalysisReport.SchemaSummary.DBObjects),
 	}
-	analyzePayloadBytes, err := json.Marshal(analyzePayload)
-	if err != nil {
-		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
-	}
-	payload.PhasePayload = string(analyzePayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status
 
-	err = callhome.SendPayload(&payload)
+	err := callhome.SendPayload(&payload)
 	if err == nil && status == COMPLETE {
 		callHomeCompletePayloadSent = true
 	}

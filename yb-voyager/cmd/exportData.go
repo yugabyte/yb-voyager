@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -164,11 +163,8 @@ func packAndSendExportDataPayload(status string) {
 		DBVersion: source.DBVersion,
 		DBSize:    source.DBSize,
 	}
-	sourceDbBytes, err := json.Marshal(sourceDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-	}
-	payload.SourceDBDetails = string(sourceDbBytes)
+
+	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
@@ -178,14 +174,10 @@ func packAndSendExportDataPayload(status string) {
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
 
-	exportDataPayloadBytes, err := json.Marshal(exportDataPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the export data payload: %v", err)
-	}
-	payload.PhasePayload = string(exportDataPayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(exportDataPayload)
 	payload.Status = status
 
-	err = callhome.SendPayload(&payload)
+	err := callhome.SendPayload(&payload)
 	if err == nil && status == COMPLETE {
 		callHomeCompletePayloadSent = true
 	}

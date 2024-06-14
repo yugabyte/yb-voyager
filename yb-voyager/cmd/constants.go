@@ -71,10 +71,10 @@ const (
 	LIVE_MIGRATION = "live migration"
 	BULK_DATA_LOAD = "bulk data load from flat files"
 
-	AWS_S3      = "AWS-S3"
-	GCS_BUCKETS = "GCS-Buckets"
-	AZURE_BLOBS = "Azure-blob-storage"
-	LOCAL_DISK  = "Local-disk"
+	AWS_S3      = "aws-s3"
+	GCS_BUCKETS = "gcs-bukets"
+	AZURE_BLOBS = "azure-blob-storage"
+	LOCAL_DISK  = "local-disk"
 	//status
 	ERROR                = "ERROR"
 	EXIT                 = "EXIT"

@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -160,6 +161,14 @@ type EndMigrationPhasePayload struct {
 	BackupDataFiles      bool `json:"backup_data_files"`
 	BackupSchemaFiles    bool `json:"backup_schema_files"`
 	SaveMigrationReports bool `json:"save_migration_reports"`
+}
+
+func MarshalledJsonString[T any](value T) string {
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		log.Errorf("callhome: error in parsing %v: %v", reflect.TypeOf(value).Name(), err)
+	}
+	return string(bytes)
 }
 
 // [For development] Read ENV VARS for value of SendDiagnostics

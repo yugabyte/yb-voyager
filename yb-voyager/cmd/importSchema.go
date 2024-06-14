@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -220,11 +219,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	payload := createCallhomePayload()
 	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
-	targetDBDetailsBytes, err := json.Marshal(targetDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-	}
-	payload.TargetDBDetails = string(targetDBDetailsBytes)
+	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 
 	//Handling the error cases in import schema with/without continue-on-error
 	var errorsList []string
@@ -250,13 +245,8 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
 	}
-	importSchemaPayloadBytes, err := json.Marshal(importSchemaPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing payload: %v", err)
-	}
-
-	payload.PhasePayload = string(importSchemaPayloadBytes)
-	err = callhome.SendPayload(&payload)
+	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
+	err := callhome.SendPayload(&payload)
 	if err == nil && status == COMPLETE {
 		callHomeCompletePayloadSent = true
 	}
