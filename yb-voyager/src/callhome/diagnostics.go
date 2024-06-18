@@ -167,6 +167,7 @@ func MarshalledJsonString[T any](value T) string {
 	bytes, err := json.Marshal(value)
 	if err != nil {
 		log.Errorf("callhome: error in parsing %v: %v", reflect.TypeOf(value).Name(), err)
+		return ""
 	}
 	return string(bytes)
 }
