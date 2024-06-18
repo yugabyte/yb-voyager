@@ -123,6 +123,7 @@ type ExportDataPhasePayload struct {
 	LargestTableRows    int64  `json:"largest_table_rows"`
 	StartClean          bool   `json:"start_clean"`
 	ExportDataMechanism string `json:"export_data_mechanism,omitempty"`
+	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	LiveMigrationPhase  string `json:"live_migration_phase,omitempty"`
 	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
 	EventsExportRate    int64  `json:"events_export_rate,omitempty"`
@@ -140,6 +141,7 @@ type ImportDataPhasePayload struct {
 	TotalRows           int64  `json:"total_rows"`
 	LargestTableRows    int64  `json:"largest_table_rows"`
 	StartClean          bool   `json:"start_clean"`
+	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	LiveMigrationPhase  string `json:"live_migration_phase,omitempty"`
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
 	EventsImportRate    int64  `json:"events_import_rate,omitempty"`
