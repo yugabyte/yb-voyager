@@ -352,20 +352,15 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
-	report, err := json.Marshal(assessmentReport)
-	if err != nil {
-		utils.PrintAndLog("Failed to serialise the assessment report to json (ERR IGNORED): %s", err)
-	}
 
-	finalReport := cp.AssessMigrationPayload{
-		AssessmentJsonReport: string(report),
-		SourceSizeDetails: cp.SourceDBSizeDetails{
-			TotalDBSize:        source.DBSize,
+	finalReport := AssessMigrationPayload{
+		AssessmentJsonReport: assessmentReport,
+		SourceSizeDetails: SourceDBSizeDetails{
+			TotalDBSize: source.DBSize,
 		},
-		TargetRecommendations: cp.TargetSizingRecommendations{
-		},
-		MigrationComplexity: getMigrationComplexity(), //TODO: to figure out proper algorithm
-		ConversionIssues:    schemaAnalysisReport.Issues,
+		TargetRecommendations: TargetSizingRecommendations{},
+		MigrationComplexity:   getMigrationComplexity(), //TODO: to figure out proper algorithm
+		ConversionIssues:      schemaAnalysisReport.Issues,
 	}
 	colocatedTables, err := assessmentReport.GetColocatedTablesRecommendation()
 	if err != nil {

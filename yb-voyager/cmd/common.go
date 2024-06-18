@@ -954,6 +954,30 @@ type AssessmentReport struct {
 	TableIndexStats      *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 }
 
+//=============== for yugabyted controlplane ==============//
+// TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
+type AssessMigrationPayload struct {
+	AssessmentJsonReport  AssessmentReport
+	MigrationComplexity   string
+	SourceSizeDetails     SourceDBSizeDetails
+	TargetRecommendations TargetSizingRecommendations
+	ConversionIssues      []utils.Issue
+}
+
+type SourceDBSizeDetails struct {
+	TotalDBSize        int64
+	TotalTableSize     int64
+	TotalIndexSize     int64
+	TotalTableRowCount int64
+}
+
+type TargetSizingRecommendations struct {
+	TotalColocatedSize int64
+	TotalShardedSize   int64
+}
+
+//==========================================//
+
 func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	var report AssessmentReport
 	err := jsonfile.NewJsonFile[AssessmentReport](reportPath).Load(&report)

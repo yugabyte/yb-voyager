@@ -143,25 +143,3 @@ type SnapshotImportCompletedEvent struct {
 type MigrationEndedEvent struct {
 	BaseEvent
 }
-
-//----------------------------------------
-
-type AssessMigrationPayload struct {
-	AssessmentJsonReport  string
-	MigrationComplexity   string
-	SourceSizeDetails     SourceDBSizeDetails
-	TargetRecommendations TargetSizingRecommendations
-	ConversionIssues      []utils.Issue
-}
-
-type SourceDBSizeDetails struct {
-	TotalDBSize        int64
-	TotalTableSize     int64
-	TotalIndexSize     int64
-	TotalTableRowCount int64
-}
-
-type TargetSizingRecommendations struct {
-	TotalColocatedSize int64
-	TotalShardedSize   int64
-}
