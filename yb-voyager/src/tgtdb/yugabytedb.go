@@ -34,6 +34,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/gocql"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -45,10 +46,11 @@ import (
 type TargetYugabyteDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf    *TargetConf
-	db       *sql.DB
-	conn_    *pgx.Conn
-	connPool *ConnectionPool
+	tconf       *TargetConf
+	db          *sql.DB
+	conn_       *pgx.Conn
+	connPool    *ConnectionPool
+	ycqlCluster *gocql.ClusterConfig
 
 	attrNames map[string][]string
 }
@@ -162,6 +164,15 @@ func (yb *TargetYugabyteDB) connect() error {
 	}
 	yb.setTargetSchema(conn)
 	yb.conn_ = conn
+
+	// YCQL
+	servers := yb.getYBServers()
+	serverHosts := []string{}
+	for _, server := range servers {
+		serverHosts = append(serverHosts, server.Host)
+	}
+	yb.ycqlCluster = gocql.NewCluster(serverHosts...)
+	yb.ycqlCluster.Timeout = 12 * time.Second
 	return nil
 }
 
@@ -1215,4 +1226,61 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 
 	return nil
+}
+
+func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]int64, error) {
+	metrics := make(map[string]int64)
+	metricsPerNode := make(map[string]map[string]int64)
+	nodeUUIDs := []string{}
+	ybGetServerQuery := "select uuid from yb_servers();"
+	rows, err := yb.Query(ybGetServerQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error querying yb_servers(): %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var nodeUUID string
+		if err = rows.Scan(&nodeUUID); err != nil {
+			return nil, fmt.Errorf("error scanning nodeUUID: %w", err)
+		}
+		nodeUUIDs = append(nodeUUIDs, nodeUUID)
+	}
+
+	cqlSession, _ := yb.ycqlCluster.CreateSession()
+	defer cqlSession.Close()
+	for _, nodeUUID := range nodeUUIDs {
+		nodeMetrics := make(map[string]int64)
+		var cpuUsageSystem int64
+		cpuUsageSystemQuery := "select value from system.metrics where metric='cpu_usage_system' AND node='%s' LIMIT 1;"
+		cpuUsageSystemQuery = fmt.Sprintf(cpuUsageSystemQuery, nodeUUID)
+
+		iter := cqlSession.Query(cpuUsageSystemQuery).Iter()
+		defer iter.Close()
+		success := iter.Scan(&cpuUsageSystem)
+		if !success {
+			return nil, fmt.Errorf("error querying cpu_usage_system: %w", iter.Scanner().Err())
+		}
+
+		cpuUsageUserQuery := "select value from system.metrics where metric='cpu_usage_user' AND node='%s' LIMIT 1;"
+		cpuUsageUserQuery = fmt.Sprintf(cpuUsageUserQuery, nodeUUID)
+		var cpuUsageUser int64
+		iter = cqlSession.Query(cpuUsageUserQuery).Iter()
+		defer iter.Close()
+		success = iter.Scan(&cpuUsageUser)
+		if !success {
+			return nil, fmt.Errorf("error querying cpu_usage_user: %w", iter.Scanner().Err())
+		}
+
+		nodeMetrics["cpu_usage"] = int64(cpuUsageSystem/10000) + int64(cpuUsageUser/10000) // in percentage
+		metricsPerNode[nodeUUID] = nodeMetrics
+
+	}
+
+	// max
+	for _, nodeUUID := range nodeUUIDs {
+		if metricsPerNode[nodeUUID]["cpu_usage"] > metrics["cpu_usage"] {
+			metrics["cpu_usage"] = metricsPerNode[nodeUUID]["cpu_usage"]
+		}
+	}
+	return metrics, nil
 }
