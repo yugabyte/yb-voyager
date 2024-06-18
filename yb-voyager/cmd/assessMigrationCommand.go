@@ -357,8 +357,47 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		utils.PrintAndLog("Failed to serialise the assessment report to json (ERR IGNORED): %s", err)
 	}
 
-	ev.Report = string(report)
+	finalReport := cp.AssessMigrationPayload{
+		AssessmentJsonReport: string(report),
+		SourceSizeDetails: cp.SourceDBSizeDetails{
+			TotalDBSize:        source.DBSize,
+		},
+		TargetRecommendations: cp.TargetSizingRecommendations{
+		},
+		MigrationComplexity: getMigrationComplexity(), //TODO: to figure out proper algorithm
+		ConversionIssues:    schemaAnalysisReport.Issues,
+	}
+	colocatedTables, err := assessmentReport.GetColocatedTablesRecommendation()
+	if err != nil {
+		utils.PrintAndLog("Failed to get the colocated tables recommendation from assessmentReport: %v", err)
+	}
+	if assessmentReport.TableIndexStats != nil {
+		for _, stat := range *assessmentReport.TableIndexStats {
+			if stat.IsIndex {
+				finalReport.SourceSizeDetails.TotalIndexSize += *stat.SizeInBytes
+			} else {
+				finalReport.SourceSizeDetails.TotalTableSize += *stat.SizeInBytes
+				finalReport.SourceSizeDetails.TotalTableRowCount += *stat.RowCount
+				if slices.Contains(colocatedTables, fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)) {
+					finalReport.TargetRecommendations.TotalColocatedSize += *stat.SizeInBytes
+				} else {
+					finalReport.TargetRecommendations.TotalShardedSize += *stat.SizeInBytes
+				}
+			}
+		}
+	}
+
+	finalReportBytes, err := json.Marshal(finalReport)
+	if err != nil {
+		utils.PrintAndLog("Failed to serialise the final report to json (ERR IGNORED): %s", err)
+	}
+
+	ev.Report = string(finalReportBytes)
 	return ev
+}
+
+func getMigrationComplexity() string {
+	return EASY
 }
 
 func runAssessment() error {
