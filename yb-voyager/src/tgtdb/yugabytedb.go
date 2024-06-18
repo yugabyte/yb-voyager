@@ -1228,8 +1228,26 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	return nil
 }
 
-func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]int64, error) {
-	metrics := make(map[string]int64)
+func (yb *TargetYugabyteDB) AdaptParallelism() {
+	for {
+		clusterMetrics, err := yb.GetClusterMetrics()
+		if err != nil {
+			utils.PrintAndLog("error getting cluster metrics: %v", err)
+		}
+		utils.PrintAndLog("cluster metrics: %v", clusterMetrics)
+		// max cpu
+		var clusterCPUUsage int64
+		for _, nodeMetrics := range clusterMetrics {
+			if nodeMetrics["cpu_usage"] > clusterCPUUsage {
+				clusterCPUUsage = nodeMetrics["cpu_usage"]
+			}
+		}
+		utils.PrintAndLog("cluster cpu usage: %d", clusterCPUUsage)
+		time.Sleep(10 * time.Second)
+	}
+}
+
+func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]int64, error) {
 	metricsPerNode := make(map[string]map[string]int64)
 	nodeUUIDs := []string{}
 	ybGetServerQuery := "select uuid from yb_servers();"
@@ -1277,10 +1295,6 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]int64, error) {
 	}
 
 	// max
-	for _, nodeUUID := range nodeUUIDs {
-		if metricsPerNode[nodeUUID]["cpu_usage"] > metrics["cpu_usage"] {
-			metrics["cpu_usage"] = metricsPerNode[nodeUUID]["cpu_usage"]
-		}
-	}
-	return metrics, nil
+
+	return metricsPerNode, nil
 }

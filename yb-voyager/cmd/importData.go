@@ -124,11 +124,13 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
-	metrics, err := tdb.(*tgtdb.TargetYugabyteDB).GetClusterMetrics()
-	if err != nil {
-		utils.ErrExit("Failed to get cluster metrics: %s", err)
-	}
-	utils.PrintAndLog(fmt.Sprintf("%v", metrics))
+
+	go tdb.(*tgtdb.TargetYugabyteDB).AdaptParallelism()
+	// metrics, err := tdb.(*tgtdb.TargetYugabyteDB).GetClusterMetrics()
+	// if err != nil {
+	// 	utils.ErrExit("Failed to get cluster metrics: %s", err)
+	// }
+	// utils.PrintAndLog(fmt.Sprintf("%v", metrics))
 
 	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 
