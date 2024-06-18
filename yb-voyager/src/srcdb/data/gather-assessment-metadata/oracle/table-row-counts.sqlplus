@@ -21,7 +21,9 @@ ON COMMIT PRESERVE ROWS AS
     FROM 
         dba_tables
     WHERE 
-        owner = '&1';
+        owner = '&1'
+        AND table_name NOT LIKE 'DR$%'
+        AND table_name NOT LIKE 'AQ$%';
 
 -- Select the data into the CSV file
 SPOOL table-row-counts.csv
