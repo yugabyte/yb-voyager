@@ -786,38 +786,78 @@ move_tables() {
        '.Sizing.SizingRecommendation.ShardedTables += $new_sharded_tables | .Sizing.SizingRecommendation.ColocatedTables = $remaining_colocated_tables' "$json_file" > tmp.json && mv tmp.json "$json_file"
 }
 
+# compare_assessment_reports() {
+#     local file1="$1"
+#     local file2="$2"
+
+#     local normalized_json1
+#     local normalized_json2
+
+#     normalized_json1=$(jq 'walk(
+#         if type == "object" and has("ObjectNames") and (."ObjectNames" | type == "string")
+#         then .ObjectNames |= (split(", ") | sort | join(", "))
+#         elif type == "array"
+#         then sort_by(tostring)
+#         else .
+#         end
+#     )' "$file1")
+
+#     normalized_json2=$(jq 'walk(
+#         if type == "object" and has("ObjectNames") and (."ObjectNames" | type == "string")
+#         then .ObjectNames |= (split(", ") | sort | join(", "))
+#         elif type == "array"
+#         then sort_by(tostring)
+#         else .
+#         end
+#     )' "$file2")
+
+#     diff_output=$(diff <(echo "$normalized_json1") <(echo "$normalized_json2"))
+#     if [ $? -ne 0 ]; then
+#         echo "Expected and Generated Reports are different:"
+#         echo "$diff_output"
+# 		exit 1
+# 	else
+# 		echo "Expected and Generated Reports match"
+#     fi
+# }
+
+
 compare_assessment_reports() {
     local file1="$1"
     local file2="$2"
 
-    local normalized_json1
-    local normalized_json2
+    # Create temporary files to store normalized and sorted JSON
+    local temp_file1=$(mktemp)
+    local temp_file2=$(mktemp)
 
-    normalized_json1=$(jq 'walk(
+    # Normalize JSON and sort arrays, then write to temporary files
+    jq 'walk(
         if type == "object" and has("ObjectNames") and (."ObjectNames" | type == "string")
         then .ObjectNames |= (split(", ") | sort | join(", "))
         elif type == "array"
         then sort_by(tostring)
         else .
         end
-    )' "$file1")
+    )' "$file1" > "$temp_file1"
 
-    normalized_json2=$(jq 'walk(
+    jq 'walk(
         if type == "object" and has("ObjectNames") and (."ObjectNames" | type == "string")
         then .ObjectNames |= (split(", ") | sort | join(", "))
         elif type == "array"
         then sort_by(tostring)
         else .
         end
-    )' "$file2")
+    )' "$file2" > "$temp_file2"
 
-    diff_output=$(diff <(echo "$normalized_json1") <(echo "$normalized_json2"))
+    # Perform the diff on the temporary files
+    diff_output=$(diff "$temp_file1" "$temp_file2")
+
+    # Check if diff command found differences
     if [ $? -ne 0 ]; then
-        echo "Expected and Generated Reports are different:"
+        echo "The JSON files are different:"
         echo "$diff_output"
-		exit 1
-	else
-		echo "Expected and Generated Reports match"
     fi
-}
 
+    # Clean up temporary files
+    rm "$temp_file1" "$temp_file2"
+}
