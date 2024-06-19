@@ -14,11 +14,6 @@
 				"ObjectNames": "schema2, test_views, public"
 			},
 			{
-				"ObjectType": "EXTENSION",
-				"TotalCount": 1,
-				"ObjectNames": "pgcrypto"
-			},
-			{
 				"ObjectType": "TYPE",
 				"TotalCount": 4,
 				"ObjectNames": "public.enum_kind, public.item_details, schema2.enum_kind, schema2.item_details"
