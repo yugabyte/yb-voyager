@@ -392,7 +392,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 }
 
 func getMigrationComplexity() string {
-	return EASY
+	return "NOT AVAILABLE"
 }
 
 func runAssessment() error {
