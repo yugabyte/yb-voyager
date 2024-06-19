@@ -31,7 +31,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -85,14 +84,6 @@ func importSchema() error {
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
-	if flagPostSnapshotImport {
-		tdb = tgtdb.NewTargetDB(&tconf)
-		err = tdb.Init()
-		if err != nil {
-			return fmt.Errorf("failed to initialize the target DB: %s", err)
-		}
-	}
-
 	targetDBDetails = &callhome.TargetDBDetails{
 		Host: tconf.Host,
 	}
@@ -126,81 +117,76 @@ func importSchema() error {
 	}
 
 	var objectList []string
-	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
-	if !flagPostSnapshotImport { // Pre data load.
-		// This list also has defined the order to create object type in target YugabyteDB.
+	// Pre data load.
+	// This list also has defined the order to create object type in target YugabyteDB.
+	// if post snapshot import, no objects should be imported.
+	if !flagPostSnapshotImport {
 		objectList = utils.GetSchemaObjectList(sourceDBType)
-		objectList = utils.SetDifference(objectList, objectsToImportAfterData)
 		if len(objectList) == 0 {
 			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
-		} else {
-			assessmentDone, err := IsMigrationAssessmentDone()
-			if err != nil {
-				utils.ErrExit("failed to check if migration assessment done: %v", err)
-			}
-
-			if assessmentDone && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
-				"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
-				utils.ErrExit("Exiting...")
-			}
 		}
-	} else { // Post data load.
-		objectList = objectsToImportAfterData
-	}
-	objectList = applySchemaObjectFilterFlags(objectList)
-	log.Infof("list of schema objects to import: %v", objectList)
-	// Import some statements only after importing everything else
-	isSkipStatement := func(objType, stmt string) bool {
-		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		switch objType {
-		case "SEQUENCE":
-			// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name');
-			// ALTER SEQUENCE sequence_name OWNED BY table_name.column_name;
-			return strings.HasPrefix(stmt, "ALTER TABLE") || strings.HasPrefix(stmt, "ALTER SEQUENCE")
-		case "TABLE":
-			// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
-			return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
-		case "UNIQUE INDEX":
-			// skips all the INDEX DDLs, Except CREATE UNIQUE INDEX index_name ON table ... (column_name);
-			return !strings.Contains(stmt, objType)
-		case "INDEX":
-			// skips all the CREATE UNIQUE INDEX index_name ON table ... (column_name);
-			return strings.Contains(stmt, "UNIQUE INDEX")
-		}
-		return false
-	}
-	skipFn := isSkipStatement
-	err = importSchemaInternal(exportDir, objectList, skipFn)
-	if err != nil {
-		return err
-	}
-
-	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
-	skipFn = func(objType, stmt string) bool {
-		return !isSkipStatement(objType, stmt)
-	}
-	if slices.Contains(objectList, "SEQUENCE") {
-		err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
+		assessmentDone, err := IsMigrationAssessmentDone()
 		if err != nil {
-			return err
+			utils.ErrExit("failed to check if migration assessment done: %v", err)
 		}
+
+		if assessmentDone && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
+			"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
+			utils.ErrExit("Exiting...")
+		}
+		objectList = applySchemaObjectFilterFlags(objectList)
+		log.Infof("list of schema objects to import: %v", objectList)
+		// Import some statements only after importing everything else
+		isSkipStatement := func(objType, stmt string) bool {
+			stmt = strings.ToUpper(strings.TrimSpace(stmt))
+			switch objType {
+			case "SEQUENCE":
+				// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name');
+				// ALTER SEQUENCE sequence_name OWNED BY table_name.column_name;
+				return strings.HasPrefix(stmt, "ALTER TABLE") || strings.HasPrefix(stmt, "ALTER SEQUENCE")
+			case "TABLE":
+				// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
+				return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
+			case "UNIQUE INDEX":
+				// skips all the INDEX DDLs, Except CREATE UNIQUE INDEX index_name ON table ... (column_name);
+				return !strings.Contains(stmt, objType)
+			case "INDEX":
+				// skips all the CREATE UNIQUE INDEX index_name ON table ... (column_name);
+				return strings.Contains(stmt, "UNIQUE INDEX")
+			}
+			return false
+		}
+		skipFn := isSkipStatement
+		err = importSchemaInternal(exportDir, objectList, skipFn)
+    if err != nil {
+      return err
+    }
+
+		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
+		skipFn = func(objType, stmt string) bool {
+			return !isSkipStatement(objType, stmt)
+		}
+		if slices.Contains(objectList, "SEQUENCE") {
+      err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
+      if err != nil {
+        return err
+      }
+    }
+    if slices.Contains(objectList, "TABLE") {
+      err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
+      if err != nil {
+        return err
+      }
+    }
+
+		importDeferredStatements()
+		log.Info("Schema import is complete.")
+
+		dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 	}
-	if slices.Contains(objectList, "TABLE") {
-		err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
-		if err != nil {
-			return err
-		}
-	}
 
-	importDeferredStatements()
-	log.Info("Schema import is complete.")
-
-	dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
-
-	if flagPostSnapshotImport {
-		if flagRefreshMViews {
-			refreshMViews(conn)
-		}
+	if flagPostSnapshotImport && flagRefreshMViews {
+		refreshMViews(conn)
 	} else {
 		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}

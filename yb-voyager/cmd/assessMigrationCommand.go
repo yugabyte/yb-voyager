@@ -564,13 +564,16 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		baseFileName := filepath.Base(metadataFilePath)
 		metric := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
 		tableName := strings.Replace(metric, "-", "_", -1)
+		// collecting both initial and final measurement in the same table
+		tableName = lo.Ternary(strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS),
+			migassessment.TABLE_INDEX_IOPS, tableName)
+
 		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
 		file, err := os.Open(metadataFilePath)
 		if err != nil {
 			log.Warnf("error opening file %s: %v", metadataFilePath, err)
 			return nil
 		}
-
 		csvReader := csv.NewReader(file)
 		csvReader.ReuseRecord = true
 		rows, err := csvReader.ReadAll()
@@ -579,16 +582,10 @@ func populateMetadataCSVIntoAssessmentDB() error {
 			return fmt.Errorf("error reading csv file %s: %w", metadataFilePath, err)
 		}
 
-		// collecting both initial and final measurement in the same table
-		if strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS) {
-			tableName = migassessment.TABLE_INDEX_IOPS
-		}
-
 		err = assessmentDB.BulkInsert(tableName, rows)
 		if err != nil {
 			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
 		}
-
 		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
 	}
 
@@ -609,6 +606,12 @@ func generateAssessmentReport() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
 	}
+
+	unsupportedFeatures, err := fetchUnsupportedObjectTypes()
+	if err != nil {
+		return fmt.Errorf("failed to fetch unsupported object types: %w", err)
+	}
+	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 
 	assessmentReport.UnsupportedDataTypes, err = fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
@@ -634,7 +637,7 @@ func generateAssessmentReport() (err error) {
 	return nil
 }
 
-func getAssessmentReportContentFromAnalyzeSchema() (err error) {
+func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 
@@ -643,45 +646,92 @@ func getAssessmentReportContentFromAnalyzeSchema() (err error) {
 		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
 	}
 
-	unsupportedFeatures, err := fetchUnsupportedFeaturesOfSourceInYb(schemaAnalysisReport)
-	if err != nil {
-		return fmt.Errorf("failed to fetch unsupported features: %w", err)
+	// fetching unsupportedFeaturing with the help of Issues report in SchemaReport
+	var unsupportedFeatures []UnsupportedFeature
+	var err error
+	switch source.DBType {
+	case ORACLE:
+		unsupportedFeatures, err = fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport)
+	case POSTGRESQL:
+		unsupportedFeatures, err = fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport)
+	default:
+		panic(fmt.Sprintf("unsupported source db type %q", source.DBType))
 	}
-	assessmentReport.UnsupportedFeatures = unsupportedFeatures
-
+	if err != nil {
+		return fmt.Errorf("failed to fetch %s unsupported features: %w", source.DBType, err)
+	}
+	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 	return nil
 }
 
-func fetchUnsupportedFeaturesOfSourceInYb(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
-	switch source.DBType {
-	case POSTGRESQL:
-		return fetchUnsupportedFeaturesForPG(schemaAnalysisReport)
-	case ORACLE:
-		return nil, nil
-	default:
-		panic("unsupported source db type")
+func filterIssuesForUnsupportedFeature(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
+	log.Info("filtering issues for feature: ", featureName)
+	objectNames := make([]string, 0)
+	for _, issue := range schemaAnalysisReport.Issues {
+		if strings.Contains(issue.Reason, issueReason) {
+			objectNames = append(objectNames, issue.ObjectName)
+		}
 	}
+	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
 }
 
-func fetchUnsupportedFeaturesForPG(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
+func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	filterIssues := func(featureName, issueReason string) {
-		log.Info("filtering issues for feature: ", featureName)
-		objectNames := make([]string, 0)
-		for _, issue := range schemaAnalysisReport.Issues {
-			if strings.Contains(issue.Reason, issueReason) {
-				objectNames = append(objectNames, issue.ObjectName)
-			}
-		}
-		unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
+	filterIssuesForUnsupportedFeature("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesForUnsupportedFeature("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesForUnsupportedFeature("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesForUnsupportedFeature("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	return unsupportedFeatures, nil
+}
+
+func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
+	log.Infof("fetching unsupported features for Oracle...")
+	unsupportedFeatures := make([]UnsupportedFeature, 0)
+	filterIssuesForUnsupportedFeature("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	return unsupportedFeatures, nil
+}
+
+var OracleUnsupportedIndexTypes = []string{"CLUSTER INDEX", "DOMAIN INDEX", "BITMAP INDEX", "FUNCTION-BASED DOMAIN INDEX", "IOT - TOP INDEX", "NORMAL/REV INDEX", "FUNCTION-BASED NORMAL/REV INDEX"}
+
+func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
+	if source.DBType != ORACLE {
+		return nil, nil
 	}
 
-	filterIssues("GIST indexes", GIST_INDEX_ISSUE_REASON)
-	filterIssues("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON)
-	filterIssues("Inherited tables", INHERITANCE_ISSUE_REASON)
-	filterIssues("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON)
+	query := fmt.Sprintf(`SELECT schema_name, object_name, object_type FROM %s`, migassessment.OBJECT_TYPE_MAPPING)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying-%s: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching object type mapping metadata: %v", err)
+		}
+	}()
 
+	var unsupportedIndexes, virtualColumns, inheritedTypes []string
+	for rows.Next() {
+		var schemaName, objectName, objectType string
+		err = rows.Scan(&schemaName, &objectName, &objectType)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows:%w", err)
+		}
+
+		if slices.Contains(OracleUnsupportedIndexTypes, objectType) {
+			unsupportedIndexes = append(unsupportedIndexes, fmt.Sprintf("(name=%s, type=%s)", objectName, objectType))
+		} else if objectType == "VIRTUAL COLUMN" {
+			virtualColumns = append(virtualColumns, objectName)
+		} else if objectType == "INHERITED TYPE" {
+			inheritedTypes = append(inheritedTypes, objectName)
+		}
+	}
+
+	unsupportedFeatures := make([]UnsupportedFeature, 0)
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes})
 	return unsupportedFeatures, nil
 }
 
@@ -692,7 +742,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 		migassessment.TABLE_COLUMNS_DATA_TYPES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error querying-%s: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -713,10 +763,19 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
-	// filter columns with unsupported data types using srcdb.PostgresUnsupportedDataTypesForDbzm
-	pgUnsupportedDataTypes := srcdb.PostgresUnsupportedDataTypesForDbzm
+	var sourceUnsupportedDataTypes []string
+	switch source.DBType {
+	case POSTGRESQL:
+		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
+	case ORACLE:
+		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
+	default:
+		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
+	}
+
+	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
-		if utils.ContainsAnySubstringFromSlice(pgUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		if utils.ContainsAnySubstringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
 	}

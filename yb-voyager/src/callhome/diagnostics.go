@@ -137,10 +137,10 @@ type ImportSchemaPhasePayload struct {
 }
 
 type ImportDataPhasePayload struct {
-	ParallelJobs        int64  `json:"parallel_jobs"`
-	TotalRows           int64  `json:"total_rows"`
-	LargestTableRows    int64  `json:"largest_table_rows"`
-	StartClean          bool   `json:"start_clean"`
+	ParallelJobs     int64 `json:"parallel_jobs"`
+	TotalRows        int64 `json:"total_rows"`
+	LargestTableRows int64 `json:"largest_table_rows"`
+	StartClean       bool  `json:"start_clean"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	LiveMigrationPhase  string `json:"live_migration_phase,omitempty"`
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
@@ -176,6 +176,7 @@ func MarshalledJsonString[T any](value T) string {
 	bytes, err := json.Marshal(value)
 	if err != nil {
 		log.Errorf("callhome: error in parsing %v: %v", reflect.TypeOf(value).Name(), err)
+		return ""
 	}
 	return string(bytes)
 }
