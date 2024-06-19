@@ -847,16 +847,16 @@ compare_assessment_reports() {
         end
     )' "$file2" > "$temp_file2"
 
-	if [ "$temp_file1" == "$temp_file2" ]
-        then
-            echo "Data matches expected report."
-        else
-            echo "Data does not match expected report."
-			diff_output=$(diff "$temp_file1" "$temp_file2")
-			echo "$diff_output"
-			exit 1
-        fi
+    # Compare the normalized and sorted JSON files
+    if cmp -s "$temp_file1" "$temp_file2"; then
+        echo "Data matches expected report."
+    else
+        echo "Data does not match expected report."
+        diff_output=$(diff "$temp_file1" "$temp_file2")
+        echo "$diff_output"
+        exit 1
+    fi
 
+    # Clean up temporary files
     rm "$temp_file1" "$temp_file2"
 }
-
