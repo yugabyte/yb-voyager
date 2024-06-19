@@ -40,17 +40,17 @@ import (
 )
 
 var (
-	cfgFile                  string
-	exportDir                string
-	schemaDir                string
-	startClean               utils.BoolStr
-	lockFile                 *lockfile.Lockfile
-	migrationUUID            uuid.UUID
-	perfProfile              utils.BoolStr
-	ProcessShutdownRequested bool
-	controlPlane             cp.ControlPlane
-	currentCommand           string
-	callHomePayloadSent      bool
+	cfgFile                            string
+	exportDir                          string
+	schemaDir                          string
+	startClean                         utils.BoolStr
+	lockFile                           *lockfile.Lockfile
+	migrationUUID                      uuid.UUID
+	perfProfile                        utils.BoolStr
+	ProcessShutdownRequested           bool
+	controlPlane                       cp.ControlPlane
+	currentCommand                     string
+	callHomeErrorOrCompletePayloadSent bool
 )
 
 var rootCmd = &cobra.Command{
@@ -73,6 +73,11 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
 		startTime = time.Now()
+
+		if callhome.SendDiagnostics {
+			go sendCallhomePayloadAtIntervals()
+		}
+
 		log.Infof("Start time: %s\n", startTime)
 		if metaDBIsCreated(exportDir) {
 			initMetaDB()

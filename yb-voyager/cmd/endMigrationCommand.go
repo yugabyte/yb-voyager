@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -112,15 +111,13 @@ func packAndSendEndMigrationPayload(status string) {
 		BackupDataFiles:      bool(backupDataFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
 	}
-	payloadBytes, err := json.Marshal(endMigrationPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing end mgiration phase payload: %v", err)
-	}
-	payload.PhasePayload = string(payloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err := callhome.SendPayload(&payload)
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
 }
 
 func backupSchemaFilesFn() {
