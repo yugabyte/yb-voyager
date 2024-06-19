@@ -74,7 +74,7 @@ main() {
 	yb-voyager version
 
 	step "Assess Migration"
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" == "oracle" ]; then
 		assess_migration || {
 			cat_log_file "yb-voyager-assess-migration.log"
 			cat_file ${EXPORT_DIR}/assessment/metadata/yb-voyager-assessment.log
