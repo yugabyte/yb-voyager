@@ -891,6 +891,50 @@ func TestGetReasoning_Indexes(t *testing.T) {
 }
 
 /*
+===== 	Test functions to test getThresholdAndTablets function	=====
+*/
+func TestGetThresholdAndTablets(t *testing.T) {
+	tests := []struct {
+		previousNumNodes  float64
+		sizeGB            float64
+		expectedThreshold float64
+		expectedTablets   int
+	}{
+		// test data where previousNumNodes is 3
+		{3, 0.512, LOW_PHASE_SIZE_THRESHOLD_GB, 1},
+		{3, 1, LOW_PHASE_SIZE_THRESHOLD_GB, 2},
+		{3, 1.1, LOW_PHASE_SIZE_THRESHOLD_GB, 3},
+		{3, 2, HIGH_PHASE_SIZE_THRESHOLD_GB, 3},
+		{3, 10, HIGH_PHASE_SIZE_THRESHOLD_GB, 3},
+		{3, 229, HIGH_PHASE_SIZE_THRESHOLD_GB, 23},
+		{3, 241, HIGH_PHASE_SIZE_THRESHOLD_GB, 25},
+		{3, 711, HIGH_PHASE_SIZE_THRESHOLD_GB, 72},
+		{3, 7180, FINAL_PHASE_SIZE_THRESHOLD_GB, 72},
+		{3, 7201, FINAL_PHASE_SIZE_THRESHOLD_GB, 73},
+		// test data where previousNumNodes is 4
+		{4, 0.512, LOW_PHASE_SIZE_THRESHOLD_GB, 1},
+		{4, 1, LOW_PHASE_SIZE_THRESHOLD_GB, 2},
+		{4, 1.1, LOW_PHASE_SIZE_THRESHOLD_GB, 3},
+		{4, 2, LOW_PHASE_SIZE_THRESHOLD_GB, 4},
+		{4, 10, HIGH_PHASE_SIZE_THRESHOLD_GB, 4},
+		{4, 229, HIGH_PHASE_SIZE_THRESHOLD_GB, 23},
+		{4, 241, HIGH_PHASE_SIZE_THRESHOLD_GB, 25},
+		{4, 949, HIGH_PHASE_SIZE_THRESHOLD_GB, 95},
+		{4, 951, HIGH_PHASE_SIZE_THRESHOLD_GB, 96},
+		{4, 961, FINAL_PHASE_SIZE_THRESHOLD_GB, 96},
+	}
+
+	for _, test := range tests {
+		threshold, tablets := getThresholdAndTablets(test.previousNumNodes, test.sizeGB)
+		if threshold != test.expectedThreshold || tablets != test.expectedTablets {
+			t.Errorf("getThresholdAndTablets(%v, %v) = (%v, %v); want (%v, %v)",
+				test.previousNumNodes, test.sizeGB, threshold, tablets, test.expectedThreshold, test.expectedTablets)
+		}
+	}
+
+}
+
+/*
 ====================HELPER FUNCTIONS====================
 */
 
