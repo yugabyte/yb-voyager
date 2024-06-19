@@ -24,7 +24,9 @@ ON COMMIT PRESERVE ROWS AS
     JOIN
         dba_tables tab ON t.owner = tab.owner AND t.table_name = tab.table_name
     WHERE
-        t.owner = '&1';
+        t.owner = '&1'
+        AND t.table_name NOT LIKE 'DR$%'
+        AND t.table_name NOT LIKE 'AQ$%';
 
 -- Select the data into the CSV file
 SPOOL table-columns-data-types.csv

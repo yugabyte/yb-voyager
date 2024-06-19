@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -583,7 +582,7 @@ func importData(importFileTasks []*ImportFileTask) {
 }
 
 func packAndSendImportDataPayload(status string) {
-	//TODO send this for INPROGRESS status in some fixed interval for long running import data
+
 	if !callhome.SendDiagnostics {
 		return
 	}
@@ -595,11 +594,7 @@ func packAndSendImportDataPayload(status string) {
 	case SNAPSHOT_AND_CHANGES:
 		payload.MigrationType = LIVE_MIGRATION //TODO: add FF/FB details
 	}
-	bytes, err := json.Marshal(targetDBDetails)
-	if err != nil {
-		log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-	}
-	payload.TargetDBDetails = string(bytes)
+	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
 		ParallelJobs: int64(tconf.Parallelism),
@@ -620,15 +615,13 @@ func packAndSendImportDataPayload(status string) {
 		})
 	}
 
-	importDataPayloadBytes, err := json.Marshal(importDataPayload)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the export data payload: %v", err)
-	}
-	payload.PhasePayload = string(importDataPayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err = callhome.SendPayload(&payload)
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
 }
 
 func disableGeneratedAlwaysAsIdentityColumns(tables []sqlname.NameTuple) {
@@ -1080,7 +1073,7 @@ func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error
 		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 	}
 	if invalidTargetIndexesCache == nil {
-		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
+		invalidTargetIndexesCache, err = getInvalidIndexes(conn)
 		if err != nil {
 			return fmt.Errorf("failed to fetch invalid indexes: %w", err)
 		}
@@ -1098,6 +1091,32 @@ func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error
 	// print the index name as index creation takes time and user can see the progress
 	color.Yellow("creating index %s ...", fullyQualifiedObjName)
 	return nil
+}
+
+func getInvalidIndexes(conn **pgx.Conn) (map[string]bool, error) {
+	var result = make(map[string]bool)
+	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
+	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
+
+	rows, err := (*conn).Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("querying invalid indexes: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var fullyQualifiedIndexName string
+		err := rows.Scan(&fullyQualifiedIndexName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
+		}
+		// if schema is not provided by catalog table, then it is public schema
+		if !strings.Contains(fullyQualifiedIndexName, ".") {
+			fullyQualifiedIndexName = fmt.Sprintf("public.%s", fullyQualifiedIndexName)
+		}
+		result[fullyQualifiedIndexName] = true
+	}
+	return result, nil
 }
 
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.

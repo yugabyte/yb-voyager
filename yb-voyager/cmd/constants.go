@@ -68,13 +68,22 @@ const (
 	IMPORT_DATA_PHASE      = "import-data"
 	END_MIGRATION_PHASE    = "end-migration"
 	ASSESS_MIGRATION_PHASE = "assess-migration"
+	IMPORT_DATA_FILE_PHASE = "import-data-file"
 	//...more phases
-	OFFLINE              = "offline"
-	LIVE_MIGRATION       = "live migration"
+	OFFLINE        = "offline"
+	LIVE_MIGRATION = "live migration"
+	BULK_DATA_LOAD = "bulk data load from flat files"
+
+	AWS_S3      = "aws-s3"
+	GCS_BUCKETS = "gcs-bukets"
+	AZURE_BLOBS = "azure-blob-storage"
+	LOCAL_DISK  = "local-disk"
+	//status
 	ERROR                = "ERROR"
 	EXIT                 = "EXIT"
 	COMPLETE             = "COMPLETE"
 	COMPLETE_WITH_ERRORS = "COMPLETE-WITH-ERRORS"
+	INPROGRESS           = "IN-PROGRESS"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

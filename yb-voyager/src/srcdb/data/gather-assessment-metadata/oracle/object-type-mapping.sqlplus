@@ -34,7 +34,29 @@ ON COMMIT PRESERVE ROWS AS
     WHERE
         owner = '&1'
         AND table_name NOT LIKE 'DR$%'
-        AND table_name NOT LIKE 'AQ$%';
+        AND table_name NOT LIKE 'AQ$%'
+    UNION ALL
+    SELECT
+        owner AS schema_name,
+        type_name AS object_name,
+        'INHERITED TYPE' AS object_type
+    FROM
+        dba_types
+    WHERE
+        owner = '&1'
+        AND supertype_name IS NOT NULL
+    UNION ALL
+    SELECT
+        owner AS schema_name,
+        table_name || '.' || column_name AS object_name,
+        'VIRTUAL COLUMN' AS object_type
+    FROM
+        dba_tab_cols
+    WHERE
+        owner = '&1'
+        AND virtual_column = 'YES'
+        AND column_name NOT LIKE 'SYS_%';
+
 
 -- Select the data into the CSV file
 SPOOL object-type-mapping.csv
