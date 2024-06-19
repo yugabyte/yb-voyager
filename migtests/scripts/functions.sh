@@ -802,15 +802,12 @@ compare_assessment_reports() {
     local file1="$1"
     local file2="$2"
 
-    # Create temporary files to store normalized and sorted JSON
     local temp_file1=$(mktemp)
     local temp_file2=$(mktemp)
 
-    # Normalize JSON and sort arrays, then write to temporary files
     normalize_json "$file1" "$temp_file1"
     normalize_json "$file2" "$temp_file2"
 
-    # Compare the normalized and sorted JSON files
     if cmp -s "$temp_file1" "$temp_file2"; then
         echo "Data matches expected report."
     else

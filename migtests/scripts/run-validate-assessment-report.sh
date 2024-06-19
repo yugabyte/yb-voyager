@@ -67,7 +67,11 @@ main() {
 		# Checking if the assessment reports were created
 		if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
 			echo "Assessment reports created successfully."
+
+			echo "Checking for Failures"
 			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+
+			echo "Comparing Report contents"
             expected_file="${TEST_DIR}/expectedAssessmentReport.json"
             actual_file="${EXPORT_DIR}/assessment/reports/assessmentReport.json"
 		    compare_assessment_reports ${expected_file} ${actual_file}
