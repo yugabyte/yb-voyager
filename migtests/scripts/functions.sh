@@ -785,3 +785,39 @@ move_tables() {
     jq --indent 4 --argjson new_sharded_tables "$new_sharded_tables_json" --argjson remaining_colocated_tables "$remaining_colocated_tables_json" \
        '.Sizing.SizingRecommendation.ShardedTables += $new_sharded_tables | .Sizing.SizingRecommendation.ColocatedTables = $remaining_colocated_tables' "$json_file" > tmp.json && mv tmp.json "$json_file"
 }
+
+compare_assessment_reports() {
+    local file1="$1"
+    local file2="$2"
+
+    local normalized_json1
+    local normalized_json2
+
+    normalized_json1=$(jq 'walk(
+        if type == "object" and has("ObjectNames") and (."ObjectNames" | type == "string")
+        then .ObjectNames |= (split(", ") | sort | join(", "))
+        elif type == "array"
+        then sort_by(tostring)
+        else .
+        end
+    )' "$file1")
+
+    normalized_json2=$(jq 'walk(
+        if type == "object" and has("ObjectNames") and (."ObjectNames" | type == "string")
+        then .ObjectNames |= (split(", ") | sort | join(", "))
+        elif type == "array"
+        then sort_by(tostring)
+        else .
+        end
+    )' "$file2")
+
+    diff_output=$(diff <(echo "$normalized_json1") <(echo "$normalized_json2"))
+    if [ $? -ne 0 ]; then
+        echo "Expected and Generated Reports are different:"
+        echo "$diff_output"
+		exit 1
+	else
+		echo "Expected and Generated Reports match"
+    fi
+}
+
