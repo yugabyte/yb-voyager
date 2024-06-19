@@ -922,6 +922,13 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	return snapshotRowsMap, nil
 }
 
+func safeDereferenceInt64(ptr *int64) int64 {
+	if ptr != nil {
+		return *ptr
+	}
+	return 0 
+}
+
 func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	minQuotedTableList := lo.Uniq(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
 		// Store list of tables in MSR with root table in case of partitions

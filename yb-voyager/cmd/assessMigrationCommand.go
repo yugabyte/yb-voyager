@@ -125,9 +125,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			newStat := callhome.ObjectSizingStats{
 				SchemaName:      stat.SchemaName,
 				ObjectName:      stat.ObjectName,
-				ReadsPerSecond:  *stat.ReadsPerSecond,
-				WritesPerSecond: *stat.WritesPerSecond,
-				SizeInBytes:     *stat.SizeInBytes,
+				ReadsPerSecond:  safeDereferenceInt64(stat.ReadsPerSecond),
+				WritesPerSecond: safeDereferenceInt64(stat.WritesPerSecond),
+				SizeInBytes:     safeDereferenceInt64(stat.SizeInBytes),
 			}
 			if stat.IsIndex {
 				indexSizingStats = append(indexSizingStats, newStat)
@@ -353,33 +353,25 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
+	sizeDetails, err := calculateSizeDetails()
+	if err != nil {
+		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
+	}
+
 	finalReport := AssessMigrationPayload{
 		AssessmentJsonReport: assessmentReport,
 		SourceSizeDetails: SourceDBSizeDetails{
-			TotalDBSize: source.DBSize,
+			TotalIndexSize:     sizeDetails.TotalIndexSize,
+			TotalTableSize:     sizeDetails.TotalTableSize,
+			TotalTableRowCount: sizeDetails.TotalTableRowCount,
+			TotalDBSize:        source.DBSize,
 		},
-		TargetRecommendations: TargetSizingRecommendations{},
-		MigrationComplexity:   getMigrationComplexity(), //TODO: to figure out proper algorithm
-		ConversionIssues:      schemaAnalysisReport.Issues,
-	}
-	colocatedTables, err := assessmentReport.GetColocatedTablesRecommendation()
-	if err != nil {
-		utils.PrintAndLog("Failed to get the colocated tables recommendation from assessmentReport: %v", err)
-	}
-	if assessmentReport.TableIndexStats != nil {
-		for _, stat := range *assessmentReport.TableIndexStats {
-			if stat.IsIndex {
-				finalReport.SourceSizeDetails.TotalIndexSize += *stat.SizeInBytes
-			} else {
-				finalReport.SourceSizeDetails.TotalTableSize += *stat.SizeInBytes
-				finalReport.SourceSizeDetails.TotalTableRowCount += *stat.RowCount
-				if slices.Contains(colocatedTables, fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)) {
-					finalReport.TargetRecommendations.TotalColocatedSize += *stat.SizeInBytes
-				} else {
-					finalReport.TargetRecommendations.TotalShardedSize += *stat.SizeInBytes
-				}
-			}
-		}
+		TargetRecommendations: TargetSizingRecommendations{
+			TotalColocatedSize: sizeDetails.TotalColocatedSize,
+			TotalShardedSize:   sizeDetails.TotalShardedSize,
+		},
+		MigrationComplexity: getMigrationComplexity(), //TODO: to figure out proper algorithm
+		ConversionIssues:    schemaAnalysisReport.Issues,
 	}
 
 	finalReportBytes, err := json.Marshal(finalReport)
@@ -393,6 +385,39 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 func getMigrationComplexity() string {
 	return "NOT AVAILABLE"
+}
+
+type SizeDetails struct {
+	TotalIndexSize     int64
+	TotalTableSize     int64
+	TotalTableRowCount int64
+	TotalColocatedSize int64
+	TotalShardedSize   int64
+}
+
+func calculateSizeDetails() (SizeDetails, error) {
+	var details SizeDetails
+	colocatedTables, err := assessmentReport.GetColocatedTablesRecommendation()
+	if err != nil {
+		return details, fmt.Errorf("failed to get the colocated tables recommendation: %v", err)
+	}
+
+	if assessmentReport.TableIndexStats != nil {
+		for _, stat := range *assessmentReport.TableIndexStats {
+			if stat.IsIndex {
+				details.TotalIndexSize += safeDereferenceInt64(stat.SizeInBytes)
+			} else {
+				details.TotalTableSize += safeDereferenceInt64(stat.SizeInBytes)
+				details.TotalTableRowCount += safeDereferenceInt64(stat.RowCount)
+				if slices.Contains(colocatedTables, fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)) {
+					details.TotalColocatedSize += safeDereferenceInt64(stat.SizeInBytes)
+				} else {
+					details.TotalShardedSize += safeDereferenceInt64(stat.SizeInBytes)
+				}
+			}
+		}
+	}
+	return details, nil
 }
 
 func runAssessment() error {
