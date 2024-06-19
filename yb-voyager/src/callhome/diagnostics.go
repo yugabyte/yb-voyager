@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -47,6 +48,7 @@ CREATE TABLE diagnostics (
 
 	migration_uuid UUID,
 	phase_start_time TIMESTAMP WITH TIME ZONE,
+	collected_at TIMESTAMP WITH TIME ZONE,
 	source_db_details JSONB,
 	target_db_details JSONB,
 	yb_voyager_version TEXT,
@@ -55,20 +57,21 @@ CREATE TABLE diagnostics (
 	migration_type TEXT,
 	time_taken_sec int,
 	status TEXT,
-	PRIMARY KEY (migration_uuid, phase_start_time, migration_phase)
+	PRIMARY KEY (migration_uuid, migration_phase, collected_at)
 
 );
 */
 type Payload struct {
 	MigrationUUID    uuid.UUID `json:"migration_uuid"`
 	PhaseStartTime   string    `json:"phase_start_time"`
+	CollectedAt      string    `json:"collected_at"`
 	SourceDBDetails  string    `json:"source_db_details"`
 	TargetDBDetails  string    `json:"target_db_details"`
 	YBVoyagerVersion string    `json:"yb_voyager_version"`
 	MigrationPhase   string    `json:"migration_phase"`
 	PhasePayload     string    `json:"phase_payload"`
 	MigrationType    string    `json:"migration_type"`
-	TimeTakenSec     int     `json:"time_taken_sec"`
+	TimeTakenSec     int       `json:"time_taken_sec"`
 	Status           string    `json:"status"`
 }
 
@@ -136,13 +139,21 @@ type ImportDataPhasePayload struct {
 }
 
 type ImportDataFilePhasePayload struct {
-	ParallelJobs     int64  `json:"parallel_jobs"`
-	TotalRows        int64  `json:"total_rows"`
-	TotalSize        int64  `json:"total_size"`
-	LargestTableRows int64  `json:"largest_table_rows"`
-	LargestTableSize int64  `json:"largest_table_size"`
-	FileStorageType  string `json:"file_storage_type"`
-	StartClean       bool   `json:"start_clean"`
+	ParallelJobs       int64  `json:"parallel_jobs"`
+	TotalSize          int64  `json:"total_size"`
+	LargestTableSize   int64  `json:"largest_table_size"`
+	FileStorageType    string `json:"file_storage_type"`
+	StartClean         bool   `json:"start_clean"`
+	DataFileParameters string `json:"data_file_parameters"`
+}
+
+type DataFileParameters struct {
+	FileFormat string `json:"FileFormat"`
+	Delimiter  string `json:"Delimiter"`
+	HasHeader  bool   `json:"HasHeader"`
+	QuoteChar  string `json:"QuoteChar,omitempty"`
+	EscapeChar string `json:"EscapeChar,omitempty"`
+	NullString string `json:"NullString,omitempty"`
 }
 
 type EndMigrationPhasePayload struct {
@@ -150,6 +161,15 @@ type EndMigrationPhasePayload struct {
 	BackupDataFiles      bool `json:"backup_data_files"`
 	BackupSchemaFiles    bool `json:"backup_schema_files"`
 	SaveMigrationReports bool `json:"save_migration_reports"`
+}
+
+func MarshalledJsonString[T any](value T) string {
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		log.Errorf("callhome: error in parsing %v: %v", reflect.TypeOf(value).Name(), err)
+		return ""
+	}
+	return string(bytes)
 }
 
 // [For development] Read ENV VARS for value of SendDiagnostics
@@ -177,10 +197,10 @@ func readCallHomeServiceEnv() {
 }
 
 // Send http request to flask servers after saving locally
-func SendPayload(payload *Payload) {
+func SendPayload(payload *Payload) error {
 
 	if !SendDiagnostics {
-		return
+		return nil
 	}
 
 	//for local call-home setup
@@ -188,8 +208,7 @@ func SendPayload(payload *Payload) {
 
 	postBody, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error while creating http request for diagnostics: %v", err)
-		return
+		return fmt.Errorf("error while creating http request for diagnostics: %v", err)
 	}
 	requestBody := bytes.NewBuffer(postBody)
 
@@ -198,17 +217,16 @@ func SendPayload(payload *Payload) {
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 
 	if err != nil {
-		log.Errorf("Error while sending diagnostic data: %v", err)
-		return
+		return fmt.Errorf("error while sending diagnostic data: %v", err)
 	}
 
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Errorf("Error while reading HTTP response from call-home server: %v", err)
-		return
+		return fmt.Errorf("error while reading HTTP response from call-home server: %v", err)
 	}
 	log.Infof("HTTP response after sending diagnostic.json: %s\n", string(body))
 
+	return nil
 }
