@@ -47,14 +47,18 @@ type ConnectionPool struct {
 	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
 	nextUriIndex              int
 	disableThrottling         bool
+	size                      int
+	connsInUse                int
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	pool := &ConnectionPool{
 		params:                    params,
 		conns:                     make(chan *pgx.Conn, params.NumConnections),
-		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumConnections),
+		connIdToPreparedStmtCache: make(map[uint32]map[string]bool),
 		disableThrottling:         false,
+		size:                      params.NumConnections,
+		connsInUse:                0,
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
@@ -69,6 +73,65 @@ func (pool *ConnectionPool) DisableThrottling() {
 	pool.disableThrottling = true
 }
 
+func (pool *ConnectionPool) GetNumConnections() int {
+	return pool.size
+}
+
+func (pool *ConnectionPool) UpdateNumConnections(newSize int) {
+	utils.PrintAndLog("locking UpdateNumConnections")
+	pool.Lock()
+	defer pool.Unlock()
+	oldSize := pool.size
+	pool.size = newSize
+
+	if newSize == oldSize {
+		return
+	}
+	newConns := make(chan *pgx.Conn, newSize)
+	if newSize > oldSize {
+		connsToAdd := newSize - oldSize
+		for i := 0; i < connsToAdd; i++ {
+			newConns <- nil
+		}
+		// add all the existing conns in old pool to the new pool
+		for i := 0; i < oldSize; i++ {
+			conn, gotIt := <-pool.conns
+			if gotIt {
+				newConns <- conn
+			} else {
+				// conn is in use, so it will be added back to the pool later
+			}
+		}
+	} else {
+		// newsize < oldSize
+		// whatever is present in the old pool, add them first (up to newSize max)
+		for i := 0; i < newSize; i++ {
+			conn, gotIt := <-pool.conns
+			if gotIt {
+				newConns <- conn
+			} else {
+				// conn is in use, so it will be added back to the pool later if required.
+			}
+		}
+		// close all the remaining connections in the old pool
+		for {
+			conn, gotIt := <-pool.conns
+			if !gotIt {
+				break
+			}
+			if conn != nil {
+				conn.Close(context.Background())
+			}
+
+		}
+		// there will still be some connections in use, not in the pool.
+		// before they are added back to the pool,
+		// we will ensure to close as many connections as required to ensure that the total connections = newSize
+	}
+
+	pool.conns = newConns
+}
+
 func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	var err error
 	retry := true
@@ -77,9 +140,21 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		var conn *pgx.Conn
 		var gotIt bool
 		if pool.disableThrottling {
-			conn = <-pool.conns
-		} else {
+			utils.PrintAndLog("locking before acquiring connection")
+			pool.Lock()
 			conn, gotIt = <-pool.conns
+			if !gotIt {
+				pool.Unlock()
+				continue
+			}
+			pool.connsInUse += 1
+			pool.Unlock()
+		} else {
+			utils.PrintAndLog("locking before acquiring connection with throttling")
+			pool.Lock()
+			conn, gotIt = <-pool.conns
+			pool.connsInUse += 1
+			pool.Unlock()
 			if !gotIt {
 				// The following sleep is intentional. It is added so that voyager does not
 				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
@@ -98,13 +173,29 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		if err != nil {
 			// On err, drop the connection and clear the prepared statement cache.
 			conn.Close(context.Background())
+			utils.PrintAndLog("locking before dealing with error connection")
 			pool.Lock()
 			// assuming PID will still be available
 			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
+			if len(pool.conns)+pool.connsInUse <= pool.size {
+				utils.PrintAndLog("adding nil to pool")
+				pool.conns <- nil
+				pool.connsInUse -= 1
+			}
+			utils.PrintAndLog("adding nothing to pool")
 			pool.Unlock()
-			pool.conns <- nil
 		} else {
-			pool.conns <- conn
+			utils.PrintAndLog("locking before returning connection")
+			pool.Lock()
+			if len(pool.conns)+pool.connsInUse <= pool.size {
+				utils.PrintAndLog("adding conn back to pool")
+				pool.conns <- conn
+				pool.connsInUse -= 1
+			} else {
+				utils.PrintAndLog("closing conn")
+				conn.Close(context.Background())
+			}
+			pool.Unlock()
 		}
 	}
 
@@ -126,6 +217,7 @@ func (pool *ConnectionPool) PrepareStatement(conn *pgx.Conn, stmtName string, st
 }
 
 func (pool *ConnectionPool) cachePreparedStmtForConn(connId uint32, ps string) {
+	utils.PrintAndLog("locking cachePreparedStmtForConn")
 	pool.Lock()
 	defer pool.Unlock()
 	if pool.connIdToPreparedStmtCache[connId] == nil {
@@ -135,6 +227,7 @@ func (pool *ConnectionPool) cachePreparedStmtForConn(connId uint32, ps string) {
 }
 
 func (pool *ConnectionPool) isStmtAlreadyPreparedOnConn(connId uint32, ps string) bool {
+	utils.PrintAndLog("locking isStmtAlreadyPreparedOnConn")
 	pool.Lock()
 	defer pool.Unlock()
 	if pool.connIdToPreparedStmtCache[connId] == nil {
@@ -186,6 +279,7 @@ func (pool *ConnectionPool) shuffledConnUriList() []string {
 }
 
 func (pool *ConnectionPool) getNextUriIndex() int {
+	utils.PrintAndLog("locking getNextUriIndex")
 	pool.Lock()
 	defer pool.Unlock()
 

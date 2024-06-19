@@ -1229,6 +1229,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 }
 
 func (yb *TargetYugabyteDB) AdaptParallelism() {
+	// maxCPUThreshold := 60
 	for {
 		clusterMetrics, err := yb.GetClusterMetrics()
 		if err != nil {
@@ -1243,6 +1244,13 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 			}
 		}
 		utils.PrintAndLog("cluster cpu usage: %d", clusterCPUUsage)
+		// if int(clusterCPUUsage) > maxCPUThreshold {
+		// 	yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - 1)
+		// 	utils.PrintAndLog("found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections())
+		// } else {
+		// 	yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() + 1)
+		// 	utils.PrintAndLog("found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections())
+		// }
 		time.Sleep(10 * time.Second)
 	}
 }

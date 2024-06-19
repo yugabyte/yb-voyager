@@ -125,7 +125,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 
-	go tdb.(*tgtdb.TargetYugabyteDB).AdaptParallelism()
 	// metrics, err := tdb.(*tgtdb.TargetYugabyteDB).GetClusterMetrics()
 	// if err != nil {
 	// 	utils.ErrExit("Failed to get cluster metrics: %s", err)
@@ -428,6 +427,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
+	go tdb.(*tgtdb.TargetYugabyteDB).AdaptParallelism()
 
 	targetDBVersion := tdb.GetVersion()
 
