@@ -7,13 +7,14 @@ SET TRIMSPOOL ON
 SET TERMOUT OFF
 SET VERIFY OFF
 
--- Get the session ID
-COLUMN session_id NEW_VALUE session_id
-SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
+-- Exit on SQL errors or OS errors
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+WHENEVER OSERROR EXIT FAILURE
 
--- Create a temporary table to hold the data
-CREATE GLOBAL TEMPORARY TABLE temp_object_type_mapping_&session_id
-ON COMMIT PRESERVE ROWS AS
+-- Select the data into the CSV file using inline views
+SPOOL object-type-mapping.csv
+SELECT schema_name, object_name, object_type
+FROM (
     SELECT
         owner AS schema_name,
         -- TODO: handle the partitioned table support later
@@ -55,16 +56,8 @@ ON COMMIT PRESERVE ROWS AS
     WHERE
         owner = '&1'
         AND virtual_column = 'YES'
-        AND column_name NOT LIKE 'SYS_%';
-
-
--- Select the data into the CSV file
-SPOOL object-type-mapping.csv
-SELECT schema_name, object_name, object_type FROM temp_object_type_mapping_&session_id;
+        AND column_name NOT LIKE 'SYS_%'
+);
 SPOOL OFF
-
--- Drop the temporary table
-TRUNCATE TABLE temp_object_type_mapping_&session_id;
-DROP TABLE temp_object_type_mapping_&session_id;
 
 EXIT
