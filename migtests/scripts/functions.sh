@@ -554,8 +554,6 @@ verify_report() {
 		echo "No ${actual_report} found."
 		exit 1
 	fi
-
-
 }
 
 
@@ -849,18 +847,16 @@ compare_assessment_reports() {
         end
     )' "$file2" > "$temp_file2"
 
-    # Perform the diff on the temporary files
-    diff_output=$(diff "$temp_file1" "$temp_file2")
+	if [ "$temp_file1" == "$temp_file2" ]
+        then
+            echo "Data matches expected report."
+        else
+            echo "Data does not match expected report."
+			diff_output=$(diff "$temp_file1" "$temp_file2")
+			echo "$diff_output"
+			exit 1
+        fi
 
-    # Check if diff command found differences
-    if [ $? -ne 0 ]; then
-        echo "Expected and Generated Reports are different:"
-        echo "$diff_output"
-		exit 1
-	else
-		echo "Expected and Generated Reports match"
-    fi
-
-    # Clean up temporary files
     rm "$temp_file1" "$temp_file2"
 }
+

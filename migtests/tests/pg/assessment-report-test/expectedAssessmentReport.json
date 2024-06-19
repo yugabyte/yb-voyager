@@ -983,7 +983,7 @@
 			"WritesPerSecond": 0,
 			"IsIndex": true,
 			"ObjectType": "",
-			"ParentTableName": "schema.orders2",
+			"ParentTableName": "schema2.orders2",
 			"SizeInBytes": 8192
 		}
 	]
