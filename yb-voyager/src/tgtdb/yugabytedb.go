@@ -1229,6 +1229,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 }
 
 func (yb *TargetYugabyteDB) AdaptParallelism() {
+	return
 	// maxCPUThreshold := 60
 	for {
 		clusterMetrics, err := yb.GetClusterMetrics()

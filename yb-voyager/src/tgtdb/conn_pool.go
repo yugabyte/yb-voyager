@@ -21,7 +21,6 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -49,6 +48,7 @@ type ConnectionPool struct {
 	disableThrottling         bool
 	size                      int
 	connsInUse                int
+	connLock                  sync.Mutex
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
@@ -78,9 +78,8 @@ func (pool *ConnectionPool) GetNumConnections() int {
 }
 
 func (pool *ConnectionPool) UpdateNumConnections(newSize int) {
-	utils.PrintAndLog("locking UpdateNumConnections")
-	pool.Lock()
-	defer pool.Unlock()
+	pool.connLock.Lock()
+	defer pool.connLock.Unlock()
 	oldSize := pool.size
 	pool.size = newSize
 
@@ -136,30 +135,39 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	var err error
 	retry := true
 
+L:
 	for retry {
 		var conn *pgx.Conn
-		var gotIt bool
+		// var gotIt bool
 		if pool.disableThrottling {
-			utils.PrintAndLog("locking before acquiring connection")
-			pool.Lock()
-			conn, gotIt = <-pool.conns
-			if !gotIt {
-				pool.Unlock()
-				continue
-			}
-			pool.connsInUse += 1
-			pool.Unlock()
-		} else {
-			utils.PrintAndLog("locking before acquiring connection with throttling")
-			pool.Lock()
-			conn, gotIt = <-pool.conns
-			pool.connsInUse += 1
-			pool.Unlock()
-			if !gotIt {
+			// utils.PrintAndLog("ACQ: get connection from pool")
+			pool.connLock.Lock()
+			// utils.PrintAndLog("ACQ: GOT LOCK connection from pool")
+
+			select {
+			case conn = <-pool.conns:
+				pool.connsInUse += 1
+				pool.connLock.Unlock()
+			default:
+				pool.connLock.Unlock()
 				// The following sleep is intentional. It is added so that voyager does not
 				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
-				time.Sleep(2 * time.Second)
-				continue
+				// time.Sleep(2 * time.Second)
+				continue L
+			}
+		} else {
+			pool.connLock.Lock()
+
+			select {
+			case conn = <-pool.conns:
+				pool.connsInUse += 1
+				pool.connLock.Unlock()
+			default:
+				pool.connLock.Unlock()
+				// The following sleep is intentional. It is added so that voyager does not
+				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
+				// time.Sleep(2 * time.Second)
+				continue L
 			}
 		}
 		if conn == nil {
@@ -173,29 +181,32 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		if err != nil {
 			// On err, drop the connection and clear the prepared statement cache.
 			conn.Close(context.Background())
-			utils.PrintAndLog("locking before dealing with error connection")
 			pool.Lock()
 			// assuming PID will still be available
 			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
+			pool.Unlock()
+			// utils.PrintAndLog("ACQ: dropping connection because of error; adding nil to pool")
+			pool.connLock.Lock()
 			if len(pool.conns)+pool.connsInUse <= pool.size {
-				utils.PrintAndLog("adding nil to pool")
+				// utils.PrintAndLog("adding nil to pool because of error")
 				pool.conns <- nil
 				pool.connsInUse -= 1
+			} else {
+				// utils.PrintAndLog("closing connection because too many connections in pool")
 			}
-			utils.PrintAndLog("adding nothing to pool")
-			pool.Unlock()
+			pool.connLock.Unlock()
 		} else {
-			utils.PrintAndLog("locking before returning connection")
-			pool.Lock()
+			// utils.PrintAndLog("ACQ: returning connection to pool")
+			pool.connLock.Lock()
 			if len(pool.conns)+pool.connsInUse <= pool.size {
-				utils.PrintAndLog("adding conn back to pool")
+				// utils.PrintAndLog("returning connection to pool")
 				pool.conns <- conn
 				pool.connsInUse -= 1
 			} else {
-				utils.PrintAndLog("closing conn")
+				// utils.PrintAndLog("closing connection because too many connections in pool")
 				conn.Close(context.Background())
 			}
-			pool.Unlock()
+			pool.connLock.Unlock()
 		}
 	}
 
@@ -217,7 +228,6 @@ func (pool *ConnectionPool) PrepareStatement(conn *pgx.Conn, stmtName string, st
 }
 
 func (pool *ConnectionPool) cachePreparedStmtForConn(connId uint32, ps string) {
-	utils.PrintAndLog("locking cachePreparedStmtForConn")
 	pool.Lock()
 	defer pool.Unlock()
 	if pool.connIdToPreparedStmtCache[connId] == nil {
@@ -227,7 +237,6 @@ func (pool *ConnectionPool) cachePreparedStmtForConn(connId uint32, ps string) {
 }
 
 func (pool *ConnectionPool) isStmtAlreadyPreparedOnConn(connId uint32, ps string) bool {
-	utils.PrintAndLog("locking isStmtAlreadyPreparedOnConn")
 	pool.Lock()
 	defer pool.Unlock()
 	if pool.connIdToPreparedStmtCache[connId] == nil {
@@ -279,7 +288,6 @@ func (pool *ConnectionPool) shuffledConnUriList() []string {
 }
 
 func (pool *ConnectionPool) getNextUriIndex() int {
-	utils.PrintAndLog("locking getNextUriIndex")
 	pool.Lock()
 	defer pool.Unlock()
 
