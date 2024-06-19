@@ -380,12 +380,13 @@ Returns:
 
 Description:
 This function calculates which size threshold applies to a table based on its size and determines the number of tablets required.
-Following details are with assumption that the previous recommended nodes is 3:
-- For sizes up to the low phase limit (1*3 shards of 512 MB each, up to 1.5 GB), the low phase threshold is used. Where 1 is low phase shard count and 3 is the previous recommended nodes.
-- After 1*3 shards, the high phase threshold is used.
-- Intermediate phase upto 30 GB is calculated based on 3 tablets of 10 GB each.
-- For sizes up to the high phase limit (72(24*3) shards of 10 GB each, up to 720 GB), the high phase threshold is used.
-- For larger sizes, the final phase threshold (100 GB) is used.
+Following details/comments are with assumption that the previous recommended nodes is 3.
+Similar works for other recommended nodes as well.:
+  - For sizes up to the low phase limit (1*3 shards of 512 MB each, up to 1.5 GB), the low phase threshold is used. Where 1 is low phase shard count and 3 is the previous recommended nodes.
+  - After 1*3 shards, the high phase threshold is used.
+  - Intermediate phase upto 30 GB is calculated based on 3 tablets of 10 GB each.
+  - For sizes up to the high phase limit (72(24*3) shards of 10 GB each, up to 720 GB), the high phase threshold is used.
+  - For larger sizes, the final phase threshold (100 GB) is used.
 */
 func getThresholdAndTablets(previousNumNodes float64, sizeGB float64) (float64, int) {
 	var tablets = math.Ceil(sizeGB / LOW_PHASE_SIZE_THRESHOLD_GB)
