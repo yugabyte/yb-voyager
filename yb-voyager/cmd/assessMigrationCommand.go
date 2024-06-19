@@ -43,11 +43,12 @@ import (
 )
 
 var (
-	assessmentMetadataDir     string
-	assessmentMetadataDirFlag string
-	assessmentReport          AssessmentReport
-	assessmentDB              *migassessment.AssessmentDB
-	intervalForCapturingIOPS  int64
+	assessmentMetadataDir           string
+	assessmentMetadataDirFlag       string
+	assessmentReport                AssessmentReport
+	assessmentDB                    *migassessment.AssessmentDB
+	intervalForCapturingIOPS        int64
+	assessMigrationSupportedDBTypes = []string{POSTGRESQL, ORACLE}
 )
 var sourceConnectionFlags = []string{
 	"source-db-host",
@@ -840,10 +841,10 @@ func validateSourceDBTypeForAssessMigration() {
 		utils.ErrExit("Error: required flag \"source-db-type\" not set")
 	}
 
-	assessMigrationSupportedDBTypes := []string{POSTGRESQL, ORACLE}
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
-		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types for assess-migration are: %v", assessMigrationSupportedDBTypes, source.DBType)
+		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
+			source.DBType, strings.Join(assessMigrationSupportedDBTypes, ", "))
 	}
 }
 
