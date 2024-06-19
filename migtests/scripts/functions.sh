@@ -854,8 +854,11 @@ compare_assessment_reports() {
 
     # Check if diff command found differences
     if [ $? -ne 0 ]; then
-        echo "The JSON files are different:"
+        echo "Expected and Generated Reports are different:"
         echo "$diff_output"
+		exit 1
+	else
+		echo "Expected and Generated Reports match"
     fi
 
     # Clean up temporary files
