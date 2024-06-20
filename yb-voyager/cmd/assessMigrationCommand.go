@@ -339,7 +339,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
-	sizeDetails, err := calculateSizeDetails()
+	sizeDetails, err := assessmentReport.CalculateSizeDetails()
 	if err != nil {
 		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
 	}
@@ -381,15 +381,15 @@ type SizeDetails struct {
 	TotalShardedSize   int64
 }
 
-func calculateSizeDetails() (SizeDetails, error) {
+func(ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
 	var details SizeDetails
-	colocatedTables, err := assessmentReport.GetColocatedTablesRecommendation()
+	colocatedTables, err := ar.GetColocatedTablesRecommendation()
 	if err != nil {
 		return details, fmt.Errorf("failed to get the colocated tables recommendation: %v", err)
 	}
 
-	if assessmentReport.TableIndexStats != nil {
-		for _, stat := range *assessmentReport.TableIndexStats {
+	if ar.TableIndexStats != nil {
+		for _, stat := range *ar.TableIndexStats {
 			if stat.IsIndex {
 				details.TotalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 			} else {
