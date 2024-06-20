@@ -60,7 +60,7 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 		connIdToPreparedStmtCache: make(map[uint32]map[string]bool),
 		disableThrottling:         false,
 		size:                      params.NumConnections,
-		sizeChangeRequests:        make(chan int, MAX_CONNS),
+		sizeChangeRequests:        make(chan int, 1),
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
@@ -75,8 +75,13 @@ func (pool *ConnectionPool) GetNumConnections() int {
 	return pool.size
 }
 
-func (pool *ConnectionPool) UpdateNumConnections(newSize int) {
-	pool.sizeChangeRequests <- newSize
+func (pool *ConnectionPool) UpdateNumConnections(newSize int) bool {
+	select {
+	case pool.sizeChangeRequests <- newSize:
+		return true
+	default:
+		return false
+	}
 }
 
 func (pool *ConnectionPool) DisableThrottling() {
@@ -107,8 +112,9 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 						}
 					}
 				}
-				utils.PrintAndLog("Updating pool size from %d to %d", pool.size, newSize)
+				oldSize := pool.size
 				pool.size = newSize
+				utils.PrintAndLog("PARALLELISM: Updated pool size from %d to %d", oldSize, newSize)
 			default:
 
 			}

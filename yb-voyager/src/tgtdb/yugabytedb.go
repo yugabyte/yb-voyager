@@ -1235,7 +1235,7 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 		if err != nil {
 			utils.PrintAndLog("error getting cluster metrics: %v", err)
 		}
-		utils.PrintAndLog("cluster metrics: %v", clusterMetrics)
+		utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
 		// max cpu
 		var clusterCPUUsage int64
 		for _, nodeMetrics := range clusterMetrics {
@@ -1243,15 +1243,23 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 				clusterCPUUsage = nodeMetrics["cpu_usage"]
 			}
 		}
-		utils.PrintAndLog("cluster cpu usage: %d", clusterCPUUsage)
+		utils.PrintAndLog("PARALLELISM: cluster cpu usage: %d", clusterCPUUsage)
 		if int(clusterCPUUsage) > maxCPUThreshold {
-			utils.PrintAndLog("found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()-1)
 
-			yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - 1)
+			updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - 1)
+			if updated {
+				utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()-1)
+			} else {
+				utils.PrintAndLog("PARALLELISM: no update. pending change request")
+			}
 		} else {
-			utils.PrintAndLog("found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()+1)
 
-			yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() + 1)
+			updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() + 1)
+			if updated {
+				utils.PrintAndLog("PARALLELISM: found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()+1)
+			} else {
+				utils.PrintAndLog("PARALLELISM: no update. pending change request")
+			}
 		}
 		time.Sleep(10 * time.Second)
 	}
