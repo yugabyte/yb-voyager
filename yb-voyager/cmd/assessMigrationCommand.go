@@ -118,9 +118,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			newStat := callhome.ObjectSizingStats{
 				SchemaName:      stat.SchemaName,
 				ObjectName:      stat.ObjectName,
-				ReadsPerSecond:  *stat.ReadsPerSecond,
-				WritesPerSecond: *stat.WritesPerSecond,
-				SizeInBytes:     *stat.SizeInBytes,
+				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
+				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
+				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
 			}
 			if stat.IsIndex {
 				indexSizingStats = append(indexSizingStats, newStat)
@@ -261,6 +261,17 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
+	
+	err = source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("error connecting source db: %v", err)
+	}
+	source.DBVersion = source.DB().GetVersion()
+	source.DBSize, err = source.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+	}
+	source.DB().Disconnect()
 
 	parseExportedSchemaFileForAssessmentIfRequired()
 
@@ -328,13 +339,72 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
-	report, err := json.Marshal(assessmentReport)
+
+	sizeDetails, err := assessmentReport.CalculateSizeDetails()
 	if err != nil {
-		utils.PrintAndLog("Failed to serialise the assessment report to json (ERR IGNORED): %s", err)
+		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
 	}
 
-	ev.Report = string(report)
+	finalReport := AssessMigrationPayload{
+		AssessmentJsonReport: assessmentReport,
+		SourceSizeDetails: SourceDBSizeDetails{
+			TotalIndexSize:     sizeDetails.TotalIndexSize,
+			TotalTableSize:     sizeDetails.TotalTableSize,
+			TotalTableRowCount: sizeDetails.TotalTableRowCount,
+			TotalDBSize:        source.DBSize,
+		},
+		TargetRecommendations: TargetSizingRecommendations{
+			TotalColocatedSize: sizeDetails.TotalColocatedSize,
+			TotalShardedSize:   sizeDetails.TotalShardedSize,
+		},
+		MigrationComplexity: getMigrationComplexity(), //TODO: to figure out proper algorithm
+		ConversionIssues:    schemaAnalysisReport.Issues,
+	}
+
+	finalReportBytes, err := json.Marshal(finalReport)
+	if err != nil {
+		utils.PrintAndLog("Failed to serialise the final report to json (ERR IGNORED): %s", err)
+	}
+
+	ev.Report = string(finalReportBytes)
 	return ev
+}
+
+func getMigrationComplexity() string {
+	return "NOT AVAILABLE"
+}
+
+type SizeDetails struct {
+	TotalIndexSize     int64
+	TotalTableSize     int64
+	TotalTableRowCount int64
+	TotalColocatedSize int64
+	TotalShardedSize   int64
+}
+
+func(ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
+	var details SizeDetails
+	colocatedTables, err := ar.GetColocatedTablesRecommendation()
+	if err != nil {
+		return details, fmt.Errorf("failed to get the colocated tables recommendation: %v", err)
+	}
+
+	if ar.TableIndexStats != nil {
+		for _, stat := range *ar.TableIndexStats {
+			if stat.IsIndex {
+				details.TotalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+			} else {
+				details.TotalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+				details.TotalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
+				if slices.Contains(colocatedTables, fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)) {
+					details.TotalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+				} else {
+					details.TotalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+				}
+			}
+		}
+	}
+	return details, nil
 }
 
 func runAssessment() error {
@@ -542,16 +612,6 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err := source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("error connecting source db: %v", err)
-	}
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-	source.DB().Disconnect()
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
