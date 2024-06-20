@@ -48,7 +48,6 @@ var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
 var callhomeTotalImportEvents, callhomeEventsImportRate int64
-var cutoverToTargetByImport, cutoverToSourceReplicaByImport, cutoverToSourceByImport bool
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 100)
@@ -179,16 +178,7 @@ func streamChangesFromSegment(
 			event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
 			event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
 
-			if callhome.SendDiagnostics {
-				switch true {
-				case event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE:
-					cutoverToTargetByImport = true
-				case event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE:
-					cutoverToSourceReplicaByImport = true
-				case event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE:
-					cutoverToSourceByImport = true
-				}
-			}
+			updateCallhomeImportPhase(event)
 
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
@@ -215,6 +205,21 @@ func streamChangesFromSegment(
 	}
 	log.Infof("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 	return nil
+}
+
+func updateCallhomeImportPhase(event *tgtdb.Event) {
+	if !callhome.SendDiagnostics {
+		return
+	}
+	switch true {
+	case event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE:
+		importPhase = CUTOVER_TO_TARGET
+	case event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		importPhase = CUTOVER_TO_SOURCE_REPLICA
+	case event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE:
+		importPhase = CUTOVER_TO_SOURCE
+	}
+
 }
 
 func shouldFormatValues(event *tgtdb.Event) bool {

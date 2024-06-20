@@ -89,7 +89,6 @@ func updateFallForwardEnabledInMetaDB() {
 }
 
 func packAndSendImportDataToSrcReplicaPayload(status string) {
-	//TODO send this for INPROGRESS status in some fixed interval for long running import data
 	if !callhome.SendDiagnostics {
 		return
 	}
@@ -122,18 +121,11 @@ func packAndSendImportDataToSrcReplicaPayload(status string) {
 		})
 	}
 
-	if changeStreamingIsEnabled(importType) {
-		if isImportLiveMigrationInSnapshot {
-			importDataPayload.LiveMigrationPhase = dbzm.MODE_SNAPSHOT
-		} else {
-			if cutoverToSourceReplicaByImport {
-				importDataPayload.LiveMigrationPhase = CUTOVER_TO_SOURCE_REPLICA
-			} else {
-				importDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
-			}
-			importDataPayload.EventsImportRate = callhomeEventsImportRate
-			importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
-		}
+	importDataPayload.Phase = importPhase
+
+	if importPhase == dbzm.MODE_STREAMING {
+		importDataPayload.EventsImportRate = callhomeEventsImportRate
+		importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)

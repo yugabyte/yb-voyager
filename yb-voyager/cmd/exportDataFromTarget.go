@@ -117,7 +117,12 @@ func packAndSendExportDataFromTargetPayload(status string) {
 		return
 	}
 	payload := createCallhomePayload()
-	payload.MigrationType = LIVE_MIGRATION
+	switch exporterRole {
+	case TARGET_DB_EXPORTER_FF_ROLE:
+		payload.MigrationType = LIVE_MIGRATION_WITH_FALL_FORWARD
+	case TARGET_DB_EXPORTER_FB_ROLE:
+		payload.MigrationType = LIVE_MIGRATION_WITH_FALLBACK
+	}
 
 	targetDBDetails := callhome.TargetDBDetails{
 		Host:      source.Host,
@@ -125,23 +130,16 @@ func packAndSendExportDataFromTargetPayload(status string) {
 	}
 	payload.SourceDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 
-	payload.MigrationPhase = EXPORT_DATA_PHASE
+	payload.MigrationPhase = EXPORT_DATA_FROM_TARGET_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
 		ParallelJobs: int64(source.NumConnections),
 		StartClean:   bool(startClean),
 	}
 
-	if changeStreamingIsEnabled(exportType) {
-		exportDataPayload.ExportDataMechanism = "" //unsetting this as not required
-		if cutoverToSourceByExport {
-			exportDataPayload.LiveMigrationPhase = CUTOVER_TO_SOURCE
-		} else if cutoverToSourceReplicaByExport {
-			exportDataPayload.LiveMigrationPhase = CUTOVER_TO_SOURCE_REPLICA
-		} else {
-			exportDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
-		}
-		exportDataPayload.TotalExportedEvents = callhomeTotalExportEvents
-		exportDataPayload.EventsExportRate = callhomeEventsExportRate
+	exportDataPayload.Phase = exportPhase
+	if exportPhase == dbzm.MODE_STREAMING {
+		exportDataPayload.TotalExportedEvents = totalEventCount
+		exportDataPayload.EventsExportRate = throughputInLast3Min
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportDataPayload)

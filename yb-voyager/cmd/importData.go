@@ -54,7 +54,7 @@ var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
 var identityColumnsMetaDBKey string
-var isImportLiveMigrationInSnapshot bool
+var importPhase string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -160,7 +160,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 
-	isImportLiveMigrationInSnapshot = true
+	importPhase = dbzm.MODE_SNAPSHOT
 
 	importData(importFileTasks)
 	tdb.Finalize()
@@ -529,7 +529,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			if importerRole != SOURCE_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
-			isImportLiveMigrationInSnapshot = false
+			importPhase = dbzm.MODE_STREAMING
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
 			if err != nil {
@@ -600,7 +600,7 @@ func packAndSendImportDataPayload(status string) {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE
 	case SNAPSHOT_AND_CHANGES:
-		payload.MigrationType = LIVE_MIGRATION //TODO: add FF/FB details
+		payload.MigrationType = LIVE_MIGRATION
 	}
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
@@ -623,18 +623,11 @@ func packAndSendImportDataPayload(status string) {
 		})
 	}
 
-	if changeStreamingIsEnabled(importType) {
-		if isImportLiveMigrationInSnapshot {
-			importDataPayload.LiveMigrationPhase = dbzm.MODE_SNAPSHOT
-		} else {
-			if cutoverToTargetByImport {
-				importDataPayload.LiveMigrationPhase = CUTOVER_TO_TARGET
-			} else {
-				importDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
-			}
-			importDataPayload.EventsImportRate = callhomeEventsImportRate
-			importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
-		}
+	importDataPayload.Phase = importPhase
+
+	if importPhase == dbzm.MODE_STREAMING {
+		importDataPayload.EventsImportRate = callhomeEventsImportRate
+		importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)

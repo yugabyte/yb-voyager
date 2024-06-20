@@ -1079,7 +1079,7 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 				}
 			}
 		}
-		exportDataPayload.ExportDataMechanism = "debezium"
+		exportDataPayload.ExportSnapshotMechanism = "debezium"
 	} else {
 		//non-debezium case reading the export_snapshot_status.json file
 		if exportSnapshotStatusFile != nil {
@@ -1088,24 +1088,25 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 				if !errors.Is(err, fs.ErrNotExist) {
 					log.Errorf("callhome: failed to read export status file: %v", err)
 				}
-			}
-			exportedSnapshotRow, _, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
-			if err != nil {
-				log.Errorf("callhome: error while getting exported snapshot rows map: %v", err)
-			}
-			exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
-				exportDataPayload.TotalRows += value
-				if value >= exportDataPayload.LargestTableRows {
-					exportDataPayload.LargestTableRows = value
+			} else {
+				exportedSnapshotRow, _, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
+				if err != nil {
+					log.Errorf("callhome: error while getting exported snapshot rows map: %v", err)
 				}
-				return true, nil
-			})
+				exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+					exportDataPayload.TotalRows += value
+					if value >= exportDataPayload.LargestTableRows {
+						exportDataPayload.LargestTableRows = value
+					}
+					return true, nil
+				})
+			}
 		}
 		switch source.DBType {
 		case POSTGRESQL:
-			exportDataPayload.ExportDataMechanism = "pg_dump"
+			exportDataPayload.ExportSnapshotMechanism = "pg_dump"
 		case ORACLE, MYSQL:
-			exportDataPayload.ExportDataMechanism = "ora2pg"
+			exportDataPayload.ExportSnapshotMechanism = "ora2pg"
 		}
 	}
 }

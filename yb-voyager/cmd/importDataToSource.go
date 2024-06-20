@@ -107,15 +107,11 @@ func packAndSendImportDataToSourcePayload(status string) {
 		StartClean:   bool(startClean),
 	}
 
-	if changeStreamingIsEnabled(importType) {
-		if cutoverToSourceByImport {
-			importDataPayload.LiveMigrationPhase = CUTOVER_TO_SOURCE
-		} else {
-			importDataPayload.LiveMigrationPhase = dbzm.MODE_STREAMING
-		}
+	importDataPayload.Phase = importPhase
+
+	if importPhase == dbzm.MODE_STREAMING {
 		importDataPayload.EventsImportRate = callhomeEventsImportRate
 		importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
-
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)

@@ -61,6 +61,7 @@ const (
 	ANALYZE_PHASE                    = "analyze-schema"
 	EXPORT_SCHEMA_PHASE              = "export-schema"
 	EXPORT_DATA_PHASE                = "export-data"
+	EXPORT_DATA_FROM_TARGET_PHASE    = "export-data-from-target"
 	IMPORT_SCHEMA_PHASE              = "import-schema"
 	IMPORT_DATA_PHASE                = "import-data"
 	IMPORT_DATA_SOURCE_REPLICA_PHASE = "import-data-to-source-repilca"
@@ -77,7 +78,7 @@ const (
 	LIVE_MIGRATION_WITH_FALLBACK     = "live migration with fall-back"
 
 	AWS_S3      = "aws-s3"
-	GCS_BUCKETS = "gcs-bukets"
+	GCS_BUCKETS = "gcs-buckets"
 	AZURE_BLOBS = "azure-blob-storage"
 	LOCAL_DISK  = "local-disk"
 	//status

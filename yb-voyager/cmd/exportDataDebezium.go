@@ -43,7 +43,7 @@ import (
 )
 
 var ybCDCClient *dbzm.YugabyteDBCDCClient
-var callhomeTotalExportEvents, callhomeEventsExportRate int64
+var totalEventCount, totalEventCountRun, throughputInLast3Min, throughputInLast10Min int64
 
 func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
@@ -380,23 +380,6 @@ func reportStreamingProgress() {
 	footerWriter := tableWriter.Newline()
 	tableWriter.Start()
 	for {
-		totalEventCount, totalEventCountRun, err := metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
-		if err != nil {
-			utils.ErrExit("failed to get total exported count from metadb: %w", err)
-		}
-
-		throughputInLast3Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
-		if err != nil {
-			utils.ErrExit("failed to get export rate from metadb: %w", err)
-		}
-		if callhome.SendDiagnostics {
-			callhomeEventsExportRate = throughputInLast3Min
-			callhomeTotalExportEvents = totalEventCount
-		}
-		throughputInLast10Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 10)
-		if err != nil {
-			utils.ErrExit("failed to get export rate from metadb: %w", err)
-		}
 		fmt.Fprint(tableWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		fmt.Fprint(headerWriter, color.GreenString("| %-40s | %30s |\n", "Metric", "Value"))
 		fmt.Fprint(separatorWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
@@ -410,21 +393,28 @@ func reportStreamingProgress() {
 	}
 }
 
-func updateCallhomeEventsStats() {
-	//In case the pb is disabled, this will update the stats in 15 minutes
+func calculateStreamingProgress() {
+	var err error
 	for {
-		totalEventCount, _, err := metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
+		totalEventCount, totalEventCountRun, err = metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
 		if err != nil {
-			log.Errorf("callhome: failed to get total exported count from metadb: %v", err)
+			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}
 
-		throughputInLast3Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
+		throughputInLast3Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
 		if err != nil {
-			log.Errorf("callhome: failed to get export rate from metadb: %v", err)
+			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
-		callhomeEventsExportRate = throughputInLast3Min
-		callhomeTotalExportEvents = totalEventCount
-		time.Sleep(12 * time.Minute)
+		throughputInLast10Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 10)
+		if err != nil {
+			utils.ErrExit("failed to get export rate from metadb: %w", err)
+		}
+		if !disablePb && callhome.SendDiagnostics {
+			// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
+			time.Sleep(12 * time.Minute)
+		} else {
+			time.Sleep(10 * time.Second)
+		}
 	}
 }
 
@@ -432,7 +422,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
-	isExportLiveMigrationInSnapshot = false
+	exportPhase = dbzm.MODE_STREAMING
 	if config.SnapshotMode != "never" {
 		progressTracker.Done(status)
 		setDataIsExported()
@@ -473,10 +463,11 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			}
 		}
 		color.Blue("streaming changes to a local queue file...")
+		if !disablePb || callhome.SendDiagnostics {
+			go calculateStreamingProgress()
+		}
 		if !disablePb {
 			go reportStreamingProgress()
-		} else if callhome.SendDiagnostics {
-			go updateCallhomeEventsStats()
 		}
 	}
 	return true, nil
