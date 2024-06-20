@@ -7,13 +7,14 @@ SET TRIMSPOOL ON
 SET TERMOUT OFF
 SET VERIFY OFF
 
--- Get the session ID
-COLUMN session_id NEW_VALUE session_id
-SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
+-- Exit on SQL errors or OS errors
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+WHENEVER OSERROR EXIT FAILURE
 
--- Create a temporary table to hold the data
-CREATE GLOBAL TEMPORARY TABLE temp_table_columns_count_&session_id
-ON COMMIT PRESERVE ROWS AS
+-- Select the data into the CSV file using inline views
+SPOOL table-columns-count.csv
+SELECT schema_name, object_name, object_type, column_count
+FROM (
     SELECT 
         t.owner AS schema_name,
         t.table_name AS object_name,
@@ -49,15 +50,8 @@ ON COMMIT PRESERVE ROWS AS
         AND i.index_name NOT LIKE 'SYS_%'
         AND i.index_name NOT LIKE 'DR$%'
     GROUP BY
-        i.index_owner, i.index_name;
-
--- Select the data into the CSV file
-SPOOL table-columns-count.csv
-SELECT schema_name, object_name, object_type, column_count FROM temp_table_columns_count_&session_id;
+        i.index_owner, i.index_name
+);
 SPOOL OFF
-
--- Drop the temporary table
-TRUNCATE TABLE temp_table_columns_count_&session_id;
-DROP TABLE temp_table_columns_count_&session_id;
 
 EXIT
