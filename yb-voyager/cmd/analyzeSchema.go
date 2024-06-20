@@ -211,7 +211,7 @@ const (
 	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
 
-	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated column not supported."
+	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 )
@@ -459,7 +459,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			// fetch table name using different regex
 			tbl := createTableRegex.FindStringSubmatch(sqlInfo.stmt)
-			reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Column is: %s", col[1]),
+			reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON,
 				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
