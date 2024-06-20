@@ -82,7 +82,7 @@ func (pool *ConnectionPool) UpdateNumConnections(newSize int) {
 	defer pool.connLock.Unlock()
 	oldSize := pool.size
 	pool.size = newSize
-
+	utils.PrintAndLog("updating num connections in pool from %d to %d", oldSize, newSize)
 	if newSize == oldSize {
 		return
 	}
@@ -93,36 +93,32 @@ func (pool *ConnectionPool) UpdateNumConnections(newSize int) {
 			newConns <- nil
 		}
 		// add all the existing conns in old pool to the new pool
-		for i := 0; i < oldSize; i++ {
-			conn, gotIt := <-pool.conns
-			if gotIt {
-				newConns <- conn
-			} else {
-				// conn is in use, so it will be added back to the pool later
-			}
+		for i := 0; i < len(pool.conns); i++ {
+			conn := <-pool.conns
+			newConns <- conn
 		}
 	} else {
 		// newsize < oldSize
 		// whatever is present in the old pool, add them first (up to newSize max)
-		for i := 0; i < newSize; i++ {
-			conn, gotIt := <-pool.conns
-			if gotIt {
-				newConns <- conn
-			} else {
-				// conn is in use, so it will be added back to the pool later if required.
-			}
-		}
-		// close all the remaining connections in the old pool
-		for {
-			conn, gotIt := <-pool.conns
-			if !gotIt {
-				break
-			}
-			if conn != nil {
-				conn.Close(context.Background())
-			}
+		// for i := 0; i < newSize; i++ {
+		// 	conn, gotIt := <-pool.conns
+		// 	if gotIt {
+		// 		newConns <- conn
+		// 	} else {
+		// 		// conn is in use, so it will be added back to the pool later if required.
+		// 	}
+		// }
+		// // close all the remaining connections in the old pool
+		// for {
+		// 	conn, gotIt := <-pool.conns
+		// 	if !gotIt {
+		// 		break
+		// 	}
+		// 	if conn != nil {
+		// 		conn.Close(context.Background())
+		// 	}
 
-		}
+		// }
 		// there will still be some connections in use, not in the pool.
 		// before they are added back to the pool,
 		// we will ensure to close as many connections as required to ensure that the total connections = newSize
@@ -192,7 +188,7 @@ L:
 				pool.conns <- nil
 				pool.connsInUse -= 1
 			} else {
-				// utils.PrintAndLog("closing connection because too many connections in pool")
+				utils.PrintAndLog("not returning connection because too many connections in pool")
 			}
 			pool.connLock.Unlock()
 		} else {
@@ -203,7 +199,7 @@ L:
 				pool.conns <- conn
 				pool.connsInUse -= 1
 			} else {
-				// utils.PrintAndLog("closing connection because too many connections in pool")
+				utils.PrintAndLog("not returning connection because too many connections in pool")
 				conn.Close(context.Background())
 			}
 			pool.connLock.Unlock()
