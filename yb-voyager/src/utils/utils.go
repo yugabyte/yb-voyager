@@ -573,3 +573,10 @@ func BytesToGB(sizeInBytes float64) float64 {
 	}
 	return sizeInGB
 }
+
+func SafeDereferenceInt64(ptr *int64) int64 {
+	if ptr != nil {
+		return *ptr
+	}
+	return 0
+}

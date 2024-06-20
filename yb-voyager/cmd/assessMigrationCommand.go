@@ -117,9 +117,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			newStat := callhome.ObjectSizingStats{
 				SchemaName:      stat.SchemaName,
 				ObjectName:      stat.ObjectName,
-				ReadsPerSecond:  safeDereferenceInt64(stat.ReadsPerSecond),
-				WritesPerSecond: safeDereferenceInt64(stat.WritesPerSecond),
-				SizeInBytes:     safeDereferenceInt64(stat.SizeInBytes),
+				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
+				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
+				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
 			}
 			if stat.IsIndex {
 				indexSizingStats = append(indexSizingStats, newStat)
@@ -380,14 +380,14 @@ func calculateSizeDetails() (SizeDetails, error) {
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			if stat.IsIndex {
-				details.TotalIndexSize += safeDereferenceInt64(stat.SizeInBytes)
+				details.TotalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 			} else {
-				details.TotalTableSize += safeDereferenceInt64(stat.SizeInBytes)
-				details.TotalTableRowCount += safeDereferenceInt64(stat.RowCount)
+				details.TotalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+				details.TotalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
 				if slices.Contains(colocatedTables, fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)) {
-					details.TotalColocatedSize += safeDereferenceInt64(stat.SizeInBytes)
+					details.TotalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 				} else {
-					details.TotalShardedSize += safeDereferenceInt64(stat.SizeInBytes)
+					details.TotalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 				}
 			}
 		}

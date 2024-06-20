@@ -924,12 +924,7 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	return snapshotRowsMap, nil
 }
 
-func safeDereferenceInt64(ptr *int64) int64 {
-	if ptr != nil {
-		return *ptr
-	}
-	return 0
-}
+
 func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { //used for import data file case right now
 	importerRole = IMPORT_FILE_ROLE
 	state := NewImportDataState(exportDir)
