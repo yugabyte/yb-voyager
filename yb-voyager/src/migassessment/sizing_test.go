@@ -758,10 +758,10 @@ func TestPickBestRecommendation_PickLastMaxCoreRecommendationWhenNoneCanSupport(
 }
 
 /*
-===== 	Test functions to test calculateTimeTakenAndParallelJobsForImport function	=====
+===== 	Test functions to test calculateTimeTakenAndParallelJobsForImportColocatedObjects function	=====
 */
-// validate the formula to calculate the import time
-func TestCalculateTimeTakenAndParallelJobsForImport_ValidateFormulaToCalculateImportTime(t *testing.T) {
+// validate the formula to calculate the import time for Colocated Objects
+func TestCalculateTimeTakenAndParallelJobsForImportColocatedObjects_ValidateFormulaToCalculateImportTime(t *testing.T) {
 	db, mock := createMockDB(t)
 	// Define the mock response for the query
 	rows := sqlmock.NewRows([]string{"csv_size_gb", "migration_time_secs", "parallel_threads"}).
@@ -776,7 +776,7 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateFormulaToCalculateIm
 
 	// Call the function
 	estimatedTime, parallelJobs, err :=
-		calculateTimeTakenAndParallelJobsForImport(COLOCATED_LOAD_TIME_TABLE, dbObjects, 4, 4, db)
+		calculateTimeTakenAndParallelJobsForImportColocatedObjects(dbObjects, 4, 4, db)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -793,6 +793,107 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateFormulaToCalculateIm
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("There were unfulfilled expectations: %s", err)
 	}
+}
+
+/*
+===== 	Test functions to test calculateTimeTakenAndParallelJobsForImportShardedObjects function	=====
+*/
+// validate the formula to calculate the import time for sharded table without index
+func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithoutIndex(t *testing.T) {
+	// Define test data
+	shardedTables := []SourceDBMetadata{
+		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+	}
+	var sourceIndexMetadata []SourceDBMetadata
+	shardedLoadTimes := []ExpDataShardedLoadTime{
+		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+	}
+
+	// Call the function
+	estimatedTime, parallelJobs, err :=
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Define expected results
+	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
+	expectedTime := 23.0
+	expectedJobs := int64(1)
+	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
+		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
+			estimatedTime, parallelJobs, expectedTime, expectedJobs)
+	}
+
+}
+
+// validate the formula to calculate the import time for sharded table with one index
+func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithOneIndex(t *testing.T) {
+	// Define test data
+	shardedTables := []SourceDBMetadata{
+		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+	}
+	sourceIndexMetadata := []SourceDBMetadata{
+		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+	}
+	shardedLoadTimes := []ExpDataShardedLoadTime{
+		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+	}
+
+	// Call the function
+	estimatedTime, parallelJobs, err :=
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Define expected results
+	// Calculated as table0: 2 * ((1134 * 23) / 19) / 60
+	expectedTime := 46.0 // double the time required when there are no indexes.
+	expectedJobs := int64(1)
+	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
+		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
+			estimatedTime, parallelJobs, expectedTime, expectedJobs)
+	}
+
+}
+
+// validate the formula to calculate the import time for sharded table with 5 indexes
+func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithFiveIndexes(t *testing.T) {
+	// Define test data
+	shardedTables := []SourceDBMetadata{
+		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+	}
+	sourceIndexMetadata := []SourceDBMetadata{
+		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+		{ObjectName: "table0_idx2", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+		{ObjectName: "table0_idx3", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+		{ObjectName: "table0_idx4", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+		{ObjectName: "table0_idx5", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+	}
+	shardedLoadTimes := []ExpDataShardedLoadTime{
+		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+	}
+
+	// Call the function
+	estimatedTime, parallelJobs, err :=
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Define expected results
+	// Calculated as table0: 4 * ((1134 * 23) / 19) / 60
+	expectedTime := 92.0 // 4(0.8 * 5 indexes) times the time required when there are no indexes.
+	expectedJobs := int64(1)
+	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
+		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
+			estimatedTime, parallelJobs, expectedTime, expectedJobs)
+	}
+
 }
 
 /*
