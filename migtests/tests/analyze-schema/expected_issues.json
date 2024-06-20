@@ -217,19 +217,19 @@
         },
         {
             "ObjectType": "TABLE",
-            "ObjectName": "order_details",
-            "Reason": "Stored generated column not supported. Column is: amount",
-            "SqlStatement": "CREATE TABLE order_details (\n    detail_id integer NOT NULL,\n    quantity integer,\n    price_per_unit numeric,\n    amount numeric GENERATED ALWAYS AS (((quantity)::numeric * price_per_unit)) STORED\n);",
+            "ObjectName": "public.employees4",
+            "Reason": "Stored generated column not supported. Column is: first_name",
+            "SqlStatement": "CREATE TABLE public.employees4 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
             "ObjectType": "TABLE",
-            "ObjectName": "employees4",
-            "Reason": "Stored generated column not supported. Column is: first_name",
-            "SqlStatement": "CREATE TABLE employees4 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);",
+            "ObjectName": "order_details",
+            "Reason": "Stored generated column not supported. Column is: amount",
+            "SqlStatement": "CREATE TABLE order_details (\n    detail_id integer NOT NULL,\n    quantity integer,\n    price_per_unit numeric,\n    amount numeric GENERATED ALWAYS AS (((quantity)::numeric * price_per_unit)) STORED\n);",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695" 
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
             "ObjectType": "TABLE",

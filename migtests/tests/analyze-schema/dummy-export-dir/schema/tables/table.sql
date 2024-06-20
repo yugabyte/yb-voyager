@@ -127,11 +127,11 @@ CREATE TABLE order_details (
     amount numeric GENERATED ALWAYS AS (((quantity)::numeric * price_per_unit)) STORED
 );
 
-CREATE TABLE employees4 (
-    id SERIAL PRIMARY KEY,
-    first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
-    full_name CHARACTER VARYING(101) GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED
+CREATE TABLE public.employees4 (
+    id integer NOT NULL,
+    first_name character varying(50) NOT NULL,
+    last_name character varying(50) NOT NULL,
+    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED
 );
 
 --like cases
