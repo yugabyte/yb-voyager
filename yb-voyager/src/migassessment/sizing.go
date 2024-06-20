@@ -935,7 +935,7 @@ func getExpDataShardedLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPer
 		FROM %v 
 		WHERE num_cores = ? 
 			AND mem_per_core = ?
-		ORDER BY scsv_size_gb;
+		ORDER BY csv_size_gb;
 	`, SHARDED_LOAD_TIME_TABLE)
 	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore)
 
