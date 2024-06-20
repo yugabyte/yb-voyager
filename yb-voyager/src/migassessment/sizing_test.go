@@ -638,8 +638,8 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_CanSupportTablets(t *testing.T
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 20},
-				{SchemaName: "public", ObjectName: "table2", Size: 120},
+				{SchemaName: "public", ObjectName: "table1", Size: 10},
+				{SchemaName: "public", ObjectName: "table2", Size: 60},
 			},
 			VCPUsPerInstance: 4,
 			NumNodes:         3,
@@ -671,8 +671,8 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 250},
-				{SchemaName: "public", ObjectName: "table2", Size: 120},
+				{SchemaName: "public", ObjectName: "table1", Size: 125},
+				{SchemaName: "public", ObjectName: "table2", Size: 60},
 			},
 			VCPUsPerInstance: 4,
 			NumNodes:         3,

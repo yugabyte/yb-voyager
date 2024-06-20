@@ -354,9 +354,12 @@ func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMeta
 			// get shardedLimit of current recommendation
 			for _, record := range shardedLimits {
 				if record.numCores.Valid && int(record.numCores.Float64) == rec.VCPUsPerInstance {
-					// considering RF=3, hence total required tablets would be 3 times the totalTabletsRequired
-					nodesRequired := math.Ceil(float64(totalTabletsRequired*3) / float64(record.maxSupportedNumTables.Int64))
+					// considering RF=3, hence total required tablets would be 3 times(1 tablet leader and 2 followers) the totalTabletsRequired
+					// adding 100% buffer for the tablets required by multiplier of 2
+					nodesRequired := math.Ceil(float64(totalTabletsRequired*3*2) / float64(record.maxSupportedNumTables.Int64))
 					// update recommendation to use the maximum of the existing recommended nodes and nodes calculated based on tablets
+					// Caveat: if new nodes required is more than the existing recommended nodes, we would need to
+					// re-evaluate tablets required. Although, in this iteration we've skipping re-evaluation.
 					rec.NumNodes = math.Max(rec.NumNodes, nodesRequired)
 					recommendation[i] = rec
 				}
