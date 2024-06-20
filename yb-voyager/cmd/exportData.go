@@ -187,7 +187,7 @@ func packAndSendExportDataPayload(status string) {
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
 
 	exportDataPayload.Phase = exportPhase
-	if exportPhase == dbzm.MODE_STREAMING {
+	if exportPhase != dbzm.MODE_SNAPSHOT {
 		exportDataPayload.TotalExportedEvents = totalEventCount
 		exportDataPayload.EventsExportRate = throughputInLast3Min
 	}

@@ -123,7 +123,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string) {
 
 	importDataPayload.Phase = importPhase
 
-	if importPhase == dbzm.MODE_STREAMING {
+	if importPhase != dbzm.MODE_SNAPSHOT {
 		importDataPayload.EventsImportRate = callhomeEventsImportRate
 		importDataPayload.TotalImportedEvents = callhomeTotalImportEvents
 	}
