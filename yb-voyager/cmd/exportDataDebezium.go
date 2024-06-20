@@ -409,13 +409,14 @@ func calculateStreamingProgress() {
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
-		if !disablePb && callhome.SendDiagnostics {
+		if disablePb && callhome.SendDiagnostics {
 			// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
 			time.Sleep(12 * time.Minute)
 		} else {
 			time.Sleep(10 * time.Second)
 		}
 	}
+
 }
 
 func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {

@@ -1064,24 +1064,8 @@ func PackAndSendCallhomePayloadOnExit() {
 
 func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDataPhasePayload) {
 	//Updating the payload with totalRows and LargestTableRows for both debezium/non-debezium case
-	if useDebezium {
-		//debezium case reading export_status.json file
-		exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-		dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
-		if err != nil {
-			log.Errorf("callhome: error in reading export status: %v", err)
-		}
-		if dbzmStatus != nil {
-			for _, tableExportStatus := range dbzmStatus.Tables {
-				exportDataPayload.TotalRows += tableExportStatus.ExportedRowCountSnapshot
-				if tableExportStatus.ExportedRowCountSnapshot > exportDataPayload.LargestTableRows {
-					exportDataPayload.LargestTableRows = tableExportStatus.ExportedRowCountSnapshot
-				}
-			}
-		}
-		exportDataPayload.ExportSnapshotMechanism = "debezium"
-	} else {
-		//non-debezium case reading the export_snapshot_status.json file
+	if !useDebezium || (changeStreamingIsEnabled(exportType) && source.DBType == POSTGRESQL) { 
+		//non-debezium and pg live migration snapshot case reading the export_snapshot_status.json file
 		if exportSnapshotStatusFile != nil {
 			exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 			if err != nil {
@@ -1108,6 +1092,22 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 		case ORACLE, MYSQL:
 			exportDataPayload.ExportSnapshotMechanism = "ora2pg"
 		}
+	} else {
+		//debezium case reading export_status.json file
+		exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
+		dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
+		if err != nil {
+			log.Errorf("callhome: error in reading export status: %v", err)
+		}
+		if dbzmStatus != nil {
+			for _, tableExportStatus := range dbzmStatus.Tables {
+				exportDataPayload.TotalRows += tableExportStatus.ExportedRowCountSnapshot
+				if tableExportStatus.ExportedRowCountSnapshot > exportDataPayload.LargestTableRows {
+					exportDataPayload.LargestTableRows = tableExportStatus.ExportedRowCountSnapshot
+				}
+			}
+		}
+		exportDataPayload.ExportSnapshotMechanism = "debezium"
 	}
 }
 
