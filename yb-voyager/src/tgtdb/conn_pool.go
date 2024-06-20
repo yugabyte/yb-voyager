@@ -29,6 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var MAX_CONNS = 100
 var defaultSessionVars = []string{
 	"SET client_encoding to 'UTF-8'",
 	"SET session_replication_role to replica",
@@ -47,14 +48,19 @@ type ConnectionPool struct {
 	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
 	nextUriIndex              int
 	disableThrottling         bool
+	size                      int
+	sizeChangeRequests        chan int
+	connLock                  sync.Mutex
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	pool := &ConnectionPool{
 		params:                    params,
-		conns:                     make(chan *pgx.Conn, params.NumConnections),
-		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumConnections),
+		conns:                     make(chan *pgx.Conn, MAX_CONNS),
+		connIdToPreparedStmtCache: make(map[uint32]map[string]bool),
 		disableThrottling:         false,
+		size:                      params.NumConnections,
+		sizeChangeRequests:        make(chan int, MAX_CONNS),
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
@@ -63,6 +69,14 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 		pool.params.SessionInitScript = defaultSessionVars
 	}
 	return pool
+}
+
+func (pool *ConnectionPool) GetNumConnections() int {
+	return pool.size
+}
+
+func (pool *ConnectionPool) UpdateNumConnections(newSize int) {
+	pool.sizeChangeRequests <- newSize
 }
 
 func (pool *ConnectionPool) DisableThrottling() {
@@ -77,15 +91,41 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		var conn *pgx.Conn
 		var gotIt bool
 		if pool.disableThrottling {
+			pool.connLock.Lock()
+			// deal with changes in size change requests
+			select {
+			case newSize := <-pool.sizeChangeRequests:
+				if newSize > pool.size {
+					for i := 0; i < newSize-pool.size; i++ {
+						pool.conns <- nil
+					}
+				} else if newSize < pool.size {
+					for i := 0; i < pool.size-newSize; i++ {
+						conn = <-pool.conns
+						if conn != nil {
+							conn.Close(context.Background())
+						}
+					}
+				}
+				utils.PrintAndLog("Updating pool size from %d to %d", pool.size, newSize)
+				pool.size = newSize
+			default:
+
+			}
+
 			conn = <-pool.conns
+			pool.connLock.Unlock()
 		} else {
+			pool.connLock.Lock()
 			conn, gotIt = <-pool.conns
 			if !gotIt {
+				pool.connLock.Unlock()
 				// The following sleep is intentional. It is added so that voyager does not
 				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
 				time.Sleep(2 * time.Second)
 				continue
 			}
+			pool.connLock.Unlock()
 		}
 		if conn == nil {
 			conn, err = pool.createNewConnection()

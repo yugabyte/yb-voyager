@@ -1245,11 +1245,11 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 		}
 		utils.PrintAndLog("cluster cpu usage: %d", clusterCPUUsage)
 		if int(clusterCPUUsage) > maxCPUThreshold {
-			utils.PrintAndLog("found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections())
+			utils.PrintAndLog("found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()-1)
 
 			yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - 1)
 		} else {
-			utils.PrintAndLog("found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections())
+			utils.PrintAndLog("found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()+1)
 
 			yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() + 1)
 		}
