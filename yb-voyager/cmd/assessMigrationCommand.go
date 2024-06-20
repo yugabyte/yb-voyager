@@ -260,6 +260,17 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
+	
+	err = source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("error connecting source db: %v", err)
+	}
+	source.DBVersion = source.DB().GetVersion()
+	source.DBSize, err = source.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+	}
+	source.DB().Disconnect()
 
 	parseExportedSchemaFileForAssessmentIfRequired()
 
@@ -600,16 +611,6 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err := source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("error connecting source db: %v", err)
-	}
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-	source.DB().Disconnect()
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
