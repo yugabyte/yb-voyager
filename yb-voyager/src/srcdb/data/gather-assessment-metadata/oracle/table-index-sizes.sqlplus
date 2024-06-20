@@ -7,13 +7,14 @@ SET TRIMSPOOL ON
 SET TERMOUT OFF
 SET VERIFY OFF
 
--- Get the session ID
-COLUMN session_id NEW_VALUE session_id
-SELECT SYS_CONTEXT('USERENV', 'SESSIONID') AS session_id FROM dual;
+-- Exit on SQL errors or OS errors
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+WHENEVER OSERROR EXIT FAILURE
 
--- Create a temporary table to hold the data
-CREATE GLOBAL TEMPORARY TABLE temp_table_index_sizes_&session_id
-ON COMMIT PRESERVE ROWS AS
+-- Select the data into the CSV file using inline views
+SPOOL table-index-sizes.csv
+SELECT schema_name, object_name, object_type, size_in_bytes
+FROM (
     SELECT
         owner AS schema_name,
         segment_name AS object_name,
@@ -44,15 +45,8 @@ ON COMMIT PRESERVE ROWS AS
             AND constraint_type IN ('P', 'U')
         )
         AND i.index_name NOT LIKE 'SYS_%'
-        AND i.index_name NOT LIKE 'DR$%';
-
--- Select the data into the CSV file
-SPOOL table-index-sizes.csv
-SELECT schema_name, object_name, object_type, size_in_bytes FROM temp_table_index_sizes_&session_id;
+        AND i.index_name NOT LIKE 'DR$%'
+);
 SPOOL OFF
-
--- Drop the temporary table
-TRUNCATE TABLE temp_table_index_sizes_&session_id;
-DROP TABLE temp_table_index_sizes_&session_id;
 
 EXIT
