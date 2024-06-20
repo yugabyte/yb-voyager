@@ -30,7 +30,7 @@ FROM (
         dba_tab_subpartitions sp ON o.owner = sp.table_owner AND o.object_name = sp.table_name AND o.subobject_name = sp.subpartition_name
     WHERE
         o.owner = '&1'
-        AND o.object_type IN ('TABLE', 'TABLE PARTITION', 'TABLE SUBPARTITION', 'INDEX PARTITION')
+        AND o.object_type IN ('TABLE', 'TABLE PARTITION', 'TABLE SUBPARTITION')
     UNION ALL
     SELECT
         owner AS schema_name,

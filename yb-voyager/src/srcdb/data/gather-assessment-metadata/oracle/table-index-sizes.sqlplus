@@ -37,8 +37,8 @@ FROM (
     SELECT
         i.owner AS schema_name,
         i.index_name AS object_name,
-        'index' AS object_type,
-        s.bytes AS size_in_bytes
+        'INDEX' AS object_type,
+        SUM(s.bytes) AS size_in_bytes -- there can be multiple indexes with same name but on different partitions due to INDEX PARTITION so collating them into one
     FROM
         dba_indexes i
     JOIN
@@ -54,6 +54,7 @@ FROM (
         )
         AND i.index_name NOT LIKE 'SYS_%'
         AND i.index_name NOT LIKE 'DR$%'
+    GROUP BY i.owner, i.index_name
 );
 SPOOL OFF
 
