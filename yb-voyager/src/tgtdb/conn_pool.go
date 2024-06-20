@@ -76,6 +76,9 @@ func (pool *ConnectionPool) GetNumConnections() int {
 }
 
 func (pool *ConnectionPool) UpdateNumConnections(newSize int) bool {
+	if newSize < 1 || newSize > MAX_CONNS {
+		return false
+	}
 	select {
 	case pool.sizeChangeRequests <- newSize:
 		return true

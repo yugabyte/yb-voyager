@@ -1250,7 +1250,7 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 			if updated {
 				utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()-1)
 			} else {
-				utils.PrintAndLog("PARALLELISM: no update. pending change request")
+				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
 			}
 		} else {
 
@@ -1258,7 +1258,7 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 			if updated {
 				utils.PrintAndLog("PARALLELISM: found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()+1)
 			} else {
-				utils.PrintAndLog("PARALLELISM: no update. pending change request")
+				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
 			}
 		}
 		time.Sleep(10 * time.Second)
