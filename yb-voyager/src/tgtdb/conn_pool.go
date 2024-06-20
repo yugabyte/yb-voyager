@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -46,19 +47,14 @@ type ConnectionPool struct {
 	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
 	nextUriIndex              int
 	disableThrottling         bool
-	size                      int
-	connsInUse                int
-	connLock                  sync.Mutex
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	pool := &ConnectionPool{
 		params:                    params,
 		conns:                     make(chan *pgx.Conn, params.NumConnections),
-		connIdToPreparedStmtCache: make(map[uint32]map[string]bool),
+		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumConnections),
 		disableThrottling:         false,
-		size:                      params.NumConnections,
-		connsInUse:                0,
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
@@ -73,97 +69,22 @@ func (pool *ConnectionPool) DisableThrottling() {
 	pool.disableThrottling = true
 }
 
-func (pool *ConnectionPool) GetNumConnections() int {
-	return pool.size
-}
-
-func (pool *ConnectionPool) UpdateNumConnections(newSize int) {
-	pool.connLock.Lock()
-	defer pool.connLock.Unlock()
-	oldSize := pool.size
-	pool.size = newSize
-	utils.PrintAndLog("updating num connections in pool from %d to %d", oldSize, newSize)
-	if newSize == oldSize {
-		return
-	}
-	newConns := make(chan *pgx.Conn, newSize)
-	if newSize > oldSize {
-		connsToAdd := newSize - oldSize
-		for i := 0; i < connsToAdd; i++ {
-			newConns <- nil
-		}
-		// add all the existing conns in old pool to the new pool
-		for i := 0; i < len(pool.conns); i++ {
-			conn := <-pool.conns
-			newConns <- conn
-		}
-	} else {
-		// newsize < oldSize
-		// whatever is present in the old pool, add them first (up to newSize max)
-		// for i := 0; i < newSize; i++ {
-		// 	conn, gotIt := <-pool.conns
-		// 	if gotIt {
-		// 		newConns <- conn
-		// 	} else {
-		// 		// conn is in use, so it will be added back to the pool later if required.
-		// 	}
-		// }
-		// // close all the remaining connections in the old pool
-		// for {
-		// 	conn, gotIt := <-pool.conns
-		// 	if !gotIt {
-		// 		break
-		// 	}
-		// 	if conn != nil {
-		// 		conn.Close(context.Background())
-		// 	}
-
-		// }
-		// there will still be some connections in use, not in the pool.
-		// before they are added back to the pool,
-		// we will ensure to close as many connections as required to ensure that the total connections = newSize
-	}
-
-	pool.conns = newConns
-}
-
 func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	var err error
 	retry := true
 
-L:
 	for retry {
 		var conn *pgx.Conn
-		// var gotIt bool
+		var gotIt bool
 		if pool.disableThrottling {
-			// utils.PrintAndLog("ACQ: get connection from pool")
-			pool.connLock.Lock()
-			// utils.PrintAndLog("ACQ: GOT LOCK connection from pool")
-
-			select {
-			case conn = <-pool.conns:
-				pool.connsInUse += 1
-				pool.connLock.Unlock()
-			default:
-				pool.connLock.Unlock()
-				// The following sleep is intentional. It is added so that voyager does not
-				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
-				// time.Sleep(2 * time.Second)
-				continue L
-			}
+			conn = <-pool.conns
 		} else {
-			pool.connLock.Lock()
-
-			select {
-			case conn = <-pool.conns:
-				pool.connsInUse += 1
-				pool.connLock.Unlock()
-			default:
-				pool.connLock.Unlock()
+			conn, gotIt = <-pool.conns
+			if !gotIt {
 				// The following sleep is intentional. It is added so that voyager does not
 				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
-				// time.Sleep(2 * time.Second)
-				continue L
+				time.Sleep(2 * time.Second)
+				continue
 			}
 		}
 		if conn == nil {
@@ -181,28 +102,9 @@ L:
 			// assuming PID will still be available
 			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
 			pool.Unlock()
-			// utils.PrintAndLog("ACQ: dropping connection because of error; adding nil to pool")
-			pool.connLock.Lock()
-			if len(pool.conns)+pool.connsInUse <= pool.size {
-				// utils.PrintAndLog("adding nil to pool because of error")
-				pool.conns <- nil
-				pool.connsInUse -= 1
-			} else {
-				utils.PrintAndLog("not returning connection because too many connections in pool")
-			}
-			pool.connLock.Unlock()
+			pool.conns <- nil
 		} else {
-			// utils.PrintAndLog("ACQ: returning connection to pool")
-			pool.connLock.Lock()
-			if len(pool.conns)+pool.connsInUse <= pool.size {
-				// utils.PrintAndLog("returning connection to pool")
-				pool.conns <- conn
-				pool.connsInUse -= 1
-			} else {
-				utils.PrintAndLog("not returning connection because too many connections in pool")
-				conn.Close(context.Background())
-			}
-			pool.connLock.Unlock()
+			pool.conns <- conn
 		}
 	}
 
