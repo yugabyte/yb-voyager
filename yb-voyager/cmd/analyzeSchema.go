@@ -75,6 +75,7 @@ var (
 		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
 		"tsm_system_time", "unaccent", `"uuid-ossp"`, "yb_pg_metrics", "yb_test_extension",
 	}
+	dataTypeClause = unqualifiedIdent + optionalWS + opt(unqualifiedIdent) + opt(`\(.*?\)`)
 )
 
 func cat(tokens ...string) string {
@@ -150,7 +151,7 @@ var (
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
-	storedRegex               = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
+	storedRegex               = re(capture(unqualifiedIdent), capture(dataTypeClause), "GENERATED", "ALWAYS", anything, "STORED")
 	createTableRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything)
 	partitionColumnsRegex     = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
 	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
