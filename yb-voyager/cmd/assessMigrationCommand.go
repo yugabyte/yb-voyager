@@ -164,6 +164,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			DBSize:    source.DBSize,
 		}
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
+		assessPayload.SourceConnectivity = true
+	} else {
+		assessPayload.SourceConnectivity = false
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
 	payload.Status = status
@@ -261,17 +264,19 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
-	
-	err = source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("error connecting source db: %v", err)
+
+	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+		err = source.DB().Connect()
+		if err != nil {
+			utils.ErrExit("error connecting source db: %v", err)
+		}
+		source.DBVersion = source.DB().GetVersion()
+		source.DBSize, err = source.DB().GetDatabaseSize()
+		if err != nil {
+			log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+		}
+		source.DB().Disconnect()
 	}
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-	source.DB().Disconnect()
 
 	parseExportedSchemaFileForAssessmentIfRequired()
 
@@ -382,7 +387,7 @@ type SizeDetails struct {
 	TotalShardedSize   int64
 }
 
-func(ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
+func (ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
 	var details SizeDetails
 	colocatedTables, err := ar.GetColocatedTablesRecommendation()
 	if err != nil {

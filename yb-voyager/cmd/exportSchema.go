@@ -154,9 +154,16 @@ func packAndSendExportSchemaPayload(status string) {
 	}
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
-		StartClean:             bool(startClean),
-		AppliedRecommendations: !bool(skipRecommendations),
+		StartClean: bool(startClean),
 	}
+	assessmentReportPath := lo.Ternary(assessmentReportPath != "", assessmentReportPath,
+		filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json"))
+	if !utils.FileOrFolderExists(assessmentReportPath) || bool(skipRecommendations) {
+		exportSchemaPayload.AppliedRecommendations = false
+	} else {
+		exportSchemaPayload.AppliedRecommendations = true
+	}
+	
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
 
 	err := callhome.SendPayload(&payload)

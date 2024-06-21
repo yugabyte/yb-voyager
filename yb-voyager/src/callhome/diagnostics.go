@@ -98,6 +98,7 @@ type AssessMigrationPhasePayload struct {
 	TableSizingStats     string `json:"table_sizing_stats"`
 	IndexSizingStats     string `json:"index_sizing_stats"`
 	SchemaSummary        string `json:"schema_summary"`
+	SourceConnectivity   bool   `json:"source_connectivity"`
 }
 
 type ObjectSizingStats struct {
