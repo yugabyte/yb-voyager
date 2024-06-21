@@ -10,12 +10,18 @@ ARGS_LINUX=$@
 
 VERSION="latest"
 
+# Fetch the latest release name, tag name and commit hash from the github api
+latestReleaseName=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest | grep '"name":' | head -n 1 | awk -F '"' '{print $4}')
+latestTagName=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest | grep '"tag_name":' | head -n 1 | awk -F '"' '{print $4}')
+latestTaggedCommit=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/git/refs/tags/${latestTagName} | grep '"sha":' | head -n 1 | awk -F '"' '{print $4}')
+VOYAGER_VERSION=$(echo $latestReleaseName | sed 's/v//')
+
 # This needs to be changed to the latest debezium release tag
-VOYAGER_RELEASE_TAG=${VOYAGER_RELEASE_TAG:-"v1.7.1"}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-1.7.1"}
+VOYAGER_RELEASE_NAME=${VOYAGER_RELEASE_NAME:-${latestReleaseName}}
+DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-"${latestVersionNumber}}
 
 # the hash corresponds to the yb-voyager/v1.7.1 tag
-YB_VOYAGER_GIT_HASH="bf206d6640e85daafabcc0344cd4d599b9f024ea" 
+YB_VOYAGER_GIT_HASH=${latestTaggedCommit}
 
 
 ONLY_PG="false"
@@ -277,7 +283,7 @@ install_debezium_server_latest_release() {
 	output "Installing debezium:${DEBEZIUM_VERSION}"
 	debezium_server_filename="debezium-server.tar.gz"
 	# download
-	wget -nv "https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager/${VOYAGER_RELEASE_TAG}/${debezium_server_filename}"
+	wget -nv "https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager/${VOYAGER_RELEASE_NAME}/${debezium_server_filename}"
 	# delete contents of /opt/yb-voyager/debezium-server if exists. 
 	# This is done to ensure that older version jars are not left behind in the lib dir.
 	if [ -d /opt/yb-voyager/debezium-server ]
@@ -560,8 +566,11 @@ install_yb_voyager() {
 	GO=${GO:-"go"}
 	if [ "${VERSION}" == "latest" ]
 	then
-		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
-		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
+		# $GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
+		# Download tarball from github release
+		
+		install_yb_voyager_latest_release
+	
 		return
 	fi
 
@@ -578,6 +587,28 @@ install_yb_voyager() {
 	popd > /dev/null
 	popd > /dev/null
 	sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
+}
+
+install_yb_voyager_latest_release() {
+	# Download tarball from github release
+	yb_voyager_filename="yb-voyager.tar.gz"
+	wget -nv "https://github.com/yugabyte/yb-voyager/archive/refs/tags/yb-voyager/${VOYAGER_RELEASE_NAME}.tar.gz" -O ${yb_voyager_filename}
+	# untar and make modifications
+	tar -xzf ${yb_voyager_filename}
+	pushd yb-voyager-yb-voyager-${VOYAGER_RELEASE_NAME} > /dev/null
+	pushd yb-voyager > /dev/null
+	# modify versions
+	sed -i "s/YB_VOYAGER_VERSION = \".*\"/YB_VOYAGER_VERSION = \"$VOYAGER_VERSION\"/" src/utils/version.go
+    sed -i "s/const DEBEZIUM_VERSION = \".*\"/const DEBEZIUM_VERSION = \"$DEBEZIUM_VERSION\"/" src/dbzm/dbzm.go
+	# build
+	$GO install
+	popd > /dev/null
+	popd > /dev/null
+	sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
+
+	# cleanup
+	rm -rf yb-voyager-yb-voyager-${VOYAGER_RELEASE_NAME}
+	rm ${yb_voyager_filename}
 }
 
 
