@@ -18,7 +18,7 @@ VOYAGER_VERSION=$(echo $latestReleaseName | sed 's/v//')
 
 # This needs to be changed to the latest debezium release tag
 VOYAGER_RELEASE_NAME=${VOYAGER_RELEASE_NAME:-${latestReleaseName}}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-"${latestVersionNumber}}
+DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-"${VOYAGER_VERSION}}
 
 # the hash corresponds to the yb-voyager/v1.7.1 tag
 YB_VOYAGER_GIT_HASH=${latestTaggedCommit}
