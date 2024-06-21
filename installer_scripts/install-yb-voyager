@@ -11,17 +11,17 @@ ARGS_LINUX=$@
 VERSION="latest"
 
 # Fetch the latest release name, tag name and commit hash from the github api
-latestReleaseName=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest | grep '"name":' | head -n 1 | awk -F '"' '{print $4}')
-latestTagName=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest | grep '"tag_name":' | head -n 1 | awk -F '"' '{print $4}')
-latestTaggedCommit=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/git/refs/tags/${latestTagName} | grep '"sha":' | head -n 1 | awk -F '"' '{print $4}')
-VOYAGER_VERSION=$(echo $latestReleaseName | sed 's/v//')
+LATEST_RELEASE_NAME=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest | grep '"name":' | head -n 1 | awk -F '"' '{print $4}')
+LATEST_TAG_NAME=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest | grep '"tag_name":' | head -n 1 | awk -F '"' '{print $4}')
+LATEST_TAGGED_COMMIT=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/git/refs/tags/${LATEST_TAG_NAME} | grep '"sha":' | head -n 1 | awk -F '"' '{print $4}')
+VOYAGER_VERSION=$(echo $LATEST_RELEASE_NAME | sed 's/v//')
 
 # This needs to be changed to the latest debezium release tag
-VOYAGER_RELEASE_NAME=${VOYAGER_RELEASE_NAME:-${latestReleaseName}}
+VOYAGER_RELEASE_NAME=${VOYAGER_RELEASE_NAME:-${LATEST_RELEASE_NAME}}
 DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-"${VOYAGER_VERSION}}
 
 # the hash corresponds to the yb-voyager/v1.7.1 tag
-YB_VOYAGER_GIT_HASH=${latestTaggedCommit}
+YB_VOYAGER_GIT_HASH=${LATEST_TAGGED_COMMIT}
 
 
 ONLY_PG="false"
