@@ -261,7 +261,7 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
-	
+
 	err = source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("error connecting source db: %v", err)
@@ -382,7 +382,7 @@ type SizeDetails struct {
 	TotalShardedSize   int64
 }
 
-func(ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
+func (ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
 	var details SizeDetails
 	colocatedTables, err := ar.GetColocatedTablesRecommendation()
 	if err != nil {
@@ -657,7 +657,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 	return nil
 }
 
-//go:embed assessmentReport.template
+//go:embed templates/assessmentReport.template
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
