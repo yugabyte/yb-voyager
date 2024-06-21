@@ -254,7 +254,10 @@
 		},
 		{
 			"FeatureName": "Tables with Stored generated columns",
-			"ObjectNames": []
+			"ObjectNames": [
+				"schema2.employees2",
+				"public.employees2"
+			]
 		}
 	],
 	"TableIndexStats": [
