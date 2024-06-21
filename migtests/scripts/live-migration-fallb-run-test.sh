@@ -107,7 +107,7 @@ main() {
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
 	else
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
