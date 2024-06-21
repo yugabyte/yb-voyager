@@ -47,7 +47,6 @@ var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
 var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
-var callhomeTotalImportEvents, callhomeEventsImportRate int64
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 100)
@@ -369,10 +368,6 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
-		if callhome.SendDiagnostics {
-			callhomeTotalImportEvents = statsReporter.TotalEventsImported
-			callhomeEventsImportRate = statsReporter.EventsImportRateLast3Min
-		}
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
 	}

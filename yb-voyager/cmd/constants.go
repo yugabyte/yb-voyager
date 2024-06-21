@@ -71,11 +71,11 @@ const (
 	IMPORT_DATA_FILE_PHASE           = "import-data-file"
 	//...more phases
 	OFFLINE        = "offline"
-	LIVE_MIGRATION = "live migration"
-	BULK_DATA_LOAD = "bulk data load from flat files"
+	LIVE_MIGRATION = "live-migration"
+	BULK_DATA_LOAD = "bulk-data-load-from-flat-files"
 
-	LIVE_MIGRATION_WITH_FALL_FORWARD = "live migration with fall-forward"
-	LIVE_MIGRATION_WITH_FALLBACK     = "live migration with fall-back"
+	LIVE_MIGRATION_WITH_FALL_FORWARD = "live-migration-with-fall-forward"
+	LIVE_MIGRATION_WITH_FALLBACK     = "live-migration-with-fall-back"
 
 	AWS_S3      = "aws-s3"
 	GCS_BUCKETS = "gcs-buckets"
