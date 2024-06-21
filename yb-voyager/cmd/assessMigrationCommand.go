@@ -266,16 +266,7 @@ func assessMigration() (err error) {
 	}
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
-		err = source.DB().Connect()
-		if err != nil {
-			utils.ErrExit("error connecting source db: %v", err)
-		}
-		source.DBVersion = source.DB().GetVersion()
-		source.DBSize, err = source.DB().GetDatabaseSize()
-		if err != nil {
-			log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-		}
-		source.DB().Disconnect()
+		fetchSourceInfo()
 	}
 
 	parseExportedSchemaFileForAssessmentIfRequired()
@@ -303,6 +294,19 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
 	}
 	return nil
+}
+
+func fetchSourceInfo() {
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("error connecting source db: %v", err)
+	}
+	source.DBVersion = source.DB().GetVersion()
+	source.DBSize, err = source.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+	}
+	source.DB().Disconnect()
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
