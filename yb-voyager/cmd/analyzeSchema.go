@@ -75,6 +75,7 @@ var (
 		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
 		"tsm_system_time", "unaccent", `"uuid-ossp"`, "yb_pg_metrics", "yb_test_extension",
 	}
+	dataTypeClause = unqualifiedIdent + optionalWS + opt(unqualifiedIdent) + opt(`\(.*?\)`)
 )
 
 func cat(tokens ...string) string {
@@ -150,7 +151,7 @@ var (
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
-	storedRegex               = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
+	storedRegex               = re(capture(unqualifiedIdent), capture(dataTypeClause), "GENERATED", "ALWAYS", anything, "STORED")
 	createTableRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything)
 	partitionColumnsRegex     = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
 	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
@@ -210,7 +211,7 @@ const (
 	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
 
-	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated column not supported."
+	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 )
@@ -458,7 +459,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			// fetch table name using different regex
 			tbl := createTableRegex.FindStringSubmatch(sqlInfo.stmt)
-			reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Column is: %s", col[1]),
+			reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON,
 				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
@@ -1085,27 +1086,17 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
 		callhomeIssues = append(callhomeIssues, issue)
 	}
-	issues, err := json.Marshal(callhomeIssues)
-	if err != nil {
-		log.Errorf("callhome: error while parsing 'issues' json: %v", err)
-	}
-	dbObjects, err := json.Marshal(schemaAnalysisReport.SchemaSummary.DBObjects)
-	if err != nil {
-		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
-	}
 	analyzePayload := callhome.AnalyzePhasePayload{
-		Issues:          string(issues),
-		DatabaseObjects: string(dbObjects),
+		Issues:          callhome.MarshalledJsonString(callhomeIssues),
+		DatabaseObjects: callhome.MarshalledJsonString(schemaAnalysisReport.SchemaSummary.DBObjects),
 	}
-	analyzePayloadBytes, err := json.Marshal(analyzePayload)
-	if err != nil {
-		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
-	}
-	payload.PhasePayload = string(analyzePayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err := callhome.SendPayload(&payload)
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
 }
 
 var analyzeSchemaCmd = &cobra.Command{

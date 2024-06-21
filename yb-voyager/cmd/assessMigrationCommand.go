@@ -43,11 +43,12 @@ import (
 )
 
 var (
-	assessmentMetadataDir     string
-	assessmentMetadataDirFlag string
-	assessmentReport          AssessmentReport
-	assessmentDB              *migassessment.AssessmentDB
-	intervalForCapturingIOPS  int64
+	assessmentMetadataDir           string
+	assessmentMetadataDirFlag       string
+	assessmentReport                AssessmentReport
+	assessmentDB                    *migassessment.AssessmentDB
+	intervalForCapturingIOPS        int64
+	assessMigrationSupportedDBTypes = []string{POSTGRESQL, ORACLE}
 )
 var sourceConnectionFlags = []string{
 	"source-db-host",
@@ -111,23 +112,15 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 
-	featuresBytes, err := json.Marshal(assessmentReport.UnsupportedFeatures)
-	if err != nil {
-		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
-	}
-	datatypesBytes, err := json.Marshal(assessmentReport.UnsupportedDataTypes)
-	if err != nil {
-		log.Errorf("callhome: error in parsing unsupported features from assessment report: %s", err)
-	}
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			newStat := callhome.ObjectSizingStats{
 				SchemaName:      stat.SchemaName,
 				ObjectName:      stat.ObjectName,
-				ReadsPerSecond:  *stat.ReadsPerSecond,
-				WritesPerSecond: *stat.WritesPerSecond,
-				SizeInBytes:     *stat.SizeInBytes,
+				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
+				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
+				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
 			}
 			if stat.IsIndex {
 				indexSizingStats = append(indexSizingStats, newStat)
@@ -135,14 +128,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 				tableSizingStats = append(tableSizingStats, newStat)
 			}
 		}
-	}
-	tableBytes, err := json.Marshal(tableSizingStats)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the table sizing stats: %v", err)
-	}
-	indexBytes, err := json.Marshal(indexSizingStats)
-	if err != nil {
-		log.Errorf("callhome: error in parsing the index sizing stats: %v", err)
 	}
 	schemaSummaryCopy := utils.SchemaSummary{
 		SchemaNames: assessmentReport.SchemaSummary.SchemaNames,
@@ -160,16 +145,13 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}
 		schemaSummaryCopy.DBObjects = append(schemaSummaryCopy.DBObjects, dbObjectCopy)
 	}
-	schemaSummaryCopyBytes, err := json.Marshal(schemaSummaryCopy)
-	if err != nil {
-		log.Errorf("callhome: error parsing schema summary: %v", err)
-	}
+
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		UnsupportedFeatures:  string(featuresBytes),
-		UnsupportedDataTypes: string(datatypesBytes),
-		TableSizingStats:     string(tableBytes),
-		IndexSizingStats:     string(indexBytes),
-		SchemaSummary:        string(schemaSummaryCopyBytes),
+		UnsupportedFeatures:  callhome.MarshalledJsonString(assessmentReport.UnsupportedFeatures),
+		UnsupportedDataTypes: callhome.MarshalledJsonString(assessmentReport.UnsupportedDataTypes),
+		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
+		IndexSizingStats:     callhome.MarshalledJsonString(indexSizingStats),
+		SchemaSummary:        callhome.MarshalledJsonString(schemaSummaryCopy),
 	}
 	if status == ERROR {
 		assessPayload.Error = errMsg
@@ -181,21 +163,15 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			DBVersion: source.DBVersion,
 			DBSize:    source.DBSize,
 		}
-		sourceDBBytes, err := json.Marshal(sourceDBDetails)
-		if err != nil {
-			log.Errorf("callhome: error in parsing sourcedb details: %v", err)
-		}
-		payload.SourceDBDetails = string(sourceDBBytes)
+		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
-	assessPayloadBytes, err := json.Marshal(assessPayload)
-	if err != nil {
-		log.Errorf("callhome: error while parsing 'database_objects' json: %v", err)
-	}
-	payload.PhasePayload = string(assessPayloadBytes)
+	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
 	payload.Status = status
 
-	callhome.SendPayload(&payload)
-	callHomePayloadSent = true
+	err := callhome.SendPayload(&payload)
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
@@ -285,6 +261,17 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
+	
+	err = source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("error connecting source db: %v", err)
+	}
+	source.DBVersion = source.DB().GetVersion()
+	source.DBSize, err = source.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+	}
+	source.DB().Disconnect()
 
 	parseExportedSchemaFileForAssessmentIfRequired()
 
@@ -352,13 +339,72 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
-	report, err := json.Marshal(assessmentReport)
+
+	sizeDetails, err := assessmentReport.CalculateSizeDetails()
 	if err != nil {
-		utils.PrintAndLog("Failed to serialise the assessment report to json (ERR IGNORED): %s", err)
+		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
 	}
 
-	ev.Report = string(report)
+	finalReport := AssessMigrationPayload{
+		AssessmentJsonReport: assessmentReport,
+		SourceSizeDetails: SourceDBSizeDetails{
+			TotalIndexSize:     sizeDetails.TotalIndexSize,
+			TotalTableSize:     sizeDetails.TotalTableSize,
+			TotalTableRowCount: sizeDetails.TotalTableRowCount,
+			TotalDBSize:        source.DBSize,
+		},
+		TargetRecommendations: TargetSizingRecommendations{
+			TotalColocatedSize: sizeDetails.TotalColocatedSize,
+			TotalShardedSize:   sizeDetails.TotalShardedSize,
+		},
+		MigrationComplexity: getMigrationComplexity(), //TODO: to figure out proper algorithm
+		ConversionIssues:    schemaAnalysisReport.Issues,
+	}
+
+	finalReportBytes, err := json.Marshal(finalReport)
+	if err != nil {
+		utils.PrintAndLog("Failed to serialise the final report to json (ERR IGNORED): %s", err)
+	}
+
+	ev.Report = string(finalReportBytes)
 	return ev
+}
+
+func getMigrationComplexity() string {
+	return "NOT AVAILABLE"
+}
+
+type SizeDetails struct {
+	TotalIndexSize     int64
+	TotalTableSize     int64
+	TotalTableRowCount int64
+	TotalColocatedSize int64
+	TotalShardedSize   int64
+}
+
+func(ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
+	var details SizeDetails
+	colocatedTables, err := ar.GetColocatedTablesRecommendation()
+	if err != nil {
+		return details, fmt.Errorf("failed to get the colocated tables recommendation: %v", err)
+	}
+
+	if ar.TableIndexStats != nil {
+		for _, stat := range *ar.TableIndexStats {
+			if stat.IsIndex {
+				details.TotalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+			} else {
+				details.TotalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+				details.TotalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
+				if slices.Contains(colocatedTables, fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)) {
+					details.TotalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+				} else {
+					details.TotalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+				}
+			}
+		}
+	}
+	return details, nil
 }
 
 func runAssessment() error {
@@ -566,16 +612,6 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err := source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("error connecting source db: %v", err)
-	}
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-	source.DB().Disconnect()
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
@@ -632,6 +668,12 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
 	}
 
+	unsupportedFeatures, err := fetchUnsupportedObjectTypes()
+	if err != nil {
+		return fmt.Errorf("failed to fetch unsupported object types: %w", err)
+	}
+	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
+
 	assessmentReport.UnsupportedDataTypes, err = fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
@@ -656,7 +698,7 @@ func generateAssessmentReport() (err error) {
 	return nil
 }
 
-func getAssessmentReportContentFromAnalyzeSchema() (err error) {
+func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 
@@ -665,45 +707,92 @@ func getAssessmentReportContentFromAnalyzeSchema() (err error) {
 		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
 	}
 
-	unsupportedFeatures, err := fetchUnsupportedFeaturesOfSourceInYb(schemaAnalysisReport)
-	if err != nil {
-		return fmt.Errorf("failed to fetch unsupported features: %w", err)
+	// fetching unsupportedFeaturing with the help of Issues report in SchemaReport
+	var unsupportedFeatures []UnsupportedFeature
+	var err error
+	switch source.DBType {
+	case ORACLE:
+		unsupportedFeatures, err = fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport)
+	case POSTGRESQL:
+		unsupportedFeatures, err = fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport)
+	default:
+		panic(fmt.Sprintf("unsupported source db type %q", source.DBType))
 	}
-	assessmentReport.UnsupportedFeatures = unsupportedFeatures
-
+	if err != nil {
+		return fmt.Errorf("failed to fetch %s unsupported features: %w", source.DBType, err)
+	}
+	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 	return nil
 }
 
-func fetchUnsupportedFeaturesOfSourceInYb(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
-	switch source.DBType {
-	case POSTGRESQL:
-		return fetchUnsupportedFeaturesForPG(schemaAnalysisReport)
-	case ORACLE:
-		return nil, nil
-	default:
-		panic("unsupported source db type")
+func filterIssuesForUnsupportedFeature(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
+	log.Info("filtering issues for feature: ", featureName)
+	objectNames := make([]string, 0)
+	for _, issue := range schemaAnalysisReport.Issues {
+		if strings.Contains(issue.Reason, issueReason) {
+			objectNames = append(objectNames, issue.ObjectName)
+		}
 	}
+	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
 }
 
-func fetchUnsupportedFeaturesForPG(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
+func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	filterIssues := func(featureName, issueReason string) {
-		log.Info("filtering issues for feature: ", featureName)
-		objectNames := make([]string, 0)
-		for _, issue := range schemaAnalysisReport.Issues {
-			if strings.Contains(issue.Reason, issueReason) {
-				objectNames = append(objectNames, issue.ObjectName)
-			}
-		}
-		unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
+	filterIssuesForUnsupportedFeature("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesForUnsupportedFeature("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesForUnsupportedFeature("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesForUnsupportedFeature("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	return unsupportedFeatures, nil
+}
+
+func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
+	log.Infof("fetching unsupported features for Oracle...")
+	unsupportedFeatures := make([]UnsupportedFeature, 0)
+	filterIssuesForUnsupportedFeature("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	return unsupportedFeatures, nil
+}
+
+var OracleUnsupportedIndexTypes = []string{"CLUSTER INDEX", "DOMAIN INDEX", "BITMAP INDEX", "FUNCTION-BASED DOMAIN INDEX", "IOT - TOP INDEX", "NORMAL/REV INDEX", "FUNCTION-BASED NORMAL/REV INDEX"}
+
+func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
+	if source.DBType != ORACLE {
+		return nil, nil
 	}
 
-	filterIssues("GIST indexes", GIST_INDEX_ISSUE_REASON)
-	filterIssues("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON)
-	filterIssues("Inherited tables", INHERITANCE_ISSUE_REASON)
-	filterIssues("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON)
+	query := fmt.Sprintf(`SELECT schema_name, object_name, object_type FROM %s`, migassessment.OBJECT_TYPE_MAPPING)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying-%s: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching object type mapping metadata: %v", err)
+		}
+	}()
 
+	var unsupportedIndexes, virtualColumns, inheritedTypes []string
+	for rows.Next() {
+		var schemaName, objectName, objectType string
+		err = rows.Scan(&schemaName, &objectName, &objectType)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows:%w", err)
+		}
+
+		if slices.Contains(OracleUnsupportedIndexTypes, objectType) {
+			unsupportedIndexes = append(unsupportedIndexes, fmt.Sprintf("(name=%s, type=%s)", objectName, objectType))
+		} else if objectType == "VIRTUAL COLUMN" {
+			virtualColumns = append(virtualColumns, objectName)
+		} else if objectType == "INHERITED TYPE" {
+			inheritedTypes = append(inheritedTypes, objectName)
+		}
+	}
+
+	unsupportedFeatures := make([]UnsupportedFeature, 0)
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes})
 	return unsupportedFeatures, nil
 }
 
@@ -714,7 +803,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 		migassessment.TABLE_COLUMNS_DATA_TYPES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error querying-%s: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -735,10 +824,19 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
-	// filter columns with unsupported data types using srcdb.PostgresUnsupportedDataTypesForDbzm
-	pgUnsupportedDataTypes := srcdb.PostgresUnsupportedDataTypesForDbzm
+	var sourceUnsupportedDataTypes []string
+	switch source.DBType {
+	case POSTGRESQL:
+		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
+	case ORACLE:
+		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
+	default:
+		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
+	}
+
+	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
-		if utils.ContainsAnySubstringFromSlice(pgUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		if utils.ContainsAnySubstringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
 	}
@@ -803,10 +901,10 @@ func validateSourceDBTypeForAssessMigration() {
 		utils.ErrExit("Error: required flag \"source-db-type\" not set")
 	}
 
-	assessMigrationSupportedDBTypes := []string{POSTGRESQL, ORACLE}
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
-		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types for assess-migration are: %v", assessMigrationSupportedDBTypes, source.DBType)
+		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
+			source.DBType, strings.Join(assessMigrationSupportedDBTypes, ", "))
 	}
 }
 

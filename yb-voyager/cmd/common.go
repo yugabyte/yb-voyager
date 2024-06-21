@@ -903,12 +903,14 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
 	dataFilePathNtMap := map[string]sqlname.NameTuple{}
-	for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
-		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
-		if err != nil {
-			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+	if snapshotDataFileDescriptor != nil {
+		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+			if err != nil {
+				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+			}
+			dataFilePathNtMap[fileEntry.FilePath] = nt
 		}
-		dataFilePathNtMap[fileEntry.FilePath] = nt
 	}
 
 	for dataFilePath, nt := range dataFilePathNtMap {
@@ -918,6 +920,30 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 		}
 		existingRows, _ := snapshotRowsMap.Get(nt)
 		snapshotRowsMap.Put(nt, existingRows+snapshotRowCount)
+	}
+	return snapshotRowsMap, nil
+}
+
+
+func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { //used for import data file case right now
+	importerRole = IMPORT_FILE_ROLE
+	state := NewImportDataState(exportDir)
+	dataFileDescriptor, err := prepareDummyDescriptor(state)
+	if err != nil {
+		return nil, fmt.Errorf("prepare dummy descriptor: %w", err)
+	}
+	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+	for _, fileEntry := range dataFileDescriptor.DataFileList {
+		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+		}
+		byteCount, err := state.GetImportedByteCount(fileEntry.FilePath, nt)
+		if err != nil {
+			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
+		}
+		exisitingByteCount, _ := snapshotRowsMap.Get(nt)
+		snapshotRowsMap.Put(nt, exisitingByteCount+byteCount)
 	}
 	return snapshotRowsMap, nil
 }
@@ -953,6 +979,30 @@ type AssessmentReport struct {
 	UnsupportedFeatures  []UnsupportedFeature                  `json:"UnsupportedFeatures"`
 	TableIndexStats      *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 }
+
+// =============== for yugabyted controlplane ==============//
+// TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
+type AssessMigrationPayload struct {
+	AssessmentJsonReport  AssessmentReport
+	MigrationComplexity   string
+	SourceSizeDetails     SourceDBSizeDetails
+	TargetRecommendations TargetSizingRecommendations
+	ConversionIssues      []utils.Issue
+}
+
+type SourceDBSizeDetails struct {
+	TotalDBSize        int64
+	TotalTableSize     int64
+	TotalIndexSize     int64
+	TotalTableRowCount int64
+}
+
+type TargetSizingRecommendations struct {
+	TotalColocatedSize int64
+	TotalShardedSize   int64
+}
+
+//==========================================//
 
 func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	var report AssessmentReport
@@ -1002,12 +1052,13 @@ func createCallhomePayload() callhome.Payload {
 	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 	payload.TimeTakenSec = int(math.Ceil(time.Since(startTime).Seconds()))
+	payload.CollectedAt = time.Now().UTC().Format("2006-01-02T15:04:05.999999")
 
 	return payload
 }
 
 func PackAndSendCallhomePayloadOnExit() {
-	if callHomePayloadSent {
+	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
 	switch currentCommand {
@@ -1019,12 +1070,14 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendAnalyzeSchemaPayload(EXIT)
 	case importSchemaCmd.CommandPath():
 		packAndSendImportSchemaPayload(EXIT, "Exiting....")
-	case exportDataCmd.CommandPath():
+	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
 		packAndSendExportDataPayload(EXIT)
-	case importDataCmd.CommandPath():
+	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
 		packAndSendImportDataPayload(EXIT)
 	case endMigrationCmd.CommandPath():
 		packAndSendEndMigrationPayload(EXIT)
+	case importDataFileCmd.CommandPath():
+		packAndSendImportDataFilePayload(EXIT)
 		//..more cases
 	}
 }
@@ -1073,6 +1126,24 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 			exportDataPayload.ExportDataMechanism = "pg_dump"
 		case ORACLE, MYSQL:
 			exportDataPayload.ExportDataMechanism = "ora2pg"
+		}
+	}
+}
+
+func sendCallhomePayloadAtIntervals() {
+	for {
+		if callHomeErrorOrCompletePayloadSent {
+			//for just that corner case if there is some timing clash where complete and in-progress payload are sent together
+			break
+		}
+		time.Sleep(15 * time.Minute)
+		switch currentCommand {
+		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
+			packAndSendExportDataPayload(INPROGRESS)
+		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
+			packAndSendImportDataPayload(INPROGRESS)
+		case importDataFileCmd.CommandPath():
+			packAndSendImportDataFilePayload(INPROGRESS)
 		}
 	}
 }

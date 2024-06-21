@@ -638,8 +638,8 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_CanSupportTablets(t *testing.T
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 20},
-				{SchemaName: "public", ObjectName: "table2", Size: 120},
+				{SchemaName: "public", ObjectName: "table1", Size: 10},
+				{SchemaName: "public", ObjectName: "table2", Size: 60},
 			},
 			VCPUsPerInstance: 4,
 			NumNodes:         3,
@@ -671,8 +671,8 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 250},
-				{SchemaName: "public", ObjectName: "table2", Size: 120},
+				{SchemaName: "public", ObjectName: "table1", Size: 125},
+				{SchemaName: "public", ObjectName: "table2", Size: 60},
 			},
 			VCPUsPerInstance: 4,
 			NumNodes:         3,
@@ -758,10 +758,10 @@ func TestPickBestRecommendation_PickLastMaxCoreRecommendationWhenNoneCanSupport(
 }
 
 /*
-===== 	Test functions to test calculateTimeTakenAndParallelJobsForImport function	=====
+===== 	Test functions to test calculateTimeTakenAndParallelJobsForImportColocatedObjects function	=====
 */
-// validate the formula to calculate the import time
-func TestCalculateTimeTakenAndParallelJobsForImport_ValidateFormulaToCalculateImportTime(t *testing.T) {
+// validate the formula to calculate the import time for Colocated Objects
+func TestCalculateTimeTakenAndParallelJobsForImportColocatedObjects_ValidateFormulaToCalculateImportTime(t *testing.T) {
 	db, mock := createMockDB(t)
 	// Define the mock response for the query
 	rows := sqlmock.NewRows([]string{"csv_size_gb", "migration_time_secs", "parallel_threads"}).
@@ -776,7 +776,7 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateFormulaToCalculateIm
 
 	// Call the function
 	estimatedTime, parallelJobs, err :=
-		calculateTimeTakenAndParallelJobsForImport(COLOCATED_LOAD_TIME_TABLE, dbObjects, 4, 4, db)
+		calculateTimeTakenAndParallelJobsForImportColocatedObjects(dbObjects, 4, 4, db)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -793,6 +793,107 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateFormulaToCalculateIm
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("There were unfulfilled expectations: %s", err)
 	}
+}
+
+/*
+===== 	Test functions to test calculateTimeTakenAndParallelJobsForImportShardedObjects function	=====
+*/
+// validate the formula to calculate the import time for sharded table without index
+func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithoutIndex(t *testing.T) {
+	// Define test data
+	shardedTables := []SourceDBMetadata{
+		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+	}
+	var sourceIndexMetadata []SourceDBMetadata
+	shardedLoadTimes := []ExpDataShardedLoadTime{
+		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+	}
+
+	// Call the function
+	estimatedTime, parallelJobs, err :=
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Define expected results
+	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
+	expectedTime := 23.0
+	expectedJobs := int64(1)
+	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
+		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
+			estimatedTime, parallelJobs, expectedTime, expectedJobs)
+	}
+
+}
+
+// validate the formula to calculate the import time for sharded table with one index
+func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithOneIndex(t *testing.T) {
+	// Define test data
+	shardedTables := []SourceDBMetadata{
+		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+	}
+	sourceIndexMetadata := []SourceDBMetadata{
+		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+	}
+	shardedLoadTimes := []ExpDataShardedLoadTime{
+		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+	}
+
+	// Call the function
+	estimatedTime, parallelJobs, err :=
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Define expected results
+	// Calculated as table0: 2 * ((1134 * 23) / 19) / 60
+	expectedTime := 46.0 // double the time required when there are no indexes.
+	expectedJobs := int64(1)
+	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
+		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
+			estimatedTime, parallelJobs, expectedTime, expectedJobs)
+	}
+
+}
+
+// validate the formula to calculate the import time for sharded table with 5 indexes
+func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithFiveIndexes(t *testing.T) {
+	// Define test data
+	shardedTables := []SourceDBMetadata{
+		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+	}
+	sourceIndexMetadata := []SourceDBMetadata{
+		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+		{ObjectName: "table0_idx2", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+		{ObjectName: "table0_idx3", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+		{ObjectName: "table0_idx4", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+		{ObjectName: "table0_idx5", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
+	}
+	shardedLoadTimes := []ExpDataShardedLoadTime{
+		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+	}
+
+	// Call the function
+	estimatedTime, parallelJobs, err :=
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Define expected results
+	// Calculated as table0: 4 * ((1134 * 23) / 19) / 60
+	expectedTime := 92.0 // 4(0.8 * 5 indexes) times the time required when there are no indexes.
+	expectedJobs := int64(1)
+	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
+		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
+			estimatedTime, parallelJobs, expectedTime, expectedJobs)
+	}
+
 }
 
 /*
@@ -888,6 +989,50 @@ func TestGetReasoning_Indexes(t *testing.T) {
 	if result != expected {
 		t.Errorf("Expected %q but got %q", expected, result)
 	}
+}
+
+/*
+===== 	Test functions to test getThresholdAndTablets function	=====
+*/
+func TestGetThresholdAndTablets(t *testing.T) {
+	tests := []struct {
+		previousNumNodes  float64
+		sizeGB            float64
+		expectedThreshold float64
+		expectedTablets   int
+	}{
+		// test data where previousNumNodes is 3
+		{3, 0.512, LOW_PHASE_SIZE_THRESHOLD_GB, 1},
+		{3, 1, LOW_PHASE_SIZE_THRESHOLD_GB, 2},
+		{3, 1.1, LOW_PHASE_SIZE_THRESHOLD_GB, 3},
+		{3, 2, HIGH_PHASE_SIZE_THRESHOLD_GB, 3},
+		{3, 10, HIGH_PHASE_SIZE_THRESHOLD_GB, 3},
+		{3, 229, HIGH_PHASE_SIZE_THRESHOLD_GB, 23},
+		{3, 241, HIGH_PHASE_SIZE_THRESHOLD_GB, 25},
+		{3, 711, HIGH_PHASE_SIZE_THRESHOLD_GB, 72},
+		{3, 7180, FINAL_PHASE_SIZE_THRESHOLD_GB, 72},
+		{3, 7201, FINAL_PHASE_SIZE_THRESHOLD_GB, 73},
+		// test data where previousNumNodes is 4
+		{4, 0.512, LOW_PHASE_SIZE_THRESHOLD_GB, 1},
+		{4, 1, LOW_PHASE_SIZE_THRESHOLD_GB, 2},
+		{4, 1.1, LOW_PHASE_SIZE_THRESHOLD_GB, 3},
+		{4, 2, LOW_PHASE_SIZE_THRESHOLD_GB, 4},
+		{4, 10, HIGH_PHASE_SIZE_THRESHOLD_GB, 4},
+		{4, 229, HIGH_PHASE_SIZE_THRESHOLD_GB, 23},
+		{4, 241, HIGH_PHASE_SIZE_THRESHOLD_GB, 25},
+		{4, 949, HIGH_PHASE_SIZE_THRESHOLD_GB, 95},
+		{4, 951, HIGH_PHASE_SIZE_THRESHOLD_GB, 96},
+		{4, 961, FINAL_PHASE_SIZE_THRESHOLD_GB, 96},
+	}
+
+	for _, test := range tests {
+		threshold, tablets := getThresholdAndTablets(test.previousNumNodes, test.sizeGB)
+		if threshold != test.expectedThreshold || tablets != test.expectedTablets {
+			t.Errorf("getThresholdAndTablets(%v, %v) = (%v, %v); want (%v, %v)",
+				test.previousNumNodes, test.sizeGB, threshold, tablets, test.expectedThreshold, test.expectedTablets)
+		}
+	}
+
 }
 
 /*

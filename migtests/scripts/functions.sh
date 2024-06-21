@@ -579,6 +579,17 @@ cat_log_file() {
 	fi	
 }
 
+cat_file() {
+	file_path=$1
+	if [ -f "$file_path" ]
+	then
+		echo "Printing ${file_path} file"
+		cat "$file_path"
+	else
+		echo "No $file_path found."
+	fi
+}
+
 kill_process() {
 	to_be_killed=$1
 	kill -15 ${to_be_killed}
