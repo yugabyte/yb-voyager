@@ -49,8 +49,6 @@ type ConnectionPool struct {
 	nextUriIndex              int
 	disableThrottling         bool
 	size                      int
-	sizeChangeRequests        chan int
-	connLock                  sync.Mutex
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
@@ -60,7 +58,6 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 		connIdToPreparedStmtCache: make(map[uint32]map[string]bool),
 		disableThrottling:         false,
 		size:                      params.NumConnections,
-		sizeChangeRequests:        make(chan int, 1),
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
@@ -75,16 +72,26 @@ func (pool *ConnectionPool) GetNumConnections() int {
 	return pool.size
 }
 
-func (pool *ConnectionPool) UpdateNumConnections(newSize int) bool {
-	if newSize < 1 || newSize > MAX_CONNS {
-		return false
+func (pool *ConnectionPool) UpdateNumConnections(newSize int) {
+	if newSize <= 1 || newSize > MAX_CONNS {
+		utils.PrintAndLog("PARALLELISM: Invalid pool size %d. Ignoring the update", newSize)
+		return
 	}
-	select {
-	case pool.sizeChangeRequests <- newSize:
-		return true
-	default:
-		return false
+	if newSize > pool.size {
+		for i := 0; i < newSize-pool.size; i++ {
+			pool.conns <- nil
+		}
+	} else if newSize < pool.size {
+		for i := 0; i < pool.size-newSize; i++ {
+			conn := <-pool.conns
+			if conn != nil {
+				conn.Close(context.Background())
+			}
+		}
 	}
+	oldSize := pool.size
+	pool.size = newSize
+	utils.PrintAndLog("PARALLELISM: Updated pool size from %d to %d", oldSize, newSize)
 }
 
 func (pool *ConnectionPool) DisableThrottling() {
@@ -99,42 +106,15 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		var conn *pgx.Conn
 		var gotIt bool
 		if pool.disableThrottling {
-			pool.connLock.Lock()
-			// deal with changes in size change requests
-			select {
-			case newSize := <-pool.sizeChangeRequests:
-				if newSize > pool.size {
-					for i := 0; i < newSize-pool.size; i++ {
-						pool.conns <- nil
-					}
-				} else if newSize < pool.size {
-					for i := 0; i < pool.size-newSize; i++ {
-						conn = <-pool.conns
-						if conn != nil {
-							conn.Close(context.Background())
-						}
-					}
-				}
-				oldSize := pool.size
-				pool.size = newSize
-				utils.PrintAndLog("PARALLELISM: Updated pool size from %d to %d", oldSize, newSize)
-			default:
-
-			}
-
 			conn = <-pool.conns
-			pool.connLock.Unlock()
 		} else {
-			pool.connLock.Lock()
 			conn, gotIt = <-pool.conns
 			if !gotIt {
-				pool.connLock.Unlock()
 				// The following sleep is intentional. It is added so that voyager does not
 				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
 				time.Sleep(2 * time.Second)
 				continue
 			}
-			pool.connLock.Unlock()
 		}
 		if conn == nil {
 			conn, err = pool.createNewConnection()

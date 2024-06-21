@@ -1245,21 +1245,11 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 		}
 		utils.PrintAndLog("PARALLELISM: cluster cpu usage: %d", clusterCPUUsage)
 		if int(clusterCPUUsage) > maxCPUThreshold {
-
-			updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - 1)
-			if updated {
-				utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()-1)
-			} else {
-				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
-			}
+			utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()-1)
+			yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - 1)
 		} else {
-
-			updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() + 1)
-			if updated {
-				utils.PrintAndLog("PARALLELISM: found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()+1)
-			} else {
-				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
-			}
+			utils.PrintAndLog("PARALLELISM: found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()+1)
+			yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() + 1)
 		}
 		time.Sleep(10 * time.Second)
 	}
