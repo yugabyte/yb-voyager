@@ -141,7 +141,7 @@ func (s *StreamImportStatsReporter) BatchImported(numInserts, numUpdates, numDel
 	s.CurrImportedEvents += total
 	s.TotalEventsImported += total
 	s.eventsSlidingWindow[0] += total
-	s.EventsImportRateLast3Min = s.getIngestionRateForLastNMinutes(3) // this is just used for call-home stats
+	s.EventsImportRateLast3Min = s.getIngestionRateForLastNMinutes(3) / 60 // this is just used for call-home stats
 }
 
 func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int64 {

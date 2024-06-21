@@ -128,7 +128,7 @@ func packAndSendExportDataFromTargetPayload(status string) {
 		Host:      source.Host,
 		DBVersion: source.DBVersion,
 	}
-	payload.SourceDBDetails = callhome.MarshalledJsonString(targetDBDetails)
+	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 
 	payload.MigrationPhase = EXPORT_DATA_FROM_TARGET_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
