@@ -140,6 +140,13 @@ parse_oracle_dsn() {
     echo "$ORACLE_DSN"
 }
 
+# Function to remove password from oracle connection string
+remove_password() {
+    local connection_string="$1"
+    local cleaned_string=$(echo "$connection_string" | sed -r 's|/[^@]*@|/*****@|')
+    echo "$cleaned_string"
+}
+
 # the error returned by the command in `eval $command 2>&1 | tee -a "$LOG_FILE"` was getting ignored
 # this function checks the PIPESTATUS[0] of the first command
 run_command() {
@@ -148,7 +155,8 @@ run_command() {
     # print and log the stderr/stdout of the command
     eval $command 2>&1 | tee -a "$LOG_FILE"
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
-        print_and_log "ERROR" "command failed: $command"
+        print_and_log "ERROR" "command failed: $(remove_password "$command")"
+        printf "\n$(basename $file_to_print)\n" | tee -a "$LOG_FILE"
         cat "$file_to_print" | tee -a "$LOG_FILE"
         exit 1
     fi
@@ -186,7 +194,7 @@ main() {
         csv_file_path="$assessment_metadata_dir/${script_name%.sqlplus}.csv"
         print_and_log "INFO" "Collecting $script_action..."
         sqlplus_command="sqlplus -S $oracle_connection_string @$script $schema_name"
-        log "INFO" "executing sqlplus_command: $sqlplus_command"
+        log "INFO" "executing sqlplus_command: $(remove_password "$sqlplus_command")"
         run_command "$sqlplus_command" "$csv_file_path"
 
         # Post-processing step to remove the first line if it's empty in the generated CSV file
