@@ -127,6 +127,7 @@ type ExportDataPhasePayload struct {
 	Phase               string `json:"phase,omitempty"`
 	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
 	EventsExportRate    int64  `json:"events_export_rate_3m,omitempty"`
+	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 }
 
 type ImportSchemaPhasePayload struct {
@@ -145,6 +146,7 @@ type ImportDataPhasePayload struct {
 	Phase               string `json:"phase,omitempty"`
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
 	EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
+	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 }
 
 type ImportDataFilePhasePayload struct {

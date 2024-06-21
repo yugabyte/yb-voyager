@@ -117,12 +117,7 @@ func packAndSendExportDataFromTargetPayload(status string) {
 		return
 	}
 	payload := createCallhomePayload()
-	switch exporterRole {
-	case TARGET_DB_EXPORTER_FF_ROLE:
-		payload.MigrationType = LIVE_MIGRATION_WITH_FALL_FORWARD
-	case TARGET_DB_EXPORTER_FB_ROLE:
-		payload.MigrationType = LIVE_MIGRATION_WITH_FALLBACK
-	}
+	payload.MigrationType = LIVE_MIGRATION
 
 	targetDBDetails := callhome.TargetDBDetails{
 		Host:      source.Host,
@@ -140,6 +135,12 @@ func packAndSendExportDataFromTargetPayload(status string) {
 	if exportPhase != dbzm.MODE_SNAPSHOT {
 		exportDataPayload.TotalExportedEvents = totalEventCount
 		exportDataPayload.EventsExportRate = throughputInLast3Min
+	}
+	switch exporterRole {
+	case TARGET_DB_EXPORTER_FF_ROLE:
+		exportDataPayload.LiveWorkflowType = FALL_FORWARD
+	case TARGET_DB_EXPORTER_FB_ROLE:
+		exportDataPayload.LiveWorkflowType = FALL_BACK
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportDataPayload)

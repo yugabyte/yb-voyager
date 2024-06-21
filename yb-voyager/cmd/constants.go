@@ -73,14 +73,12 @@ const (
 	OFFLINE        = "offline"
 	LIVE_MIGRATION = "live-migration"
 	BULK_DATA_LOAD = "bulk-data-load-from-flat-files"
-
-	LIVE_MIGRATION_WITH_FALL_FORWARD = "live-migration-with-fall-forward"
-	LIVE_MIGRATION_WITH_FALLBACK     = "live-migration-with-fall-back"
-
-	AWS_S3      = "aws-s3"
-	GCS_BUCKETS = "gcs-buckets"
-	AZURE_BLOBS = "azure-blob-storage"
-	LOCAL_DISK  = "local-disk"
+	FALL_BACK      = "fall-back"
+	FALL_FORWARD   = "fall-forward"
+	AWS_S3         = "aws-s3"
+	GCS_BUCKETS    = "gcs-buckets"
+	AZURE_BLOBS    = "azure-blob-storage"
+	LOCAL_DISK     = "local-disk"
 	//status
 	ERROR                     = "ERROR"
 	EXIT                      = "EXIT"

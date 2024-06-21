@@ -93,7 +93,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string) {
 		return
 	}
 	payload := createCallhomePayload()
-	payload.MigrationType = LIVE_MIGRATION_WITH_FALL_FORWARD
+	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
 		Host:      tconf.Host,
@@ -105,8 +105,9 @@ func packAndSendImportDataToSrcReplicaPayload(status string) {
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_REPLICA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs: int64(tconf.Parallelism),
-		StartClean:   bool(startClean),
+		ParallelJobs:     int64(tconf.Parallelism),
+		StartClean:       bool(startClean),
+		LiveWorkflowType: FALL_FORWARD,
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
 	if err != nil {

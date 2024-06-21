@@ -92,7 +92,7 @@ func packAndSendImportDataToSourcePayload(status string) {
 		return
 	}
 	payload := createCallhomePayload()
-	payload.MigrationType = LIVE_MIGRATION_WITH_FALLBACK
+	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
 		Host:      tconf.Host,
@@ -105,6 +105,7 @@ func packAndSendImportDataToSourcePayload(status string) {
 	importDataPayload := callhome.ImportDataPhasePayload{
 		ParallelJobs: int64(tconf.Parallelism),
 		StartClean:   bool(startClean),
+		LiveWorkflowType: FALL_BACK,
 	}
 
 	importDataPayload.Phase = importPhase
