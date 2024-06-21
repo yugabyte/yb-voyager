@@ -566,11 +566,7 @@ install_yb_voyager() {
 	GO=${GO:-"go"}
 	if [ "${VERSION}" == "latest" ]
 	then
-		# $GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
-		# Download tarball from github release
-		
 		install_yb_voyager_latest_release
-	
 		return
 	fi
 
@@ -598,7 +594,9 @@ install_yb_voyager_latest_release() {
 	pushd yb-voyager-yb-voyager-${VOYAGER_RELEASE_NAME} > /dev/null
 	pushd yb-voyager > /dev/null
 	# modify versions
+	cat src/utils/version.go
 	sed -i "s/YB_VOYAGER_VERSION = \".*\"/YB_VOYAGER_VERSION = \"$VOYAGER_VERSION\"/" src/utils/version.go
+	cat src/utils/version.go
     sed -i "s/const DEBEZIUM_VERSION = \".*\"/const DEBEZIUM_VERSION = \"$DEBEZIUM_VERSION\"/" src/dbzm/dbzm.go
 	# build
 	$GO install
