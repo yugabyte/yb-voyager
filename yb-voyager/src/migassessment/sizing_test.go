@@ -31,42 +31,53 @@ var AssessmentDbSelectQuery = fmt.Sprintf("SELECT schema_name, object_name, row_
 var AssessmentDBColumns = []string{"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
 	"is_index", "parent_table_name", "size_in_bytes"}
 
-var colocatedLimits = []ExpDataColocatedLimit{
+var colocatedThroughput = []ExpDataThroughput{
 	{
-		maxColocatedSizeSupported:  sql.NullFloat64{Float64: 113, Valid: true},
-		numCores:                   sql.NullFloat64{Float64: 2, Valid: true},
-		memPerCore:                 sql.NullFloat64{Float64: 4, Valid: true},
-		maxSupportedNumTables:      sql.NullInt64{Int64: 2000, Valid: true},
-		minSupportedNumTables:      sql.NullFloat64{Float64: 1, Valid: true},
-		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1175, Valid: true},
-		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 357, Valid: true},
-	},
-	{
-		maxColocatedSizeSupported:  sql.NullFloat64{Float64: 113, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: 4, Valid: true},
 		memPerCore:                 sql.NullFloat64{Float64: 4, Valid: true},
-		maxSupportedNumTables:      sql.NullInt64{Int64: 2000, Valid: true},
-		minSupportedNumTables:      sql.NullFloat64{Float64: 1, Valid: true},
 		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1230, Valid: true},
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 400, Valid: true},
+		selectConnPerNode:          sql.NullInt64{Int64: 8, Valid: true},
+		insertConnPerNode:          sql.NullInt64{Int64: 12, Valid: true},
 	},
 	{
-		maxColocatedSizeSupported:  sql.NullFloat64{Float64: 113, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: 8, Valid: true},
 		memPerCore:                 sql.NullFloat64{Float64: 4, Valid: true},
-		maxSupportedNumTables:      sql.NullInt64{Int64: 5000, Valid: true},
-		minSupportedNumTables:      sql.NullFloat64{Float64: 1, Valid: true},
 		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1246, Valid: true},
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 608, Valid: true},
+		selectConnPerNode:          sql.NullInt64{Int64: 16, Valid: true},
+		insertConnPerNode:          sql.NullInt64{Int64: 24, Valid: true},
 	},
 	{
-		maxColocatedSizeSupported:  sql.NullFloat64{Float64: 113, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: 16, Valid: true},
 		memPerCore:                 sql.NullFloat64{Float64: 4, Valid: true},
-		maxSupportedNumTables:      sql.NullInt64{Int64: 5000, Valid: true},
-		minSupportedNumTables:      sql.NullFloat64{Float64: 1, Valid: true},
 		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1220, Valid: true},
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 755, Valid: true},
+		selectConnPerNode:          sql.NullInt64{Int64: 32, Valid: true},
+		insertConnPerNode:          sql.NullInt64{Int64: 48, Valid: true},
+	},
+}
+var colocatedLimits = []ExpDataColocatedLimit{
+	{
+		maxColocatedSizeSupported: sql.NullFloat64{Float64: 113, Valid: true},
+		numCores:                  sql.NullFloat64{Float64: 4, Valid: true},
+		memPerCore:                sql.NullFloat64{Float64: 4, Valid: true},
+		maxSupportedNumTables:     sql.NullInt64{Int64: 2000, Valid: true},
+		minSupportedNumTables:     sql.NullFloat64{Float64: 1, Valid: true},
+	},
+	{
+		maxColocatedSizeSupported: sql.NullFloat64{Float64: 113, Valid: true},
+		numCores:                  sql.NullFloat64{Float64: 8, Valid: true},
+		memPerCore:                sql.NullFloat64{Float64: 4, Valid: true},
+		maxSupportedNumTables:     sql.NullInt64{Int64: 5000, Valid: true},
+		minSupportedNumTables:     sql.NullFloat64{Float64: 1, Valid: true},
+	},
+	{
+		maxColocatedSizeSupported: sql.NullFloat64{Float64: 113, Valid: true},
+		numCores:                  sql.NullFloat64{Float64: 16, Valid: true},
+		memPerCore:                sql.NullFloat64{Float64: 4, Valid: true},
+		maxSupportedNumTables:     sql.NullInt64{Int64: 5000, Valid: true},
+		minSupportedNumTables:     sql.NullFloat64{Float64: 1, Valid: true},
 	},
 }
 
@@ -147,17 +158,9 @@ func TestShardingBasedOnTableSizeAndCount_TableWithSizePlacedInColocated(t *test
 		{SchemaName: "public", ObjectName: "table1", Size: 100},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedRecommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
-			},
-			ShardedTables: nil,
-			ColocatedSize: 100,
-			ShardedSize:   0,
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
 				{SchemaName: "public", ObjectName: "table1", Size: 100},
@@ -201,16 +204,9 @@ func TestShardingBasedOnTableSizeAndCount_WithIndexes_ColocateAll(t *testing.T) 
 			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
 		},
 	}
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedRecommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
-			},
-			ShardedTables: nil,
-			ColocatedSize: 110, // Table size + index size
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
 				{SchemaName: "public", ObjectName: "table1", Size: 100},
@@ -247,19 +243,9 @@ func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededBySize(t *testin
 		{SchemaName: "public", ObjectName: "table2", Size: 500},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedRecommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 110},
-			},
-			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table2", Size: 500},
-			},
-			ColocatedSize: 110,
-			ShardedSize:   500,
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
 				{SchemaName: "public", ObjectName: "table1", Size: 110},
@@ -308,13 +294,9 @@ func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededByCount(t *testi
 	}
 
 	var sourceIndexMetadata []SourceDBMetadata
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedResults := make(map[int]map[string]int)
-	expectedResults[2] = map[string]int{
-		"lenColocatedTables": 2000,
-		"lenShardedTables":   14000,
-	}
 	expectedResults[4] = map[string]int{
 		"lenColocatedTables": 2000,
 		"lenShardedTables":   14000,
@@ -343,13 +325,9 @@ func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 		{SchemaName: "public", ObjectName: "table2", Size: 500},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedResults := make(map[int]map[string]int)
-	expectedResults[2] = map[string]int{
-		"lenColocatedTables": 0,
-		"lenShardedTables":   2,
-	}
 	expectedResults[4] = map[string]int{
 		"lenColocatedTables": 0,
 		"lenShardedTables":   2,
@@ -383,14 +361,6 @@ func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
 		{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
 	}
 	recommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
-			},
-			ShardedTables: []SourceDBMetadata{},
-			ColocatedSize: 10.0,
-			ShardedSize:   0.0,
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
 				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
@@ -418,7 +388,7 @@ func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
 	}
 
 	// Run the function
-	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedLimits, recommendation)
+	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, recommendation)
 
 	// expected is that the table should be removed from colocated and added to sharded as the ops requirement is high
 	for _, rec := range updatedRecommendation {
@@ -436,14 +406,6 @@ func TestShardingBasedOnOperations_CannotSupportOpsAndNeedsSharding(t *testing.T
 		{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
 	}
 	recommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
-			},
-			ShardedTables: []SourceDBMetadata{},
-			ColocatedSize: 10.0,
-			ShardedSize:   0.0,
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
 				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
@@ -471,7 +433,7 @@ func TestShardingBasedOnOperations_CannotSupportOpsAndNeedsSharding(t *testing.T
 	}
 
 	// Run the function
-	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedLimits, recommendation)
+	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, recommendation)
 
 	// expected is that the table should be removed from colocated and added to sharded as the ops requirement is high
 	for _, rec := range updatedRecommendation {
@@ -557,7 +519,7 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_CanSupportOps(t *testing
 		{ObjectName: "table2", Size: 20.0, ReadsPerSec: 200, WritesPerSec: 100},
 	}
 
-	shardedLimits := []ExpDataShardedThroughput{
+	shardedThroughput := []ExpDataThroughput{
 		{
 			numCores:                   sql.NullFloat64{Float64: 4},
 			maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 200},
@@ -569,14 +531,16 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_CanSupportOps(t *testing
 
 	recommendation := map[int]IntermediateRecommendation{
 		4: {
-			ColocatedTables: []SourceDBMetadata{},
-			ShardedTables:   []SourceDBMetadata{{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50}},
+			ColocatedTables:                 []SourceDBMetadata{},
+			ShardedTables:                   []SourceDBMetadata{{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50}},
+			OptimalSelectConnectionsPerNode: 50,
+			OptimalInsertConnectionsPerNode: 25,
 		},
 	}
 
 	// Run the function
 	updatedRecommendation :=
-		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedLimits, recommendation)
+		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, recommendation)
 
 	// for 4 cores data, expected results are
 	var expectedOptimalSelectConnectionsPerNode int64 = 50
@@ -595,7 +559,7 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_NeedMoreNodes(t *testing
 	// Define test data
 	var sourceIndexMetadata []SourceDBMetadata
 
-	shardedLimits := []ExpDataShardedThroughput{
+	shardedLimits := []ExpDataThroughput{
 		{
 			numCores:                   sql.NullFloat64{Float64: 4},
 			maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 200},
