@@ -596,9 +596,7 @@ install_yb_voyager_latest_release() {
 	pushd yb-voyager > /dev/null
 	
 	# modify versions
-	cat src/utils/version.go
 	sed -i "s/YB_VOYAGER_VERSION = \".*\"/YB_VOYAGER_VERSION = \"$VOYAGER_VERSION\"/" src/utils/version.go
-	cat src/utils/version.go
     sed -i "s/const DEBEZIUM_VERSION = \".*\"/const DEBEZIUM_VERSION = \"$DEBEZIUM_VERSION\"/" src/dbzm/dbzm.go
 	
 	# build
