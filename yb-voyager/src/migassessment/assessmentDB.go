@@ -302,6 +302,7 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	}
 
 	for _, stmt := range statements {
+		log.Infof("executing query for populating migration assessment stats- %s", stmt)
 		if _, err := adb.db.Exec(stmt); err != nil {
 			return fmt.Errorf("error executing statement-%s: %w", stmt, err)
 		}
