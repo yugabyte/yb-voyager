@@ -7,7 +7,7 @@ def main():
 	yb.run_checks(YB_specific_checks)
 
 def YB_specific_checks(tgt):
-	yb.verify_colocation(tgt)
+	yb.verify_colocation(tgt, "oracle")
 
 EXPECTED_ROW_COUNT = {
 	'payment':16008,

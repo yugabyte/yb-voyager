@@ -50,7 +50,7 @@ def new_source_db():
 		env.get("SOURCE_DB_PASSWORD", "secret"),
 		env["SOURCE_DB_NAME"])
 
-def verify_colocation(tgt):
+def verify_colocation(tgt, source_db_type):
 	print("Verifying the colocation of the tables")
 	json_file = "export-dir/assessment/reports/assessmentReport.json"
 
@@ -61,6 +61,8 @@ def verify_colocation(tgt):
 
 	for table in sharded_tables:
 		schema_name, table_name = table.split(".")
+		if source_db_type == "oracle":
+			schema_name = os.environ.get("TARGET_DB_SCHEMA", "public")
 		actual_colocation = tgt.check_table_colocation(table_name, schema_name)
 		assert not actual_colocation, f"Table '{table_name}' colocation mismatch. Expected: False, Actual: {actual_colocation}"
 
