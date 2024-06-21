@@ -666,7 +666,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 	return nil
 }
 
-//go:embed assessmentReport.template
+//go:embed templates/assessmentReport.template
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
