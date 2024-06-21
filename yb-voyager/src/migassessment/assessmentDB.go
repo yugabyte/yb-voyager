@@ -279,22 +279,6 @@ const (
 		WHERE read_write_rates.schema_name = table_index_stats.schema_name
 		  AND read_write_rates.object_name = table_index_stats.object_name
 	);`
-
-	/*
-		changing to TABLE type to make the object_type field consistent across Oracle and PG
-		TABLE PARTITION -> TABLE
-		TABLE SUBPARTITION -> TABLE
-	*/
-	UpdateToTableObjectType = `UPDATE %s
-	SET
-		object_type = 'TABLE'
-	WHERE object_type = 'TABLE PARTITION' OR object_type = 'TABLE SUBPARTITION';`
-
-	// NORMAL INDEX -> INDEX
-	UpdateToIndexObjectType = `UPDATE %s
-	SET
-		object_type = 'INDEX'
-	WHERE object_type LIKE '%%INDEX%%';`
 )
 
 // populate table_index_stats table using the data from other tables
@@ -312,9 +296,7 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 			fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
 			UpdateStatsWithRates)
 	case "oracle":
-		statements = append(statements,
-			fmt.Sprintf(UpdateToTableObjectType, TABLE_INDEX_STATS),
-			fmt.Sprintf(UpdateToIndexObjectType, TABLE_INDEX_STATS))
+		// already accounted
 	default:
 		panic("invalid source db type")
 	}
