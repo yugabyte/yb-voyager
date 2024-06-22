@@ -35,6 +35,7 @@ import (
 
 var skipRecommendations utils.BoolStr
 var assessmentReportPath string
+var assessmentRecommendationsApplied bool
 
 var exportSchemaCmd = &cobra.Command{
 	Use: "schema",
@@ -155,8 +156,9 @@ func packAndSendExportSchemaPayload(status string) {
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean:             bool(startClean),
-		AppliedRecommendations: !bool(skipRecommendations),
+		AppliedRecommendations: assessmentRecommendationsApplied,
 	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
 
 	err := callhome.SendPayload(&payload)
@@ -268,6 +270,7 @@ func applyMigrationAssessmentRecommendations() error {
 			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
 	}
+	assessmentRecommendationsApplied = true
 	utils.PrintAndLog("Applied assessment recommendations.")
 
 	return nil
