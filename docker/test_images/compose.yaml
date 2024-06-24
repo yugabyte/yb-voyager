@@ -1,0 +1,67 @@
+services:
+  voyager:
+    build:
+      context: ./voyagersrclatest
+      args:
+        VOYAGER_BRANCH_NAME: main
+    command: |
+      tail -f /dev/null
+
+  pg:
+    image: postgres:14.12-alpine
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+    restart: always
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    expose:
+      - 5432
+
+  yb:
+    image: yugabytedb/yugabyte:2.20.4.0-b50
+    container_name: yb
+    command: |
+     bash -c "
+     bin/yugabyted start --listen yb --daemon=false --base_dir=/home/yugabyte/yb_data
+     "
+    ports:
+      - 5433:5433
+      - 127.0.0.1:7000:7000
+      - 127.0.0.1:9000:9000
+      - 15433:15433
+    volumes:
+      - yb_data:/home/yugabyte/yb_data
+  
+  mysql:
+    image: mysql:8.0.37-debian
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    ports:
+      - 3306:3306
+    volumes:
+      - mysql_data:/var/lib/mysql 
+
+#  oracle:
+#    image: doctorkirk/oracle-19c
+#    ports:
+#      - 1521:1521
+    #command: |
+    # bash -c "
+    # echo \"ALTER USER sys identified by 'password';\" | sqlplus sys/nolog as sysdba
+    # "
+#    environment:
+#      - ORACLE_SID=DMS
+#      - ORACLE_PWD=Password123!
+#      - ORACLE_HOME=/opt/oracle/product/19c/dbhome_1
+#      - ORACLE_BASE=/opt/oracle
+#      - PATH=/opt/oracle/product/19c/dbhome_1/bin:$PATH
+#    volumes:
+#      - oracle_data:/opt/oracle/oradata
+volumes:
+  pg_data:
+# oracle_data:  
+  mysql_data:
+  yb_data:
