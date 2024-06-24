@@ -206,7 +206,7 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of the source db table names to import data")
 
-	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
+	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", false,
 		"Enable UPSERT mode on target tables")
 	BoolVar(cmd.Flags(), &tconf.UsePublicIP, "use-public-ip", false,
 		"Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
