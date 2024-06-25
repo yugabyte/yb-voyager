@@ -187,16 +187,16 @@
             <p>No unsupported features were detected among the ones assessed.</p>
         {{end}}
 
-        <div class="notes-box">
-            <h4>Notes</h4>
-            {{if .Notes}}
-                <ul>
-                    {{range .Notes}}
-                        <li>{{.}}</li>
-                    {{end}}
-                </ul>
-            {{end}}
-        </div>
+        {{if .Notes}}
+            <div class="notes-box">
+                <h3>Notes</h3>
+                    <ul>
+                        {{range .Notes}}
+                            <li>{{.}}</li>
+                        {{end}}
+                    </ul>
+            </div>
+        {{end}}
     </div>
 </body>
 </html>

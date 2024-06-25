@@ -238,7 +238,7 @@ main() {
         $TEMPLATE_FILE_PATH > $OUTPUT_FILE_PATH
 
     # Types to be exported
-    types=("TYPE" "SEQUENCE" "TABLE" "PACKAGE" "TRIGGER" "FUNCTION" "PROCEDURE" "SYNONYM" "VIEW" "MVIEW")
+    types=("TYPE" "SEQUENCE" "TABLE" "PARTITION" "PACKAGE" "VIEW" "TRIGGER" "FUNCTION" "PROCEDURE" "MVIEW" "SYNONYM")
     for type in "${types[@]}"; do
         ltype=$(echo $type | tr '[:upper:]' '[:lower:]')
         output_dir="$assessment_metadata_dir/schema/${ltype}s"
