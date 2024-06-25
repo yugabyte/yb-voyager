@@ -315,7 +315,7 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
-		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, &shardedTableNameTups)
+		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTableNameTups)
 		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
 			if match {
