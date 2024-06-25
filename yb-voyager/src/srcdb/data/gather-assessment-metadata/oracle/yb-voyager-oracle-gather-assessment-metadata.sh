@@ -156,6 +156,7 @@ run_command() {
     eval $command 2>&1 | tee -a "$LOG_FILE"
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
         print_and_log "ERROR" "command failed: $(remove_password "$command")"
+        # print the error from csv file to console and in LOG_FILE
         printf "\n$(basename $file_to_print)\n" | tee -a "$LOG_FILE"
         cat "$file_to_print" | tee -a "$LOG_FILE"
         exit 1
