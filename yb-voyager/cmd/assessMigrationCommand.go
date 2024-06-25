@@ -873,7 +873,7 @@ func postProcessingOfAssessmentReport() {
 	switch source.DBType {
 	case ORACLE:
 		log.Infof("post processing of assessment report to remove the schema name from fully qualified table names")
-		for i, _ := range assessmentReport.Sizing.SizingRecommendation.ShardedTables {
+		for i := range assessmentReport.Sizing.SizingRecommendation.ShardedTables {
 			parts := strings.Split(assessmentReport.Sizing.SizingRecommendation.ShardedTables[i], ".")
 			if len(parts) > 1 {
 				assessmentReport.Sizing.SizingRecommendation.ShardedTables[i] = parts[1]
