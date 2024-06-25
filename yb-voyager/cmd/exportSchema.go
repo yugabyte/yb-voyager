@@ -294,7 +294,8 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 		utils.PrintAndLog("Required schema file %s does not exists, returning without applying Colocated/Sharded Tables recommendation", filePath)
 		return nil
 	}
-	shardedTableNameTups := utils.StructMap[sqlname.NameTuple, bool]{}
+
+	shardedTableNameTups := utils.NewStructMap[sqlname.NameTuple, bool]()
 	for _, shardedTable := range shardedTables {
 		nt, err := namereg.NameReg.LookupTableName(shardedTable)
 		if err != nil {
