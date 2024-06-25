@@ -107,6 +107,8 @@ var importDataToTargetCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
+
+	importPhase = dbzm.MODE_SNAPSHOT
 	ExitIfAlreadyCutover(importerRole)
 	reportProgressInBytes = false
 	tconf.ImportMode = true
@@ -159,8 +161,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
-
-	importPhase = dbzm.MODE_SNAPSHOT
 
 	importData(importFileTasks)
 	tdb.Finalize()
@@ -625,7 +625,7 @@ func packAndSendImportDataPayload(status string) {
 
 	importDataPayload.Phase = importPhase
 
-	if importPhase != dbzm.MODE_SNAPSHOT {
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
 		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
 		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
 	}
