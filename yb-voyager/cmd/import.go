@@ -207,7 +207,7 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		"path of the file containing the list of the source db table names to import data")
 
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", false,
-		"Enable UPSERT mode on target tables")
+		"Enable UPSERT mode on target tables. WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. If a table has secondary indexes, setting this flag to true may lead to corruption of the indexes. (default false)")
 	BoolVar(cmd.Flags(), &tconf.UsePublicIP, "use-public-ip", false,
 		"Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
