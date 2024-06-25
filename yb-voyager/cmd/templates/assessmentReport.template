@@ -195,8 +195,6 @@
                         <li>{{.}}</li>
                     {{end}}
                 </ul>
-            {{else}}
-                <p>No additional notes.</p>
             {{end}}
         </div>
     </div>
