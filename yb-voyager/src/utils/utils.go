@@ -160,8 +160,8 @@ func IsDirectoryEmpty(pathPattern string) bool {
 	return len(files) == 0
 }
 
-func IsFileEmpty(filename string) bool {
-	file, err := os.Open(filename)
+func IsFileEmpty(fpath string) bool {
+	file, err := os.Open(fpath)
 	if err != nil {
 		log.Errorf("IsFileEmpty: file open: %v", err)
 		return false
@@ -170,7 +170,7 @@ func IsFileEmpty(filename string) bool {
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		log.Errorf("IsFileEmpty: file %s stat: %v", err)
+		log.Errorf("IsFileEmpty: file %s stat: %v", fpath, err)
 		return false
 	}
 
