@@ -695,6 +695,7 @@ func generateAssessmentReport() (err error) {
 	}
 
 	addNotesToAssessmentReport()
+	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
@@ -861,9 +862,30 @@ However, due to certain limitations, these recommendations cannot be directly ap
 To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
 func addNotesToAssessmentReport() {
+	log.Infof("adding notes to assessment report")
 	switch source.DBType {
 	case ORACLE:
 		assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_PARTITION_DEFAULT_COLOCATION)
+	}
+}
+
+func postProcessingOfAssessmentReport() {
+	switch source.DBType {
+	case ORACLE:
+		log.Infof("post processing of assessment report to remove the schema name from fully qualified table names")
+		for i, _ := range assessmentReport.Sizing.SizingRecommendation.ShardedTables {
+			parts := strings.Split(assessmentReport.Sizing.SizingRecommendation.ShardedTables[i], ".")
+			if len(parts) > 1 {
+				assessmentReport.Sizing.SizingRecommendation.ShardedTables[i] = parts[1]
+			}
+		}
+
+		for i := range assessmentReport.Sizing.SizingRecommendation.ColocatedTables {
+			parts := strings.Split(assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i], ".")
+			if len(parts) > 1 {
+				assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i] = parts[1]
+			}
+		}
 	}
 }
 
