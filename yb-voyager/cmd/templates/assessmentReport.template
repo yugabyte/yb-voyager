@@ -48,6 +48,16 @@
             border: 1px solid #ccc;
             padding: 10px;
         }
+        .notes-box {
+            border: 2px solid #007BFF;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            background-color: #E9F7FF;
+        }
+        .notes-box h2 {
+            margin-top: 0;
+        }
     </style>
 </head>
 <body>
@@ -176,6 +186,19 @@
         {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
             <p>No unsupported features were detected among the ones assessed.</p>
         {{end}}
+
+        <div class="notes-box">
+            <h4>Notes</h4>
+            {{if .Notes}}
+                <ul>
+                    {{range .Notes}}
+                        <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            {{else}}
+                <p>No additional notes.</p>
+            {{end}}
+        </div>
     </div>
 </body>
 </html>

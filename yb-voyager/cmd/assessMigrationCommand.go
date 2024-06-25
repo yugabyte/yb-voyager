@@ -694,6 +694,8 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
 	}
 
+	addNotesToAssessmentReport()
+
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
@@ -851,6 +853,18 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	}
 
 	return unsupportedDataTypes, nil
+}
+
+const ORACLE_PARTITION_DEFAULT_COLOCATION = `In case of Oracle, all partitions of a partitioned table are created as colocated by default. 
+The Assessment Report provides sharding/colocation recommendations for each partition individually.<br>
+However, due to certain limitations, these recommendations cannot be directly applied. 
+To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
+
+func addNotesToAssessmentReport() {
+	switch source.DBType {
+	case ORACLE:
+		assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_PARTITION_DEFAULT_COLOCATION)
+	}
 }
 
 func generateAssessmentReportJson(reportDir string) error {
