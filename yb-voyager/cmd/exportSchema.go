@@ -25,12 +25,13 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var skipRecommendations utils.BoolStr
@@ -111,6 +112,10 @@ func exportSchema() error {
 	if err != nil {
 		log.Errorf("failed to get migration UUID: %v", err)
 		return fmt.Errorf("failed to get migration UUID: %w", err)
+	}
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+	if err != nil {
+		utils.ErrExit("initialize name registry: %v", err)
 	}
 
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
@@ -289,6 +294,14 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 		utils.PrintAndLog("Required schema file %s does not exists, returning without applying Colocated/Sharded Tables recommendation", filePath)
 		return nil
 	}
+	shardedTableNameTups := utils.StructMap[sqlname.NameTuple, bool]{}
+	for _, shardedTable := range shardedTables {
+		nt, err := namereg.NameReg.LookupTableName(shardedTable)
+		if err != nil {
+			return fmt.Errorf("failed to lookup table name %q: %w", shardedTable, err)
+		}
+		shardedTableNameTups.Put(nt, true)
+	}
 
 	log.Infof("applying colocated vs sharded tables recommendation")
 	var newSQLFileContent strings.Builder
@@ -301,7 +314,7 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
-		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables)
+		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, &shardedTableNameTups)
 		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
 			if match {
@@ -363,7 +376,7 @@ error: nil/non-nil
 Drawback: pg_query module doesn't have functionality to format the query after parsing
 so the CREATE TABLE for sharding recommended tables will be one-liner
 */
-func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string) (string, bool, error) {
+func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables *utils.StructMap[sqlname.NameTuple, bool]) (string, bool, error) {
 	stmt := sqlInfo.stmt
 	formattedStmt := sqlInfo.formattedStmt
 	parseTree, err := pg_query.Parse(stmt)
@@ -389,22 +402,28 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	parsedTableName := lo.Ternary(relation.Schemaname == "", relation.Relname,
 		relation.Schemaname+"."+relation.Relname)
 
-	match := false
-	switch source.DBType {
-	case POSTGRESQL:
-		match = slices.Contains(shardedTables, parsedTableName)
-	case ORACLE:
-		// TODO: handle case-sensitivity properly
-		for _, shardedTable := range shardedTables {
-			parts := strings.Split(shardedTable, ".")
-			if strings.ToLower(parts[1]) == parsedTableName {
-				match = true
-				break
-			}
-		}
-	default:
-		panic(fmt.Sprintf("unsupported source db type %s for applying sharding recommendations", source.DBType))
+	nt, err := namereg.NameReg.LookupTableName(parsedTableName)
+	if err != nil {
+		return formattedStmt, false, fmt.Errorf("failed to lookup table name %q: %w", parsedTableName, err)
 	}
+
+	_, match := shardedTables.Get(nt)
+	// match := false
+	// switch source.DBType {
+	// case POSTGRESQL:
+	// 	match = slices.Contains(shardedTables, parsedTableName)
+	// case ORACLE:
+	// 	// TODO: handle case-sensitivity properly
+	// 	for _, shardedTable := range shardedTables {
+	// 		parts := strings.Split(shardedTable, ".")
+	// 		if strings.ToLower(parts[1]) == parsedTableName {
+	// 			match = true
+	// 			break
+	// 		}
+	// 	}
+	// default:
+	// 	panic(fmt.Sprintf("unsupported source db type %s for applying sharding recommendations", source.DBType))
+	// }
 	if !match {
 		log.Infof("%q not present in the sharded table list", parsedTableName)
 		return formattedStmt, false, nil
