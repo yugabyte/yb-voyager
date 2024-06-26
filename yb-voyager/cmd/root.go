@@ -112,7 +112,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 func createCLIArgsString(cmd *cobra.Command) {
 	var flagStrings []string
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
-		if flag.Changed && !strings.Contains(flag.Name, "password") {
+		if flag.Changed && !slices.Contains(callhome.DoNotStoreFlags, flag.Name) {
 			flagStrings = append(flagStrings, fmt.Sprintf("--%s=%s", flag.Name, flag.Value))
 		}
 	})

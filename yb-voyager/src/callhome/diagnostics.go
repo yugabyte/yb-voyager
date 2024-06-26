@@ -177,6 +177,13 @@ type EndMigrationPhasePayload struct {
 	CommandLineArgs string `json:"command_line_args"`
 }
 
+var DoNotStoreFlags = []string{
+	"source-db-password",
+	"target-db-password",
+	"source-replica-db-password",
+	"export-dir",
+}
+
 func MarshalledJsonString[T any](value T) string {
 	bytes, err := json.Marshal(value)
 	if err != nil {
