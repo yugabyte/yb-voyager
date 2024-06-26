@@ -1121,7 +1121,7 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 			   parent_table_name, 
 			   size_in_bytes 
 		FROM %v 
-		ORDER BY size_in_bytes ASC
+		ORDER BY IFNULL(size_in_bytes, 0) ASC
 	`, GetTableIndexStatName())
 	rows, err := sourceDB.Query(query)
 	if err != nil {
