@@ -52,6 +52,7 @@ type sqlInfo struct {
 	stmt string
 	// Formatted SQL statement with new-lines and tabs
 	formattedStmt string
+	fileName string
 }
 
 var (
@@ -768,6 +769,7 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 		objName:       objName,
 		stmt:          stmt,
 		formattedStmt: formattedStmt,
+		fileName: fpath,
 	}
 	return sqlInfo
 }
