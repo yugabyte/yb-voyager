@@ -115,6 +115,7 @@ const (
 	HIGH_PHASE_SIZE_THRESHOLD_GB  = 10
 	FINAL_PHASE_SIZE_THRESHOLD_GB = 100
 	MAX_TABLETS_PER_TABLE         = 256
+	PREFER_REMOTE_EXPERIMENT_DB   = false
 )
 
 func getExperimentDBPath() string {
@@ -1314,7 +1315,7 @@ func createConnectionToExperimentData() (*sql.DB, error) {
 
 func getExperimentFile() (string, error) {
 	fetchedFromRemote := false
-	if checkInternetAccess() {
+	if PREFER_REMOTE_EXPERIMENT_DB && checkInternetAccess() {
 		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo()
 		if err != nil {
 			return "", err
