@@ -31,6 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -84,8 +85,13 @@ func importSchema() error {
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
-	targetDBDetails = &callhome.TargetDBDetails{
-		Host: tconf.Host,
+	if callhome.SendDiagnostics {
+		tdb = tgtdb.NewTargetDB(&tconf)
+		err := tdb.Init()
+		if err != nil {
+			utils.ErrExit("Failed to initialize the target DB: %s", err)
+		}
+		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 	}
 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
@@ -103,7 +109,6 @@ func importSchema() error {
 	if err != nil {
 		return fmt.Errorf("get target db version: %s", err)
 	}
-	targetDBDetails.DBVersion = targetDBVersion
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
 
 	if !flagPostSnapshotImport {
