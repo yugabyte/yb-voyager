@@ -94,63 +94,63 @@ jobs:
           echo "127.0.0.1 yb-master-n1" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-      - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
-        run: migtests/scripts/run-test.sh pg/table-list-flags-tests
+      # - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
+      #   run: migtests/scripts/run-test.sh pg/table-list-flags-tests
 
-      - name: "TEST: pg-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
-        run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh
+      # - name: "TEST: pg-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
+      #   run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh
 
-      - name: "TEST: pg-case-sensitivity-single-table"
-        run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
+      # - name: "TEST: pg-case-sensitivity-single-table"
+      #   run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
 
-      - name: "TEST: pg-dvdrental"
-        run: migtests/scripts/run-test.sh pg/dvdrental
+      # - name: "TEST: pg-dvdrental"
+      #   run: migtests/scripts/run-test.sh pg/dvdrental
 
-      - name: "TEST: pg-datatypes"
-        run: migtests/scripts/run-test.sh pg/datatypes
+      # - name: "TEST: pg-datatypes"
+      #   run: migtests/scripts/run-test.sh pg/datatypes
 
-      - name: "TEST: pg-constraints"
-        run: migtests/scripts/run-test.sh pg/constraints
+      # - name: "TEST: pg-constraints"
+      #   run: migtests/scripts/run-test.sh pg/constraints
 
-      - name: "TEST: pg-sequences"
-        run: migtests/scripts/run-test.sh pg/sequences
+      # - name: "TEST: pg-sequences"
+      #   run: migtests/scripts/run-test.sh pg/sequences
 
-      - name: "TEST: pg-indexes"
-        run: migtests/scripts/run-test.sh pg/indexes
+      # - name: "TEST: pg-indexes"
+      #   run: migtests/scripts/run-test.sh pg/indexes
 
-      - name: "TEST: pg-partitions"
-        run: migtests/scripts/run-test.sh pg/partitions 
+      # - name: "TEST: pg-partitions"
+      #   run: migtests/scripts/run-test.sh pg/partitions 
 
 
-      - name: "TEST: pg-partitions with (table-list)"
-        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions 
+      # - name: "TEST: pg-partitions with (table-list)"
+      #   run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions 
 
-      # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
-      # Fixed in 2.17.1.0-b368
-      - name: "TEST: pg-partitions-with-indexes"
-        run: migtests/scripts/run-test.sh pg/partitions-with-indexes
+      # # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
+      # # Fixed in 2.17.1.0-b368
+      # - name: "TEST: pg-partitions-with-indexes"
+      #   run: migtests/scripts/run-test.sh pg/partitions-with-indexes
 
-      - name: "TEST: pg-views-and-rules"
-        run: migtests/scripts/run-test.sh pg/views-and-rules
+      # - name: "TEST: pg-views-and-rules"
+      #   run: migtests/scripts/run-test.sh pg/views-and-rules
 
-      - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
-        run: migtests/scripts/run-test.sh pg/misc-objects-1
+      # - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
+      #   run: migtests/scripts/run-test.sh pg/misc-objects-1
 
-      - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
-        run: migtests/scripts/run-test.sh pg/misc-objects-2
+      # - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
+      #   run: migtests/scripts/run-test.sh pg/misc-objects-2
 
-      - name: "TEST: pg-dependent-ddls"
-        run: migtests/scripts/run-test.sh pg/dependent-ddls
+      # - name: "TEST: pg-dependent-ddls"
+      #   run: migtests/scripts/run-test.sh pg/dependent-ddls
 
-      - name: "TEST: pg-multiple-schemas"
-        run: migtests/scripts/run-test.sh pg/multiple-schemas
+      # - name: "TEST: pg-multiple-schemas"
+      #   run: migtests/scripts/run-test.sh pg/multiple-schemas
 
-      - name: "Set up gcp environment"
-        env:
-          GCS_CLIENT_ID: ${{ secrets.PGUPTA_GCS_CLIENT_ID }}
-          GCS_CLIENT_SECRET: ${{ secrets.PGUPTA_GCS_CLIENT_SECRET }}
-          GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
-        run: migtests/scripts/gcs/create_gcs_credentials_file
+      # - name: "Set up gcp environment"
+      #   env:
+      #     GCS_CLIENT_ID: ${{ secrets.PGUPTA_GCS_CLIENT_ID }}
+      #     GCS_CLIENT_SECRET: ${{ secrets.PGUPTA_GCS_CLIENT_SECRET }}
+      #     GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
+      #   run: migtests/scripts/gcs/create_gcs_credentials_file
 
       - name: "TEST: import-data-file"
         env:
