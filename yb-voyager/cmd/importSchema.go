@@ -158,26 +158,26 @@ func importSchema() error {
 		}
 		skipFn := isSkipStatement
 		err = importSchemaInternal(exportDir, objectList, skipFn)
-    if err != nil {
-      return err
-    }
+		if err != nil {
+			return err
+		}
 
 		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 		skipFn = func(objType, stmt string) bool {
 			return !isSkipStatement(objType, stmt)
 		}
 		if slices.Contains(objectList, "SEQUENCE") {
-      err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
-      if err != nil {
-        return err
-      }
-    }
-    if slices.Contains(objectList, "TABLE") {
-      err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
-      if err != nil {
-        return err
-      }
-    }
+			err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
+			if err != nil {
+				return err
+			}
+		}
+		if slices.Contains(objectList, "TABLE") {
+			err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
+			if err != nil {
+				return err
+			}
+		}
 
 		importDeferredStatements()
 		log.Info("Schema import is complete.")
@@ -230,6 +230,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		Errors:             errorsList,
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
+		CommandLineArgs:    cliArgsString,
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
 	err := callhome.SendPayload(&payload)

@@ -152,6 +152,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:     callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:        callhome.MarshalledJsonString(schemaSummaryCopy),
+		CommandLineArgs:      cliArgsString,
 	}
 	if status == ERROR {
 		assessPayload.Error = errMsg
