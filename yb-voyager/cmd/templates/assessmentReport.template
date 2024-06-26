@@ -167,7 +167,7 @@
                 </table>
             </div>
         {{ else }}
-            <p>No unsupported data types detected in the assessed schemas.</p>
+            <p>No unsupported data types present in the assessed schemas.</p>
         {{ end }}
 
         <h2>Unsupported Features</h2>
@@ -187,7 +187,7 @@
             {{end}}
         {{end}}
         {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
-            <p>No unsupported features were detected among the ones assessed.</p>
+            <p>No unsupported features were present among the ones assessed.</p>
         {{end}}
 
         {{if .Notes}}
