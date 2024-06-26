@@ -1315,7 +1315,7 @@ func createConnectionToExperimentData() (*sql.DB, error) {
 
 func getExperimentFile() (string, error) {
 	fetchedFromRemote := false
-	if checkInternetAccess() && PREFER_REMOTE_EXPERIMENT_DB {
+	if PREFER_REMOTE_EXPERIMENT_DB && checkInternetAccess() {
 		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo()
 		if err != nil {
 			return "", err
