@@ -42,10 +42,14 @@ main() {
 	step "Import data file: SMSA.txt -> smsa in a non-public schema"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
 			--file-table-map "SMSA.txt:smsa"  --target-db-schema non_public --start-clean true
+	
+	#clean up the export dir as we will have public schema from this test which should be on fresh export-dir 
+	rm -rf ${EXPORT_DIR}
+	mkdir -p ${EXPORT_DIR}
 
 	step "Import data file: OneMRows.text -> one_m_rows"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
-		--file-table-map "OneMRows.text:one_m_rows" --start-clean true
+		--file-table-map "OneMRows.text:one_m_rows" --start-clean true 
 
 	export CSV_READER_MAX_BUFFER_SIZE_BYTES=300
 	step "Import data file: FY2021_Survey.csv -> survey"
