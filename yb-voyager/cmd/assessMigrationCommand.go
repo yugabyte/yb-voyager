@@ -694,6 +694,9 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
 	}
 
+	addNotesToAssessmentReport()
+	postProcessingOfAssessmentReport()
+
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
@@ -851,6 +854,43 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	}
 
 	return unsupportedDataTypes, nil
+}
+
+const ORACLE_PARTITION_DEFAULT_COLOCATION = `In case of Oracle, all partitions of a partitioned table are created as colocated by default. 
+The Assessment Report provides sharding/colocation recommendations for each partition individually.<br>
+However, due to certain limitations, these recommendations cannot be directly applied. 
+To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
+
+func addNotesToAssessmentReport() {
+	log.Infof("adding notes to assessment report")
+	switch source.DBType {
+	case ORACLE:
+		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
+		// file exists and isn't empty (containing PARTITIONs DDLs)
+		if utils.FileOrFolderExists(partitionSqlFPath) && !utils.IsFileEmpty(partitionSqlFPath) {
+			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_PARTITION_DEFAULT_COLOCATION)
+		}
+	}
+}
+
+func postProcessingOfAssessmentReport() {
+	switch source.DBType {
+	case ORACLE:
+		log.Infof("post processing of assessment report to remove the schema name from fully qualified table names")
+		for i := range assessmentReport.Sizing.SizingRecommendation.ShardedTables {
+			parts := strings.Split(assessmentReport.Sizing.SizingRecommendation.ShardedTables[i], ".")
+			if len(parts) > 1 {
+				assessmentReport.Sizing.SizingRecommendation.ShardedTables[i] = parts[1]
+			}
+		}
+
+		for i := range assessmentReport.Sizing.SizingRecommendation.ColocatedTables {
+			parts := strings.Split(assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i], ".")
+			if len(parts) > 1 {
+				assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i] = parts[1]
+			}
+		}
+	}
 }
 
 func generateAssessmentReportJson(reportDir string) error {

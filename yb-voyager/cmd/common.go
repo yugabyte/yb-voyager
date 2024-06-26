@@ -924,7 +924,6 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	return snapshotRowsMap, nil
 }
 
-
 func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { //used for import data file case right now
 	importerRole = IMPORT_FILE_ROLE
 	state := NewImportDataState(exportDir)
@@ -978,6 +977,7 @@ type AssessmentReport struct {
 	UnsupportedDataTypes []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
 	UnsupportedFeatures  []UnsupportedFeature                  `json:"UnsupportedFeatures"`
 	TableIndexStats      *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                []string                              `json:"Notes"`
 }
 
 // =============== for yugabyted controlplane ==============//
@@ -1089,7 +1089,7 @@ func PackAndSendCallhomePayloadOnExit() {
 
 func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDataPhasePayload) {
 	//Updating the payload with totalRows and LargestTableRows for both debezium/non-debezium case
-	if !useDebezium || (changeStreamingIsEnabled(exportType) && source.DBType == POSTGRESQL) { 
+	if !useDebezium || (changeStreamingIsEnabled(exportType) && source.DBType == POSTGRESQL) {
 		//non-debezium and pg live migration snapshot case reading the export_snapshot_status.json file
 		if exportSnapshotStatusFile != nil {
 			exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
