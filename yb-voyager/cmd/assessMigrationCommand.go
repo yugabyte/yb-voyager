@@ -43,12 +43,13 @@ import (
 )
 
 var (
-	assessmentMetadataDir           string
-	assessmentMetadataDirFlag       string
-	assessmentReport                AssessmentReport
-	assessmentDB                    *migassessment.AssessmentDB
-	intervalForCapturingIOPS        int64
-	assessMigrationSupportedDBTypes = []string{POSTGRESQL, ORACLE}
+	assessmentMetadataDir            string
+	assessmentMetadataDirFlag        string
+	assessmentReport                 AssessmentReport
+	assessmentDB                     *migassessment.AssessmentDB
+	intervalForCapturingIOPS         int64
+	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
+	referenceOrTablePartitionPresent = false
 )
 var sourceConnectionFlags = []string{
 	"source-db-host",
@@ -800,7 +801,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 		}
 	}()
 
-	var unsupportedIndexes, virtualColumns, inheritedTypes []string
+	var unsupportedIndexes, virtualColumns, inheritedTypes, unsupportedPartitionTypes []string
 	for rows.Next() {
 		var schemaName, objectName, objectType string
 		err = rows.Scan(&schemaName, &objectName, &objectType)
@@ -809,11 +810,14 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 		}
 
 		if slices.Contains(OracleUnsupportedIndexTypes, objectType) {
-			unsupportedIndexes = append(unsupportedIndexes, fmt.Sprintf("(name=%s, type=%s)", objectName, objectType))
-		} else if objectType == "VIRTUAL COLUMN" {
+			unsupportedIndexes = append(unsupportedIndexes, fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType))
+		} else if objectType == VIRTUAL_COLUMN {
 			virtualColumns = append(virtualColumns, objectName)
-		} else if objectType == "INHERITED TYPE" {
+		} else if objectType == INHERITED_TYPE {
 			inheritedTypes = append(inheritedTypes, objectName)
+		} else if objectType == REFERENCE_PARTITION || objectType == SYSTEM_PARTITION {
+			referenceOrTablePartitionPresent = true
+			unsupportedPartitionTypes = append(unsupportedPartitionTypes, fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType))
 		}
 	}
 
@@ -821,6 +825,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes})
 	return unsupportedFeatures, nil
 }
 
@@ -877,6 +882,9 @@ The Assessment Report provides sharding/colocation recommendations for each part
 However, due to certain limitations, these recommendations cannot be directly applied. 
 To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
+const ORACLE_UNSUPPPORTED_PARTITIONING = `Oracle's Reference and System Partitioned tables are not considered for target cluster sizing recommendations.<br>
+These tables will be assumed to be colocated by default. Please manually adjust that if required.`
+
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 	switch source.DBType {
@@ -885,6 +893,9 @@ func addNotesToAssessmentReport() {
 		// file exists and isn't empty (containing PARTITIONs DDLs)
 		if utils.FileOrFolderExists(partitionSqlFPath) && !utils.IsFileEmpty(partitionSqlFPath) {
 			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_PARTITION_DEFAULT_COLOCATION)
+		}
+		if referenceOrTablePartitionPresent {
+			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_UNSUPPPORTED_PARTITIONING)
 		}
 	}
 }

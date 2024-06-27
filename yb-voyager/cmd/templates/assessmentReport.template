@@ -55,8 +55,14 @@
             margin-top: 20px;
             background-color: #E9F7FF;
         }
-        .notes-box h2 {
-            margin-top: 0;
+        .notes-box h3 {
+            margin-top: 10;
+        }
+        .notes-box ul {
+            list-style: square;
+        }
+        .notes-box li {
+            margin-bottom: 15px;
         }
     </style>
 </head>
