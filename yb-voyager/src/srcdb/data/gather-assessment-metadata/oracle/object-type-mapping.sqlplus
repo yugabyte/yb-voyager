@@ -72,8 +72,8 @@ FROM (
         pt.owner AS schema_name,
         pt.table_name AS object_name,
         CASE
-            WHEN pt.partitioning_type = 'REFERENCE' THEN 'REFERENCE TABLE PARTITION'
-            WHEN pt.partitioning_type = 'SYSTEM' THEN 'SYSTEM TABLE PARTITION'
+            WHEN pt.partitioning_type = 'REFERENCE' THEN 'REFERENCE PARTITION'
+            WHEN pt.partitioning_type = 'SYSTEM' THEN 'SYSTEM PARTITION'
         END AS object_type
     FROM
         dba_part_tables pt
