@@ -765,8 +765,22 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 				summaryMap[objType].objSet[objName] = true
 			}
 		}
+	} else {
+		if objType == "TYPE" {
+			//in case of oracle there are some inherited types which can be exported as inherited tables but will be dumped in type.sql
+			createObjRegex, objNameIndex = getCreateObjRegex("TABLE")
+			createObjStmt = createObjRegex.FindStringSubmatch(formattedStmt)
+			if createObjStmt != nil {
+				objName = createObjStmt[objNameIndex]
+				if summaryMap != nil && summaryMap["TABLE"] != nil {
+					summaryMap["TABLE"].totalCount += 1
+					summaryMap["TABLE"].objSet[objName] = true
+				}
+			}
+		}	
 	}
 
+	
 	if *reportNextSql > 0 && (summaryMap != nil && summaryMap[objType] != nil) {
 		reportBasedOnComment(*reportNextSql, fpath, "", "", objName, objType, formattedStmt)
 		*reportNextSql = 0 //reset flag
