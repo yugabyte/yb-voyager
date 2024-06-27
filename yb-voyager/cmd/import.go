@@ -303,7 +303,7 @@ func getSourceReplicaDBPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "source-replica-db-password", "SOURCE_REPLICA_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error while getting ff-db-password: %w", err)
+		utils.ErrExit("error while getting source-replica-db-password: %w", err)
 	}
 }
 

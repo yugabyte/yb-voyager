@@ -157,6 +157,7 @@ func packAndSendExportSchemaPayload(status string) {
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean:             bool(startClean),
 		AppliedRecommendations: assessmentRecommendationsApplied,
+		CommandLineArgs:        cliArgsString,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)

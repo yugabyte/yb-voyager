@@ -180,11 +180,16 @@ func packAndSendExportDataPayload(status string) {
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs: int64(source.NumConnections),
-		StartClean:   bool(startClean),
+		ParallelJobs:    int64(source.NumConnections),
+		StartClean:      bool(startClean),
+		CommandLineArgs: cliArgsString,
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
+
+	if exportDataPayload.ExportSnapshotMechanism == "debezium" {
+		exportDataPayload.ParallelJobs = 1 //In case of debezium parallel-jobs is not used as such
+	}
 
 	exportDataPayload.Phase = exportPhase
 	if exportPhase != dbzm.MODE_SNAPSHOT {

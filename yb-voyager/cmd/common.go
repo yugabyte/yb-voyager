@@ -1049,10 +1049,10 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 func createCallhomePayload() callhome.Payload {
 	var payload callhome.Payload
 	payload.MigrationUUID = migrationUUID
-	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02T15:04:05.999999")
+	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02 15:04:05.999999")
 	payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 	payload.TimeTakenSec = int(math.Ceil(time.Since(startTime).Seconds()))
-	payload.CollectedAt = time.Now().UTC().Format("2006-01-02T15:04:05.999999")
+	payload.CollectedAt = time.Now().UTC().Format("2006-01-02 15:04:05.999999")
 
 	return payload
 }
