@@ -56,7 +56,8 @@
             background-color: #E9F7FF;
         }
         .notes-box h3 {
-            margin-top: 10;
+            margin: 0px;
+            font-weight: normal;
         }
         .notes-box ul {
             list-style: square;
@@ -81,7 +82,7 @@
         {{end}}
 
         <h2>Database Objects</h2>
-        <p>{{.SchemaSummary.DBObjectsDesc}}</p>
+        <p>{{.SchemaSummaryDBObjectsDesc}}</p>
         <table>
             <tr>
                 <th>Object Type</th>
