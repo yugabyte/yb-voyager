@@ -726,7 +726,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 	assessmentReport.SchemaSummary.DBObjectsDesc = "Objects that will be created on the target YugabyteDB."
 	if source.DBType == ORACLE {
-		assessmentReport.SchemaSummary.DBObjectsDesc += "Some of the index and sequence names might be different than the source database"
+		assessmentReport.SchemaSummary.DBObjectsDesc += " Some of the index and sequence names might be different from those in the source database."
 	}
 
 	// set invalidCount to zero so that it doesn't show up in the report
