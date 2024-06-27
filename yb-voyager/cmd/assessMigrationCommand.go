@@ -697,6 +697,7 @@ func generateAssessmentReport() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
+	assessmentReport.UnsupportedDataTypesDesc = "Data types of the source database that are not supported on the target YugabyteDB."
 
 	assessmentReport.Sizing = migassessment.SizingReport
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
@@ -723,6 +724,10 @@ func generateAssessmentReport() (err error) {
 func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
+	assessmentReport.SchemaSummary.DBObjectsDesc = "Objects that will be created on the target YugabyteDB."
+	if source.DBType == ORACLE {
+		assessmentReport.SchemaSummary.DBObjectsDesc += "Some of the index and sequence names might be different than the source database"
+	}
 
 	// set invalidCount to zero so that it doesn't show up in the report
 	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
@@ -744,6 +749,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 		return fmt.Errorf("failed to fetch %s unsupported features: %w", source.DBType, err)
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
+	assessmentReport.UnsupportedFeaturesDesc = "Features of the source database that are not supported on the target YugabyteDB."
 	return nil
 }
 

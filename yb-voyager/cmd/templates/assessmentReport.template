@@ -75,6 +75,7 @@
         {{end}}
 
         <h2>Database Objects</h2>
+        <p>{{.SchemaSummary.DBObjectsDesc}}</p>
         <table>
             <tr>
                 <th>Object Type</th>
@@ -145,6 +146,7 @@
         {{end}}
 
         <h2>Unsupported Data Types</h2>
+        <p>{{.UnsupportedDataTypesDesc}}</p>
         {{ if .UnsupportedDataTypes }}
             <div class="scrollable-div">
                 <table>
@@ -169,6 +171,7 @@
         {{ end }}
 
         <h2>Unsupported Features</h2>
+        <p>{{.UnsupportedFeaturesDesc}}</p>
         {{ $hasUnsupportedFeatures := false }}
         {{range .UnsupportedFeatures}}
             {{if .ObjectNames}} <!-- Check if ObjectNames is not empty -->
