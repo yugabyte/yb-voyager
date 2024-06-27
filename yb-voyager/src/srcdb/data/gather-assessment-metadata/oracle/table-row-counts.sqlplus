@@ -32,6 +32,7 @@ LEFT JOIN
 WHERE 
     t.owner = '&1' 
     AND t.table_name NOT LIKE 'DR$%'
+    AND t.nested = 'NO' -- Exclude nested tables
 ORDER BY 
     t.owner, table_name;
 SPOOL OFF
