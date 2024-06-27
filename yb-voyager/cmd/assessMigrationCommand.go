@@ -349,7 +349,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
-	sizeDetails, err := assessmentReport.CalculateSizeDetails()
+	sizeDetails, err := assessmentReport.CalculateSizeDetails(source.DBType)
 	if err != nil {
 		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
 	}
@@ -391,7 +391,7 @@ type SizeDetails struct {
 	TotalShardedSize   int64
 }
 
-func (ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
+func (ar *AssessmentReport) CalculateSizeDetails(dbType string) (SizeDetails, error) {
 	var details SizeDetails
 	colocatedTables, err := ar.GetColocatedTablesRecommendation()
 	if err != nil {
@@ -403,9 +403,18 @@ func (ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
 			if stat.IsIndex {
 				details.TotalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 			} else {
+				var tableName string
+				switch dbType {
+				case ORACLE:
+					tableName = stat.ObjectName // in case of oracle, colocatedTables have unqualified table names
+				case POSTGRESQL:
+					tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
+				default:
+					return details, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
+				}
 				details.TotalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 				details.TotalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
-				if slices.Contains(colocatedTables, stat.ObjectName) {
+				if slices.Contains(colocatedTables, tableName) {
 					details.TotalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 				} else {
 					details.TotalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
