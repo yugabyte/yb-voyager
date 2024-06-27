@@ -724,9 +724,9 @@ func generateAssessmentReport() (err error) {
 func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
-	assessmentReport.SchemaSummary.DBObjectsDesc = "Objects that will be created on the target YugabyteDB."
+	assessmentReport.SchemaSummaryDBObjectsDesc = "Objects that will be created on the target YugabyteDB."
 	if source.DBType == ORACLE {
-		assessmentReport.SchemaSummary.DBObjectsDesc += " Some of the index and sequence names might be different from those in the source database."
+		assessmentReport.SchemaSummaryDBObjectsDesc += " Some of the index and sequence names might be different from those in the source database."
 	}
 
 	// set invalidCount to zero so that it doesn't show up in the report
