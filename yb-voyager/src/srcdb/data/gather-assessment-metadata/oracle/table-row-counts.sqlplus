@@ -14,21 +14,89 @@ WHENEVER OSERROR EXIT FAILURE
 -- Select the data into the CSV file using inline views
 SPOOL table-row-counts.csv
 
-SELECT
-    s.owner AS schema_name,
-    CASE
-        WHEN s.segment_type = 'TABLE' THEN s.segment_name
-        WHEN s.segment_type = 'TABLE PARTITION' THEN s.segment_name || '_' || s.partition_name
-        WHEN s.segment_type = 'TABLE SUBPARTITION' THEN s.segment_name || '_' || sp.partition_name || '_' || s.partition_name
-    END AS table_name,
-    0 as row_count
-FROM
-    dba_segments s
-LEFT JOIN
-    dba_tab_subpartitions sp ON s.owner = sp.table_owner AND s.segment_name = sp.table_name AND s.partition_name = sp.subpartition_name
-WHERE
-    s.segment_type IN ('TABLE', 'TABLE PARTITION', 'TABLE SUBPARTITION')
-    AND s.owner = '&1';
+-- Inline view to get the base tables, partitions, and subpartitions with correct naming
+SELECT schema_name, table_name, row_count
+FROM (
+    SELECT
+        s.owner AS schema_name,
+        CASE
+            WHEN s.segment_type = 'TABLE' THEN s.segment_name
+            WHEN s.segment_type = 'TABLE PARTITION' THEN s.segment_name || '_' || s.partition_name
+            WHEN s.segment_type = 'TABLE SUBPARTITION' THEN s.segment_name || '_' || sp.partition_name || '_' || s.partition_name
+        END AS table_name,
+        0 AS row_count
+    FROM
+        dba_segments s
+    LEFT JOIN
+        dba_tab_subpartitions sp ON s.owner = sp.table_owner AND s.segment_name = sp.table_name AND s.partition_name = sp.subpartition_name
+    WHERE
+        s.segment_type IN ('TABLE', 'TABLE PARTITION', 'TABLE SUBPARTITION')
+        AND s.segment_name NOT LIKE 'DR$%'
+        AND s.owner = '&1'
+    UNION ALL
+    -- Add tables from DBA_TABLES which are missing in the result, excluding the partitioned ones
+    SELECT
+        t.owner AS schema_name,
+        t.table_name AS table_name,
+        0 AS row_count
+    FROM
+        dba_tables t
+    WHERE
+        t.owner = '&1'
+        AND t.partitioned = 'NO'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM dba_segments s
+            WHERE s.segment_type = 'TABLE'
+            AND s.owner = t.owner
+            AND s.segment_name = t.table_name
+        )
+        AND t.table_name NOT LIKE 'DR$%'
+    UNION ALL
+    -- Add missing leaf partitions from DBA_TAB_PARTITIONS (partitions not further partitioned)
+    SELECT
+        tp.table_owner AS schema_name,
+        tp.table_name || '_' || tp.partition_name AS table_name,
+        0 AS row_count
+    FROM
+        dba_tab_partitions tp
+    WHERE
+        tp.table_owner = '&1'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM dba_tab_subpartitions tsp
+            WHERE tsp.table_owner = tp.table_owner
+            AND tsp.table_name = tp.table_name
+            AND tsp.partition_name = tp.partition_name
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM dba_segments s
+            WHERE s.segment_type = 'TABLE PARTITION'
+            AND s.owner = tp.table_owner
+            AND s.segment_name = tp.table_name
+            AND s.partition_name = tp.partition_name
+        )
+    UNION ALL
+    -- Add missing subpartitions from DBA_TAB_SUBPARTITIONS
+    SELECT
+        tsp.table_owner AS schema_name,
+        tsp.table_name || '_' || tsp.partition_name || '_' || tsp.subpartition_name AS table_name,
+        0 AS row_count
+    FROM
+        dba_tab_subpartitions tsp
+    WHERE
+        tsp.table_owner = '&1'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM dba_segments s
+            WHERE s.segment_type = 'TABLE SUBPARTITION'
+            AND s.owner = tsp.table_owner
+            AND s.segment_name = tsp.table_name
+            AND s.partition_name = tsp.subpartition_name
+        )
+)
+ORDER BY schema_name, table_name;
 
 SPOOL OFF
 
