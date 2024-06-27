@@ -397,8 +397,8 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	case ORACLE:
 		// TODO: handle case-sensitivity properly
 		for _, shardedTable := range shardedTables {
-			parts := strings.Split(shardedTable, ".")
-			if strings.ToLower(parts[1]) == parsedTableName {
+			// in case of oracle, shardedTable is unqualified.
+			if strings.ToLower(shardedTable) == parsedTableName {
 				match = true
 				break
 			}
