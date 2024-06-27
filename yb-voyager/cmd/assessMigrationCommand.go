@@ -350,6 +350,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
 	sizeDetails, err := assessmentReport.CalculateSizeDetails()
+	utils.PrintAndLog("sizeing details: %+v", sizeDetails)
 	if err != nil {
 		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
 	}
@@ -405,7 +406,7 @@ func (ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
 			} else {
 				details.TotalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 				details.TotalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
-				if slices.Contains(colocatedTables, fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)) {
+				if slices.Contains(colocatedTables, stat.ObjectName) {
 					details.TotalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 				} else {
 					details.TotalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
