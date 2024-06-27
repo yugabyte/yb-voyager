@@ -856,8 +856,9 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	return unsupportedDataTypes, nil
 }
 
-const ORACLE_PARTITION_DEFAULT_COLOCATION = `The Assessment Report considers only the root partitioned table for sharding/colocation recommendations.
-All partitions of a partitioned table are currently created as colocated. To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
+const ORACLE_PARTITION_DEFAULT_COLOCATION_1 = `The Assessment Report considers only the root partitioned table for sharding/colocation recommendations.`
+const ORACLE_PARTITION_DEFAULT_COLOCATION_2 =
+`All partitions of a partitioned table are currently created as colocated. To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
@@ -866,7 +867,8 @@ func addNotesToAssessmentReport() {
 		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
 		// file exists and isn't empty (containing PARTITIONs DDLs)
 		if utils.FileOrFolderExists(partitionSqlFPath) && !utils.IsFileEmpty(partitionSqlFPath) {
-			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_PARTITION_DEFAULT_COLOCATION)
+			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_PARTITION_DEFAULT_COLOCATION_1)
+			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_PARTITION_DEFAULT_COLOCATION_2)
 		}
 	}
 }
