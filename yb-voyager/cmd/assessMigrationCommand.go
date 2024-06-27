@@ -350,7 +350,6 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
 	sizeDetails, err := assessmentReport.CalculateSizeDetails()
-	utils.PrintAndLog("sizeing details: %+v", sizeDetails)
 	if err != nil {
 		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
 	}
