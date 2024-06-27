@@ -856,10 +856,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	return unsupportedDataTypes, nil
 }
 
-const ORACLE_PARTITION_DEFAULT_COLOCATION = `In case of Oracle, all partitions of a partitioned table are created as colocated by default. 
-The Assessment Report provides sharding/colocation recommendations for each partition individually.<br>
-However, due to certain limitations, these recommendations cannot be directly applied. 
-To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
+const ORACLE_PARTITION_DEFAULT_COLOCATION = `The Assessment Report considers only the root partitioned table for sharding/colocation recommendations.
+All partitions of a partitioned table are currently created as colocated. To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")

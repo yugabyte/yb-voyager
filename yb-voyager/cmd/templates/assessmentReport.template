@@ -75,6 +75,7 @@
         {{end}}
 
         <h2>Database Objects</h2>
+        <p>Objects that will be created on the target YugabyteDB. Some of the index and sequence names might be different than the source database</p>
         <table>
             <tr>
                 <th>Object Type</th>
@@ -145,6 +146,7 @@
         {{end}}
 
         <h2>Unsupported Data Types</h2>
+        <p> Datatypes of the source database that are not supported on the target YugabyteDB.</p>
         {{ if .UnsupportedDataTypes }}
             <div class="scrollable-div">
                 <table>
@@ -169,6 +171,7 @@
         {{ end }}
 
         <h2>Unsupported Features</h2>
+        <p> Features of the source database that are not supported on the target YugabyteDB.</p>
         {{ $hasUnsupportedFeatures := false }}
         {{range .UnsupportedFeatures}}
             {{if .ObjectNames}} <!-- Check if ObjectNames is not empty -->
