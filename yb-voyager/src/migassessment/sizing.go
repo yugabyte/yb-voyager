@@ -1240,7 +1240,7 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 		}
 
 	}
-	reasoning += " Non leaf partition tables and unsupported tables/indexes were not considered."
+	reasoning += " Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 	return reasoning
 }
 
