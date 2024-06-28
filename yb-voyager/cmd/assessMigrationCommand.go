@@ -882,7 +882,7 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 
 const ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
-const GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but gin indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+const GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
 
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")

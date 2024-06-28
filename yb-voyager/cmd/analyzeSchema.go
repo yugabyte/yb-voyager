@@ -332,7 +332,7 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 			}
 		}
 		if strings.Contains(strings.ToLower(sqlInfo.stmt), "using gin") {
-			summaryMap["INDEX"].details["There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."] = true
+			summaryMap["INDEX"].details["There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."] = true
 		}
 	}
 }
@@ -777,10 +777,9 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 					summaryMap["TABLE"].objSet[objName] = true
 				}
 			}
-		}	
+		}
 	}
 
-	
 	if *reportNextSql > 0 && (summaryMap != nil && summaryMap[objType] != nil) {
 		reportBasedOnComment(*reportNextSql, fpath, "", "", objName, objType, formattedStmt)
 		*reportNextSql = 0 //reset flag
