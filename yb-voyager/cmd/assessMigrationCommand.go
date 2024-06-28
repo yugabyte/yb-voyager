@@ -884,6 +884,8 @@ To manually modify the schema for sharding, please refer: <a class="highlight-li
 const ORACLE_UNSUPPPORTED_PARTITIONING = `Oracle's Reference and System Partitioned tables are not considered for target cluster sizing recommendations.<br>
 These tables will be assumed to be colocated by default. Please manually modify the DDLs required.`
 
+const GIN_INDEXES = `There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 	switch source.DBType {
@@ -895,6 +897,15 @@ func addNotesToAssessmentReport() {
 		}
 		if referenceOrTablePartitionPresent {
 			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_UNSUPPPORTED_PARTITIONING)
+		}
+		// checking if gin indexes are present.
+		for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
+			if dbObj.ObjectType == "INDEX" {
+				if strings.Contains(dbObj.Details, "gin indexes present") {
+					assessmentReport.Notes = append(assessmentReport.Notes, GIN_INDEXES)
+					break
+				}
+			}
 		}
 	}
 }
