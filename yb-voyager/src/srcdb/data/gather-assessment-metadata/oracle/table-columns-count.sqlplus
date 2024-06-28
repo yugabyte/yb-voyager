@@ -28,7 +28,7 @@ FROM (
         dba_part_tables pt ON t.owner = pt.owner AND t.table_name = pt.table_name
     WHERE
         t.owner = '&1'
-        AND pt.partitioning_type NOT IN ('SYSTEM', 'REFERENCE')
+        AND COALESCE(pt.partitioning_type,'EMPTY') NOT IN ('SYSTEM', 'REFERENCE')
     GROUP BY
         t.owner, t.table_name
     UNION ALL
@@ -45,7 +45,7 @@ FROM (
         dba_part_tables pt ON t.owner = pt.owner AND t.table_name = pt.table_name
     WHERE
         t.owner = '&1'
-        AND pt.partitioning_type NOT IN ('SYSTEM', 'REFERENCE')
+        AND COALESCE(pt.partitioning_type,'EMPTY') NOT IN ('SYSTEM', 'REFERENCE')
     GROUP BY
         t.owner, t.table_name, p.partition_name
     UNION ALL
@@ -62,7 +62,7 @@ FROM (
         dba_part_tables pt ON t.owner = pt.owner AND t.table_name = pt.table_name
     WHERE
         t.owner = '&1'
-        AND pt.partitioning_type NOT IN ('SYSTEM', 'REFERENCE')
+        AND COALESCE(pt.partitioning_type,'EMPTY') NOT IN ('SYSTEM', 'REFERENCE')
     GROUP BY
         t.owner, t.table_name, sp.partition_name, sp.subpartition_name
     UNION ALL

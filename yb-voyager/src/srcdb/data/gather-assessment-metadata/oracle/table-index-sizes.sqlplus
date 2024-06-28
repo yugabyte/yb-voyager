@@ -35,7 +35,7 @@ FROM (
     WHERE
         s.segment_type IN ('TABLE', 'TABLE PARTITION', 'TABLE SUBPARTITION')
         AND s.owner = '&1'
-        AND pt.partitioning_type NOT IN ('SYSTEM', 'REFERENCE')
+        AND COALESCE(pt.partitioning_type,'EMPTY') NOT IN ('SYSTEM', 'REFERENCE')
     UNION ALL
     SELECT
         i.owner AS schema_name,

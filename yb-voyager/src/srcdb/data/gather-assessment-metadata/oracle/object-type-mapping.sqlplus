@@ -33,7 +33,7 @@ FROM (
     WHERE
         o.owner = '&1'
         AND o.object_type IN ('TABLE', 'TABLE PARTITION', 'TABLE SUBPARTITION')
-        AND pt.partitioning_type NOT IN ('SYSTEM', 'REFERENCE')
+        AND COALESCE(pt.partitioning_type,'EMPTY') NOT IN ('SYSTEM', 'REFERENCE')
     UNION ALL
     SELECT
         owner AS schema_name,
