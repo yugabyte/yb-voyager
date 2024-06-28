@@ -48,7 +48,7 @@ FROM (
         dba_segments s ON i.owner = s.owner AND i.index_name = s.segment_name
     WHERE
         i.owner = '&1'
-        AND i.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
+        AND i.index_type NOT IN ('CLUSTER', 'DOMAIN', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
         AND i.index_name NOT IN (
             SELECT index_name
             FROM dba_constraints

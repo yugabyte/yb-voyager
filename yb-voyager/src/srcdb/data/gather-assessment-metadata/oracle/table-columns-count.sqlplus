@@ -77,7 +77,7 @@ FROM (
         dba_indexes idx ON i.index_owner = idx.owner AND i.index_name = idx.index_name
     WHERE
         i.index_owner = '&1'
-        AND idx.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
+        AND idx.index_type NOT IN ('CLUSTER', 'DOMAIN', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
         AND i.index_name NOT IN (
             SELECT index_name
             FROM dba_constraints
