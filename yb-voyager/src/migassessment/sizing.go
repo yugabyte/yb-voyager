@@ -1218,7 +1218,7 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 
 	// Add information about colocated objects if they exist
 	if len(colocatedObjects) > 0 {
-		reasoning += fmt.Sprintf("%v objects: %v tables (excluding non-leaf partitions and unsupported tables) and %v explicit/implicit indexes with %0.2f %v size "+
+		reasoning += fmt.Sprintf("%v objects (%v tables and %v explicit/implicit indexes) with %0.2f %v size "+
 			"and throughput requirement of %v reads/sec and %v writes/sec as colocated.", len(colocatedObjects),
 			len(colocatedObjects)-cumulativeIndexCountColocated, cumulativeIndexCountColocated, colocatedObjectsSize,
 			sizeUnitColocated, colocatedReads, colocatedWrites)
@@ -1228,18 +1228,19 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 		// Calculate size and throughput of sharded objects
 		shardedObjectsSize, shardedReads, shardedWrites, sizeUnitSharded := getObjectsSize(shardedObjects)
 		// Construct reasoning for sharded objects
-		shardedReasoning := fmt.Sprintf("%v objects: %v tables (excluding non-leaf partitions and unsupported tables) and %v explicit/implicit indexes with %0.2f %v "+
+		shardedReasoning := fmt.Sprintf("%v objects (%v tables and %v explicit/implicit indexes) with %0.2f %v "+
 			"size and throughput requirement of %v reads/sec and %v writes/sec ", len(shardedObjects),
 			len(shardedObjects)-cumulativeIndexCountSharded, cumulativeIndexCountSharded, shardedObjectsSize,
 			sizeUnitSharded, shardedReads, shardedWrites)
 		// If colocated objects exist, add sharded objects information as rest of the objects need to be migrated as sharded
 		if len(colocatedObjects) > 0 {
-			reasoning += " Rest " + shardedReasoning + "need to be migrated as range partitioned tables"
+			reasoning += " Rest " + shardedReasoning + "need to be migrated as range partitioned tables."
 		} else {
 			reasoning += shardedReasoning + "as sharded."
 		}
 
 	}
+	reasoning += " Non leaf partition tables and unsupported tables/indexes were not considered."
 	return reasoning
 }
 
