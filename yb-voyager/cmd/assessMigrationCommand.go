@@ -896,6 +896,7 @@ func addNotesToAssessmentReport() {
 		if referenceOrTablePartitionPresent {
 			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_UNSUPPPORTED_PARTITIONING)
 		}
+
 		// checking if gin indexes are present.
 		for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
 			if dbObj.ObjectType == "INDEX" {
