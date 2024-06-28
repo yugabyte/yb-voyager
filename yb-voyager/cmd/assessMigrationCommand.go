@@ -877,14 +877,12 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	return unsupportedDataTypes, nil
 }
 
-const ORACLE_PARTITION_DEFAULT_COLOCATION = `The Assessment Report provides sharding/colocation recommendations for each partition individually.<br>
-All partitions of a partitioned table are currently created as colocated by default, due to certain limitations. 
-To manually modify the schema for sharding, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
+const ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each parition is treated indiviudally. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
+To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
-const ORACLE_UNSUPPPORTED_PARTITIONING = `Oracle's Reference and System Partitioned tables are not considered for target cluster sizing recommendations.<br>
-These tables will be assumed to be colocated by default. Please manually modify the DDLs required.`
+const ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
-const GIN_INDEXES = `There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+const GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to gin indexes, but gin indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
 
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
