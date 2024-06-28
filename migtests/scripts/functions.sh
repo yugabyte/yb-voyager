@@ -457,6 +457,7 @@ import_data_file() {
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
+		--target-db-schema ${TARGET_DB_SCHEMA:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
 		--disable-pb true \
 		--send-diagnostics=false \
