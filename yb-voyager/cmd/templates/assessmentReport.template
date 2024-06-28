@@ -55,8 +55,15 @@
             margin-top: 20px;
             background-color: #E9F7FF;
         }
-        .notes-box h2 {
-            margin-top: 0;
+        .notes-box h3 {
+            margin: 0px;
+            font-weight: normal;
+        }
+        .notes-box ul {
+            list-style: square;
+        }
+        .notes-box li {
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -75,7 +82,7 @@
         {{end}}
 
         <h2>Database Objects</h2>
-        <p>{{.SchemaSummary.DBObjectsDesc}}</p>
+        <p>{{.SchemaSummaryDBObjectsDesc}}</p>
         <table>
             <tr>
                 <th>Object Type</th>
@@ -167,7 +174,7 @@
                 </table>
             </div>
         {{ else }}
-            <p>No unsupported data types detected in the assessed schemas.</p>
+            <p>No unsupported data types present in the assessed schemas.</p>
         {{ end }}
 
         <h2>Unsupported Features</h2>
@@ -187,7 +194,7 @@
             {{end}}
         {{end}}
         {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
-            <p>No unsupported features were detected among the ones assessed.</p>
+            <p>No unsupported features were present among the ones assessed.</p>
         {{end}}
 
         {{if .Notes}}

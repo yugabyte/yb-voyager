@@ -973,14 +973,14 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 
 type AssessmentReport struct {
 	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
+	SchemaSummaryDBObjectsDesc string                                `json:"SchemaSummaryDBObjectsDesc"` // TODO: ideally this should be in SchemaSummary
 	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
+	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
 	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
+	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
-	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
-	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
-	SchemaSummaryDBObjectsDesc string                                `json:"SchemaSummaryDBObjectsDesc"` // TODO: ideally this should be in SchemaSummary
 }
 
 // =============== for yugabyted controlplane ==============//
