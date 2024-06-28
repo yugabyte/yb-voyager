@@ -48,23 +48,6 @@
             border: 1px solid #ccc;
             padding: 10px;
         }
-        .notes-box {
-            border: 2px solid #007BFF;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 20px;
-            background-color: #E9F7FF;
-        }
-        .notes-box h3 {
-            margin: 0px;
-            font-weight: normal;
-        }
-        .notes-box ul {
-            list-style: square;
-        }
-        .notes-box li {
-            margin-bottom: 15px;
-        }
     </style>
 </head>
 <body>
@@ -184,22 +167,25 @@
             {{if .ObjectNames}} <!-- Check if ObjectNames is not empty -->
                 {{ $hasUnsupportedFeatures = true }}
                 <h3>{{.FeatureName}}</h3>
-                <ul>
-                    <div class="scrollable-div">
+                <div class="scrollable-div">
+                    <ul>
                         {{range .ObjectNames}}
                             <li>{{.}}</li>
                         {{end}}
-                    </div>
-                </ul>
+                    </ul>
+                </div>
             {{end}}
         {{end}}
         {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
             <p>No unsupported features were present among the ones assessed.</p>
         {{end}}
 
+
         {{if .Notes}}
-            <div class="notes-box">
-                <h3>Notes</h3>
+            <br>
+            <hr>
+            <div>
+                <h4>Notes</h4>
                     <ul>
                         {{range .Notes}}
                             <li>{{.}}</li>

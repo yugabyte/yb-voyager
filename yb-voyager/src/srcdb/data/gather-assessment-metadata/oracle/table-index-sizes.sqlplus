@@ -35,7 +35,7 @@ FROM (
     WHERE
         s.segment_type IN ('TABLE', 'TABLE PARTITION', 'TABLE SUBPARTITION')
         AND s.owner = '&1'
-        AND pt.partitioning_type NOT IN ('SYSTEM', 'REFERENCE')
+        AND COALESCE(pt.partitioning_type,'EMPTY') NOT IN ('SYSTEM', 'REFERENCE')
     UNION ALL
     SELECT
         i.owner AS schema_name,
@@ -48,7 +48,7 @@ FROM (
         dba_segments s ON i.owner = s.owner AND i.index_name = s.segment_name
     WHERE
         i.owner = '&1'
-        AND i.index_type NOT IN ('CLUSTER', 'DOMAIN', 'BITMAP', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
+        AND i.index_type NOT IN ('CLUSTER', 'DOMAIN', 'FUNCTION-BASED DOMAIN', 'IOT - TOP', 'NORMAL/REV', 'FUNCTION-BASED NORMAL/REV')
         AND i.index_name NOT IN (
             SELECT index_name
             FROM dba_constraints

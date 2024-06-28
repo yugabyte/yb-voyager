@@ -30,7 +30,7 @@ FROM (
         t.owner = '&1'
         AND t.table_name NOT LIKE 'DR$%'
         AND t.table_name NOT LIKE 'AQ$%'
-        AND pt.partitioning_type NOT IN ('SYSTEM', 'REFERENCE')
+        AND COALESCE(pt.partitioning_type,'EMPTY') NOT IN ('SYSTEM', 'REFERENCE')
 );
 SPOOL OFF
 

@@ -29,10 +29,13 @@ LEFT JOIN
     dba_tab_partitions tp ON t.owner = tp.table_owner AND t.table_name = tp.table_name
 LEFT JOIN
     dba_tab_subpartitions sp ON tp.table_owner = sp.table_owner AND tp.partition_name = sp.partition_name AND t.table_name = sp.table_name
+LEFT JOIN
+        dba_part_tables pt ON t.owner = pt.owner AND t.table_name = pt.table_name
 WHERE 
     t.owner = '&1' 
     AND t.table_name NOT LIKE 'DR$%'
     AND t.nested = 'NO' -- Exclude nested tables
+    AND COALESCE(pt.partitioning_type,'EMPTY') NOT IN ('SYSTEM', 'REFERENCE')
 ORDER BY 
     t.owner, table_name;
 SPOOL OFF
