@@ -184,13 +184,13 @@
             {{if .ObjectNames}} <!-- Check if ObjectNames is not empty -->
                 {{ $hasUnsupportedFeatures = true }}
                 <h3>{{.FeatureName}}</h3>
-                <ul>
-                    <div class="scrollable-div">
+                <div class="scrollable-div">
+                    <ul>
                         {{range .ObjectNames}}
                             <li>{{.}}</li>
                         {{end}}
-                    </div>
-                </ul>
+                    </ul>
+                </div>
             {{end}}
         {{end}}
         {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
