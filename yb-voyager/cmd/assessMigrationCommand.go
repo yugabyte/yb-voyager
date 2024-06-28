@@ -782,7 +782,7 @@ func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.S
 	return unsupportedFeatures, nil
 }
 
-var OracleUnsupportedIndexTypes = []string{"CLUSTER INDEX", "DOMAIN INDEX", "BITMAP INDEX", "FUNCTION-BASED DOMAIN INDEX", "IOT - TOP INDEX", "NORMAL/REV INDEX", "FUNCTION-BASED NORMAL/REV INDEX"}
+var OracleUnsupportedIndexTypes = []string{"CLUSTER INDEX", "DOMAIN INDEX", "FUNCTION-BASED DOMAIN INDEX", "IOT - TOP INDEX", "NORMAL/REV INDEX", "FUNCTION-BASED NORMAL/REV INDEX"}
 
 func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	if source.DBType != ORACLE {
