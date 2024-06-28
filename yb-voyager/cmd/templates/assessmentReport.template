@@ -198,7 +198,7 @@
         {{end}}
 
         {{if .Notes}}
-            <div class="notes-box">
+            <div>
                 <h3>Notes</h3>
                     <ul>
                         {{range .Notes}}
