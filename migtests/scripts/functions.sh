@@ -742,7 +742,7 @@ post_assess_migration() {
     colocated_tables=$(fetch_colocated_tables "$json_file")
     echo "Colocated Tables: $colocated_tables"
 
-    move_tables "$json_file" 30
+    move_tables "$json_file" 100
 
     updated_sharded_tables=$(fetch_sharded_tables "$json_file")
     echo "Updated Sharded Tables: $updated_sharded_tables"
