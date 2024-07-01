@@ -810,6 +810,16 @@ normalize_json() {
                 .DbVersion = "IGNORED" # Assign a fixed value to ignore the actual value
             else
                 .
+            end |
+            if has("OptimalSelectConnectionsPerNode") then
+                .OptimalSelectConnectionsPerNode = "IGNORED" # Assign a fixed value to ignore the actual value
+            else
+                .
+            end |
+            if has("OptimalInsertConnectionsPerNode") then
+                .OptimalInsertConnectionsPerNode = "IGNORED" # Assign a fixed value to ignore the actual value
+            else
+                .
             end
         elif type == "array" then
             sort_by(tostring)
