@@ -186,6 +186,7 @@ func (ora *Oracle) GetConnectionUriWithoutPassword() string {
 }
 
 func GetOracleConnectionString(host string, port int, dbname string, dbsid string, tnsalias string) string {
+	// TODO: revisit below code wrt the priority among: sid, tnsalias, dbname
 	switch true {
 	case dbsid != "":
 		return fmt.Sprintf(`(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = %s)(PORT = %d))(CONNECT_DATA = (SID = %s)))`,

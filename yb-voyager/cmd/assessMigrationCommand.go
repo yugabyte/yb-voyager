@@ -529,7 +529,12 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 	}
 
 	log.Infof("using script: %s", scriptPath)
-	return runGatherAssessmentMetadataScript(scriptPath, []string{"ORACLE_PASSWORD=" + source.Password, "TNS_ALIAS=" + source.TNSAlias},
+	tnsAdmin, err := getTNSAdmin(source)
+	if err != nil {
+		return fmt.Errorf("error getting tnsAdmin: %v", err)
+	}
+	log.Infof("tnsAdmin passed to oracle gather metadata script: %s", tnsAdmin)
+	return runGatherAssessmentMetadataScript(scriptPath, []string{"ORACLE_PASSWORD=" + source.Password, "TNS_ADMIN=" + tnsAdmin},
 		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schema), assessmentMetadataDir)
 }
 
