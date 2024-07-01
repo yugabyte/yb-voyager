@@ -72,8 +72,8 @@ type UnsupportedFeature struct {
 
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
-	Short: "Assess the migration from source (PostgreSQL) database to YugabyteDB.",
-	Long:  `Assess the migration from source (PostgreSQL) database to YugabyteDB.`,
+	Short: fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
+	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateSourceDBTypeForAssessMigration()
@@ -181,7 +181,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
-		"source database type: (postgresql)\n")
+		fmt.Sprintf("source database type: (%s)\n", strings.Join(assessMigrationSupportedDBTypes, ", ")))
 
 	cmd.MarkFlagRequired("source-db-type")
 
@@ -189,7 +189,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 		"source database server host")
 
 	cmd.Flags().IntVar(&source.Port, "source-db-port", 0,
-		"source database server port number. Default: PostgreSQL(5432)")
+		"source database server port number. Default: PostgreSQL(5432), Oracle(1521)")
 
 	cmd.Flags().StringVar(&source.User, "source-db-user", "",
 		"connect to source database as the specified user")
@@ -203,7 +203,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name(s) to export\n"+
-			`Note: in case of multiple schemas, use a comma separated list of schemas: "schema1,schema2,schema3"`)
+			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 
 	// TODO SSL related more args will come. Explore them later.
 	cmd.Flags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
@@ -220,6 +220,15 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
 		"Path of the file containing source SSL Root Certificate Revocation List (CRL)")
+
+	cmd.Flags().StringVar(&source.DBSid, "oracle-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
+
+	cmd.Flags().StringVar(&source.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 }
 
 func init() {
