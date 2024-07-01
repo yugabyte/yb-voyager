@@ -26,23 +26,25 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/samber/lo"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type SourceDBMetadata struct {
-	SchemaName      string         `db:"schema_name"`
-	ObjectName      string         `db:"object_name"`
-	RowCount        sql.NullInt64  `db:"row_count,string"`
-	ColumnCount     sql.NullInt64  `db:"column_count,string"`
-	Reads           int64          `db:"reads,string"`
-	Writes          int64          `db:"writes,string"`
-	ReadsPerSec     int64          `db:"reads_per_second,string"`
-	WritesPerSec    int64          `db:"writes_per_second,string"`
-	IsIndex         bool           `db:"is_index,string"`
-	ParentTableName sql.NullString `db:"parent_table_name"`
-	Size            float64        `db:"size_in_bytes,string"`
+	SchemaName      string          `db:"schema_name"`
+	ObjectName      string          `db:"object_name"`
+	RowCount        sql.NullInt64   `db:"row_count,string"`
+	ColumnCount     sql.NullInt64   `db:"column_count,string"`
+	Reads           sql.NullInt64   `db:"reads,string"`
+	Writes          sql.NullInt64   `db:"writes,string"`
+	ReadsPerSec     sql.NullInt64   `db:"reads_per_second,string"`
+	WritesPerSec    sql.NullInt64   `db:"writes_per_second,string"`
+	IsIndex         bool            `db:"is_index,string"`
+	ParentTableName sql.NullString  `db:"parent_table_name"`
+	Size            sql.NullFloat64 `db:"size_in_bytes,string"`
 }
 
 type ExpDataShardedLimit struct {
@@ -52,16 +54,14 @@ type ExpDataShardedLimit struct {
 }
 
 type ExpDataColocatedLimit struct {
-	maxColocatedSizeSupported  sql.NullFloat64 `db:"max_colocated_db_size_gb,string"`
-	numCores                   sql.NullFloat64 `db:"num_cores,string"`
-	memPerCore                 sql.NullFloat64 `db:"mem_per_core,string"`
-	maxSupportedNumTables      sql.NullInt64   `db:"max_num_tables,string"`
-	minSupportedNumTables      sql.NullFloat64 `db:"min_num_tables,string"`
-	maxSupportedSelectsPerCore sql.NullFloat64 `db:"max_selects_per_core,string"`
-	maxSupportedInsertsPerCore sql.NullFloat64 `db:"max_inserts_per_core,string"`
+	maxColocatedSizeSupported sql.NullFloat64 `db:"max_colocated_db_size_gb,string"`
+	numCores                  sql.NullFloat64 `db:"num_cores,string"`
+	memPerCore                sql.NullFloat64 `db:"mem_per_core,string"`
+	maxSupportedNumTables     sql.NullInt64   `db:"max_num_tables,string"`
+	minSupportedNumTables     sql.NullFloat64 `db:"min_num_tables,string"`
 }
 
-type ExpDataShardedThroughput struct {
+type ExpDataThroughput struct {
 	numCores                   sql.NullFloat64 `db:"num_cores,string"`
 	memPerCore                 sql.NullFloat64 `db:"mem_per_core,string"`
 	maxSupportedSelectsPerCore sql.NullFloat64 `db:"max_selects_per_core,string"`
@@ -74,6 +74,11 @@ type ExpDataShardedLoadTime struct {
 	csvSizeGB         sql.NullFloat64 `db:"csv_size_gb,string"`
 	migrationTimeSecs sql.NullFloat64 `db:"migration_time_secs,string"`
 	parallelThreads   sql.NullInt64   `db:"parallel_threads,string"`
+}
+
+type ExpDataShardedLoadTimeIndexImpact struct {
+	numIndexes           sql.NullFloat64 `db:"num_indexes,string"`
+	multiplicationFactor sql.NullFloat64 `db:"multiplication_factor,string"`
 }
 
 type IntermediateRecommendation struct {
@@ -92,10 +97,12 @@ type IntermediateRecommendation struct {
 }
 
 const (
-	COLOCATED_LIMITS_TABLE    = "colocated_limits"
-	SHARDED_SIZING_TABLE      = "sharded_sizing"
-	COLOCATED_LOAD_TIME_TABLE = "colocated_load_time"
-	SHARDED_LOAD_TIME_TABLE   = "sharded_load_time"
+	COLOCATED_LIMITS_TABLE               = "colocated_limits"
+	COLOCATED_SIZING_TABLE               = "colocated_sizing"
+	SHARDED_SIZING_TABLE                 = "sharded_sizing"
+	COLOCATED_LOAD_TIME_TABLE            = "colocated_load_time"
+	SHARDED_LOAD_TIME_TABLE              = "sharded_load_time"
+	SHARDED_LOAD_TIME_INDEX_IMPACT_TABLE = "sharded_load_time_index_impact"
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK               = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
@@ -109,6 +116,7 @@ const (
 	HIGH_PHASE_SIZE_THRESHOLD_GB  = 10
 	FINAL_PHASE_SIZE_THRESHOLD_GB = 100
 	MAX_TABLETS_PER_TABLE         = 256
+	PREFER_REMOTE_EXPERIMENT_DB   = false
 )
 
 func getExperimentDBPath() string {
@@ -139,13 +147,19 @@ func SizingAssessment() error {
 		return fmt.Errorf("error fetching the colocated limits: %w", err)
 	}
 
+	colocatedThroughput, err := loadExpDataThroughput(experimentDB, COLOCATED_SIZING_TABLE)
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the colocated throughput: %v", err)
+		return fmt.Errorf("error fetching the colocated throughput: %w", err)
+	}
+
 	shardedLimits, err := loadShardedTableLimits(experimentDB)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the sharded limits: %v", err)
 		return fmt.Errorf("error fetching the colocated limits: %w", err)
 	}
 
-	shardedThroughput, err := loadShardedThroughput(experimentDB)
+	shardedThroughput, err := loadExpDataThroughput(experimentDB, SHARDED_SIZING_TABLE)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the sharded throughput: %v", err)
 		return fmt.Errorf("error fetching the sharded throughput: %w", err)
@@ -156,7 +170,7 @@ func SizingAssessment() error {
 	sizingRecommendationPerCore = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
 		colocatedLimits, sizingRecommendationPerCore)
 
-	sizingRecommendationPerCore = shardingBasedOnOperations(sourceIndexMetadata, colocatedLimits, sizingRecommendationPerCore)
+	sizingRecommendationPerCore = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCore)
 
 	sizingRecommendationPerCore = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
 
@@ -190,10 +204,16 @@ func SizingAssessment() error {
 		return fmt.Errorf("error while fetching sharded load time info: %w", err)
 	}
 
+	// get experimental data for impact of indexes on sharded tables load
+	indexImpactData, err := getExpDataIndexImpactOnLoadTime(experimentDB, finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore)
+	if err != nil {
+		return fmt.Errorf("error while fetching experiment data for impact of index on load time: %w", err)
+	}
+
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, parallelVoyagerJobsSharded, err :=
 		calculateTimeTakenAndParallelJobsForImportShardedObjects(finalSizingRecommendation.ShardedTables,
-			sourceIndexMetadata, shardedLoadTimes)
+			sourceIndexMetadata, shardedLoadTimes, indexImpactData)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
 		return fmt.Errorf("calculate time taken for sharded data import: %w", err)
@@ -271,18 +291,18 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 findNumNodesNeededBasedOnThroughputRequirement calculates the number of nodes needed based on sharded throughput limits and updates the recommendation accordingly.
 Parameters:
   - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
-  - shardedLimits: A slice of ExpDataShardedThroughput structs representing sharded throughput limits.
+  - shardedThroughputSlice: A slice of ExpDataShardedThroughput structs representing sharded throughput limits.
   - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
 Returns:
   - An updated map of recommendations with the number of nodes needed.
 */
-func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []SourceDBMetadata, shardedLimits []ExpDataShardedThroughput,
+func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []SourceDBMetadata, shardedThroughputSlice []ExpDataThroughput,
 	recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 	// Iterate over sharded throughput limits
-	for _, shardedLimit := range shardedLimits {
+	for _, shardedThroughput := range shardedThroughputSlice {
 		// Get previous recommendation for the current num of cores
-		previousRecommendation := recommendation[int(shardedLimit.numCores.Float64)]
+		previousRecommendation := recommendation[int(shardedThroughput.numCores.Float64)]
 		var cumulativeSelectOpsPerSec int64 = 0
 		var cumulativeInsertOpsPerSec int64 = 0
 
@@ -290,16 +310,16 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		for _, table := range previousRecommendation.ShardedTables {
 			// Check and fetch indexes for the current table
 			_, _, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
-			cumulativeSelectOpsPerSec += table.ReadsPerSec + indexReads
-			cumulativeInsertOpsPerSec += table.WritesPerSec + indexWrites
+			cumulativeSelectOpsPerSec += lo.Ternary(table.ReadsPerSec.Valid, table.ReadsPerSec.Int64, 0) + indexReads
+			cumulativeInsertOpsPerSec += lo.Ternary(table.WritesPerSec.Valid, table.WritesPerSec.Int64, 0) + indexWrites
 		}
 
 		// Calculate needed cores based on cumulative operations per second
 		neededCores :=
-			math.Ceil(float64(cumulativeSelectOpsPerSec)/shardedLimit.maxSupportedSelectsPerCore.Float64 +
-				float64(cumulativeInsertOpsPerSec)/shardedLimit.maxSupportedInsertsPerCore.Float64)
+			math.Ceil(float64(cumulativeSelectOpsPerSec)/shardedThroughput.maxSupportedSelectsPerCore.Float64 +
+				float64(cumulativeInsertOpsPerSec)/shardedThroughput.maxSupportedInsertsPerCore.Float64)
 
-		nodesNeeded := math.Ceil(neededCores / shardedLimit.numCores.Float64)
+		nodesNeeded := math.Ceil(neededCores / shardedThroughput.numCores.Float64)
 		// Assumption: If there are any colocated objects - one node will be utilized as colocated tablet leader.
 		// Add it explicitly.
 		if len(previousRecommendation.ColocatedTables) > 0 {
@@ -311,14 +331,14 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		nodesNeeded = math.Max(nodesNeeded, 3)
 
 		// Update recommendation with the number of nodes needed
-		recommendation[int(shardedLimit.numCores.Float64)] = IntermediateRecommendation{
+		recommendation[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{
 			ColocatedTables:                 previousRecommendation.ColocatedTables,
 			ShardedTables:                   previousRecommendation.ShardedTables,
 			VCPUsPerInstance:                previousRecommendation.VCPUsPerInstance,
 			MemoryPerCore:                   previousRecommendation.MemoryPerCore,
 			NumNodes:                        nodesNeeded,
-			OptimalSelectConnectionsPerNode: shardedLimit.selectConnPerNode.Int64,
-			OptimalInsertConnectionsPerNode: shardedLimit.insertConnPerNode.Int64,
+			OptimalSelectConnectionsPerNode: int64(math.Min(float64(previousRecommendation.OptimalSelectConnectionsPerNode), float64(shardedThroughput.selectConnPerNode.Int64))),
+			OptimalInsertConnectionsPerNode: int64(math.Min(float64(previousRecommendation.OptimalInsertConnectionsPerNode), float64(shardedThroughput.insertConnPerNode.Int64))),
 			ParallelVoyagerJobs:             previousRecommendation.ParallelVoyagerJobs,
 			ColocatedSize:                   previousRecommendation.ColocatedSize,
 			ShardedSize:                     previousRecommendation.ShardedSize,
@@ -350,11 +370,11 @@ func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMeta
 		if len(rec.ShardedTables) != 0 && rec.FailureReasoning == "" {
 			// Iterate over each table and its indexes to find out how many tablets are needed
 			for _, table := range rec.ShardedTables {
-				_, tabletsRequired := getThresholdAndTablets(rec.NumNodes, table.Size)
+				_, tabletsRequired := getThresholdAndTablets(rec.NumNodes, lo.Ternary(table.Size.Valid, table.Size.Float64, 0))
 				for _, index := range sourceIndexMetadata {
 					if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
 						// calculating tablets required for each of the index
-						_, tabletsRequiredForIndex := getThresholdAndTablets(rec.NumNodes, index.Size)
+						_, tabletsRequiredForIndex := getThresholdAndTablets(rec.NumNodes, lo.Ternary(index.Size.Valid, index.Size.Float64, 0))
 						// tablets required for each table is the sum of tablets required for the table and its indexes
 						tabletsRequired += tabletsRequiredForIndex
 					}
@@ -507,16 +527,16 @@ shardingBasedOnOperations performs sharding based on operations (reads and write
 It updates the existing recommendations with information about colocated and sharded tables based on operations.
 Parameters:
   - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
-  - colocatedLimits: A slice of ExpDataColocatedLimit structs representing colocated limits.
+  - colocatedThroughput: A slice of ExpDataThroughput structs representing colocated limits.
   - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
 Returns:
   - An updated map of recommendations where sharding information based on operations has been incorporated.
 */
 func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
-	colocatedLimits []ExpDataColocatedLimit, recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
+	colocatedThroughputSlice []ExpDataThroughput, recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 
-	for _, colocatedLimit := range colocatedLimits {
+	for _, colocatedThroughput := range colocatedThroughputSlice {
 		var colocatedObjects []SourceDBMetadata
 		var cumulativeColocatedSizeSum float64 = 0
 		var numColocated int = 0
@@ -524,25 +544,25 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 		var cumulativeInsertOpsPerSec int64 = 0
 
 		// Get previous recommendation for the current num of cores
-		previousRecommendation := recommendation[int(colocatedLimit.numCores.Float64)]
+		previousRecommendation := recommendation[int(colocatedThroughput.numCores.Float64)]
 
 		for _, table := range previousRecommendation.ColocatedTables {
 			// Check and fetch indexes for the current table
 			_, indexesSizeSum, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
 
 			// Calculate new operations per second
-			newSelectOpsPerSec := cumulativeSelectOpsPerSec + table.ReadsPerSec + indexReads
-			newInsertOpsPerSec := cumulativeInsertOpsPerSec + table.WritesPerSec + indexWrites
+			newSelectOpsPerSec := cumulativeSelectOpsPerSec + lo.Ternary(table.ReadsPerSec.Valid, table.ReadsPerSec.Int64, 0) + indexReads
+			newInsertOpsPerSec := cumulativeInsertOpsPerSec + lo.Ternary(table.WritesPerSec.Valid, table.WritesPerSec.Int64, 0) + indexWrites
 
 			// Calculate total object size
-			objectTotalSize := table.Size + indexesSizeSum
+			objectTotalSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
 
 			// Calculate needed cores based on operations
 			neededCores :=
-				math.Ceil(float64(newSelectOpsPerSec)/colocatedLimit.maxSupportedSelectsPerCore.Float64 +
-					float64(newInsertOpsPerSec)/colocatedLimit.maxSupportedInsertsPerCore.Float64)
+				math.Ceil(float64(newSelectOpsPerSec)/colocatedThroughput.maxSupportedSelectsPerCore.Float64 +
+					float64(newInsertOpsPerSec)/colocatedThroughput.maxSupportedInsertsPerCore.Float64)
 
-			if neededCores <= colocatedLimit.numCores.Float64 {
+			if neededCores <= colocatedThroughput.numCores.Float64 {
 				// Update cumulative counts and add table to colocated objects
 				colocatedObjects = append(colocatedObjects, table)
 				cumulativeSelectOpsPerSec = newSelectOpsPerSec
@@ -561,18 +581,18 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 		for _, remainingTable := range previousRecommendation.ColocatedTables[numColocated:] {
 			shardedObjects = append(shardedObjects, remainingTable)
 			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
-			cumulativeSizeSharded += remainingTable.Size + indexesSizeSumSharded
+			cumulativeSizeSharded += lo.Ternary(remainingTable.Size.Valid, remainingTable.Size.Float64, 0) + indexesSizeSumSharded
 		}
 
 		// Update recommendation for the current colocated limit
-		recommendation[int(colocatedLimit.numCores.Float64)] = IntermediateRecommendation{
+		recommendation[int(colocatedThroughput.numCores.Float64)] = IntermediateRecommendation{
 			ColocatedTables:                 colocatedObjects,
 			ShardedTables:                   shardedObjects,
 			VCPUsPerInstance:                previousRecommendation.VCPUsPerInstance,
 			MemoryPerCore:                   previousRecommendation.MemoryPerCore,
 			NumNodes:                        previousRecommendation.NumNodes,
-			OptimalSelectConnectionsPerNode: previousRecommendation.OptimalSelectConnectionsPerNode,
-			OptimalInsertConnectionsPerNode: previousRecommendation.OptimalInsertConnectionsPerNode,
+			OptimalSelectConnectionsPerNode: colocatedThroughput.selectConnPerNode.Int64,
+			OptimalInsertConnectionsPerNode: colocatedThroughput.insertConnPerNode.Int64,
 			ParallelVoyagerJobs:             previousRecommendation.ParallelVoyagerJobs,
 			ColocatedSize:                   cumulativeColocatedSizeSum,
 			ShardedSize:                     cumulativeSizeSharded,
@@ -610,7 +630,7 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 			indexesOfTable, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
 			// Calculate new object count and total size
 			newObjectCount := cumulativeObjectCount + int64(len(indexesOfTable)) + 1
-			objectTotalSize := table.Size + indexesSizeSum
+			objectTotalSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
 			newCumulativeSize := cumulativeColocatedSizeSum + objectTotalSize
 
 			// Check if adding the current table exceeds max colocated size supported or max supported num tables
@@ -632,7 +652,7 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 		for _, remainingTable := range sourceTableMetadata[numColocated:] {
 			shardedObjects = append(shardedObjects, remainingTable)
 			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
-			cumulativeSizeSharded += remainingTable.Size + indexesSizeSumSharded
+			cumulativeSizeSharded += lo.Ternary(remainingTable.Size.Valid, remainingTable.Size.Float64, 0) + indexesSizeSumSharded
 		}
 		// Update recommendation for the current colocated limit
 		previousRecommendation := recommendation[int(colocatedLimit.numCores.Float64)]
@@ -668,9 +688,7 @@ func loadColocatedLimit(experimentDB *sql.DB) ([]ExpDataColocatedLimit, error) {
 			   num_cores, 
 			   mem_per_core, 
 			   max_num_tables, 
-			   min_num_tables, 
-			   max_selects_per_core, 
-			   max_inserts_per_core 
+			   min_num_tables
 		FROM %v 
 		ORDER BY num_cores DESC
 	`, COLOCATED_LIMITS_TABLE)
@@ -688,7 +706,7 @@ func loadColocatedLimit(experimentDB *sql.DB) ([]ExpDataColocatedLimit, error) {
 	for rows.Next() {
 		var r1 ExpDataColocatedLimit
 		if err := rows.Scan(&r1.maxColocatedSizeSupported, &r1.numCores, &r1.memPerCore, &r1.maxSupportedNumTables,
-			&r1.minSupportedNumTables, &r1.maxSupportedSelectsPerCore, &r1.maxSupportedInsertsPerCore); err != nil {
+			&r1.minSupportedNumTables); err != nil {
 			return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
 		}
 		colocatedLimits = append(colocatedLimits, r1)
@@ -737,13 +755,18 @@ func loadShardedTableLimits(experimentDB *sql.DB) ([]ExpDataShardedLimit, error)
 }
 
 /*
-loadShardedThroughput fetches sharded throughput information from the experiment data table.
+loadExpDataThroughput fetches sharded throughput information from the experiment data table.
 It retrieves data such as inserts per core, selects per core, number of cores, memory per core, etc.
+Parameters:
+
+	experimentDB: A pointer to the experiment database.
+	tableName: colocated or sharded table
+
 Returns:
-  - A slice of ExpDataShardedThroughput structs containing the fetched sharded throughput information.
+  - A slice of ExpDataThroughput structs containing the fetched throughput information.
   - An error if there was any issue during the data retrieval process.
 */
-func loadShardedThroughput(experimentDB *sql.DB) ([]ExpDataShardedThroughput, error) {
+func loadExpDataThroughput(experimentDB *sql.DB, tableName string) ([]ExpDataThroughput, error) {
 	selectQuery := fmt.Sprintf(`
 			SELECT inserts_per_core,
 				   selects_per_core, 
@@ -754,7 +777,7 @@ func loadShardedThroughput(experimentDB *sql.DB) ([]ExpDataShardedThroughput, er
 			FROM %s 
 			WHERE dimension = 'MaxThroughput' 
 			ORDER BY num_cores DESC;
-	`, SHARDED_SIZING_TABLE)
+	`, tableName)
 	rows, err := experimentDB.Query(selectQuery)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
@@ -765,9 +788,9 @@ func loadShardedThroughput(experimentDB *sql.DB) ([]ExpDataShardedThroughput, er
 		}
 	}()
 
-	var shardedThroughput []ExpDataShardedThroughput
+	var shardedThroughput []ExpDataThroughput
 	for rows.Next() {
-		var throughput ExpDataShardedThroughput
+		var throughput ExpDataThroughput
 		if err := rows.Scan(&throughput.maxSupportedInsertsPerCore,
 			&throughput.maxSupportedSelectsPerCore, &throughput.numCores,
 			&throughput.memPerCore, &throughput.selectConnPerNode, &throughput.insertConnPerNode); err != nil {
@@ -845,7 +868,7 @@ func calculateTimeTakenAndParallelJobsForImportColocatedObjects(dbObjects []Sour
 	var maxSizeOfFetchedRow float64
 	var parallelJobs int64
 	for _, dbObject := range dbObjects {
-		size += dbObject.Size
+		size += lo.Ternary(dbObject.Size.Valid, dbObject.Size.Float64, 0)
 	}
 	// find the rows in experiment data about the approx row matching the size
 	selectQuery := fmt.Sprintf(`
@@ -895,6 +918,7 @@ Parameters:
 	vCPUPerInstance: The number of virtual CPUs per instance used for import.
 	memPerCore: The memory allocated per CPU core used for import.
 	experimentDB: A connection to the experiment database.
+	indexImpact: Data containing impact of indexes on load time.
 
 Returns:
 
@@ -903,7 +927,8 @@ Returns:
 	error: Error if any
 */
 func calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables []SourceDBMetadata,
-	sourceIndexMetadata []SourceDBMetadata, shardedLoadTimes []ExpDataShardedLoadTime) (float64, int64, error) {
+	sourceIndexMetadata []SourceDBMetadata, shardedLoadTimes []ExpDataShardedLoadTime,
+	indexImpacts []ExpDataShardedLoadTimeIndexImpact) (float64, int64, error) {
 	var importTime float64
 
 	// for sharded objects we need to calculate the time taken for import for every table.
@@ -911,11 +936,12 @@ func calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables []So
 	// find the rows in experiment data about the approx row matching the size
 	for _, table := range shardedTables {
 		// find closest record from experiment data for the size of the table
-		closestLoadTime := findClosestRecordFromExpDataShardedLoadTime(shardedLoadTimes, table.Size)
+		tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
+		closestLoadTime := findClosestRecordFromExpDataShardedLoadTime(shardedLoadTimes, tableSize)
 		// get multiplication factor for every table based on the number of indexes
-		loadTimeMultiplicationFactor := getMultiplicationFactorForImportTimeBasedOnIndexes(table, sourceIndexMetadata)
+		loadTimeMultiplicationFactor := getMultiplicationFactorForImportTimeBasedOnIndexes(table, sourceIndexMetadata, indexImpacts)
 		// calculate the time taken for import for every table and add it to overall import time
-		importTime += loadTimeMultiplicationFactor * ((closestLoadTime.migrationTimeSecs.Float64 * table.Size) / closestLoadTime.csvSizeGB.Float64) / 60
+		importTime += loadTimeMultiplicationFactor * ((closestLoadTime.migrationTimeSecs.Float64 * tableSize) / closestLoadTime.csvSizeGB.Float64) / 60
 	}
 
 	return math.Ceil(importTime), shardedLoadTimes[0].parallelThreads.Int64, nil
@@ -968,6 +994,50 @@ func getExpDataShardedLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPer
 }
 
 /*
+getExpDataIndexImpactOnLoadTime fetches data for impact of indexes on load time from the experiment data table.
+Parameters:
+
+	experimentDB: Connection to the experiment database
+	vCPUPerInstance: Number of virtual CPUs per instance.
+	memPerCore: Memory per core.
+
+Returns:
+
+	[]ExpDataShardedLoadTimeIndexImpact: A slice containing the fetched load time information based on number of indexes.
+	error: Error if any.
+*/
+func getExpDataIndexImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore int) ([]ExpDataShardedLoadTimeIndexImpact, error) {
+	selectQuery := fmt.Sprintf(`
+		SELECT number_of_indexes, 
+			   multiplication_factor
+		FROM %v 
+		WHERE num_cores = ? 
+			AND mem_per_core = ?
+		ORDER BY number_of_indexes;
+	`, SHARDED_LOAD_TIME_INDEX_IMPACT_TABLE)
+	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore)
+
+	if err != nil {
+		return nil, fmt.Errorf("error while fetching index impact info with query [%s]: %w", selectQuery, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close result set for query: [%s]", selectQuery)
+		}
+	}()
+
+	var shardedLoadTimeIndexImpacts []ExpDataShardedLoadTimeIndexImpact
+	for rows.Next() {
+		var shardedLoadTimeIndexImpact ExpDataShardedLoadTimeIndexImpact
+		if err = rows.Scan(&shardedLoadTimeIndexImpact.numIndexes, &shardedLoadTimeIndexImpact.multiplicationFactor); err != nil {
+			return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", selectQuery, err)
+		}
+		shardedLoadTimeIndexImpacts = append(shardedLoadTimeIndexImpacts, shardedLoadTimeIndexImpact)
+	}
+	return shardedLoadTimeIndexImpacts, nil
+}
+
+/*
 findClosestRecordFromExpDataShardedLoadTime finds the closest record from the experiment data for the size of the table.
 Parameters:
 
@@ -1006,7 +1076,8 @@ Returns:
 
 	float64: The multiplication factor for import time based on the number of indexes on the table.
 */
-func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata) float64 {
+func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
+	indexImpacts []ExpDataShardedLoadTimeIndexImpact) float64 {
 	var numberOfIndexesOnTable float64 = 0
 	for _, index := range sourceIndexMetadata {
 		if index.ParentTableName.Valid && index.ParentTableName.String == (table.SchemaName+"."+table.ObjectName) {
@@ -1014,16 +1085,21 @@ func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, 
 		}
 	}
 	if numberOfIndexesOnTable == 0 {
+		// if there are no indexes on table, return 1 immediately
 		return 1
-	} else if numberOfIndexesOnTable == 1 {
-		// as per the experiment data, the time taken for import increases by 2 times if there is one index on the table
-		return 2
-	} else if numberOfIndexesOnTable == 2 {
-		// as per the experiment data, assuming time taken for import increases by 3 times if there are two indexes on the table
-		return 3
 	} else {
-		// as per the experiment data, assuming time taken for import increases by about 0.8 times for every index on the table.
-		return numberOfIndexesOnTable * 0.8
+		closest := indexImpacts[0]
+		minDiff := math.Abs(numberOfIndexesOnTable - closest.numIndexes.Float64)
+
+		for _, indexImpactData := range indexImpacts {
+			diff := math.Abs(numberOfIndexesOnTable - indexImpactData.numIndexes.Float64)
+			if diff < minDiff {
+				minDiff = diff
+				closest = indexImpactData
+			}
+		}
+		// impact on load time fo r given table would be relative to the closest record's impact
+		return (closest.multiplicationFactor.Float64 / closest.numIndexes.Float64) * numberOfIndexesOnTable
 	}
 }
 
@@ -1047,7 +1123,7 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 			   parent_table_name, 
 			   size_in_bytes 
 		FROM %v 
-		ORDER BY size_in_bytes ASC
+		ORDER BY IFNULL(size_in_bytes, 0) ASC
 	`, GetTableIndexStatName())
 	rows, err := sourceDB.Query(query)
 	if err != nil {
@@ -1071,13 +1147,13 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 			return nil, nil, 0.0, fmt.Errorf("failed to read from result set of query source metadata [%s]: %w", query, err)
 		}
 		// convert bytes to GB
-		metadata.Size = utils.BytesToGB(metadata.Size)
+		metadata.Size.Float64 = utils.BytesToGB(lo.Ternary(metadata.Size.Valid, metadata.Size.Float64, 0))
 		if metadata.IsIndex {
 			sourceIndexMetadata = append(sourceIndexMetadata, metadata)
 		} else {
 			sourceTableMetadata = append(sourceTableMetadata, metadata)
 		}
-		totalSourceDBSize += metadata.Size
+		totalSourceDBSize += metadata.Size.Float64
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
@@ -1113,9 +1189,9 @@ func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([
 	for _, index := range indexes {
 		if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
 			indexesOfTable = append(indexesOfTable, index)
-			indexesSizeSum += index.Size
-			cumulativeSelectOpsPerSecIdx += index.ReadsPerSec
-			cumulativeInsertOpsPerSecIdx += index.WritesPerSec
+			indexesSizeSum += lo.Ternary(index.Size.Valid, index.Size.Float64, 0)
+			cumulativeSelectOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
+			cumulativeInsertOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
 		}
 	}
 
@@ -1142,7 +1218,7 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 
 	// Add information about colocated objects if they exist
 	if len(colocatedObjects) > 0 {
-		reasoning += fmt.Sprintf("%v objects(%v tables and %v explicit/implicit indexes) with %0.2f %v size "+
+		reasoning += fmt.Sprintf("%v objects (%v tables and %v explicit/implicit indexes) with %0.2f %v size "+
 			"and throughput requirement of %v reads/sec and %v writes/sec as colocated.", len(colocatedObjects),
 			len(colocatedObjects)-cumulativeIndexCountColocated, cumulativeIndexCountColocated, colocatedObjectsSize,
 			sizeUnitColocated, colocatedReads, colocatedWrites)
@@ -1152,18 +1228,19 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 		// Calculate size and throughput of sharded objects
 		shardedObjectsSize, shardedReads, shardedWrites, sizeUnitSharded := getObjectsSize(shardedObjects)
 		// Construct reasoning for sharded objects
-		shardedReasoning := fmt.Sprintf("%v objects(%v tables and %v explicit/implicit indexes) with %0.2f %v "+
+		shardedReasoning := fmt.Sprintf("%v objects (%v tables and %v explicit/implicit indexes) with %0.2f %v "+
 			"size and throughput requirement of %v reads/sec and %v writes/sec ", len(shardedObjects),
 			len(shardedObjects)-cumulativeIndexCountSharded, cumulativeIndexCountSharded, shardedObjectsSize,
 			sizeUnitSharded, shardedReads, shardedWrites)
 		// If colocated objects exist, add sharded objects information as rest of the objects need to be migrated as sharded
 		if len(colocatedObjects) > 0 {
-			reasoning += " Rest " + shardedReasoning + "need to be migrated as range partitioned tables"
+			reasoning += " Rest " + shardedReasoning + "need to be migrated as range partitioned tables."
 		} else {
 			reasoning += shardedReasoning + "as sharded."
 		}
 
 	}
+	reasoning += " Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 	return reasoning
 }
 
@@ -1186,9 +1263,9 @@ func getObjectsSize(objects []SourceDBMetadata) (float64, int64, int64, string) 
 
 	for _, object := range objects {
 		// Accumulate size and throughput values
-		objectsSize += object.Size
-		objectSelectOps += object.ReadsPerSec
-		objectInsertOps += object.WritesPerSec
+		objectsSize += lo.Ternary(object.Size.Valid, object.Size.Float64, 0)
+		objectSelectOps += lo.Ternary(object.ReadsPerSec.Valid, object.ReadsPerSec.Int64, 0)
+		objectInsertOps += lo.Ternary(object.WritesPerSec.Valid, object.WritesPerSec.Int64, 0)
 	}
 	// if object size is less than 1 GB, convert it to MB
 	if objectsSize < 1 {
@@ -1240,7 +1317,7 @@ func createConnectionToExperimentData() (*sql.DB, error) {
 
 func getExperimentFile() (string, error) {
 	fetchedFromRemote := false
-	if checkInternetAccess() {
+	if PREFER_REMOTE_EXPERIMENT_DB && checkInternetAccess() {
 		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo()
 		if err != nil {
 			return "", err

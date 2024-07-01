@@ -20,53 +20,64 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
 )
 
-var AssessmentDbSelectQuery = fmt.Sprintf("SELECT schema_name, object_name, row_count, reads_per_second, writes_per_second, "+
-	"is_index, parent_table_name, size_in_bytes FROM %v ORDER BY size_in_bytes ASC", TABLE_INDEX_STATS)
+var AssessmentDbSelectQuery = fmt.Sprintf("(?i)SELECT schema_name,.* FROM %v ORDER BY .* ASC", TABLE_INDEX_STATS)
 var AssessmentDBColumns = []string{"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
 	"is_index", "parent_table_name", "size_in_bytes"}
 
-var colocatedLimits = []ExpDataColocatedLimit{
+var colocatedThroughput = []ExpDataThroughput{
 	{
-		maxColocatedSizeSupported:  sql.NullFloat64{Float64: 113, Valid: true},
-		numCores:                   sql.NullFloat64{Float64: 2, Valid: true},
-		memPerCore:                 sql.NullFloat64{Float64: 4, Valid: true},
-		maxSupportedNumTables:      sql.NullInt64{Int64: 2000, Valid: true},
-		minSupportedNumTables:      sql.NullFloat64{Float64: 1, Valid: true},
-		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1175, Valid: true},
-		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 357, Valid: true},
-	},
-	{
-		maxColocatedSizeSupported:  sql.NullFloat64{Float64: 113, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: 4, Valid: true},
 		memPerCore:                 sql.NullFloat64{Float64: 4, Valid: true},
-		maxSupportedNumTables:      sql.NullInt64{Int64: 2000, Valid: true},
-		minSupportedNumTables:      sql.NullFloat64{Float64: 1, Valid: true},
 		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1230, Valid: true},
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 400, Valid: true},
+		selectConnPerNode:          sql.NullInt64{Int64: 8, Valid: true},
+		insertConnPerNode:          sql.NullInt64{Int64: 12, Valid: true},
 	},
 	{
-		maxColocatedSizeSupported:  sql.NullFloat64{Float64: 113, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: 8, Valid: true},
 		memPerCore:                 sql.NullFloat64{Float64: 4, Valid: true},
-		maxSupportedNumTables:      sql.NullInt64{Int64: 5000, Valid: true},
-		minSupportedNumTables:      sql.NullFloat64{Float64: 1, Valid: true},
 		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1246, Valid: true},
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 608, Valid: true},
+		selectConnPerNode:          sql.NullInt64{Int64: 16, Valid: true},
+		insertConnPerNode:          sql.NullInt64{Int64: 24, Valid: true},
 	},
 	{
-		maxColocatedSizeSupported:  sql.NullFloat64{Float64: 113, Valid: true},
 		numCores:                   sql.NullFloat64{Float64: 16, Valid: true},
 		memPerCore:                 sql.NullFloat64{Float64: 4, Valid: true},
-		maxSupportedNumTables:      sql.NullInt64{Int64: 5000, Valid: true},
-		minSupportedNumTables:      sql.NullFloat64{Float64: 1, Valid: true},
 		maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1220, Valid: true},
 		maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 755, Valid: true},
+		selectConnPerNode:          sql.NullInt64{Int64: 32, Valid: true},
+		insertConnPerNode:          sql.NullInt64{Int64: 48, Valid: true},
+	},
+}
+var colocatedLimits = []ExpDataColocatedLimit{
+	{
+		maxColocatedSizeSupported: sql.NullFloat64{Float64: 113, Valid: true},
+		numCores:                  sql.NullFloat64{Float64: 4, Valid: true},
+		memPerCore:                sql.NullFloat64{Float64: 4, Valid: true},
+		maxSupportedNumTables:     sql.NullInt64{Int64: 2000, Valid: true},
+		minSupportedNumTables:     sql.NullFloat64{Float64: 1, Valid: true},
+	},
+	{
+		maxColocatedSizeSupported: sql.NullFloat64{Float64: 113, Valid: true},
+		numCores:                  sql.NullFloat64{Float64: 8, Valid: true},
+		memPerCore:                sql.NullFloat64{Float64: 4, Valid: true},
+		maxSupportedNumTables:     sql.NullInt64{Int64: 5000, Valid: true},
+		minSupportedNumTables:     sql.NullFloat64{Float64: 1, Valid: true},
+	},
+	{
+		maxColocatedSizeSupported: sql.NullFloat64{Float64: 113, Valid: true},
+		numCores:                  sql.NullFloat64{Float64: 16, Valid: true},
+		memPerCore:                sql.NullFloat64{Float64: 4, Valid: true},
+		maxSupportedNumTables:     sql.NullInt64{Int64: 5000, Valid: true},
+		minSupportedNumTables:     sql.NullFloat64{Float64: 1, Valid: true},
 	},
 }
 
@@ -144,23 +155,15 @@ func TestGetSourceMetadata_NoRows(t *testing.T) {
 // validate if the source table of size in colocated limit is correctly placed in colocated table recommendation
 func TestShardingBasedOnTableSizeAndCount_TableWithSizePlacedInColocated(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
-		{SchemaName: "public", ObjectName: "table1", Size: 100},
+		{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 100, Valid: true}},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedRecommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
-			},
-			ShardedTables: nil,
-			ColocatedSize: 100,
-			ShardedSize:   0,
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 100, Valid: true}},
 			},
 			ShardedTables: nil,
 			ColocatedSize: 100,
@@ -168,7 +171,7 @@ func TestShardingBasedOnTableSizeAndCount_TableWithSizePlacedInColocated(t *test
 		},
 		8: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 100, Valid: true}},
 			},
 			ShardedTables: nil,
 			ColocatedSize: 100,
@@ -176,7 +179,7 @@ func TestShardingBasedOnTableSizeAndCount_TableWithSizePlacedInColocated(t *test
 		},
 		16: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 100, Valid: true}},
 			},
 			ShardedTables: nil,
 			ColocatedSize: 100,
@@ -193,41 +196,34 @@ func TestShardingBasedOnTableSizeAndCount_TableWithSizePlacedInColocated(t *test
 // recommendation
 func TestShardingBasedOnTableSizeAndCount_WithIndexes_ColocateAll(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
-		{SchemaName: "public", ObjectName: "table1", Size: 100},
+		{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 100, Valid: true}},
 	}
 	sourceIndexMetadata := []SourceDBMetadata{
 		{
-			SchemaName: "public", ObjectName: "index1", Size: 10, IsIndex: true,
+			SchemaName: "public", ObjectName: "index1", Size: sql.NullFloat64{Float64: 10, Valid: true}, IsIndex: true,
 			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
 		},
 	}
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedRecommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
-			},
-			ShardedTables: nil,
-			ColocatedSize: 110, // Table size + index size
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 100, Valid: true}},
 			},
 			ShardedTables: nil,
 			ColocatedSize: 110, // Table size + index size
 		},
 		8: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 100, Valid: true}},
 			},
 			ShardedTables: nil,
 			ColocatedSize: 110, // Table size + index size
 		},
 		16: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 100},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 100, Valid: true}},
 			},
 			ShardedTables: nil,
 			ColocatedSize: 110, // Table size + index size
@@ -243,49 +239,39 @@ func TestShardingBasedOnTableSizeAndCount_WithIndexes_ColocateAll(t *testing.T) 
 // to be put in sharded
 func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededBySize(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
-		{SchemaName: "public", ObjectName: "table1", Size: 110},
-		{SchemaName: "public", ObjectName: "table2", Size: 500},
+		{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 110, Valid: true}},
+		{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 500, Valid: true}},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedRecommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 110},
-			},
-			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table2", Size: 500},
-			},
-			ColocatedSize: 110,
-			ShardedSize:   500,
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 110},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 110, Valid: true}},
 			},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table2", Size: 500},
+				{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 500, Valid: true}},
 			},
 			ColocatedSize: 110,
 			ShardedSize:   500,
 		},
 		8: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 110},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 110, Valid: true}},
 			},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table2", Size: 500},
+				{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 500, Valid: true}},
 			},
 			ColocatedSize: 110,
 			ShardedSize:   500,
 		},
 		16: {
 			ColocatedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 110},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 110, Valid: true}},
 			},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table2", Size: 500},
+				{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 500, Valid: true}},
 			},
 			ColocatedSize: 110,
 			ShardedSize:   500,
@@ -304,17 +290,13 @@ func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededByCount(t *testi
 	sourceTableMetadata := make([]SourceDBMetadata, numTables)
 	for i := 0; i < numTables; i++ {
 		sourceTableMetadata[i] =
-			SourceDBMetadata{SchemaName: "public", ObjectName: fmt.Sprintf("table%v", i), Size: 0.0001}
+			SourceDBMetadata{SchemaName: "public", ObjectName: fmt.Sprintf("table%v", i), Size: sql.NullFloat64{Float64: 0.0001, Valid: true}}
 	}
 
 	var sourceIndexMetadata []SourceDBMetadata
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedResults := make(map[int]map[string]int)
-	expectedResults[2] = map[string]int{
-		"lenColocatedTables": 2000,
-		"lenShardedTables":   14000,
-	}
 	expectedResults[4] = map[string]int{
 		"lenColocatedTables": 2000,
 		"lenShardedTables":   14000,
@@ -339,17 +321,13 @@ func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededByCount(t *testi
 // validate if the tables of size more than max colocated size supported are put in the sharded tables
 func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
-		{SchemaName: "public", ObjectName: "table1", Size: 600},
-		{SchemaName: "public", ObjectName: "table2", Size: 500},
+		{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 600, Valid: true}},
+		{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 500, Valid: true}},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
-	recommendation := map[int]IntermediateRecommendation{2: {}, 4: {}, 8: {}, 16: {}}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
 
 	expectedResults := make(map[int]map[string]int)
-	expectedResults[2] = map[string]int{
-		"lenColocatedTables": 0,
-		"lenShardedTables":   2,
-	}
 	expectedResults[4] = map[string]int{
 		"lenColocatedTables": 0,
 		"lenShardedTables":   2,
@@ -380,20 +358,20 @@ func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
 	// Define test data
 	sourceIndexMetadata := []SourceDBMetadata{
-		{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+		{
+			ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+			ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+			WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+		},
 	}
 	recommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
-			},
-			ShardedTables: []SourceDBMetadata{},
-			ColocatedSize: 10.0,
-			ShardedSize:   0.0,
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+				{
+					ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
 			},
 			ShardedTables: []SourceDBMetadata{},
 			ColocatedSize: 10.0,
@@ -401,7 +379,11 @@ func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
 		},
 		8: {
 			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+				{
+					ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
 			},
 			ShardedTables: []SourceDBMetadata{},
 			ColocatedSize: 10.0,
@@ -409,7 +391,11 @@ func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
 		},
 		16: {
 			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+				{
+					ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
 			},
 			ShardedTables: []SourceDBMetadata{},
 			ColocatedSize: 10.0,
@@ -418,7 +404,7 @@ func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
 	}
 
 	// Run the function
-	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedLimits, recommendation)
+	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, recommendation)
 
 	// expected is that the table should be removed from colocated and added to sharded as the ops requirement is high
 	for _, rec := range updatedRecommendation {
@@ -433,20 +419,20 @@ func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
 func TestShardingBasedOnOperations_CannotSupportOpsAndNeedsSharding(t *testing.T) {
 	// Define test data
 	sourceIndexMetadata := []SourceDBMetadata{
-		{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
+		{
+			ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+			ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 1000000},
+			WritesPerSec: sql.NullInt64{Valid: true, Int64: 50000000},
+		},
 	}
 	recommendation := map[int]IntermediateRecommendation{
-		2: {
-			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
-			},
-			ShardedTables: []SourceDBMetadata{},
-			ColocatedSize: 10.0,
-			ShardedSize:   0.0,
-		},
 		4: {
 			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
+				{
+					ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 1000000},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50000000},
+				},
 			},
 			ShardedTables: []SourceDBMetadata{},
 			ColocatedSize: 10.0,
@@ -454,7 +440,11 @@ func TestShardingBasedOnOperations_CannotSupportOpsAndNeedsSharding(t *testing.T
 		},
 		8: {
 			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
+				{
+					ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 1000000},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50000000},
+				},
 			},
 			ShardedTables: []SourceDBMetadata{},
 			ColocatedSize: 10.0,
@@ -462,7 +452,11 @@ func TestShardingBasedOnOperations_CannotSupportOpsAndNeedsSharding(t *testing.T
 		},
 		16: {
 			ColocatedTables: []SourceDBMetadata{
-				{ObjectName: "table1", Size: 10.0, ReadsPerSec: 1000000, WritesPerSec: 50000000},
+				{
+					ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 1000000},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50000000},
+				},
 			},
 			ShardedTables: []SourceDBMetadata{},
 			ColocatedSize: 10.0,
@@ -471,7 +465,7 @@ func TestShardingBasedOnOperations_CannotSupportOpsAndNeedsSharding(t *testing.T
 	}
 
 	// Run the function
-	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedLimits, recommendation)
+	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, recommendation)
 
 	// expected is that the table should be removed from colocated and added to sharded as the ops requirement is high
 	for _, rec := range updatedRecommendation {
@@ -497,8 +491,16 @@ func TestCheckShardedTableLimit_WithinLimit(t *testing.T) {
 	recommendation := map[int]IntermediateRecommendation{
 		16: {
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
-				{SchemaName: "public", ObjectName: "table2", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+				{
+					SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
+				{
+					SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
 			},
 			VCPUsPerInstance: 16,
 			MemoryPerCore:    4,
@@ -526,8 +528,16 @@ func TestCheckShardedTableLimit_LimitExceeded(t *testing.T) {
 	recommendation := map[int]IntermediateRecommendation{
 		16: {
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
-				{SchemaName: "public", ObjectName: "table2", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
+				{
+					SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
+				{
+					SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
 			},
 			VCPUsPerInstance: 16,
 			MemoryPerCore:    4,
@@ -553,11 +563,19 @@ func TestCheckShardedTableLimit_LimitExceeded(t *testing.T) {
 func TestFindNumNodesNeededBasedOnThroughputRequirement_CanSupportOps(t *testing.T) {
 	// Define test data
 	sourceIndexMetadata := []SourceDBMetadata{
-		{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50},
-		{ObjectName: "table2", Size: 20.0, ReadsPerSec: 200, WritesPerSec: 100},
+		{
+			ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+			ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+			WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+		},
+		{
+			ObjectName: "table2", Size: sql.NullFloat64{Float64: 20.0, Valid: true},
+			ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 200},
+			WritesPerSec: sql.NullInt64{Valid: true, Int64: 100},
+		},
 	}
 
-	shardedLimits := []ExpDataShardedThroughput{
+	shardedThroughput := []ExpDataThroughput{
 		{
 			numCores:                   sql.NullFloat64{Float64: 4},
 			maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 200},
@@ -570,13 +588,21 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_CanSupportOps(t *testing
 	recommendation := map[int]IntermediateRecommendation{
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
-			ShardedTables:   []SourceDBMetadata{{ObjectName: "table1", Size: 10.0, ReadsPerSec: 100, WritesPerSec: 50}},
+			ShardedTables: []SourceDBMetadata{
+				{
+					ObjectName: "table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
+			},
+			OptimalSelectConnectionsPerNode: 50,
+			OptimalInsertConnectionsPerNode: 25,
 		},
 	}
 
 	// Run the function
 	updatedRecommendation :=
-		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedLimits, recommendation)
+		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, recommendation)
 
 	// for 4 cores data, expected results are
 	var expectedOptimalSelectConnectionsPerNode int64 = 50
@@ -595,7 +621,7 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_NeedMoreNodes(t *testing
 	// Define test data
 	var sourceIndexMetadata []SourceDBMetadata
 
-	shardedLimits := []ExpDataShardedThroughput{
+	shardedLimits := []ExpDataThroughput{
 		{
 			numCores:                   sql.NullFloat64{Float64: 4},
 			maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 200},
@@ -606,7 +632,11 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_NeedMoreNodes(t *testing
 	recommendation := map[int]IntermediateRecommendation{
 		4: {
 			ShardedTables: []SourceDBMetadata{
-				{ObjectName: "table2", Size: 20.0, ReadsPerSec: 2000, WritesPerSec: 5000},
+				{
+					ObjectName: "table2", Size: sql.NullFloat64{Float64: 20.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 2000},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 5000},
+				},
 			},
 			VCPUsPerInstance: 4,
 			MemoryPerCore:    4,
@@ -638,8 +668,8 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_CanSupportTablets(t *testing.T
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 10},
-				{SchemaName: "public", ObjectName: "table2", Size: 60},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 10, Valid: true}},
+				{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 60, Valid: true}},
 			},
 			VCPUsPerInstance: 4,
 			NumNodes:         3,
@@ -658,8 +688,14 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_CanSupportTablets(t *testing.T
 func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 	// Define test data
 	sourceIndexMetadata := []SourceDBMetadata{
-		{SchemaName: "public", ObjectName: "index1", Size: 7, ParentTableName: sql.NullString{String: "public.table1"}},
-		{SchemaName: "public", ObjectName: "index2", Size: 3, ParentTableName: sql.NullString{String: "public.table2"}},
+		{
+			SchemaName: "public", ObjectName: "index1", Size: sql.NullFloat64{Float64: 7, Valid: true},
+			ParentTableName: sql.NullString{String: "public.table1"},
+		},
+		{
+			SchemaName: "public", ObjectName: "index2", Size: sql.NullFloat64{Float64: 3, Valid: true},
+			ParentTableName: sql.NullString{String: "public.table2"},
+		},
 	}
 	shardedLimits := []ExpDataShardedLimit{
 		{
@@ -671,8 +707,8 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 		4: {
 			ColocatedTables: []SourceDBMetadata{},
 			ShardedTables: []SourceDBMetadata{
-				{SchemaName: "public", ObjectName: "table1", Size: 125},
-				{SchemaName: "public", ObjectName: "table2", Size: 60},
+				{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 125, Valid: true}},
+				{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 60, Valid: true}},
 			},
 			VCPUsPerInstance: 4,
 			NumNodes:         3,
@@ -772,7 +808,10 @@ func TestCalculateTimeTakenAndParallelJobsForImportColocatedObjects_ValidateForm
 		WillReturnRows(rows)
 
 	// Define test data
-	dbObjects := []SourceDBMetadata{{Size: 30.0}, {Size: 20.0}}
+	dbObjects := []SourceDBMetadata{
+		{Size: sql.NullFloat64{Float64: 30.0, Valid: true}},
+		{Size: sql.NullFloat64{Float64: 20.0, Valid: true}},
+	}
 
 	// Call the function
 	estimatedTime, parallelJobs, err :=
@@ -802,17 +841,17 @@ func TestCalculateTimeTakenAndParallelJobsForImportColocatedObjects_ValidateForm
 func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithoutIndex(t *testing.T) {
 	// Define test data
 	shardedTables := []SourceDBMetadata{
-		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+		{ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true}},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 	shardedLoadTimes := []ExpDataShardedLoadTime{
 		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
 		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
 	}
-
+	var indexImpacts []ExpDataShardedLoadTimeIndexImpact
 	// Call the function
 	estimatedTime, parallelJobs, err :=
-		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes, indexImpacts)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -832,7 +871,7 @@ func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImport
 func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithOneIndex(t *testing.T) {
 	// Define test data
 	shardedTables := []SourceDBMetadata{
-		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+		{ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true}},
 	}
 	sourceIndexMetadata := []SourceDBMetadata{
 		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
@@ -841,17 +880,20 @@ func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImport
 		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
 		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
 	}
+	indexImpacts := []ExpDataShardedLoadTimeIndexImpact{
+		{numIndexes: sql.NullFloat64{Float64: 1}, multiplicationFactor: sql.NullFloat64{Float64: 1.76}},
+	}
 
 	// Call the function
 	estimatedTime, parallelJobs, err :=
-		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes, indexImpacts)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
 
 	// Define expected results
-	// Calculated as table0: 2 * ((1134 * 23) / 19) / 60
-	expectedTime := 46.0 // double the time required when there are no indexes.
+	// Calculated as table0: 1.76 * ((1134 * 23) / 19) / 60
+	expectedTime := 41.0 // double the time required when there are no indexes.
 	expectedJobs := int64(1)
 	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
 		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
@@ -864,7 +906,7 @@ func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImport
 func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImportTimeTableWithFiveIndexes(t *testing.T) {
 	// Define test data
 	shardedTables := []SourceDBMetadata{
-		{ObjectName: "table0", SchemaName: "public", Size: 23.0},
+		{ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true}},
 	}
 	sourceIndexMetadata := []SourceDBMetadata{
 		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
@@ -878,16 +920,21 @@ func TestCalculateTimeTakenAndParallelJobsForImportShardedObjects_ValidateImport
 		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
 	}
 
+	indexImpacts := []ExpDataShardedLoadTimeIndexImpact{
+		{numIndexes: sql.NullFloat64{Float64: 1}, multiplicationFactor: sql.NullFloat64{Float64: 1.76}},
+		{numIndexes: sql.NullFloat64{Float64: 5}, multiplicationFactor: sql.NullFloat64{Float64: 4.6}},
+	}
+
 	// Call the function
 	estimatedTime, parallelJobs, err :=
-		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes)
+		calculateTimeTakenAndParallelJobsForImportShardedObjects(shardedTables, sourceIndexMetadata, shardedLoadTimes, indexImpacts)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
 
 	// Define expected results
-	// Calculated as table0: 4 * ((1134 * 23) / 19) / 60
-	expectedTime := 92.0 // 4(0.8 * 5 indexes) times the time required when there are no indexes.
+	// Calculated as table0: 4.6 * ((1134 * 23) / 19) / 60
+	expectedTime := 106.0
 	expectedJobs := int64(1)
 	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
 		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
@@ -904,7 +951,7 @@ func TestGetReasoning_NoObjects(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 4, MemoryPerCore: 16}
 	var shardedObjects []SourceDBMetadata
 	var colocatedObjects []SourceDBMetadata
-	expected := "Recommended instance type with 4 vCPU and 64 GiB memory could fit "
+	expected := "Recommended instance type with 4 vCPU and 64 GiB memory could fit  Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 
 	result := getReasoning(recommendation, shardedObjects, 0, colocatedObjects, 0)
 	if result != expected {
@@ -917,12 +964,12 @@ func TestGetReasoning_OnlyColocatedObjects(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 8, MemoryPerCore: 8}
 	var shardedObjects []SourceDBMetadata
 	colocatedObjects := []SourceDBMetadata{
-		{Size: 50.0, ReadsPerSec: 1000, WritesPerSec: 500},
-		{Size: 30.0, ReadsPerSec: 2000, WritesPerSec: 1500},
+		{Size: sql.NullFloat64{Valid: true, Float64: 50.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 1000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 500}},
+		{Size: sql.NullFloat64{Valid: true, Float64: 30.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 2000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 1500}},
 	}
-	expected := "Recommended instance type with 8 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 " +
+	expected := "Recommended instance type with 8 vCPU and 64 GiB memory could fit 2 objects (2 tables and 0 " +
 		"explicit/implicit indexes) with 80.00 GB size and throughput requirement of 3000 reads/sec and " +
-		"2000 writes/sec as colocated."
+		"2000 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 
 	result := getReasoning(recommendation, shardedObjects, 0, colocatedObjects, 0)
 	if result != expected {
@@ -934,13 +981,13 @@ func TestGetReasoning_OnlyColocatedObjects(t *testing.T) {
 func TestGetReasoning_OnlyShardedObjects(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 16, MemoryPerCore: 4}
 	shardedObjects := []SourceDBMetadata{
-		{Size: 100.0, ReadsPerSec: 4000, WritesPerSec: 3000},
-		{Size: 200.0, ReadsPerSec: 5000, WritesPerSec: 4000},
+		{Size: sql.NullFloat64{Valid: true, Float64: 100.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 4000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 3000}},
+		{Size: sql.NullFloat64{Valid: true, Float64: 200.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 5000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 4000}},
 	}
 	var colocatedObjects []SourceDBMetadata
-	expected := "Recommended instance type with 16 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 " +
+	expected := "Recommended instance type with 16 vCPU and 64 GiB memory could fit 2 objects (2 tables and 0 " +
 		"explicit/implicit indexes) with 300.00 GB size and throughput requirement of 9000 reads/sec and " +
-		"7000 writes/sec as sharded."
+		"7000 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 
 	result := getReasoning(recommendation, shardedObjects, 0, colocatedObjects, 0)
 	if result != expected {
@@ -952,17 +999,17 @@ func TestGetReasoning_OnlyShardedObjects(t *testing.T) {
 func TestGetReasoning_ColocatedAndShardedObjects(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 32, MemoryPerCore: 2}
 	shardedObjects := []SourceDBMetadata{
-		{Size: 150.0, ReadsPerSec: 7000, WritesPerSec: 6000},
+		{Size: sql.NullFloat64{Valid: true, Float64: 150.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 7000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 6000}},
 	}
 	colocatedObjects := []SourceDBMetadata{
-		{Size: 70.0, ReadsPerSec: 3000, WritesPerSec: 2000},
-		{Size: 50.0, ReadsPerSec: 2000, WritesPerSec: 1000},
+		{Size: sql.NullFloat64{Valid: true, Float64: 70.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 3000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 2000}},
+		{Size: sql.NullFloat64{Valid: true, Float64: 50.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 2000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 1000}},
 	}
-	expected := "Recommended instance type with 32 vCPU and 64 GiB memory could fit 2 objects(2 tables and 0 " +
+	expected := "Recommended instance type with 32 vCPU and 64 GiB memory could fit 2 objects (2 tables and 0 " +
 		"explicit/implicit indexes) with 120.00 GB size and throughput requirement of 5000 reads/sec and " +
-		"3000 writes/sec as colocated. Rest 1 objects(1 tables and 0 explicit/implicit indexes) with 150.00 GB " +
+		"3000 writes/sec as colocated. Rest 1 objects (1 tables and 0 explicit/implicit indexes) with 150.00 GB " +
 		"size and throughput requirement of 7000 reads/sec and 6000 writes/sec need to be migrated as range " +
-		"partitioned tables"
+		"partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 
 	result := getReasoning(recommendation, shardedObjects, 0, colocatedObjects, 0)
 	if result != expected {
@@ -974,16 +1021,16 @@ func TestGetReasoning_ColocatedAndShardedObjects(t *testing.T) {
 func TestGetReasoning_Indexes(t *testing.T) {
 	recommendation := IntermediateRecommendation{VCPUsPerInstance: 4, MemoryPerCore: 16}
 	shardedObjects := []SourceDBMetadata{
-		{Size: 200.0, ReadsPerSec: 6000, WritesPerSec: 4000},
+		{Size: sql.NullFloat64{Valid: true, Float64: 200.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 6000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 4000}},
 	}
 	colocatedObjects := []SourceDBMetadata{
-		{Size: 100.0, ReadsPerSec: 3000, WritesPerSec: 2000},
+		{Size: sql.NullFloat64{Valid: true, Float64: 100.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 3000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 2000}},
 	}
-	expected := "Recommended instance type with 4 vCPU and 64 GiB memory could fit 1 objects(0 tables and " +
+	expected := "Recommended instance type with 4 vCPU and 64 GiB memory could fit 1 objects (0 tables and " +
 		"1 explicit/implicit indexes) with 100.00 GB size and throughput requirement of 3000 reads/sec and " +
-		"2000 writes/sec as colocated. Rest 1 objects(0 tables and 1 explicit/implicit indexes) with 200.00 GB size " +
+		"2000 writes/sec as colocated. Rest 1 objects (0 tables and 1 explicit/implicit indexes) with 200.00 GB size " +
 		"and throughput requirement of 6000 reads/sec and 4000 writes/sec need to be migrated as range " +
-		"partitioned tables"
+		"partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 
 	result := getReasoning(recommendation, shardedObjects, 1, colocatedObjects, 1)
 	if result != expected {

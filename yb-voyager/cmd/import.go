@@ -206,8 +206,8 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of the source db table names to import data")
 
-	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
-		"Enable UPSERT mode on target tables")
+	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", false,
+		"Enable UPSERT mode on target tables. WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. If a table has secondary indexes, setting this flag to true may lead to corruption of the indexes. (default false)")
 	BoolVar(cmd.Flags(), &tconf.UsePublicIP, "use-public-ip", false,
 		"Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
@@ -247,7 +247,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
 		"Imports the schema objects in the order specified via the --object-type-list flag (default false)")
 	BoolVar(cmd.Flags(), &flagPostSnapshotImport, "post-snapshot-import", false,
-		"Imports indexes and triggers in the target YugabyteDB after data import is complete. This argument assumes that data import is already done and imports only indexes and triggers in the YugabyteDB database.")
+		"Perform schema related tasks on target YugabyteDB after data import is complete. Use --refresh-mviews along with this flag to refresh materialized views.")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
@@ -303,7 +303,7 @@ func getSourceReplicaDBPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "source-replica-db-password", "SOURCE_REPLICA_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error while getting ff-db-password: %w", err)
+		utils.ErrExit("error while getting source-replica-db-password: %w", err)
 	}
 }
 

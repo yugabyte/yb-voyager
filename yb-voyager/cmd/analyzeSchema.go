@@ -332,7 +332,7 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 			}
 		}
 		if strings.Contains(strings.ToLower(sqlInfo.stmt), "using gin") {
-			summaryMap["INDEX"].details["There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."] = true
+			summaryMap["INDEX"].details["There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."] = true
 		}
 	}
 }
@@ -734,6 +734,9 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	} else if objType == "INDEX" || objType == "PARTITION_INDEX" || objType == "FTS_INDEX" {
 		createObjRegex = re("CREATE", opt("UNIQUE"), "INDEX", ifNotExists, capture(ident))
 		objNameIndex = 3
+	} else if objType == "TABLE" || objType == "PARTITION" {
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "TABLE", ifNotExists, capture(ident))
+		objNameIndex = 3
 	} else { //TODO: check syntaxes for other objects and add more cases if required
 		createObjRegex = re("CREATE", opt("OR REPLACE"), objType, ifNotExists, capture(ident))
 		objNameIndex = 3
@@ -751,9 +754,29 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 	if createObjStmt != nil {
 		objName = createObjStmt[objNameIndex]
 
-		if summaryMap != nil && summaryMap[objType] != nil { //when just createSqlStrArray() is called from someother file, then no summaryMap exists
-			summaryMap[objType].totalCount += 1
-			summaryMap[objType].objSet[objName] = true
+		if objType == "PARTITION" || objType == "TABLE" {
+			if summaryMap != nil && summaryMap["TABLE"] != nil {
+				summaryMap["TABLE"].totalCount += 1
+				summaryMap["TABLE"].objSet[objName] = true
+			}
+		} else {
+			if summaryMap != nil && summaryMap[objType] != nil { //when just createSqlStrArray() is called from someother file, then no summaryMap exists
+				summaryMap[objType].totalCount += 1
+				summaryMap[objType].objSet[objName] = true
+			}
+		}
+	} else {
+		if objType == "TYPE" {
+			//in case of oracle there are some inherited types which can be exported as inherited tables but will be dumped in type.sql
+			createObjRegex, objNameIndex = getCreateObjRegex("TABLE")
+			createObjStmt = createObjRegex.FindStringSubmatch(formattedStmt)
+			if createObjStmt != nil {
+				objName = createObjStmt[objNameIndex]
+				if summaryMap != nil && summaryMap["TABLE"] != nil {
+					summaryMap["TABLE"].totalCount += 1
+					summaryMap["TABLE"].objSet[objName] = true
+				}
+			}
 		}
 	}
 

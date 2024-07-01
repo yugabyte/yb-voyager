@@ -57,6 +57,7 @@ CREATE TABLE diagnostics (
 	migration_type TEXT,
 	time_taken_sec int,
 	status TEXT,
+	host_ip character varying 255 -- set by the callhome service
 	PRIMARY KEY (migration_uuid, migration_phase, collected_at)
 
 );
@@ -79,15 +80,15 @@ type SourceDBDetails struct {
 	Host      string `json:"host"`
 	DBType    string `json:"db_type"`
 	DBVersion string `json:"db_version"`
-	DBSize    int64  `json:"total_db_size"` //bytes
-
+	DBSize    int64  `json:"total_db_size_bytes"` //bytes
+	Role      string `json:"role,omitempty"`      //for differentiating replica details
 }
 
 type TargetDBDetails struct {
 	Host      string `json:"host"`
 	DBVersion string `json:"db_version"`
 	NodeCount int    `json:"node_count"`
-	Cores     int    `json:"cores"`
+	Cores     int    `json:"total_cores"`
 }
 
 type AssessMigrationPhasePayload struct {
@@ -97,19 +98,22 @@ type AssessMigrationPhasePayload struct {
 	TableSizingStats     string `json:"table_sizing_stats"`
 	IndexSizingStats     string `json:"index_sizing_stats"`
 	SchemaSummary        string `json:"schema_summary"`
+	SourceConnectivity   bool   `json:"source_connectivity"`
+	CommandLineArgs      string `json:"command_line_args"`
 }
 
 type ObjectSizingStats struct {
-	SchemaName      string `json:"SchemaName"`
-	ObjectName      string `json:"ObjectName"`
-	ReadsPerSecond  int64  `json:"ReadsPerSecond"`
-	WritesPerSecond int64  `json:"WritesPerSecond"`
-	SizeInBytes     int64  `json:"SizeInBytes"`
+	SchemaName      string `json:"schema_name"`
+	ObjectName      string `json:"object_name"`
+	ReadsPerSecond  int64  `json:"reads_per_second"`
+	WritesPerSecond int64  `json:"writes_per_second"`
+	SizeInBytes     int64  `json:"size_in_bytes"`
 }
 
 type ExportSchemaPhasePayload struct {
-	StartClean             bool `json:"start_clean"`
-	AppliedRecommendations bool `json:"applied_recommendations"`
+	StartClean             bool   `json:"start_clean"`
+	AppliedRecommendations bool   `json:"applied_recommendations"`
+	CommandLineArgs        string `json:"command_line_args"`
 }
 
 type AnalyzePhasePayload struct {
@@ -117,11 +121,17 @@ type AnalyzePhasePayload struct {
 	DatabaseObjects string `json:"database_objects"`
 }
 type ExportDataPhasePayload struct {
-	ParallelJobs        int64  `json:"parallel_jobs"`
-	TotalRows           int64  `json:"total_rows"`
-	LargestTableRows    int64  `json:"largest_table_rows"`
-	StartClean          bool   `json:"start_clean"`
-	ExportDataMechanism string `json:"export_data_mechanism"`
+	ParallelJobs            int64  `json:"parallel_jobs"`
+	TotalRows               int64  `json:"total_rows_exported"`
+	LargestTableRows        int64  `json:"largest_table_rows_exported"`
+	StartClean              bool   `json:"start_clean"`
+	ExportSnapshotMechanism string `json:"export_snapshot_mechanism,omitempty"`
+	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
+	Phase               string `json:"phase,omitempty"`
+	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
+	EventsExportRate    int64  `json:"events_export_rate_3m,omitempty"`
+	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
+	CommandLineArgs     string `json:"command_line_args,omitempty"`
 }
 
 type ImportSchemaPhasePayload struct {
@@ -129,19 +139,26 @@ type ImportSchemaPhasePayload struct {
 	Errors             []string `json:"errors"`
 	PostSnapshotImport bool     `json:"post_snapshot_import"`
 	StartClean         bool     `json:"start_clean"`
+	CommandLineArgs    string   `json:"command_line_args"`
 }
 
 type ImportDataPhasePayload struct {
 	ParallelJobs     int64 `json:"parallel_jobs"`
-	TotalRows        int64 `json:"total_rows"`
-	LargestTableRows int64 `json:"largest_table_rows"`
+	TotalRows        int64 `json:"total_rows_imported"`
+	LargestTableRows int64 `json:"largest_table_rows_imported"`
 	StartClean       bool  `json:"start_clean"`
+	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
+	Phase               string `json:"phase,omitempty"`
+	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
+	EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
+	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
+	CommandLineArgs     string `json:"command_line_args"`
 }
 
 type ImportDataFilePhasePayload struct {
 	ParallelJobs       int64  `json:"parallel_jobs"`
-	TotalSize          int64  `json:"total_size"`
-	LargestTableSize   int64  `json:"largest_table_size"`
+	TotalSize          int64  `json:"total_size_imported"`
+	LargestTableSize   int64  `json:"largest_table_size_imported"`
 	FileStorageType    string `json:"file_storage_type"`
 	StartClean         bool   `json:"start_clean"`
 	DataFileParameters string `json:"data_file_parameters"`
@@ -157,10 +174,14 @@ type DataFileParameters struct {
 }
 
 type EndMigrationPhasePayload struct {
-	BackupLogFiles       bool `json:"backup_log_files"`
-	BackupDataFiles      bool `json:"backup_data_files"`
-	BackupSchemaFiles    bool `json:"backup_schema_files"`
-	SaveMigrationReports bool `json:"save_migration_reports"`
+	CommandLineArgs string `json:"command_line_args"`
+}
+
+var DoNotStoreFlags = []string{
+	"source-db-password",
+	"target-db-password",
+	"source-replica-db-password",
+	"export-dir",
 }
 
 func MarshalledJsonString[T any](value T) string {

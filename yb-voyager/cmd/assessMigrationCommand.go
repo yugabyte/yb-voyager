@@ -43,12 +43,13 @@ import (
 )
 
 var (
-	assessmentMetadataDir           string
-	assessmentMetadataDirFlag       string
-	assessmentReport                AssessmentReport
-	assessmentDB                    *migassessment.AssessmentDB
-	intervalForCapturingIOPS        int64
-	assessMigrationSupportedDBTypes = []string{POSTGRESQL, ORACLE}
+	assessmentMetadataDir            string
+	assessmentMetadataDirFlag        string
+	assessmentReport                 AssessmentReport
+	assessmentDB                     *migassessment.AssessmentDB
+	intervalForCapturingIOPS         int64
+	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
+	referenceOrTablePartitionPresent = false
 )
 var sourceConnectionFlags = []string{
 	"source-db-host",
@@ -152,6 +153,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:     callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:        callhome.MarshalledJsonString(schemaSummaryCopy),
+		CommandLineArgs:      cliArgsString,
 	}
 	if status == ERROR {
 		assessPayload.Error = errMsg
@@ -164,6 +166,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			DBSize:    source.DBSize,
 		}
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
+		assessPayload.SourceConnectivity = true
+	} else {
+		assessPayload.SourceConnectivity = false
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
 	payload.Status = status
@@ -261,17 +266,10 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
-	
-	err = source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("error connecting source db: %v", err)
+
+	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+		fetchSourceInfo()
 	}
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-	source.DB().Disconnect()
 
 	parseExportedSchemaFileForAssessmentIfRequired()
 
@@ -298,6 +296,19 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
 	}
 	return nil
+}
+
+func fetchSourceInfo() {
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("error connecting source db: %v", err)
+	}
+	source.DBVersion = source.DB().GetVersion()
+	source.DBSize, err = source.DB().GetDatabaseSize()
+	if err != nil {
+		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+	}
+	source.DB().Disconnect()
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
@@ -340,7 +351,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
-	sizeDetails, err := assessmentReport.CalculateSizeDetails()
+	sizeDetails, err := assessmentReport.CalculateSizeDetails(source.DBType)
 	if err != nil {
 		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
 	}
@@ -382,7 +393,7 @@ type SizeDetails struct {
 	TotalShardedSize   int64
 }
 
-func(ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
+func (ar *AssessmentReport) CalculateSizeDetails(dbType string) (SizeDetails, error) {
 	var details SizeDetails
 	colocatedTables, err := ar.GetColocatedTablesRecommendation()
 	if err != nil {
@@ -394,9 +405,18 @@ func(ar *AssessmentReport) CalculateSizeDetails() (SizeDetails, error) {
 			if stat.IsIndex {
 				details.TotalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 			} else {
+				var tableName string
+				switch dbType {
+				case ORACLE:
+					tableName = stat.ObjectName // in case of oracle, colocatedTables have unqualified table names
+				case POSTGRESQL:
+					tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
+				default:
+					return details, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
+				}
 				details.TotalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 				details.TotalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
-				if slices.Contains(colocatedTables, fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)) {
+				if slices.Contains(colocatedTables, tableName) {
 					details.TotalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 				} else {
 					details.TotalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
@@ -657,7 +677,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 	return nil
 }
 
-//go:embed assessmentReport.template
+//go:embed templates/assessmentReport.template
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
@@ -678,12 +698,16 @@ func generateAssessmentReport() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
+	assessmentReport.UnsupportedDataTypesDesc = "Data types of the source database that are not supported on the target YugabyteDB."
 
 	assessmentReport.Sizing = migassessment.SizingReport
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
 	}
+
+	addNotesToAssessmentReport()
+	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
@@ -701,6 +725,10 @@ func generateAssessmentReport() (err error) {
 func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
+	assessmentReport.SchemaSummaryDBObjectsDesc = "Objects that will be created on the target YugabyteDB."
+	if source.DBType == ORACLE {
+		assessmentReport.SchemaSummaryDBObjectsDesc += " Some of the index and sequence names might be different from those in the source database."
+	}
 
 	// set invalidCount to zero so that it doesn't show up in the report
 	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
@@ -722,6 +750,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 		return fmt.Errorf("failed to fetch %s unsupported features: %w", source.DBType, err)
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
+	assessmentReport.UnsupportedFeaturesDesc = "Features of the source database that are not supported on the target YugabyteDB."
 	return nil
 }
 
@@ -753,7 +782,7 @@ func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.S
 	return unsupportedFeatures, nil
 }
 
-var OracleUnsupportedIndexTypes = []string{"CLUSTER INDEX", "DOMAIN INDEX", "BITMAP INDEX", "FUNCTION-BASED DOMAIN INDEX", "IOT - TOP INDEX", "NORMAL/REV INDEX", "FUNCTION-BASED NORMAL/REV INDEX"}
+var OracleUnsupportedIndexTypes = []string{"CLUSTER INDEX", "DOMAIN INDEX", "FUNCTION-BASED DOMAIN INDEX", "IOT - TOP INDEX", "NORMAL/REV INDEX", "FUNCTION-BASED NORMAL/REV INDEX"}
 
 func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	if source.DBType != ORACLE {
@@ -772,7 +801,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 		}
 	}()
 
-	var unsupportedIndexes, virtualColumns, inheritedTypes []string
+	var unsupportedIndexes, virtualColumns, inheritedTypes, unsupportedPartitionTypes []string
 	for rows.Next() {
 		var schemaName, objectName, objectType string
 		err = rows.Scan(&schemaName, &objectName, &objectType)
@@ -781,11 +810,14 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 		}
 
 		if slices.Contains(OracleUnsupportedIndexTypes, objectType) {
-			unsupportedIndexes = append(unsupportedIndexes, fmt.Sprintf("(name=%s, type=%s)", objectName, objectType))
-		} else if objectType == "VIRTUAL COLUMN" {
+			unsupportedIndexes = append(unsupportedIndexes, fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType))
+		} else if objectType == VIRTUAL_COLUMN {
 			virtualColumns = append(virtualColumns, objectName)
-		} else if objectType == "INHERITED TYPE" {
+		} else if objectType == INHERITED_TYPE {
 			inheritedTypes = append(inheritedTypes, objectName)
+		} else if objectType == REFERENCE_PARTITION || objectType == SYSTEM_PARTITION {
+			referenceOrTablePartitionPresent = true
+			unsupportedPartitionTypes = append(unsupportedPartitionTypes, fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType))
 		}
 	}
 
@@ -793,6 +825,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes})
 	return unsupportedFeatures, nil
 }
 
@@ -842,6 +875,58 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	}
 
 	return unsupportedDataTypes, nil
+}
+
+const ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
+To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
+
+const ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
+
+const GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+
+func addNotesToAssessmentReport() {
+	log.Infof("adding notes to assessment report")
+	switch source.DBType {
+	case ORACLE:
+		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
+		// file exists and isn't empty (containing PARTITIONs DDLs)
+		if utils.FileOrFolderExists(partitionSqlFPath) && !utils.IsFileEmpty(partitionSqlFPath) {
+			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_PARTITION_DEFAULT_COLOCATION)
+		}
+		if referenceOrTablePartitionPresent {
+			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_UNSUPPPORTED_PARTITIONING)
+		}
+
+		// checking if gin indexes are present.
+		for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
+			if dbObj.ObjectType == "INDEX" {
+				if strings.Contains(dbObj.Details, "gin indexes present") {
+					assessmentReport.Notes = append(assessmentReport.Notes, GIN_INDEXES)
+					break
+				}
+			}
+		}
+	}
+}
+
+func postProcessingOfAssessmentReport() {
+	switch source.DBType {
+	case ORACLE:
+		log.Infof("post processing of assessment report to remove the schema name from fully qualified table names")
+		for i := range assessmentReport.Sizing.SizingRecommendation.ShardedTables {
+			parts := strings.Split(assessmentReport.Sizing.SizingRecommendation.ShardedTables[i], ".")
+			if len(parts) > 1 {
+				assessmentReport.Sizing.SizingRecommendation.ShardedTables[i] = parts[1]
+			}
+		}
+
+		for i := range assessmentReport.Sizing.SizingRecommendation.ColocatedTables {
+			parts := strings.Split(assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i], ".")
+			if len(parts) > 1 {
+				assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i] = parts[1]
+			}
+		}
+	}
 }
 
 func generateAssessmentReportJson(reportDir string) error {
