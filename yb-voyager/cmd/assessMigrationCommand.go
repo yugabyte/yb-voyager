@@ -529,7 +529,7 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 	}
 
 	log.Infof("using script: %s", scriptPath)
-	return runGatherAssessmentMetadataScript(scriptPath, []string{"ORACLE_PASSWORD=" + source.Password},
+	return runGatherAssessmentMetadataScript(scriptPath, []string{"ORACLE_PASSWORD=" + source.Password, "TNS_ALIAS=" + source.TNSAlias},
 		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schema), assessmentMetadataDir)
 }
 
