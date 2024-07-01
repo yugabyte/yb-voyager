@@ -40,10 +40,9 @@ then
 	exit 1
 fi
 
-# Extract the commit hash from the fetched data using jq
 LATEST_TAGGED_COMMIT=$(echo "$LATEST_TAG_DATA" | jq -r '.object.sha')
 
-# Extract the version number from release name
+# The release name is like v1.7.2, we can get the voyager version by removing the v
 VOYAGER_VERSION=$(echo $LATEST_RELEASE_NAME | sed 's/v//')
 
 # Log all the fetched data in the LOG_FILE
@@ -90,11 +89,6 @@ RC_FILE="$HOME/.yb-voyager.rc"
 touch $RC_FILE
 # just in case last execution of script stopped in between
 source $RC_FILE
-
-# get data from github api fetched data using grep etc
-get_data_from_gh_api_json() {
-	echo $1 | grep '$2' | head -n 1 | awk -F '"' '{print $4}'
-}
 
 on_exit() {
 	rc=$?
