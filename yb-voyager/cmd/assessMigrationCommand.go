@@ -900,7 +900,7 @@ func addNotesToAssessmentReport() {
 		// checking if gin indexes are present.
 		for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
 			if dbObj.ObjectType == "INDEX" {
-				if strings.Contains(dbObj.Details, "gin indexes present") {
+				if strings.Contains(dbObj.Details, GIN_INDEX_DETAILS) {
 					assessmentReport.Notes = append(assessmentReport.Notes, GIN_INDEXES)
 					break
 				}
