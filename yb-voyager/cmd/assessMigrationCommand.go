@@ -528,13 +528,16 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 		return err
 	}
 
-	log.Infof("using script: %s", scriptPath)
 	tnsAdmin, err := getTNSAdmin(source)
 	if err != nil {
 		return fmt.Errorf("error getting tnsAdmin: %v", err)
 	}
-	log.Infof("tnsAdmin passed to oracle gather metadata script: %s", tnsAdmin)
-	return runGatherAssessmentMetadataScript(scriptPath, []string{"ORACLE_PASSWORD=" + source.Password, "TNS_ADMIN=" + tnsAdmin},
+	envVars := []string{fmt.Sprintf("ORACLE_PASSWORD=%s", source.Password),
+		fmt.Sprintf("TNS_ADMIN=%s", tnsAdmin),
+		fmt.Sprintf("ORACLE_HOME=%s", source.GetOracleHome()),
+	}
+	log.Infof("environment variables passed to oracle gather metadata script: %v", envVars)
+	return runGatherAssessmentMetadataScript(scriptPath, envVars,
 		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schema), assessmentMetadataDir)
 }
 
@@ -547,9 +550,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	if err != nil {
 		return err
 	}
-
-	log.Infof("using script: %s", scriptPath)
-	return runGatherAssessmentMetadataScript(scriptPath, []string{"PGPASSWORD=" + source.Password},
+	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%d", intervalForCapturingIOPS))
 }
 
@@ -584,8 +585,8 @@ func findGatherMetadataScriptPath(dbType string) (string, error) {
 func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scriptArgs ...string) error {
 	cmd := exec.Command(scriptPath, scriptArgs...)
 	log.Infof("running script: %s", cmd.String())
+	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, envVars...)
-	cmd.Env = append(cmd.Env, "PATH="+os.Getenv("PATH"))
 	cmd.Dir = assessmentMetadataDir
 	cmd.Stdin = os.Stdin
 
