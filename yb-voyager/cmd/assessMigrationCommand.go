@@ -81,6 +81,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
+		validateOracleParams()
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
 			for _, f := range sourceConnectionFlags {

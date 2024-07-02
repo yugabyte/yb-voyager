@@ -24,9 +24,10 @@ Collects Oracle database statistics and schema information.
 Note: The order of the arguments is important and must be followed.
 
 Arguments:
-  oracle_connection_string    Oracle connection string in the format(no other format is supported as of now):
-                              1. 'username@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = hostname)(PORT = port))(CONNECT_DATA = (SID = SID)))'
-                              2. 'username@tns_alias'
+  oracle_connection_string    Oracle connection string in the following formats(no other format is supported as of now):
+                              1. 'username@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = hostname)(PORT = port))(CONNECT_DATA = (SERVICE_NAME = service_name)))'
+                              2. 'username@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = hostname)(PORT = port))(CONNECT_DATA = (SID = sid)))'
+                              3. 'username@tns_alias'
                               Ensure this string is properly quoted to avoid shell interpretation issues.
 
   schema_name                 The name of the schema for which statistics are to be collected.
