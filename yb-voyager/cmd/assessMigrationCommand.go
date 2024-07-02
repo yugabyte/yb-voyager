@@ -72,8 +72,8 @@ type UnsupportedFeature struct {
 
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
-	Short: "Assess the migration from source (PostgreSQL) database to YugabyteDB.",
-	Long:  `Assess the migration from source (PostgreSQL) database to YugabyteDB.`,
+	Short: fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
+	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateSourceDBTypeForAssessMigration()
@@ -81,6 +81,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
+		validateOracleParams()
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
 			for _, f := range sourceConnectionFlags {
@@ -181,7 +182,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
-		"source database type: (postgresql)\n")
+		fmt.Sprintf("source database type: (%s)\n", strings.Join(assessMigrationSupportedDBTypes, ", ")))
 
 	cmd.MarkFlagRequired("source-db-type")
 
@@ -189,7 +190,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 		"source database server host")
 
 	cmd.Flags().IntVar(&source.Port, "source-db-port", 0,
-		"source database server port number. Default: PostgreSQL(5432)")
+		"source database server port number. Default: PostgreSQL(5432), Oracle(1521)")
 
 	cmd.Flags().StringVar(&source.User, "source-db-user", "",
 		"connect to source database as the specified user")
@@ -203,7 +204,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name(s) to export\n"+
-			`Note: in case of multiple schemas, use a comma separated list of schemas: "schema1,schema2,schema3"`)
+			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 
 	// TODO SSL related more args will come. Explore them later.
 	cmd.Flags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
@@ -220,6 +221,15 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
 		"Path of the file containing source SSL Root Certificate Revocation List (CRL)")
+
+	cmd.Flags().StringVar(&source.DBSid, "oracle-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
+
+	cmd.Flags().StringVar(&source.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 }
 
 func init() {
@@ -519,8 +529,16 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 		return err
 	}
 
-	log.Infof("using script: %s", scriptPath)
-	return runGatherAssessmentMetadataScript(scriptPath, []string{"ORACLE_PASSWORD=" + source.Password},
+	tnsAdmin, err := getTNSAdmin(source)
+	if err != nil {
+		return fmt.Errorf("error getting tnsAdmin: %v", err)
+	}
+	envVars := []string{fmt.Sprintf("ORACLE_PASSWORD=%s", source.Password),
+		fmt.Sprintf("TNS_ADMIN=%s", tnsAdmin),
+		fmt.Sprintf("ORACLE_HOME=%s", source.GetOracleHome()),
+	}
+	log.Infof("environment variables passed to oracle gather metadata script: %v", envVars)
+	return runGatherAssessmentMetadataScript(scriptPath, envVars,
 		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schema), assessmentMetadataDir)
 }
 
@@ -533,9 +551,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	if err != nil {
 		return err
 	}
-
-	log.Infof("using script: %s", scriptPath)
-	return runGatherAssessmentMetadataScript(scriptPath, []string{"PGPASSWORD=" + source.Password},
+	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%d", intervalForCapturingIOPS))
 }
 
@@ -570,8 +586,8 @@ func findGatherMetadataScriptPath(dbType string) (string, error) {
 func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scriptArgs ...string) error {
 	cmd := exec.Command(scriptPath, scriptArgs...)
 	log.Infof("running script: %s", cmd.String())
+	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, envVars...)
-	cmd.Env = append(cmd.Env, "PATH="+os.Getenv("PATH"))
 	cmd.Dir = assessmentMetadataDir
 	cmd.Stdin = os.Stdin
 

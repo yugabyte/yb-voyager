@@ -684,8 +684,6 @@ EOF
 assess_migration() {
 	args="--export-dir ${EXPORT_DIR}
 		--source-db-type ${SOURCE_DB_TYPE}
-		--source-db-host ${SOURCE_DB_HOST}
-		--source-db-port ${SOURCE_DB_PORT}
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
@@ -697,24 +695,30 @@ assess_migration() {
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
+
 	if [ "${SOURCE_DB_SSL_MODE}" != "" ]
 	then
 		args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
 	fi
-
 	if [ "${SOURCE_DB_SSL_CERT}" != "" ]
 	then
 		args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
 	fi
-
 	if [ "${SOURCE_DB_SSL_KEY}" != "" ]
 	then
 		args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
 	fi
-
 	if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]
 	then
 		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
+	fi
+
+	# flag enabling oracle ssl tests --oracle-tns-alias
+	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
+	then
+		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
+	else
+		args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
 	fi
 	
 	yb-voyager assess-migration ${args} $*
