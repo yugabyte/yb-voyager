@@ -407,7 +407,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
 
-	if msr.SnapshotMechanism == "debezium" {
+	if msr.IsSnapshotExportedViaDebezium() {
 		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType)
 	} else {
 		valueConverter, err = dbzm.NewNoOpValueConverter()
@@ -560,7 +560,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 	} else {
 		// offline migration; either using dbzm or pg_dump/ora2pg
-		if !dbzm.IsDebeziumForDataExport(exportDir) {
+		if !msr.IsSnapshotExportedViaDebezium() {
 			errImport := executePostSnapshotImportSqls()
 			if errImport != nil {
 				utils.ErrExit("Error in importing post-snapshot-import sql: %v", err)
