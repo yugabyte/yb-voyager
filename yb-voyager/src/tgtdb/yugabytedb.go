@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"strconv"
@@ -29,6 +30,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gammazero/deque"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
@@ -1228,14 +1230,28 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	return nil
 }
 
+type adaptationEffect struct {
+	action string // inc/dec/stay
+	effect string // inc/dec/stay
+}
+
+var adaptationEffects deque.Deque[adaptationEffect]
+var prevAction string
+var prevCpuUsage int64
+
 func (yb *TargetYugabyteDB) AdaptParallelism() {
 	maxCPUThreshold := 80
+	adaptationEffectsSize := 3
+	for i := 0; i < adaptationEffectsSize; i++ {
+		adaptationEffects.PushBack(adaptationEffect{action: "stay", effect: "stay"})
+	}
 	for {
+		utils.PrintAndLog("--------------------------------------------------------")
 		clusterMetrics, err := yb.GetClusterMetrics()
 		if err != nil {
 			utils.PrintAndLog("error getting cluster metrics: %v", err)
 		}
-		utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
+		// utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
 		// max cpu
 		var clusterCPUUsage int64
 		for _, nodeMetrics := range clusterMetrics {
@@ -1243,24 +1259,69 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 				clusterCPUUsage = nodeMetrics["cpu_usage"]
 			}
 		}
-		utils.PrintAndLog("PARALLELISM: cluster cpu usage: %d", clusterCPUUsage)
-		if int(clusterCPUUsage) > maxCPUThreshold {
-
-			updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - 1)
-			if updated {
-				utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()-1)
+		// utils.PrintAndLog("PARALLELISM: cluster cpu usage: %d", clusterCPUUsage)
+		// capture adaptation effect
+		if prevAction != "" {
+			cpuChange := clusterCPUUsage - prevCpuUsage
+			var effect string
+			cpuChangePercentage := (float64(cpuChange) / float64(prevCpuUsage)) * 100
+			if math.Abs(cpuChangePercentage) < 5 {
+				effect = "stay"
+			} else if cpuChange > 0 {
+				effect = "inc"
 			} else {
-				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
+				effect = "dec"
 			}
-		} else {
+			ae := adaptationEffect{action: prevAction, effect: effect}
+			adaptationEffects.PushBack(ae)
+			utils.PrintAndLog("PARALLELISM: currentCPU: %d, cpuChangePercentage: %f,  prevAdaptationEffect: %v",
+				clusterCPUUsage, cpuChangePercentage, ae)
 
-			updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() + 1)
-			if updated {
-				utils.PrintAndLog("PARALLELISM: found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()+1)
-			} else {
-				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
+			_ = adaptationEffects.PopFront() // to maintain fixed size of last X effects
+		}
+		// if last X adaptation effects were inc/stay, then decrease parallelism by X
+		lastXAdaptationEffectsIncStay := true
+		for i := 0; i < adaptationEffectsSize; i++ {
+			ae := adaptationEffects.At(i)
+			if !((ae.action == "inc") && (ae.effect == "stay" || ae.effect == "dec")) {
+				// we've been increasing parallel jobs, but effect in CPU has been to decrease or stay
+				lastXAdaptationEffectsIncStay = false
+				break
 			}
 		}
+
+		if lastXAdaptationEffectsIncStay {
+			utils.PrintAndLog("PARALLELISM: last %d adaptation effects were inc/stay, reducing parallelism by %d", adaptationEffectsSize, adaptationEffectsSize)
+			updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - adaptationEffectsSize)
+			if updated {
+				prevAction = "dec"
+			} else {
+				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
+				prevAction = "stay"
+			}
+		} else {
+			if int(clusterCPUUsage) > maxCPUThreshold {
+				utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()-1)
+				updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() - 1)
+				if updated {
+					prevAction = "dec"
+				} else {
+					utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
+					prevAction = "stay"
+				}
+			} else {
+				utils.PrintAndLog("PARALLELISM: found CPU usage = %d <= %d, increasing parallelism to %d", clusterCPUUsage, maxCPUThreshold, yb.connPool.GetNumConnections()+1)
+				updated := yb.connPool.UpdateNumConnections(yb.connPool.GetNumConnections() + 1)
+				if updated {
+					prevAction = "inc"
+				} else {
+					utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
+					prevAction = "stay"
+				}
+			}
+		}
+
+		prevCpuUsage = clusterCPUUsage
 		time.Sleep(10 * time.Second)
 	}
 }

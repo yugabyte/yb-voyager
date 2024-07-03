@@ -126,6 +126,27 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			pool.connLock.Unlock()
 		} else {
 			pool.connLock.Lock()
+			// deal with changes in size change requests
+			select {
+			case newSize := <-pool.sizeChangeRequests:
+				if newSize > pool.size {
+					for i := 0; i < newSize-pool.size; i++ {
+						pool.conns <- nil
+					}
+				} else if newSize < pool.size {
+					for i := 0; i < pool.size-newSize; i++ {
+						conn = <-pool.conns
+						if conn != nil {
+							conn.Close(context.Background())
+						}
+					}
+				}
+				oldSize := pool.size
+				pool.size = newSize
+				utils.PrintAndLog("PARALLELISM: Updated pool size from %d to %d", oldSize, newSize)
+			default:
+
+			}
 			conn, gotIt = <-pool.conns
 			if !gotIt {
 				pool.connLock.Unlock()
