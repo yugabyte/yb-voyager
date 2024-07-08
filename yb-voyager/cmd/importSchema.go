@@ -219,7 +219,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	if status == ERROR {
 		errorsList = append(errorsList, errMsg)
 	} else {
-		if len(errorsList) > 0 {
+		if len(errorsList) > 0 && status != EXIT {
 			payload.Status = COMPLETE_WITH_ERRORS
 		}
 	}
