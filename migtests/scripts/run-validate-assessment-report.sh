@@ -60,7 +60,7 @@ main() {
 	yb-voyager version
 
 	step "Assess Migration"
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" == "oracle" ]; then
 		assess_migration
 
 		step "Validate Assessment Reports"

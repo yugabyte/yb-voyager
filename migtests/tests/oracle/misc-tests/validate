@@ -19,7 +19,7 @@ EXPECTED_ROW_COUNT = {
 	'case_sensitive_columns':6,
 	'c': 12,
 	'c1': 2,
-	'employees': 3,
+	'employees_misc': 3,
 	'foo': 34, 
 }
 

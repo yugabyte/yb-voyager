@@ -1,3 +1,4 @@
+-- TODO: Enhance the script to include the deletion of dependent objects.
 SET ECHO ON
 
 BEGIN
@@ -5,14 +6,17 @@ BEGIN
                      FROM user_objects
                     WHERE object_type IN
                              ('TABLE',
+                              'TYPE',
+                              'TABLE PARTITION',
                               'VIEW',
                               'PACKAGE',
                               'PROCEDURE',
                               'FUNCTION',
                               'SEQUENCE',
-                              'TYPE',
                               'SYNONYM',
-                              'MATERIALIZED VIEW'
+                              'INDEX',
+                              'MATERIALIZED VIEW',
+                              'CLUSTER'
                              ))
    LOOP
       BEGIN
