@@ -5,10 +5,6 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
-echo "Assigning permissions to the validate filess"
-chmod +x ${TEST_DIR}/validate
-
-
 cat > oracle-cluster-grant.sql << EOF
 	/*
 	Extra steps required to enable Debezium export
