@@ -554,8 +554,6 @@ verify_report() {
 		echo "No ${actual_report} found."
 		exit 1
 	fi
-
-
 }
 
 
@@ -800,3 +798,56 @@ move_tables() {
     jq --indent 4 --argjson new_sharded_tables "$new_sharded_tables_json" --argjson remaining_colocated_tables "$remaining_colocated_tables_json" \
        '.Sizing.SizingRecommendation.ShardedTables += $new_sharded_tables | .Sizing.SizingRecommendation.ColocatedTables = $remaining_colocated_tables' "$json_file" > tmp.json && mv tmp.json "$json_file"
 }
+
+normalize_json() {
+    local input_file="$1"
+    local output_file="$2"
+
+    jq 'walk(
+        if type == "object" then
+            if has("ObjectNames") and (."ObjectNames" | type == "string") then
+                .ObjectNames |= (split(", ") | sort | join(", "))
+            elif has("DbVersion") then
+                .DbVersion = "IGNORED"
+            elif has("OptimalSelectConnectionsPerNode") then
+                .OptimalSelectConnectionsPerNode = "IGNORED"
+            elif has("OptimalInsertConnectionsPerNode") then
+                .OptimalInsertConnectionsPerNode = "IGNORED"
+            else
+                .
+            end
+        elif type == "array" then
+            sort_by(tostring)
+        else
+            .
+        end
+    )' "$input_file" > "$output_file"
+}
+
+compare_assessment_reports() {
+    local file1="$1"
+    local file2="$2"
+
+    local temp_file1=$(mktemp)
+    local temp_file2=$(mktemp)
+
+    normalize_json "$file1" "$temp_file1"
+    normalize_json "$file2" "$temp_file2"
+
+    if cmp -s "$temp_file1" "$temp_file2"; then
+        echo "Data matches expected report."
+    else
+        echo "Data does not match expected report."
+        diff_output=$(diff "$temp_file1" "$temp_file2")
+        echo "$diff_output"
+		
+		# Clean up temporary files
+		rm "$temp_file1" "$temp_file2"
+        exit 1
+    fi
+
+    # Clean up temporary files
+    rm "$temp_file1" "$temp_file2"
+}
+
+
