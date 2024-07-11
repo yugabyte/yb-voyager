@@ -163,12 +163,6 @@
 			"DataType": "txid_snapshot"
 		},
 		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "point_data",
-			"DataType": "point"
-		},
-		{
 			"SchemaName": "public",
 			"TableName": "mixed_data_types_table2",
 			"ColumnName": "lsn_data",
