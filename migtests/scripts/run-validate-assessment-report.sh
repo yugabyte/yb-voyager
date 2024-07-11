@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# The script takes up to two arguments:
+# 1. TEST_NAME: The name of the test to run (mandatory).
+# 2. env.sh: An optional environment setup script to source before running the test. If not provided, this file will be picked from the ${TESTS_DIR}
+
 set -e
 
 if [ $# -gt 2 ]
@@ -60,26 +64,22 @@ main() {
 	yb-voyager version
 
 	step "Assess Migration"
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" == "oracle" ]; then
-		assess_migration
-
-		step "Validate Assessment Reports"
-		# Checking if the assessment reports were created
-		if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
-			echo "Assessment reports created successfully."
-
-			echo "Checking for Failures"
-			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
-
-			echo "Comparing Report contents"
-            expected_file="${TEST_DIR}/expectedAssessmentReport.json"
-            actual_file="${EXPORT_DIR}/assessment/reports/assessmentReport.json"
-		    compare_assessment_reports ${expected_file} ${actual_file}
-		else
-			echo "Error: Assessment reports were not created successfully."
-			cat_log_file "yb-voyager-assess-migration.log"
-			exit 1
-		fi
+	assess_migration
+	
+	step "Validate Assessment Reports"
+	# Checking if the assessment reports were created
+	if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
+		echo "Assessment reports created successfully."
+		echo "Checking for Failures"
+		validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+		echo "Comparing Report contents"
+        expected_file="${TEST_DIR}/expectedAssessmentReport.json"
+        actual_file="${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+	    compare_assessment_reports ${expected_file} ${actual_file}
+	else
+		echo "Error: Assessment reports were not created successfully."
+		cat_log_file "yb-voyager-assess-migration.log"
+		exit 1
 	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere."

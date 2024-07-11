@@ -26,37 +26,7 @@ CREATE TABLE text_table (
 CREATE INDEX text_index ON text_table(text_data) INDEXTYPE IS CTXSYS.CONTEXT;
 INSERT INTO text_table (id, text_data) VALUES (1, 'Sample text data');
 
--- 3. Bitmap Index
-CREATE TABLE sales_bitmap_idx_table (
-    sale_id NUMBER PRIMARY KEY,
-    product_id NUMBER,
-    sale_date DATE,
-    quantity NUMBER
-);
--- Create a bitmap index
-CREATE BITMAP INDEX idx_product_id ON sales_bitmap_idx_table(product_id);
-INSERT INTO sales_bitmap_idx_table (sale_id, product_id, sale_date, quantity) VALUES (1, 100, SYSDATE, 10);
-
--- 4. BITMAP JOIN Index
-CREATE TABLE customers (
-    customer_id NUMBER PRIMARY KEY,
-    customer_name VARCHAR2(100)
-);
-CREATE TABLE orders (
-    order_id NUMBER PRIMARY KEY,
-    customer_id NUMBER,
-    order_date DATE,
-    amount NUMBER,
-    CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
-);
-INSERT INTO customers (customer_id, customer_name) VALUES (1, 'Customer A');
-INSERT INTO orders (order_id, customer_id, order_date, amount) VALUES (1, 1, SYSDATE, 100);
--- bitmap index
-CREATE BITMAP INDEX idx_bji_customer_order ON orders(o.customer_id)
-FROM orders o, customers c
-WHERE o.customer_id = c.customer_id;
-
--- 5. Index-Organized Table(IOT)
+-- 3. Index-Organized Table(IOT)
 CREATE TABLE iot_table (
     id NUMBER PRIMARY KEY,
     data VARCHAR2(100)
@@ -64,7 +34,7 @@ CREATE TABLE iot_table (
 -- Insert sample data into IOT table
 INSERT INTO iot_table (id, data) VALUES (1, 'IOT data');
 
--- 6. Reverse Key Index
+-- 4. Reverse Key Index
 CREATE TABLE rev_table (
     id NUMBER PRIMARY KEY,
     data VARCHAR2(100)
@@ -73,7 +43,7 @@ CREATE TABLE rev_table (
 CREATE INDEX rev_index ON rev_table(data) REVERSE;
 INSERT INTO rev_table (id, data) VALUES (1, 'Reversed key index data');
 
--- 7. Function Based Reverse Key Index
+-- 5. Function Based Reverse Key Index
 CREATE TABLE func_rev_table (
     id NUMBER PRIMARY KEY,
     data VARCHAR2(100)
@@ -93,6 +63,37 @@ CREATE TABLE func_based_table (
 CREATE INDEX func_based_index ON func_based_table(UPPER(data));
 INSERT INTO func_based_table (id, data) VALUES (1, 'Function-based data');
 
+-- BITMAP indexes are converted to GIN. We post a note in case we encounter them since they are partially supported. Added this to verify if the note is properly populated or not in this case.
+
+-- Bitmap Index
+CREATE TABLE sales_bitmap_idx_table (
+    sale_id NUMBER PRIMARY KEY,
+    product_id NUMBER,
+    sale_date DATE,
+    quantity NUMBER
+);
+-- Create a bitmap index
+CREATE BITMAP INDEX idx_product_id ON sales_bitmap_idx_table(product_id);
+INSERT INTO sales_bitmap_idx_table (sale_id, product_id, sale_date, quantity) VALUES (1, 100, SYSDATE, 10);
+
+-- BITMAP JOIN Index
+CREATE TABLE customers (
+    customer_id NUMBER PRIMARY KEY,
+    customer_name VARCHAR2(100)
+);
+CREATE TABLE orders (
+    order_id NUMBER PRIMARY KEY,
+    customer_id NUMBER,
+    order_date DATE,
+    amount NUMBER,
+    CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+);
+INSERT INTO customers (customer_id, customer_name) VALUES (1, 'Customer A');
+INSERT INTO orders (order_id, customer_id, order_date, amount) VALUES (1, 1, SYSDATE, 100);
+-- bitmap index
+CREATE BITMAP INDEX idx_bji_customer_order ON orders(o.customer_id)
+FROM orders o, customers c
+WHERE o.customer_id = c.customer_id;
 
 -- Unsupported Columns
 

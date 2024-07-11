@@ -804,33 +804,24 @@ normalize_json() {
     local output_file="$2"
 
     jq 'walk(
-        if type == "object" then
-            if has("ObjectNames") and (."ObjectNames" | type == "string") then
-                .ObjectNames |= (split(", ") | sort | join(", "))
-            else
-                .
-            end |
-            if has("DbVersion") then
-                .DbVersion = "IGNORED" # Assign a fixed value to ignore the actual value
-            else
-                .
-            end |
-            if has("OptimalSelectConnectionsPerNode") then
-                .OptimalSelectConnectionsPerNode = "IGNORED" # Assign a fixed value to ignore the actual value
-            else
-                .
-            end |
-            if has("OptimalInsertConnectionsPerNode") then
-                .OptimalInsertConnectionsPerNode = "IGNORED" # Assign a fixed value to ignore the actual value
-            else
-                .
-            end
-        elif type == "array" then
-            sort_by(tostring)
-        else
-            .
-        end
-    )' "$input_file" > "$output_file"
+	    if type == "object" then
+	        if has("ObjectNames") and (."ObjectNames" | type == "string") then
+	            .ObjectNames |= (split(", ") | sort | join(", "))
+	        else if has("DbVersion") then
+	            .DbVersion = "IGNORED" # Assign a fixed value to ignore the actual value
+	        else if has("OptimalSelectConnectionsPerNode") then
+	            .OptimalSelectConnectionsPerNode = "IGNORED" # Assign a fixed value to ignore the actual value
+	        else if has("OptimalInsertConnectionsPerNode") then
+	            .OptimalInsertConnectionsPerNode = "IGNORED" # Assign a fixed value to ignore the actual value
+	        else
+	            .
+	        end
+	    elif type == "array" then
+	        sort_by(tostring)
+	    else
+	        .
+	    end
+	)' "$input_file" > "$output_file"
 }
 
 compare_assessment_reports() {
@@ -849,6 +840,9 @@ compare_assessment_reports() {
         echo "Data does not match expected report."
         diff_output=$(diff "$temp_file1" "$temp_file2")
         echo "$diff_output"
+		
+		# Clean up temporary files
+		rm "$temp_file1" "$temp_file2"
         exit 1
     fi
 
