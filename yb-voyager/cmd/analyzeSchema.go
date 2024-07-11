@@ -560,7 +560,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/yugabyte/yb-voyager/issues/1540", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
 			summaryMap["FUNCTION"].invalidCount[sqlInfo.objName] = true
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			fmt.Printf("reg partitions %v", regMatch)
 			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id,country_code) ) PARTITION BY RANGE (country_code, record_type) ;
 			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ;
 			columnList := utils.CsvStringToSlice(strings.Trim(regMatch[3], " "))
