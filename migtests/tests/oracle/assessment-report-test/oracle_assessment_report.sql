@@ -28,11 +28,10 @@ INSERT INTO text_table (id, text_data) VALUES (1, 'Sample text data');
 
 -- 3. Index-Organized Table(IOT)
 CREATE TABLE iot_table (
-    id NUMBER PRIMARY KEY,
-    data VARCHAR2(100)
+    id NUMBER,
+    data VARCHAR2(100),
+    CONSTRAINT pk_iot_table PRIMARY KEY (id)
 ) ORGANIZATION INDEX;
--- Insert sample data into IOT table
-INSERT INTO iot_table (id, data) VALUES (1, 'IOT data');
 
 -- 4. Reverse Key Index
 CREATE TABLE rev_table (
