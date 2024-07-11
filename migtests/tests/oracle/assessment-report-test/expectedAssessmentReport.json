@@ -195,6 +195,7 @@
 		{
 			"FeatureName": "Virtual Columns",
 			"ObjectNames": [
+				"XML_TABLE.DATA",
 				"GENERATED_COLUMN_TABLE.TOTAL_PRICE"
 			]
 		},
