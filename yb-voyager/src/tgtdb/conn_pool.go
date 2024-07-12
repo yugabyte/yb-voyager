@@ -29,7 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var MAX_CONNS = 100
+var MAX_CONNS = 50
 var defaultSessionVars = []string{
 	"SET client_encoding to 'UTF-8'",
 	"SET session_replication_role to replica",

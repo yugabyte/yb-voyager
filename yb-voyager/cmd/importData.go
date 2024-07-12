@@ -475,7 +475,8 @@ func importData(importFileTasks []*ImportFileTask) {
 		} else {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
-			poolSize := tconf.Parallelism * 2
+			// poolSize := tconf.Parallelism * 2
+			poolSize := 50 * 2 // harcoding for now.
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
