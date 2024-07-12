@@ -1251,7 +1251,7 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 		if err != nil {
 			utils.PrintAndLog("error getting cluster metrics: %v", err)
 		}
-		// utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
+		utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
 		// max cpu
 		var clusterCPUUsage int64
 		for _, nodeMetrics := range clusterMetrics {
