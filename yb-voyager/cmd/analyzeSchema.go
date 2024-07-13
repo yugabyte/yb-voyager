@@ -121,7 +121,7 @@ var (
 	analyzeSchemaReportFormat string
 	sourceObjList             []string
 	schemaAnalysisReport      utils.SchemaReport
-	tblParts                  = make(map[string]bool)
+	tblPartitions             = make(map[string]bool)
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
@@ -191,9 +191,9 @@ var (
 	alterTblSpcRegex                = re("ALTER", "TABLESPACE", capture(ident), "SET")
 
 	// table partition. partitioned table is the key in tblParts map
-	addPrimaryRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "ADD CONSTRAINT", capture(ident), "PRIMARY KEY")
-	primRegex         = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "PRIMARY KEY")
-	foreignKeyRegex   = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "REFERENCES", anything)
+	addPrimaryRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "ADD CONSTRAINT", capture(ident), "PRIMARY KEY")
+	primRegex       = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "PRIMARY KEY")
+	foreignKeyRegex = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "REFERENCES", anything)
 
 	// unsupported SQLs exported by ora2pg
 	compoundTrigRegex          = re("CREATE", opt("OR REPLACE"), "TRIGGER", capture(ident), anything, "COMPOUND", anything)
@@ -468,9 +468,9 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 		} else if tbl := likeRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE clause not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt)	
+				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := addPrimaryRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			if _, ok := tblParts[tbl[3]]; ok {
+			if _, ok := tblPartitions[tbl[3]]; ok {
 				reportAddingPrimaryKey(fpath, "TABLE", tbl[3], sqlInfo.formattedStmt)
 			}
 			primaryCons[tbl[2]] = fpath
@@ -606,7 +606,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				continue
 			}
 			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no need to report
-				tblParts[regMatch[2]] = true
+				tblPartitions[regMatch[2]] = true
 				if filename, ok := primaryCons[regMatch[2]]; ok {
 					reportAddingPrimaryKey(filename, "TABLE", tbl[2], sqlInfo.formattedStmt)
 				}
