@@ -122,7 +122,7 @@ var (
 	analyzeSchemaReportFormat string
 	sourceObjList             []string
 	schemaAnalysisReport      utils.SchemaReport
-	tblParts                  = make(map[string]string)
+	tblPartitions             = make(map[string]bool)
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
@@ -192,10 +192,9 @@ var (
 	alterTblSpcRegex                = re("ALTER", "TABLESPACE", capture(ident), "SET")
 
 	// table partition. partitioned table is the key in tblParts map
-	tblPartitionRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "PARTITION", "OF", capture(ident))
-	addPrimaryRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ADD PRIMARY KEY")
-	primRegex         = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "PRIMARY KEY")
-	foreignKeyRegex   = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "REFERENCES", anything)
+	addPrimaryRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "ADD CONSTRAINT", capture(ident), "PRIMARY KEY")
+	primRegex       = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "PRIMARY KEY")
+	foreignKeyRegex = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "REFERENCES", anything)
 
 	// unsupported SQLs exported by ora2pg
 	compoundTrigRegex          = re("CREATE", opt("OR REPLACE"), "TRIGGER", capture(ident), anything, "COMPOUND", anything)
@@ -232,9 +231,9 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
 
-func reportAddingPrimaryKey(fpath string, tbl string, line string) {
+func reportAddingPrimaryKey(fpath string, objType string, tbl string, line string) {
 	reportCase(fpath, "Adding primary key to a partitioned table is not yet implemented.",
-		"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "", tbl, line)
+		"https://github.com/yugabyte/yugabyte-db/issues/10074", "", objType, tbl, line)
 }
 
 func reportBasedOnComment(comment int, fpath string, issue string, suggestion string, objName string, objType string, line string) {
@@ -471,14 +470,9 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE clause not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
-		} else if tbl := tblPartitionRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			tblParts[tbl[2]] = tbl[3]
-			if filename, ok := primaryCons[tbl[2]]; ok {
-				reportAddingPrimaryKey(filename, tbl[2], sqlInfo.formattedStmt)
-			}
 		} else if tbl := addPrimaryRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			if _, ok := tblParts[tbl[3]]; ok {
-				reportAddingPrimaryKey(fpath, tbl[2], sqlInfo.formattedStmt)
+			if _, ok := tblPartitions[tbl[3]]; ok {
+				reportAddingPrimaryKey(fpath, "TABLE", tbl[3], sqlInfo.formattedStmt)
 			}
 			primaryCons[tbl[2]] = fpath
 		} else if tbl := inheritRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
@@ -613,6 +607,10 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				continue
 			}
 			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no need to report
+				tblPartitions[regMatch[2]] = true
+				if filename, ok := primaryCons[regMatch[2]]; ok {
+					reportAddingPrimaryKey(filename, "TABLE", tbl[2], sqlInfo.formattedStmt)
+				}
 				continue
 			}
 			for _, partitionColumn := range partitionColumnsList {
