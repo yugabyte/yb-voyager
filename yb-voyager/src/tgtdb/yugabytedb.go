@@ -1240,7 +1240,7 @@ var prevAction string
 var prevCpuUsage int64
 
 func (yb *TargetYugabyteDB) AdaptParallelism() {
-	maxCPUThreshold := 80
+	maxCPUThreshold := 60
 	adaptationEffectsSize := 3
 	for i := 0; i < adaptationEffectsSize; i++ {
 		adaptationEffects.PushBack(adaptationEffect{action: "stay", effect: "stay"})
@@ -1322,7 +1322,7 @@ func (yb *TargetYugabyteDB) AdaptParallelism() {
 		}
 
 		prevCpuUsage = clusterCPUUsage
-		time.Sleep(60 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
