@@ -158,44 +158,46 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
-	} else if source.DBType == YUGABYTEDB {
-		if exportType == CHANGES_ONLY {
-			ybServers := source.DB().GetServers()
-			masterPort := "7100"
-			if os.Getenv("YB_MASTER_PORT") != "" {
-				masterPort = os.Getenv("YB_MASTER_PORT")
-			}
-			ybServers = lo.Map(ybServers, (func(s string, _ int) string {
-				return fmt.Sprintf("%s:%s", s, masterPort)
-			}),
-			)
-			ybCDCClient = dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0], metaDB)
-			err := ybCDCClient.Init()
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
-			}
-			config.YBMasterNodes, err = ybCDCClient.ListMastersNodes()
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to list master nodes: %w", err)
-			}
-			if startClean {
-				err = ybCDCClient.DeleteStreamID()
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to delete stream id: %w", err)
-				}
-				config.YBStreamID, err = ybCDCClient.GenerateAndStoreStreamID()
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to generate stream id: %w", err)
-				}
-				utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
-			} else {
-				config.YBStreamID, err = ybCDCClient.GetStreamID()
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get stream id: %w", err)
-				}
-			}
-		}
 	}
+	fmt.Println("config.ExporterRole", config.ExporterRole)
+	// } else if source.DBType == YUGABYTEDB {
+	// 	if exportType == CHANGES_ONLY {
+	// 		ybServers := source.DB().GetServers()
+	// 		masterPort := "7100"
+	// 		if os.Getenv("YB_MASTER_PORT") != "" {
+	// 			masterPort = os.Getenv("YB_MASTER_PORT")
+	// 		}
+	// 		ybServers = lo.Map(ybServers, (func(s string, _ int) string {
+	// 			return fmt.Sprintf("%s:%s", s, masterPort)
+	// 		}),
+	// 		)
+	// 		// ybCDCClient = dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0], metaDB)
+	// 		// err := ybCDCClient.Init()
+	// 		// if err != nil {
+	// 		// 	return nil, nil, fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
+	// 		// }
+	// 		// config.YBMasterNodes, err = ybCDCClient.ListMastersNodes()
+	// 		// if err != nil {
+	// 		// 	return nil, nil, fmt.Errorf("failed to list master nodes: %w", err)
+	// 		// }
+	// 		// if startClean {
+	// 		// 	err = ybCDCClient.DeleteStreamID()
+	// 		// 	if err != nil {
+	// 		// 		return nil, nil, fmt.Errorf("failed to delete stream id: %w", err)
+	// 		// 	}
+	// 		// 	config.YBStreamID, err = ybCDCClient.GenerateAndStoreStreamID()
+	// 		// 	if err != nil {
+	// 		// 		return nil, nil, fmt.Errorf("failed to generate stream id: %w", err)
+	// 		// 	}
+	// 		// 	utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
+	// 		// } else {
+	// 		// 	config.YBStreamID, err = ybCDCClient.GetStreamID()
+	// 		// 	if err != nil {
+	// 		// 		return nil, nil, fmt.Errorf("failed to get stream id: %w", err)
+	// 		// 	}
+	// 		// }
+	// 	}
+	// }
 	return config, tableNameToApproxRowCountMap, nil
 }
 

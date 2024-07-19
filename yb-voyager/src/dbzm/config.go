@@ -217,28 +217,43 @@ debezium.source.database.ssl.truststore=%s
 debezium.source.database.ssl.truststore.password=%s
 `
 
-var yugabyteSrcConfigTemplate = `
-debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBConnector
+// var yugabyteSrcConfigTemplate = `
+// debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBConnector
+// debezium.source.database.hostname=%s
+// debezium.source.database.port=%d
+// debezium.source.database.dbname=%s
+// debezium.source.database.streamid=%s
+// debezium.source.database.master.addresses=%s
+// debezium.source.schema.include.list=%s
+// debezium.source.hstore.handling.mode=map
+// debezium.source.decimal.handling.mode=precise
+// debezium.source.converters=postgres_source_converter
+// debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+// `
+
+var yugabyteNewSrcConnectorConfigTemplate = `
+debezium.source.connector.class=io.debezium.connector.postgresql.YugabyteDBConnector
 debezium.source.database.hostname=%s
 debezium.source.database.port=%d
 debezium.source.database.dbname=%s
-debezium.source.database.streamid=%s
-debezium.source.database.master.addresses=%s
 debezium.source.schema.include.list=%s
-debezium.source.hstore.handling.mode=map
-debezium.source.decimal.handling.mode=precise
-debezium.source.converters=postgres_source_converter
-debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.plugin.name=pgoutput
+debezium.source.slot.name=%s
 `
 
-var yugabyteSrcTransactionOrderingConfigTemplate = `
+// var yugabyteSrcTransactionOrderingConfigTemplate = `
+// debezium.source.transaction.ordering=true
+// debezium.source.tasks.max=1
+// `
+
+var yugabyteNewSrcTransactionOrderingConfigTemplate = `
 debezium.source.transaction.ordering=true
 debezium.source.tasks.max=1
 `
 
 var yugabyteConfigTemplate = baseConfigTemplate +
 	baseSrcConfigTemplate +
-	yugabyteSrcConfigTemplate +
+	yugabyteNewSrcConnectorConfigTemplate +
 	baseSinkConfigTemplate
 
 var yugabyteSSLModeTemplate = `
@@ -304,9 +319,8 @@ func (c *Config) String() string {
 
 			c.Host, c.Port,
 			c.DatabaseName,
-			c.YBStreamID,
-			c.YBMasterNodes,
 			schemaNames,
+			"yb_test_1",
 
 			dataDir,
 			c.ColumnSequenceMapping,
@@ -323,7 +337,7 @@ func (c *Config) String() string {
 		conf = conf + sslConf
 		//TODO test SSL for other methods for yugabytedb
 		if c.TransactionOrdering {
-			conf = conf + yugabyteSrcTransactionOrderingConfigTemplate
+			conf = conf + yugabyteNewSrcTransactionOrderingConfigTemplate
 		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,

@@ -20,4 +20,8 @@ public class DummyTopicNamingStrategy extends DefaultTopicNamingStrategy {
     public String dataChangeTopic(DataCollectionId id) {
         return "topic";
     }
+
+    public String recordSchemaPrefix(DataCollectionId id) {
+        return dataChangeTopic(id);
+    }
 }

@@ -102,7 +102,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             case "io.debezium.connector.mysql.MySqlConnector":
                 sourceType = "mysql";
                 break;
-            case "io.debezium.connector.yugabytedb.YugabyteDBConnector":
+            case "io.debezium.connector.postgresql.YugabyteDBConnector":
                 sourceType = "yb";
                 break;
             default:

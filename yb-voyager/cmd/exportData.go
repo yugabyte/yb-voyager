@@ -355,12 +355,12 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
-			if isTargetDBExporter(exporterRole) {
-				err = ybCDCClient.DeleteStreamID()
-				if err != nil {
-					utils.ErrExit("failed to delete stream id after data export: %v", err)
-				}
-			}
+			// if isTargetDBExporter(exporterRole) {
+			// 	err = ybCDCClient.DeleteStreamID()
+			// 	if err != nil {
+			// 		utils.ErrExit("failed to delete stream id after data export: %v", err)
+			// 	}
+			// }
 			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 				msr, err := metaDB.GetMigrationStatusRecord()
 				if err != nil {
