@@ -21,7 +21,7 @@ jobs:
         # https://github.com/actions/setup-java
         with:
           distribution: "temurin"
-          java-version: "11"
+          java-version: "17"
           check-latest: true
       # - name: Cache local Maven repository
       #   uses: actions/cache@v3
