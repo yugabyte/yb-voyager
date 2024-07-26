@@ -446,6 +446,7 @@ APT_GET() {
     	echo "Waiting for unattended-upgrades to finish..."
     	sleep 1
 	done
+	echo "Running: sudo apt-get $@"
     sudo apt-get "$@" 1>&2
 }
 
