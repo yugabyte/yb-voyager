@@ -211,20 +211,20 @@ ubuntu_main() {
 		return
 	fi
 	output "Installing packages."
-	sudo apt-get update 1>&2
-	sudo apt-get -y install wget  1>&2
-	sudo apt-get -y install sqlite3 1>&2
+	APT_GET update 
+	APT_GET -y install wget
+	APT_GET -y install sqlite3
 
 	install_golang linux
 	ubuntu_install_postgres
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
 	if [ $ONLY_PG == "false" ] ; then
-		sudo apt-get -y install perl  1>&2
-		sudo apt-get -y install libdbi-perl 1>&2
-		sudo apt-get -y install libaio1 1>&2
-		sudo apt-get -y install cpanminus 1>&2
-		sudo apt-get -y install libmysqlclient-dev 1>&2
+		APT_GET -y install perl
+		APT_GET -y install libdbi-perl
+		APT_GET -y install libaio1
+		APT_GET -y install cpanminus
+		APT_GET -y install libmysqlclient-dev
 		ubuntu_install_oracle_instant_clients
 		update_yb_voyager_bashrc
 		install_ora2pg
@@ -431,6 +431,22 @@ install_yb_client_local(){
 	pushd $REPO_ROOT/debezium-server-voyager/yb-client-cdc-stream-wrapper > /dev/null
 	mvn -ntp clean package  1>&2
 	popd > /dev/null
+}
+
+APT_GET() {
+	while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    	echo "Waiting for other package manager to finish..."
+    	sleep 1
+	done
+
+	sudo systemctl stop unattended-upgrades
+
+	# Wait for any ongoing unattended-upgrades process to finish
+	while ps aux | grep -q '[u]nattended-upgr'; do
+    	echo "Waiting for unattended-upgrades to finish..."
+    	sleep 1
+	done
+    sudo apt-get "$@" 1>&2
 }
 
 package_debezium_server_local(){
@@ -866,22 +882,22 @@ ubuntu_install_postgres() {
 	line="deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main"
 	sudo grep -qxF "$line" /etc/apt/sources.list.d/pgdg.list || echo "$line" | sudo tee /etc/apt/sources.list.d/pgdg.list 1>&2
 	wget -nv -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-	sudo apt-get update 1>&2
-	sudo apt-get -y install postgresql-14 1>&2
+	APT_GET update 
+	APT_GET -y install postgresql-14
 	output "Postgres Installed."
 }
 
 ubuntu_install_oracle_instant_clients() {
 	output "Installing Oracle Instant Clients."
 	wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
-	sudo apt-get install -y ./yb-apt-repo_1.0.0_all.deb 1>&2
-	sudo apt-get update -y 1>&2
+	APT_GET install -y ./yb-apt-repo_1.0.0_all.deb
+	APT_GET update -y
 	ubuntu_install_oic oracle-instantclient-tools
 	ubuntu_install_oic oracle-instantclient-basic
 	ubuntu_install_oic oracle-instantclient-devel
 	ubuntu_install_oic oracle-instantclient-jdbc
 	ubuntu_install_oic oracle-instantclient-sqlplus
-	sudo apt-get remove -y yb-apt-repo 1>&2
+	APT_GET remove -y yb-apt-repo
 	rm -f yb-apt-repo_1.0.0_all.deb 1>&2
 	output "Installed Oracle Instance Clients."
 }
@@ -899,11 +915,11 @@ ubuntu_install_oic() {
             output "$package_name is already installed and up to date."
         else
             # Install specific version
-            sudo apt-get install -y "$package_name=$expected_version" 1>&2
+            APT_GET install -y "$package_name=$expected_version"
         fi
     else
         # Install if package is not installed
-        sudo apt-get install -y "$package_name=$expected_version" 1>&2
+        APT_GET install -y "$package_name=$expected_version"
     fi
 }
 
