@@ -445,12 +445,12 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			}
 			if !(msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted) {
 				utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
-				logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
+				// logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
 
-				err := utils.WaitForLineInLogFile(logFilePath, "Beginning to poll the changes from the server", 3*time.Minute)
-				if err != nil {
-					return false, fmt.Errorf("failed to poll for message in log file: %w", err)
-				}
+				// err := utils.WaitForLineInLogFile(logFilePath, "Beginning to poll the changes from the server", 3*time.Minute)
+				// if err != nil {
+				// 	return false, fmt.Errorf("failed to poll for message in log file: %w", err)
+				// }
 
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {

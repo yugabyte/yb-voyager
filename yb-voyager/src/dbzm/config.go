@@ -236,8 +236,7 @@ debezium.source.connector.class=io.debezium.connector.postgresql.YugabyteDBConne
 debezium.source.database.hostname=%s
 debezium.source.database.port=%d
 debezium.source.database.dbname=%s
-debezium.source.schema.include.list=%s
-debezium.source.plugin.name=pgoutput
+debezium.source.plugin.name=yboutput
 debezium.source.slot.name=%s
 `
 
@@ -319,8 +318,7 @@ func (c *Config) String() string {
 
 			c.Host, c.Port,
 			c.DatabaseName,
-			schemaNames,
-			"yb_test_1",
+			"test_slot4",
 
 			dataDir,
 			c.ColumnSequenceMapping,

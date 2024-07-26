@@ -21,7 +21,7 @@ public class DummyTopicNamingStrategy extends DefaultTopicNamingStrategy {
         return "topic";
     }
 
-    public String recordSchemaPrefix(DataCollectionId id) {
-        return dataChangeTopic(id);
-    }
+    // public String recordSchemaPrefix(DataCollectionId id) {
+    //     return dataChangeTopic(id);
+    // }
 }
