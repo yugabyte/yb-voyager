@@ -144,7 +144,10 @@ func packAndSendExportSchemaPayload(status string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
-	payload := createCallhomePayload()
+	payload, shouldSend := createCallhomePayload()
+	if !shouldSend {
+		return
+	}
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
 	sourceDBDetails := callhome.SourceDBDetails{

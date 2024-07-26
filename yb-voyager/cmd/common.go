@@ -1049,7 +1049,11 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 
 // ==========================================================================
 
-func createCallhomePayload() callhome.Payload {
+func createCallhomePayload() (callhome.Payload, bool) {
+	uninitialisedTimestamp := time.Time{}
+	if startTime == uninitialisedTimestamp {
+		return callhome.Payload{}, false
+	}
 	var payload callhome.Payload
 	payload.MigrationUUID = migrationUUID
 	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02 15:04:05.999999")
@@ -1057,7 +1061,7 @@ func createCallhomePayload() callhome.Payload {
 	payload.TimeTakenSec = int(math.Ceil(time.Since(startTime).Seconds()))
 	payload.CollectedAt = time.Now().UTC().Format("2006-01-02 15:04:05.999999")
 
-	return payload
+	return payload, true
 }
 
 func PackAndSendCallhomePayloadOnExit() {

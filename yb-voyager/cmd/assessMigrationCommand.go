@@ -111,7 +111,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
-	payload := createCallhomePayload()
+	payload, shouldSend := createCallhomePayload()
+	if !shouldSend {
+		return
+	}
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats

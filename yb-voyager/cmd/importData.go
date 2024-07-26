@@ -600,7 +600,10 @@ func packAndSendImportDataPayload(status string) {
 		return
 	}
 	//basic payload details
-	payload := createCallhomePayload()
+	payload, shouldSend := createCallhomePayload()
+	if !shouldSend {
+		return
+	}
 	switch importType {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE

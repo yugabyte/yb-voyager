@@ -207,7 +207,10 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		return
 	}
 	//Basic details in the payload
-	payload := createCallhomePayload()
+	payload, shouldSend := createCallhomePayload()
+	if !shouldSend {
+		return
+	}
 	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)

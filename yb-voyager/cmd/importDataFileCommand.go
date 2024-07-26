@@ -329,7 +329,10 @@ func packAndSendImportDataFilePayload(status string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
-	payload := createCallhomePayload()
+	payload, shouldSend := createCallhomePayload()
+	if !shouldSend {
+		return
+	}
 	payload.MigrationType = BULK_DATA_LOAD
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_FILE_PHASE

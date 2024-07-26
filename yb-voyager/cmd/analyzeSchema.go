@@ -1103,7 +1103,10 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
-	payload := createCallhomePayload()
+	payload, shouldSend := createCallhomePayload()
+	if !shouldSend {
+		return
+	}
 	payload.MigrationPhase = ANALYZE_PHASE
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {

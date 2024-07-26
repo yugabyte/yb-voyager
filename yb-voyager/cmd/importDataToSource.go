@@ -91,7 +91,10 @@ func packAndSendImportDataToSourcePayload(status string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
-	payload := createCallhomePayload()
+	payload, shouldSend := createCallhomePayload()
+	if !shouldSend {
+		return
+	}
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
