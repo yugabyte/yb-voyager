@@ -100,13 +100,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func packAndSendEndMigrationPayload(status string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
-	payload, shouldSend := createCallhomePayload()
-	if !shouldSend {
-		return
-	}
+	payload := createCallhomePayload()
 	payload.MigrationType = OFFLINE
 	if streamChangesMode {
 		payload.MigrationType = LIVE_MIGRATION

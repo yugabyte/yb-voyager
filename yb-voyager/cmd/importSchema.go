@@ -203,14 +203,11 @@ func importSchema() error {
 }
 
 func packAndSendImportSchemaPayload(status string, errMsg string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	//Basic details in the payload
-	payload, shouldSend := createCallhomePayload()
-	if !shouldSend {
-		return
-	}
+	payload := createCallhomePayload()
 	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)

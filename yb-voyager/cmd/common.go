@@ -1049,11 +1049,14 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 
 // ==========================================================================
 
-func createCallhomePayload() (callhome.Payload, bool) {
+func shouldSendCallhome() bool {
+	//here checking the startTime is initialised or not as can be seen in root.go we
+	//initialise startTime once we have logging setup after all initial checks
 	uninitialisedTimestamp := time.Time{}
-	if startTime == uninitialisedTimestamp {
-		return callhome.Payload{}, false
-	}
+	return bool(callhome.SendDiagnostics) && !startTime.Equal(uninitialisedTimestamp)
+}
+
+func createCallhomePayload() callhome.Payload {
 	var payload callhome.Payload
 	payload.MigrationUUID = migrationUUID
 	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02 15:04:05.999999")
@@ -1061,7 +1064,7 @@ func createCallhomePayload() (callhome.Payload, bool) {
 	payload.TimeTakenSec = int(math.Ceil(time.Since(startTime).Seconds()))
 	payload.CollectedAt = time.Now().UTC().Format("2006-01-02 15:04:05.999999")
 
-	return payload, true
+	return payload
 }
 
 func PackAndSendCallhomePayloadOnExit() {

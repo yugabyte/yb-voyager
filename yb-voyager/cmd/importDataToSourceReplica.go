@@ -89,13 +89,10 @@ func updateFallForwardEnabledInMetaDB() {
 }
 
 func packAndSendImportDataToSrcReplicaPayload(status string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
-	payload, shouldSend := createCallhomePayload()
-	if !shouldSend {
-		return
-	}
+	payload := createCallhomePayload()
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{

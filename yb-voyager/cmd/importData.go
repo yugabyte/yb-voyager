@@ -596,14 +596,11 @@ func importData(importFileTasks []*ImportFileTask) {
 
 func packAndSendImportDataPayload(status string) {
 
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	//basic payload details
-	payload, shouldSend := createCallhomePayload()
-	if !shouldSend {
-		return
-	}
+	payload := createCallhomePayload()
 	switch importType {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE

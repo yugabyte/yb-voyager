@@ -326,13 +326,10 @@ func checkAndParseEscapeAndQuoteChar() {
 }
 
 func packAndSendImportDataFilePayload(status string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
-	payload, shouldSend := createCallhomePayload()
-	if !shouldSend {
-		return
-	}
+	payload := createCallhomePayload()
 	payload.MigrationType = BULK_DATA_LOAD
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_FILE_PHASE
