@@ -788,6 +788,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	filterIssuesForUnsupportedFeature("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	filterIssuesForUnsupportedFeature("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	filterIssuesForUnsupportedFeature("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesForUnsupportedFeature("Conversion types", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 

@@ -27,6 +27,7 @@ import (
 	"strings"
 	"text/template"
 
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -52,7 +53,7 @@ type sqlInfo struct {
 	stmt string
 	// Formatted SQL statement with new-lines and tabs
 	formattedStmt string
-	fileName string
+	fileName      string
 }
 
 var (
@@ -129,8 +130,6 @@ var (
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	createConvRegex           = re("CREATE", opt("DEFAULT"), optionalWS, "CONVERSION", capture(ident))
-	alterConvRegex            = re("ALTER", "CONVERSION", capture(ident))
 	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
 	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
 	spgistRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
@@ -204,9 +203,11 @@ var (
 	typeUnsupportedRegex       = re("Inherited types are not supported", anything, "replacing with inherited table")
 	bulkCollectRegex           = re("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
 	jsonFuncRegex              = re("CREATE", opt("OR REPLACE"), capture(unqualifiedIdent), capture(ident), anything, "JSON_ARRAYAGG")
+	alterConvRegex             = re("ALTER", "CONVERSION", capture(ident), anything)
 )
 
 const (
+	CONVERSION_ISSUE_REASON         = "CONVERSION type is not supported in YugabyteDB"
 	INHERITANCE_ISSUE_REASON        = "TABLE INHERITANCE not supported in YugabyteDB"
 	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
@@ -398,10 +399,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath,
 				"RANGE with offset PRECEDING/FOLLOWING is not supported for column type numeric and offset type double precision",
 				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", sqlInfo.formattedStmt)
-		} else if stmt := createConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			reportCase(fpath, "CREATE CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[2], sqlInfo.formattedStmt)
-		} else if stmt := alterConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			location := strings.ToUpper(stmt[1])
 			if slices.Contains(notSupportedFetchLocation, location) {
@@ -791,7 +788,7 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 		objName:       objName,
 		stmt:          stmt,
 		formattedStmt: formattedStmt,
-		fileName: fpath,
+		fileName:      fpath,
 	}
 	return sqlInfo
 }
@@ -1015,10 +1012,42 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 			checkExtensions(sqlInfoArr, filePath)
 		}
 		checker(sqlInfoArr, filePath)
+
+		if objType == "CONVERSION" {
+			checkConversions(sqlInfoArr, filePath)
+		}
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	return schemaAnalysisReport
+}
+
+func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
+	for _, sqlStmtInfo := range sqlInfoArr {
+		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		if err != nil {
+			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		}
+
+		createConvNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateConversionStmt)
+		if ok {
+			createConvStmt := createConvNode.CreateConversionStmt
+			nameList := createConvStmt.GetConversionName()
+			convName := nameList[0].GetString_().Sval
+			if len(nameList) > 0 {
+				convName = fmt.Sprintf("%s.%s", convName, nameList[1].GetString_().Sval)
+			}
+			reportCase(filePath, CONVERSION_ISSUE_REASON, "https://github.com/yugabyte/yugabyte-db/issues/10866",
+				"Remove it from the exported schema", "CONVERSION", convName, sqlStmtInfo.formattedStmt)
+		} else {
+			//pg_query doesn't seem to a Node type of AlterConversionStmt so using regex for now
+			if stmt := alterConvRegex.FindStringSubmatch(sqlStmtInfo.stmt); stmt != nil {
+				reportCase(filePath, "ALTER CONVERSION is not supported in YugabyteDB", "https://github.com/YugaByte/yugabyte-db/issues/10866",
+					"Remove it from the exported schema", "CONVERSION", stmt[1], sqlStmtInfo.formattedStmt)
+			}
+		}
+
+	}
 }
 
 func analyzeSchema() {
