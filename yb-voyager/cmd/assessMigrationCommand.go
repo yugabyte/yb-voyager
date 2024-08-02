@@ -68,7 +68,7 @@ var sourceConnectionFlags = []string{
 type UnsupportedFeature struct {
 	FeatureName string   `json:"FeatureName"`
 	ObjectNames []string `json:"ObjectNames"`
-	DDls        []string `json:"DDLs"`
+	DDLs        []string `json:"DDLs"`
 }
 
 var assessMigrationCmd = &cobra.Command{
