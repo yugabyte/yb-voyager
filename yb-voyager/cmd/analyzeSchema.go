@@ -207,10 +207,12 @@ var (
 )
 
 const (
-	CONVERSION_ISSUE_REASON         = "CONVERSION type is not supported in YugabyteDB"
-	INHERITANCE_ISSUE_REASON        = "TABLE INHERITANCE not supported in YugabyteDB"
-	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
-	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
+	CONVERSION_ISSUE_REASON                     = "CONVERSION type is not supported in YugabyteDB"
+	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON         = "Schema contains gin index on multi column which is not supported."
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not yet implemented."
+	INHERITANCE_ISSUE_REASON                    = "TABLE INHERITANCE not supported in YugabyteDB"
+	CONSTRAINT_TRIGGER_ISSUE_REASON             = "CONSTRAINT TRIGGER not supported yet."
+	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
 
@@ -1040,7 +1042,7 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 			reportCase(filePath, CONVERSION_ISSUE_REASON, "https://github.com/yugabyte/yugabyte-db/issues/10866",
 				"Remove it from the exported schema", "CONVERSION", convName, sqlStmtInfo.formattedStmt)
 		} else {
-			//pg_query doesn't seem to a Node type of AlterConversionStmt so using regex for now
+			//pg_query doesn't seem to have a Node type of AlterConversionStmt so using regex for now
 			if stmt := alterConvRegex.FindStringSubmatch(sqlStmtInfo.stmt); stmt != nil {
 				reportCase(filePath, "ALTER CONVERSION is not supported in YugabyteDB", "https://github.com/YugaByte/yugabyte-db/issues/10866",
 					"Remove it from the exported schema", "CONVERSION", stmt[1], sqlStmtInfo.formattedStmt)

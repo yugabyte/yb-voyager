@@ -68,6 +68,7 @@ var sourceConnectionFlags = []string{
 type UnsupportedFeature struct {
 	FeatureName string   `json:"FeatureName"`
 	ObjectNames []string `json:"ObjectNames"`
+	DDls        []string `json:"DDLs"`
 }
 
 var assessMigrationCmd = &cobra.Command{
@@ -770,7 +771,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	return nil
 }
 
-func filterIssuesForUnsupportedFeature(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
+func filterIssuesWithObjectNamesForUnsupportedFeature(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
 	log.Info("filtering issues for feature: ", featureName)
 	objectNames := make([]string, 0)
 	for _, issue := range schemaAnalysisReport.Issues {
@@ -778,24 +779,37 @@ func filterIssuesForUnsupportedFeature(featureName string, issueReason string, s
 			objectNames = append(objectNames, issue.ObjectName)
 		}
 	}
-	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
+	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objectNames, nil})
+}
+
+func filterIssuesWithDDLsForUnsupportedFeature(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
+	log.Info("filtering issues for feature: ", featureName)
+	DDLs := make([]string, 0)
+	for _, issue := range schemaAnalysisReport.Issues {
+		if strings.Contains(issue.Reason, issueReason) {
+			DDLs = append(DDLs, issue.SqlStatement)
+		}
+	}
+	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, nil, DDLs})
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	filterIssuesForUnsupportedFeature("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	filterIssuesForUnsupportedFeature("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	filterIssuesForUnsupportedFeature("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	filterIssuesForUnsupportedFeature("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	filterIssuesForUnsupportedFeature("Conversion types", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithObjectNamesForUnsupportedFeature("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithObjectNamesForUnsupportedFeature("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithObjectNamesForUnsupportedFeature("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithObjectNamesForUnsupportedFeature("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithObjectNamesForUnsupportedFeature("Conversion types", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithObjectNamesForUnsupportedFeature("Gin Indexes on Multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithDDLsForUnsupportedFeature("Unsupported DDL operations", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	filterIssuesForUnsupportedFeature("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithObjectNamesForUnsupportedFeature("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
@@ -839,10 +853,10 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	}
 
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes, nil})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns, nil})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes, nil})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes, nil})
 	return unsupportedFeatures, nil
 }
 
