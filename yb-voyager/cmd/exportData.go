@@ -158,7 +158,7 @@ func sendPayloadAsPerExporterRole(status string) {
 
 func packAndSendExportDataPayload(status string) {
 
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()

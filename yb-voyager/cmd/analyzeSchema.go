@@ -52,7 +52,7 @@ type sqlInfo struct {
 	stmt string
 	// Formatted SQL statement with new-lines and tabs
 	formattedStmt string
-	fileName string
+	fileName      string
 }
 
 var (
@@ -791,7 +791,7 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 		objName:       objName,
 		stmt:          stmt,
 		formattedStmt: formattedStmt,
-		fileName: fpath,
+		fileName:      fpath,
 	}
 	return sqlInfo
 }
@@ -1100,10 +1100,11 @@ func analyzeSchema() {
 }
 
 func packAndSendAnalyzeSchemaPayload(status string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()
+
 	payload.MigrationPhase = ANALYZE_PHASE
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {

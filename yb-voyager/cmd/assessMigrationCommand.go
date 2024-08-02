@@ -108,10 +108,11 @@ var assessMigrationCmd = &cobra.Command{
 }
 
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()
+
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
