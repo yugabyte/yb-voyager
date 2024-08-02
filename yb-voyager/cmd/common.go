@@ -1052,6 +1052,11 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 func shouldSendCallhome() bool {
 	//here checking the startTime is initialised or not as can be seen in root.go we
 	//initialise startTime once we have logging setup after all initial checks
+	//e.g. if someone hasn't provided the correct export-dir because of which initialisation step
+	//isn't run and command fails with export-dir doesn't exists and we send payload on exits as well
+	//so in payload we were having start-time as uninitialised ("0001-01-01 00:00:00") and time taken (9223372037)
+	//was getting calculated as very big value so the callhome was not accepting the request due large value in int column
+	//psycopg2.errors.NumericValueOutOfRange: value "9223372037" is out of range for type integer
 	uninitialisedTimestamp := time.Time{}
 	return bool(callhome.SendDiagnostics) && !startTime.Equal(uninitialisedTimestamp)
 }
