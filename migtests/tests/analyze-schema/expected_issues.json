@@ -90,7 +90,7 @@
         {
             "ObjectType": "CONVERSION",
             "ObjectName": "myconv",
-            "Reason": "CONVERSION type is not supported in YugabyteDB",
+            "Reason": "CREATE CONVERSION is not supported yet",
             "SqlStatement": "CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;",
             "Suggestion": "Remove it from the exported schema",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10866"
@@ -98,7 +98,7 @@
         {
             "ObjectType": "CONVERSION",
             "ObjectName": "myconv",
-            "Reason": "ALTER CONVERSION is not supported in YugabyteDB",
+            "Reason": "ALTER CONVERSION is not supported yet",
             "SqlStatement": "ALTER CONVERSION myconv rename to my_conv_1;",
             "Suggestion": "Remove it from the exported schema",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"

@@ -800,7 +800,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	filterIssuesWithObjectNamesForUnsupportedFeature("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	filterIssuesWithObjectNamesForUnsupportedFeature("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	filterIssuesWithObjectNamesForUnsupportedFeature("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	filterIssuesWithObjectNamesForUnsupportedFeature("Conversion types", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	filterIssuesWithObjectNamesForUnsupportedFeature("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	filterIssuesWithObjectNamesForUnsupportedFeature("Gin Indexes on Multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	filterIssuesWithDDLsForUnsupportedFeature("Unsupported DDL operations", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
