@@ -238,28 +238,47 @@
 				"idx_point_data",
 				"idx_box_data",
 				"idx_point_data"
-			]
+			],
+			"DDLs": null
 		},
 		{
 			"FeatureName": "Constraint triggers",
 			"ObjectNames": [
 				"enforce_shipped_date_constraint",
 				"enforce_shipped_date_constraint"
-			]
+			],
+			"DDLs": null
 		},
 		{
 			"FeatureName": "Inherited tables",
 			"ObjectNames": [
 				"public.child_table",
 				"schema2.child_table"
-			]
+			],
+			"DDLs": null
 		},
 		{
 			"FeatureName": "Tables with Stored generated columns",
 			"ObjectNames": [
-				"schema2.employees2",
-				"public.employees2"
-			]
+				"public.employees2",
+				"schema2.employees2"
+			],
+			"DDLs": null
+		},
+		{
+			"FeatureName": "Conversion types",
+			"ObjectNames": [],
+			"DDLs": null
+		},
+		{
+			"FeatureName": "Gin Indexes on Multi-columns",
+			"ObjectNames": [],
+			"DDLs": null
+		},
+		{
+			"FeatureName": "Unsupported DDL operations",
+			"ObjectNames": null,
+			"DDLs": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
