@@ -502,5 +502,13 @@
             "SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: \u003cLINK_DOC\u003e",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
+        },
+        {
+            "ObjectType": "FOREIGN TABLE",
+            "ObjectName": "tbl_p",
+            "Reason": "Foriegn tables requires the Server to be created. Server: 'remote_server'",
+            "SqlStatement": "CREATE FOREIGN TABLE tbl_p( \tid int PRIMARY KEY ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_table' ); ",
+            "Suggestion": "Creating 'postgres_fdw' extension, server, and user mapping manually should to use the foreign table",
+            "GH": "\u003cTODO\u003e"
         }
 ]
