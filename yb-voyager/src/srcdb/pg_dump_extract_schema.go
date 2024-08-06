@@ -141,6 +141,8 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 				alterAttachPartition.WriteString(stmts)
 			case "MATERIALIZED VIEW":
 				objSqlStmts["MVIEW"].WriteString(stmts)
+			case "FOREIGN TABLE":
+				objSqlStmts["FOREIGN TABLE"].WriteString(stmts)
 			default:
 				uncategorizedSqls.WriteString(stmts)
 			}

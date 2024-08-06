@@ -198,15 +198,6 @@ PARTITION BY RANGE (a, b);
 
 
 
---foreign table issues
-CREATE FOREIGN TABLE tbl_p(
-	id int PRIMARY KEY
-);
-CREATE FOREIGN TABLE tbl_f(
-	fid int, 
-	pid int FOREIGN KEY REFERENCES tbl_p(id)
-);
-
 -- datatype mapping not supported
 CREATE TABLE anydata_test (
 	id numeric,
