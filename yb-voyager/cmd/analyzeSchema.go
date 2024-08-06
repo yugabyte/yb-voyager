@@ -53,7 +53,7 @@ type sqlInfo struct {
 	stmt string
 	// Formatted SQL statement with new-lines and tabs
 	formattedStmt string
-	fileName string
+	fileName      string
 }
 
 var (
@@ -370,11 +370,11 @@ func checkTableDDLs(sqlInfoArr []sqlInfo, fpath string) {
 		if ok {
 			schemaName := createTableNode.CreateStmt.Relation.Schemaname
 			tableName := createTableNode.CreateStmt.Relation.Relname
-            columns := createTableNode.CreateStmt.TableElts
-            var generatedColumns []string
-            for _, column := range columns {
+			columns := createTableNode.CreateStmt.TableElts
+			var generatedColumns []string
+			for _, column := range columns {
 				//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
-				if column.GetColumnDef() != nil { 
+				if column.GetColumnDef() != nil {
 					constraints := column.GetColumnDef().Constraints
 					for _, constraint := range constraints {
 						if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
@@ -382,14 +382,14 @@ func checkTableDDLs(sqlInfoArr []sqlInfo, fpath string) {
 						}
 					}
 				}
-            }
+			}
 			fullyQualifiedName := tableName
 			if schemaName != "" {
 				fullyQualifiedName = schemaName + "." + tableName
 			}
 			if len(generatedColumns) > 0 {
 				summaryMap["TABLE"].invalidCount[tableName] = true
-				reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON + fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
+				reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
 					"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 			}
 		}
@@ -491,7 +491,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "REINDEX is not supported.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
-		}  else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
+		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE ALL is not supported yet.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10697", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
@@ -820,7 +820,7 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 		objName:       objName,
 		stmt:          stmt,
 		formattedStmt: formattedStmt,
-		fileName: fpath,
+		fileName:      fpath,
 	}
 	return sqlInfo
 }
