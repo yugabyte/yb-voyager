@@ -260,6 +260,10 @@
 				"schema2.employees2",
 				"public.employees2"
 			]
+		},
+		{
+			"FeatureName": "Foreign tables",
+			"ObjectNames": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
