@@ -27,6 +27,7 @@ import (
 	"strings"
 	"text/template"
 
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -212,6 +213,7 @@ const (
 	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
+	FOREIGN_TABLE_ISSUE_REASON = "Foriegn tables requires the Server to be created."
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 	GIN_INDEX_DETAILS       = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -357,6 +359,28 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, "index method 'rtree' is superceded by 'gist' which is not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
+		}
+	}
+}
+
+func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
+	for _, sqlStmtInfo := range sqlInfoArr {
+		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		if err != nil {
+			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		}
+		createForeignTableNode, isForeignTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
+		if isForeignTable {
+			schemaName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Schemaname
+			tableName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Relname
+            serverName := createForeignTableNode.CreateForeignTableStmt.Servername
+			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
+			objName := tableName
+			if schemaName != "" {
+				objName = schemaName + "." + tableName
+			}
+			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON + fmt.Sprintf(" Server: '%s'", serverName), "<TODO>", 
+			"Creating 'postgres_fdw' extension, server, and user mapping manually should to use the foreign table", "FOREIGN TABLE", objName, sqlStmtInfo.stmt)
 		}
 	}
 }
@@ -651,6 +675,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 // check foreign table
 func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
+		//TODO: refactor it later to remove all the unneccessary regexes
 		if tbl := primRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "Primary key constraints are not supported on foreign tables.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10698", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
@@ -736,6 +761,9 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 		objNameIndex = 3
 	} else if objType == "TABLE" || objType == "PARTITION" {
 		createObjRegex = re("CREATE", opt("OR REPLACE"), "TABLE", ifNotExists, capture(ident))
+		objNameIndex = 3
+	} else if objType == "FOREIGN TABLE" {
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "FOREIGN", "TABLE", ifNotExists, capture(ident))
 		objNameIndex = 3
 	} else { //TODO: check syntaxes for other objects and add more cases if required
 		createObjRegex = re("CREATE", opt("OR REPLACE"), objType, ifNotExists, capture(ident))
@@ -1013,6 +1041,9 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		}
 		if objType == "EXTENSION" {
 			checkExtensions(sqlInfoArr, filePath)
+		}
+		if objType == "FOREIGN TABLE" {
+			checkForeignTable(sqlInfoArr, filePath)
 		}
 		checker(sqlInfoArr, filePath)
 	}
