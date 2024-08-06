@@ -534,5 +534,13 @@
             "SqlStatement": "CREATE OR REPLACE PROCEDURE test () AS $body$\nDECLARE\n    cur CURSOR FOR SELECT column_name FROM table_name;\n    row RECORD;\nBEGIN\n    OPEN cur;\n    FETCH PRIOR FROM cur INTO row;\n    CLOSE cur;\nEND;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
             "Suggestion": "Please verify the DDL on your YugabyteDB version before proceeding",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514"
+        },
+        {
+            "ObjectType": "FOREIGN TABLE",
+            "ObjectName": "tbl_p",
+            "Reason": "Foriegn tables requires the Server to be created. Server: 'remote_server'",
+            "SqlStatement": "CREATE FOREIGN TABLE tbl_p( \tid int PRIMARY KEY ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_table' ); ",
+            "Suggestion": "Creating 'postgres_fdw' extension, server, and user mapping manually should to use the foreign table",
+            "GH": "\u003cTODO\u003e"
         }
 ]

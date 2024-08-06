@@ -198,6 +198,7 @@ PARTITION BY RANGE (a, b);
 
 
 
+<<<<<<< Updated upstream
 --foreign table issues
 CREATE FOREIGN TABLE tbl_p(
 	id int PRIMARY KEY
@@ -207,6 +208,8 @@ CREATE FOREIGN TABLE tbl_f(
 	pid int FOREIGN KEY REFERENCES tbl_p(id)
 );
 
+=======
+>>>>>>> Stashed changes
 -- datatype mapping not supported
 CREATE TABLE anydata_test (
 	id numeric,
