@@ -27,6 +27,7 @@ import (
 	"strings"
 	"text/template"
 
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -76,7 +77,6 @@ var (
 		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
 		"tsm_system_time", "unaccent", `"uuid-ossp"`, "yb_pg_metrics", "yb_test_extension",
 	}
-	dataTypeClause = unqualifiedIdent + optionalWS + opt(unqualifiedIdent) + opt(`\(.*?\)`)
 )
 
 func cat(tokens ...string) string {
@@ -152,8 +152,6 @@ var (
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
-	storedRegex               = re(capture(unqualifiedIdent), capture(dataTypeClause), "GENERATED", "ALWAYS", anything, "STORED")
-	createTableRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything)
 	partitionColumnsRegex     = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
 	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
 	likeRegex                 = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
@@ -361,6 +359,43 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	}
 }
 
+func checkTableDDLs(sqlInfoArr []sqlInfo, fpath string) {
+	for _, sqlStmtInfo := range sqlInfoArr {
+		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		if err != nil {
+			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		}
+
+		createTableNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+		if ok {
+			schemaName := createTableNode.CreateStmt.Relation.Schemaname
+			tableName := createTableNode.CreateStmt.Relation.Relname
+            columns := createTableNode.CreateStmt.TableElts
+            var generatedColumns []string
+            for _, column := range columns {
+				//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
+				if column.GetColumnDef() != nil { 
+					constraints := column.GetColumnDef().Constraints
+					for _, constraint := range constraints {
+						if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
+							generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
+						}
+					}
+				}
+            }
+			fullyQualifiedName := tableName
+			if schemaName != "" {
+				fullyQualifiedName = schemaName + "." + tableName
+			}
+			if len(generatedColumns) > 0 {
+				summaryMap["TABLE"].invalidCount[tableName] = true
+				reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON + fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
+					"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+			}
+		}
+	}
+}
+
 // Checks compatibility of views
 func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
@@ -456,13 +491,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "REINDEX is not supported.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
-		} else if col := storedRegex.FindStringSubmatch(sqlInfo.stmt); col != nil {
-			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			// fetch table name using different regex
-			tbl := createTableRegex.FindStringSubmatch(sqlInfo.stmt)
-			reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON,
-				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
-		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
+		}  else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE ALL is not supported yet.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10697", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
@@ -1013,6 +1042,9 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		}
 		if objType == "EXTENSION" {
 			checkExtensions(sqlInfoArr, filePath)
+		}
+		if objType == "TABLE" {
+			checkTableDDLs(sqlInfoArr, filePath)
 		}
 		checker(sqlInfoArr, filePath)
 	}
