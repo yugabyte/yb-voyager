@@ -127,7 +127,6 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 		} else {
 			delimiterLine := lines[delimiterIndexes[i]]
 			sqlType := extractSqlTypeFromComment(delimiterLine)
-			fmt.Print(sqlType)
 			switch sqlType {
 			case "SCHEMA", "TYPE", "DOMAIN", "RULE", "FUNCTION",
 				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT", "COLLATION":

@@ -213,7 +213,7 @@ const (
 	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
-	FOREIGN_TABLE_ISSUE_REASON = "Foriegn tables requires the Server to be created."
+	FOREIGN_TABLE_ISSUE_REASON = "Foreign tables requires manual intervention."
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 	GIN_INDEX_DETAILS       = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -379,8 +379,8 @@ func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 			if schemaName != "" {
 				objName = schemaName + "." + tableName
 			}
-			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON + fmt.Sprintf(" Server: '%s'", serverName), "<TODO>", 
-			"Creating 'postgres_fdw' extension, server, and user mapping manually should to use the foreign table", "FOREIGN TABLE", objName, sqlStmtInfo.stmt)
+			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "<TODO>", 
+			fmt.Sprintf("Extension 'postgres_fdw', server '%s', and user mapping should be created manually to use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt)
 		}
 	}
 }

@@ -395,17 +395,9 @@
             "ObjectType": "TABLE",
             "ObjectName": "tbl_p",
             "Reason": "Primary key constraints are not supported on foreign tables.",
-            "SqlStatement": "CREATE FOREIGN TABLE tbl_p(\n\tid int PRIMARY KEY\n);",
+            "SqlStatement": "CREATE FOREIGN TABLE tbl_p(\n\tid int PRIMARY KEY\n) SERVER remote_server\nOPTIONS (\n    schema_name 'public',\n    table_name 'remote_table'\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10698"
-        },
-        {
-            "ObjectType": "TABLE",
-            "ObjectName": "tbl_f",
-            "Reason": "Foreign key constraints are not supported on foreign tables.",
-            "SqlStatement": "CREATE FOREIGN TABLE tbl_f(\n\tfid int,\n\tpid int FOREIGN KEY REFERENCES tbl_p(id)\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10699"
         },
         {
             "ObjectType": "TRIGGER",
@@ -538,9 +530,9 @@
         {
             "ObjectType": "FOREIGN TABLE",
             "ObjectName": "tbl_p",
-            "Reason": "Foriegn tables requires the Server to be created. Server: 'remote_server'",
+            "Reason": "Foreign tables requires manual intervention.",
             "SqlStatement": "CREATE FOREIGN TABLE tbl_p( \tid int PRIMARY KEY ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_table' ); ",
-            "Suggestion": "Creating 'postgres_fdw' extension, server, and user mapping manually should to use the foreign table",
+            "Suggestion": "Extension 'postgres_fdw', server 'remote_server', and user mapping should be created manually to use the foreign table",
             "GH": "\u003cTODO\u003e"
         }
 ]
