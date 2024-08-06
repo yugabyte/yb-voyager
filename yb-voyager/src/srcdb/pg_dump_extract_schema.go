@@ -127,6 +127,7 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 		} else {
 			delimiterLine := lines[delimiterIndexes[i]]
 			sqlType := extractSqlTypeFromComment(delimiterLine)
+			fmt.Print(sqlType)
 			switch sqlType {
 			case "SCHEMA", "TYPE", "DOMAIN", "RULE", "FUNCTION",
 				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT", "COLLATION":
@@ -141,6 +142,8 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 				alterAttachPartition.WriteString(stmts)
 			case "MATERIALIZED VIEW":
 				objSqlStmts["MVIEW"].WriteString(stmts)
+			case "FOREIGN TABLE":
+				objSqlStmts["FOREIGN TABLE"].WriteString(stmts)
 			default:
 				uncategorizedSqls.WriteString(stmts)
 			}
