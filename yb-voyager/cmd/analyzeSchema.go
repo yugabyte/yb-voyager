@@ -388,7 +388,7 @@ func checkTableDDLs(sqlInfoArr []sqlInfo, fpath string) {
 				fullyQualifiedName = schemaName + "." + tableName
 			}
 			if len(generatedColumns) > 0 {
-				summaryMap["TABLE"].invalidCount[tableName] = true
+				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
 					"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 			}

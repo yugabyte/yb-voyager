@@ -13,7 +13,7 @@ CREATE TABLE salaries2 (
 	from_date timestamp NOT NULL,
 	to_date timestamp NOT NULL,
 	PRIMARY KEY (emp_no,from_date)
-) PARTITION BY RANGE (extract(epoch from date(from_date))) ; --this expression correct earlier one wasn't correct syntax in PG
+) PARTITION BY RANGE (extract(epoch from date(from_date))) ; --this expression is correct now, earlier it wasn't appropriate as PG syntax 
 
 CREATE TABLE sales (
 	cust_id bigint NOT NULL,
@@ -237,5 +237,3 @@ CREATE TABLE uritype_test (
 ) ;
 -- valid
 Alter table only parent_tbl add constraint party_profile_pk primary key (party_profile_id);
--- alter table not supported in PG as well
--- Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);

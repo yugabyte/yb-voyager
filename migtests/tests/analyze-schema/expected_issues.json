@@ -27,7 +27,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "salaries2",
             "Reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
-            "SqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (extract(epoch from date(from_date))) ; --this expression correct earlier one wasn't correct syntax in PG",
+            "SqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (extract(epoch from date(from_date))) ; --this expression is correct now, earlier it wasn't appropriate as PG syntax",
             "Suggestion": "Remove the Constriant from the table definition",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
         },
