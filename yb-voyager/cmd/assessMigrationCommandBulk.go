@@ -91,7 +91,7 @@ func assessMigrationBulk() {
 			utils.CleanDir(match)
 		}
 
-		err = os.Remove(filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html"))
+		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html"))
 		if err != nil {
 			utils.ErrExit("failed to remove bulk assessment report: %s", err)
 		}
