@@ -802,44 +802,29 @@ move_tables() {
 normalize_json() {
     local input_file="$1"
     local output_file="$2"
+    local temp_file="/tmp/temp_file.json"
 
+    # Normalize JSON with jq
     jq 'walk(
         if type == "object" then
-            if has("ObjectNames") and (."ObjectNames" | type == "string") then
-                .ObjectNames |= (split(", ") | sort | join(", "))
-            elif has("DbVersion") then
-                .DbVersion = "IGNORED"
-            elif has("FilePath") then
-                .FilePath = "IGNORED"
-            elif has("OptimalSelectConnectionsPerNode") then
-                .OptimalSelectConnectionsPerNode = "IGNORED"
-            elif has("OptimalInsertConnectionsPerNode") then
-                .OptimalInsertConnectionsPerNode = "IGNORED"
-            elif has("SqlStatement") and (."SqlStatement" | type == "string") then
-                .SqlStatement |= gsub("\\n"; " ")
-            elif has("Notes") then
-                if (."Notes" | type == "string") then
-                    .Notes |= gsub("Review and manually import.*uncategorized.sql"; "")
-                elif (."Notes" | type == "array") then
-                    .Notes |= map(
-                        if type == "string" then
-                            gsub("Review and manually import.*uncategorized.sql"; "")
-                        else
-                            .
-                        end
-                    )
-                else
-                    .
-                end
-            else
-                .
-            end
+            .ObjectNames? |= (if type == "string" then split(", ") | sort | join(", ") else . end) |
+            .DbVersion? = "IGNORED" |
+            .FilePath? = "IGNORED" |
+            .OptimalSelectConnectionsPerNode? = "IGNORED" |
+            .OptimalInsertConnectionsPerNode? = "IGNORED" |
+            .SqlStatement? |= (if type == "string" then gsub("\\n"; " ") else . end)
         elif type == "array" then
             sort_by(tostring)
         else
             .
         end
-    )' "$input_file" > "$output_file"
+    )' "$input_file" > "$temp_file"
+
+    # Remove unwanted lines
+    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file"
+
+    # Move cleaned file to output
+    mv "$temp_file" "$output_file"
 }
 
 
