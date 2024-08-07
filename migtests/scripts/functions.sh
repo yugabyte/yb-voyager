@@ -821,7 +821,13 @@ normalize_json() {
                 if (."Notes" | type == "string") then
                     .Notes |= gsub("Review and manually import.*uncategorized.sql"; "")
                 elif (."Notes" | type == "array") then
-                    .Notes |= map(if type == "string" then gsub("Review and manually import.*uncategorized.sql"; "") else . end)
+                    .Notes |= map(
+                        if type == "string" then
+                            gsub("Review and manually import.*uncategorized.sql"; "")
+                        else
+                            .
+                        end
+                    )
                 else
                     .
                 end
@@ -835,6 +841,7 @@ normalize_json() {
         end
     )' "$input_file" > "$output_file"
 }
+
 
 compare_sql_files() {
     sql_file1="$1"
