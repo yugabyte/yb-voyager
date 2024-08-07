@@ -180,7 +180,8 @@
 			"FeatureName": "Compound Triggers",
 			"ObjectNames": [
 				"trg_simple_insert"
-			]
+			],
+			"DDLs": null
 		},
 		{
 			"FeatureName": "Unsupported Indexes",
@@ -190,27 +191,31 @@
 				"Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX",
 				"Index Name: FUNC_REV_INDEX, Index Type=FUNCTION-BASED NORMAL/REV INDEX",
 				"Index Name: PK_IOT_TABLE, Index Type=IOT - TOP INDEX"
-			]
+			],
+			"DDLs": null
 		},
 		{
 			"FeatureName": "Virtual Columns",
 			"ObjectNames": [
 				"XML_TABLE.DATA",
 				"GENERATED_COLUMN_TABLE.TOTAL_PRICE"
-			]
+			],
+			"DDLs": null
 		},
 		{
 			"FeatureName": "Inherited Types",
 			"ObjectNames": [
 				"SIMPLE_CAR_TYPE"
-			]
+			],
+			"DDLs": null
 		},
 		{
 			"FeatureName": "Unsupported Partitioning Methods",
 			"ObjectNames": [
 				"Table Name: SALES, Partition Method: SYSTEM PARTITION",
 				"Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION"
-			]
+			],
+			"DDLs": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
