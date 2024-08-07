@@ -43,7 +43,7 @@
 				"public.osm_changeset_state",
 				"public.spatial_ref_sys"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 9 objects (4 tables and 5 explicit/implicit indexes) with 6.77 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 9 objects (4 tables and 5 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -91,7 +91,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 7102464
+			"SizeInBytes": 7061504
 		},
 		{
 			"SchemaName": "public",
