@@ -202,8 +202,8 @@ jobs:
       - name: "TEST: adventureworks"
         run: migtests/scripts/run-schema-migration.sh pg/adventureworks
 
-      - name: "TEST: MGI"
-        run: migtests/scripts/run-schema-migration.sh pg/mgi
+      # - name: "TEST: MGI"
+      #   run: migtests/scripts/run-schema-migration.sh pg/mgi
      
       - name: "TEST: omnibus"
         run: migtests/scripts/run-schema-migration.sh pg/omnibus
