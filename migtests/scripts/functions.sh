@@ -809,6 +809,8 @@ normalize_json() {
                 .ObjectNames |= (split(", ") | sort | join(", "))
             elif has("DbVersion") then
                 .DbVersion = "IGNORED"
+			elif has("FilePath") then
+				.FilePath = "IGNORED"
             elif has("OptimalSelectConnectionsPerNode") then
                 .OptimalSelectConnectionsPerNode = "IGNORED"
             elif has("OptimalInsertConnectionsPerNode") then
