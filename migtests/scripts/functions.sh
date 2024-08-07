@@ -817,6 +817,8 @@ normalize_json() {
                 .OptimalInsertConnectionsPerNode = "IGNORED"
             elif has("SqlStatement") then
                 .SqlStatement |= gsub("\\n"; " ")
+			elif has("Notes") then
+                .Notes |= gsub("Review and manually import.*uncategorized.sql"; "")
             else
                 .
             end
