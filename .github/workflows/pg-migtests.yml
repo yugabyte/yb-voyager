@@ -196,26 +196,26 @@ jobs:
       # - name: "TEST: pg-case-sensitivity-reserved-words-offline"
       #   run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
       
-      - name: "TEST": pg-sakila
+      - name: "TEST: pg-sakila"
         run: migtests/scripts/run-schema-migration.sh pg/sakila
 
-      - name: "TEST": adventureworks
+      - name: "TEST: adventureworks"
         run: migtests/scripts/run-schema-migration.sh pg/adventureworks
 
-      - name: "TEST": MGI
+      - name: "TEST: MGI"
         run: migtests/scripts/run-schema-migration.sh pg/mgi
      
-      - name: "TEST": omnibus
+      - name: "TEST: omnibus"
         run: migtests/scripts/run-schema-migration.sh pg/omnibus
 
-      - name: "TEST": osm
+      - name: "TEST: osm"
         run: migtests/scripts/run-schema-migration.sh pg/osm
 
-      - name: "TEST": pgtbrus
+      - name: "TEST: pgtbrus"
         run: migtests/scripts/run-schema-migration.sh pg/pgtbrus
 
-      - name: "TEST": sample-is
+      - name: "TEST: sample-is"
         run: migtests/scripts/run-schema-migration.sh pg/sample-is
 
-      - name: "TEST": stackexchange
+      - name: "TEST: stackexchange"
         run: migtests/scripts/run-schema-migration.sh pg/stackexchange
