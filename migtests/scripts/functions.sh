@@ -809,20 +809,23 @@ normalize_json() {
                 .ObjectNames |= (split(", ") | sort | join(", "))
             elif has("DbVersion") then
                 .DbVersion = "IGNORED"
-			elif has("FilePath") then
-				.FilePath = "IGNORED"
+            elif has("FilePath") then
+                .FilePath = "IGNORED"
             elif has("OptimalSelectConnectionsPerNode") then
                 .OptimalSelectConnectionsPerNode = "IGNORED"
             elif has("OptimalInsertConnectionsPerNode") then
                 .OptimalInsertConnectionsPerNode = "IGNORED"
-            elif has("SqlStatement") then
+            elif has("SqlStatement") and (."SqlStatement" | type == "string") then
                 .SqlStatement |= gsub("\\n"; " ")
-			elif has("Notes") then
+            elif has("Notes") then
                 if (."Notes" | type == "string") then
                     .Notes |= gsub("Review and manually import.*uncategorized.sql"; "")
                 elif (."Notes" | type == "array") then
                     .Notes |= map(if type == "string" then gsub("Review and manually import.*uncategorized.sql"; "") else . end)
                 else
+                    .
+                end
+            else
                 .
             end
         elif type == "array" then
