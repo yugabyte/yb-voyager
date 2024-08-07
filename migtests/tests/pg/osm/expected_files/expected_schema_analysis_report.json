@@ -1,0 +1,59 @@
+{
+    "Summary": {
+        "DbName": "test_osm",
+        "SchemaNames": [
+            "public"
+        ],
+        "DbVersion": "12.14",
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 1,
+                "ObjectNames": "public"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 2,
+                "InvalidCount": 1,
+                "ObjectNames": "hstore, postgis"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 3,
+                "ObjectNames": "public.osm_changeset, public.osm_changeset_comment, public.osm_changeset_state"
+            },
+            {
+                "ObjectType": "INDEX",
+                "TotalCount": 5,
+                "InvalidCount": 1,
+                "ObjectNames": "user_name_idx, changeset_geom_gist, created_idx, tags_idx, user_id_idx",
+                "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+            },
+            {
+                "ObjectType": "FUNCTION",
+                "TotalCount": 1,
+                "ObjectNames": "public.insert_osm_data"
+            }
+        ]
+    },
+    "Issues": [
+        {
+            "ObjectType": "EXTENSION",
+            "ObjectName": "postgis",
+            "Reason": "This extension is not supported in YugabyteDB.",
+            "SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/osm/export-dir/schema/extensions/extension.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
+        },
+        {
+            "ObjectType": "INDEX",
+            "ObjectName": "changeset_geom_gist",
+            "Reason": "Schema contains GIST index which is not supported.",
+            "SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        }
+    ]
+}

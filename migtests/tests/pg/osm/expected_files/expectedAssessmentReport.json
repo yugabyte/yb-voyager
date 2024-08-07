@@ -1,0 +1,210 @@
+{
+	"SchemaSummary": {
+		"DbName": "test_osm",
+		"SchemaNames": [
+			"public"
+		],
+		"DbVersion": "12.14",
+		"DatabaseObjects": [
+			{
+				"ObjectType": "SCHEMA",
+				"TotalCount": 1,
+				"ObjectNames": "public"
+			},
+			{
+				"ObjectType": "EXTENSION",
+				"TotalCount": 2,
+				"ObjectNames": "hstore, postgis"
+			},
+			{
+				"ObjectType": "TABLE",
+				"TotalCount": 3,
+				"ObjectNames": "public.osm_changeset, public.osm_changeset_comment, public.osm_changeset_state"
+			},
+			{
+				"ObjectType": "INDEX",
+				"TotalCount": 5,
+				"ObjectNames": "user_id_idx, user_name_idx, changeset_geom_gist, created_idx, tags_idx",
+				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+			},
+			{
+				"ObjectType": "FUNCTION",
+				"TotalCount": 1,
+				"ObjectNames": "public.insert_osm_data"
+			}
+		]
+	},
+	"SchemaSummaryDBObjectsDesc": "Objects that will be created on the target YugabyteDB.",
+	"Sizing": {
+		"SizingRecommendation": {
+			"ColocatedTables": [
+				"public.osm_changeset",
+				"public.osm_changeset_comment",
+				"public.osm_changeset_state",
+				"public.spatial_ref_sys"
+			],
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 9 objects (4 tables and 5 explicit/implicit indexes) with 6.77 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ShardedTables": null,
+			"NumNodes": 3,
+			"VCPUsPerInstance": 4,
+			"MemoryPerInstance": 16,
+			"OptimalSelectConnectionsPerNode": 8,
+			"OptimalInsertConnectionsPerNode": 12,
+			"EstimatedTimeInMinForImport": 1,
+			"ParallelVoyagerJobs": 1
+		},
+		"FailureReasoning": ""
+	},
+	"UnsupportedDataTypes": null,
+	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
+	"UnsupportedFeatures": [
+		{
+			"FeatureName": "GIST indexes",
+			"ObjectNames": [
+				"changeset_geom_gist"
+			]
+		},
+		{
+			"FeatureName": "Constraint triggers",
+			"ObjectNames": []
+		},
+		{
+			"FeatureName": "Inherited tables",
+			"ObjectNames": []
+		},
+		{
+			"FeatureName": "Tables with Stored generated columns",
+			"ObjectNames": []
+		}
+	],
+	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"TableIndexStats": [
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys",
+			"RowCount": 0,
+			"ColumnCount": 5,
+			"Reads": 0,
+			"Writes": 8500,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 7102464
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "osm_changeset",
+			"RowCount": 0,
+			"ColumnCount": 13,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "osm_changeset_comment",
+			"RowCount": 0,
+			"ColumnCount": 5,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "osm_changeset_state",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "changeset_geom_gist",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.osm_changeset",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "created_idx",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.osm_changeset",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "tags_idx",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.osm_changeset",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "user_id_idx",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.osm_changeset",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "user_name_idx",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.osm_changeset",
+			"SizeInBytes": 8192
+		}
+	],
+	"Notes": null
+}

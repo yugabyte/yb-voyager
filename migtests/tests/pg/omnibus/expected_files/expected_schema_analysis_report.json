@@ -1,0 +1,188 @@
+{
+    "Summary": {
+        "DbName": "test_omnibus",
+        "SchemaNames": [
+            "agg_ex",
+            "am_examples",
+            "base_type_examples",
+            "collation_ex",
+            "composite_type_examples",
+            "conversion_example",
+            "create_cast",
+            "domain_examples",
+            "enum_example",
+            "extension_example",
+            "fn_examples",
+            "foreign_db_example",
+            "idx_ex",
+            "ordinary_tables",
+            "public",
+            "range_type_example",
+            "regress_rls_schema",
+            "trigger_test"
+        ],
+        "DbVersion": "14.12 (Ubuntu 14.12-1.pgdg22.04+1)",
+        "Notes": [
+            "Review and manually import the DDL statements from the file /home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/uncategorized.sql"
+        ],
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 18,
+                "ObjectNames": "create_cast, fn_examples, am_examples, collation_ex, conversion_example, extension_example, public, trigger_test, agg_ex, base_type_examples, composite_type_examples, ordinary_tables, range_type_example, domain_examples, foreign_db_example, idx_ex, enum_example, regress_rls_schema"
+            },
+            {
+                "ObjectType": "COLLATION",
+                "TotalCount": 3,
+                "ObjectNames": "collation_ex.bad_us, collation_ex.german_phonebook, collation_ex.us"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 2,
+                "ObjectNames": "hstore, postgres_fdw"
+            },
+            {
+                "ObjectType": "TYPE",
+                "TotalCount": 16,
+                "ObjectNames": "range_type_example.float8_range, base_type_examples.base_type, composite_type_examples.nested, enum_example.bug_info, base_type_examples.int42, base_type_examples.myvarchar, create_cast.abc, enum_example.bug_status, foreign_db_example.example_type, base_type_examples.shell, composite_type_examples.enum_abc, base_type_examples.default_test_row, composite_type_examples.basic_comp_type, enum_example.bug_severity, agg_ex.avg_state, base_type_examples.text_w_default"
+            },
+            {
+                "ObjectType": "DOMAIN",
+                "TotalCount": 5,
+                "ObjectNames": "base_type_examples.myvarchardom, domain_examples.positive_number, domain_examples.positive_even_number, domain_examples.us_postal_code, foreign_db_example.positive_number"
+            },
+            {
+                "ObjectType": "SEQUENCE",
+                "TotalCount": 5,
+                "ObjectNames": "enum_example.bugs_id_seq, ordinary_tables.numeric_type_examples_a_bigserial_seq, ordinary_tables.numeric_type_examples_a_smallserial_seq, ordinary_tables.numeric_type_examples_id_seq, domain_examples.us_snail_addy_address_id_seq"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 339,
+                "InvalidCount": 4,
+                "ObjectNames": "composite_type_examples.i_189, enum_example.bugs_clone, composite_type_examples.i_141, composite_type_examples.i_147, composite_type_examples.i_210, regress_rls_schema.t, composite_type_examples.i_105, composite_type_examples.i_119, composite_type_examples.i_127, composite_type_examples.i_140, composite_type_examples.i_183, composite_type_examples.i_194, ordinary_tables.binary_examples, composite_type_examples.i_1, composite_type_examples.i_44, composite_type_examples.i_250, composite_type_examples.i_253, ordinary_tables.bit_string_examples, am_examples.tableam_parted_d_heap2, composite_type_examples.i_217, composite_type_examples.i_124, composite_type_examples.i_134, composite_type_examples.i_224, regress_rls_schema.z1, composite_type_examples.i_59, composite_type_examples.i_95, composite_type_examples.i_146, composite_type_examples.i_175, composite_type_examples.i_190, regress_rls_schema.rls_tbl_2, composite_type_examples.i_13, composite_type_examples.i_118, composite_type_examples.i_47, composite_type_examples.i_65, composite_type_examples.i_111, composite_type_examples.i_170, composite_type_examples.i_212, composite_type_examples.i_248, fn_examples.ordinary_table, composite_type_examples.i_25, regress_rls_schema.r1_2, composite_type_examples.i_52, composite_type_examples.i_201, composite_type_examples.i_215, composite_type_examples.i_17, composite_type_examples.i_32, composite_type_examples.i_122, composite_type_examples.i_123, composite_type_examples.i_167, composite_type_examples.i_205, composite_type_examples.i_209, regress_rls_schema.r1_4, composite_type_examples.i_0, composite_type_examples.i_104, composite_type_examples.i_96, regress_rls_schema.r1_5, am_examples.tableam_parted_1_heapx, composite_type_examples.i_24, composite_type_examples.i_154, ordinary_tables.boolean_examples, composite_type_examples.i_144, composite_type_examples.i_256, regress_rls_schema.rls_tbl_3, am_examples.fast_emp4000, composite_type_examples.i_136, composite_type_examples.i_120, composite_type_examples.i_131, composite_type_examples.i_188, composite_type_examples.i_229, idx_ex.films, composite_type_examples.i_84, composite_type_examples.i_106, composite_type_examples.i_78, composite_type_examples.i_129, composite_type_examples.i_148, composite_type_examples.i_200, regress_rls_schema.rls_tbl, am_examples.heaptable, am_examples.tableam_tblas_heapx, ordinary_tables.numeric_type_examples, composite_type_examples.i_7, composite_type_examples.i_116, composite_type_examples.i_169, composite_type_examples.i_18, composite_type_examples.i_137, composite_type_examples.i_50, composite_type_examples.i_66, composite_type_examples.i_68, composite_type_examples.i_163, composite_type_examples.i_221, composite_type_examples.i_226, am_examples.tableam_parted_2_heapx, composite_type_examples.i_5, composite_type_examples.i_233, composite_type_examples.i_252, extension_example.testhstore, composite_type_examples.i_88, composite_type_examples.i_157, regress_rls_schema.t3_3, composite_type_examples.i_98, composite_type_examples.i_230, regress_rls_schema.y1, composite_type_examples.equivalent_rowtype, regress_rls_schema.b1, composite_type_examples.i_143, composite_type_examples.i_156, composite_type_examples.i_192, composite_type_examples.i_222, regress_rls_schema.dependee, regress_rls_schema.t1_3, composite_type_examples.i_10, composite_type_examples.i_142, composite_type_examples.i_45, composite_type_examples.i_165, composite_type_examples.i_220, composite_type_examples.i_223, am_examples.tableam_parted_heap2, composite_type_examples.i_34, composite_type_examples.i_55, composite_type_examples.i_79, regress_rls_schema.document, am_examples.am_partitioned, composite_type_examples.ordinary_table, composite_type_examples.i_71, composite_type_examples.i_76, composite_type_examples.i_133, composite_type_examples.i_251, composite_type_examples.i_30, composite_type_examples.i_37, composite_type_examples.i_103, composite_type_examples.i_128, composite_type_examples.i_191, composite_type_examples.i_235, composite_type_examples.i_16, composite_type_examples.i_77, composite_type_examples.i_28, composite_type_examples.i_179, composite_type_examples.i_204, regress_rls_schema.dependent, regress_rls_schema.x1, composite_type_examples.i_6, composite_type_examples.i_19, composite_type_examples.i_162, composite_type_examples.i_246, composite_type_examples.i_58, composite_type_examples.i_132, composite_type_examples.i_92, composite_type_examples.i_160, composite_type_examples.i_187, composite_type_examples.i_196, composite_type_examples.i_218, composite_type_examples.i_219, am_examples.tableam_parted_heapx, composite_type_examples.i_41, composite_type_examples.i_83, composite_type_examples.i_91, composite_type_examples.i_115, range_type_example.example_tbl, composite_type_examples.i_20, composite_type_examples.i_57, composite_type_examples.i_138, composite_type_examples.i_184, composite_type_examples.i_213, composite_type_examples.i_237, composite_type_examples.i_27, composite_type_examples.i_38, composite_type_examples.i_241, composite_type_examples.i_244, regress_rls_schema.tbl1, composite_type_examples.i_100, composite_type_examples.i_208, composite_type_examples.i_110, composite_type_examples.i_126, regress_rls_schema.category, composite_type_examples.i_2, composite_type_examples.i_11, composite_type_examples.i_102, composite_type_examples.i_159, composite_type_examples.i_166, composite_type_examples.i_198, composite_type_examples.i_238, regress_rls_schema.z2, am_examples.tableam_parted_c_heap2, composite_type_examples.i_85, composite_type_examples.i_49, composite_type_examples.i_93, composite_type_examples.i_173, composite_type_examples.i_177, ordinary_tables.geometric_examples, am_examples.tableam_tbl_heapx, composite_type_examples.i_23, composite_type_examples.i_31, regress_rls_schema.test_qual_pushdown, composite_type_examples.i_151, composite_type_examples.i_199, composite_type_examples.i_214, ordinary_tables.\"time\", regress_rls_schema.s2, composite_type_examples.i_40, composite_type_examples.i_73, regress_rls_schema.part_document_fiction, regress_rls_schema.rec2, composite_type_examples.i_101, composite_type_examples.i_168, composite_type_examples.i_153, composite_type_examples.i_185, composite_type_examples.i_202, composite_type_examples.i_245, composite_type_examples.i_249, regress_rls_schema.r2_3, composite_type_examples.i_8, composite_type_examples.i_51, regress_rls_schema.ref_tbl, regress_rls_schema.part_document_satire, regress_rls_schema.rec1, composite_type_examples.i_150, composite_type_examples.i_164, composite_type_examples.i_172, composite_type_examples.i_193, composite_type_examples.inherited_table, composite_type_examples.i_64, composite_type_examples.i_121, composite_type_examples.i_234, ordinary_tables.network_addr_examples, composite_type_examples.i_26, composite_type_examples.i_60, composite_type_examples.i_130, composite_type_examples.i_176, composite_type_examples.i_186, composite_type_examples.i_61, composite_type_examples.i_75, composite_type_examples.i_54, composite_type_examples.i_69, composite_type_examples.i_203, composite_type_examples.i_228, composite_type_examples.i_236, enum_example.bugs, composite_type_examples.i_29, composite_type_examples.i_46, regress_rls_schema.r2, composite_type_examples.i_181, trigger_test.update_log, composite_type_examples.i_12, composite_type_examples.i_21, composite_type_examples.i_247, regress_rls_schema.z1_blacklist, composite_type_examples.i_94, composite_type_examples.i_113, composite_type_examples.i_139, regress_rls_schema.t1, composite_type_examples.i_74, composite_type_examples.i_81, composite_type_examples.i_117, composite_type_examples.i_240, ordinary_tables.money_example, regress_rls_schema.y2, composite_type_examples.i_33, composite_type_examples.i_80, composite_type_examples.i_89, composite_type_examples.i_197, composite_type_examples.i_242, regress_rls_schema.uaccount, am_examples.tableam_tbl_heap2, composite_type_examples.i_63, composite_type_examples.i_107, composite_type_examples.i_114, composite_type_examples.i_145, composite_type_examples.i_178, composite_type_examples.i_232, ordinary_tables.character_examples, composite_type_examples.i_62, composite_type_examples.i_67, composite_type_examples.i_39, composite_type_examples.i_82, composite_type_examples.i_125, composite_type_examples.i_180, am_examples.tableam_tblas_heap2, base_type_examples.default_test, composite_type_examples.i_135, composite_type_examples.i_161, composite_type_examples.i_182, regress_rls_schema.part_document_nonfiction, composite_type_examples.i_90, composite_type_examples.i_99, regress_rls_schema.part_document, composite_type_examples.i_171, regress_rls_schema.dob_t2, composite_type_examples.i_174, domain_examples.even_numbers, composite_type_examples.i_36, composite_type_examples.i_43, composite_type_examples.i_53, composite_type_examples.i_15, composite_type_examples.i_35, composite_type_examples.i_195, composite_type_examples.i_206, composite_type_examples.i_211, composite_type_examples.i_216, regress_rls_schema.r1_3, regress_rls_schema.r2_4, composite_type_examples.i_48, composite_type_examples.i_56, composite_type_examples.i_155, composite_type_examples.i_86, composite_type_examples.i_108, regress_rls_schema.t2, composite_type_examples.i_42, composite_type_examples.i_207, composite_type_examples.i_14, composite_type_examples.i_70, composite_type_examples.i_87, regress_rls_schema.t1_2, trigger_test.accounts, agg_ex.my_table, composite_type_examples.i_9, composite_type_examples.i_158, composite_type_examples.i_231, composite_type_examples.i_255, composite_type_examples.i_109, composite_type_examples.i_149, enum_example._bug_severity, regress_rls_schema.dob_t1, composite_type_examples.i_22, composite_type_examples.i_72, composite_type_examples.i_97, composite_type_examples.i_152, regress_rls_schema.r1, regress_rls_schema.t2_3, composite_type_examples.i_227, composite_type_examples.i_254, composite_type_examples.i_112, composite_type_examples.i_225, composite_type_examples.i_239, composite_type_examples.i_243, domain_examples.us_snail_addy, regress_rls_schema.r2_5, composite_type_examples.i_3, composite_type_examples.i_4, regress_rls_schema.s1"
+            },
+            {
+                "ObjectType": "INDEX",
+                "TotalCount": 11,
+                "InvalidCount": 4,
+                "ObjectNames": "idx_1, title_idx, title_idx_lower, title_idx_u1, title_idx_with_duplicates, grect2ind3, hidx, gin_idx, title_idx_nulls_low, title_idx_u2, grect2ind2",
+                "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+            },
+            {
+                "ObjectType": "FUNCTION",
+                "TotalCount": 40,
+                "ObjectNames": "agg_ex.sum_finalfn, fn_examples.depends_on_table_rowtype, base_type_examples.int42_in, base_type_examples.int42_out, agg_ex.avg_transfn, fn_examples.polyf, base_type_examples.myvarcharout, domain_examples.is_positive, enum_example.should_raise_alarm, fn_examples.depends_on_table_column, public.log_table_alteration, range_type_example.return_depends_on_range_type, trigger_test.check_account_update, base_type_examples.text_w_default_in, base_type_examples.myvarcharin, composite_type_examples.get_basic, fn_examples.is_odd, trigger_test.view_insert_row, base_type_examples.base_fn_out, enum_example.make_bug_info, extension_example._hstore, range_type_example.arg_depends_on_range_type, domain_examples.is_even, fn_examples.depends_on_table_column_type, fn_examples.depends_on_view_column, base_type_examples.text_w_default_out, regress_rls_schema.f_leak, create_cast.transmogrify, base_type_examples.myvarcharrecv, foreign_db_example.is_positive, range_type_example.my_float8mi, base_type_examples.fake_op, base_type_examples.get_default_test, fn_examples.depends_on_view_column_type, fn_examples.is_even, regress_rls_schema.op_leak, base_type_examples.base_fn_in, base_type_examples.myvarcharsend, agg_ex.avg_finalfn, trigger_test.log_account_update"
+            },
+            {
+                "ObjectType": "AGGREGATE",
+                "TotalCount": 2,
+                "ObjectNames": "agg_ex.my_avg, agg_ex.my_sum"
+            },
+            {
+                "ObjectType": "PROCEDURE",
+                "TotalCount": 1,
+                "ObjectNames": "fn_examples.insert_to_table"
+            },
+            {
+                "ObjectType": "VIEW",
+                "TotalCount": 20,
+                "InvalidCount": 1,
+                "ObjectNames": "enum_example._bugs, fn_examples.basic_view, public.foreign_db_example, range_type_example.depends_on_col_using_type, regress_rls_schema.rls_sbv, regress_rls_schema.rls_view_2, regress_rls_schema.rls_view_3, extension_example.dependent_view, regress_rls_schema.rec2v, regress_rls_schema.rec2v_2, regress_rls_schema.rls_view_4, regress_rls_schema.rls_sbv_2, regress_rls_schema.rls_view, trigger_test.accounts_view, agg_ex.my_view, composite_type_examples.basic_view, regress_rls_schema.bv1, regress_rls_schema.rec1v, regress_rls_schema.rec1v_2, regress_rls_schema.v2"
+            },
+            {
+                "ObjectType": "TRIGGER",
+                "TotalCount": 5,
+                "ObjectNames": "check_balance_update, check_update, check_update_when_difft_balance, log_update, view_insert"
+            },
+            {
+                "ObjectType": "MVIEW",
+                "TotalCount": 2,
+                "ObjectNames": "am_examples.heapmv, am_examples.tableam_tblmv_heapx"
+            }
+        ]
+    },
+    "Issues": [
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "composite_type_examples.inherited_table",
+            "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
+            "SqlStatement": "CREATE TABLE composite_type_examples.inherited_table (\n)\nINHERITS (composite_type_examples.ordinary_table);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "enum_example.bugs_clone",
+            "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
+            "SqlStatement": "CREATE TABLE enum_example.bugs_clone (\n)\nINHERITS (enum_example.bugs);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "regress_rls_schema.t2",
+            "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
+            "SqlStatement": "CREATE TABLE regress_rls_schema.t2 (\n    c double precision\n)\nINHERITS (regress_rls_schema.t1);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "regress_rls_schema.t3_3",
+            "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
+            "SqlStatement": "CREATE TABLE regress_rls_schema.t3_3 (\n    id integer NOT NULL,\n    c text,\n    b text,\n    a integer\n)\nINHERITS (regress_rls_schema.t1_3);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "ObjectType": "INDEX",
+            "ObjectName": "grect2ind2",
+            "Reason": "Schema contains GIST index which is not supported.",
+            "SqlStatement": "CREATE INDEX grect2ind2 ON am_examples.fast_emp4000 USING gist2 (home_base);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "ObjectType": "INDEX",
+            "ObjectName": "grect2ind3",
+            "Reason": "Schema contains GIST index which is not supported.",
+            "SqlStatement": "CREATE INDEX grect2ind3 ON am_examples.fast_emp4000 USING gist2 (home_base);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "ObjectType": "INDEX",
+            "ObjectName": "hidx",
+            "Reason": "Schema contains GIST index which is not supported.",
+            "SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "ObjectType": "INDEX",
+            "ObjectName": "gin_idx",
+            "Reason": "Schema contains gin index on multi column which is not supported.",
+            "SqlStatement": "CREATE INDEX gin_idx ON idx_ex.films USING gin (to_tsvector('english'::regconfig, title)) WITH (fastupdate=off);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/7850"
+        },
+        {
+            "ObjectType": "VIEW",
+            "ObjectName": "regress_rls_schema.bv1",
+            "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
+            "SqlStatement": "CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS\n SELECT b1.a,\n    b1.b\n   FROM regress_rls_schema.b1\n  WHERE (b1.a \u003e 0)\n  WITH CASCADED CHECK OPTION;",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716"
+        }
+    ]
+}

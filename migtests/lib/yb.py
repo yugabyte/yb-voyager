@@ -145,6 +145,12 @@ class PostgresDB:
 		q = "SELECT table_name FROM information_schema.tables WHERE table_schema=%s AND table_type='BASE TABLE'"
 		cur.execute(q, (schema,))
 		return [table[0] for table in cur.fetchall()]
+		
+	def get_foreign_table_names(self, schema="public") -> List[str]:
+		cur = self.conn.cursor()
+		q = "SELECT table_name FROM information_schema.tables WHERE table_schema=%s AND table_type='FOREIGN'"
+		cur.execute(q, (schema,))
+		return [table[0] for table in cur.fetchall()]
 
 	def get_row_count(self, table_name, schema_name="public") -> int:
 		cur = self.conn.cursor()
@@ -315,3 +321,13 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT is_colocated FROM yb_table_properties('\"{schema_name}\".\"{table_name}\"'::regclass);")
 		return cur.fetchone()[0]
+	
+	def get_user_defined_collations(self) -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute("SELECT collname FROM pg_collation JOIN pg_namespace ON pg_collation.collnamespace = pg_namespace.oid WHERE nspname NOT IN ('pg_catalog', 'information_schema');")
+		return [collation[0] for collation in cur.fetchall()]
+
+	def get_user_defined_aggregates(self) -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute("SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid JOIN pg_aggregate a ON p.oid = a.aggfnoid WHERE n.nspname NOT IN ('pg_catalog', 'information_schema');")
+		return [aggregate[0] for aggregate in cur.fetchall()]

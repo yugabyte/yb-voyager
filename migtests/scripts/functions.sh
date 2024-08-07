@@ -813,6 +813,8 @@ normalize_json() {
                 .OptimalSelectConnectionsPerNode = "IGNORED"
             elif has("OptimalInsertConnectionsPerNode") then
                 .OptimalInsertConnectionsPerNode = "IGNORED"
+            elif has("SqlStatement") then
+                .SqlStatement |= gsub("\\n"; " ")
             else
                 .
             end
@@ -824,7 +826,23 @@ normalize_json() {
     )' "$input_file" > "$output_file"
 }
 
-compare_assessment_reports() {
+
+compare_files() {
+    file1="$1"
+    file2="$2"
+
+    if cmp -s "$file1" "$file2"; then
+        echo "Data matches expected report."
+        return 0
+    else
+        echo "Data does not match expected report."
+        diff_output=$(diff "$file1" "$file2")
+        echo "$diff_output"
+        return 1
+    fi
+}
+
+compare_json_reports() {
     local file1="$1"
     local file2="$2"
 
@@ -834,20 +852,39 @@ compare_assessment_reports() {
     normalize_json "$file1" "$temp_file1"
     normalize_json "$file2" "$temp_file2"
 
-    if cmp -s "$temp_file1" "$temp_file2"; then
-        echo "Data matches expected report."
-    else
-        echo "Data does not match expected report."
-        diff_output=$(diff "$temp_file1" "$temp_file2")
-        echo "$diff_output"
-		
-		# Clean up temporary files
-		rm "$temp_file1" "$temp_file2"
-        exit 1
-    fi
+    compare_files "$temp_file1" "$temp_file2"
+    compare_status=$?
 
     # Clean up temporary files
     rm "$temp_file1" "$temp_file2"
+
+    # Exit with the status from compare_files if there are differences
+    if [ $compare_status -ne 0 ]; then
+        exit $compare_status
+    fi
+
+    echo "Proceeding with further steps..."
 }
 
+
+replace_files() {
+    replacement_dir="$1"
+    export_dir="$2"
+
+    find "$replacement_dir" -type f | while read -r replacement_file; do
+        # Get the relative path of the file in the replacement_dir
+        relative_path="${replacement_file#$replacement_dir/}"
+
+        # Construct the corresponding path in the export_dir/schema
+        target_file="$export_dir/$relative_path"
+
+        # Check if the target file exists in the export_dir/schema
+        if [ -f "$target_file" ]; then
+            echo "Replacing $target_file with $replacement_file"
+            cp "$replacement_file" "$target_file"
+        else
+            echo "Target file $target_file does not exist. Skipping."
+        fi
+    done
+}
 
