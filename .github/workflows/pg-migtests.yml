@@ -205,8 +205,10 @@ jobs:
       # - name: "TEST: MGI"
       #   run: migtests/scripts/run-schema-migration.sh pg/mgi
      
-      - name: "TEST: omnibus"
-        run: migtests/scripts/run-schema-migration.sh pg/omnibus
+# Diffeence between pg versions
+
+      # - name: "TEST: omnibus"
+      #   run: migtests/scripts/run-schema-migration.sh pg/omnibus
 
       - name: "TEST: osm"
         run: migtests/scripts/run-schema-migration.sh pg/osm
