@@ -983,6 +983,17 @@ type AssessmentReport struct {
 	Notes                      []string                              `json:"Notes"`
 }
 
+type AssessmentDetail struct {
+	Schema             string
+	DatabaseIdentifier string
+	ReportPath         string
+	Status             string
+}
+
+type BulkAssessmentReport struct {
+	Details []AssessmentDetail
+}
+
 // =============== for yugabyted controlplane ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 type AssessMigrationPayload struct {

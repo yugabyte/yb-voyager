@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -33,6 +34,7 @@ import (
 var bulkAssessmentDir string
 var fleetConfigPath string
 var continueOnError utils.BoolStr
+var bulkAssessmentReport BulkAssessmentReport
 
 type AssessMigrationDBConfig struct {
 	DbType      string
@@ -88,6 +90,12 @@ func assessMigrationBulk() {
 		for _, match := range matches {
 			utils.CleanDir(match)
 		}
+
+		err = os.Remove(filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html"))
+		if err != nil {
+			utils.ErrExit("failed to remove bulk assessment report: %s", err)
+		}
+		utils.CleanDir(filepath.Join(bulkAssessmentDir, "logs"))
 	}
 
 	dbConfigs, err := parseFleetConfigFile(fleetConfigPath)
@@ -105,6 +113,11 @@ func assessMigrationBulk() {
 				break
 			}
 		}
+	}
+
+	err = generateBulkAssessmentReport(dbConfigs)
+	if err != nil {
+		utils.ErrExit("failed to generate bulk assessment report: %s", err)
 	}
 }
 
@@ -216,6 +229,58 @@ func getAssessmentExportDirPath(dbConfig AssessMigrationDBConfig) string {
 	default:
 		panic(fmt.Sprintf("unable to get export dir for assessment of schema-%s", dbConfig.Schema))
 	}
+}
+
+func getDatabaseIdentifier(dbConfig AssessMigrationDBConfig) string {
+	switch {
+	case dbConfig.SID != "":
+		return dbConfig.SID
+	case dbConfig.ServiceName != "":
+		return dbConfig.ServiceName
+	case dbConfig.TnsAlias != "":
+		return dbConfig.TnsAlias
+	default:
+		return ""
+	}
+}
+
+//go:embed templates/bulkAssessmentReport.template
+var bulkAssessmentHtmlTmpl string
+
+func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
+	log.Infof("generating bulk assessment report")
+	for _, dbConfig := range dbConfigs {
+		exportDirPath := getAssessmentExportDirPath(dbConfig)
+		assessmentReportPath := filepath.Join(exportDirPath, "assessment", "reports", "assessmentReport.html")
+		var assessmentDetail = AssessmentDetail{
+			Schema:             dbConfig.Schema,
+			DatabaseIdentifier: getDatabaseIdentifier(dbConfig),
+			ReportPath:         assessmentReportPath,
+			Status:             COMPLETE,
+		}
+		if !utils.FileOrFolderExists(assessmentReportPath) {
+			assessmentDetail.Status = ERROR
+		}
+		bulkAssessmentReport.Details = append(bulkAssessmentReport.Details, assessmentDetail)
+	}
+
+	tmpl, err := template.New("bulk-assessement-report").Parse(bulkAssessmentHtmlTmpl)
+	if err != nil {
+		return fmt.Errorf("failed to parse the bulkAssessmentReport template: %w", err)
+	}
+
+	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html")
+	file, err := os.Create(reportPath)
+	if err != nil {
+		return fmt.Errorf("create file: %w", err)
+	}
+	defer file.Close()
+
+	err = tmpl.Execute(file, bulkAssessmentReport)
+	if err != nil {
+		return fmt.Errorf("failed to execute parsed template file: %w", err)
+	}
+	return nil
 }
 
 func validateBulkAssessmentDirFlag() {
