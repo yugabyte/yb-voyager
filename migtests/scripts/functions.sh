@@ -828,6 +828,24 @@ normalize_json() {
     )' "$input_file" > "$output_file"
 }
 
+compare_sql_files() {
+    sql_file1="$1"
+    sql_file2="$2"
+
+    # Normalize the files by removing lines that start with "File :"
+    normalized_file1=$(mktemp)
+    normalized_file2=$(mktemp)
+    
+    grep -v '^File :' "$sql_file1" > "$normalized_file1"
+    grep -v '^File :' "$sql_file2" > "$normalized_file2"
+
+    # Compare the normalized files
+    compare_files "$normalized_file1" "$normalized_file2"
+    
+    # Clean up temporary files
+    rm "$normalized_file1" "$normalized_file2"
+}
+
 
 compare_files() {
     file1="$1"
@@ -867,7 +885,6 @@ compare_json_reports() {
 
     echo "Proceeding with further steps..."
 }
-
 
 replace_files() {
     replacement_dir="$1"

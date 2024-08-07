@@ -102,7 +102,7 @@ main() {
     if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
     then
         #compare the failed.sql to the expected_failed.sql
-        compare_files "${EXPORT_DIR}/schema/failed.sql" "${TEST_DIR}/expected_files/expected_failed.sql"
+        compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${TEST_DIR}/expected_files/expected_failed.sql"
         #rename failed.sql
         mv "${EXPORT_DIR}/schema/failed.sql" "${EXPORT_DIR}/schema/failed.sql.bak"
         #replace_files
