@@ -352,14 +352,6 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
         },
         {
-            "ObjectType": "VIEW",
-            "ObjectName": "view_name",
-            "Reason": "ALTER VIEW not supported yet.",
-            "SqlStatement": "ALTER VIEW view_name TO select * from test;",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1131"
-        },
-        {
             "ObjectType": "TABLE",
             "ObjectName": "public.range_columns_partition_test",
             "Reason": "Adding primary key to a partitioned table is not yet implemented.",
