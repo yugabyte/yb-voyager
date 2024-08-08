@@ -625,9 +625,19 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 		var numColocated int = 0
 		var cumulativeObjectCount int64 = 0
 
+		var shardedObjects []SourceDBMetadata
+		var cumulativeSizeSharded float64 = 0
+
 		for _, table := range sourceTableMetadata {
 			// Check and fetch indexes for the current table
 			indexesOfTable, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+			// DB-12363: make tables having more than 5 indexes as sharded(irrespective of size or ops requirements)
+			if len(indexesOfTable) > 5 {
+				shardedObjects = append(shardedObjects, table)
+				cumulativeSizeSharded += lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
+				// skip to next table
+				continue
+			}
 			// Calculate new object count and total size
 			newObjectCount := cumulativeObjectCount + int64(len(indexesOfTable)) + 1
 			objectTotalSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
@@ -645,11 +655,9 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 				break
 			}
 		}
-		var shardedObjects []SourceDBMetadata
-		var cumulativeSizeSharded float64 = 0
 
 		// Iterate over remaining tables for sharding
-		for _, remainingTable := range sourceTableMetadata[numColocated:] {
+		for _, remainingTable := range sourceTableMetadata[(len(shardedObjects) + numColocated):] {
 			shardedObjects = append(shardedObjects, remainingTable)
 			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
 			cumulativeSizeSharded += lo.Ternary(remainingTable.Size.Valid, remainingTable.Size.Float64, 0) + indexesSizeSumSharded
