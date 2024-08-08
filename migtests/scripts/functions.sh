@@ -839,6 +839,9 @@ compare_sql_files() {
     grep -v '^File :' "$sql_file1" > "$normalized_file1"
     grep -v '^File :' "$sql_file2" > "$normalized_file2"
 
+	sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file1"
+    sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file2"
+
     # Compare the normalized files
     compare_files "$normalized_file1" "$normalized_file2"
     

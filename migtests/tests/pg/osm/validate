@@ -11,7 +11,7 @@ def main():
 EXPECTED_EXTENSION_SET = set([("hstore",), ("pg_stat_statements",), ("plpgsql",)])
 
 EXPECTED_INDEX_COUNT = {
-	'osm_changeset': 6,
+	'osm_changeset': 5,
 }
 
 def migration_completed_checks(tgt):
