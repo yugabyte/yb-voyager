@@ -36,7 +36,7 @@ import (
 type SourceDBMetadata struct {
 	SchemaName      string          `db:"schema_name"`
 	ObjectName      string          `db:"object_name"`
-	RowCount        sql.NullInt64   `db:"row_count,string"`
+	RowCount        sql.NullFloat64 `db:"row_count,string"`
 	ColumnCount     sql.NullInt64   `db:"column_count,string"`
 	Reads           sql.NullInt64   `db:"reads,string"`
 	Writes          sql.NullInt64   `db:"writes,string"`
@@ -74,6 +74,7 @@ type ExpDataLoadTime struct {
 	csvSizeGB         sql.NullFloat64 `db:"csv_size_gb,string"`
 	migrationTimeSecs sql.NullFloat64 `db:"migration_time_secs,string"`
 	parallelThreads   sql.NullInt64   `db:"parallel_threads,string"`
+	rowCount          sql.NullFloat64 `db:"row_count,string"`
 }
 
 type ExpDataLoadTimeIndexImpact struct {
@@ -886,7 +887,8 @@ func calculateTimeTakenAndParallelJobsForImport(tables []SourceDBMetadata,
 	for _, table := range tables {
 		// find the closest record from experiment data for the size of the table
 		tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
-		closestLoadTime := findClosestRecordFromExpDataLoadTime(loadTimes, tableSize)
+		rowsInTable := lo.Ternary(table.RowCount.Valid, table.RowCount.Float64, 0)
+		closestLoadTime := findClosestRecordFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
 		// get multiplication factor for every table based on the number of indexes
 		loadTimeMultiplicationFactor := getMultiplicationFactorForImportTimeBasedOnIndexes(table, sourceIndexMetadata,
 			indexImpacts, objectType)
@@ -915,7 +917,8 @@ func getExpDataLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore in
 	selectQuery := fmt.Sprintf(`
 		SELECT csv_size_gb, 
 			   migration_time_secs, 
-			   parallel_threads 
+			   parallel_threads,
+			   row_count
 		FROM %v 
 		WHERE num_cores = ? 
 			AND mem_per_core = ?
@@ -935,7 +938,7 @@ func getExpDataLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore in
 	var loadTimes []ExpDataLoadTime
 	for rows.Next() {
 		var loadTime ExpDataLoadTime
-		if err = rows.Scan(&loadTime.csvSizeGB, &loadTime.migrationTimeSecs, &loadTime.parallelThreads); err != nil {
+		if err = rows.Scan(&loadTime.csvSizeGB, &loadTime.migrationTimeSecs, &loadTime.parallelThreads, &loadTime.rowCount); err != nil {
 			return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w",
 				selectQuery, err)
 		}
@@ -991,29 +994,43 @@ func getExpDataIndexImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int, 
 }
 
 /*
-findClosestRecordFromExpDataLoadTime finds the closest record from the experiment data for the size of the table.
+findClosestRecordFromExpDataLoadTime finds the closest record from the experiment data based on row count or size
+of the table. Out of objects close in terms of size and rows, prefer object having number of rows.
 Parameters:
 
 	loadTimes: A slice containing the fetched load time information.
 	objectSize: The size of the table in gigabytes.
+	rowsInTable: number of rows in the table.
 
 Returns:
 
-	ExpDataLoadTime: The closest record from the experiment data for the size of the table which is closest to the object size.
+	ExpDataLoadTime: The closest record from the experiment data.
 */
-func findClosestRecordFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize float64) ExpDataLoadTime {
-	closest := loadTimes[0]
-	minDiff := math.Abs(objectSize - closest.csvSizeGB.Float64)
+func findClosestRecordFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize float64, rowsInTable float64) ExpDataLoadTime {
+	closestInSize := loadTimes[0]
+	closestInRows := loadTimes[0]
+
+	minSizeDiff := math.Abs(objectSize - closestInSize.csvSizeGB.Float64)
+	minRowsDiff := math.Abs(rowsInTable - closestInRows.rowCount.Float64)
 
 	for _, num := range loadTimes {
-		diff := math.Abs(objectSize - num.csvSizeGB.Float64)
-		if diff < minDiff {
-			minDiff = diff
-			closest = num
+		sizeDiff := math.Abs(objectSize - num.csvSizeGB.Float64)
+		rowsDiff := math.Abs(rowsInTable - num.rowCount.Float64)
+		if sizeDiff < minSizeDiff {
+			minSizeDiff = sizeDiff
+			closestInSize = num
+		}
+		if rowsDiff < minRowsDiff {
+			minRowsDiff = rowsDiff
+			closestInRows = num
 		}
 	}
 
-	return closest
+	if closestInRows.rowCount.Float64 > closestInSize.rowCount.Float64 {
+		return closestInRows
+	} else {
+		return closestInSize
+	}
 }
 
 /*

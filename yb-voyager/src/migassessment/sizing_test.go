@@ -1151,6 +1151,73 @@ func TestGetThresholdAndTablets(t *testing.T) {
 }
 
 /*
+===== 	Test functions to test findClosestRecordFromExpDataLoadTime function	=====
+*/
+func TestFindClosestRecordFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
+	loadTimes := []ExpDataLoadTime{
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 1500},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+		},
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 3000},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 300000000},
+		},
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 4500},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 600000000},
+		},
+	}
+	expected := ExpDataLoadTime{
+		csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
+		migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 4500},
+		rowCount:          sql.NullFloat64{Valid: true, Float64: 600000000},
+	}
+
+	var objectSize float64 = 19
+	var rowsInTable float64 = 500000000
+	result := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+	if result != expected {
+		t.Errorf("Expected %v but got %v", expected, result)
+	}
+}
+
+func TestFindClosestRecordFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *testing.T) {
+	loadTimes := []ExpDataLoadTime{
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 24},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 2900},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+		},
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 25},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 3000},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+		},
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 30},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 4500},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+		},
+	}
+	expected := ExpDataLoadTime{
+		csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 25},
+		migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 3000},
+		rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+	}
+
+	var objectSize float64 = 25
+	var rowsInTable float64 = 100000000
+	result := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+	if result != expected {
+		t.Errorf("Expected %v but got %v", expected, result)
+	}
+}
+
+/*
 ====================HELPER FUNCTIONS====================
 */
 
