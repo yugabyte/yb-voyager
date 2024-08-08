@@ -1,0 +1,37 @@
+{
+    "Summary": {
+        "DbName": "test_stackex",
+        "SchemaNames": [
+            "public"
+        ],
+        "DbVersion": "12.14",
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 1,
+                "ObjectNames": "public"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 1,
+                "ObjectNames": "tsm_system_rows"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 21,
+                "ObjectNames": "public.badges, public.closeasofftopicreasontypes, public.closereasontypes, public.flagtypes, public.posthistory, public.postlinktypes, public.posttags, public.reviewtaskresulttype, public.usertagqa, public.votetypes, public.allposttags, public.posthistorytypes, public.posttypes, public.tags, public.users, public.votes, public.posts, public.comments, public.postlinks, public.questionanswer, public.reviewtasktypes"
+            },
+            {
+                "ObjectType": "INDEX",
+                "TotalCount": 44,
+                "ObjectNames": "postlinks_related_post_id_idx, posts_accepted_answer_id_idx, posts_parent_id_idx, posttags_postid_idx, usertagqa_all_qa_posts_idx, badges_date_idx, ph_revguid_idx, postlinks_post_id_idx, posts_id_post_type_id_idx, posts_post_type_id_idx, user_acc_id_idx, cmnts_userid_idx, posts_owner_user_id_creation_date_idx, usertagqa_answers_idx, votes_creation_date_idx, posts_creation_date_idx, posts_score_idx, posts_id_accepted_answers_id_idx, posts_id_parent_id_idx, tags_count_idx, tags_name_idx, user_created_at_idx, votes_post_id_idx, cmnts_creation_date_idx, posts_comment_count_idx, posts_viewcount_idx, posttags_tagid_idx, user_display_idx, user_up_votes_idx, usertagqa_questions_idx, badges_user_id_idx, cmnts_postid_idx, cmnts_score_idx, ph_userid_idx, posts_answer_count_idx, posts_favorite_count_idx, badges_name_idx, ph_post_type_id_idx, ph_postid_idx, posts_owner_user_id_idx, user_down_votes_idx, usertagqa_questions_answers_idx, votes_type_idx, ph_creation_date_idx"
+            },
+            {
+                "ObjectType": "VIEW",
+                "TotalCount": 2,
+                "ObjectNames": "public.answers, public.questions"
+            }
+        ]
+    },
+    "Issues": null
+}

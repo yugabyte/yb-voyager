@@ -1,0 +1,50 @@
+{
+    "Summary": {
+        "DbName": "test_pgtbrus",
+        "SchemaNames": [
+            "public"
+        ],
+        "DbVersion": "12.14",
+        "Notes": [
+            "Review and manually import the DDL statements from the file /home/centos/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/uncategorized.sql"
+        ],
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 1,
+                "ObjectNames": "public"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 1,
+                "ObjectNames": "postgres_fdw"
+            },
+            {
+                "ObjectType": "TYPE",
+                "TotalCount": 2,
+                "ObjectNames": "public.mycomposit, public.myenum"
+            },
+            {
+                "ObjectType": "SEQUENCE",
+                "TotalCount": 4,
+                "ObjectNames": "public.c_i_seq, public.f_c_i_seq, public.f_t_i_seq, public.t_i_seq"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 2,
+                "ObjectNames": "public.t, public.c"
+            },
+            {
+                "ObjectType": "FUNCTION",
+                "TotalCount": 4,
+                "ObjectNames": "public.pk, public.tgf_d, public.tgf_i, public.tgf_u"
+            },
+            {
+                "ObjectType": "TRIGGER",
+                "TotalCount": 6,
+                "ObjectNames": "tgd, tgi, tgu"
+            }
+        ]
+    },
+    "Issues": null
+}

@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_TRIGGER_LIST = [
+		"last_updated", "last_updated", "last_updated", "last_updated", "last_updated",
+		"last_updated", "last_updated", "last_updated", "last_updated", "last_updated",
+		"last_updated", "last_updated", "last_updated", "last_updated", "film_fulltext_trigger",
+		"film_fulltext_trigger"
+	]
+
+EXPECTED_INDEX_COUNT = {
+	'actor': 2,
+ 	'address': 2,
+ 	'category': 1,
+ 	'city': 2,
+ 	'country': 1,
+ 	'customer': 4,
+ 	'film': 5,
+ 	'film_actor': 2,
+ 	'film_category': 1,
+ 	'inventory': 2,
+ 	'language': 1,
+ 	'payment': 3,
+ 	'payment_p2007_01': 2,
+ 	'payment_p2007_02': 2,
+ 	'payment_p2007_03': 2,
+ 	'payment_p2007_04': 2,
+ 	'payment_p2007_05': 2,
+ 	'payment_p2007_06': 2,
+ 	'rental': 3,
+ 	'staff': 1,
+ 	'store': 2
+}
+
+
+def migration_completed_checks(tgt):
+
+	rules_list = tgt.fetch_all_rules("public")
+	print(f"list of rules {rules_list} in 'public' schema")
+	assert len(rules_list) == 6
+	assert set(rules_list) == set([
+	    "payment_insert_p2007_01",
+	    "payment_insert_p2007_02",
+	    "payment_insert_p2007_03",
+	    "payment_insert_p2007_04",
+	    "payment_insert_p2007_05",
+	    "payment_insert_p2007_06"
+	])
+
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 21
+
+	fetched_triggers = tgt.fetch_all_triggers("public")
+	print(f"fetched triggers list: {fetched_triggers}\n Expected triggers: {EXPECTED_TRIGGER_LIST}")
+	assert sorted(fetched_triggers) == sorted(EXPECTED_TRIGGER_LIST), "Fetched triggers do not match expected triggers"
+
+	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('year','mpaa_rating');"
+	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
+	print(f"count returned - {cnt_type_domain}")
+	assert cnt_type_domain == 2
+
+	fetched_procedures_functions = tgt.fetch_all_procedures("public")
+	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
+	assert len(fetched_procedures_functions) == 10
+
+	num_sequences = tgt.count_sequences("public")
+	print(f"actual number_sequences: {num_sequences}, expected num_sequences: 19")
+	assert num_sequences == 19 
+	#The actual number is 13 on the source. But due to the changes made for Inherited tables, the number increases to 19
+
+	get_index_cnt = tgt.get_count_index_on_table("public")
+	for table_name, index_count in EXPECTED_INDEX_COUNT.items():
+		print(f"table_name: {table_name}, index_count: {get_index_cnt[table_name]}")
+		assert index_count == get_index_cnt[table_name]
+
+	res_aggregate_group_concat = tgt.execute_query("SELECT group_concat(col) FROM (VALUES ('Alice'), (NULL), ('Charlie')) AS example(col);")
+	print(f"result of group_concat aggregate - {res_aggregate_group_concat}")
+	assert res_aggregate_group_concat ==  "Alice, Charlie"
+
+	view_list = tgt.get_objects_of_type("VIEW", "public")
+	print("view_list:", view_list)
+	assert len(view_list) == 7
+
+if __name__ == "__main__":
+	main()

@@ -1,0 +1,675 @@
+{
+    "Summary": {
+        "DbName": "adventureworks",
+        "SchemaNames": [
+            "public",
+            "hr",
+            "humanresources",
+            "pe",
+            "person",
+            "pr",
+            "production",
+            "pu",
+            "purchasing",
+            "sa",
+            "sales"
+        ],
+        "DbVersion": "12.14",
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 11,
+                "ObjectNames": "hr, pe, production, pu, purchasing, sa, sales, humanresources, person, pr, public"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 2,
+                "ObjectNames": "tablefunc, \"uuid-ossp\""
+            },
+            {
+                "ObjectType": "DOMAIN",
+                "TotalCount": 6,
+                "ObjectNames": "public.\"Flag\", public.\"Name\", public.\"NameStyle\", public.\"OrderNumber\", public.\"Phone\", public.\"AccountNumber\""
+            },
+            {
+                "ObjectType": "SEQUENCE",
+                "TotalCount": 36,
+                "ObjectNames": "production.illustration_illustrationid_seq, sales.currencyrate_currencyrateid_seq, person.businessentity_businessentityid_seq, production.location_locationid_seq, production.productsubcategory_productsubcategoryid_seq, person.addresstype_addresstypeid_seq, production.productmodel_productmodelid_seq, purchasing.shipmethod_shipmethodid_seq, production.productreview_productreviewid_seq, production.transactionhistory_transactionid_seq, purchasing.purchaseorderdetail_purchaseorderdetailid_seq, sales.salesorderdetail_salesorderdetailid_seq, sales.salesreason_salesreasonid_seq, humanresources.department_departmentid_seq, person.phonenumbertype_phonenumbertypeid_seq, production.productdescription_productdescriptionid_seq, person.contacttype_contacttypeid_seq, production.productphoto_productphotoid_seq, sales.customer_customerid_seq, sales.salesterritory_territoryid_seq, humanresources.shift_shiftid_seq, person.stateprovince_stateprovinceid_seq, production.scrapreason_scrapreasonid_seq, sales.salesorderheader_salesorderid_seq, sales.salestaxrate_salestaxrateid_seq, production.productcategory_productcategoryid_seq, production.workorder_workorderid_seq, sales.creditcard_creditcardid_seq, production.billofmaterials_billofmaterialsid_seq, production.product_productid_seq, purchasing.purchaseorderheader_purchaseorderid_seq, sales.shoppingcartitem_shoppingcartitemid_seq, sales.specialoffer_specialofferid_seq, humanresources.jobcandidate_jobcandidateid_seq, person.address_addressid_seq, person.emailaddress_emailaddressid_seq"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 68,
+                "ObjectNames": "production.culture, production.productmodelillustration, sales.customer, sales.salesorderheader, person.businessentityaddress, person.addresstype, production.location, purchasing.purchaseorderheader, sales.currencyrate, sales.countryregioncurrency, sales.shoppingcartitem, sales.salesperson, humanresources.employee, humanresources.shift, person.password, sales.salesorderheadersalesreason, person.personphone, purchasing.vendor, person.stateprovince, production.productmodel, production.productphoto, sales.specialofferproduct, production.unitmeasure, production.workorder, purchasing.productvendor, sales.salesreason, sales.salestaxrate, humanresources.employeedepartmenthistory, humanresources.employeepayhistory, production.billofmaterials, production.productproductphoto, production.transactionhistory, sales.creditcard, person.countryregion, production.productcosthistory, production.productinventory, production.scrapreason, production.transactionhistoryarchive, sales.specialoffer, sales.salesterritory, person.address, production.workorderrouting, sales.salesorderdetail, production.illustration, production.product, sales.currency, sales.salesterritoryhistory, person.businessentity, person.contacttype, production.productlistpricehistory, purchasing.shipmethod, sales.personcreditcard, person.person, person.phonenumbertype, production.productreview, humanresources.department, humanresources.jobcandidate, person.emailaddress, production.productdescription, sales.store, person.businessentitycontact, production.document, production.productcategory, production.productmodelproductdescriptionculture, production.productsubcategory, sales.salespersonquotahistory, production.productdocument, purchasing.purchaseorderdetail"
+            },
+            {
+                "ObjectType": "INDEX",
+                "TotalCount": 2,
+                "ObjectNames": "ix_vstateprovincecountryregion, ix_vproductanddescription"
+            },
+            {
+                "ObjectType": "VIEW",
+                "TotalCount": 87,
+                "ObjectNames": "sa.sth, sales.vsalesperson, humanresources.vjobcandidate, pr.c, pr.plph, pu.poh, sa.cc, hr.eph, pe.p, pr.th, sa.sod, pe.ct, pe.pnt, pr.d, pr.pi, pr.pr, pr.psc, sa.pcc, humanresources.vemployeedepartmenthistory, pe.bea, pe.bec, person.vadditionalcontactinfo, pr.tha, sales.vindividualcustomer, sales.vsalespersonsalesbyfiscalyearsdata, humanresources.vjobcandidateemployment, pe.be, pr.pdoc, pr.ppp, pr.wr, sa.s, sa.sr, sales.vstorewithdemographics, humanresources.vemployeedepartment, pr.sr, pu.pv, pe.pp, pe.cr, pr.i, pr.um, sa.cr, sa.spqh, hr.d, pr.pp, pu.pod, sa.so, sa.sohsr, sales.vsalespersonsalesbyfiscalyears, pe.a, pr.pch, pr.w, pu.sm, pu.v, purchasing.vvendorwithaddresses, sa.c, sa.st, pe.e, pr.pd, purchasing.vvendorwithcontacts, sa.cu, humanresources.vjobcandidateeducation, pr.pc, hr.s, sales.vpersondemographics, hr.jc, pr.pmpdc, sa.crc, sa.sp, sa.tr, sales.vstorewithcontacts, pe.at, production.vproductmodelcatalogdescription, production.vproductmodelinstructions, sales.vstorewithaddresses, hr.edh, humanresources.vemployee, pe.pa, pe.sp, pr.bom, pr.l, pr.p, pr.pm, hr.e, sa.sci, sa.soh, sa.sop, pr.pmi"
+            },
+            {
+                "ObjectType": "MVIEW",
+                "TotalCount": 2,
+                "ObjectNames": "person.vstateprovincecountryregion, production.vproductanddescription"
+            }
+        ]
+    },
+    "Issues": [
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.department CLUSTER ON \"PK_Department_DepartmentID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.employeedepartmenthistory CLUSTER ON \"PK_EmployeeDepartmentHistory_BusinessEntityID_StartDate_Departm\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.employeepayhistory CLUSTER ON \"PK_EmployeePayHistory_BusinessEntityID_RateChangeDate\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.employee CLUSTER ON \"PK_Employee_BusinessEntityID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.jobcandidate CLUSTER ON \"PK_JobCandidate_JobCandidateID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.shift CLUSTER ON \"PK_Shift_ShiftID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.addresstype CLUSTER ON \"PK_AddressType_AddressTypeID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.address CLUSTER ON \"PK_Address_AddressID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.businessentityaddress CLUSTER ON \"PK_BusinessEntityAddress_BusinessEntityID_AddressID_AddressType\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.businessentitycontact CLUSTER ON \"PK_BusinessEntityContact_BusinessEntityID_PersonID_ContactTypeI\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.businessentity CLUSTER ON \"PK_BusinessEntity_BusinessEntityID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.contacttype CLUSTER ON \"PK_ContactType_ContactTypeID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.countryregion CLUSTER ON \"PK_CountryRegion_CountryRegionCode\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.emailaddress CLUSTER ON \"PK_EmailAddress_BusinessEntityID_EmailAddressID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.password CLUSTER ON \"PK_Password_BusinessEntityID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.personphone CLUSTER ON \"PK_PersonPhone_BusinessEntityID_PhoneNumber_PhoneNumberTypeID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.person CLUSTER ON \"PK_Person_BusinessEntityID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.phonenumbertype CLUSTER ON \"PK_PhoneNumberType_PhoneNumberTypeID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.stateprovince CLUSTER ON \"PK_StateProvince_StateProvinceID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.culture CLUSTER ON \"PK_Culture_CultureID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.document CLUSTER ON \"PK_Document_DocumentNode\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.illustration CLUSTER ON \"PK_Illustration_IllustrationID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.location CLUSTER ON \"PK_Location_LocationID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productcategory CLUSTER ON \"PK_ProductCategory_ProductCategoryID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productcosthistory CLUSTER ON \"PK_ProductCostHistory_ProductID_StartDate\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productdescription CLUSTER ON \"PK_ProductDescription_ProductDescriptionID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productdocument CLUSTER ON \"PK_ProductDocument_ProductID_DocumentNode\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productinventory CLUSTER ON \"PK_ProductInventory_ProductID_LocationID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productlistpricehistory CLUSTER ON \"PK_ProductListPriceHistory_ProductID_StartDate\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productmodelillustration CLUSTER ON \"PK_ProductModelIllustration_ProductModelID_IllustrationID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productmodelproductdescriptionculture CLUSTER ON \"PK_ProductModelProductDescriptionCulture_ProductModelID_Product\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productmodel CLUSTER ON \"PK_ProductModel_ProductModelID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productphoto CLUSTER ON \"PK_ProductPhoto_ProductPhotoID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productreview CLUSTER ON \"PK_ProductReview_ProductReviewID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productsubcategory CLUSTER ON \"PK_ProductSubcategory_ProductSubcategoryID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.product CLUSTER ON \"PK_Product_ProductID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.scrapreason CLUSTER ON \"PK_ScrapReason_ScrapReasonID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.transactionhistoryarchive CLUSTER ON \"PK_TransactionHistoryArchive_TransactionID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.transactionhistory CLUSTER ON \"PK_TransactionHistory_TransactionID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.unitmeasure CLUSTER ON \"PK_UnitMeasure_UnitMeasureCode\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.workorderrouting CLUSTER ON \"PK_WorkOrderRouting_WorkOrderID_ProductID_OperationSequence\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.workorder CLUSTER ON \"PK_WorkOrder_WorkOrderID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.productvendor CLUSTER ON \"PK_ProductVendor_ProductID_BusinessEntityID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.purchaseorderdetail CLUSTER ON \"PK_PurchaseOrderDetail_PurchaseOrderID_PurchaseOrderDetailID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.purchaseorderheader CLUSTER ON \"PK_PurchaseOrderHeader_PurchaseOrderID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.shipmethod CLUSTER ON \"PK_ShipMethod_ShipMethodID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.vendor CLUSTER ON \"PK_Vendor_BusinessEntityID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.countryregioncurrency CLUSTER ON \"PK_CountryRegionCurrency_CountryRegionCode_CurrencyCode\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.creditcard CLUSTER ON \"PK_CreditCard_CreditCardID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.currencyrate CLUSTER ON \"PK_CurrencyRate_CurrencyRateID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.currency CLUSTER ON \"PK_Currency_CurrencyCode\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.customer CLUSTER ON \"PK_Customer_CustomerID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.personcreditcard CLUSTER ON \"PK_PersonCreditCard_BusinessEntityID_CreditCardID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesorderdetail CLUSTER ON \"PK_SalesOrderDetail_SalesOrderID_SalesOrderDetailID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesorderheadersalesreason CLUSTER ON \"PK_SalesOrderHeaderSalesReason_SalesOrderID_SalesReasonID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesorderheader CLUSTER ON \"PK_SalesOrderHeader_SalesOrderID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salespersonquotahistory CLUSTER ON \"PK_SalesPersonQuotaHistory_BusinessEntityID_QuotaDate\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesperson CLUSTER ON \"PK_SalesPerson_BusinessEntityID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesreason CLUSTER ON \"PK_SalesReason_SalesReasonID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salestaxrate CLUSTER ON \"PK_SalesTaxRate_SalesTaxRateID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesterritoryhistory CLUSTER ON \"PK_SalesTerritoryHistory_BusinessEntityID_StartDate_TerritoryID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesterritory CLUSTER ON \"PK_SalesTerritory_TerritoryID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.shoppingcartitem CLUSTER ON \"PK_ShoppingCartItem_ShoppingCartItemID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.specialofferproduct CLUSTER ON \"PK_SpecialOfferProduct_SpecialOfferID_ProductID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.specialoffer CLUSTER ON \"PK_SpecialOffer_SpecialOfferID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.store CLUSTER ON \"PK_Store_BusinessEntityID\";",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.vstateprovincecountryregion CLUSTER ON ix_vstateprovincecountryregion;",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.vproductanddescription CLUSTER ON ix_vproductanddescription;",
+            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        }
+    ]
+}

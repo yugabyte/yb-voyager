@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_EXTENSION_SET = set([("tsm_system_rows",), ("pg_stat_statements",), ("plpgsql",)])
+
+EXPECTED_INDEX_COUNT = {
+	'allposttags': 1,
+	'badges': 4,
+	'closeasofftopicreasontypes': 1,
+	'closereasontypes': 1,
+	'comments': 5,
+	'flagtypes': 1,
+	'posthistory': 6,
+	'posthistorytypes': 1,
+	'postlinks': 3,
+	'postlinktypes': 1,
+	'posts': 15,
+	'posttags': 3,
+	'posttypes': 1,
+	'questionanswer': 1,
+	'reviewtaskresulttype': 1,
+	'reviewtasktypes': 1,
+	'tags': 3,
+	'users': 6,
+	'usertagqa': 5,
+	'votes': 4,
+	'votetypes': 1	
+}
+
+def migration_completed_checks(tgt):
+
+	extension_list = tgt.fetch_all_pg_extension("public")
+	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {EXPECTED_EXTENSION_SET}")
+	assert extension_list == EXPECTED_EXTENSION_SET
+
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 21
+
+	get_index_cnt = tgt.get_count_index_on_table("public")
+	for table_name, index_count in EXPECTED_INDEX_COUNT.items():
+		print(f"table_name: {table_name}, index_count: {get_index_cnt[table_name]}")
+		assert index_count == get_index_cnt[table_name]
+
+	view_list = tgt.get_objects_of_type("VIEW", "public")
+	print("view_list:", view_list)
+	assert len(view_list) == 2
+
+if __name__ == "__main__":
+	main()

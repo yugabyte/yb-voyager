@@ -1,0 +1,117 @@
+{
+	"SchemaSummary": {
+		"DbName": "test_pgtbrus",
+		"SchemaNames": [
+			"public"
+		],
+		"DbVersion": "12.14",
+		"DatabaseObjects": [
+			{
+				"ObjectType": "SCHEMA",
+				"TotalCount": 1,
+				"ObjectNames": "public"
+			},
+			{
+				"ObjectType": "EXTENSION",
+				"TotalCount": 1,
+				"ObjectNames": "postgres_fdw"
+			},
+			{
+				"ObjectType": "TYPE",
+				"TotalCount": 2,
+				"ObjectNames": "public.mycomposit, public.myenum"
+			},
+			{
+				"ObjectType": "SEQUENCE",
+				"TotalCount": 4,
+				"ObjectNames": "public.c_i_seq, public.f_c_i_seq, public.f_t_i_seq, public.t_i_seq"
+			},
+			{
+				"ObjectType": "TABLE",
+				"TotalCount": 2,
+				"ObjectNames": "public.c, public.t"
+			},
+			{
+				"ObjectType": "FUNCTION",
+				"TotalCount": 4,
+				"ObjectNames": "public.pk, public.tgf_d, public.tgf_i, public.tgf_u"
+			},
+			{
+				"ObjectType": "TRIGGER",
+				"TotalCount": 6,
+				"ObjectNames": "tgd, tgi, tgu"
+			}
+		]
+	},
+	"SchemaSummaryDBObjectsDesc": "Objects that will be created on the target YugabyteDB.",
+	"Sizing": {
+		"SizingRecommendation": {
+			"ColocatedTables": [
+				"public.t",
+				"public.c"
+			],
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ShardedTables": null,
+			"NumNodes": 3,
+			"VCPUsPerInstance": 4,
+			"MemoryPerInstance": 16,
+			"OptimalSelectConnectionsPerNode": 8,
+			"OptimalInsertConnectionsPerNode": 12,
+			"EstimatedTimeInMinForImport": 0,
+			"ParallelVoyagerJobs": 1
+		},
+		"FailureReasoning": ""
+	},
+	"UnsupportedDataTypes": null,
+	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
+	"UnsupportedFeatures": [
+		{
+			"FeatureName": "GIST indexes",
+			"ObjectNames": []
+		},
+		{
+			"FeatureName": "Constraint triggers",
+			"ObjectNames": []
+		},
+		{
+			"FeatureName": "Inherited tables",
+			"ObjectNames": []
+		},
+		{
+			"FeatureName": "Tables with Stored generated columns",
+			"ObjectNames": []
+		}
+	],
+	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"TableIndexStats": [
+		{
+			"SchemaName": "public",
+			"ObjectName": "t",
+			"RowCount": 0,
+			"ColumnCount": 6,
+			"Reads": 18,
+			"Writes": 283,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "c",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 1,
+			"Writes": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		}
+	],
+	"Notes": null
+}
