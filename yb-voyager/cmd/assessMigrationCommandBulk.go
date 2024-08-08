@@ -252,10 +252,14 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	for _, dbConfig := range dbConfigs {
 		exportDirPath := getAssessmentExportDirPath(dbConfig)
 		assessmentReportPath := filepath.Join(exportDirPath, "assessment", "reports", "assessmentReport.html")
+		assessmentReportRelPath, err := filepath.Rel(bulkAssessmentDir, assessmentReportPath)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path for %s schema assessment report: %w", dbConfig.Schema, err)
+		}
 		var assessmentDetail = AssessmentDetail{
 			Schema:             dbConfig.Schema,
 			DatabaseIdentifier: getDatabaseIdentifier(dbConfig),
-			ReportPath:         assessmentReportPath,
+			ReportPath:         assessmentReportRelPath,
 			Status:             COMPLETE,
 		}
 		if !utils.FileOrFolderExists(assessmentReportPath) {
