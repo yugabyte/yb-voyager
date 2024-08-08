@@ -657,7 +657,7 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 		}
 
 		// Iterate over remaining tables for sharding
-		for _, remainingTable := range sourceTableMetadata[numColocated:] {
+		for _, remainingTable := range sourceTableMetadata[(len(shardedObjects) + numColocated):] {
 			shardedObjects = append(shardedObjects, remainingTable)
 			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
 			cumulativeSizeSharded += lo.Ternary(remainingTable.Size.Valid, remainingTable.Size.Float64, 0) + indexesSizeSumSharded
