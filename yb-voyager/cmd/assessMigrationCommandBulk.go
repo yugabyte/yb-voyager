@@ -94,6 +94,24 @@ func assessMigrationBulk() {
 
 	for _, dbConfig := range dbConfigs {
 		utils.PrintAndLog("\nAssessing '%s' schema\n", dbConfig.Schema)
+
+		// check if assessment report already exists
+		if utils.FileOrFolderExists(dbConfig.GetAssessmentReportPath()) {
+			// Note: Checking for report existence is usually sufficient,
+			// but checking MSR as an additional check for edge cases.
+			initMetaDB(dbConfig.GetAssessmentExportDirPath())
+			assessmentDone, _ := IsMigrationAssessmentDone()
+			if assessmentDone {
+				if !ignoreExists {
+					utils.PrintAndLog("assessment report for schema %s already exists, exiting...", dbConfig.Schema)
+					break
+				} else {
+					utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.Schema)
+					continue
+				}
+			}
+		}
+
 		err = executeAssessment(dbConfig)
 		if err != nil {
 			log.Errorf("failed to assess migration for schema %s: %v", dbConfig.Schema, err)

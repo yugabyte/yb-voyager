@@ -100,7 +100,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 			log.Infof("Start time: %s\n", startTime)
 			if metaDBIsCreated(exportDir) {
-				initMetaDB()
+				initMetaDB(exportDir)
 			}
 			if perfProfile {
 				go startPprofServer()
