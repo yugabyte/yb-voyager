@@ -994,6 +994,49 @@ type BulkAssessmentReport struct {
 	Details []AssessmentDetail
 }
 
+type AssessMigrationDBConfig struct {
+	DbType      string
+	Host        string
+	Port        string
+	ServiceName string
+	SID         string
+	TnsAlias    string
+	User        string
+	Password    string
+	Schema      string
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
+	switch {
+	case dbConfig.SID != "":
+		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.SID, dbConfig.Schema)
+	case dbConfig.ServiceName != "":
+		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.ServiceName, dbConfig.Schema)
+	case dbConfig.TnsAlias != "":
+		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.TnsAlias, dbConfig.Schema)
+	default:
+		panic(fmt.Sprintf("unable to get export dir for assessment of schema-%s", dbConfig.Schema))
+	}
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
+	switch {
+	case dbConfig.SID != "":
+		return dbConfig.SID
+	case dbConfig.ServiceName != "":
+		return dbConfig.ServiceName
+	case dbConfig.TnsAlias != "":
+		return dbConfig.TnsAlias
+	default:
+		return ""
+	}
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportPath() string {
+	exportDir := dbConfig.GetAssessmentExportDirPath()
+	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.html")
+}
+
 // =============== for yugabyted controlplane ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 type AssessMigrationPayload struct {
