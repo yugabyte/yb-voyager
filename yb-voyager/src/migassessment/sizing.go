@@ -631,7 +631,7 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 		for _, table := range sourceTableMetadata {
 			// Check and fetch indexes for the current table
 			indexesOfTable, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
-			// DB-12363: make tables having more than 5 as sharded(irrespective of size or ops requirements)
+			// DB-12363: make tables having more than 5 indexes as sharded(irrespective of size or ops requirements)
 			if len(indexesOfTable) > 5 {
 				shardedObjects = append(shardedObjects, table)
 				cumulativeSizeSharded += lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
