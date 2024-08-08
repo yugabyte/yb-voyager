@@ -358,16 +358,23 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	}
 }
 
-func checkTableDDLs(sqlInfoArr []sqlInfo, fpath string) {
+func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
+
 		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
-		if err != nil {
-			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		if err != nil { 
+			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] { //if the Stmt is not already report by any of the regexes
+				reportCase(fpath, "Unsupported PG syntax", "<CREATE TICKET>",
+				"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.stmt)
+			}
+			continue
 		}
 
 		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
-		if isCreateTable {
+		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
+
+		if objType == "TABLE" && isCreateTable {
 			schemaName := createTableNode.CreateStmt.Relation.Schemaname
 			tableName := createTableNode.CreateStmt.Relation.Relname
 			columns := createTableNode.CreateStmt.TableElts
@@ -392,25 +399,43 @@ func checkTableDDLs(sqlInfoArr []sqlInfo, fpath string) {
 				reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
 					"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 			}
-		} else if isAlterTable {
+		}
+		if isAlterTable {
 			schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
 			tableName := alterTableNode.AlterTableStmt.Relation.Relname
 			fullyQualifiedName := tableName
 			if schemaName != "" {
 				fullyQualifiedName = schemaName + "." + tableName
 			}
-			// this will the list of items in the SET (attribute=value, ..)
-			setParameters := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList()
-			if len(setParameters.GetItems()) > 0 {
-				reportCase(fpath, "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet", "https://github.com/yugabyte/yugabyte-db/issues/1124",
-					"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+			if objType == "TABLE" {
+				// this will the list of items in the SET (attribute=value, ..)
+				setParameters := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList()
+				if len(setParameters.GetItems()) > 0 {
+					reportCase(fpath, "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet", "https://github.com/yugabyte/yugabyte-db/issues/1124",
+						"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+				}
+
+				if len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
+					reportCase(fpath, "Storage parameters are not supported yet.", "<TODO>",
+						"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+				}
 			}
 
-			if len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
-				reportCase(fpath, "Storage parameters are not supported yet.", "<TODO>",
-					"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+			if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
+				ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
+				reportCase(fpath, "ALTER TABLE name DISABLE RULE not supported yet", "https://github.com/yugabyte/yugabyte-db/issues/1124",
+					fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
 			}
 		}
+		if isCreateIndex {
+			indexName := createIndexNode.IndexStmt.GetIdxname()
+			summaryMap["INDEX"].invalidCount[sqlStmtInfo.objName] = true
+			if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
+				reportCase(fpath, "Storage parameters are not supported yet.", "<TODO>",
+					"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt)
+			}
+		}
+
 	}
 }
 
@@ -687,36 +712,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 		} else if regMatch := jsonFuncRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			summaryMap[regMatch[2]].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "JSON_ARRAYAGG() function is not available in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1542", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, regMatch[2], regMatch[3], sqlInfo.formattedStmt)
-		} else {
-			//Using pg_parser to detect some of the cases in the All the DDLs irrespective of objType
-
-			parseTree, err := pg_query.Parse(sqlInfo.stmt)
-			if err != nil {
-				utils.ErrExit("failed to parse the stmt %v: %v", sqlInfo.stmt, err)
-			}
-			alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
-			createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
-
-			if isAlterTable {
-				schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-				tableName := alterTableNode.AlterTableStmt.Relation.Relname
-				fullyQualifiedName := tableName
-				if schemaName != "" {
-					fullyQualifiedName = schemaName + "." + tableName
-				}
-				if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
-					ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
-					reportCase(fpath, "ALTER TABLE name DISABLE RULE not supported yet", "https://github.com/yugabyte/yugabyte-db/issues/1124",
-						fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlInfo.stmt)
-				}
-			} else if isCreateIndex {
-				indexName := createIndexNode.IndexStmt.GetIdxname()
-				summaryMap["INDEX"].invalidCount[sqlInfo.objName] = true
-				if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
-					reportCase(fpath, "Storage parameters are not supported yet.", "<TODO>",
-						"Remove the storage parameters from the DDL", "INDEX", indexName, sqlInfo.stmt)
-				}
-			}
 		}
 
 	}
@@ -742,13 +737,14 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, COMPOUND_TRIGGER_ISSUE_REASON,
 				"https://github.com/yugabyte/yb-voyager/issues/1543", "", "TRIGGER", trig[2], sqlInfo.formattedStmt)
 			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
+			fmt.Printf("remaining %s:%s\n", "TRIGGER", sqlInfo.objName)
 		}
 	}
 
 }
 
 // Checks whether the script, fpath, can be migrated to YB
-func checker(sqlInfoArr []sqlInfo, fpath string) {
+func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	if !utils.FileOrFolderExists(fpath) {
 		return
 	}
@@ -759,6 +755,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string) {
 	checkDDL(sqlInfoArr, fpath)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
+	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 }
 
 func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
@@ -1088,10 +1085,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		if objType == "EXTENSION" {
 			checkExtensions(sqlInfoArr, filePath)
 		}
-		if objType == "TABLE" {
-			checkTableDDLs(sqlInfoArr, filePath)
-		}
-		checker(sqlInfoArr, filePath)
+		checker(sqlInfoArr, filePath, objType)
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)

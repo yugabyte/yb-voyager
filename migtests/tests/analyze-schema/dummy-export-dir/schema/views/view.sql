@@ -9,8 +9,6 @@ WITH LOCAL CHECK OPTION;
 --dropping multiple objects
 DROP VIEW IF EXISTS view1,view2,view3;
 
---alter view
-ALTER VIEW view_name TO select * from test;
 
 --JSON_ARRAYAGG() not available
 CREATE OR REPLACE VIEW test AS (
