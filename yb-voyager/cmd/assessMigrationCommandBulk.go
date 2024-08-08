@@ -34,19 +34,8 @@ import (
 var bulkAssessmentDir string
 var fleetConfigPath string
 var continueOnError utils.BoolStr
+var ignoreExists utils.BoolStr
 var bulkAssessmentReport BulkAssessmentReport
-
-type AssessMigrationDBConfig struct {
-	DbType      string
-	Host        string
-	Port        string
-	ServiceName string
-	SID         string
-	TnsAlias    string
-	User        string
-	Password    string
-	Schema      string
-}
 
 var assessMigrationBulkCmd = &cobra.Command{
 	Use:   "assess-migration-bulk",
@@ -64,7 +53,7 @@ func init() {
 	// defining flags
 	assessMigrationBulkCmd.Flags().StringVar(&fleetConfigPath, "fleet-config-file", "", "File containing the connection params for schema(s) to be assessed (required)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &continueOnError, "continue-on-error", true, "If true, it will print the error message on console and continue to next schema’s assessment")
-	assessMigrationBulkCmd.Flags().Bool("ignore-exists", true, "If true, skip assessment if for a schema it's already done")
+	BoolVar(assessMigrationBulkCmd.Flags(), &ignoreExists, "ignore-exists", true, "If true, skip assessment if for a schema it's already done")
 	assessMigrationBulkCmd.Flags().StringVar(&bulkAssessmentDir, "bulk-assessment-dir", "", "Top-level directory storing the export-dir of each schema (default: pwd)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &startClean, "start-clean", false, "Cleans up all the export-dirs in bulk assessment directory to start everything from scratch")
 
@@ -105,6 +94,24 @@ func assessMigrationBulk() {
 
 	for _, dbConfig := range dbConfigs {
 		utils.PrintAndLog("\nAssessing '%s' schema\n", dbConfig.Schema)
+
+		// check if assessment report already exists
+		if utils.FileOrFolderExists(dbConfig.GetAssessmentReportPath()) {
+			// Note: Checking for report existence is usually sufficient,
+			// but checking MSR as an additional check for edge cases.
+			initMetaDB(dbConfig.GetAssessmentExportDirPath())
+			assessmentDone, _ := IsMigrationAssessmentDone()
+			if assessmentDone {
+				if !ignoreExists {
+					utils.PrintAndLog("assessment report for schema %s already exists, exiting...", dbConfig.Schema)
+					break
+				} else {
+					utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.Schema)
+					continue
+				}
+			}
+		}
+
 		err = executeAssessment(dbConfig)
 		if err != nil {
 			log.Errorf("failed to assess migration for schema %s: %v", dbConfig.Schema, err)
@@ -123,7 +130,7 @@ func assessMigrationBulk() {
 
 func executeAssessment(dbConfig AssessMigrationDBConfig) error {
 	log.Infof("executing assessment for schema %q", dbConfig.Schema)
-	exportDirPath := getAssessmentExportDirPath(dbConfig)
+	exportDirPath := dbConfig.GetAssessmentExportDirPath()
 	cmdArgs := buildCommandArguments(dbConfig, exportDirPath)
 	if err := os.MkdirAll(exportDirPath, 0755); err != nil {
 		return fmt.Errorf("creating export-directory %q for schema %q: %w", exportDirPath, dbConfig.Schema, err)
@@ -218,47 +225,20 @@ func parseFleetConfigLine(line string) AssessMigrationDBConfig {
 	}
 }
 
-func getAssessmentExportDirPath(dbConfig AssessMigrationDBConfig) string {
-	switch {
-	case dbConfig.SID != "":
-		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.SID, dbConfig.Schema)
-	case dbConfig.ServiceName != "":
-		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.ServiceName, dbConfig.Schema)
-	case dbConfig.TnsAlias != "":
-		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.TnsAlias, dbConfig.Schema)
-	default:
-		panic(fmt.Sprintf("unable to get export dir for assessment of schema-%s", dbConfig.Schema))
-	}
-}
-
-func getDatabaseIdentifier(dbConfig AssessMigrationDBConfig) string {
-	switch {
-	case dbConfig.SID != "":
-		return dbConfig.SID
-	case dbConfig.ServiceName != "":
-		return dbConfig.ServiceName
-	case dbConfig.TnsAlias != "":
-		return dbConfig.TnsAlias
-	default:
-		return ""
-	}
-}
-
 //go:embed templates/bulkAssessmentReport.template
 var bulkAssessmentHtmlTmpl string
 
 func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	log.Infof("generating bulk assessment report")
 	for _, dbConfig := range dbConfigs {
-		exportDirPath := getAssessmentExportDirPath(dbConfig)
-		assessmentReportPath := filepath.Join(exportDirPath, "assessment", "reports", "assessmentReport.html")
+		assessmentReportPath := dbConfig.GetAssessmentReportPath()
 		assessmentReportRelPath, err := filepath.Rel(bulkAssessmentDir, assessmentReportPath)
 		if err != nil {
 			return fmt.Errorf("failed to get relative path for %s schema assessment report: %w", dbConfig.Schema, err)
 		}
 		var assessmentDetail = AssessmentDetail{
 			Schema:             dbConfig.Schema,
-			DatabaseIdentifier: getDatabaseIdentifier(dbConfig),
+			DatabaseIdentifier: dbConfig.GetDatabaseIdentifier(),
 			ReportPath:         assessmentReportRelPath,
 			Status:             COMPLETE,
 		}
