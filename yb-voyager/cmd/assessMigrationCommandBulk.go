@@ -35,6 +35,7 @@ import (
 var bulkAssessmentDir string
 var fleetConfigPath string
 var continueOnError utils.BoolStr
+var ignoreExists utils.BoolStr
 var bulkAssessmentReport BulkAssessmentReport
 
 var assessMigrationBulkCmd = &cobra.Command{
