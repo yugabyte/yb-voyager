@@ -246,7 +246,7 @@ class PostgresDB:
 
 	def fetch_all_procedures(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS}); ")
+		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}' AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS}); ")
 		return [procedure[0] for procedure in cur.fetchall()]
 
 	def fetch_partitions(self, table_name, schema_name) -> int:
