@@ -443,10 +443,10 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	initMetaDB()
+	initMetaDB(exportDir)
 }
 
-func initMetaDB() {
+func initMetaDB(exportDir string) {
 	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
