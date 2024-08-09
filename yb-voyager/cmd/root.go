@@ -67,7 +67,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			return
 		}
 
-		if currentCommand == "yb-voyager assess-migration-bulk" {
+		if isBulkAssessmentCommand(cmd) {
+			// TODO: implement call-home for bulkAssessment command
 			validateBulkAssessmentDirFlag()
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))

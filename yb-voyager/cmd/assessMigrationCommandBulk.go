@@ -95,7 +95,6 @@ func assessMigrationBulk() {
 		if err != nil {
 			utils.ErrExit("failed to remove bulk assessment report: %s", err)
 		}
-		utils.CleanDir(filepath.Join(bulkAssessmentDir, "logs"))
 	}
 
 	dbConfigs, err := parseFleetConfigFile(fleetConfigPath)
@@ -130,6 +129,9 @@ func executeAssessment(dbConfig AssessMigrationDBConfig) error {
 	}
 
 	execCmd := exec.Command(os.Args[0], cmdArgs...)
+	// password either has to be provided via fleet_config_file or can be provided at run-time by the user.
+	// user setting the env var route is not supported for assess-migration-bulk command
+	execCmd.Env = append(os.Environ(), "SOURCE_DB_PASSWORD="+dbConfig.Password)
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr
 	execCmd.Stdin = os.Stdin
@@ -151,11 +153,6 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 
 	if dbConfig.User != "" {
 		args = append(args, "--source-db-user", dbConfig.User)
-	}
-	if dbConfig.Password != "" {
-		// password either has to be provided via fleet_config_file or can be provided at run-time.
-		// env var route is not supported for assess-migration-bulk command
-		args = append(args, "--source-db-password", dbConfig.Password)
 	}
 	if dbConfig.TnsAlias != "" {
 		args = append(args, "--oracle-tns-alias", dbConfig.TnsAlias)
@@ -306,6 +303,14 @@ func validateBulkAssessmentDirFlag() {
 	}
 }
 
-// TODO
-// func validateFleetConfigFilePath() {
-// }
+/*
+	TODO:
+		check if value valid or not,
+		expected/mandatory params are passed
+		strip any trailing spaces
+	func validateFleetConfigFilePath() {}
+*/
+
+func isBulkAssessmentCommand(cmd *cobra.Command) bool {
+	return cmd.Name() == assessMigrationBulkCmd.Name()
+}
