@@ -239,54 +239,83 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "GIST indexes",
-			"ObjectNames": [
-				"idx_box_data",
-				"idx_point_data",
-				"idx_box_data",
-				"idx_point_data"
-			],
-			"DDLs": null
+			"ObjectInfo": [
+				{
+					"ObjectName": "idx_box_data",
+					"SqlStatement": "CREATE INDEX idx_box_data ON public.mixed_data_types_table1 USING gist (box_data);"
+				},
+				{
+					"ObjectName": "idx_point_data",
+					"SqlStatement": "CREATE INDEX idx_point_data ON public.mixed_data_types_table1 USING gist (point_data);"
+				},
+				{
+					"ObjectName": "idx_box_data",
+					"SqlStatement": "CREATE INDEX idx_box_data ON schema2.mixed_data_types_table1 USING gist (box_data);"
+				},
+				{
+					"ObjectName": "idx_point_data",
+					"SqlStatement": "CREATE INDEX idx_point_data ON schema2.mixed_data_types_table1 USING gist (point_data);"
+				}
+			]
 		},
 		{
 			"FeatureName": "Constraint triggers",
-			"ObjectNames": [
-				"enforce_shipped_date_constraint",
-				"enforce_shipped_date_constraint"
-			],
-			"DDLs": null
+			"ObjectInfo": [
+				{
+					"ObjectName": "enforce_shipped_date_constraint",
+					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON public.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION public.prevent_update_shipped_without_date();"
+				},
+				{
+					"ObjectName": "enforce_shipped_date_constraint",
+					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON schema2.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION schema2.prevent_update_shipped_without_date();"
+				}
+			]
 		},
 		{
 			"FeatureName": "Inherited tables",
-			"ObjectNames": [
-				"public.child_table",
-				"schema2.child_table"
-			],
-			"DDLs": null
+			"ObjectInfo": [
+				{
+					"ObjectName": "public.child_table",
+					"SqlStatement": "CREATE TABLE public.child_table (\n    specific_column1 date\n)\nINHERITS (public.parent_table);"
+				},
+				{
+					"ObjectName": "schema2.child_table",
+					"SqlStatement": "CREATE TABLE schema2.child_table (\n    specific_column1 date\n)\nINHERITS (schema2.parent_table);"
+				}
+			]
 		},
 		{
 			"FeatureName": "Tables with Stored generated columns",
-			"ObjectNames": [
-				"public.employees2",
-				"schema2.employees2"
-			],
-			"DDLs": null
+			"ObjectInfo": [
+				{
+					"ObjectName": "public.employees2",
+					"SqlStatement": "CREATE TABLE public.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
+				},
+				{
+					"ObjectName": "schema2.employees2",
+					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
+				}
+			]
 		},
 		{
 			"FeatureName": "Conversion objects",
-			"ObjectNames": [],
-			"DDLs": null
+			"ObjectInfo": []
 		},
 		{
 			"FeatureName": "Gin Indexes on Multi-columns",
-			"ObjectNames": [],
-			"DDLs": null
+			"ObjectInfo": []
 		},
 		{
 			"FeatureName": "Unsupported DDL operations",
-			"ObjectNames": null,
-			"DDLs": [
-				"ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);",
-				"ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
+			"ObjectInfo": [
+				{
+					"ObjectName": "public.sales_region",
+					"SqlStatement": "ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
+				},
+				{
+					"ObjectName": "schema2.sales_region",
+					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
+				}
 			]
 		}
 	],
