@@ -271,15 +271,27 @@ func assessMigration() (err error) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
+
+	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+		err := source.DB().Connect()
+		if err != nil {
+			utils.ErrExit("error connecting source db: %v", err)
+		}
+
+		res := source.DB().CheckSchemaExists()
+		if !res {
+			return fmt.Errorf("schema %q does not exist", source.Schema)
+		}
+		fetchSourceInfo()
+
+		source.DB().Disconnect()
+	}
+
 	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
 	err = gatherAssessmentMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
-	}
-
-	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
-		fetchSourceInfo()
 	}
 
 	parseExportedSchemaFileForAssessmentIfRequired()
@@ -310,16 +322,12 @@ func assessMigration() (err error) {
 }
 
 func fetchSourceInfo() {
-	err := source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("error connecting source db: %v", err)
-	}
+	var err error
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
-	source.DB().Disconnect()
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
