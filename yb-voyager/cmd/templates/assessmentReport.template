@@ -164,16 +164,27 @@
         <p>{{.UnsupportedFeaturesDesc}}</p>
         {{ $hasUnsupportedFeatures := false }}
         {{range .UnsupportedFeatures}}
-            {{if .ObjectNames}} <!-- Check if ObjectNames is not empty -->
+            {{if .Objects}} <!-- Check if Objects is not empty -->
                 {{ $hasUnsupportedFeatures = true }}
-                <h3>{{.FeatureName}}</h3>
-                <div class="scrollable-div">
-                    <ul>
-                        {{range .ObjectNames}}
-                            <li>{{.}}</li>
-                        {{end}}
-                    </ul>
-                </div>
+                {{if eq .FeatureName "Unsupported DDL operations"}} <!-- for this feature we are displaying the DDLs-->
+                    <h3>{{.FeatureName}}</h3>
+                    <div class="scrollable-div">
+                        <ul>
+                            {{range .Objects}}
+                                <li>{{.SqlStatement}}</li>
+                            {{end}}
+                        </ul>
+                    </div>
+                {{else}}
+                    <h3>{{.FeatureName}}</h3>
+                    <div class="scrollable-div">
+                        <ul>
+                            {{range .Objects}}
+                                <li>{{.ObjectName}}</li>
+                            {{end}}
+                        </ul>
+                    </div>
+                {{end}}
             {{end}}
         {{end}}
         {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
