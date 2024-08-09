@@ -178,44 +178,72 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "Compound Triggers",
-			"ObjectNames": [
-				"trg_simple_insert"
-			],
-			"DDLs": null
+			"Objects": [
+				{
+					"ObjectName": "trg_simple_insert",
+					"SqlStatement": "CREATE TRIGGER trg_simple_insert\n\tCOMPOUND INSERT ON simple_table FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_trg_simple_insert();"
+				}
+			]
 		},
 		{
 			"FeatureName": "Unsupported Indexes",
-			"ObjectNames": [
-				"Index Name: TEXT_INDEX, Index Type=DOMAIN INDEX",
-				"Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX",
-				"Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX",
-				"Index Name: FUNC_REV_INDEX, Index Type=FUNCTION-BASED NORMAL/REV INDEX",
-				"Index Name: PK_IOT_TABLE, Index Type=IOT - TOP INDEX"
-			],
-			"DDLs": null
+			"Objects": [
+				{
+					"ObjectName": "Index Name: TEXT_INDEX, Index Type=DOMAIN INDEX",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "Index Name: FUNC_REV_INDEX, Index Type=FUNCTION-BASED NORMAL/REV INDEX",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "Index Name: PK_IOT_TABLE, Index Type=IOT - TOP INDEX",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX",
+					"SqlStatement": ""
+				}
+			]
 		},
 		{
 			"FeatureName": "Virtual Columns",
-			"ObjectNames": [
-				"XML_TABLE.DATA",
-				"GENERATED_COLUMN_TABLE.TOTAL_PRICE"
-			],
-			"DDLs": null
+			"Objects": [
+				{
+					"ObjectName": "XML_TABLE.DATA",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "GENERATED_COLUMN_TABLE.TOTAL_PRICE",
+					"SqlStatement": ""
+				}
+			]
 		},
 		{
 			"FeatureName": "Inherited Types",
-			"ObjectNames": [
-				"SIMPLE_CAR_TYPE"
-			],
-			"DDLs": null
+			"Objects": [
+				{
+					"ObjectName": "SIMPLE_CAR_TYPE",
+					"SqlStatement": ""
+				}
+			]
 		},
 		{
 			"FeatureName": "Unsupported Partitioning Methods",
-			"ObjectNames": [
-				"Table Name: SALES, Partition Method: SYSTEM PARTITION",
-				"Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION"
-			],
-			"DDLs": null
+			"Objects": [
+				{
+					"ObjectName": "Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "Table Name: SALES, Partition Method: SYSTEM PARTITION",
+					"SqlStatement": ""
+				}
+			]
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",

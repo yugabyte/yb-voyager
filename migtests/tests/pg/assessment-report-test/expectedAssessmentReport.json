@@ -239,7 +239,7 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "GIST indexes",
-			"ObjectInfo": [
+			"Objects": [
 				{
 					"ObjectName": "idx_box_data",
 					"SqlStatement": "CREATE INDEX idx_box_data ON public.mixed_data_types_table1 USING gist (box_data);"
@@ -260,7 +260,7 @@
 		},
 		{
 			"FeatureName": "Constraint triggers",
-			"ObjectInfo": [
+			"Objects": [
 				{
 					"ObjectName": "enforce_shipped_date_constraint",
 					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON public.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION public.prevent_update_shipped_without_date();"
@@ -273,7 +273,7 @@
 		},
 		{
 			"FeatureName": "Inherited tables",
-			"ObjectInfo": [
+			"Objects": [
 				{
 					"ObjectName": "public.child_table",
 					"SqlStatement": "CREATE TABLE public.child_table (\n    specific_column1 date\n)\nINHERITS (public.parent_table);"
@@ -286,7 +286,7 @@
 		},
 		{
 			"FeatureName": "Tables with Stored generated columns",
-			"ObjectInfo": [
+			"Objects": [
 				{
 					"ObjectName": "public.employees2",
 					"SqlStatement": "CREATE TABLE public.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
@@ -299,15 +299,15 @@
 		},
 		{
 			"FeatureName": "Conversion objects",
-			"ObjectInfo": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Gin Indexes on Multi-columns",
-			"ObjectInfo": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Unsupported DDL operations",
-			"ObjectInfo": [
+			"Objects": [
 				{
 					"ObjectName": "public.sales_region",
 					"SqlStatement": "ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"

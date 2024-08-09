@@ -67,7 +67,7 @@ var sourceConnectionFlags = []string{
 
 type UnsupportedFeature struct {
 	FeatureName string       `json:"FeatureName"`
-	Objects     []ObjectInfo `json:"ObjectInfo"`
+	Objects     []ObjectInfo `json:"Objects"`
 }
 
 type ObjectInfo struct {
