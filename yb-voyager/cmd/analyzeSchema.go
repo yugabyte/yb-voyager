@@ -362,41 +362,45 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
 		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
-		if err != nil && !summaryMap[objType].invalidCount[sqlStmtInfo.objName] { //if the Stmt is not already report by any of the regexes
-			reportCase(fpath, "Unsupported PG syntax", "<CREATE TICKET>",
-				"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.stmt)
+		if err != nil { //if the Stmt is not already report by any of the regexes
+			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
+				errString := " - '" + err.Error() + "'"
+				reportCase(fpath, "Unsupported PG syntax" + errString, "https://github.com/yugabyte/yb-voyager/issues/1625",
+					"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.formattedStmt)
+			}
 			continue
 		}
 
-		if objType == "TABLE" {
+		if objType == TABLE {
 			createTableNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 			if ok {
-				schemaName := createTableNode.CreateStmt.Relation.Schemaname
-				tableName := createTableNode.CreateStmt.Relation.Relname
-				columns := createTableNode.CreateStmt.TableElts
-				var generatedColumns []string
-				for _, column := range columns {
-					//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
-					if column.GetColumnDef() != nil {
-						constraints := column.GetColumnDef().Constraints
-						for _, constraint := range constraints {
-							if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
-								generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
-							}
-						}
-					}
-				}
-				fullyQualifiedName := tableName
-				if schemaName != "" {
-					fullyQualifiedName = schemaName + "." + tableName
-				}
-				if len(generatedColumns) > 0 {
-					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-					reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
-						"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+				reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
+			}
+		}
+	}
+}
+
+func reportGeneratedStoredColumnTables(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	var generatedColumns []string
+	for _, column := range columns {
+		//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
+		if column.GetColumnDef() != nil {
+			constraints := column.GetColumnDef().Constraints
+			for _, constraint := range constraints {
+				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
+					generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
 				}
 			}
 		}
+	}
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	if len(generatedColumns) > 0 {
+		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+		reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
+			"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 	}
 }
 

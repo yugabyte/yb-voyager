@@ -16,3 +16,7 @@ CREATE OR REPLACE VIEW test AS (
                             FROM test1
                             where t = '1DAY' group by x
                             );
+
+--Unsupported PG Syntax
+--For this case we will have two issues reported one by regex and other by Unsupported PG syntax with error msg
+ALTER VIEW view_name TO select * from test;
