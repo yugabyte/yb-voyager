@@ -1034,13 +1034,13 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 		createConvNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateConversionStmt)
 		if ok {
 			createConvStmt := createConvNode.CreateConversionStmt
-			//Conversion name here is a list of items which are '.' separated 
+			//Conversion name here is a list of items which are '.' separated
 			//so 0th and 1st indexes are Schema and conv name respectively
 			nameList := createConvStmt.GetConversionName()
 			convName := nameList[0].GetString_().Sval
 			if len(nameList) > 1 {
 				convName = fmt.Sprintf("%s.%s", convName, nameList[1].GetString_().Sval)
-			} 
+			}
 			reportCase(filePath, CONVERSION_ISSUE_REASON, "https://github.com/yugabyte/yugabyte-db/issues/10866",
 				"Remove it from the exported schema", "CONVERSION", convName, sqlStmtInfo.formattedStmt)
 		} else {
