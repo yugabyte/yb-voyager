@@ -111,10 +111,6 @@ CREATE TABLE test_9 (
 	PRIMARY KEY (order_id,order_mode,order_date,order_total,sales_rep_id)
 ) PARTITION BY RANGE (order_total, order_date, sales_rep_id) ;
 
---conversion not supported
-CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;
-
-
 --Reindexing not supported
 REINDEX TABLE my_table;
 
