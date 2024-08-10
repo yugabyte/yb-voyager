@@ -61,3 +61,9 @@ CREATE TABLE employees2 (
     last_name VARCHAR(50) NOT NULL,
     full_name VARCHAR(101) GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED
 );
+
+--For the ALTER TABLE ADD PK on partitioned DDL in schema
+CREATE TABLE sales_region (id int, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);
+CREATE TABLE Boston PARTITION OF sales_region FOR VALUES IN ('Boston');
+CREATE TABLE London PARTITION OF sales_region FOR VALUES IN ('London');
+CREATE TABLE Sydney PARTITION OF sales_region FOR VALUES IN ('Sydney');
