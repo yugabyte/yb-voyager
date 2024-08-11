@@ -203,7 +203,7 @@ func importSchema() error {
 }
 
 func packAndSendImportSchemaPayload(status string, errMsg string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	//Basic details in the payload

@@ -113,7 +113,7 @@ func initSourceConfFromTargetConf() error {
 }
 
 func packAndSendExportDataFromTargetPayload(status string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()

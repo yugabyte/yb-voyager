@@ -129,8 +129,6 @@ var (
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	createConvRegex           = re("CREATE", opt("DEFAULT"), optionalWS, "CONVERSION", capture(ident))
-	alterConvRegex            = re("ALTER", "CONVERSION", capture(ident))
 	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
 	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
 	spgistRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
@@ -202,14 +200,19 @@ var (
 	typeUnsupportedRegex       = re("Inherited types are not supported", anything, "replacing with inherited table")
 	bulkCollectRegex           = re("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
 	jsonFuncRegex              = re("CREATE", opt("OR REPLACE"), capture(unqualifiedIdent), capture(ident), anything, "JSON_ARRAYAGG")
+	alterConvRegex             = re("ALTER", "CONVERSION", capture(ident), anything)
 )
 
 const (
-	INHERITANCE_ISSUE_REASON        = "TABLE INHERITANCE not supported in YugabyteDB"
-	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
-	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
+	CONVERSION_ISSUE_REASON                     = "CREATE CONVERSION is not supported yet"
+	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON         = "Schema contains gin index on multi column which is not supported."
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not yet implemented."
+	INHERITANCE_ISSUE_REASON                    = "TABLE INHERITANCE not supported in YugabyteDB"
+	CONSTRAINT_TRIGGER_ISSUE_REASON             = "CONSTRAINT TRIGGER not supported yet."
+	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
+	UNSUPPORTED_PG_SYNTAX = "Unsupported PG syntax"
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 	GIN_INDEX_DETAILS       = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -359,40 +362,48 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	}
 }
 
-func checkTableDDLs(sqlInfoArr []sqlInfo, fpath string) {
+func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
 		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
-		if err != nil {
-			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		if err != nil { //if the Stmt is not already report by any of the regexes
+			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
+				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX, err.Error())
+				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1625",
+					"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.formattedStmt)
+			}
+			continue
 		}
 
-		createTableNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
-		if ok {
-			schemaName := createTableNode.CreateStmt.Relation.Schemaname
-			tableName := createTableNode.CreateStmt.Relation.Relname
-			columns := createTableNode.CreateStmt.TableElts
-			var generatedColumns []string
-			for _, column := range columns {
-				//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
-				if column.GetColumnDef() != nil {
-					constraints := column.GetColumnDef().Constraints
-					for _, constraint := range constraints {
-						if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
-							generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
-						}
-					}
-				}
-			}
-			fullyQualifiedName := tableName
-			if schemaName != "" {
-				fullyQualifiedName = schemaName + "." + tableName
-			}
-			if len(generatedColumns) > 0 {
-				summaryMap["TABLE"].invalidCount[tableName] = true
-				reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
-					"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+		if objType == TABLE {
+			createTableNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+			if ok {
+				reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			}
 		}
+	}
+}
+
+func reportGeneratedStoredColumnTables(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	var generatedColumns []string
+	for _, column := range columns {
+		//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
+		if column.GetColumnDef() != nil {
+			constraints := column.GetColumnDef().Constraints
+			for _, constraint := range constraints {
+				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
+					generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
+				}
+			}
+		}
+	}
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	if len(generatedColumns) > 0 {
+		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+		reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
+			"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 	}
 }
 
@@ -433,10 +444,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath,
 				"RANGE with offset PRECEDING/FOLLOWING is not supported for column type numeric and offset type double precision",
 				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", sqlInfo.formattedStmt)
-		} else if stmt := createConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			reportCase(fpath, "CREATE CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[2], sqlInfo.formattedStmt)
-		} else if stmt := alterConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			location := strings.ToUpper(stmt[1])
 			if slices.Contains(notSupportedFetchLocation, location) {
@@ -703,7 +710,7 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 }
 
 // Checks whether the script, fpath, can be migrated to YB
-func checker(sqlInfoArr []sqlInfo, fpath string) {
+func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	if !utils.FileOrFolderExists(fpath) {
 		return
 	}
@@ -714,6 +721,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string) {
 	checkDDL(sqlInfoArr, fpath)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
+	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 }
 
 func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
@@ -1043,14 +1051,45 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		if objType == "EXTENSION" {
 			checkExtensions(sqlInfoArr, filePath)
 		}
-		if objType == "TABLE" {
-			checkTableDDLs(sqlInfoArr, filePath)
+		checker(sqlInfoArr, filePath, objType)
+
+		if objType == "CONVERSION" {
+			checkConversions(sqlInfoArr, filePath)
 		}
-		checker(sqlInfoArr, filePath)
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	return schemaAnalysisReport
+}
+
+func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
+	for _, sqlStmtInfo := range sqlInfoArr {
+		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		if err != nil {
+			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		}
+
+		createConvNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateConversionStmt)
+		if ok {
+			createConvStmt := createConvNode.CreateConversionStmt
+			//Conversion name here is a list of items which are '.' separated
+			//so 0th and 1st indexes are Schema and conv name respectively
+			nameList := createConvStmt.GetConversionName()
+			convName := nameList[0].GetString_().Sval
+			if len(nameList) > 1 {
+				convName = fmt.Sprintf("%s.%s", convName, nameList[1].GetString_().Sval)
+			}
+			reportCase(filePath, CONVERSION_ISSUE_REASON, "https://github.com/yugabyte/yugabyte-db/issues/10866",
+				"Remove it from the exported schema", "CONVERSION", convName, sqlStmtInfo.formattedStmt)
+		} else {
+			//pg_query doesn't seem to have a Node type of AlterConversionStmt so using regex for now
+			if stmt := alterConvRegex.FindStringSubmatch(sqlStmtInfo.stmt); stmt != nil {
+				reportCase(filePath, "ALTER CONVERSION is not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866",
+					"Remove it from the exported schema", "CONVERSION", stmt[1], sqlStmtInfo.formattedStmt)
+			}
+		}
+
+	}
 }
 
 func analyzeSchema() {
@@ -1132,10 +1171,11 @@ func analyzeSchema() {
 }
 
 func packAndSendAnalyzeSchemaPayload(status string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()
+
 	payload.MigrationPhase = ANALYZE_PHASE
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {

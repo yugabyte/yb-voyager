@@ -109,6 +109,11 @@ func (yb *YugabyteDB) GetVersion() string {
 	return version
 }
 
+func (yb *YugabyteDB) CheckSchemaExists() bool {
+	schemaList := yb.checkSchemasExists()
+	return schemaList != nil
+}
+
 func (yb *YugabyteDB) checkSchemasExists() []string {
 	list := strings.Split(yb.source.Schema, "|")
 	var trimmedList []string

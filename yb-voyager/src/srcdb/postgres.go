@@ -145,6 +145,11 @@ func (pg *PostgreSQL) GetVersion() string {
 	return version
 }
 
+func (pg *PostgreSQL) CheckSchemaExists() bool {
+	schemaList := pg.checkSchemasExists()
+	return schemaList != nil
+}
+
 func (pg *PostgreSQL) checkSchemasExists() []string {
 	list := strings.Split(pg.source.Schema, "|")
 	var trimmedList []string

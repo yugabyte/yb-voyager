@@ -100,7 +100,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func packAndSendEndMigrationPayload(status string) {
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()

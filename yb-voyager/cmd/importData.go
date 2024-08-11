@@ -596,7 +596,7 @@ func importData(importFileTasks []*ImportFileTask) {
 
 func packAndSendImportDataPayload(status string) {
 
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	//basic payload details

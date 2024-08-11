@@ -158,7 +158,7 @@ func sendPayloadAsPerExporterRole(status string) {
 
 func packAndSendExportDataPayload(status string) {
 
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()
@@ -211,12 +211,19 @@ func exportData() bool {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
+	defer source.DB().Disconnect()
+
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
-	defer source.DB().Disconnect()
+
+	res := source.DB().CheckSchemaExists()
+	if !res {
+		utils.ErrExit("schema %q does not exist", source.Schema)
+	}
+
 	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
