@@ -27,10 +27,34 @@
             "ObjectType": "TABLE",
             "ObjectName": "salaries2",
             "Reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
-            "SqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (((from_date)::date - '0001-01-01bc')::integer) ;",
+            "SqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (extract(epoch from date(from_date))) ;",
             "Suggestion": "Remove the Constriant from the table definition",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
-        }, 
+        },
+        {
+            "ObjectType": "VIEW",
+            "ObjectName": "view_name",
+            "Reason": "ALTER VIEW not supported yet.",
+            "SqlStatement": "ALTER VIEW view_name TO select * from test;",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1131"
+        },
+        {
+            "ObjectType": "VIEW",
+            "ObjectName": "",
+            "Reason": "Unsupported PG syntax - 'syntax error at or near \"TO\"'",
+            "SqlStatement": "ALTER VIEW view_name TO select * from test;",
+            "Suggestion": "Fix the schema as per PG syntax",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1625"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "party_profile_part",
+            "Reason": "ALTER TABLE OF not supported yet.",
+            "SqlStatement": "Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);",
+            "Suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
         {
             "ObjectType": "TABLE",
             "ObjectName": "test_1",
@@ -90,17 +114,17 @@
         {
             "ObjectType": "CONVERSION",
             "ObjectName": "myconv",
-            "Reason": "CREATE CONVERSION not supported yet",
+            "Reason": "CREATE CONVERSION is not supported yet",
             "SqlStatement": "CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"
+            "Suggestion": "Remove it from the exported schema",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10866"
         },
         {
             "ObjectType": "CONVERSION",
             "ObjectName": "myconv",
-            "Reason": "ALTER CONVERSION not supported yet",
-            "SqlStatement": "ALTER CONVERSION myconv for  'UTF8' TO 'LATIN1' FROM myfunc1;",
-            "Suggestion": "",
+            "Reason": "ALTER CONVERSION is not supported yet",
+            "SqlStatement": "ALTER CONVERSION myconv rename to my_conv_1;",
+            "Suggestion": "Remove it from the exported schema",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"
         },
         {
@@ -218,17 +242,17 @@
         {
             "ObjectType": "TABLE",
             "ObjectName": "public.employees4",
-            "Reason": "Stored generated columns are not supported.",
+            "Reason": "Stored generated columns are not supported. Generated Columns: (full_name)",
             "SqlStatement": "CREATE TABLE public.employees4 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);",
-            "Suggestion": "",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: \u003cLINK_DOC\u003e",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
             "ObjectType": "TABLE",
             "ObjectName": "order_details",
-            "Reason": "Stored generated columns are not supported.",
+            "Reason": "Stored generated columns are not supported. Generated Columns: (amount)",
             "SqlStatement": "CREATE TABLE order_details (\n    detail_id integer NOT NULL,\n    quantity integer,\n    price_per_unit numeric,\n    amount numeric GENERATED ALWAYS AS (((quantity)::numeric * price_per_unit)) STORED\n);",
-            "Suggestion": "",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: \u003cLINK_DOC\u003e",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
@@ -314,22 +338,6 @@
         {
             "ObjectType": "TABLE",
             "ObjectName": "",
-            "Reason": "ALTER TABLE ALTER CONSTRAINT not supported yet.",
-            "SqlStatement": "ALTER TABLE address ALTER CONSTRAINT zipchk CHECK (char_length(zipcode) = 6);",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
-        },
-        {
-            "ObjectType": "TABLE",
-            "ObjectName": "test_2",
-            "Reason": "ALTER TABLE SET WITH OIDS not supported yet.",
-            "SqlStatement": "ALTER TABLE IF EXISTS test_2 SET WITH OIDS;",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
-        },
-        {
-            "ObjectType": "TABLE",
-            "ObjectName": "",
             "Reason": "ALTER TABLE CLUSTER not supported yet.",
             "SqlStatement": "alter table abc cluster on xyz;",
             "Suggestion": "",
@@ -374,14 +382,6 @@
             "SqlStatement": "ALTER TABLE abc\nADD CONSTRAINT cnstr_id\n UNIQUE (id)\nDEFERRABLE;",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
-        },
-        {
-            "ObjectType": "VIEW",
-            "ObjectName": "view_name",
-            "Reason": "ALTER VIEW not supported yet.",
-            "SqlStatement": "ALTER VIEW view_name TO select * from test;",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1131"
         },
         {
             "ObjectType": "TABLE",
@@ -456,14 +456,6 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
         },
         {
-            "ObjectType": "TABLE",
-            "ObjectName": "party_profile_part",
-            "Reason": "ALTER TABLE OF not supported yet.",
-            "SqlStatement": "Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
-        },
-        {
             "ObjectType": "VIEW",
             "ObjectName": "test",
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
@@ -534,5 +526,13 @@
             "SqlStatement": "CREATE FOREIGN TABLE tbl_p( \tid int PRIMARY KEY ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_table' ); ",
             "Suggestion": "Extension 'postgres_fdw', server 'remote_server', and user mapping should be created manually to use the foreign table",
             "GH": "\u003cTODO\u003e"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "enum_example.bugs",
+            "Reason": "Stored generated columns are not supported. Generated Columns: (_status,_severity,info)",
+            "SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: \u003cLINK_DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         }
 ]

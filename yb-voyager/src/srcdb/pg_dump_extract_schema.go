@@ -143,6 +143,8 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 				objSqlStmts["MVIEW"].WriteString(stmts)
 			case "FOREIGN TABLE":
 				objSqlStmts["FOREIGN TABLE"].WriteString(stmts)
+			case "CONVERSION":
+				objSqlStmts["CONVERSION"].WriteString(stmts)
 			default:
 				uncategorizedSqls.WriteString(stmts)
 			}

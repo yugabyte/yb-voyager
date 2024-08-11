@@ -88,10 +88,11 @@ func initTargetConfFromSourceConf() error {
 
 func packAndSendImportDataToSourcePayload(status string) {
 
-	if !callhome.SendDiagnostics {
+	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()
+
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
