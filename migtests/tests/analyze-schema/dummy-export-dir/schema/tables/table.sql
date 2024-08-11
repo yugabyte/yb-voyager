@@ -13,7 +13,7 @@ CREATE TABLE salaries2 (
 	from_date timestamp NOT NULL,
 	to_date timestamp NOT NULL,
 	PRIMARY KEY (emp_no,from_date)
-) PARTITION BY RANGE (((from_date)::date - '0001-01-01bc')::integer) ;
+) PARTITION BY RANGE (extract(epoch from date(from_date))) ;
 
 CREATE TABLE sales (
 	cust_id bigint NOT NULL,
@@ -129,6 +129,16 @@ CREATE TABLE public.employees4 (
     full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED
 );
 
+CREATE TABLE enum_example.bugs (
+    id integer NOT NULL,
+    description text,
+    status enum_example.bug_status,
+    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,
+    severity enum_example.bug_severity,
+    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,
+    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED
+);
+
 --like cases
 CREATE TABLE table_xyz
   (LIKE xyz INCLUDING DEFAULTS INCLUDING CONSTRAINTS);
@@ -157,9 +167,6 @@ alter table test alter column col set STORAGE EXTERNAL;
 
 alter table test_1 alter column col1 set (attribute_option=value);
 
-ALTER TABLE address ALTER CONSTRAINT zipchk CHECK (char_length(zipcode) = 6);
-
-ALTER TABLE IF EXISTS test_2 SET WITH OIDS;
 
 alter table abc cluster on xyz;
 
@@ -196,11 +203,13 @@ PARTITION BY RANGE (a, b);
 --foreign table issues
 CREATE FOREIGN TABLE tbl_p(
 	id int PRIMARY KEY
+) SERVER remote_server
+OPTIONS (
+    schema_name 'public',
+    table_name 'remote_table'
 );
-CREATE FOREIGN TABLE tbl_f(
-	fid int, 
-	pid int FOREIGN KEY REFERENCES tbl_p(id)
-);
+
+--Foreign key constraints on Foreign table is not supported in PG
 
 -- datatype mapping not supported
 CREATE TABLE anydata_test (
@@ -224,5 +233,6 @@ CREATE TABLE uritype_test (
 ) ;
 -- valid
 Alter table only parent_tbl add constraint party_profile_pk primary key (party_profile_id);
--- alter table not supported
+
+--Unsupported PG syntax caught by regex for ALTER TABLE OF..
 Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);
