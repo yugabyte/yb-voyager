@@ -524,8 +524,8 @@
             "ObjectName": "tbl_p",
             "Reason": "Foreign tables requires manual intervention.",
             "SqlStatement": "CREATE FOREIGN TABLE tbl_p( \tid int PRIMARY KEY ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_table' ); ",
-            "Suggestion": "Extension 'postgres_fdw', server 'remote_server', and user mapping should be created manually to use the foreign table",
-            "GH": "\u003cTODO\u003e"
+            "Suggestion": "SERVER 'remote_server', and USER MAPPING should be created manually on the target to create and use the foreign table",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1627"
         },
         {
             "ObjectType": "TABLE",

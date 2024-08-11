@@ -379,8 +379,8 @@ func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 			if schemaName != "" {
 				objName = schemaName + "." + tableName
 			}
-			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "<TODO>",
-				fmt.Sprintf("Extension 'postgres_fdw', server '%s', and user mapping should be created manually to use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt)
+			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
+				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt)
 		}
 	}
 }
