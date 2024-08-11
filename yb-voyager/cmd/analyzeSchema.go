@@ -381,41 +381,49 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 		}
 		if isAlterTable {
-			schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-			tableName := alterTableNode.AlterTableStmt.Relation.Relname
-			fullyQualifiedName := tableName
-			if schemaName != "" {
-				fullyQualifiedName = schemaName + "." + tableName
-			}
-			if objType == "TABLE" {
-				// this will the list of items in the SET (attribute=value, ..)
-				setParameters := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList()
-				if len(setParameters.GetItems()) > 0 {
-					reportCase(fpath, "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet", "https://github.com/yugabyte/yugabyte-db/issues/1124",
-						"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
-				}
-
-				if len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
-					reportCase(fpath, "Storage parameters are not supported yet.", "<TODO>",
-						"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
-				}
-			}
-
-			if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
-				ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
-				reportCase(fpath, "ALTER TABLE name DISABLE RULE not supported yet", "https://github.com/yugabyte/yugabyte-db/issues/1124",
-					fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
-			}
+			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
 		}
 		if isCreateIndex {
-			indexName := createIndexNode.IndexStmt.GetIdxname()
-			summaryMap["INDEX"].invalidCount[sqlStmtInfo.objName] = true
-			if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
-				reportCase(fpath, "Storage parameters are not supported yet.", "<TODO>",
-					"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt)
-			}
+			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
 		}
 
+	}
+}
+
+func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
+	indexName := createIndexNode.IndexStmt.GetIdxname()
+	summaryMap["INDEX"].invalidCount[sqlStmtInfo.objName] = true
+	if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
+		reportCase(fpath, "Storage parameters are not supported yet.", "<TODO>",
+			"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt)
+	}
+}
+
+func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string, objType string) {
+	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+	tableName := alterTableNode.AlterTableStmt.Relation.Relname
+	fullyQualifiedName := tableName
+	if schemaName != "" {
+		fullyQualifiedName = schemaName + "." + tableName
+	}
+	if objType == "TABLE" {
+		// this will the list of items in the SET (attribute=value, ..)
+		setParameters := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList()
+		if len(setParameters.GetItems()) > 0 {
+			reportCase(fpath, "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet", "https://github.com/yugabyte/yugabyte-db/issues/1124",
+				"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+		}
+
+		if len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
+			reportCase(fpath, "Storage parameters are not supported yet.", "<TODO>",
+				"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+		}
+	}
+
+	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
+		ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
+		reportCase(fpath, "ALTER TABLE name DISABLE RULE not supported yet", "https://github.com/yugabyte/yugabyte-db/issues/1124",
+			fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
 	}
 }
 
