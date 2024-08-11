@@ -49,16 +49,16 @@
                 "ObjectNames": "transfer_insert, emp_trig, test"
             },
             {
-                "ObjectType": "FOREIGN TABLE",
-                "TotalCount": 1,
-                "InvalidCount": 1,
-                "ObjectNames": "tbl_p"
-            },
-            {
                 "ObjectType": "CONVERSION",
                 "TotalCount": 1,
                 "InvalidCount": 1,
                 "ObjectNames": "myconv"
+            },
+            {
+                "ObjectType": "FOREIGN TABLE",
+                "TotalCount": 1,
+                "InvalidCount": 1,
+                "ObjectNames": "tbl_p"
             }
         ]
 }
