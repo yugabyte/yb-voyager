@@ -47,6 +47,12 @@
                 "TotalCount": 3,
                 "InvalidCount": 3,
                 "ObjectNames": "transfer_insert, emp_trig, test"
+            },
+            {
+                "ObjectType": "CONVERSION",
+                "TotalCount": 1,
+                "InvalidCount": 1,
+                "ObjectNames": "myconv"
             }
         ]
 }

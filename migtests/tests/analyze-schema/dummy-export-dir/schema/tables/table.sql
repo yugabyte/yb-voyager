@@ -13,7 +13,7 @@ CREATE TABLE salaries2 (
 	from_date timestamp NOT NULL,
 	to_date timestamp NOT NULL,
 	PRIMARY KEY (emp_no,from_date)
-) PARTITION BY RANGE (extract(epoch from date(from_date))) ; --this expression is correct now, earlier it wasn't appropriate as PG syntax 
+) PARTITION BY RANGE (extract(epoch from date(from_date))) ;
 
 CREATE TABLE sales (
 	cust_id bigint NOT NULL,
@@ -110,10 +110,6 @@ CREATE TABLE test_9 (
 	promotion_id integer,
 	PRIMARY KEY (order_id,order_mode,order_date,order_total,sales_rep_id)
 ) PARTITION BY RANGE (order_total, order_date, sales_rep_id) ;
-
---conversion not supported
-CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;
-
 
 --Reindexing not supported
 REINDEX TABLE my_table;
@@ -242,3 +238,6 @@ CREATE TABLE uritype_test (
 ) ;
 -- valid
 Alter table only parent_tbl add constraint party_profile_pk primary key (party_profile_id);
+
+--Unsupported PG syntax caught by regex for ALTER TABLE OF..
+Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);

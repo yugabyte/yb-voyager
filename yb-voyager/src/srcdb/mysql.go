@@ -65,6 +65,12 @@ func (ms *MySQL) Disconnect() {
 	}
 }
 
+func (ms *MySQL) CheckSchemaExists() bool {
+	// no concept of schema in MySQL, only database
+	// also if Connect() passed already that means database is present
+	return true
+}
+
 func (ms *MySQL) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg")
 }
