@@ -784,16 +784,18 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	return nil
 }
 
-func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
+func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReasons []string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
 	for _, issue := range schemaAnalysisReport.Issues {
-		if strings.Contains(issue.Reason, issueReason) {
-			objectInfo := ObjectInfo{
-				ObjectName:   issue.ObjectName,
-				SqlStatement: issue.SqlStatement,
+		for _, issueReason := range issueReasons {
+			if strings.Contains(issue.Reason, issueReason) {
+				objectInfo := ObjectInfo{
+					ObjectName:   issue.ObjectName,
+					SqlStatement: issue.SqlStatement,
+				}
+				objects = append(objects, objectInfo)
 			}
-			objects = append(objects, objectInfo)
 		}
 	}
 	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objects})
@@ -802,23 +804,21 @@ func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin Indexes on Multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", []string{GIST_INDEX_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", []string{CONSTRAINT_TRIGGER_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", []string{INHERITANCE_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Tables with Stored generated columns", []string{STORED_GENERATED_COLUMN_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", []string{CONVERSION_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin Indexes on Multi-columns", []string{GIN_INDEX_MULTI_COLUMN_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, []string{ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, ALTER_TABLE_SET_ATTRUBUTE_ISSUE,
+		ALTER_TABLE_DISABLE_RULE_ISSUE, STORAGE_PARAMETERS_DDL_STMT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", []string{COMPOUND_TRIGGER_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
@@ -920,16 +920,16 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 }
 
 const (
-
-ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
+	ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
 To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
-ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
+	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
-GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+	GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
 
-UNSUPPORTED_DDL_OPERATIONS = "Unsupported DDL operations"
+	UNSUPPORTED_DDL_OPERATIONS = "Unsupported DDL operations"
 )
+
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 	switch source.DBType {

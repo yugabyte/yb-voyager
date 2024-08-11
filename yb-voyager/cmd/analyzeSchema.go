@@ -748,7 +748,6 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, COMPOUND_TRIGGER_ISSUE_REASON,
 				"https://github.com/yugabyte/yb-voyager/issues/1543", "", "TRIGGER", trig[2], sqlInfo.formattedStmt)
 			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
-			fmt.Printf("remaining %s:%s\n", "TRIGGER", sqlInfo.objName)
 		}
 	}
 
