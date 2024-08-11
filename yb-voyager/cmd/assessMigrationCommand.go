@@ -808,7 +808,10 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin Indexes on Multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Unsupported DDL operations", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
@@ -916,13 +919,17 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	return unsupportedDataTypes, nil
 }
 
-const ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
+const (
+
+ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
 To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
-const ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
+ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
-const GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
 
+UNSUPPORTED_DDL_OPERATIONS = "Unsupported DDL operations"
+)
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 	switch source.DBType {
