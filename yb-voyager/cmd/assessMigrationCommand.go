@@ -272,6 +272,13 @@ func assessMigration() (err error) {
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
 
+	if source.Password == "" {
+		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		if err != nil {
+			return fmt.Errorf("failed to get source DB password: %w", err)
+		}
+	}
+
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
 		if err != nil {
@@ -501,13 +508,6 @@ func gatherAssessmentMetadata() (err error) {
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-	if source.Password == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-		if err != nil {
-			return fmt.Errorf("failed to get source DB password: %w", err)
-		}
-	}
 
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
 	switch source.DBType {
