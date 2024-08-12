@@ -117,6 +117,7 @@ func assessMigrationBulk() {
 			log.Info("Shutting down as SIGINT/SIGTERM received...")
 			log.Infof("sleep for 10 seconds for exit handlers to execute")
 			time.Sleep(time.Second * 10)
+			return
 		}
 	}
 
