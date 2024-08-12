@@ -212,7 +212,8 @@ const (
 	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
-	UNSUPPORTED_PG_SYNTAX = "Unsupported PG syntax"
+	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
+	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB."
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 	GIN_INDEX_DETAILS       = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -728,7 +729,7 @@ func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if sqlInfo.objName != "" && !slices.Contains(supportedExtensionsOnYB, sqlInfo.objName) {
 			summaryMap["EXTENSION"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "This extension is not supported in YugabyteDB.", "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
+			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE, "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
 				sqlInfo.objName, sqlInfo.formattedStmt)
 		}
 		if strings.ToLower(sqlInfo.objName) == "hll" {
