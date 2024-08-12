@@ -135,7 +135,7 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 				objSqlStmts["SEQUENCE"].WriteString(stmts)
 			case "INDEX", "INDEX ATTACH":
 				objSqlStmts["INDEX"].WriteString(stmts)
-			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT", "CHECK CONSTRAINT":
+			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT", "CHECK CONSTRAINT", "ROW SECURITY":
 				objSqlStmts["TABLE"].WriteString(stmts)
 			case "TABLE ATTACH":
 				alterAttachPartition.WriteString(stmts)
