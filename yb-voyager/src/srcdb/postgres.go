@@ -438,7 +438,7 @@ func (pg *PostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	if err != nil {
 		if strings.Contains(err.Error(), "does not exist") {
 			//For PG version before 10 as identity columns are also introduced in PG 10 so using information_schema.sequences should be fine
-			query = fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema = %s;`, schemaName)
+			query = fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema = '%s';`, schemaName)
 			rows, err = pg.db.Query(query)
 			if err != nil {
 				return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
