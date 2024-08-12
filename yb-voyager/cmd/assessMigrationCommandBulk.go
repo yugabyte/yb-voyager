@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -111,6 +112,11 @@ func assessMigrationBulk() {
 			if !continueOnError {
 				break
 			}
+		}
+		if ProcessShutdownRequested {
+			log.Info("Shutting down as SIGINT/SIGTERM received...")
+			log.Infof("sleep for 10 seconds for exit handlers to execute")
+			time.Sleep(time.Second * 10)
 		}
 	}
 
