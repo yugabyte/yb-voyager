@@ -265,6 +265,7 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 			ReportPath:         assessmentReportRelPath,
 			Status:             COMPLETE,
 		}
+		// TODO: add the check for MSR.MigrationAssessmentDone flag also here
 		if !utils.FileOrFolderExists(assessmentReportPath) {
 			assessmentDetail.Status = ERROR
 		}
