@@ -214,6 +214,7 @@ const (
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB."
+	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 	GIN_INDEX_DETAILS       = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -377,8 +378,44 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if objType == TABLE {
 			createTableNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+			alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
 			if ok {
 				reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
+			}
+			reportExclusionConstraint(createTableNode, alterTableNode, isAlterTable, ok, sqlStmtInfo, fpath)
+		}
+	}
+}
+
+func reportExclusionConstraint(createTableNode *pg_query.Node_CreateStmt, alterTableNode *pg_query.Node_AlterTableStmt, isAlter bool, isCreate bool, sqlStmtInfo sqlInfo, fpath string) {
+	if isCreate {
+		schemaName := createTableNode.CreateStmt.Relation.Schemaname
+		tableName := createTableNode.CreateStmt.Relation.Relname
+		columns := createTableNode.CreateStmt.TableElts
+		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+		for _, column := range columns {
+			//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
+			if column.GetColumnDef() == nil && column.GetConstraint() != nil {
+				if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+					reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
+						"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+				}
+			}
+		}
+	} else if isAlter {
+		schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+		tableName := alterTableNode.AlterTableStmt.Relation.Relname
+		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+		alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
+		if alterCmd.Def != nil {
+			constraint := alterCmd.Def.GetConstraint()
+			if constraint != nil {
+				if constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+					reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
+						"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+				}
 			}
 		}
 	}

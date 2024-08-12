@@ -810,6 +810,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin Indexes on Multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Unsupported DDL operations", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
