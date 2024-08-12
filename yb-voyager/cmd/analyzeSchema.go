@@ -397,7 +397,7 @@ func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt,
 	indexName := createIndexNode.IndexStmt.GetIdxname()
 	summaryMap["INDEX"].invalidCount[sqlStmtInfo.objName] = true
 	if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
-		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "<TODO>",
+		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
 			"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt)
 	}
 }
@@ -418,7 +418,7 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 		}
 
 		if len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
-			reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "<TODO>",
+			reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
 				"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
 		}
 	}
