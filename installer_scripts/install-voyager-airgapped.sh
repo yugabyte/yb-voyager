@@ -130,6 +130,13 @@ main() {
 # COMMON
 #=============================================================================
 
+output() {
+	set +x
+	echo "$@"
+	>&2 echo "$@"
+	set -x
+}
+
 check_cpan_module() {
   local module=$1
   local version_type=$2
