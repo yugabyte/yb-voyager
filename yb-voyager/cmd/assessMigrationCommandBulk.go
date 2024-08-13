@@ -236,7 +236,6 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 			DatabaseIdentifier: dbConfig.GetDatabaseIdentifier(),
 			Status:             COMPLETE,
 		}
-
 		if !checkMigrationAssessmentForConfig(dbConfig) {
 			assessmentDetail.Status = ERROR
 		} else {
