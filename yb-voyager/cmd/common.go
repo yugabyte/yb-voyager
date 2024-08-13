@@ -1008,16 +1008,7 @@ type AssessMigrationDBConfig struct {
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
-	switch {
-	case dbConfig.SID != "":
-		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.SID, dbConfig.Schema)
-	case dbConfig.ServiceName != "":
-		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.ServiceName, dbConfig.Schema)
-	case dbConfig.TnsAlias != "":
-		return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.TnsAlias, dbConfig.Schema)
-	default:
-		panic(fmt.Sprintf("unable to get export dir for assessment of schema-%s", dbConfig.Schema))
-	}
+	return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.GetDatabaseIdentifier(), dbConfig.Schema)
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
