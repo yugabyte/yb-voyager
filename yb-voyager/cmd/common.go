@@ -992,6 +992,7 @@ type AssessmentDetail struct {
 
 type BulkAssessmentReport struct {
 	Details []AssessmentDetail
+	Notes   []string
 }
 
 type AssessMigrationDBConfig struct {

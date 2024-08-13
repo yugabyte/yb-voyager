@@ -237,26 +237,33 @@ func parseFleetConfigLine(line string) AssessMigrationDBConfig {
 //go:embed templates/bulkAssessmentReport.template
 var bulkAssessmentHtmlTmpl string
 
+const REPORT_PATH_NOTE = `To apply recommendations from the bulk assessment, you can use the generated export-dir containing the assessment report (recommended approach), 
+or specify the report location using the <code>--assessment-report-path</code> flag when exporting the schema.`
+
 func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	log.Infof("generating bulk assessment report")
 	for _, dbConfig := range dbConfigs {
 		assessmentReportPath := dbConfig.GetAssessmentReportPath()
-		assessmentReportRelPath, err := filepath.Rel(bulkAssessmentDir, assessmentReportPath)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s schema assessment report: %w", dbConfig.Schema, err)
-		}
 		var assessmentDetail = AssessmentDetail{
 			Schema:             dbConfig.Schema,
 			DatabaseIdentifier: dbConfig.GetDatabaseIdentifier(),
-			ReportPath:         assessmentReportRelPath,
 			Status:             COMPLETE,
 		}
 		// TODO: add the check for MSR.MigrationAssessmentDone flag also here
 		if !utils.FileOrFolderExists(assessmentReportPath) {
 			assessmentDetail.Status = ERROR
+		} else {
+			assessmentReportRelPath, err := filepath.Rel(bulkAssessmentDir, assessmentReportPath)
+			if err != nil {
+				return fmt.Errorf("failed to get relative path for %s schema assessment report: %w", dbConfig.Schema, err)
+			}
+			assessmentDetail.ReportPath = assessmentReportRelPath
 		}
 		bulkAssessmentReport.Details = append(bulkAssessmentReport.Details, assessmentDetail)
 	}
+
+	// add notes to the report
+	bulkAssessmentReport.Notes = append(bulkAssessmentReport.Notes, REPORT_PATH_NOTE)
 
 	tmpl, err := template.New("bulk-assessement-report").Parse(bulkAssessmentHtmlTmpl)
 	if err != nil {
