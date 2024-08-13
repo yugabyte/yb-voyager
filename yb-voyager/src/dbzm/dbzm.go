@@ -62,6 +62,7 @@ func findDebeziumDistribution(sourceDBType string) error {
 			return err
 		}
 	}
+
 	if sourceDBType == "yugabytedb" {
 		pathSuffix := "debezium-server-1.9.5"
 		DEBEZIUM_DIST_DIR = filepath.Join(DEBEZIUM_DIST_DIR, pathSuffix)

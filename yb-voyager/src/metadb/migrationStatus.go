@@ -17,6 +17,7 @@ type MigrationStatusRecord struct {
 	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                              bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                                 bool              `json:"FallbackEnabled"`
+	UseLogicalReplicationYBConnector                bool              `json:"UseLogicalReplicationYBConnector"`
 	TargetDBConf                                    *tgtdb.TargetConf `json:"TargetDBConf"`
 	SourceReplicaDBConf                             *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
 	SourceDBAsTargetConf                            *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`

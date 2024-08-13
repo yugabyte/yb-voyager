@@ -138,6 +138,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		SnapshotMode:          snapshotMode,
 		TransactionOrdering:   transactionOrdering,
 	}
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if source.DBType == ORACLE {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
 		if source.IsOracleCDBSetup() {
@@ -158,7 +159,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
-	} else if source.DBType == YUGABYTEDB {
+	} else if source.DBType == YUGABYTEDB && !msr.UseLogicalReplicationYBConnector {
 		if exportType == CHANGES_ONLY {
 			ybServers := source.DB().GetServers()
 			masterPort := "7100"
@@ -445,7 +446,11 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
 				logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
 
-				err := utils.WaitForLineInLogFile(logFilePath, "Beginning to poll the changes from the server", 3*time.Minute)
+				pollingMessage := "Beginning to poll the changes from the server"
+				if msr.UseLogicalReplicationYBConnector {
+					pollingMessage = "Starting to poll the changes from the server" // This needs to be checked and modified. This is just a placeholder.
+				}
+				err := utils.WaitForLineInLogFile(logFilePath, pollingMessage, 3*time.Minute)
 				if err != nil {
 					return false, fmt.Errorf("failed to poll for message in log file: %w", err)
 				}
