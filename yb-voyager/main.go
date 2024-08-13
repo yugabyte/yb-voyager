@@ -20,6 +20,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/tebeka/atexit"
 	"golang.org/x/term"
 
@@ -35,6 +37,7 @@ func main() {
 	registerSignalHandlers()
 	atexit.Register(cmd.PackAndSendCallhomePayloadOnExit)
 	atexit.Register(cmd.CleanupChildProcesses)
+	atexit.Register(restoreTerminalState) // ensure terminal is always restored
 	cmd.Execute()
 	cmd.PrintElapsedDuration()
 }
@@ -82,7 +85,7 @@ func restoreTerminalState() {
 	// Restore the terminal to its original state
 	if originalTermState != nil {
 		if err := term.Restore(0, originalTermState); err != nil {
-			utils.ErrExit("error restoring terminal: %v\n", err)
+			log.Errorf("error restoring terminal: %v\n", err)
 		}
 	}
 }
