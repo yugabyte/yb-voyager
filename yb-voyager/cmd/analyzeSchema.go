@@ -405,10 +405,7 @@ func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt,
 func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string, objType string) {
 	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
 	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := tableName
-	if schemaName != "" {
-		fullyQualifiedName = schemaName + "." + tableName
-	}
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 	if objType == "TABLE" {
 		// this will the list of items in the SET (attribute=value, ..)
 		setParameters := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList()
