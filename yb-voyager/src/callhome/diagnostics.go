@@ -187,7 +187,7 @@ var DoNotStoreFlags = []string{
 func MarshalledJsonString[T any](value T) string {
 	bytes, err := json.Marshal(value)
 	if err != nil {
-		log.Errorf("callhome: error in parsing %v: %v", reflect.TypeOf(value).Name(), err)
+		log.Infof("callhome: error in parsing %v: %v", reflect.TypeOf(value).Name(), err)
 		return ""
 	}
 	return string(bytes)
@@ -233,7 +233,7 @@ func SendPayload(payload *Payload) error {
 	}
 	requestBody := bytes.NewBuffer(postBody)
 
-	log.Infof("Payload being sent for diagnostic usage: %s\n", string(postBody))
+	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
 	callhomeURL := fmt.Sprintf("http://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 
@@ -247,7 +247,7 @@ func SendPayload(payload *Payload) error {
 	if err != nil {
 		return fmt.Errorf("error while reading HTTP response from call-home server: %v", err)
 	}
-	log.Infof("HTTP response after sending diagnostic.json: %s\n", string(body))
+	log.Infof("callhome: HTTP response after sending diagnostics: %s\n", string(body))
 
 	return nil
 }

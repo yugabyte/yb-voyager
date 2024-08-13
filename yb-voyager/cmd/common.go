@@ -1121,12 +1121,12 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 			exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 			if err != nil {
 				if !errors.Is(err, fs.ErrNotExist) {
-					log.Errorf("callhome: failed to read export status file: %v", err)
+					log.Infof("callhome: failed to read export status file: %v", err)
 				}
 			} else {
 				exportedSnapshotRow, _, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
 				if err != nil {
-					log.Errorf("callhome: error while getting exported snapshot rows map: %v", err)
+					log.Infof("callhome: error while getting exported snapshot rows map: %v", err)
 				}
 				exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 					exportDataPayload.TotalRows += value
@@ -1148,7 +1148,7 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 		exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 		dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 		if err != nil {
-			log.Errorf("callhome: error in reading export status: %v", err)
+			log.Infof("callhome: error in reading export status: %v", err)
 		}
 		if dbzmStatus != nil {
 			for _, tableExportStatus := range dbzmStatus.Tables {

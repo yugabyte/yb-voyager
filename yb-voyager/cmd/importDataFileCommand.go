@@ -358,7 +358,7 @@ func packAndSendImportDataFilePayload(status string) {
 	}
 	importSizeMap, err := getImportedSizeMap()
 	if err != nil {
-		log.Errorf("callhome: error in getting the import data: %v", err)
+		log.Infof("callhome: error in getting the import data: %v", err)
 	} else if importSizeMap != nil {
 		importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 			importDataFilePayload.TotalSize += value
