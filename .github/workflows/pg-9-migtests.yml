@@ -1,0 +1,110 @@
+name: "PG: Migration Tests"
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  run-pg-migration-tests:
+    strategy:
+      matrix:
+        version: [2.21.0.0-b545]
+        BETA_FAST_DATA_EXPORT: [0, 1]
+    env:
+      BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:9
+        env:
+          POSTGRES_PASSWORD: secret
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # Maps tcp port 5432 on service container to the host
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        # https://github.com/actions/setup-java
+        with:
+          distribution: "temurin"
+          java-version: "11"
+          check-latest: true
+      - name: Cache local Maven repository
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: "Enable postgres with wal_level as logical"
+        run: |
+          docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
+          docker restart ${{ job.services.postgres.id }}
+          sleep 10
+      #      if: matrix.BETA_FAST_DATA_EXPORT == 1
+      - name: Install python3 and psycopg2
+        run: |
+          sudo apt install -y python3
+          sudo apt install -y libpq-dev
+          sudo pip3 install psycopg2
+
+      - name: Run installer script to setup voyager
+        run: |
+          cd installer_scripts
+          yes | ./install-yb-voyager --install-from-local-source --only-pg-support
+        env:
+          ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+          DEBEZIUM_VERSION: aneesh_ff-fb-remove
+          DEBEZIUM_RELEASE_TAG: voyager-debezium
+
+      - name: Test PostgreSQL Connection
+        run: |
+          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+
+      - name: Create PostgreSQL user
+        run: |
+          ./migtests/scripts/postgresql/create_pg_user
+
+      - name: Start YugabyteDB cluster
+        run: |
+          docker pull yugabytedb/yugabyte:${{ matrix.version }}
+          VERSION=${{ matrix.version }} docker compose -f migtests/setup/yb-docker-compose.yaml up -d
+          sleep 20
+
+      - name: Test YugabyteDB connection
+        run: |
+          psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+
+      - name: Create YugabyteDB user
+        run: |
+          ./migtests/scripts/yugabytedb/create_yb_user
+
+      - name: Enable yb-tserver-n1 and yb-master-n1 name resolution
+        run: |
+          echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
+          echo "127.0.0.1 yb-master-n1" | sudo tee -a /etc/hosts
+          psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+
+      - name: "TEST: pg-case-sensitivity-single-table"
+        run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
+
+      - name: "TEST: pg-datatypes"
+        run: migtests/scripts/run-test.sh pg/datatypes
+
+      - name: "TEST: pg-constraints"
+        run: migtests/scripts/run-test.sh pg/constraints
+
+      - name: "TEST: pg-basic-public-fall-forward-test"
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
+
+
+      
