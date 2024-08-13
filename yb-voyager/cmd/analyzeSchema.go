@@ -375,10 +375,7 @@ func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 			tableName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Relname
 			serverName := createForeignTableNode.CreateForeignTableStmt.Servername
 			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
-			objName := tableName
-			if schemaName != "" {
-				objName = schemaName + "." + tableName
-			}
+			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
 				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt)
 		}
