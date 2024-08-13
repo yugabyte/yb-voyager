@@ -317,10 +317,6 @@
 					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
 				}
 			]
-		},
-		{
-			"FeatureName": "Foreign tables",
-			"Objects": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",

@@ -809,8 +809,6 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin Indexes on Multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Unsupported DDL operations", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-
 	return unsupportedFeatures, nil
 }
 
@@ -925,6 +923,8 @@ const ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned table
 
 const GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
 
+const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
+
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 	switch source.DBType {
@@ -945,6 +945,12 @@ func addNotesToAssessmentReport() {
 					assessmentReport.Notes = append(assessmentReport.Notes, GIN_INDEXES)
 					break
 				}
+			}
+		}
+	case POSTGRESQL:
+		for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
+			if dbObj.ObjectType == "FOREIGN TABLE" && len(dbObj.ObjectNames) > 0 {
+				assessmentReport.Notes = append(assessmentReport.Notes, FOREIGN_TABLE_NOTE)
 			}
 		}
 	}
