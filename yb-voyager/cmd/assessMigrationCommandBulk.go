@@ -243,7 +243,7 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 			DatabaseIdentifier: dbConfig.GetDatabaseIdentifier(),
 			Status:             COMPLETE,
 		}
-		// TODO: add the check for MSR.MigrationAssessmentDone flag also here
+
 		if !checkMigrationAssessmentForConfig(dbConfig) {
 			assessmentDetail.Status = ERROR
 		} else {
