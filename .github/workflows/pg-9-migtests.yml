@@ -106,6 +106,7 @@ jobs:
       - name: "Enable replication connections from a specific IP"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'host    replication     ybvoyager       172.18.0.1/32           md5' >> /var/lib/postgresql/data/pg_hba.conf"
+          docker exec ${{ job.services.postgres.id }} sh -c "echo 'max_wal_senders = 5' >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
