@@ -36,5 +36,5 @@ jobs:
     - name: Run staticcheck
       run: |
         cd yb-voyager
-        go install honnef.co/go/tools/cmd/staticcheck@0.4.0
+        go install honnef.co/go/tools/cmd/staticcheck@2023.1.7
         staticcheck ./...
