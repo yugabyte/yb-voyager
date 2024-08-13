@@ -1,4 +1,4 @@
-name: "PG: Migration Tests"
+name: "PG 13: Migration Tests"
 
 on:
   push:
