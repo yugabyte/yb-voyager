@@ -354,6 +354,18 @@ func exportData() bool {
 			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
+		if source.DBType == YUGABYTEDB && msr.UseLogicalReplicationYBConnector {
+
+			createYBReplicationSlotAndPublication(ctx, config, finalTableList, tablesColumnList, leafPartitions)
+
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				utils.ErrExit("get migration status record: %v", err)
+			}
+
+			config.ReplicationSlotName = msr.YBReplicationSlotName
+			config.PublicationName = msr.YBPublicationName
+		}
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -518,6 +530,46 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 		}
 	}
 	return allLeafPartitions
+}
+
+func createYBReplicationSlotAndPublication(ctx context.Context, config *dbzm.Config, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+	ybDB := source.DB().(*srcdb.YugabyteDB)
+	replicationConn, err := ybDB.GetReplicationConnection()
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
+	}
+
+	defer func() {
+		err := replicationConn.Close(context.Background())
+		if err != nil {
+			log.Errorf("close replication connection: %v", err)
+		}
+	}()
+
+	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+	err = ybDB.CreatePublication(replicationConn, publicationName, finalTableList, true, leafPartitions)
+	if err != nil {
+		return fmt.Errorf("create publication: %v", err)
+	}
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
+	res, err := ybDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
+	}
+	yellowBold := color.New(color.FgYellow, color.Bold)
+	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source YugabyteDB database. "+
+		"Be sure to run 'end migration' command after completing/aborting this migration to drop the replication slot. "+
+		"This is important to avoid filling up disk space.", replicationSlotName))
+
+	// save replication slot, publication name in MSR
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.YBReplicationSlotName = res.SlotName
+		record.YBPublicationName = publicationName
+	})
+	if err != nil {
+		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
+	}
+	return nil
 }
 
 func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {

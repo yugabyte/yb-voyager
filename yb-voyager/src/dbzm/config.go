@@ -31,12 +31,13 @@ import (
 )
 
 type Config struct {
-	MigrationUUID  uuid.UUID
-	RunId          string
-	SourceDBType   string
-	ExporterRole   string
-	ExportDir      string
-	MetadataDBPath string
+	MigrationUUID                    uuid.UUID
+	RunId                            string
+	SourceDBType                     string
+	ExporterRole                     string
+	ExportDir                        string
+	MetadataDBPath                   string
+	UseLogicalReplicationYBConnector bool
 
 	Host     string
 	Port     int
@@ -231,14 +232,35 @@ debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 `
 
+var yugabyteLogicalReplicationSrcConfigTemplate = `
+debezium.source.connector.class=io.debezium.connector.postgresql.YugabyteDBConnector
+debezium.source.database.hostname=%s
+debezium.source.database.port=%d
+debezium.source.database.dbname=%s
+debezium.source.plugin.name=yboutput
+debezium.source.schema.include.list=%s
+`
+
+var yugabyteLogicalReplicationSlotNameTemplate = `
+debezium.source.slot.name=%s`
+
+var yugabyteLogicalReplicationPublicationNameTemplate = `
+debezium.source.publication.name=%s
+`
+
 var yugabyteSrcTransactionOrderingConfigTemplate = `
 debezium.source.transaction.ordering=true
 debezium.source.tasks.max=1
 `
-
 var yugabyteConfigTemplate = baseConfigTemplate +
 	baseSrcConfigTemplate +
 	yugabyteSrcConfigTemplate +
+	baseSinkConfigTemplate
+
+// If we want the logical replication connector we need to use yugabyteLogicalReplicationSrcConfigTemplate
+var yugabyteLogicalReplicationConfigTemplate = baseConfigTemplate +
+	baseSrcConfigTemplate +
+	yugabyteLogicalReplicationSrcConfigTemplate +
 	baseSinkConfigTemplate
 
 var yugabyteSSLModeTemplate = `
@@ -296,26 +318,54 @@ func (c *Config) String() string {
 			conf = conf + fmt.Sprintf(postgresPublicationNameTemplate, c.PublicationName)
 		}
 	case "yugabytedb":
-		conf = fmt.Sprintf(yugabyteConfigTemplate,
-			c.Username,
-			"never",
-			offsetFile,
-			strings.Join(c.TableList, ","),
+		if c.UseLogicalReplicationYBConnector {
+			conf = fmt.Sprintf(yugabyteLogicalReplicationConfigTemplate,
+				c.Username,
+				"never",
+				offsetFile,
+				strings.Join(c.TableList, ","),
 
-			c.Host, c.Port,
-			c.DatabaseName,
-			c.YBStreamID,
-			c.YBMasterNodes,
-			schemaNames,
+				c.Host, c.Port,
+				c.DatabaseName,
+				schemaNames,
 
-			dataDir,
-			c.ColumnSequenceMapping,
-			c.InitSequenceMaxMapping,
-			c.TableRenameMapping,
-			queueSegmentMaxBytes,
-			c.MetadataDBPath,
-			c.RunId,
-			c.ExporterRole)
+				dataDir,
+				c.ColumnSequenceMapping,
+				c.InitSequenceMaxMapping,
+				c.TableRenameMapping,
+				queueSegmentMaxBytes,
+				c.MetadataDBPath,
+				c.RunId,
+				c.ExporterRole)
+
+			if c.ReplicationSlotName != "" {
+				conf = conf + fmt.Sprintf(yugabyteLogicalReplicationSlotNameTemplate, c.ReplicationSlotName)
+			}
+			if c.PublicationName != "" {
+				conf = conf + fmt.Sprintf(yugabyteLogicalReplicationPublicationNameTemplate, c.PublicationName)
+			}
+		} else {
+			conf = fmt.Sprintf(yugabyteConfigTemplate,
+				c.Username,
+				"never",
+				offsetFile,
+				strings.Join(c.TableList, ","),
+
+				c.Host, c.Port,
+				c.DatabaseName,
+				c.YBStreamID,
+				c.YBMasterNodes,
+				schemaNames,
+
+				dataDir,
+				c.ColumnSequenceMapping,
+				c.InitSequenceMaxMapping,
+				c.TableRenameMapping,
+				queueSegmentMaxBytes,
+				c.MetadataDBPath,
+				c.RunId,
+				c.ExporterRole)
+		}
 		sslConf := fmt.Sprintf(yugabyteSSLModeTemplate, c.SSLMode)
 		if c.SSLRootCert != "" {
 			sslConf += fmt.Sprintf(yugabyteSSLRootCertTemplate, c.SSLRootCert)

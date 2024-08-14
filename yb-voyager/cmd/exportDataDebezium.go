@@ -108,17 +108,23 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+
 	config := &dbzm.Config{
-		MigrationUUID:  migrationUUID,
-		RunId:          runId,
-		SourceDBType:   source.DBType,
-		ExporterRole:   exporterRole,
-		ExportDir:      absExportDir,
-		MetadataDBPath: metadb.GetMetaDBPath(absExportDir),
-		Host:           source.Host,
-		Port:           source.Port,
-		Username:       source.User,
-		Password:       source.Password,
+		MigrationUUID:                    migrationUUID,
+		RunId:                            runId,
+		SourceDBType:                     source.DBType,
+		ExporterRole:                     exporterRole,
+		ExportDir:                        absExportDir,
+		MetadataDBPath:                   metadb.GetMetaDBPath(absExportDir),
+		UseLogicalReplicationYBConnector: msr.UseLogicalReplicationYBConnector,
+		Host:                             source.Host,
+		Port:                             source.Port,
+		Username:                         source.User,
+		Password:                         source.Password,
 
 		DatabaseName:          source.DBName,
 		SchemaNames:           source.Schema,
@@ -138,7 +144,6 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		SnapshotMode:          snapshotMode,
 		TransactionOrdering:   transactionOrdering,
 	}
-	msr, err := metaDB.GetMigrationStatusRecord()
 	if source.DBType == ORACLE {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
 		if source.IsOracleCDBSetup() {

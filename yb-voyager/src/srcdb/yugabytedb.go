@@ -33,6 +33,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+
+	"github.com/jackc/pglogrepl"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
@@ -830,4 +833,83 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 		}
 	}
 	return nonPKTables, nil
+}
+
+func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
+	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
+}
+
+func (yb *YugabyteDB) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string, dropIfAlreadyExists bool) (*pglogrepl.CreateReplicationSlotResult, error) {
+	if dropIfAlreadyExists {
+		log.Infof("dropping replication slot %s if already exists", replicationSlotName)
+		err := yb.DropLogicalReplicationSlot(conn, replicationSlotName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	log.Infof("creating replication slot %s", replicationSlotName)
+	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "yboutput",
+		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
+	if err != nil {
+		return nil, fmt.Errorf("create replication slot: %v", err)
+	}
+
+	return &res, nil
+}
+
+func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) error {
+	var err error
+	if conn == nil {
+		conn, err = yb.GetReplicationConnection()
+		if err != nil {
+			utils.ErrExit("failed to create replication connection for dropping replication slot: %s", err)
+		}
+		defer conn.Close(context.Background())
+	}
+	log.Infof("dropping replication slot: %s", replicationSlotName)
+	err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+	if err != nil {
+		// ignore "does not exist" error while dropping replication slot
+		if !strings.Contains(err.Error(), "does not exist") {
+			return fmt.Errorf("delete existing replication slot(%s): %v", replicationSlotName, err)
+		}
+	}
+	return nil
+}
+
+func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+	if dropIfAlreadyExists {
+		err := yb.DropPublication(publicationName)
+		if err != nil {
+			return fmt.Errorf("drop publication: %v", err)
+		}
+	}
+	tablelistQualifiedQuoted := []string{}
+	for _, tableName := range tableList {
+		_, ok := leafPartitions.Get(tableName)
+		if ok {
+			//In case of partiitons, tablelist in CREATE PUBLICATION query should not have root
+			continue
+		}
+		tablelistQualifiedQuoted = append(tablelistQualifiedQuoted, tableName.ForKey())
+	}
+	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))
+	result := conn.Exec(context.Background(), stmt)
+	_, err := result.ReadAll()
+	if err != nil {
+		return fmt.Errorf("create publication with stmt %s: %v", err, stmt)
+	}
+	log.Infof("created publication with stmt %s", stmt)
+	return nil
+}
+
+func (yb *YugabyteDB) DropPublication(publicationName string) error {
+	log.Infof("dropping publication: %s", publicationName)
+	res, err := yb.db.Exec(fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
+	log.Infof("drop publication result: %v", res)
+	if err != nil {
+		return fmt.Errorf("drop publication(%s): %v", publicationName, err)
+	}
+	return nil
 }
