@@ -35,7 +35,6 @@ import (
 var bulkAssessmentDir string
 var fleetConfigPath string
 var continueOnError utils.BoolStr
-var ignoreExists utils.BoolStr
 var bulkAssessmentReport BulkAssessmentReport
 
 var assessMigrationBulkCmd = &cobra.Command{
@@ -54,7 +53,6 @@ func init() {
 	// defining flags
 	assessMigrationBulkCmd.Flags().StringVar(&fleetConfigPath, "fleet-config-file", "", "File containing the connection params for schema(s) to be assessed (required)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &continueOnError, "continue-on-error", true, "If true, it will print the error message on console and continue to next schema’s assessment")
-	BoolVar(assessMigrationBulkCmd.Flags(), &ignoreExists, "ignore-exists", true, "If true, skip assessment if for a schema it's already done")
 	assessMigrationBulkCmd.Flags().StringVar(&bulkAssessmentDir, "bulk-assessment-dir", "", "Top-level directory storing the export-dir of each schema (default: pwd)")
 	BoolVar(assessMigrationBulkCmd.Flags(), &startClean, "start-clean", false, "Cleans up all the export-dirs in bulk assessment directory to start everything from scratch")
 
@@ -97,13 +95,8 @@ func assessMigrationBulk() {
 
 		// handling ignore if exists
 		if checkMigrationAssessmentForConfig(dbConfig) {
-			if !ignoreExists {
-				utils.PrintAndLog("assessment report for schema %s already exists, exiting...", dbConfig.Schema)
-				break
-			} else {
-				utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.Schema)
-				continue
-			}
+			utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.Schema)
+			continue
 		}
 
 		err = executeAssessment(dbConfig)
