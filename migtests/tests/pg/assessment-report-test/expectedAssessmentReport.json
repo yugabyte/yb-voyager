@@ -138,14 +138,14 @@
 				"schema2.sydney",
 				"public.test_exclude_basic"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 60 objects (53 tables and 7 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 60 objects (53 tables and 7 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
 			"MemoryPerInstance": 16,
 			"OptimalSelectConnectionsPerNode": 8,
 			"OptimalInsertConnectionsPerNode": 12,
-			"EstimatedTimeInMinForImport": 1,
+			"EstimatedTimeInMinForImport": 0,
 			"ParallelVoyagerJobs": 1
 		},
 		"FailureReasoning": ""
