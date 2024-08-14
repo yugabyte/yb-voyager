@@ -91,7 +91,7 @@ func assessMigrationBulk() {
 	}
 
 	for _, dbConfig := range dbConfigs {
-		utils.PrintAndLog("\nAssessing '%s' schema\n", dbConfig.GetSchemaIdentifier())
+		utils.PrintAndLog("\nAssessing '%s' schema", dbConfig.GetSchemaIdentifier())
 
 		if checkMigrationAssessmentForConfig(dbConfig) {
 			utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.GetSchemaIdentifier())
@@ -102,10 +102,16 @@ func assessMigrationBulk() {
 		if err != nil {
 			log.Errorf("failed to assess migration for schema %s: %v", dbConfig.GetSchemaIdentifier(), err)
 			fmt.Printf("failed to assess migration for schema %s: %v\n", dbConfig.GetSchemaIdentifier(), err)
+			log.Infof("For detailed information on the '%s' schema assessment, please refer to the corresponding log file at: %s\n",
+				dbConfig.GetSchemaIdentifier(), dbConfig.GetAssessmentLogFilePath())
 			if !continueOnError {
 				break
 			}
+		} else {
+			log.Infof("For detailed information on the '%s' schema assessment, please refer to the corresponding log file at: %s\n",
+				dbConfig.GetSchemaIdentifier(), dbConfig.GetAssessmentLogFilePath())
 		}
+
 		if ProcessShutdownRequested {
 			log.Info("Shutting down as SIGINT/SIGTERM received...")
 			log.Infof("sleep for 10 seconds for exit handlers to execute")

@@ -1035,6 +1035,10 @@ func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportPath() string {
 	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.html")
 }
 
+func (dbConfig *AssessMigrationDBConfig) GetAssessmentLogFilePath() string {
+	return fmt.Sprintf("%s/logs/yb-voyager-assess-migration.log", dbConfig.GetAssessmentExportDirPath())
+}
+
 // =============== for yugabyted controlplane ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 type AssessMigrationPayload struct {
