@@ -126,11 +126,6 @@ func assessMigrationBulk() {
 	if err != nil {
 		utils.ErrExit("failed to generate bulk assessment report: %s", err)
 	}
-
-	err = generateBulkAssessmentReport(dbConfigs)
-	if err != nil {
-		utils.ErrExit("failed to generate bulk assessment report: %s", err)
-	}
 }
 
 func executeAssessment(dbConfig AssessMigrationDBConfig) error {
