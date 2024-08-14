@@ -446,35 +446,35 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	metaDB = initMetaDB(exportDir)
 }
 
-func initMetaDB(exportDir string) *metadb.MetaDB {
-	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
+func initMetaDB(migrationExportDir string) *metadb.MetaDB {
+	err := metadb.CreateAndInitMetaDBIfRequired(migrationExportDir)
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
-	metaDB, err := metadb.NewMetaDB(exportDir)
+	metaDBInstance, err := metadb.NewMetaDB(migrationExportDir)
 	if err != nil {
 		utils.ErrExit("failed to initialize meta db: %s", err)
 	}
-	err = metaDB.InitMigrationStatusRecord()
+	err = metaDBInstance.InitMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
-	msr, err := metaDB.GetMigrationStatusRecord()
+	msr, err := metaDBInstance.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 	if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
 		userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
 			"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh "+
-			"with a new export-dir.", exportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
+			"with a new export-dir.", migrationExportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
 		if msr.VoyagerVersion == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
 			userFacingMsg = fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
 				"The export-dir %q was created using older version and the current version is %q. Either use older version to continue the migration or start afresh "+
-				"with a new export-dir.", exportDir, utils.YB_VOYAGER_VERSION)
+				"with a new export-dir.", migrationExportDir, utils.YB_VOYAGER_VERSION)
 		}
 		utils.ErrExit(userFacingMsg)
 	}
-	return metaDB
+	return metaDBInstance
 }
 
 func initAssessmentDB() {

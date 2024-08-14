@@ -219,8 +219,8 @@ func parseFleetConfigLine(line string) AssessMigrationDBConfig {
 //go:embed templates/bulkAssessmentReport.template
 var bulkAssessmentHtmlTmpl string
 
-const REPORT_PATH_NOTE = `To apply recommendations from the bulk assessment, you can use the generated export-dir containing the assessment report (recommended approach), 
-or specify the report location using the <code>--assessment-report-path</code> flag when exporting the schema.`
+const REPORT_PATH_NOTE = "To automatically apply the recommendations, continue the migration steps(export-schema, import-schema, ..) using the auto-generated export-dirs. " +
+	"If using a different export-dir, specify report path in export-schema cmd with `--assessment-report-path` flag  to apply the recommendations."
 
 func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	log.Infof("generating bulk assessment report")
@@ -273,8 +273,8 @@ func checkMigrationAssessmentForConfig(dbConfig AssessMigrationDBConfig) bool {
 
 	// Note: Checking for report existence might be sufficient
 	// but checking MSR as an additionally covers for edge cases if any.
-	metaDB := initMetaDB(dbConfig.GetAssessmentExportDirPath())
-	assessmentDone, err := IsMigrationAssessmentDone(metaDB)
+	metaDBInstance := initMetaDB(dbConfig.GetAssessmentExportDirPath())
+	assessmentDone, err := IsMigrationAssessmentDone(metaDBInstance)
 	if err != nil {
 		log.Warnf("checking migration assessment done: %v", err)
 	}
