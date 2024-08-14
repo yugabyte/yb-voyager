@@ -73,7 +73,7 @@ func (ora *Oracle) CheckSchemaExists() bool {
 	if err == sql.ErrNoRows {
 		return false
 	} else if err != nil {
-		log.Fatalf("error in querying source database for schema %q: %v\n", schemaName, err)
+		utils.ErrExit("error in querying source database for schema %q: %v\n", schemaName, err)
 	}
 	return true
 }
