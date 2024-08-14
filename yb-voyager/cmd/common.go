@@ -985,15 +985,15 @@ type AssessmentReport struct {
 }
 
 type AssessmentDetail struct {
-	Schema             string
-	DatabaseIdentifier string
-	ReportPath         string
-	Status             string
+	Schema             string `json:"Schema"`
+	DatabaseIdentifier string `json:"DatabaseIdentifier"`
+	ReportPath         string `json:"ReportPath"`
+	Status             string `json:"Status"`
 }
 
 type BulkAssessmentReport struct {
-	Details []AssessmentDetail
-	Notes   []string
+	Details []AssessmentDetail `json:"Detail"`
+	Notes   []string           `json:"Notes"`
 }
 
 type AssessMigrationDBConfig struct {

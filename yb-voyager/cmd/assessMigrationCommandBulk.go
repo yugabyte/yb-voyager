@@ -19,6 +19,7 @@ package cmd
 import (
 	"bufio"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -113,11 +114,6 @@ func assessMigrationBulk() {
 			time.Sleep(time.Second * 10)
 			return
 		}
-	}
-
-	err = generateBulkAssessmentReport(dbConfigs)
-	if err != nil {
-		utils.ErrExit("failed to generate bulk assessment report: %s", err)
 	}
 
 	err = generateBulkAssessmentReport(dbConfigs)
@@ -221,9 +217,6 @@ func parseFleetConfigLine(line string) AssessMigrationDBConfig {
 	}
 }
 
-//go:embed templates/bulkAssessmentReport.template
-var bulkAssessmentHtmlTmpl string
-
 const REPORT_PATH_NOTE = "To automatically apply the recommendations, continue the migration steps(export-schema, import-schema, ..) using the auto-generated export-dirs.</br> " +
 	"If using a different export-dir, specify report path in export-schema cmd with `--assessment-report-path` flag  to apply the recommendations."
 
@@ -251,6 +244,22 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	// add notes to the report
 	bulkAssessmentReport.Notes = append(bulkAssessmentReport.Notes, REPORT_PATH_NOTE)
 
+	err := generateBulkAssessmentJsonReport()
+	if err != nil {
+		return fmt.Errorf("failed to generate bulk assessment json report: %w", err)
+	}
+
+	err = generateBulkAssessmentHtmlReport()
+	if err != nil {
+		return fmt.Errorf("failed to generate bulk assessment html report: %w", err)
+	}
+	return nil
+}
+
+//go:embed templates/bulkAssessmentReport.template
+var bulkAssessmentHtmlTmpl string
+
+func generateBulkAssessmentHtmlReport() error {
 	tmpl, err := template.New("bulk-assessement-report").Parse(bulkAssessmentHtmlTmpl)
 	if err != nil {
 		return fmt.Errorf("failed to parse the bulkAssessmentReport template: %w", err)
@@ -267,6 +276,24 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to execute parsed template file: %w", err)
 	}
+	utils.PrintAndLog("generated bulk assessment HTML report at: %s", reportPath)
+	return nil
+}
+
+func generateBulkAssessmentJsonReport() error {
+	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.json")
+
+	strReport, err := json.MarshalIndent(bulkAssessmentReport, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal the buk assessment report: %w", err)
+	}
+
+	err = os.WriteFile(reportPath, strReport, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write bulk assessment report to file: %w", err)
+	}
+
+	utils.PrintAndLog("generated bulk assessment JSON report at: %s", reportPath)
 	return nil
 }
 
