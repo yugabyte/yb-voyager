@@ -42,7 +42,7 @@ type Debezium struct {
 	done bool
 }
 
-func findDebeziumDistribution(sourceDBType string) error {
+func findDebeziumDistribution(sourceDBType string, useLogicalReplicationConnector bool) error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
@@ -63,7 +63,7 @@ func findDebeziumDistribution(sourceDBType string) error {
 		}
 	}
 
-	if sourceDBType == "yugabytedb" {
+	if sourceDBType == "yugabytedb" && !useLogicalReplicationConnector {
 		pathSuffix := "debezium-server-1.9.5"
 		DEBEZIUM_DIST_DIR = filepath.Join(DEBEZIUM_DIST_DIR, pathSuffix)
 	}
@@ -75,10 +75,11 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
-	err := findDebeziumDistribution(d.Config.SourceDBType)
+	err := findDebeziumDistribution(d.Config.SourceDBType, d.Config.UseLogicalReplicationYBConnector)
 	if err != nil {
 		return err
 	}
+	fmt.Println("DEBEZIUM_DIST_DIR: ", DEBEZIUM_DIST_DIR)
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err = d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {

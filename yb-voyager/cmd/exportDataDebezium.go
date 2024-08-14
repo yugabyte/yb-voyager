@@ -453,7 +453,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 
 				pollingMessage := "Beginning to poll the changes from the server"
 				if msr.UseLogicalReplicationYBConnector {
-					pollingMessage = "Starting to poll the changes from the server" // This needs to be checked and modified. This is just a placeholder.
+					pollingMessage = "Processing messages" // This needs to be checked and modified. This is just a placeholder.
 				}
 				err := utils.WaitForLineInLogFile(logFilePath, pollingMessage, 3*time.Minute)
 				if err != nil {
