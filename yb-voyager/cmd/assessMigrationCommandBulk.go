@@ -91,18 +91,17 @@ func assessMigrationBulk() {
 	}
 
 	for _, dbConfig := range dbConfigs {
-		utils.PrintAndLog("\nAssessing '%s' schema\n", dbConfig.Schema)
+		utils.PrintAndLog("\nAssessing '%s' schema\n", dbConfig.GetSchemaIdentifier())
 
-		// handling ignore if exists
 		if checkMigrationAssessmentForConfig(dbConfig) {
-			utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.Schema)
+			utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.GetSchemaIdentifier())
 			continue
 		}
 
 		err = executeAssessment(dbConfig)
 		if err != nil {
-			log.Errorf("failed to assess migration for schema %s: %v", dbConfig.Schema, err)
-			fmt.Printf("failed to assess migration for schema %s: %v\n", dbConfig.Schema, err)
+			log.Errorf("failed to assess migration for schema %s: %v", dbConfig.GetSchemaIdentifier(), err)
+			fmt.Printf("failed to assess migration for schema %s: %v\n", dbConfig.GetSchemaIdentifier(), err)
 			if !continueOnError {
 				break
 			}
@@ -122,11 +121,11 @@ func assessMigrationBulk() {
 }
 
 func executeAssessment(dbConfig AssessMigrationDBConfig) error {
-	log.Infof("executing assessment for schema %q", dbConfig.Schema)
+	log.Infof("executing assessment for schema %q", dbConfig.GetSchemaIdentifier())
 	exportDirPath := dbConfig.GetAssessmentExportDirPath()
 	cmdArgs := buildCommandArguments(dbConfig, exportDirPath)
 	if err := os.MkdirAll(exportDirPath, 0755); err != nil {
-		return fmt.Errorf("creating export-directory %q for schema %q: %w", exportDirPath, dbConfig.Schema, err)
+		return fmt.Errorf("creating export-directory %q for schema %q: %w", exportDirPath, dbConfig.GetSchemaIdentifier(), err)
 	}
 
 	execCmd := exec.Command(os.Args[0], cmdArgs...)
@@ -139,13 +138,13 @@ func executeAssessment(dbConfig AssessMigrationDBConfig) error {
 	log.Infof("executing the cmd: %s", execCmd.String())
 	err := execCmd.Run()
 	if err != nil {
-		return fmt.Errorf("error while assess migration of schema-%s: %v", dbConfig.Schema, err)
+		return fmt.Errorf("error while assess migration of schema-%s: %v", dbConfig.GetSchemaIdentifier(), err)
 	}
 	return nil
 }
 
 func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath string) []string {
-	log.Infof("building assess-migration command arguments for schema %q", dbConfig.Schema)
+	log.Infof("building assess-migration command arguments for schema %q", dbConfig.GetSchemaIdentifier())
 	args := []string{"assess-migration",
 		"--source-db-type", dbConfig.DbType,
 		"--source-db-schema", dbConfig.Schema,
@@ -237,7 +236,7 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 		} else {
 			assessmentReportRelPath, err := filepath.Rel(bulkAssessmentDir, assessmentReportPath)
 			if err != nil {
-				return fmt.Errorf("failed to get relative path for %s schema assessment report: %w", dbConfig.Schema, err)
+				return fmt.Errorf("failed to get relative path for %s schema assessment report: %w", dbConfig.GetSchemaIdentifier(), err)
 			}
 			assessmentDetail.ReportPath = assessmentReportRelPath
 		}

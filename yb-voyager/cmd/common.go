@@ -1008,10 +1008,6 @@ type AssessMigrationDBConfig struct {
 	Schema      string
 }
 
-func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
-	return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.GetDatabaseIdentifier(), dbConfig.Schema)
-}
-
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	switch {
 	case dbConfig.SID != "":
@@ -1023,6 +1019,15 @@ func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	default:
 		return ""
 	}
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetSchemaIdentifier() string {
+	identifier := dbConfig.GetDatabaseIdentifier()
+	return fmt.Sprintf("%s-%s", identifier, dbConfig.Schema)
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
+	return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.GetDatabaseIdentifier(), dbConfig.Schema)
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportPath() string {
