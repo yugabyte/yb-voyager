@@ -443,15 +443,15 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	initMetaDB(exportDir)
+	metaDB = initMetaDB(exportDir)
 }
 
-func initMetaDB(exportDir string) {
+func initMetaDB(exportDir string) *metadb.MetaDB {
 	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
-	metaDB, err = metadb.NewMetaDB(exportDir)
+	metaDB, err := metadb.NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to initialize meta db: %s", err)
 	}
@@ -474,6 +474,7 @@ func initMetaDB(exportDir string) {
 		}
 		utils.ErrExit(userFacingMsg)
 	}
+	return metaDB
 }
 
 func initAssessmentDB() {

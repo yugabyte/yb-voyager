@@ -352,7 +352,7 @@ func SetMigrationAssessmentDoneInMSR() error {
 	return nil
 }
 
-func IsMigrationAssessmentDone() (bool, error) {
+func IsMigrationAssessmentDone(metaDB *metadb.MetaDB) (bool, error) {
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return false, fmt.Errorf("failed to get migration status record: %w", err)
