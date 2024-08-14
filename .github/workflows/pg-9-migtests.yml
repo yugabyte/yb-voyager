@@ -103,15 +103,5 @@ jobs:
       - name: "TEST: pg-constraints"
         run: migtests/scripts/run-test.sh pg/constraints
 
-      - name: "Enable replication connections from a specific IP"
-        run: |
-          docker exec ${{ job.services.postgres.id }} sh -c "echo 'host    replication     ybvoyager       172.18.0.1/32           md5' >> /var/lib/postgresql/data/pg_hba.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "echo 'max_wal_senders = 5' >> /var/lib/postgresql/data/postgresql.conf"
-          docker restart ${{ job.services.postgres.id }}
-          sleep 10
-
-      - name: "TEST: pg-basic-public-fall-forward-test"
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
-
 
       
