@@ -520,6 +520,14 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514"
         },
         {
+            "ObjectType": "FOREIGN TABLE",
+            "ObjectName": "tbl_p",
+            "Reason": "Foreign tables requires manual intervention.",
+            "SqlStatement": "CREATE FOREIGN TABLE tbl_p( \tid int PRIMARY KEY ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_table' ); ",
+            "Suggestion": "SERVER 'remote_server', and USER MAPPING should be created manually on the target to create and use the foreign table",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1627"
+        },
+        {
             "ObjectType": "TABLE",
             "ObjectName": "enum_example.bugs",
             "Reason": "Stored generated columns are not supported. Generated Columns: (_status,_severity,info)",

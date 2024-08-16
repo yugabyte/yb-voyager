@@ -53,6 +53,12 @@
                 "TotalCount": 1,
                 "InvalidCount": 1,
                 "ObjectNames": "myconv"
+            },
+            {
+                "ObjectType": "FOREIGN TABLE",
+                "TotalCount": 1,
+                "InvalidCount": 1,
+                "ObjectNames": "tbl_p"
             }
         ]
 }
