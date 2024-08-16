@@ -377,47 +377,72 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		}
 
 		if objType == TABLE {
-			createTableNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+			createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 			alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
-			if ok {
+			if isCreateTable {
 				reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
+				reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			}
-			reportExclusionConstraint(createTableNode, alterTableNode, isAlterTable, ok, sqlStmtInfo, fpath)
+
+			if isAlterTable {
+				reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
+			}
+
 		}
 	}
 }
 
-func reportExclusionConstraint(createTableNode *pg_query.Node_CreateStmt, alterTableNode *pg_query.Node_AlterTableStmt, isAlter bool, isCreate bool, sqlStmtInfo sqlInfo, fpath string) {
-	if isCreate {
-		schemaName := createTableNode.CreateStmt.Relation.Schemaname
-		tableName := createTableNode.CreateStmt.Relation.Relname
-		columns := createTableNode.CreateStmt.TableElts
-		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-		for _, column := range columns {
-			//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
-			if column.GetColumnDef() == nil && column.GetConstraint() != nil {
-				if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
-					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-					reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-						"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
-				}
+func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	/*
+		e.g. CREATE TABLE "Test"(
+				id int, 
+				room_id int, 
+				time_range trange, 
+				EXCLUDE USING gist (room_id WITH =, time_range WITH &&)
+			);
+		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:{column_def:
+		... table_elts:{column_def:{colname:"time_range" type_name:{names:{string:{sval:"trange"}} 
+		typemod:-1 location:59} is_local:true location:48}} table_elts:{constraint:{contype:CONSTR_EXCLUSION 
+		location:69 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT ...
+		
+		here we are iterating over all the table_elts - table elements and which are comma separated column info in
+		the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def 
+		is nil.
+
+	*/
+	for _, column := range columns {
+		//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
+		if column.GetColumnDef() == nil && column.GetConstraint() != nil {
+			if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
+					"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 			}
 		}
-	} else if isAlter {
-		schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-		tableName := alterTableNode.AlterTableStmt.Relation.Relname
-		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-		alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-		if alterCmd.Def != nil {
-			constraint := alterCmd.Def.GetConstraint()
-			if constraint != nil {
-				if constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
-					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-					reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-						"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
-				}
-			}
-		}
+	}
+}
+
+func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
+
+	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+	tableName := alterTableNode.AlterTableStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
+	/*
+		e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
+		cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41 
+		here again same checking the definition of the alter stmt if it has constraint and checking its type 
+	*/
+	constraint := alterCmd.GetDef().GetConstraint()
+	if constraint != nil && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+		reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
+			"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 	}
 }
 
