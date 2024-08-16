@@ -277,6 +277,13 @@ func assessMigration() (err error) {
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
 
+	if source.Password == "" {
+		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		if err != nil {
+			return fmt.Errorf("failed to get source DB password: %w", err)
+		}
+	}
+
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
 		if err != nil {
@@ -345,8 +352,8 @@ func SetMigrationAssessmentDoneInMSR() error {
 	return nil
 }
 
-func IsMigrationAssessmentDone() (bool, error) {
-	record, err := metaDB.GetMigrationStatusRecord()
+func IsMigrationAssessmentDone(metaDBInstance *metadb.MetaDB) (bool, error) {
+	record, err := metaDBInstance.GetMigrationStatusRecord()
 	if err != nil {
 		return false, fmt.Errorf("failed to get migration status record: %w", err)
 	}
@@ -506,13 +513,6 @@ func gatherAssessmentMetadata() (err error) {
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-	if source.Password == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-		if err != nil {
-			return fmt.Errorf("failed to get source DB password: %w", err)
-		}
-	}
 
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
 	switch source.DBType {
@@ -930,6 +930,8 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 	UNSUPPORTED_DDL_OPERATIONS = "Unsupported DDL operations"
 )
 
+const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
+
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 	switch source.DBType {
@@ -950,6 +952,12 @@ func addNotesToAssessmentReport() {
 					assessmentReport.Notes = append(assessmentReport.Notes, GIN_INDEXES)
 					break
 				}
+			}
+		}
+	case POSTGRESQL:
+		for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
+			if dbObj.ObjectType == "FOREIGN TABLE" && len(dbObj.ObjectNames) > 0 {
+				assessmentReport.Notes = append(assessmentReport.Notes, FOREIGN_TABLE_NOTE)
 			}
 		}
 	}

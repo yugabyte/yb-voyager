@@ -78,6 +78,7 @@ func exportSchema() error {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
 			clearSchemaIsExported()
+			clearAssessmentRecommendationsApplied()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
@@ -279,9 +280,11 @@ func applyMigrationAssessmentRecommendations() error {
 			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
 	}
+	
 	assessmentRecommendationsApplied = true
-	utils.PrintAndLog("Applied assessment recommendations.")
+	SetAssessmentRecommendationsApplied()
 
+	utils.PrintAndLog("Applied assessment recommendations.")
 	return nil
 }
 
@@ -461,4 +464,22 @@ func createExportSchemaCompletedEvent() cp.ExportSchemaCompletedEvent {
 	result := cp.ExportSchemaCompletedEvent{}
 	initBaseSourceEvent(&result.BaseEvent, "EXPORT SCHEMA")
 	return result
+}
+
+func SetAssessmentRecommendationsApplied() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.AssessmentRecommendationsApplied = true
+	})
+	if err != nil {
+		utils.ErrExit("failed to update migration status record with assessment recommendations applied flag: %w", err)
+	}
+}
+
+func clearAssessmentRecommendationsApplied() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.AssessmentRecommendationsApplied = false
+	})
+	if err != nil {
+		utils.ErrExit("clear assessment recommendations applied: update migration status record: %s", err)
+	}	
 }
