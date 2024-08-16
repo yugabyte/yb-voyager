@@ -212,9 +212,10 @@ const (
 	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
-	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB."
 	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
+	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables requires manual intervention."
+	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 	GIN_INDEX_DETAILS       = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -364,6 +365,25 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	}
 }
 
+func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
+	for _, sqlStmtInfo := range sqlInfoArr {
+		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		if err != nil {
+			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		}
+		createForeignTableNode, isForeignTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
+		if isForeignTable {
+			schemaName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Schemaname
+			tableName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Relname
+			serverName := createForeignTableNode.CreateForeignTableStmt.Servername
+			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
+			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
+				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt)
+		}
+	}
+}
+
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
 		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
@@ -393,25 +413,25 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 }
 
 func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	
+
 	schemaName := createTableNode.CreateStmt.Relation.Schemaname
 	tableName := createTableNode.CreateStmt.Relation.Relname
 	columns := createTableNode.CreateStmt.TableElts
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 	/*
 		e.g. CREATE TABLE "Test"(
-				id int, 
-				room_id int, 
-				time_range trange, 
+				id int,
+				room_id int,
+				time_range trange,
 				EXCLUDE USING gist (room_id WITH =, time_range WITH &&)
 			);
 		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:{column_def:
-		... table_elts:{column_def:{colname:"time_range" type_name:{names:{string:{sval:"trange"}} 
-		typemod:-1 location:59} is_local:true location:48}} table_elts:{constraint:{contype:CONSTR_EXCLUSION 
+		... table_elts:{column_def:{colname:"time_range" type_name:{names:{string:{sval:"trange"}}
+		typemod:-1 location:59} is_local:true location:48}} table_elts:{constraint:{contype:CONSTR_EXCLUSION
 		location:69 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT ...
-		
+
 		here we are iterating over all the table_elts - table elements and which are comma separated column info in
-		the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def 
+		the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def
 		is nil.
 
 	*/
@@ -435,8 +455,8 @@ func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTabl
 	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
 	/*
 		e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
-		cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41 
-		here again same checking the definition of the alter stmt if it has constraint and checking its type 
+		cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
+		here again same checking the definition of the alter stmt if it has constraint and checking its type
 	*/
 	constraint := alterCmd.GetDef().GetConstraint()
 	if constraint != nil && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
@@ -750,6 +770,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 // check foreign table
 func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
+		//TODO: refactor it later to remove all the unneccessary regexes
 		if tbl := primRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "Primary key constraints are not supported on foreign tables.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10698", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
@@ -836,6 +857,9 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 		objNameIndex = 3
 	} else if objType == "TABLE" || objType == "PARTITION" {
 		createObjRegex = re("CREATE", opt("OR REPLACE"), "TABLE", ifNotExists, capture(ident))
+		objNameIndex = 3
+	} else if objType == "FOREIGN TABLE" {
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "FOREIGN", "TABLE", ifNotExists, capture(ident))
 		objNameIndex = 3
 	} else { //TODO: check syntaxes for other objects and add more cases if required
 		createObjRegex = re("CREATE", opt("OR REPLACE"), objType, ifNotExists, capture(ident))
@@ -1113,6 +1137,9 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		}
 		if objType == "EXTENSION" {
 			checkExtensions(sqlInfoArr, filePath)
+		}
+		if objType == "FOREIGN TABLE" {
+			checkForeignTable(sqlInfoArr, filePath)
 		}
 		checker(sqlInfoArr, filePath, objType)
 

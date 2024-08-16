@@ -75,7 +75,6 @@ main() {
 		echo "Comparing Report contents"
         expected_file="${TEST_DIR}/expectedAssessmentReport.json"
         actual_file="${EXPORT_DIR}/assessment/reports/assessmentReport.json"
-		cat ${actual_file} # just for testing oracle assessment and get its report to update expected report
 	    compare_assessment_reports ${expected_file} ${actual_file}
 	else
 		echo "Error: Assessment reports were not created successfully."
