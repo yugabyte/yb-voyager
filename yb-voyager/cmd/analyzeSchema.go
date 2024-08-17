@@ -181,7 +181,6 @@ var (
 	alterOptionsRegex               = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "OPTIONS")
 	alterInhRegex                   = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "INHERIT")
 	valConstrRegex                  = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "VALIDATE CONSTRAINT")
-	deferRegex                      = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "UNIQUE", anything, "deferrable")
 	alterViewRegex                  = re("ALTER", "VIEW", capture(ident))
 	dropAttrRegex                   = re("ALTER", "TYPE", capture(ident), "DROP ATTRIBUTE")
 	alterTypeRegex                  = re("ALTER", "TYPE", capture(ident))
@@ -215,6 +214,7 @@ const (
 	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB."
 	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
 	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables requires manual intervention."
+	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
@@ -402,13 +402,100 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			if isCreateTable {
 				reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 				reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
+				reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			}
 
 			if isAlterTable {
 				reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
+				reportDeferrableConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
 			}
 
 		}
+	}
+}
+
+var deferrableConstraintsList = []pg_query.ConstrType{
+	pg_query.ConstrType_CONSTR_ATTR_DEFERRABLE,
+	pg_query.ConstrType_CONSTR_ATTR_DEFERRED,
+	pg_query.ConstrType_CONSTR_ATTR_IMMEDIATE,
+}
+
+func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	for _, column := range columns {
+		/*
+			e.g. create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
+			create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}
+			table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
+			typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}}
+			constraints:{constraint:{contype:CONSTR_ATTR_DEFERRABLE  location:45}}  location:31}}  ....
+
+			here checking the case where this clause is in column definition so iterating over each column_def and in that
+			constraint type has deferrable or not and also it should not be a foreign constraint as Deferrable on FKs are
+			supported.
+		*/
+		if column.GetColumnDef() != nil {
+			constraints := column.GetColumnDef().GetConstraints()
+			if constraints != nil {
+				isForeignConstraint := false
+				isDeferrable := false
+				for _, constraint := range constraints {
+					if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_FOREIGN {
+						isForeignConstraint = true
+					} else if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
+						isDeferrable = true
+					}
+				}
+				if !isForeignConstraint && isDeferrable {
+					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
+						"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+						"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+				}
+			}
+		} else if column.GetConstraint() != nil {
+			/*
+				e.g. create table uniquen_def_test1(id int, c1 int, UNIQUE(id) DEFERRABLE INITIALLY DEFERRED);
+				{create_stmt:{relation:{relname:"unique_def_test1"  inh:true  relpersistence:"p"  location:80}  table_elts:{column_def:{colname:"id"
+				type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
+				table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
+
+				here checking the case where this constraint is at the at the end as a constraint only, so checking deferrable field in constraint
+				in case of its not a FK.
+			*/
+			if column.GetConstraint().Deferrable && column.GetConstraint().Contype != pg_query.ConstrType_CONSTR_FOREIGN {
+				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
+					"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+			}
+		}
+	}
+}
+
+func reportDeferrableConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+	tableName := alterTableNode.AlterTableStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+
+	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
+	/*
+		e.g. ALTER TABLE ONLY public.users ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;
+		alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_UNIQUE  conname:"users_email_key"
+		deferrable:true  location:196  keys:{string:{sval:"email"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}
+
+		similar to CREATE table 2nd case where constraint is at the end of column definitions mentioning the constraint only
+		so here as well while adding constraint checking the type of constraint and the deferrable field of it.
+	*/
+	constraint := alterCmd.GetDef().GetConstraint()
+	if constraint != nil && constraint.Deferrable && constraint.Contype != pg_query.ConstrType_CONSTR_FOREIGN {
+		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+		reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
+			"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+			"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 	}
 }
 
@@ -666,9 +753,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 		} else if tbl := valConstrRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE VALIDATE CONSTRAINT not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
-		} else if tbl := deferRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "DEFERRABLE unique constraints are not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[4], sqlInfo.formattedStmt)
 		} else if spc := alterTblSpcRegex.FindStringSubmatch(sqlInfo.stmt); spc != nil {
 			reportCase(fpath, "ALTER TABLESPACE not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1153", "", "TABLESPACE", spc[1], sqlInfo.formattedStmt)

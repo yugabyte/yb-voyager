@@ -378,10 +378,10 @@
         {
             "ObjectType": "TABLE",
             "ObjectName": "abc",
-            "Reason": "DEFERRABLE unique constraints are not supported yet.",
+            "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "ALTER TABLE abc\nADD CONSTRAINT cnstr_id\n UNIQUE (id)\nDEFERRABLE;",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
         {
             "ObjectType": "TABLE",
@@ -390,6 +390,30 @@
             "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026)\n);",
             "Suggestion": "Refer this docs link for details on possible workaround - \u003cLINK_DOC\u003e",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "public.users",
+            "Reason": "DEFERRABLE constraints not supported yet",
+            "SqlStatement": "ALTER TABLE ONLY public.users\n    ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;",
+            "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "unique_def_test",
+            "Reason": "DEFERRABLE constraints not supported yet",
+            "SqlStatement": "create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);",
+            "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "unique_def_test1",
+            "Reason": "DEFERRABLE constraints not supported yet",
+            "SqlStatement": "create table unique_def_test1(id int, c1 int, UNIQUE(id)  DEFERRABLE INITIALLY DEFERRED);",
+            "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
         {
             "ObjectType": "TABLE",

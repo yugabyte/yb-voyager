@@ -242,3 +242,35 @@ CREATE TABLE public.meeting (
 
 ALTER TABLE ONLY public.meeting
     ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
+
+
+--deferrable constraints all should be reported except foreign key constraints
+CREATE TABLE public.pr (
+	id integer PRIMARY KEY,
+	name text
+);
+
+CREATE TABLE public.foreign_def_test (
+	id integer,
+	id1 integer,
+	val text
+);
+
+ALTER TABLE ONLY public.foreign_def_test
+    ADD CONSTRAINT foreign_def_test_id_fkey FOREIGN KEY (id) REFERENCES public.pr(id) DEFERRABLE INITIALLY DEFERRED;
+
+CREATE TABLE public.users (
+	id int PRIMARY KEY,
+	email text
+);
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;
+
+create table foreign_def_test1(id int references pr(id) INITIALLY DEFERRED, c1 int);
+
+create table foreign_def_test2(id int, name text, FOREIGN KEY (id) REFERENCES public.pr(id) DEFERRABLE INITIALLY DEFERRED);
+
+create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
+
+create table unique_def_test1(id int, c1 int, UNIQUE(id)  DEFERRABLE INITIALLY DEFERRED);
