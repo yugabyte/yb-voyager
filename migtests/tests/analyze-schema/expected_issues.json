@@ -417,6 +417,22 @@
         },
         {
             "ObjectType": "TABLE",
+            "ObjectName": "test_xml_type",
+            "Reason": "Unsupported datatype - xml",
+            "SqlStatement": "CREATE TABLE test_xml_type(id int, data xml);",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "test_xid_type",
+            "Reason": "Unsupported datatype - xid",
+            "SqlStatement": "CREATE TABLE test_xid_type(id int, data xid);",
+            "Suggestion": "Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/15638"
+        },
+        {
+            "ObjectType": "TABLE",
             "ObjectName": "public.meeting",
             "Reason": "Exclusion constraint is not supported yet",
             "SqlStatement": "ALTER TABLE ONLY public.meeting\n    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026);",

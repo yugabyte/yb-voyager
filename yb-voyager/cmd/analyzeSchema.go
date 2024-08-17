@@ -215,6 +215,7 @@ const (
 	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
 	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables requires manual intervention."
 	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
+	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
@@ -403,6 +404,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 				reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 				reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 				reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
+				reportXMLAndXIDDatatype(createTableNode, sqlStmtInfo, fpath)
 			}
 
 			if isAlterTable {
@@ -410,6 +412,41 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 				reportDeferrableConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
 			}
 
+		}
+	}
+}
+
+func reportXMLAndXIDDatatype(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	for _, column := range columns {
+		/*
+			e.g. CREATE TABLE test_xml_type(id int, data xml);
+			relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
+			type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} typemod:-1 location:32} 
+			is_local:true location:29}} table_elts:{column_def:{colname:"data" type_name:{names:{string:{sval:"xml"}} 
+			typemod:-1 location:42} is_local:true location:37}} oncommit:ONCOMMIT_NOOP}}
+
+			here checking the type of each column as type definition can be a list names for types which are native e.g. int 
+			it has type names - [pg_catalog, int4] both to determine but for complex types like text,json or xml etc. if doesn't have
+			info about pg_catalog. so checking the 0th only in case XML/XID to determine the type and report
+		*/
+		if column.GetColumnDef() != nil {
+			typeName := column.GetColumnDef().TypeName.Names[0].GetString_().Sval
+			if typeName == "xml" {
+				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				reportCase(fpath, fmt.Sprintf("%s - %s", UNSUPPORTED_DATATYPE, typeName), "https://github.com/yugabyte/yugabyte-db/issues/1043",
+					"Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - <LINK DOC>",
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+			}
+			if typeName == "xid" {
+				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				reportCase(fpath, fmt.Sprintf("%s - %s", UNSUPPORTED_DATATYPE, typeName), "https://github.com/yugabyte/yugabyte-db/issues/15638",
+					"Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+			}
 		}
 	}
 }

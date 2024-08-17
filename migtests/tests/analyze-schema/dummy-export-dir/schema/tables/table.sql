@@ -274,3 +274,7 @@ create table foreign_def_test2(id int, name text, FOREIGN KEY (id) REFERENCES pu
 create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
 
 create table unique_def_test1(id int, c1 int, UNIQUE(id)  DEFERRABLE INITIALLY DEFERRED);
+
+CREATE TABLE test_xml_type(id int, data xml);
+
+CREATE TABLE test_xid_type(id int, data xid);
