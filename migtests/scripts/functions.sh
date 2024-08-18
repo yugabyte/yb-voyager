@@ -813,6 +813,9 @@ normalize_json() {
                 .OptimalSelectConnectionsPerNode = "IGNORED"
             elif has("OptimalInsertConnectionsPerNode") then
                 .OptimalInsertConnectionsPerNode = "IGNORED"
+			elif has("RowCount") then
+				// set to 0 because the approximate row count can vary with each database initialization
+				.RowCount = 0
             else
                 .
             end
