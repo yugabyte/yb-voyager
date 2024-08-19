@@ -184,6 +184,9 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 	return args
 }
 
+/*
+Sample header: <dbtype>,<hostname>,<port>,<service_name>,<sid>,<tns_alias>,<username>,<password>,<schema>
+*/
 func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	log.Infof("parsing fleet config file %q", filePath)
 	var dbConfigs []AssessMigrationDBConfig
@@ -208,30 +211,20 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, fmt.Errorf("failed to read: %w", err)
+			return nil, fmt.Errorf("failed to read line %d: %w", lineNum, err)
+		}
+
+		if len(record) != len(header) {
+			return nil, fmt.Errorf("field count mismatch on line %d: expected %d fields but got %d", lineNum, len(header), len(record))
 		}
 
 		dbConfig, err := createDBConfigFromRecord(record, header)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create config for lineNum=%d in fleet config file: %w", lineNum, err)
+			return nil, fmt.Errorf("failed to create config for line %d in fleet config file: %w", lineNum, err)
 		}
 		dbConfigs = append(dbConfigs, *dbConfig)
 		lineNum++
 	}
-
-	// scanner := bufio.NewScanner(file)
-	// for scanner.Scan() {
-	// 	line := scanner.Text()
-	// 	if len(line) == 0 {
-	// 		continue
-	// 	}
-	// 	dbConfig := parseFleetConfigLine(line)
-	// 	dbConfigs = append(dbConfigs, dbConfig)
-	// }
-
-	// if err := scanner.Err(); err != nil {
-	// 	return nil, err
-	// }
 
 	return dbConfigs, nil
 }
@@ -239,12 +232,11 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 func createDBConfigFromRecord(record []string, header []string) (*AssessMigrationDBConfig, error) {
 	configMap := make(map[string]string)
 	for i, field := range header {
-		configMap[field] = record[i]
+		configMap[field] = strings.TrimSpace(record[i])
 	}
 
 	for _, mandatoryField := range mandatoryFleetFileHeaders {
-		if val, ok := configMap[mandatoryField]; !ok 
-		if configMap[mandatoryField] == "" {
+		if val, ok := configMap[mandatoryField]; !ok || val == "" {
 			return nil, fmt.Errorf("field %q is missing in the record", mandatoryField)
 		}
 	}
@@ -261,26 +253,6 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 		Schema:      configMap["schema"],
 	}, nil
 }
-
-/*
-Format: covers both SSL and non-SSL cases
-
-	<dbtype>,<hostname>,<port>,<service_name>,<sid>,<tns_alias>,<username>,<password>,<schema>
-*/
-// func parseFleetConfigLine(line string) AssessMigrationDBConfig {
-// 	config := strings.Split(line, ",")
-// 	return AssessMigrationDBConfig{
-// 		DbType:      config[0],
-// 		Host:        config[1],
-// 		Port:        config[2],
-// 		ServiceName: config[3],
-// 		SID:         config[4],
-// 		TnsAlias:    config[5],
-// 		User:        config[6],
-// 		Password:    config[7],
-// 		Schema:      config[8],
-// 	}
-// }
 
 const REPORT_PATH_NOTE = "To automatically apply the recommendations, continue the migration steps(export-schema, import-schema, ..) using the auto-generated export-dirs.</br> " +
 	"If using a different export-dir, specify report path in export-schema cmd with `--assessment-report-path` flag  to apply the recommendations."
@@ -358,7 +330,7 @@ func generateBulkAssessmentJsonReport() error {
 		return fmt.Errorf("failed to write bulk assessment report to file: %w", err)
 	}
 
-	utils.PrintAndLog("generated bulk assessment JSON report at: %s", reportPath)
+	utils.PrintAndLog("\ngenerated bulk assessment JSON report at: %s", reportPath)
 	return nil
 }
 
