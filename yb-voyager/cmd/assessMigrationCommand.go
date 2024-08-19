@@ -795,6 +795,7 @@ func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 					SqlStatement: issue.SqlStatement,
 				}
 				objects = append(objects, objectInfo)
+				break
 			}
 		}
 	}

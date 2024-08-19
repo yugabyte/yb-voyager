@@ -424,6 +424,8 @@ func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt,
 		here again similar to ALTER table Storage parameters options is the high level field in for WITH options.
 	*/
 	if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
+		//YB doesn't support any storage parameters from PG yet refer -
+		//https://docs.yugabyte.com/preview/api/ysql/the-sql-language/statements/ddl_create_table/#storage-parameters-1
 		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
 			"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt)
 	}
