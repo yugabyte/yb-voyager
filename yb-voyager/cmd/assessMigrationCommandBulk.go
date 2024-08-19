@@ -202,6 +202,7 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	}
 	header = normalizeFleetConfFileHeader(header)
 
+	lineNum := 2
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
@@ -210,8 +211,12 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 			return nil, fmt.Errorf("failed to read: %w", err)
 		}
 
-		dbConfig := createDBConfigFromRecord(record, header)
-		dbConfigs = append(dbConfigs, dbConfig)
+		dbConfig, err := createDBConfigFromRecord(record, header)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create config for lineNum=%d in fleet config file: %w", lineNum, err)
+		}
+		dbConfigs = append(dbConfigs, *dbConfig)
+		lineNum++
 	}
 
 	// scanner := bufio.NewScanner(file)
@@ -231,23 +236,30 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	return dbConfigs, nil
 }
 
-func createDBConfigFromRecord(record []string, header []string) AssessMigrationDBConfig {
+func createDBConfigFromRecord(record []string, header []string) (*AssessMigrationDBConfig, error) {
 	configMap := make(map[string]string)
 	for i, field := range header {
 		configMap[field] = record[i]
 	}
 
-	return AssessMigrationDBConfig{
+	for _, mandatoryField := range mandatoryFleetFileHeaders {
+		if val, ok := configMap[mandatoryField]; !ok 
+		if configMap[mandatoryField] == "" {
+			return nil, fmt.Errorf("field %q is missing in the record", mandatoryField)
+		}
+	}
+
+	return &AssessMigrationDBConfig{
 		DbType:      configMap["dbtype"],
 		Host:        configMap["hostname"],
 		Port:        configMap["port"],
 		ServiceName: configMap["service_name"],
 		SID:         configMap["sid"],
-		TnsAlias:    configMap["tns"],
+		TnsAlias:    configMap["tns_alias"],
 		User:        configMap["username"],
 		Password:    configMap["password"],
 		Schema:      configMap["schema"],
-	}
+	}, nil
 }
 
 /*
