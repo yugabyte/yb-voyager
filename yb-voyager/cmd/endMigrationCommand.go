@@ -436,8 +436,6 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 
 	deletePGReplicationSlot(msr, source)
 	deletePGPublication(msr, source)
-	deleteYBReplicationSlot(msr, source)
-	deleteYBPublication(msr, source)
 }
 
 func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
@@ -468,34 +466,6 @@ func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source
 	}
 }
 
-func deleteYBReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
-	if msr.YBReplicationSlotName == "" || source.DBType != YUGABYTEDB {
-		log.Infof("yb replication slot name is not set or source db type is not yugabytedb. skipping deleting yb replication slot name")
-		return
-	}
-
-	log.Infof("deleting YB replication slot name %q", msr.YBReplicationSlotName)
-	ybDB := source.DB().(*srcdb.YugabyteDB)
-	err := ybDB.DropLogicalReplicationSlot(nil, msr.YBReplicationSlotName)
-	if err != nil {
-		utils.ErrExit("dropping YB replication slot name: %v", err)
-	}
-}
-
-func deleteYBPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
-	if msr.YBPublicationName == "" || source.DBType != YUGABYTEDB {
-		log.Infof("yb publication name is not set or source db type is not yugabytedb. skipping deleting yb publication name")
-		return
-	}
-
-	log.Infof("deleting YB publication name %q", msr.YBPublicationName)
-	ybDB := source.DB().(*srcdb.YugabyteDB)
-	err := ybDB.DropPublication(msr.YBPublicationName)
-	if err != nil {
-		utils.ErrExit("dropping YB publication name: %v", err)
-	}
-}
-
 func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from target db...")
 	if msr.TargetDBConf == nil {
@@ -523,11 +493,55 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("clearing migration state from target db: %v", err)
 	}
 
+	fmt.Println("deleting yb replication slot and publication")
+	deleteYBReplicationSlotAndPublication(msr, tconf)
+
 	if msr.YBCDCStreamID == "" {
 		log.Info("yugabytedb cdc stream id is not set. skipping deleting stream id")
 		return
 	}
 	deleteCDCStreamIDForEndMigration(tconf)
+}
+
+func deleteYBReplicationSlotAndPublication(msr *metadb.MigrationStatusRecord, tconf *tgtdb.TargetConf) {
+	source := srcdb.Source{
+		DBType:         tconf.TargetDBType,
+		Host:           tconf.Host,
+		Port:           tconf.Port,
+		User:           tconf.User,
+		Password:       tconf.Password,
+		DBName:         tconf.DBName,
+		Schema:         tconf.Schema,
+		SSLMode:        tconf.SSLMode,
+		SSLCertPath:    tconf.SSLCertPath,
+		SSLKey:         tconf.SSLKey,
+		SSLRootCert:    tconf.SSLRootCert,
+		SSLCRL:         tconf.SSLCRL,
+		SSLQueryString: tconf.SSLQueryString,
+		Uri:            tconf.Uri,
+	}
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("connecting to YB as source db for deleting replication slot and publication: %v", err)
+	}
+	defer source.DB().Disconnect()
+
+	log.Info("deleting yb replication slot: ", msr.YBReplicationSlotName)
+	ybDB := source.DB().(*srcdb.YugabyteDB)
+	if msr.YBReplicationSlotName != "" && tconf.TargetDBType == YUGABYTEDB {
+		err = ybDB.DropLogicalReplicationSlot(nil, msr.YBReplicationSlotName)
+		if err != nil {
+			utils.ErrExit("dropping YB replication slot name: %v", err)
+		}
+	}
+
+	log.Info("deleting yb publication: ", msr.YBPublicationName)
+	if msr.YBPublicationName != "" && tconf.TargetDBType == YUGABYTEDB {
+		err = ybDB.DropPublication(msr.YBPublicationName)
+		if err != nil {
+			utils.ErrExit("dropping YB publication name: %v", err)
+		}
+	}
 }
 
 func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {

@@ -85,8 +85,14 @@ func (d *Debezium) Start() error {
 	if err != nil {
 		return err
 	}
+
+	YB_OR_PG_CONNECTOR_PATH := filepath.Join(DEBEZIUM_DIST_DIR, "pg-connector")
+	if d.Config.UseLogicalReplicationYBConnector {
+		YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
+	}
+
 	log.Infof("starting debezium...")
-	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
+	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH, YB_OR_PG_CONNECTOR_PATH)
 	d.cmd.Env = os.Environ()
 	// $TNS_ADMIN is used to set jdbc property oracle.net.tns_admin which will enable using TNS alias
 	d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("TNS_ADMIN=%s", d.Config.TNSAdmin))

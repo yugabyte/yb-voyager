@@ -13,11 +13,23 @@ if [ -z "$1" ]; then
     echo "Argument missing. Provide application.properties file path as argument";
     exit 1;
 fi
+if [ -z "$2" ]; then
+    echo "Argument missing. Provide YB or PG connector path as argument";
+    exit 1;
+fi
 PROPERTIES_FILE_PATH="$1"
 if [ ! -f "$PROPERTIES_FILE_PATH" ]; then
     echo "$PROPERTIES_FILE_PATH does not exist."
     exit 1;
 fi
+CONNECTOR_PATH="$2"
+if [ ! -d "$CONNECTOR_PATH" ]; then
+    echo "$CONNECTOR_PATH does not exist."
+    exit 1;
+fi
+
+# Add * to the end of the connector path
+CONNECTOR_PATH="$CONNECTOR_PATH/*"
 
 
 # Resolve Java
@@ -58,4 +70,5 @@ else
     DEBUGGER="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
 fi
 
-exec "$JAVA_BINARY" $DEBEZIUM_OPTS $JAVA_OPTS -Xmx3g $DEBUGGER -cp "$RUNNER"$PATH_SEP"conf"$PATH_SEP$LIB_PATH -Dquarkus.config.locations=$PROPERTIES_FILE_PATH -Doracle.net.tns_admin=$TNS_ADMIN io.debezium.server.Main
+echo "LIB_PATH=$LIB_PATH"
+exec "$JAVA_BINARY" $DEBEZIUM_OPTS $JAVA_OPTS -Xmx3g $DEBUGGER -cp "$RUNNER"$PATH_SEP"conf"$PATH_SEP$LIB_PATH$PATH_SEP$CONNECTOR_PATH -Dquarkus.config.locations=$PROPERTIES_FILE_PATH -Doracle.net.tns_admin=$TNS_ADMIN io.debezium.server.Main

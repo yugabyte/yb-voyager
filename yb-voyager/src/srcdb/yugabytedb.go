@@ -868,6 +868,11 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 		defer conn.Close(context.Background())
 	}
 	log.Infof("dropping replication slot: %s", replicationSlotName)
+
+	// TODO: Remove this sleep and check the status of the slot before dropping
+	// This sleep is added to avoid the error "replication slot is active" while dropping the slot since it takes 60 seconds by default to change the status of the slot
+	time.Sleep(60 * time.Second)
+
 	err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
 	if err != nil {
 		// ignore "does not exist" error while dropping replication slot
