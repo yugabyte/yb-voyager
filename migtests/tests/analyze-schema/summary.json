@@ -19,9 +19,9 @@
             },
             {
                 "ObjectType": "TABLE",
-                "TotalCount": 27,
-                "InvalidCount": 22,
-                "ObjectNames": "test_table_in_type_file, sales, test_2, test_7, test_8, table_abc, table_1, test_interval, sales_data, test_6, order_details, public.employees4, table_test, anydata_test, anytype_test, salaries2, test_3, uritype_test, test_1, test_non_pk_multi_column_list, test_4, test_5, test_9, table_xyz, anydataset_test, public.range_columns_partition_test, public.range_columns_partition_test_copy"
+                "TotalCount": 28,
+                "InvalidCount": 23,
+                "ObjectNames": "enum_example.bugs, test_table_in_type_file, sales, test_2, test_7, test_8, table_abc, table_1, test_interval, sales_data, test_6, order_details, public.employees4, table_test, anydata_test, anytype_test, salaries2, test_3, uritype_test, test_1, test_non_pk_multi_column_list, test_4, test_5, test_9, table_xyz, anydataset_test, public.range_columns_partition_test, public.range_columns_partition_test_copy"
             },
             {
                 "ObjectType": "INDEX",
@@ -47,6 +47,18 @@
                 "TotalCount": 3,
                 "InvalidCount": 3,
                 "ObjectNames": "transfer_insert, emp_trig, test"
+            },
+            {
+                "ObjectType": "CONVERSION",
+                "TotalCount": 1,
+                "InvalidCount": 1,
+                "ObjectNames": "myconv"
+            },
+            {
+                "ObjectType": "FOREIGN TABLE",
+                "TotalCount": 1,
+                "InvalidCount": 1,
+                "ObjectNames": "tbl_p"
             }
         ]
 }

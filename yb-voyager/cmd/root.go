@@ -66,29 +66,47 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		if !shouldRunPersistentPreRun(cmd) {
 			return
 		}
-		validateExportDirFlag()
-		schemaDir = filepath.Join(exportDir, "schema")
-		if shouldLock(cmd) {
-			lockFPath := filepath.Join(exportDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
-			lockFile = lockfile.NewLockfile(lockFPath)
-			lockFile.Lock()
-		}
-		InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
-		startTime = time.Now()
 
-		if callhome.SendDiagnostics {
-			createCLIArgsString(cmd)
-			go sendCallhomePayloadAtIntervals()
-		}
+		if isBulkAssessmentCommand(cmd) {
+			// TODO: implement call-home for bulkAssessment command
+			validateBulkAssessmentDirFlag()
+			if shouldLock(cmd) {
+				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
+				lockFile = lockfile.NewLockfile(lockFPath)
+				lockFile.Lock()
+			}
+			InitLogging(bulkAssessmentDir, cmd.Use == "status", GetCommandID(cmd))
+			startTime = time.Now()
 
-		log.Infof("Start time: %s\n", startTime)
-		if metaDBIsCreated(exportDir) {
-			initMetaDB()
+			if perfProfile {
+				go startPprofServer()
+			}
+			setControlPlane()
+		} else {
+			validateExportDirFlag()
+			schemaDir = filepath.Join(exportDir, "schema")
+			if shouldLock(cmd) {
+				lockFPath := filepath.Join(exportDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
+				lockFile = lockfile.NewLockfile(lockFPath)
+				lockFile.Lock()
+			}
+			InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
+			startTime = time.Now()
+
+			if callhome.SendDiagnostics {
+				createCLIArgsString(cmd)
+				go sendCallhomePayloadAtIntervals()
+			}
+
+			log.Infof("Start time: %s\n", startTime)
+			if metaDBIsCreated(exportDir) {
+				metaDB = initMetaDB(exportDir)
+			}
+			if perfProfile {
+				go startPprofServer()
+			}
+			setControlPlane()
 		}
-		if perfProfile {
-			go startPprofServer()
-		}
-		setControlPlane()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
