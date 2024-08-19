@@ -17,10 +17,11 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	_ "embed"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,6 +43,13 @@ var assessMigrationBulkCmd = &cobra.Command{
 	Use:   "assess-migration-bulk",
 	Short: "Bulk Assessment of multiple schemas across one or more Oracle database instances",
 	Long:  "Bulk Assessment of multiple schemas across one or more Oracle database instances",
+
+	PreRun: func(cmd *cobra.Command, args []string) {
+		err := validateFleetConfigFile(fleetConfigPath)
+		if err != nil {
+			utils.ErrExit("%s", err.Error())
+		}
+	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		assessMigrationBulk()
@@ -185,21 +193,61 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) == 0 {
-			continue
+	reader := csv.NewReader(file)
+	reader.FieldsPerRecord = -1 // Allow variable number of fields per record
+
+	header, err := reader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read fleet config file header: %w", err)
+	}
+	header = normalizeFleetConfFileHeader(header)
+
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("failed to read: %w", err)
 		}
-		dbConfig := parseFleetConfigLine(line)
+
+		dbConfig := createDBConfigFromRecord(record, header)
 		dbConfigs = append(dbConfigs, dbConfig)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
+	// scanner := bufio.NewScanner(file)
+	// for scanner.Scan() {
+	// 	line := scanner.Text()
+	// 	if len(line) == 0 {
+	// 		continue
+	// 	}
+	// 	dbConfig := parseFleetConfigLine(line)
+	// 	dbConfigs = append(dbConfigs, dbConfig)
+	// }
+
+	// if err := scanner.Err(); err != nil {
+	// 	return nil, err
+	// }
 
 	return dbConfigs, nil
+}
+
+func createDBConfigFromRecord(record []string, header []string) AssessMigrationDBConfig {
+	configMap := make(map[string]string)
+	for i, field := range header {
+		configMap[field] = record[i]
+	}
+
+	return AssessMigrationDBConfig{
+		DbType:      configMap["dbtype"],
+		Host:        configMap["hostname"],
+		Port:        configMap["port"],
+		ServiceName: configMap["service_name"],
+		SID:         configMap["sid"],
+		TnsAlias:    configMap["tns"],
+		User:        configMap["username"],
+		Password:    configMap["password"],
+		Schema:      configMap["schema"],
+	}
 }
 
 /*
@@ -207,20 +255,20 @@ Format: covers both SSL and non-SSL cases
 
 	<dbtype>,<hostname>,<port>,<service_name>,<sid>,<tns_alias>,<username>,<password>,<schema>
 */
-func parseFleetConfigLine(line string) AssessMigrationDBConfig {
-	config := strings.Split(line, ",")
-	return AssessMigrationDBConfig{
-		DbType:      config[0],
-		Host:        config[1],
-		Port:        config[2],
-		ServiceName: config[3],
-		SID:         config[4],
-		TnsAlias:    config[5],
-		User:        config[6],
-		Password:    config[7],
-		Schema:      config[8],
-	}
-}
+// func parseFleetConfigLine(line string) AssessMigrationDBConfig {
+// 	config := strings.Split(line, ",")
+// 	return AssessMigrationDBConfig{
+// 		DbType:      config[0],
+// 		Host:        config[1],
+// 		Port:        config[2],
+// 		ServiceName: config[3],
+// 		SID:         config[4],
+// 		TnsAlias:    config[5],
+// 		User:        config[6],
+// 		Password:    config[7],
+// 		Schema:      config[8],
+// 	}
+// }
 
 const REPORT_PATH_NOTE = "To automatically apply the recommendations, continue the migration steps(export-schema, import-schema, ..) using the auto-generated export-dirs.</br> " +
 	"If using a different export-dir, specify report path in export-schema cmd with `--assessment-report-path` flag  to apply the recommendations."
@@ -343,6 +391,95 @@ func validateBulkAssessmentDirFlag() {
 		strip any trailing spaces
 	func validateFleetConfigFilePath() {}
 */
+
+var fleetConfigFileHeaders = []string{"dbtype", "hostname", "port", "service_name", "sid",
+	"tns_alias", "username", "password", "schema"}
+
+// TODO: update this list
+var mandatoryFleetFileHeaders = []string{"dbtype", "schema"}
+
+// TODO: add unit tests for this function
+func validateFleetConfigFile(filePath string) error {
+	// Check if the file exists
+	if !utils.FileOrFolderExists(filePath) {
+		return fmt.Errorf("fleet config file %q does not exist", filePath)
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("could not open fleet config file: %w", err)
+	}
+	defer file.Close()
+
+	// Check if the file is empty
+	stat, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("could not obtain fleet config file stats: %w", err)
+	}
+	if stat.Size() == 0 {
+		return fmt.Errorf("fleet config file is empty")
+	}
+
+	// Attempt to read and parse the file as CSV
+	reader := csv.NewReader(file)
+	reader.FieldsPerRecord = -1 // Allow variable number of fields per record
+
+	header, err := reader.Read()
+	if err != nil {
+		return fmt.Errorf("failed to read the header: %w", err)
+	} else if len(header) == 0 {
+		return fmt.Errorf("header is empty or missing")
+	}
+	header = normalizeFleetConfFileHeader(header)
+	// Validate that all fields in the header are allowed ones
+	invalidFields := []string{}
+	for _, field := range header {
+		if !utils.ContainsString(fleetConfigFileHeaders, field) {
+			invalidFields = append(invalidFields, field)
+		}
+	}
+	if len(invalidFields) > 0 {
+		return fmt.Errorf("invalid fields found in the fleet config file's header: ['%s']", strings.Join(invalidFields, "', '"))
+	}
+
+	// Validate that all the mandatory fields are provided in the header
+	missingFields := []string{}
+	for _, field := range mandatoryFleetFileHeaders {
+		if !utils.ContainsString(header, field) {
+			missingFields = append(missingFields, field)
+		}
+	}
+	if len(missingFields) > 0 {
+		return fmt.Errorf("mandatory fields missing in the header: ['%s']", strings.Join(missingFields, "', '"))
+	}
+
+	// Validate all records to ensure they are correctly formatted as CSV
+	lineNumber := 2 // start after header line
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("error reading line %d: %w", lineNumber, err)
+		}
+		if len(record) != len(header) {
+			return fmt.Errorf("line %d does not match header length: expected %d fields, got %d",
+				lineNumber, len(header), len(record))
+		}
+		lineNumber++
+	}
+
+	return nil
+}
+
+func normalizeFleetConfFileHeader(header []string) []string {
+	header = utils.ToCaseInsensitiveNames(header)
+	for i := 0; i < len(header); i++ {
+		header[i] = strings.TrimSpace(header[i])
+	}
+	return header
+}
 
 func isBulkAssessmentCommand(cmd *cobra.Command) bool {
 	return cmd.Name() == assessMigrationBulkCmd.Name()
