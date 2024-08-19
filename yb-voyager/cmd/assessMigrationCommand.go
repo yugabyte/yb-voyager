@@ -903,6 +903,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	switch source.DBType {
 	case POSTGRESQL:
 		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
+		//adding XID here as data export import should not fail as YugabyteDB supports inserts on it but its functions are not supported
+		sourceUnsupportedDataTypes = append(sourceUnsupportedDataTypes, "xid")
 	case ORACLE:
 		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
 	default:

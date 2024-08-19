@@ -76,3 +76,18 @@ CREATE TABLE public.test_exclude_basic (
 );
 ALTER TABLE ONLY public.test_exclude_basic
     ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);
+
+
+CREATE TABLE test_xml_type(id int, data xml);
+
+INSERT INTO test_xml_type values(1,'<person>
+<name>ABC</name>
+<age>34</age>
+</person>');
+
+INSERT INTO test_xml_type values(2,'<person>
+<name>XYZ</name>
+<age>36</age>
+</person>');
+
+
