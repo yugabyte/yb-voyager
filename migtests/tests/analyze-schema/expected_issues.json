@@ -18,6 +18,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "PROCEDURE",
             "ObjectName": "foo",
             "Reason": "temporary table is not a supported clause for drop",
@@ -386,6 +387,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test",
             "Reason": "ALTER TABLE name DISABLE RULE not supported yet",
@@ -394,6 +396,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "public.example",
             "Reason": "Storage parameters are not supported yet.",
