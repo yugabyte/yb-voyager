@@ -112,7 +112,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string) {
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
 	if err != nil {
-		log.Errorf("callhome: error in getting the import data: %v", err)
+		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
 		importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 			importDataPayload.TotalRows += value
