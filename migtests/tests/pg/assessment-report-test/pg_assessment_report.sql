@@ -91,5 +91,3 @@ INSERT INTO test_xml_type values(2,'<person>
 </person>');
 
 
---unsupported extension
-CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;

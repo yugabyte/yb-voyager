@@ -335,12 +335,7 @@
 		},
 		{
 			"FeatureName": "Extensions",
-			"Objects": [
-				{
-					"ObjectName":"vector",
-					"SqlStatement": "CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;"
-				}
-			]
+			"Objects": []
 		},
 		{
 			"FeatureName": "Exclusion constraints",
