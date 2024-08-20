@@ -902,7 +902,7 @@ func calculateTimeTakenAndParallelJobsForImport(tables []SourceDBMetadata,
 		loadTimeMultiplicationFactor := getMultiplicationFactorForImportTimeBasedOnIndexes(table, sourceIndexMetadata,
 			indexImpacts, objectType)
 
-		tableImportTimeSec := findClosestRecordFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
+		tableImportTimeSec := findImportTimeFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
 		// add maximum import time to total import time by converting it to minutes
 		importTime += (loadTimeMultiplicationFactor * tableImportTimeSec) / 60
 	}
@@ -1004,7 +1004,7 @@ func getExpDataIndexImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int, 
 }
 
 /*
-findClosestRecordFromExpDataLoadTime finds the closest record from the experiment data based on row count or size
+findImportTimeFromExpDataLoadTime finds the closest record from the experiment data based on row count or size
 of the table. Out of objects close in terms of size and rows, prefer object having number of rows.
 Parameters:
 
@@ -1016,7 +1016,7 @@ Returns:
 
 	float64: max load time wrt size or count.
 */
-func findClosestRecordFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize float64,
+func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize float64,
 	rowsInTable float64) float64 {
 	closestInSize := loadTimes[0]
 	closestInRows := loadTimes[0]

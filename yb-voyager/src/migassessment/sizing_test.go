@@ -1278,9 +1278,9 @@ func TestGetThresholdAndTablets(t *testing.T) {
 }
 
 /*
-===== 	Test functions to test findClosestRecordFromExpDataLoadTime function	=====
+===== 	Test functions to test findImportTimeFromExpDataLoadTime function	=====
 */
-func TestFindClosestRecordFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
+func TestFindImportTimeFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
 	loadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
@@ -1302,14 +1302,14 @@ func TestFindClosestRecordFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
 
 	var objectSize float64 = 19
 	var rowsInTable float64 = 500000000
-	actualImportTime := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+	actualImportTime := findImportTimeFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
 
 	if actualImportTime != expectedImportTime {
 		t.Errorf("Expected %f but go %f", expectedImportTime, actualImportTime)
 	}
 }
 
-func TestFindClosestRecordFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *testing.T) {
+func TestFindImportTimeFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *testing.T) {
 	loadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 24},
@@ -1331,7 +1331,7 @@ func TestFindClosestRecordFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *test
 
 	var objectSize float64 = 25
 	var rowsInTable float64 = 100000000
-	actualImportTime := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+	actualImportTime := findImportTimeFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
 	if actualImportTime != expectedImportTime {
 		t.Errorf("Expected %v but got %v", expectedImportTime, actualImportTime)
 	}
