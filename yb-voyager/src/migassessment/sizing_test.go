@@ -1171,17 +1171,14 @@ func TestFindClosestRecordFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
 			rowCount:          sql.NullFloat64{Valid: true, Float64: 600000000},
 		},
 	}
-	expected := ExpDataLoadTime{
-		csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
-		migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 4500},
-		rowCount:          sql.NullFloat64{Valid: true, Float64: 600000000},
-	}
+	expectedImportTime := 4500.0
 
 	var objectSize float64 = 19
 	var rowsInTable float64 = 500000000
-	result := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
-	if result != expected {
-		t.Errorf("Expected %v but got %v", expected, result)
+	actualImportTime := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+
+	if actualImportTime != expectedImportTime {
+		t.Errorf("Expected %f but go %f", expectedImportTime, actualImportTime)
 	}
 }
 
@@ -1189,7 +1186,7 @@ func TestFindClosestRecordFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *test
 	loadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 24},
-			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 2900},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 2800},
 			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
 		},
 		{
@@ -1203,17 +1200,13 @@ func TestFindClosestRecordFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *test
 			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
 		},
 	}
-	expected := ExpDataLoadTime{
-		csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 25},
-		migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 3000},
-		rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
-	}
+	expectedImportTime := 3000.0
 
 	var objectSize float64 = 25
 	var rowsInTable float64 = 100000000
-	result := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
-	if result != expected {
-		t.Errorf("Expected %v but got %v", expected, result)
+	actualImportTime := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+	if actualImportTime != expectedImportTime {
+		t.Errorf("Expected %v but got %v", expectedImportTime, actualImportTime)
 	}
 }
 

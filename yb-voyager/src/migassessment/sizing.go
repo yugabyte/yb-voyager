@@ -888,13 +888,13 @@ func calculateTimeTakenAndParallelJobsForImport(tables []SourceDBMetadata,
 		// find the closest record from experiment data for the size of the table
 		tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
 		rowsInTable := lo.Ternary(table.RowCount.Valid, table.RowCount.Float64, 0)
-		closestLoadTime := findClosestRecordFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
 		// get multiplication factor for every table based on the number of indexes
 		loadTimeMultiplicationFactor := getMultiplicationFactorForImportTimeBasedOnIndexes(table, sourceIndexMetadata,
 			indexImpacts, objectType)
-		// calculate the time taken for import for every table and add it to overall import time
-		importTime += loadTimeMultiplicationFactor * ((closestLoadTime.migrationTimeSecs.Float64 * tableSize) /
-			closestLoadTime.csvSizeGB.Float64) / 60
+
+		tableImportTimeSec := findClosestRecordFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
+		// add maximum import time to total import time by converting it to minutes
+		importTime += (loadTimeMultiplicationFactor * tableImportTimeSec) / 60
 	}
 
 	return math.Ceil(importTime), loadTimes[0].parallelThreads.Int64, nil
@@ -1004,9 +1004,10 @@ Parameters:
 
 Returns:
 
-	ExpDataLoadTime: The closest record from the experiment data.
+	float64: max load time wrt size or count.
 */
-func findClosestRecordFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize float64, rowsInTable float64) ExpDataLoadTime {
+func findClosestRecordFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize float64,
+	rowsInTable float64) float64 {
 	closestInSize := loadTimes[0]
 	closestInRows := loadTimes[0]
 
@@ -1026,11 +1027,12 @@ func findClosestRecordFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSiz
 		}
 	}
 
-	if closestInRows.rowCount.Float64 > closestInSize.rowCount.Float64 {
-		return closestInRows
-	} else {
-		return closestInSize
-	}
+	// calculate the time taken for import based on csv size and row count
+	importTimeWrtSize := (closestInSize.migrationTimeSecs.Float64 * objectSize) / closestInSize.csvSizeGB.Float64
+	importTimeWrtRowCount := (closestInRows.migrationTimeSecs.Float64 * objectSize) / closestInRows.csvSizeGB.Float64
+
+	// return the load time which is maximum of the two
+	return math.Max(importTimeWrtSize, importTimeWrtRowCount)
 }
 
 /*
