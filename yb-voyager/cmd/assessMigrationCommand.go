@@ -399,7 +399,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalColocatedSize: sizeDetails.TotalColocatedSize,
 			TotalShardedSize:   sizeDetails.TotalShardedSize,
 		},
-		MigrationComplexity: getMigrationComplexity(), //TODO: to figure out proper algorithm
+		MigrationComplexity: schemaAnalysisReport.SchemaSummary.MigrationComplexity,
 		ConversionIssues:    schemaAnalysisReport.Issues,
 	}
 
@@ -410,10 +410,6 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 	ev.Report = string(finalReportBytes)
 	return ev
-}
-
-func getMigrationComplexity() string {
-	return "NOT AVAILABLE"
 }
 
 type SizeDetails struct {

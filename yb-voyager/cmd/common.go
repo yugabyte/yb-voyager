@@ -970,6 +970,36 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	return nil
 }
 
+var appChanges = []string{
+	INHERITANCE_ISSUE_REASON,
+	CONVERSION_ISSUE_REASON,
+	//TODO: add more
+}
+
+//Migration complexity calculation from the conversion issues
+func getMigrationComplexity() string {
+	if source.DBType != POSTGRESQL {
+		return "NOT AVAILABLE"
+	}
+	log.Infof("Calculating migration complexity..")
+	appChangesCount := 0
+	for _, issue := range schemaAnalysisReport.Issues {
+		for _, appChange := range appChanges {
+			if strings.Contains(issue.Reason, appChange) {
+				appChangesCount++
+			}
+		}
+	}
+	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
+	if (appChangesCount >= 1 && appChangesCount < 5) || (schemaChangesCount >= 20) {
+		return MEDIUM
+	} else if appChangesCount > 5 {
+		return HARD
+	}
+	//EASY in case appChanges == 0 or schemaChanges [0-20)
+	return EASY
+}
+
 // =====================================================================
 
 type AssessmentReport struct {

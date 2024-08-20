@@ -64,6 +64,10 @@
         <p><strong>Database Version:</strong> {{.}}</p>
         {{end}}
 
+        {{with .SchemaSummary.MigrationComplexity}}
+        <p><strong>Migration Complexity:</strong> {{.}}</p>
+        {{end}}
+
         <h2>Database Objects</h2>
         <p>{{.SchemaSummaryDBObjectsDesc}}</p>
         <table>
