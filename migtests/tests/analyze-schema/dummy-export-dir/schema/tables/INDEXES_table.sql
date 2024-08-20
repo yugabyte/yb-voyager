@@ -19,3 +19,6 @@ CREATE ACCESS METHOD heptree TYPE INDEX HANDLER heptree_handler;
 
 --alter index case
 ALTER INDEX abc set TABLESPACE new_tbl;
+
+--for the case of storage parameters
+CREATE INDEX abc ON public.example USING btree (new_id) WITH (fillfactor='70');

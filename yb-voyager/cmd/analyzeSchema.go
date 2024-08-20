@@ -169,7 +169,6 @@ var (
 	alterNotOfRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "NOT OF")
 	alterColumnStatsRegex           = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STATISTICS")
 	alterColumnStorageRegex         = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STORAGE")
-	alterColumnSetAttributesRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET", `\(`)
 	alterColumnResetAttributesRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "RESET", anything)
 	alterConstrRegex                = re("ALTER", opt(capture(unqualifiedIdent)), ifExists, "TABLE", capture(ident), anything, "ALTER", "CONSTRAINT")
 	setOidsRegex                    = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "SET WITH OIDS")
@@ -214,6 +213,9 @@ const (
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
 	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB."
 	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
+	ALTER_TABLE_DISABLE_RULE_ISSUE       = "ALTER TABLE name DISABLE RULE not supported yet"
+	STORAGE_PARAMETERS_DDL_STMT_ISSUE    = "Storage parameters are not supported yet."
+	ALTER_TABLE_SET_ATTRUBUTE_ISSUE      = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
 	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables requires manual intervention."
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
@@ -395,19 +397,20 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			}
 			continue
 		}
+		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
+		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 
-		if objType == TABLE {
-			createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
-			alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
-			if isCreateTable {
-				reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
-				reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			}
-
-			if isAlterTable {
-				reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
-			}
-
+		if objType == TABLE && isCreateTable {
+			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
+			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
+		}
+		if isAlterTable {
+			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
+			reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
+		}
+		if isCreateIndex {
+			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
 		}
 	}
 }
@@ -444,6 +447,68 @@ func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateS
 					"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 			}
 		}
+	}
+}
+
+func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
+	indexName := createIndexNode.IndexStmt.GetIdxname()
+	summaryMap["INDEX"].invalidCount[sqlStmtInfo.objName] = true
+	/*
+		e.g. CREATE INDEX idx on table_name(id) with (fillfactor='70');
+		index_stmt:{idxname:"idx" relation:{relname:"table_name" inh:true relpersistence:"p" location:21} access_method:"btree"
+		index_params:{index_elem:{name:"id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}} ...
+		here again similar to ALTER table Storage parameters options is the high level field in for WITH options.
+	*/
+	if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
+		//YB doesn't support any storage parameters from PG yet refer -
+		//https://docs.yugabyte.com/preview/api/ysql/the-sql-language/statements/ddl_create_table/#storage-parameters-1
+		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
+			"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt)
+	}
+}
+
+func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string, objType string) {
+	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+	tableName := alterTableNode.AlterTableStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	// this will the list of items in the SET (attribute=value, ..)
+	/*
+		e.g. alter table test_1 alter column col1 set (attribute_option=value);
+		cmds:{alter_table_cmd:{subtype:AT_SetOptions name:"col1" def:{list:{items:{def_elem:{defname:"attribute_option"
+		arg:{type_name:{names:{string:{sval:"value"}} typemod:-1 location:263}} defaction:DEFELEM_UNSPEC location:246}}}}...
+		for set attribute issue we will the type of alter setting the options and in the 'def' definition field which has the
+		information of the type, we will check if there is any list which will only present in case there is syntax like <SubTYPE> (...)
+	*/
+	setParameters := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList()
+	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_SetOptions &&
+		len(setParameters.GetItems()) > 0 {
+		reportCase(fpath, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
+			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+	}
+
+	/*
+		e.g. alter table test add constraint uk unique(id) with (fillfactor='70');
+		alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_UNIQUE conname:"asd" location:292
+		keys:{string:{sval:"id"}} options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}}...
+		Similarly here we are trying to get the constraint if any and then get the options field which is WITH options
+		in this case only so checking that for this case.
+	*/
+
+	if len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
+		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
+			"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+	}
+
+	/*
+		e.g. ALTER TABLE example DISABLE example_rule;
+		cmds:{alter_table_cmd:{subtype:AT_DisableRule name:"example_rule" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
+		checking the subType is sufficient in this case
+	*/
+	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
+		ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
+		reportCase(fpath, ALTER_TABLE_DISABLE_RULE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
+			fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
 	}
 }
 
@@ -623,9 +688,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := alterColumnStorageRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE ALTER column SET STORAGE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
-		} else if tbl := alterColumnSetAttributesRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE ALTER column SET (attribute = value) not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := alterColumnResetAttributesRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE ALTER column RESET (attribute) not supported yet.",
