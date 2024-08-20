@@ -459,7 +459,7 @@ func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTabl
 		here again same checking the definition of the alter stmt if it has constraint and checking its type
 	*/
 	constraint := alterCmd.GetDef().GetConstraint()
-	if constraint != nil && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+	if alterCmd.Subtype == pg_query.AlterTableType_AT_AddConstraint && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
 		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 		reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
 			"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)

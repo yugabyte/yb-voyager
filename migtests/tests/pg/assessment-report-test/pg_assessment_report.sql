@@ -76,3 +76,7 @@ CREATE TABLE public.test_exclude_basic (
 );
 ALTER TABLE ONLY public.test_exclude_basic
     ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);
+
+
+--unsupported extension
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
