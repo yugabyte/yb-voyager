@@ -1,7 +1,6 @@
 [
         {
             "IssueType": "Unsupported features",
-            "IssueType": "Unsupported features",
             "ObjectType": "INDEX",
             "ObjectName": "film_fulltext_idx",
             "Reason": "Schema contains GIST index which is not supported.",
