@@ -27,6 +27,7 @@ import (
 	"strings"
 	"text/template"
 
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -76,7 +77,6 @@ var (
 		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
 		"tsm_system_time", "unaccent", `"uuid-ossp"`, "yb_pg_metrics", "yb_test_extension",
 	}
-	dataTypeClause = unqualifiedIdent + optionalWS + opt(unqualifiedIdent) + opt(`\(.*?\)`)
 )
 
 func cat(tokens ...string) string {
@@ -129,8 +129,6 @@ var (
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	createConvRegex           = re("CREATE", opt("DEFAULT"), optionalWS, "CONVERSION", capture(ident))
-	alterConvRegex            = re("ALTER", "CONVERSION", capture(ident))
 	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
 	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
 	spgistRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
@@ -152,8 +150,6 @@ var (
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
-	storedRegex               = re(capture(unqualifiedIdent), capture(dataTypeClause), "GENERATED", "ALWAYS", anything, "STORED")
-	createTableRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything)
 	partitionColumnsRegex     = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
 	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
 	likeRegex                 = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
@@ -173,7 +169,6 @@ var (
 	alterNotOfRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "NOT OF")
 	alterColumnStatsRegex           = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STATISTICS")
 	alterColumnStorageRegex         = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STORAGE")
-	alterColumnSetAttributesRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET", `\(`)
 	alterColumnResetAttributesRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "RESET", anything)
 	alterConstrRegex                = re("ALTER", opt(capture(unqualifiedIdent)), ifExists, "TABLE", capture(ident), anything, "ALTER", "CONSTRAINT")
 	setOidsRegex                    = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "SET WITH OIDS")
@@ -204,14 +199,23 @@ var (
 	typeUnsupportedRegex       = re("Inherited types are not supported", anything, "replacing with inherited table")
 	bulkCollectRegex           = re("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
 	jsonFuncRegex              = re("CREATE", opt("OR REPLACE"), capture(unqualifiedIdent), capture(ident), anything, "JSON_ARRAYAGG")
+	alterConvRegex             = re("ALTER", "CONVERSION", capture(ident), anything)
 )
 
 const (
-	INHERITANCE_ISSUE_REASON        = "TABLE INHERITANCE not supported in YugabyteDB"
-	CONSTRAINT_TRIGGER_ISSUE_REASON = "CONSTRAINT TRIGGER not supported yet."
-	COMPOUND_TRIGGER_ISSUE_REASON   = "COMPOUND TRIGGER not supported in YugabyteDB."
+	CONVERSION_ISSUE_REASON                     = "CREATE CONVERSION is not supported yet"
+	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON         = "Schema contains gin index on multi column which is not supported."
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not yet implemented."
+	INHERITANCE_ISSUE_REASON                    = "TABLE INHERITANCE not supported in YugabyteDB"
+	CONSTRAINT_TRIGGER_ISSUE_REASON             = "CONSTRAINT TRIGGER not supported yet."
+	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
+	ALTER_TABLE_DISABLE_RULE_ISSUE       = "ALTER TABLE name DISABLE RULE not supported yet"
+	STORAGE_PARAMETERS_DDL_STMT_ISSUE    = "Storage parameters are not supported yet."
+	ALTER_TABLE_SET_ATTRUBUTE_ISSUE      = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
+	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables requires manual intervention."
+	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
 	GIST_INDEX_ISSUE_REASON = "Schema contains GIST index which is not supported."
 	GIN_INDEX_DETAILS       = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -361,6 +365,140 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	}
 }
 
+func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
+	for _, sqlStmtInfo := range sqlInfoArr {
+		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		if err != nil {
+			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		}
+		createForeignTableNode, isForeignTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
+		if isForeignTable {
+			schemaName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Schemaname
+			tableName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Relname
+			serverName := createForeignTableNode.CreateForeignTableStmt.Servername
+			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
+			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
+				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt)
+		}
+	}
+}
+
+func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
+	for _, sqlStmtInfo := range sqlInfoArr {
+		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		if err != nil { //if the Stmt is not already report by any of the regexes
+			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
+				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX, err.Error())
+				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1625",
+					"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.formattedStmt)
+			}
+			continue
+		}
+
+		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
+		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
+
+		if objType == TABLE && isCreateTable {
+			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
+		}
+		if isAlterTable {
+			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
+		}
+		if isCreateIndex {
+			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
+		}
+
+	}
+}
+
+func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
+	indexName := createIndexNode.IndexStmt.GetIdxname()
+	summaryMap["INDEX"].invalidCount[sqlStmtInfo.objName] = true
+	/*
+		e.g. CREATE INDEX idx on table_name(id) with (fillfactor='70');
+		index_stmt:{idxname:"idx" relation:{relname:"table_name" inh:true relpersistence:"p" location:21} access_method:"btree"
+		index_params:{index_elem:{name:"id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}} ...
+		here again similar to ALTER table Storage parameters options is the high level field in for WITH options.
+	*/
+	if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
+		//YB doesn't support any storage parameters from PG yet refer -
+		//https://docs.yugabyte.com/preview/api/ysql/the-sql-language/statements/ddl_create_table/#storage-parameters-1
+		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
+			"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt)
+	}
+}
+
+func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string, objType string) {
+	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+	tableName := alterTableNode.AlterTableStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	// this will the list of items in the SET (attribute=value, ..)
+	/*
+		e.g. alter table test_1 alter column col1 set (attribute_option=value);
+		cmds:{alter_table_cmd:{subtype:AT_SetOptions name:"col1" def:{list:{items:{def_elem:{defname:"attribute_option"
+		arg:{type_name:{names:{string:{sval:"value"}} typemod:-1 location:263}} defaction:DEFELEM_UNSPEC location:246}}}}...
+		for set attribute issue we will the type of alter setting the options and in the 'def' definition field which has the
+		information of the type, we will check if there is any list which will only present in case there is syntax like <SubTYPE> (...)
+	*/
+	setParameters := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList()
+	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_SetOptions &&
+		len(setParameters.GetItems()) > 0 {
+		reportCase(fpath, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
+			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+	}
+
+	/*
+		e.g. alter table test add constraint uk unique(id) with (fillfactor='70');
+		alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_UNIQUE conname:"asd" location:292
+		keys:{string:{sval:"id"}} options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}}...
+		Similarly here we are trying to get the constraint if any and then get the options field which is WITH options
+		in this case only so checking that for this case.
+	*/
+
+	if len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
+		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
+			"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+	}
+
+	/*
+		e.g. ALTER TABLE example DISABLE example_rule;
+		cmds:{alter_table_cmd:{subtype:AT_DisableRule name:"example_rule" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
+		checking the subType is sufficient in this case
+	*/
+	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
+		ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
+		reportCase(fpath, ALTER_TABLE_DISABLE_RULE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
+			fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+	}
+}
+
+func reportGeneratedStoredColumnTables(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	var generatedColumns []string
+	for _, column := range columns {
+		//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
+		if column.GetColumnDef() != nil {
+			constraints := column.GetColumnDef().Constraints
+			for _, constraint := range constraints {
+				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
+					generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
+				}
+			}
+		}
+	}
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	if len(generatedColumns) > 0 {
+		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+		reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
+			"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+	}
+}
+
 // Checks compatibility of views
 func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
@@ -398,10 +536,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath,
 				"RANGE with offset PRECEDING/FOLLOWING is not supported for column type numeric and offset type double precision",
 				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", sqlInfo.formattedStmt)
-		} else if stmt := createConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			reportCase(fpath, "CREATE CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[2], sqlInfo.formattedStmt)
-		} else if stmt := alterConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			location := strings.ToUpper(stmt[1])
 			if slices.Contains(notSupportedFetchLocation, location) {
@@ -456,12 +590,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "REINDEX is not supported.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
-		} else if col := storedRegex.FindStringSubmatch(sqlInfo.stmt); col != nil {
-			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			// fetch table name using different regex
-			tbl := createTableRegex.FindStringSubmatch(sqlInfo.stmt)
-			reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON,
-				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE ALL is not supported yet.",
@@ -504,9 +632,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := alterColumnStorageRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE ALTER column SET STORAGE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
-		} else if tbl := alterColumnSetAttributesRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE ALTER column SET (attribute = value) not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := alterColumnResetAttributesRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE ALTER column RESET (attribute) not supported yet.",
@@ -651,6 +776,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 // check foreign table
 func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
+		//TODO: refactor it later to remove all the unneccessary regexes
 		if tbl := primRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "Primary key constraints are not supported on foreign tables.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10698", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
@@ -674,7 +800,7 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 }
 
 // Checks whether the script, fpath, can be migrated to YB
-func checker(sqlInfoArr []sqlInfo, fpath string) {
+func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	if !utils.FileOrFolderExists(fpath) {
 		return
 	}
@@ -685,6 +811,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string) {
 	checkDDL(sqlInfoArr, fpath)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
+	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 }
 
 func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
@@ -736,6 +863,9 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 		objNameIndex = 3
 	} else if objType == "TABLE" || objType == "PARTITION" {
 		createObjRegex = re("CREATE", opt("OR REPLACE"), "TABLE", ifNotExists, capture(ident))
+		objNameIndex = 3
+	} else if objType == "FOREIGN TABLE" {
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "FOREIGN", "TABLE", ifNotExists, capture(ident))
 		objNameIndex = 3
 	} else { //TODO: check syntaxes for other objects and add more cases if required
 		createObjRegex = re("CREATE", opt("OR REPLACE"), objType, ifNotExists, capture(ident))
@@ -1014,11 +1144,48 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		if objType == "EXTENSION" {
 			checkExtensions(sqlInfoArr, filePath)
 		}
-		checker(sqlInfoArr, filePath)
+		if objType == "FOREIGN TABLE" {
+			checkForeignTable(sqlInfoArr, filePath)
+		}
+		checker(sqlInfoArr, filePath, objType)
+
+		if objType == "CONVERSION" {
+			checkConversions(sqlInfoArr, filePath)
+		}
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	return schemaAnalysisReport
+}
+
+func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
+	for _, sqlStmtInfo := range sqlInfoArr {
+		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		if err != nil {
+			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+		}
+
+		createConvNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateConversionStmt)
+		if ok {
+			createConvStmt := createConvNode.CreateConversionStmt
+			//Conversion name here is a list of items which are '.' separated
+			//so 0th and 1st indexes are Schema and conv name respectively
+			nameList := createConvStmt.GetConversionName()
+			convName := nameList[0].GetString_().Sval
+			if len(nameList) > 1 {
+				convName = fmt.Sprintf("%s.%s", convName, nameList[1].GetString_().Sval)
+			}
+			reportCase(filePath, CONVERSION_ISSUE_REASON, "https://github.com/yugabyte/yugabyte-db/issues/10866",
+				"Remove it from the exported schema", "CONVERSION", convName, sqlStmtInfo.formattedStmt)
+		} else {
+			//pg_query doesn't seem to have a Node type of AlterConversionStmt so using regex for now
+			if stmt := alterConvRegex.FindStringSubmatch(sqlStmtInfo.stmt); stmt != nil {
+				reportCase(filePath, "ALTER CONVERSION is not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866",
+					"Remove it from the exported schema", "CONVERSION", stmt[1], sqlStmtInfo.formattedStmt)
+			}
+		}
+
+	}
 }
 
 func analyzeSchema() {

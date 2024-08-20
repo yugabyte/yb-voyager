@@ -199,7 +199,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 
 func saveMigrationAssessmentReport() {
 	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "assessmentReport.*"))
-	migrationAssessmentDone, err := IsMigrationAssessmentDone()
+	migrationAssessmentDone, err := IsMigrationAssessmentDone(metaDB)
 	if err != nil {
 		utils.ErrExit("checking if migration assessment is done: %v", err)
 	}

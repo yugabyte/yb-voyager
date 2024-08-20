@@ -107,18 +107,19 @@ const (
 	LOAD_TIME_INDEX_IMPACT_TABLE = "load_time_index_impact"
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
-	GITHUB_RAW_LINK               = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
-	EXPERIMENT_DATA_FILENAME      = "yb_2024_0_source.db"
-	DBS_DIR                       = "dbs"
-	SIZE_UNIT_GB                  = "GB"
-	SIZE_UNIT_MB                  = "MB"
-	LOW_PHASE_SHARD_COUNT         = 1
-	LOW_PHASE_SIZE_THRESHOLD_GB   = 0.512
-	HIGH_PHASE_SHARD_COUNT        = 24
-	HIGH_PHASE_SIZE_THRESHOLD_GB  = 10
-	FINAL_PHASE_SIZE_THRESHOLD_GB = 100
-	MAX_TABLETS_PER_TABLE         = 256
-	PREFER_REMOTE_EXPERIMENT_DB   = false
+	GITHUB_RAW_LINK                 = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
+	EXPERIMENT_DATA_FILENAME        = "yb_2024_0_source.db"
+	DBS_DIR                         = "dbs"
+	SIZE_UNIT_GB                    = "GB"
+	SIZE_UNIT_MB                    = "MB"
+	LOW_PHASE_SHARD_COUNT           = 1
+	LOW_PHASE_SIZE_THRESHOLD_GB     = 0.512
+	HIGH_PHASE_SHARD_COUNT          = 24
+	HIGH_PHASE_SIZE_THRESHOLD_GB    = 10
+	FINAL_PHASE_SIZE_THRESHOLD_GB   = 100
+	MAX_TABLETS_PER_TABLE           = 256
+	PREFER_REMOTE_EXPERIMENT_DB     = false
+	COLOCATED_MAX_INDEXES_THRESHOLD = 5
 	// COLOCATED / SHARDED Object types
 	COLOCATED = "colocated"
 	SHARDED   = "sharded"
@@ -639,9 +640,20 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 		var numColocated int = 0
 		var cumulativeObjectCount int64 = 0
 
+		var shardedObjects []SourceDBMetadata
+		var cumulativeSizeSharded float64 = 0
+
 		for _, table := range sourceTableMetadata {
 			// Check and fetch indexes for the current table
 			indexesOfTable, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+			// DB-12363: make tables having more than COLOCATED_MAX_INDEXES_THRESHOLD indexes as sharded
+			// (irrespective of size or ops requirements)
+			if len(indexesOfTable) > COLOCATED_MAX_INDEXES_THRESHOLD {
+				shardedObjects = append(shardedObjects, table)
+				cumulativeSizeSharded += lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
+				// skip to next table
+				continue
+			}
 			// Calculate new object count and total size
 			newObjectCount := cumulativeObjectCount + int64(len(indexesOfTable)) + 1
 			objectTotalSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
@@ -659,11 +671,9 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 				break
 			}
 		}
-		var shardedObjects []SourceDBMetadata
-		var cumulativeSizeSharded float64 = 0
 
 		// Iterate over remaining tables for sharding
-		for _, remainingTable := range sourceTableMetadata[numColocated:] {
+		for _, remainingTable := range sourceTableMetadata[(len(shardedObjects) + numColocated):] {
 			shardedObjects = append(shardedObjects, remainingTable)
 			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
 			cumulativeSizeSharded += lo.Ternary(remainingTable.Size.Valid, remainingTable.Size.Float64, 0) + indexesSizeSumSharded
