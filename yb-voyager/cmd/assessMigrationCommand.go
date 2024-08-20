@@ -808,7 +808,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", []string{CONVERSION_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin Indexes on Multi-columns", []string{GIN_INDEX_MULTI_COLUMN_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, []string{ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, ALTER_TABLE_SET_ATTRUBUTE_ISSUE,
-		ALTER_TABLE_DISABLE_RULE_ISSUE, STORAGE_PARAMETERS_DDL_STMT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
+		ALTER_TABLE_DISABLE_RULE_ISSUE, STORAGE_PARAMETERS_DDL_STMT_ISSUE, ALTER_TABLE_CLUSTER_ON_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", []string{UNSUPPORTED_EXTENSION_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", []string{EXCLUSION_CONSTRAINT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", []string{DEFERRABLE_CONSTRAINT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)

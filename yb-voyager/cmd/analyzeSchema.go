@@ -215,7 +215,8 @@ const (
 	ALTER_TABLE_DISABLE_RULE_ISSUE       = "ALTER TABLE name DISABLE RULE not supported yet"
 	STORAGE_PARAMETERS_DDL_STMT_ISSUE    = "Storage parameters are not supported yet."
 	ALTER_TABLE_SET_ATTRUBUTE_ISSUE      = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
-	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables requires manual intervention."
+	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables require manual intervention."
+	ALTER_TABLE_CLUSTER_ON_ISSUE         = "ALTER TABLE CLUSTER not supported yet."
 	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
@@ -292,7 +293,7 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		schemaSummary.Notes = append(schemaAnalysisReport.SchemaSummary.Notes, note)
 	}
-	schemaSummary.MigrationComplexity = getMigrationComplexity()
+	schemaSummary.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType)
 	return schemaSummary
 }
 
@@ -446,7 +447,7 @@ func reportXMLAndXIDDatatype(createTableNode *pg_query.Node_CreateStmt, sqlStmtI
 			typeName := ""
 			if len(column.GetColumnDef().GetTypeName().GetNames()) > 0 {
 				typeName = column.GetColumnDef().GetTypeName().GetNames()[0].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
-			} 
+			}
 			colName := column.GetColumnDef().GetColname()
 			reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
 			if typeName == "xml" {
@@ -838,7 +839,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, false)
 		} else if tbl := clusterRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE CLUSTER not supported yet.",
+			reportCase(fpath, ALTER_TABLE_CLUSTER_ON_ISSUE,
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, false)
 		} else if tbl := alterSetRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET not supported yet.",

@@ -973,12 +973,15 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 var appChanges = []string{
 	INHERITANCE_ISSUE_REASON,
 	CONVERSION_ISSUE_REASON,
-	//TODO: add more
+	DEFERRABLE_CONSTRAINT_ISSUE,
+	fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE),
+	fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE),
+	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this 
 }
 
 //Migration complexity calculation from the conversion issues
-func getMigrationComplexity() string {
-	if source.DBType != POSTGRESQL {
+func getMigrationComplexity(sourceDBType string) string {
+	if sourceDBType != POSTGRESQL {
 		return "NOT AVAILABLE"
 	}
 	log.Infof("Calculating migration complexity..")
