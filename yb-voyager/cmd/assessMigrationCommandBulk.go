@@ -59,10 +59,18 @@ var assessMigrationBulkCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(assessMigrationBulkCmd)
 
+	const fleetConfigFileHelp = `
+Path to the CSV file with connection parameters for schema(s) to be assessed.
+Fields (case-insensitive): dbtype, hostname, port, service_name, sid, tns_alias, username, password, schema.
+Mandatory: dbtype, username, schema, service_name/sid/tns_alias(any one of these)
+Guidelines:
+  - First line must be a header row.
+  - Ensure mandatory fields are included and correctly spelled.
+`
 	// defining flags
-	assessMigrationBulkCmd.Flags().StringVar(&fleetConfigPath, "fleet-config-file", "", "File containing the connection params for schema(s) to be assessed (required)")
+	assessMigrationBulkCmd.Flags().StringVar(&fleetConfigPath, "fleet-config-file", "", fleetConfigFileHelp)
 	BoolVar(assessMigrationBulkCmd.Flags(), &continueOnError, "continue-on-error", true, "If true, it will print the error message on console and continue to next schema’s assessment")
-	assessMigrationBulkCmd.Flags().StringVar(&bulkAssessmentDir, "bulk-assessment-dir", "", "Top-level directory storing the export-dir of each schema (default: pwd)")
+	assessMigrationBulkCmd.Flags().StringVar(&bulkAssessmentDir, "bulk-assessment-dir", "", "Top-level directory storing the export-dir of each schema")
 	BoolVar(assessMigrationBulkCmd.Flags(), &startClean, "start-clean", false, "Cleans up all the export-dirs in bulk assessment directory to start everything from scratch")
 
 	// marking mandatory flags
@@ -197,8 +205,6 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	defer file.Close()
 
 	reader := csv.NewReader(file)
-	reader.FieldsPerRecord = -1 // Allow variable number of fields per record
-
 	header, err := reader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read fleet config file header: %w", err)
@@ -235,10 +241,23 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 		configMap[field] = strings.TrimSpace(record[i])
 	}
 
-	for _, mandatoryField := range mandatoryFleetFileHeaders {
-		if val, ok := configMap[mandatoryField]; !ok || val == "" {
-			return nil, fmt.Errorf("field %q is missing in the record", mandatoryField)
+	// Check that at least one of the mandatory field combinations is non-empty and valid
+	validConfig := false
+	for _, mandatoryCombo := range mandatoryHeaderFields {
+		missingOrEmptyFields := false
+		for _, field := range mandatoryCombo {
+			if val, ok := configMap[field]; !ok || val == "" {
+				missingOrEmptyFields = true
+				break
+			}
 		}
+		if !missingOrEmptyFields {
+			validConfig = true
+			break
+		}
+	}
+	if !validConfig {
+		return nil, fmt.Errorf("record does not contain a valid combination of mandatory fields")
 	}
 
 	return &AssessMigrationDBConfig{
@@ -368,19 +387,15 @@ func validateBulkAssessmentDirFlag() {
 	}
 }
 
-/*
-	TODO:
-		check if value valid or not,
-		expected/mandatory params are passed
-		strip any trailing spaces
-	func validateFleetConfigFilePath() {}
-*/
-
-var fleetConfigFileHeaders = []string{"dbtype", "hostname", "port", "service_name", "sid",
+var fleetConfigFileHeaderFields = []string{"dbtype", "hostname", "port", "service_name", "sid",
 	"tns_alias", "username", "password", "schema"}
 
-// TODO: update this list
-var mandatoryFleetFileHeaders = []string{"dbtype", "schema"}
+// TODO: verify/update this list
+var mandatoryHeaderFields = [][]string{
+	{"dbtype", "username", "schema", "service_name"},
+	{"dbtype", "username", "schema", "sid"},
+	{"dbtype", "username", "schema", "tns_alias"},
+}
 
 // TODO: add unit tests for this function
 func validateFleetConfigFile(filePath string) error {
@@ -404,10 +419,7 @@ func validateFleetConfigFile(filePath string) error {
 		return fmt.Errorf("fleet config file is empty")
 	}
 
-	// Attempt to read and parse the file as CSV
 	reader := csv.NewReader(file)
-	reader.FieldsPerRecord = -1 // Allow variable number of fields per record
-
 	header, err := reader.Read()
 	if err != nil {
 		return fmt.Errorf("failed to read the header: %w", err)
@@ -415,10 +427,11 @@ func validateFleetConfigFile(filePath string) error {
 		return fmt.Errorf("header is empty or missing")
 	}
 	header = normalizeFleetConfFileHeader(header)
+
 	// Validate that all fields in the header are allowed ones
 	invalidFields := []string{}
 	for _, field := range header {
-		if !utils.ContainsString(fleetConfigFileHeaders, field) {
+		if !utils.ContainsString(fleetConfigFileHeaderFields, field) {
 			invalidFields = append(invalidFields, field)
 		}
 	}
@@ -427,14 +440,15 @@ func validateFleetConfigFile(filePath string) error {
 	}
 
 	// Validate that all the mandatory fields are provided in the header
-	missingFields := []string{}
-	for _, field := range mandatoryFleetFileHeaders {
-		if !utils.ContainsString(header, field) {
-			missingFields = append(missingFields, field)
+	mandatoryFieldsPresent := false
+	for _, mandatoryCombo := range mandatoryHeaderFields {
+		if utils.IsSubset(mandatoryCombo, header) {
+			mandatoryFieldsPresent = true
+			break
 		}
 	}
-	if len(missingFields) > 0 {
-		return fmt.Errorf("mandatory fields missing in the header: ['%s']", strings.Join(missingFields, "', '"))
+	if !mandatoryFieldsPresent {
+		return fmt.Errorf("mandatory fields missing in the header. Expected one of the following combinations: %v", mandatoryHeaderFields)
 	}
 
 	// Validate all records to ensure they are correctly formatted as CSV
