@@ -13,19 +13,21 @@ if [ -z "$1" ]; then
     echo "Argument missing. Provide application.properties file path as argument";
     exit 1;
 fi
-if [ -z "$2" ]; then
-    echo "Argument missing. Provide YB or PG connector path as argument";
-    exit 1;
-fi
+
 PROPERTIES_FILE_PATH="$1"
 if [ ! -f "$PROPERTIES_FILE_PATH" ]; then
     echo "$PROPERTIES_FILE_PATH does not exist."
     exit 1;
 fi
-CONNECTOR_PATH="$2"
-if [ ! -d "$CONNECTOR_PATH" ]; then
-    echo "$CONNECTOR_PATH does not exist."
-    exit 1;
+
+if [ -z "$2" ]; then
+    echo "No YB or PG connector path provided.";
+else 
+    CONNECTOR_PATH="$2"
+    if [ ! -d "$CONNECTOR_PATH" ]; then
+        echo "$CONNECTOR_PATH does not exist."
+        exit 1;
+    fi
 fi
 
 # Add * to the end of the connector path

@@ -274,7 +274,7 @@ check_java() {
 		JAVA_BINARY="$JAVA_HOME/bin/java"
 	fi
 
-    MIN_REQUIRED_MAJOR_VERSION='11'
+    MIN_REQUIRED_MAJOR_VERSION='17'
 	JAVA_COMPLETE_VERSION=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}')
     JAVA_MAJOR_VER=$(echo "${JAVA_COMPLETE_VERSION}" | awk -F. '{print $1}')
 
@@ -462,6 +462,15 @@ package_debezium_server_local(){
 	fi
 	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}"
 	sudo mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
+
+	# Make separete directory for yb-connector and pg-conector
+	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/yb-connector"
+	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/pg-connector"
+	# Move pg-connector from lib to pg-connector directory
+	sudo mv "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/lib/debezium-connector-postgres-2.5.2.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/pg-connector/"
+	# Download and move yb-connector to yb-connector directory
+	sudo wget -nv "https://github.com/yugabyte/debezium/releases/download/dz.2.5.2.yb.2024.1.SNAPSHOT.1/debezium-connector-postgres-dz.2.5.2.yb.2024.1.SNAPSHOT.1-jar-with-dependencies.jar" -P "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/yb-connector" 1>&2
+
 	popd > /dev/null
 }
 

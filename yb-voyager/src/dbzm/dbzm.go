@@ -79,7 +79,6 @@ func (d *Debezium) Start() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("DEBEZIUM_DIST_DIR: ", DEBEZIUM_DIST_DIR)
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err = d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
@@ -89,6 +88,8 @@ func (d *Debezium) Start() error {
 	YB_OR_PG_CONNECTOR_PATH := filepath.Join(DEBEZIUM_DIST_DIR, "pg-connector")
 	if d.Config.UseLogicalReplicationYBConnector {
 		YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
+	} else if d.Config.SourceDBType == "yugabytedb" {
+		YB_OR_PG_CONNECTOR_PATH = ""
 	}
 
 	log.Infof("starting debezium...")

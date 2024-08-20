@@ -273,6 +273,9 @@ debezium.source.database.sslrootcert=%s
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
+	if c.SourceDBType == "yugabytedb" {
+		offsetFile = filepath.Join(dataDir, "offsets_yb.dat")
+	}
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
 	logMiningFlushTable := utils.GetLogMiningFlushTableName(c.MigrationUUID)
 	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
