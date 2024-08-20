@@ -32,7 +32,7 @@ CREATE INDEX idx_box_data ON Mixed_Data_Types_Table1 USING GIST (box_data);
 
 CREATE TABLE orders2 (
     id SERIAL PRIMARY KEY,
-    order_number VARCHAR(50) UNIQUE,
+    order_number VARCHAR(50) UNIQUE DEFERRABLE, --unique constraint deferrable test
     status VARCHAR(50) NOT NULL,
     shipped_date DATE
 );
