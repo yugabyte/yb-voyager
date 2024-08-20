@@ -230,3 +230,20 @@ Alter table only parent_tbl add constraint party_profile_pk primary key (party_p
 
 --Unsupported PG syntax caught by regex for ALTER TABLE OF..
 Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);
+
+--exclusion constraints
+CREATE TABLE "Test"(
+	id int, 
+	room_id int, 
+	time_range trange, 
+	EXCLUDE USING gist (room_id WITH =, time_range WITH &&)
+);
+
+CREATE TABLE public.meeting (
+    id integer NOT NULL,
+    room_id integer NOT NULL,
+    time_range tsrange NOT NULL
+);
+
+ALTER TABLE ONLY public.meeting
+    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
