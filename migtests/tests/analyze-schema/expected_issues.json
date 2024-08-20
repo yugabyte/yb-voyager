@@ -10,6 +10,14 @@
         },
         {
             "IssueType": "Unsupported features",
+            "ObjectType": "INDEX",
+            "ObjectName": "abc",
+            "Reason": "Storage parameters are not supported yet.",
+            "SqlStatement": "CREATE INDEX abc ON public.example USING btree (new_id) WITH (fillfactor='70'); ",
+            "Suggestion": "Remove the storage parameters from the DDL",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
+        },
+        {
             "ObjectType": "PROCEDURE",
             "ObjectName": "foo",
             "Reason": "temporary table is not a supported clause for drop",
@@ -372,10 +380,26 @@
             "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_1",
-            "Reason": "ALTER TABLE ALTER column SET (attribute = value) not supported yet.",
-            "SqlStatement": "alter table test_1 alter column col1 set (attribute_option=value);",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "Reason": "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )\t not supported yet",
+            "SqlStatement": "alter table test_1 alter column col1 set (attribute_option=value); ",
+            "Suggestion": "Remove it from the exported schema",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "test",
+            "Reason": "ALTER TABLE name DISABLE RULE not supported yet",
+            "SqlStatement": "alter table test DISABLE RULE example_rule; ",
+            "Suggestion": "Remove this and the rule 'example_rule' from the exported schema to be not enabled on the table.",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "public.example",
+            "Reason": "Storage parameters are not supported yet.",
+            "SqlStatement": "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor='70'); ",
+            "Suggestion": "Remove the storage parameters from the DDL",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
         },
         {
             "IssueType": "Unsupported features",
