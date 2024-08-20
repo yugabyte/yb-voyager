@@ -2,9 +2,9 @@ name: "PG 13: Migration Tests"
 
 on:
   push:
-    branches: ['main','priyanshi/report-extension-exclusion']
+    branches: ['main']
   pull_request:
-    branches: ['main', 'priyanshi/report-extension-exclusion']
+    branches: ['main']
 
 jobs:
   run-pg-migration-tests:
