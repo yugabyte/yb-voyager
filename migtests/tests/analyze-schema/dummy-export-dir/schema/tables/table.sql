@@ -167,6 +167,11 @@ alter table test alter column col set STORAGE EXTERNAL;
 
 alter table test_1 alter column col1 set (attribute_option=value);
 
+--disable rule case on alter table
+alter table test DISABLE RULE example_rule;
+
+-- for the storage parameters case
+ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor='70');
 
 alter table abc cluster on xyz;
 

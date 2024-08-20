@@ -25,9 +25,9 @@
             },
             {
                 "ObjectType": "INDEX",
-                "TotalCount": 5,
-                "InvalidCount": 4,
-                "ObjectNames": "film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3",
+                "TotalCount": 6,
+                "InvalidCount": 5,
+                "ObjectNames": "film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3, abc",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
             {
