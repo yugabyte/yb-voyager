@@ -489,7 +489,7 @@
             "IssueType": "Unsupported datatypes",
             "ObjectType": "TABLE",
             "ObjectName": "test_xml_type",
-            "Reason": "Unsupported datatype - xml",
+            "Reason": "Unsupported datatype - xml on column - data",
             "SqlStatement": "CREATE TABLE test_xml_type(id int, data xml);",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043"
@@ -498,7 +498,7 @@
             "IssueType": "Unsupported datatypes",
             "ObjectType": "TABLE",
             "ObjectName": "test_xid_type",
-            "Reason": "Unsupported datatype - xid",
+            "Reason": "Unsupported datatype - xid on column - data",
             "SqlStatement": "CREATE TABLE test_xid_type(id int, data xid);",
             "Suggestion": "Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/15638"

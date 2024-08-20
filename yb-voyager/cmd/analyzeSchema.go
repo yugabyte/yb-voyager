@@ -442,16 +442,21 @@ func reportXMLAndXIDDatatype(createTableNode *pg_query.Node_CreateStmt, sqlStmtI
 			info about pg_catalog. so checking the 0th only in case XML/XID to determine the type and report
 		*/
 		if column.GetColumnDef() != nil {
-			typeName := column.GetColumnDef().TypeName.Names[0].GetString_().Sval
+			typeName := ""
+			if len(column.GetColumnDef().GetTypeName().GetNames()) > 0 {
+				typeName = column.GetColumnDef().GetTypeName().GetNames()[0].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
+			} 
+			colName := column.GetColumnDef().GetColname()
+			reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
 			if typeName == "xml" {
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, fmt.Sprintf("%s - %s", UNSUPPORTED_DATATYPE, typeName), "https://github.com/yugabyte/yugabyte-db/issues/1043",
+				reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/1043",
 					"Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - <LINK DOC>",
 					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, true)
 			}
 			if typeName == "xid" {
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, fmt.Sprintf("%s - %s", UNSUPPORTED_DATATYPE, typeName), "https://github.com/yugabyte/yugabyte-db/issues/15638",
+				reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/15638",
 					"Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
 					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, true)
 			}
