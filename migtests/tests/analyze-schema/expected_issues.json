@@ -1,5 +1,7 @@
 [
         {
+            "IssueType": "Unsupported features",
+            "IssueType": "Unsupported features",
             "ObjectType": "INDEX",
             "ObjectName": "film_fulltext_idx",
             "Reason": "Schema contains GIST index which is not supported.",
@@ -8,6 +10,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "PROCEDURE",
             "ObjectName": "foo",
             "Reason": "temporary table is not a supported clause for drop",
@@ -16,6 +19,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/705"
         }, 
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "sales",
             "Reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
@@ -24,6 +28,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "salaries2",
             "Reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
@@ -32,6 +37,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "VIEW",
             "ObjectName": "view_name",
             "Reason": "ALTER VIEW not supported yet.",
@@ -40,6 +46,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1131"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "VIEW",
             "ObjectName": "",
             "Reason": "Unsupported PG syntax - 'syntax error at or near \"TO\"'",
@@ -48,6 +55,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1625"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "party_profile_part",
             "Reason": "ALTER TABLE OF not supported yet.",
@@ -56,6 +64,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_1",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
@@ -64,6 +73,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_2",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
@@ -72,6 +82,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_5",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
@@ -80,6 +91,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_6",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
@@ -88,6 +100,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_7",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
@@ -96,6 +109,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_8",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
@@ -104,6 +118,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_non_pk_multi_column_list",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
@@ -112,6 +127,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "CONVERSION",
             "ObjectName": "myconv",
             "Reason": "CREATE CONVERSION is not supported yet",
@@ -120,6 +136,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10866"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "CONVERSION",
             "ObjectName": "myconv",
             "Reason": "ALTER CONVERSION is not supported yet",
@@ -128,6 +145,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "INDEX",
             "ObjectName": "idx_name1",
             "Reason": "index method 'spgist' not supported yet.",
@@ -136,6 +154,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "INDEX",
             "ObjectName": "idx_name2",
             "Reason": "index method 'rtree' is superceded by 'gist' which is not supported yet.",
@@ -144,6 +163,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "INDEX",
             "ObjectName": "idx_name3",
             "Reason": "Schema contains gin index on multi column which is not supported.",
@@ -152,6 +172,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/7850"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "VIEW",
             "ObjectName": "v1",
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
@@ -160,6 +181,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "VIEW",
             "ObjectName": "v2",
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
@@ -168,6 +190,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "COLLATION",
             "ObjectName": "",
             "Reason": "DROP multiple objects not supported yet.",
@@ -176,6 +199,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "INDEX",
             "ObjectName": "",
             "Reason": "DROP multiple objects not supported yet.",
@@ -184,6 +208,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "VIEW",
             "ObjectName": "",
             "Reason": "DROP multiple objects not supported yet.",
@@ -192,6 +217,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "SEQUENCE",
             "ObjectName": "",
             "Reason": "DROP multiple objects not supported yet.",
@@ -200,6 +226,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "INDEX",
             "ObjectName": "sales_quantity_index",
             "Reason": "DROP INDEX CONCURRENTLY not supported yet",
@@ -208,6 +235,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22717"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TRIGGER",
             "ObjectName": "transfer_insert",
             "Reason": "REFERENCING clause (transition tables) not supported yet.",
@@ -216,6 +244,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TRIGGER",
             "ObjectName": "some_trig",
             "Reason": "CONSTRAINT TRIGGER not supported yet.",
@@ -224,6 +253,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1709"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "ACCESS METHOD",
             "ObjectName": "heptree",
             "Reason": "CREATE ACCESS METHOD is not supported.",
@@ -232,6 +262,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10693"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "e",
             "Reason": "REINDEX is not supported.",
@@ -240,6 +271,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10267"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "public.employees4",
             "Reason": "Stored generated columns are not supported. Generated Columns: (full_name)",
@@ -248,6 +280,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "order_details",
             "Reason": "Stored generated columns are not supported. Generated Columns: (amount)",
@@ -256,6 +289,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "table_xyz",
             "Reason": "LIKE clause not supported yet.",
@@ -264,6 +298,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "table_abc",
             "Reason": "LIKE ALL is not supported yet.",
@@ -272,6 +307,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10697"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "table_1",
             "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
@@ -280,6 +316,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "table_test",
             "Reason": "OIDs are not supported for user tables.",
@@ -288,6 +325,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10273"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_interval",
             "Reason": "PRIMARY KEY containing column of type 'INTERVAL' not yet supported.",
@@ -296,6 +334,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1397"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "oldschema.tbl_name",
             "Reason": "ALTER TABLE SET SCHEMA not supported yet.",
@@ -304,6 +343,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/3947"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "SCHEMA",
             "ObjectName": "",
             "Reason": "CREATE SCHEMA with elements not supported yet.",
@@ -312,6 +352,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/10865"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "table_name",
             "Reason": "ALTER TABLE ALTER column SET STATISTICS not supported yet.",
@@ -320,6 +361,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test",
             "Reason": "ALTER TABLE ALTER column SET STORAGE not supported yet.",
@@ -328,6 +370,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "test_1",
             "Reason": "ALTER TABLE ALTER column SET (attribute = value) not supported yet.",
@@ -336,6 +379,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "",
             "Reason": "ALTER TABLE CLUSTER not supported yet.",
@@ -344,6 +388,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "",
             "Reason": "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
@@ -352,6 +397,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "INDEX",
             "ObjectName": "abc",
             "Reason": "ALTER INDEX SET not supported yet.",
@@ -360,6 +406,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "",
             "Reason": "ALTER TABLE INHERIT not supported yet.",
@@ -368,6 +415,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "",
             "Reason": "ALTER TABLE VALIDATE CONSTRAINT not supported yet.",
@@ -376,6 +424,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "abc",
             "Reason": "DEFERRABLE constraints not supported yet",
@@ -384,6 +433,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "Test",
             "Reason": "Exclusion constraint is not supported yet",
@@ -392,6 +442,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "public.users",
             "Reason": "DEFERRABLE constraints not supported yet",
@@ -400,6 +451,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "unique_def_test",
             "Reason": "DEFERRABLE constraints not supported yet",
@@ -408,6 +460,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "unique_def_test1",
             "Reason": "DEFERRABLE constraints not supported yet",
@@ -416,6 +469,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
         {
+            "IssueType": "Unsupported datatypes",
             "ObjectType": "TABLE",
             "ObjectName": "test_xml_type",
             "Reason": "Unsupported datatype - xml",
@@ -424,6 +478,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043"
         },
         {
+            "IssueType": "Unsupported datatypes",
             "ObjectType": "TABLE",
             "ObjectName": "test_xid_type",
             "Reason": "Unsupported datatype - xid",
@@ -432,6 +487,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/15638"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "public.meeting",
             "Reason": "Exclusion constraint is not supported yet",
@@ -440,6 +496,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "public.range_columns_partition_test",
             "Reason": "Adding primary key to a partitioned table is not yet implemented.",
@@ -448,6 +505,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10074"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "tbl_p",
             "Reason": "Primary key constraints are not supported on foreign tables.",
@@ -456,6 +514,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10698"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TRIGGER",
             "ObjectName": "emp_trig",
             "Reason": "COMPOUND TRIGGER not supported in YugabyteDB.",
@@ -464,6 +523,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1543"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TYPE",
             "ObjectName": "colors",
             "Reason": "ALTER TYPE not supported yet.",
@@ -472,6 +532,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TYPE",
             "ObjectName": "compfoo",
             "Reason": "ALTER TYPE not supported yet.",
@@ -480,6 +541,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "anydata_test",
             "Reason": "AnyData datatype doesn't have a mapping in YugabyteDB",
@@ -488,6 +550,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "anydataset_test",
             "Reason": "AnyDataSet datatype doesn't have a mapping in YugabyteDB",
@@ -496,6 +559,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "anytype_test",
             "Reason": "AnyType datatype doesn't have a mapping in YugabyteDB",
@@ -504,6 +568,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "uritype_test",
             "Reason": "URIType datatype doesn't have a mapping in YugabyteDB",
@@ -512,6 +577,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "VIEW",
             "ObjectName": "test",
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
@@ -520,6 +586,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "PROCEDURE",
             "ObjectName": "foo1",
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
@@ -528,6 +595,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TRIGGER",
             "ObjectName": "test",
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
@@ -536,6 +604,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "sales_data",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
@@ -544,6 +613,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "EXTENSION",
             "ObjectName": "aws_commons",
             "Reason": "This extension is not supported in YugabyteDB.",
@@ -552,6 +622,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "EXTENSION",
             "ObjectName": "plperl",
             "Reason": "This extension is not supported in YugabyteDB.",
@@ -560,6 +631,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "EXTENSION",
             "ObjectName": "hstore_plperl",
             "Reason": "This extension is not supported in YugabyteDB.",
@@ -568,6 +640,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "CURSOR",
             "ObjectName": "test",
             "Reason": "This FETCH clause might not be supported yet",
@@ -576,6 +649,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "FOREIGN TABLE",
             "ObjectName": "tbl_p",
             "Reason": "Foreign tables requires manual intervention.",
@@ -584,6 +658,7 @@
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1627"
         },
         {
+            "IssueType": "Unsupported features",
             "ObjectType": "TABLE",
             "ObjectName": "enum_example.bugs",
             "Reason": "Stored generated columns are not supported. Generated Columns: (_status,_severity,info)",
