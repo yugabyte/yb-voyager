@@ -65,6 +65,19 @@ func (ora *Oracle) Disconnect() {
 	}
 }
 
+func (ora *Oracle) CheckSchemaExists() bool {
+	schemaName := ora.source.Schema
+	query := fmt.Sprintf(`SELECT username FROM ALL_USERS WHERE username = '%s'`, strings.ToUpper(schemaName))
+	var schema string
+	err := ora.db.QueryRow(query).Scan(&schema)
+	if err == sql.ErrNoRows {
+		return false
+	} else if err != nil {
+		utils.ErrExit("error in querying source database for schema %q: %v\n", schemaName, err)
+	}
+	return true
+}
+
 func (ora *Oracle) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg", "sqlplus")
 }

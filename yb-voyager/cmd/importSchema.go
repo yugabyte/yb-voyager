@@ -130,12 +130,13 @@ func importSchema() error {
 		if len(objectList) == 0 {
 			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 		}
-		assessmentDone, err := IsMigrationAssessmentDone()
+
+		migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 		if err != nil {
-			utils.ErrExit("failed to check if migration assessment done: %v", err)
+			return err
 		}
 
-		if assessmentDone && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
+		if migrationAssessmentDoneAndApplied && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
 			"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
 			utils.ErrExit("Exiting...")
 		}
@@ -459,4 +460,13 @@ func createImportSchemaCompletedEvent() cp.ImportSchemaCompletedEvent {
 	result := cp.ImportSchemaCompletedEvent{}
 	initBaseTargetEvent(&result.BaseEvent, "IMPORT SCHEMA")
 	return result
+}
+
+func MigrationAssessmentDoneAndApplied() (bool, error) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return false, fmt.Errorf("failed to get migration status record for targetDB colocation check: %w", err)
+	}
+
+	return (msr.MigrationAssessmentDone && msr.AssessmentRecommendationsApplied), nil
 }

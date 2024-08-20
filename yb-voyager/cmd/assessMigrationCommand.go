@@ -66,8 +66,13 @@ var sourceConnectionFlags = []string{
 }
 
 type UnsupportedFeature struct {
-	FeatureName string   `json:"FeatureName"`
-	ObjectNames []string `json:"ObjectNames"`
+	FeatureName string       `json:"FeatureName"`
+	Objects     []ObjectInfo `json:"Objects"`
+}
+
+type ObjectInfo struct {
+	ObjectName   string
+	SqlStatement string
 }
 
 var assessMigrationCmd = &cobra.Command{
@@ -271,15 +276,34 @@ func assessMigration() (err error) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
+
+	if source.Password == "" {
+		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		if err != nil {
+			return fmt.Errorf("failed to get source DB password: %w", err)
+		}
+	}
+
+	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+		err := source.DB().Connect()
+		if err != nil {
+			utils.ErrExit("error connecting source db: %v", err)
+		}
+
+		res := source.DB().CheckSchemaExists()
+		if !res {
+			return fmt.Errorf("schema %q does not exist", source.Schema)
+		}
+		fetchSourceInfo()
+
+		source.DB().Disconnect()
+	}
+
 	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
 	err = gatherAssessmentMetadata()
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
-	}
-
-	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
-		fetchSourceInfo()
 	}
 
 	parseExportedSchemaFileForAssessmentIfRequired()
@@ -310,16 +334,12 @@ func assessMigration() (err error) {
 }
 
 func fetchSourceInfo() {
-	err := source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("error connecting source db: %v", err)
-	}
+	var err error
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
-	source.DB().Disconnect()
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
@@ -332,8 +352,8 @@ func SetMigrationAssessmentDoneInMSR() error {
 	return nil
 }
 
-func IsMigrationAssessmentDone() (bool, error) {
-	record, err := metaDB.GetMigrationStatusRecord()
+func IsMigrationAssessmentDone(metaDBInstance *metadb.MetaDB) (bool, error) {
+	record, err := metaDBInstance.GetMigrationStatusRecord()
 	if err != nil {
 		return false, fmt.Errorf("failed to get migration status record: %w", err)
 	}
@@ -493,13 +513,6 @@ func gatherAssessmentMetadata() (err error) {
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-	if source.Password == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-		if err != nil {
-			return fmt.Errorf("failed to get source DB password: %w", err)
-		}
-	}
 
 	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
 	switch source.DBType {
@@ -771,31 +784,42 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	return nil
 }
 
-func filterIssuesForUnsupportedFeature(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
+func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReasons []string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
 	log.Info("filtering issues for feature: ", featureName)
-	objectNames := make([]string, 0)
+	objects := make([]ObjectInfo, 0)
 	for _, issue := range schemaAnalysisReport.Issues {
-		if strings.Contains(issue.Reason, issueReason) {
-			objectNames = append(objectNames, issue.ObjectName)
+		for _, issueReason := range issueReasons {
+			if strings.Contains(issue.Reason, issueReason) {
+				objectInfo := ObjectInfo{
+					ObjectName:   issue.ObjectName,
+					SqlStatement: issue.SqlStatement,
+				}
+				objects = append(objects, objectInfo)
+				break
+			}
 		}
 	}
-	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objectNames})
+	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objects})
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	filterIssuesForUnsupportedFeature("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	filterIssuesForUnsupportedFeature("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	filterIssuesForUnsupportedFeature("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
-	filterIssuesForUnsupportedFeature("Tables with Stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", []string{GIST_INDEX_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", []string{CONSTRAINT_TRIGGER_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", []string{INHERITANCE_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Tables with Stored generated columns", []string{STORED_GENERATED_COLUMN_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", []string{CONVERSION_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin Indexes on Multi-columns", []string{GIN_INDEX_MULTI_COLUMN_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, []string{ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, ALTER_TABLE_SET_ATTRUBUTE_ISSUE,
+		ALTER_TABLE_DISABLE_RULE_ISSUE, STORAGE_PARAMETERS_DDL_STMT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	filterIssuesForUnsupportedFeature("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", []string{COMPOUND_TRIGGER_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
 	return unsupportedFeatures, nil
 }
 
@@ -818,7 +842,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 		}
 	}()
 
-	var unsupportedIndexes, virtualColumns, inheritedTypes, unsupportedPartitionTypes []string
+	var unsupportedIndexes, virtualColumns, inheritedTypes, unsupportedPartitionTypes []ObjectInfo
 	for rows.Next() {
 		var schemaName, objectName, objectType string
 		err = rows.Scan(&schemaName, &objectName, &objectType)
@@ -827,14 +851,16 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 		}
 
 		if slices.Contains(OracleUnsupportedIndexTypes, objectType) {
-			unsupportedIndexes = append(unsupportedIndexes, fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType))
+			unsupportedIndexes = append(unsupportedIndexes, ObjectInfo{
+				ObjectName: fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType),
+			})
 		} else if objectType == VIRTUAL_COLUMN {
-			virtualColumns = append(virtualColumns, objectName)
+			virtualColumns = append(virtualColumns, ObjectInfo{ObjectName: objectName})
 		} else if objectType == INHERITED_TYPE {
-			inheritedTypes = append(inheritedTypes, objectName)
+			inheritedTypes = append(inheritedTypes, ObjectInfo{ObjectName: objectName})
 		} else if objectType == REFERENCE_PARTITION || objectType == SYSTEM_PARTITION {
 			referenceOrTablePartitionPresent = true
-			unsupportedPartitionTypes = append(unsupportedPartitionTypes, fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType))
+			unsupportedPartitionTypes = append(unsupportedPartitionTypes, ObjectInfo{ObjectName: fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType)})
 		}
 	}
 
@@ -894,12 +920,18 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	return unsupportedDataTypes, nil
 }
 
-const ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
+const (
+	ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
 To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
-const ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
+	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
-const GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+	GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+
+	UNSUPPORTED_DDL_OPERATIONS = "Unsupported DDL operations"
+)
+
+const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
 
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
@@ -921,6 +953,12 @@ func addNotesToAssessmentReport() {
 					assessmentReport.Notes = append(assessmentReport.Notes, GIN_INDEXES)
 					break
 				}
+			}
+		}
+	case POSTGRESQL:
+		for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
+			if dbObj.ObjectType == "FOREIGN TABLE" && len(dbObj.ObjectNames) > 0 {
+				assessmentReport.Notes = append(assessmentReport.Notes, FOREIGN_TABLE_NOTE)
 			}
 		}
 	}
