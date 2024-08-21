@@ -261,7 +261,7 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 		missingFields = append(missingFields, fmt.Sprintf("one of [%s]", strings.Join(fleetConfDbIdentifierFields, ", ")))
 	}
 	if len(missingFields) > 0 {
-		return nil, fmt.Errorf("mandatory fields missing or empty in the record: %s", strings.Join(missingFields, ", "))
+		return nil, fmt.Errorf("mandatory fields missing in the record: '%s'", strings.Join(missingFields, "', '"))
 	}
 
 	return &AssessMigrationDBConfig{
@@ -420,6 +420,8 @@ func validateFleetConfigFile(filePath string) error {
 	}
 
 	reader := csv.NewReader(file)
+	// we can set it as 0 to error out during Read() but we won't be able to tell - "expected %d fields, got %d"
+	reader.FieldsPerRecord = -1
 	header, err := reader.Read()
 	if err != nil {
 		return fmt.Errorf("failed to read the header: %w", err)
@@ -462,6 +464,10 @@ func validateFleetConfigFile(filePath string) error {
 		lineNumber++
 	}
 
+	// Check if there were no lines after the header
+	if lineNumber == 2 {
+		return fmt.Errorf("fleet config file contains only a header with no data lines")
+	}
 	return nil
 }
 
@@ -486,7 +492,7 @@ func checkMandatoryFieldsInHeader(header []string) error {
 		missingFields = append(missingFields, fmt.Sprintf("one of [%s]", strings.Join(fleetConfDbIdentifierFields, ", ")))
 	}
 	if len(missingFields) > 0 {
-		return fmt.Errorf("mandatory fields missing in the header: %s", strings.Join(missingFields, ", "))
+		return fmt.Errorf("mandatory fields missing in the header: '%s'", strings.Join(missingFields, "', '"))
 	}
 	return nil
 }
