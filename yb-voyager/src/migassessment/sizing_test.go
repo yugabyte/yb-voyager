@@ -1278,6 +1278,66 @@ func TestGetThresholdAndTablets(t *testing.T) {
 }
 
 /*
+===== 	Test functions to test findImportTimeFromExpDataLoadTime function	=====
+*/
+func TestFindImportTimeFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
+	loadTimes := []ExpDataLoadTime{
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 1500},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+		},
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 3000},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 300000000},
+		},
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 4500},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 600000000},
+		},
+	}
+	expectedImportTime := 4500.0
+
+	var objectSize float64 = 19
+	var rowsInTable float64 = 500000000
+	actualImportTime := findImportTimeFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+
+	if actualImportTime != expectedImportTime {
+		t.Errorf("Expected %f but go %f", expectedImportTime, actualImportTime)
+	}
+}
+
+func TestFindImportTimeFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *testing.T) {
+	loadTimes := []ExpDataLoadTime{
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 24},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 2800},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+		},
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 25},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 3000},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+		},
+		{
+			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 30},
+			migrationTimeSecs: sql.NullFloat64{Valid: true, Float64: 4500},
+			rowCount:          sql.NullFloat64{Valid: true, Float64: 100000000},
+		},
+	}
+	expectedImportTime := 3000.0
+
+	var objectSize float64 = 25
+	var rowsInTable float64 = 100000000
+	actualImportTime := findImportTimeFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+	if actualImportTime != expectedImportTime {
+		t.Errorf("Expected %v but got %v", expectedImportTime, actualImportTime)
+	}
+}
+
+/*
 ====================HELPER FUNCTIONS====================
 */
 
