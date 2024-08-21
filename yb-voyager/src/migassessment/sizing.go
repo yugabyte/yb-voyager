@@ -1045,7 +1045,7 @@ func getExpDataNumColumnsImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance 
 		FROM %v 
 		WHERE num_cores = ? 
 			AND mem_per_core = ?
-		ORDER BY number_of_indexes;
+		ORDER BY number_of_columns;
 	`, LOAD_TIME_COLUMNS_IMPACT_TABLE)
 	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore)
 
