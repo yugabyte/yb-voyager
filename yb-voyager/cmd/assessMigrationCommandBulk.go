@@ -177,11 +177,17 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 	if dbConfig.User != "" {
 		args = append(args, "--source-db-user", dbConfig.User)
 	}
+	if dbConfig.DbName != "" {
+		args = append(args, "--source-db-name", dbConfig.DbName)
+	} else {
+		// special handling due to issue https://yugabyte.atlassian.net/browse/DB-12481
+		args = append(args, `--source-db-name ""`)
+	}
 	if dbConfig.TnsAlias != "" {
 		args = append(args, "--oracle-tns-alias", dbConfig.TnsAlias)
 	}
 	if dbConfig.SID != "" {
-		args = append(args, "--source-db-name", dbConfig.SID)
+		args = append(args, "--oracle-db-sid", dbConfig.SID)
 	}
 	if dbConfig.Host != "" {
 		args = append(args, "--source-db-host", dbConfig.Host)
@@ -220,10 +226,6 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 			return nil, fmt.Errorf("failed to read line %d: %w", lineNum, err)
 		}
 
-		if len(record) != len(header) {
-			return nil, fmt.Errorf("field count mismatch on line %d: expected %d fields but got %d", lineNum, len(header), len(record))
-		}
-
 		dbConfig, err := createDBConfigFromRecord(record, header)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create config for line %d in fleet config file: %w", lineNum, err)
@@ -241,35 +243,37 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 		configMap[field] = strings.TrimSpace(record[i])
 	}
 
-	// Check that at least one of the mandatory field combinations is non-empty and valid
-	validConfig := false
-	for _, mandatoryCombo := range mandatoryHeaderFields {
-		missingOrEmptyFields := false
-		for _, field := range mandatoryCombo {
-			if val, ok := configMap[field]; !ok || val == "" {
-				missingOrEmptyFields = true
-				break
-			}
+	// Check if mandatory fields are present and non-empty
+	missingFields := []string{}
+	for _, field := range fleetConfRequiredFields {
+		if val, ok := configMap[field]; !ok || val == "" {
+			missingFields = append(missingFields, field)
 		}
-		if !missingOrEmptyFields {
-			validConfig = true
+	}
+	hasDBIdentifier := false
+	for _, field := range fleetConfDbIdentifierFields {
+		if val, ok := configMap[field]; ok && val != "" {
+			hasDBIdentifier = true
 			break
 		}
 	}
-	if !validConfig {
-		return nil, fmt.Errorf("record does not contain a valid combination of mandatory fields")
+	if !hasDBIdentifier {
+		missingFields = append(missingFields, fmt.Sprintf("one of [%s]", strings.Join(fleetConfDbIdentifierFields, ", ")))
+	}
+	if len(missingFields) > 0 {
+		return nil, fmt.Errorf("mandatory fields missing or empty in the record: %s", strings.Join(missingFields, ", "))
 	}
 
 	return &AssessMigrationDBConfig{
-		DbType:      configMap["dbtype"],
-		Host:        configMap["hostname"],
-		Port:        configMap["port"],
-		ServiceName: configMap["service_name"],
-		SID:         configMap["sid"],
-		TnsAlias:    configMap["tns_alias"],
-		User:        configMap["username"],
-		Password:    configMap["password"],
-		Schema:      configMap["schema"],
+		DbType:   configMap[DBCONF_DBTYPE],
+		Host:     configMap[DBCONF_HOSTNAME],
+		Port:     configMap[DBCONF_PORT],
+		DbName:   configMap[DBCONF_DBNAME],
+		SID:      configMap[DBCONF_SID],
+		TnsAlias: configMap[DBCONF_TNS_ALIAS],
+		User:     configMap[DBCONF_USERNAME],
+		Password: configMap[DBCONF_PASSWORD],
+		Schema:   configMap[DBCONF_SCHEMA],
 	}, nil
 }
 
@@ -387,15 +391,11 @@ func validateBulkAssessmentDirFlag() {
 	}
 }
 
-var fleetConfigFileHeaderFields = []string{"dbtype", "hostname", "port", "service_name", "sid",
-	"tns_alias", "username", "password", "schema"}
+var fleetConfFileHeaderFields = []string{DBCONF_DBTYPE, DBCONF_HOSTNAME, DBCONF_PORT, DBCONF_DBNAME, DBCONF_SID,
+	DBCONF_TNS_ALIAS, DBCONF_USERNAME, DBCONF_PASSWORD, DBCONF_SCHEMA}
 
-// TODO: verify/update this list
-var mandatoryHeaderFields = [][]string{
-	{"dbtype", "username", "schema", "service_name"},
-	{"dbtype", "username", "schema", "sid"},
-	{"dbtype", "username", "schema", "tns_alias"},
-}
+var fleetConfRequiredFields = []string{DBCONF_DBTYPE, DBCONF_USERNAME, DBCONF_SCHEMA}
+var fleetConfDbIdentifierFields = []string{DBCONF_DBNAME, DBCONF_SID, DBCONF_TNS_ALIAS}
 
 // TODO: add unit tests for this function
 func validateFleetConfigFile(filePath string) error {
@@ -431,7 +431,7 @@ func validateFleetConfigFile(filePath string) error {
 	// Validate that all fields in the header are allowed ones
 	invalidFields := []string{}
 	for _, field := range header {
-		if !utils.ContainsString(fleetConfigFileHeaderFields, field) {
+		if !utils.ContainsString(fleetConfFileHeaderFields, field) {
 			invalidFields = append(invalidFields, field)
 		}
 	}
@@ -440,15 +440,9 @@ func validateFleetConfigFile(filePath string) error {
 	}
 
 	// Validate that all the mandatory fields are provided in the header
-	mandatoryFieldsPresent := false
-	for _, mandatoryCombo := range mandatoryHeaderFields {
-		if utils.IsSubset(mandatoryCombo, header) {
-			mandatoryFieldsPresent = true
-			break
-		}
-	}
-	if !mandatoryFieldsPresent {
-		return fmt.Errorf("mandatory fields missing in the header. Expected one of the following combinations: %v", mandatoryHeaderFields)
+	err = checkMandatoryFieldsInHeader(header)
+	if err != nil {
+		return fmt.Errorf("mandatory fields in header validation failed: %w", err)
 	}
 
 	// Validate all records to ensure they are correctly formatted as CSV
@@ -468,6 +462,32 @@ func validateFleetConfigFile(filePath string) error {
 		lineNumber++
 	}
 
+	return nil
+}
+
+func checkMandatoryFieldsInHeader(header []string) error {
+	missingFields := []string{}
+	for _, field := range fleetConfRequiredFields {
+		if !utils.ContainsString(header, field) {
+			missingFields = append(missingFields, field)
+		}
+	}
+
+	// Check if at least one of the optional DB identifier fields is present
+	hasDBIdentifier := false
+	for _, field := range fleetConfDbIdentifierFields {
+		if utils.ContainsString(header, field) {
+			hasDBIdentifier = true
+			break
+		}
+	}
+
+	if !hasDBIdentifier {
+		missingFields = append(missingFields, fmt.Sprintf("one of [%s]", strings.Join(fleetConfDbIdentifierFields, ", ")))
+	}
+	if len(missingFields) > 0 {
+		return fmt.Errorf("mandatory fields missing in the header: %s", strings.Join(missingFields, ", "))
+	}
 	return nil
 }
 
