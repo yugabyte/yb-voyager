@@ -194,11 +194,11 @@ func SizingAssessment() error {
 	shardedObjects, cumulativeIndexCountSharded :=
 		getListOfIndexesAlongWithObjects(finalSizingRecommendation.ShardedTables, sourceIndexMetadata)
 
-	// get load times data from experimental database for sharded Tables
+	// get load times data from experimental database for colocated Tables
 	colocatedLoadTimes, err := getExpDataLoadTime(experimentDB, finalSizingRecommendation.VCPUsPerInstance,
 		finalSizingRecommendation.MemoryPerCore, COLOCATED_LOAD_TIME_TABLE)
 	if err != nil {
-		return fmt.Errorf("error while fetching sharded load time info: %w", err)
+		return fmt.Errorf("error while fetching colocated load time info: %w", err)
 	}
 
 	// get load times data from experimental database for sharded Tables
@@ -208,7 +208,7 @@ func SizingAssessment() error {
 		return fmt.Errorf("error while fetching sharded load time info: %w", err)
 	}
 
-	// get experimental data for impact of indexes on colocated tables load
+	// get experimental data for impact of indexes on import time
 	indexImpactOnLoadTimeCommon, err := getExpDataIndexImpactOnLoadTime(experimentDB,
 		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore)
 	if err != nil {
