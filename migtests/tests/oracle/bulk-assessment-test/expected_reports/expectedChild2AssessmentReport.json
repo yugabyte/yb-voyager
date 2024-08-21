@@ -86,7 +86,7 @@
 				"SUB_PAR_TEST_P4_SP44",
 				"SUB_PAR_TEST_P5_SP5"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 53 objects (52 tables and 1 explicit/implicit indexes) with 192.12 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 53 objects (52 tables and 1 explicit/implicit indexes) with 192.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -220,7 +220,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 131072
+			"SizeInBytes": 65536
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
