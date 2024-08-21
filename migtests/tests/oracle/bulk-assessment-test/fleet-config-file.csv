@@ -1,0 +1,2 @@
+oracle,localhost,1521,,ORCLPDB1,,ybvoyager,password,TEST_SCHEMA
+oracle,localhost,1521,,ORCLPDB1,,ybvoyager,wrong_password,TEST_SCHEMA2

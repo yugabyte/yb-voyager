@@ -230,7 +230,15 @@ run_sqlplus() {
 }
 
 export_schema() {
-	args="--export-dir ${EXPORT_DIR}
+
+	export_dir="${1:-${EXPORT_DIR}}"
+
+    # Shift the arguments only if an export directory is provided as the first argument
+    if [ -n "$1" ]; then
+        shift
+    fi
+
+	args="--export-dir ${export_dir}
 		--source-db-type ${SOURCE_DB_TYPE}
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
@@ -850,4 +858,12 @@ compare_assessment_reports() {
     rm "$temp_file1" "$temp_file2"
 }
 
+bulk_assessment(){
+	yb-voyager assess-migration-bulk --bulk-assessment-dir "${BULK_ASSESSMENT_DIR}" \
+	--fleet-config-file "${TEST_DIR}"/fleet-config-file.csv
+}
 
+fix_config_file() {
+  local file="$1"
+  awk -F, 'NR==2 {$8="password"}1' OFS=, "$file" > tmp && mv tmp "$file"
+}
