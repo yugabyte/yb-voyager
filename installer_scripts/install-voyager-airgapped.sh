@@ -3,6 +3,7 @@
 ARGS_LINUX=$@
 LOG_FILE=/tmp/install-yb-voyager.log
 CHECK_ONLY_DEPENDENCIES="false"
+FORCE_INSTALL="false"
 
 YB_VOYAGER_YUM_VERSION="1.7.2-0"
 DEBEZIUM_YUM_VERSION="2.3.3-1.7.2"
@@ -21,11 +22,11 @@ centos_yum_package_requirements=(
   "perl-ExtUtils-MakeMaker:min:0"
   "postgresql14:min:0"
   "mysql-devel:min:0"
-  "oracle-instantclient-tools:exact:21.5.0.0.0-1"
-  "oracle-instantclient-basic:exact:21.5.0.0.0-1"
-  "oracle-instantclient-devel:exact:21.5.0.0.0-1"
-  "oracle-instantclient-jdbc:exact:21.5.0.0.0-1"
-  "oracle-instantclient-sqlplus:exact:21.5.0.0.0-1"
+  "oracle-instantclient-tools:exact:21.5.0.0.0"
+  "oracle-instantclient-basic:exact:21.5.0.0.0"
+  "oracle-instantclient-devel:exact:21.5.0.0.0"
+  "oracle-instantclient-jdbc:exact:21.5.0.0.0"
+  "oracle-instantclient-sqlplus:exact:21.5.0.0.0"
 )
 
 ubuntu_apt_package_requirements=(
@@ -38,18 +39,17 @@ ubuntu_apt_package_requirements=(
   "cpanminus:min:0"
   "libmysqlclient-dev:min:0"
   "postgresql-14:min:0"
-  "oracle-instantclient-tools:exact:21.5.0.0.0-1"
-  "oracle-instantclient-basic:exact:21.5.0.0.0-1"
-  "oracle-instantclient-devel:exact:21.5.0.0.0-1"
-  "oracle-instantclient-jdbc:exact:21.5.0.0.0-1"
-  "oracle-instantclient-sqlplus:exact:21.5.0.0.0-1"
+  "oracle-instantclient-tools:exact:21.5.0.0.0"
+  "oracle-instantclient-basic:exact:21.5.0.0.0"
+  "oracle-instantclient-devel:exact:21.5.0.0.0"
+  "oracle-instantclient-jdbc:exact:21.5.0.0.0"
+  "oracle-instantclient-sqlplus:exact:21.5.0.0.0"
 )
 
 cpan_modules_requirements=(
   "DBD::mysql|min|5.005"
   "Test::NoWarnings|min|1.06"
   "DBD::Oracle|min|1.83"
-  "DBD::Pg|min|0"
   "String::Random|min|0"
   "IO::Compress::Base|min|0"
 )
@@ -172,7 +172,6 @@ check_cpan_dependencies() {
         for missing in "${missing_cpan_modules[@]}"; do
             echo "$missing"
         done
-    exit 1
     else
         echo "All cpan dependencies are installed and meet the version requirements."
     fi
@@ -240,20 +239,27 @@ version_satisfied() {
 }
 
 check_java() {
-  if command -v java &>/dev/null; then
-    java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
-    if [[ "$java_version" < "11" ]]; then
-      echo "Java version is less than 11. Found version: $java_version"
-      exit 1
+	if [ -z "$JAVA_HOME" ]; then
+		JAVA_BINARY="java"
+	else
+		JAVA_BINARY="$JAVA_HOME/bin/java"
+	fi
+
+    MIN_REQUIRED_MAJOR_VERSION='17'
+	JAVA_COMPLETE_VERSION=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}')
+    JAVA_MAJOR_VER=$(echo "${JAVA_COMPLETE_VERSION}" | awk -F. '{print $1}')
+
+    if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+    then
+        output "Found sufficient java version = ${JAVA_COMPLETE_VERSION}"
+    else
+        output "ERROR: Java not found or insuffiencient version ${JAVA_COMPLETE_VERSION}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
+        exit 1;
     fi
-  else
-    echo "Java is not installed."
-    exit 1
-  fi
 }
 
 get_passed_options() {
-	OPTS=$(getopt -o "lpv", --long install-from-local-source,only-pg-support,rebuild-voyager-local --name 'install-yb-voyager' -- $ARGS_LINUX)
+	OPTS=$(getopt -o "df", --long check-only-dependencies,force-install --name 'install-voyager-airgapped' -- $ARGS_LINUX)
 
 	eval set -- "$OPTS"
 
@@ -261,6 +267,10 @@ get_passed_options() {
 		case "$1" in
 			-d | --check-only-dependencies ) 
 				CHECK_ONLY_DEPENDENCIES="true";
+				shift
+				;;
+            -f | --force-install )
+                FORCE_INSTALL="true"
 				shift
 				;;
 			* ) 
@@ -275,11 +285,27 @@ get_passed_options() {
 #=============================================================================
 
 centos_main() {
-    echo "Checking dependencies..."
-    check_binutils_version
-    check_java
-    check_yum_dependencies
-    check_cpan_dependencies
+    # If --force-install is not passed, check dependencies.
+    if [ "$FORCE_INSTALL" = "false" ]; then
+        echo "Checking dependencies..."
+        check_binutils_version
+        check_java
+        check_yum_dependencies
+        check_cpan_dependencies
+        # If either of the yum or cpan dependencies are missing, exit with error.
+        if { [ ${#centos_missing_yum_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ]; } && [ "$FORCE_INSTALL" = "false" ]; then
+            echo "If you want to install voyager anyway, use --force-install option."
+            exit 1
+        fi
+
+        if [ "$CHECK_ONLY_DEPENDENCIES" = "true" ]; then
+            echo "All dependencies are satisfied."
+            exit 0
+        fi
+    else
+        echo "Force install option is passed. Proceeding with installation."
+    fi
+
     echo "Installing ora2pg..."
     sudo yum install -y -q ora2pg-"$ORA2PG_YUM_VERSION".noarch.rpm 1>&2 
     if [ $? -ne 0 ]; then
@@ -319,6 +345,10 @@ check_yum_package_version() {
             fi
         ;;
         exact)
+            # If package name starts with oracle-instantclient then convert installed version from example 21.5.0.0.0-1 to 21.5.0.0.0
+            if [[ "$package" =~ ^oracle-instantclient ]]; then
+                installed_version=$(echo "$installed_version" | cut -d'-' -f1)
+            fi
             if [ "$installed_version" != "$required_version" ]; then
                 centos_missing_yum_packages+=("$package version is not $required_version. Found version: $installed_version")
             fi
@@ -338,7 +368,6 @@ check_yum_dependencies() {
         for missing in "${centos_missing_yum_packages[@]}"; do
             echo "$missing"
         done
-    exit 1
     else
         echo "All yum dependencies are installed and meet the version requirements."
     fi
@@ -349,11 +378,28 @@ check_yum_dependencies() {
 #=============================================================================
 
 ubuntu_main() {
-    echo "Checking dependencies..."
-    check_binutils_version
-    check_java
-    check_apt_dependencies
-    check_cpan_dependencies
+    # If --force-install is not passed, check dependencies.
+    if [ "$FORCE_INSTALL" = "false" ]; then
+        echo "Checking dependencies..."
+        check_binutils_version
+        check_java
+        check_apt_dependencies
+        check_cpan_dependencies
+
+        # If either of the apt or cpan dependencies are missing, exit with error.
+        if { [ ${#ubuntu_missing_apt_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ]; } && [ "$FORCE_INSTALL" = "false" ]; then
+            echo "If you want to install voyager anyway, use --force-install option."
+            exit 1
+        fi
+    
+        if [ "$CHECK_ONLY_DEPENDENCIES" = "true" ]; then
+            echo "All dependencies are satisfied."
+            exit 0
+        fi
+    else 
+        echo "Force install option is passed. Proceeding with installation."
+    fi
+
     echo "Installing ora2pg..."
     sudo apt install -y -q ./ora2pg_"$ORA2PG_YUM_VERSION"_all.deb 1>&2
     if [ $? -ne 0 ]; then
@@ -388,7 +434,6 @@ check_apt_dependencies() {
         for missing in "${ubuntu_missing_apt_packages[@]}"; do
             echo "$missing"
         done
-    exit 1
     else
         echo "All apt dependencies are installed and meet the version requirements."
     fi
@@ -410,6 +455,10 @@ check_apt_package_version() {
             fi
         ;;
         exact)
+            # If package name starts with oracle-instantclient then convert installed version from example 21.5.0.0.0-1 to 21.5.0.0.0
+            if [[ "$package" =~ ^oracle-instantclient ]]; then
+                installed_version=$(echo "$installed_version" | cut -d'-' -f1)
+            fi
             if [ "$installed_version" != "$required_version" ]; then
                 ubuntu_missing_apt_packages+=("$package version is not $required_version. Found version: $installed_version")
             fi
