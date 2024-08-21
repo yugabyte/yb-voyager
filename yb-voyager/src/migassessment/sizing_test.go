@@ -351,6 +351,133 @@ func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 	}
 }
 
+// validate if the tables with more than 5 indexes are put in the sharded tables
+func TestShardingBasedOnTableSizeAndCount_TableWithMoreThan5IndexesAsSharded(t *testing.T) {
+	expectedShardedTableName := "table1"
+	sourceTableMetadata := []SourceDBMetadata{
+		{SchemaName: "public", ObjectName: expectedShardedTableName, Size: sql.NullFloat64{Float64: 10, Valid: true}},
+		{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 2, Valid: true}},
+		{SchemaName: "public", ObjectName: "table3", Size: sql.NullFloat64{Float64: 5, Valid: true}},
+	}
+	sourceIndexMetadata := []SourceDBMetadata{
+		{
+			SchemaName: "public", ObjectName: "index1-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index2-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index3-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index4-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index5-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index6-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+	}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
+
+	expectedResults := make(map[int]map[string]int)
+	expectedResults[4] = map[string]int{
+		"lenColocatedTables": 2,
+		"lenShardedTables":   1,
+	}
+	expectedResults[8] = map[string]int{
+		"lenColocatedTables": 2,
+		"lenShardedTables":   1,
+	}
+	expectedResults[16] = map[string]int{
+		"lenColocatedTables": 2,
+		"lenShardedTables":   1,
+	}
+
+	result :=
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+	for key, rec := range result {
+		// assert that expectedShardedTableName is the one that is sharded
+		assert.Equal(t, expectedShardedTableName, rec.ShardedTables[0].ObjectName)
+		// assert that there are no colocated tables
+		assert.Equal(t, expectedResults[key]["lenColocatedTables"], len(rec.ColocatedTables))
+		// assert that there are 2 sharded tables
+		assert.Equal(t, expectedResults[key]["lenShardedTables"], len(rec.ShardedTables))
+	}
+}
+
+// validate if the tables with 5 or less indexes are put in the colocated tables
+func TestShardingBasedOnTableSizeAndCount_TableWith5OrLessIndexesAsColocated(t *testing.T) {
+	sourceTableMetadata := []SourceDBMetadata{
+		{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 10, Valid: true}},
+		{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 2, Valid: true}},
+	}
+	sourceIndexMetadata := []SourceDBMetadata{
+		{
+			SchemaName: "public", ObjectName: "index1-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index2-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index3-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index4-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+		{
+			SchemaName: "public", ObjectName: "index5-t1",
+			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
+			Size:            sql.NullFloat64{Float64: 1, Valid: true},
+		},
+	}
+	recommendation := map[int]IntermediateRecommendation{4: {}, 8: {}, 16: {}}
+
+	expectedResults := make(map[int]map[string]int)
+	expectedResults[4] = map[string]int{
+		"lenColocatedTables": 2,
+		"lenShardedTables":   0,
+	}
+	expectedResults[8] = map[string]int{
+		"lenColocatedTables": 2,
+		"lenShardedTables":   0,
+	}
+	expectedResults[16] = map[string]int{
+		"lenColocatedTables": 2,
+		"lenShardedTables":   0,
+	}
+
+	result :=
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+	for key, rec := range result {
+		// assert that there are no colocated tables
+		assert.Equal(t, expectedResults[key]["lenColocatedTables"], len(rec.ColocatedTables))
+		// assert that there are 2 sharded tables
+		assert.Equal(t, expectedResults[key]["lenShardedTables"], len(rec.ShardedTables))
+	}
+}
+
 /*
 ===== 	Test functions to test shardingBasedOnOperations function	=====
 */
@@ -1422,9 +1549,9 @@ func TestGetThresholdAndTablets(t *testing.T) {
 }
 
 /*
-===== 	Test functions to test findClosestRecordFromExpDataLoadTime function	=====
+===== 	Test functions to test findImportTimeFromExpDataLoadTime function	=====
 */
-func TestFindClosestRecordFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
+func TestFindImportTimeFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
 	loadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 19},
@@ -1446,14 +1573,14 @@ func TestFindClosestRecordFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
 
 	var objectSize float64 = 19
 	var rowsInTable float64 = 500000000
-	actualImportTime := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+	actualImportTime := findImportTimeFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
 
 	if actualImportTime != expectedImportTime {
 		t.Errorf("Expected %f but go %f", expectedImportTime, actualImportTime)
 	}
 }
 
-func TestFindClosestRecordFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *testing.T) {
+func TestFindImportTimeFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *testing.T) {
 	loadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB:         sql.NullFloat64{Valid: true, Float64: 24},
@@ -1475,7 +1602,7 @@ func TestFindClosestRecordFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *test
 
 	var objectSize float64 = 25
 	var rowsInTable float64 = 100000000
-	actualImportTime := findClosestRecordFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
+	actualImportTime := findImportTimeFromExpDataLoadTime(loadTimes, objectSize, rowsInTable)
 	if actualImportTime != expectedImportTime {
 		t.Errorf("Expected %v but got %v", expectedImportTime, actualImportTime)
 	}

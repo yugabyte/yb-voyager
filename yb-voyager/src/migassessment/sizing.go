@@ -114,18 +114,19 @@ const (
 	LOAD_TIME_COLUMNS_IMPACT_TABLE = "load_time_columns_impact"
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
-	GITHUB_RAW_LINK               = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
-	EXPERIMENT_DATA_FILENAME      = "yb_2024_0_source.db"
-	DBS_DIR                       = "dbs"
-	SIZE_UNIT_GB                  = "GB"
-	SIZE_UNIT_MB                  = "MB"
-	LOW_PHASE_SHARD_COUNT         = 1
-	LOW_PHASE_SIZE_THRESHOLD_GB   = 0.512
-	HIGH_PHASE_SHARD_COUNT        = 24
-	HIGH_PHASE_SIZE_THRESHOLD_GB  = 10
-	FINAL_PHASE_SIZE_THRESHOLD_GB = 100
-	MAX_TABLETS_PER_TABLE         = 256
-	PREFER_REMOTE_EXPERIMENT_DB   = false
+	GITHUB_RAW_LINK                 = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
+	EXPERIMENT_DATA_FILENAME        = "yb_2024_0_source.db"
+	DBS_DIR                         = "dbs"
+	SIZE_UNIT_GB                    = "GB"
+	SIZE_UNIT_MB                    = "MB"
+	LOW_PHASE_SHARD_COUNT           = 1
+	LOW_PHASE_SIZE_THRESHOLD_GB     = 0.512
+	HIGH_PHASE_SHARD_COUNT          = 24
+	HIGH_PHASE_SIZE_THRESHOLD_GB    = 10
+	FINAL_PHASE_SIZE_THRESHOLD_GB   = 100
+	MAX_TABLETS_PER_TABLE           = 256
+	PREFER_REMOTE_EXPERIMENT_DB     = false
+	COLOCATED_MAX_INDEXES_THRESHOLD = 5
 	// COLOCATED / SHARDED Object types
 	COLOCATED = "colocated"
 	SHARDED   = "sharded"
@@ -201,11 +202,11 @@ func SizingAssessment() error {
 	shardedObjects, cumulativeIndexCountSharded :=
 		getListOfIndexesAlongWithObjects(finalSizingRecommendation.ShardedTables, sourceIndexMetadata)
 
-	// get load times data from experimental database for sharded Tables
+	// get load times data from experimental database for colocated Tables
 	colocatedLoadTimes, err := getExpDataLoadTime(experimentDB, finalSizingRecommendation.VCPUsPerInstance,
 		finalSizingRecommendation.MemoryPerCore, COLOCATED_LOAD_TIME_TABLE)
 	if err != nil {
-		return fmt.Errorf("error while fetching sharded load time info: %w", err)
+		return fmt.Errorf("error while fetching colocated load time info: %w", err)
 	}
 
 	// get load times data from experimental database for sharded Tables
@@ -215,14 +216,14 @@ func SizingAssessment() error {
 		return fmt.Errorf("error while fetching sharded load time info: %w", err)
 	}
 
-	// get experimental data for impact of indexes on data import
+	// get experimental data for impact of indexes on import time
 	indexImpactOnLoadTimeCommon, err := getExpDataIndexImpactOnLoadTime(experimentDB,
 		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore)
 	if err != nil {
 		return fmt.Errorf("error while fetching experiment data for impact of index on load time: %w", err)
 	}
 
-	// get experimental data for impact of number of columns on data import
+	// get experimental data for impact of number of columns on import time
 	columnsImpactOnLoadTimeCommon, err := getExpDataNumColumnsImpactOnLoadTime(experimentDB,
 		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore)
 	if err != nil {
@@ -653,9 +654,20 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 		var numColocated int = 0
 		var cumulativeObjectCount int64 = 0
 
+		var shardedObjects []SourceDBMetadata
+		var cumulativeSizeSharded float64 = 0
+
 		for _, table := range sourceTableMetadata {
 			// Check and fetch indexes for the current table
 			indexesOfTable, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+			// DB-12363: make tables having more than COLOCATED_MAX_INDEXES_THRESHOLD indexes as sharded
+			// (irrespective of size or ops requirements)
+			if len(indexesOfTable) > COLOCATED_MAX_INDEXES_THRESHOLD {
+				shardedObjects = append(shardedObjects, table)
+				cumulativeSizeSharded += lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
+				// skip to next table
+				continue
+			}
 			// Calculate new object count and total size
 			newObjectCount := cumulativeObjectCount + int64(len(indexesOfTable)) + 1
 			objectTotalSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSum
@@ -673,11 +685,9 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 				break
 			}
 		}
-		var shardedObjects []SourceDBMetadata
-		var cumulativeSizeSharded float64 = 0
 
 		// Iterate over remaining tables for sharding
-		for _, remainingTable := range sourceTableMetadata[numColocated:] {
+		for _, remainingTable := range sourceTableMetadata[(len(shardedObjects) + numColocated):] {
 			shardedObjects = append(shardedObjects, remainingTable)
 			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
 			cumulativeSizeSharded += lo.Ternary(remainingTable.Size.Valid, remainingTable.Size.Float64, 0) + indexesSizeSumSharded
@@ -911,7 +921,7 @@ func calculateTimeTakenAndParallelJobsForImport(tables []SourceDBMetadata,
 		loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
 			numColumnImpactData, objectType)
 
-		tableImportTimeSec := findClosestRecordFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
+		tableImportTimeSec := findImportTimeFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
 		// add maximum import time to total import time by converting it to minutes
 		importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
 	}
@@ -1061,7 +1071,7 @@ func getExpDataNumColumnsImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance 
 }
 
 /*
-findClosestRecordFromExpDataLoadTime finds the closest record from the experiment data based on row count or size
+findImportTimeFromExpDataLoadTime finds the closest record from the experiment data based on row count or size
 of the table. Out of objects close in terms of size and rows, prefer object having number of rows.
 Parameters:
 
@@ -1073,7 +1083,7 @@ Returns:
 
 	float64: max load time wrt size or count.
 */
-func findClosestRecordFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize float64,
+func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize float64,
 	rowsInTable float64) float64 {
 	closestInSize := loadTimes[0]
 	closestInRows := loadTimes[0]
