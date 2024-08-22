@@ -1101,13 +1101,17 @@ func isEndOfSqlStmt(line string) bool {
 	/*	checking for string with ending with `;`
 		Also, cover cases like comment at the end after `;`
 		example: "CREATE TABLE t1 (c1 int); -- table t1" */
+	line = strings.TrimRight(line, " ")
+	if line[len(line)-1] == ';' {
+		return true
+	}
 
-	cmtStartIdx := strings.Index(line, "--")
+	cmtStartIdx := strings.LastIndex(line, "--")
 	if cmtStartIdx != -1 {
 		line = line[0:cmtStartIdx] // ignore comment
 		line = strings.TrimRight(line, " ")
 	}
-	return strings.Contains(line, ";")
+	return line[len(line)-1] == ';'
 }
 
 func initializeSummaryMap() {
