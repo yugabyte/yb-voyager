@@ -994,11 +994,12 @@ func getMigrationComplexity(sourceDBType string) string {
 		}
 	}
 	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
-	if (appChangesCount >= 1 && appChangesCount < 5) || (schemaChangesCount >= 20) {
-		return MEDIUM
-	} else if appChangesCount > 5 {
+	
+	if appChangesCount > 5 {
 		return HIGH
-	}
+	} else if (appChangesCount >= 1 && appChangesCount < 5) || (schemaChangesCount >= 20) {
+		return MEDIUM
+	} 
 	//LOW in case appChanges == 0 or schemaChanges [0-20)
 	return LOW
 }
