@@ -971,12 +971,12 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 }
 
 var (
-	UNSUPPORTED_DATATYPE_XML_ISSUE = fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE)
-	UNSUPPORTED_DATATYPE_XID_ISSUE = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
-	APP_CHANGES_MAX_THRESHOLD      = 5
-	APP_CHANGES_MIN_THRESHOLD      = 1
-	SCHEMA_CHANGES_MAX_THRESHOLD   = int(math.Inf(1))
-	SCHEMA_CHANGES_MIN_THRESHOLD   = 20
+	UNSUPPORTED_DATATYPE_XML_ISSUE  = fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE)
+	UNSUPPORTED_DATATYPE_XID_ISSUE  = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
+	APP_CHANGES_HIGH_THRESHOLD      = 5
+	APP_CHANGES_MEDIUM_THRESHOLD    = 1
+	SCHEMA_CHANGES_HIGH_THRESHOLD   = int(math.Inf(1))
+	SCHEMA_CHANGES_MEDIUM_THRESHOLD = 20
 )
 
 var appChanges = []string{
@@ -988,31 +988,11 @@ var appChanges = []string{
 	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this
 }
 
-func parseToInt(s string, env string) int {
-	res, err := strconv.Atoi(s)
-	if err != nil {
-		utils.ErrExit("error parsing the env var - %s: %v", env, err)
-	}
-	return res
-}
-
 func readEnvForAppOrSchemaCounts() {
-	schemaCountMinStr := os.Getenv("SCHEMA_CHANGES_MIN_THRESHOLD")
-	schemaCountMaxStr := os.Getenv("SCHEMA_CHANGES_MAX_THRESHOLD")
-	appCountMinStr := os.Getenv("APP_CHANGES_MIN_THRESHOLD")
-	appCountMaxStr := os.Getenv("APP_CHANGES_MAX_THRESHOLD")
-	if schemaCountMaxStr != "" {
-		SCHEMA_CHANGES_MAX_THRESHOLD = parseToInt(schemaCountMaxStr, "SCHEMA_CHANGES_MIN_THRESHOLD")
-	}
-	if schemaCountMinStr != "" {
-		SCHEMA_CHANGES_MIN_THRESHOLD = parseToInt(schemaCountMinStr, "SCHEMA_CHANGES_MIN_THRESHOLD")
-	}
-	if appCountMaxStr != "" {
-		APP_CHANGES_MAX_THRESHOLD = parseToInt(appCountMaxStr, "APP_CHANGES_MAX_THRESHOLD")
-	}
-	if appCountMinStr != "" {
-		APP_CHANGES_MIN_THRESHOLD = parseToInt(appCountMinStr, "APP_CHANGES_MIN_THRESHOLD")
-	}
+	APP_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_HIGH_THRESHOLD", APP_CHANGES_HIGH_THRESHOLD)
+	APP_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_MEDIUM_THRESHOLD", APP_CHANGES_MEDIUM_THRESHOLD)
+	SCHEMA_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_HIGH_THRESHOLD", SCHEMA_CHANGES_HIGH_THRESHOLD)
+	SCHEMA_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_MEDIUM_THRESHOLD", SCHEMA_CHANGES_MEDIUM_THRESHOLD)
 }
 
 // Migration complexity calculation from the conversion issues
@@ -1023,10 +1003,8 @@ func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaRepo
 	if analysisReport.SchemaSummary.MigrationComplexity != "" {
 		return analysisReport.SchemaSummary.MigrationComplexity
 	}
-	readEnvForAppOrSchemaCounts()
-
 	log.Infof("Calculating migration complexity..")
-	os.Getenv("APP_CHANGES_HIGH_")
+	readEnvForAppOrSchemaCounts()
 	appChangesCount := 0
 	for _, issue := range schemaAnalysisReport.Issues {
 		for _, appChange := range appChanges {
@@ -1037,13 +1015,12 @@ func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaRepo
 	}
 	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
 
-	if appChangesCount > APP_CHANGES_MAX_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_MAX_THRESHOLD {
+	if appChangesCount > APP_CHANGES_HIGH_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_HIGH_THRESHOLD {
 		return HIGH
-	} else if (appChangesCount >= APP_CHANGES_MIN_THRESHOLD && appChangesCount < APP_CHANGES_MAX_THRESHOLD) ||
-		(schemaChangesCount >= SCHEMA_CHANGES_MIN_THRESHOLD && schemaChangesCount <= SCHEMA_CHANGES_MAX_THRESHOLD) {
+	} else if appChangesCount > APP_CHANGES_MEDIUM_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_MEDIUM_THRESHOLD {
 		return MEDIUM
 	}
-	//LOW in case appChanges == 0 or schemaChanges [0-20)
+	//LOW in case appChanges == 0 or schemaChanges [0-20]
 	return LOW
 }
 

@@ -224,7 +224,6 @@
         {{ if .MigrationCaveats}}
             <h2>Migration caveats</h2>
             <p></p>
-            {{ $hasUnsupportedFeatures := false }}
             {{range .MigrationCaveats}}
                 {{if .Objects}} <!-- Check if Objects is not empty -->
                     {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
