@@ -332,21 +332,6 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 	return false
 }
 
-func IsSubset(subset []string, set []string) bool {
-	setMap := make(map[string]bool)
-	for _, item := range set {
-		setMap[item] = true
-	}
-
-	// Check each element of the subset present in the map
-	for _, item := range subset {
-		if !setMap[item] {
-			return false
-		}
-	}
-	return true
-}
-
 func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.Duration) error {
 	// Wait for log file to be created
 	timeout := time.After(timeoutDuration)

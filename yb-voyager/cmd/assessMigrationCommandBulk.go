@@ -61,12 +61,13 @@ func init() {
 
 	const fleetConfigFileHelp = `
 Path to the CSV file with connection parameters for schema(s) to be assessed.
-Fields (case-insensitive): dbtype, hostname, port, service_name, sid, tns_alias, username, password, schema.
-Mandatory: dbtype, username, schema, service_name/sid/tns_alias(any one of these)
+Fields (case-insensitive): 'source-db-type', 'source-db-host', 'source-db-port', 'source-db-name', 'oracle-db-sid', 'oracle-tns-alias', 'source-db-user', 'source-db-password', 'source-db-schema'.
+Mandatory: 'source-db-type', 'source-db-user', 'source-db-schema', and one of ['source-db-name', 'oracle-db-sid', 'oracle-tns-alias'].
 Guidelines:
-  - First line must be a header row.
-  - Ensure mandatory fields are included and correctly spelled.
+	- The first line must be a header row.
+	- Ensure mandatory fields are included and correctly spelled.
 `
+
 	// defining flags
 	assessMigrationBulkCmd.Flags().StringVar(&fleetConfigPath, "fleet-config-file", "", fleetConfigFileHelp)
 	BoolVar(assessMigrationBulkCmd.Flags(), &continueOnError, "continue-on-error", true, "If true, it will print the error message on console and continue to next schema’s assessment")
@@ -199,7 +200,7 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 }
 
 /*
-Sample header: <dbtype>,<hostname>,<port>,<service_name>,<sid>,<tns_alias>,<username>,<password>,<schema>
+Sample header: <source-db-type>,<source-db-host>,<source-db-port>,<source-db-name>,<oracle-db-sid>,<oracle-tns-alias>,<source-db-user>,<source-db-password>,<source-db-schema>
 */
 func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	log.Infof("parsing fleet config file %q", filePath)
