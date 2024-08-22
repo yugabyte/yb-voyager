@@ -2,9 +2,9 @@ name: "PG 9: Migration Tests"
 
 on:
   push:
-    branches: ['main', 'priyanshi/report-XML-XID-deferrable']
+    branches: ['main']
   pull_request:
-    branches: ['main', 'priyanshi/report-XML-XID-deferrable']
+    branches: ['main']
 
 jobs:
   run-pg-migration-tests:
