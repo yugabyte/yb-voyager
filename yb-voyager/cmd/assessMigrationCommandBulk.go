@@ -201,7 +201,7 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 	}
 
 	// Always safe to use --start-clean and --yes to cleanup if there is some state from previous runs in export-dir
-	// since bulk command has separate check to decide beforehand whether the existing report or need to be executed
+	// since bulk command has separate check to decide beforehand whether the report exists or assessment needs to be performed.
 	args = append(args, "--start-clean", "true",
 		"--yes", "true")
 	return args
