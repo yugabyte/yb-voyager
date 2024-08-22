@@ -256,35 +256,37 @@
 			"FeatureName": "GIST indexes",
 			"Objects": [
 				{
-					"ObjectName": "idx_box_data",
+					"ObjectName": "idx_box_data ON public.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_box_data ON public.mixed_data_types_table1 USING gist (box_data);"
 				},
 				{
-					"ObjectName": "idx_point_data",
+					"ObjectName": "idx_point_data ON public.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_point_data ON public.mixed_data_types_table1 USING gist (point_data);"
 				},
 				{
-					"ObjectName": "idx_box_data",
+					"ObjectName": "idx_box_data ON schema2.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_box_data ON schema2.mixed_data_types_table1 USING gist (box_data);"
 				},
 				{
-					"ObjectName": "idx_point_data",
+					"ObjectName": "idx_point_data ON schema2.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_point_data ON schema2.mixed_data_types_table1 USING gist (point_data);"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Constraint triggers",
 			"Objects": [
 				{
-					"ObjectName": "enforce_shipped_date_constraint",
+					"ObjectName": "enforce_shipped_date_constraint ON public.orders2",
 					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON public.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION public.prevent_update_shipped_without_date();"
 				},
 				{
-					"ObjectName": "enforce_shipped_date_constraint",
+					"ObjectName": "enforce_shipped_date_constraint ON schema2.orders2",
 					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON schema2.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION schema2.prevent_update_shipped_without_date();"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Inherited tables",
@@ -297,10 +299,11 @@
 					"ObjectName": "schema2.child_table",
 					"SqlStatement": "CREATE TABLE schema2.child_table (\n    specific_column1 date\n)\nINHERITS (schema2.parent_table);"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
-			"FeatureName": "Tables with Stored generated columns",
+			"FeatureName": "Tables with stored generated columns",
 			"Objects": [
 				{
 					"ObjectName": "public.employees2",
@@ -310,32 +313,43 @@
 					"ObjectName": "schema2.employees2",
 					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Conversion objects",
-			"Objects": []
+			"Objects": [],
+			"DocsLink": "TBD"
 		},
 		{
-			"FeatureName": "Gin Indexes on Multi-columns",
-			"Objects": []
+			"FeatureName": "Gin indexes on multi-columns",
+			"Objects": [],
+			"DocsLink": "TBD"
 		},
 		{
-			"FeatureName": "Unsupported DDL operations",
-			"Objects": [
-				{
-					"ObjectName": "public.sales_region",
-					"SqlStatement": "ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
-				},
-				{
-					"ObjectName": "schema2.sales_region",
-					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
-				}
-			]
+			"FeatureName": "Setting attribute=value on column",
+			"Objects": [],
+			"DocsLink": "TBD"
+		},
+		{
+			"FeatureName": "Disabling rule on table",
+			"Objects": [],
+			"DocsLink": "TBD"
+		},
+		{
+			"FeatureName": "Clustering table on index",
+			"Objects": [],
+			"DocsLink": "TBD"
+		},
+		{
+			"FeatureName": "Storage parameters in DDLs",
+			"Objects": [],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Extensions",
-			"Objects": []
+			"Objects": [],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Exclusion constraints",
@@ -344,7 +358,8 @@
 					"ObjectName": "public.test_exclude_basic",
 					"SqlStatement": "ALTER TABLE ONLY public.test_exclude_basic\n    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Deferrable constraints",
@@ -357,7 +372,8 @@
 					"ObjectName": "schema2.orders2",
 					"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -1231,5 +1247,28 @@
 			"SizeInBytes": 0
 		}
 	],
-	"Notes": null
+	"Notes": null,
+	"MigrationCaveats": [
+		{
+			"FeatureName": "Alter partitioned tables to add Primary Key",
+			"Objects": [
+				{
+					"ObjectName": "public.sales_region",
+					"SqlStatement": "ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
+				},
+				{
+					"ObjectName": "schema2.sales_region",
+					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
+				}
+			],
+			"DocsLink": "TBD",
+			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported."
+		},
+		{
+			"FeatureName": "Foreign tables",
+			"Objects": [],
+			"DocsLink": "TBD",
+			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work."
+		}
+	]
 }

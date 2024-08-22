@@ -146,7 +146,7 @@ var (
 	dropForeignRegex          = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
 	dropIdxConcurRegex        = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
 	trigRefRegex              = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
-	constrTrgRegex            = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident), anything, "ON", capture(ident))
+	constrTrgRegex            = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident), "AFTER", capture(commonClause), "ON", capture(ident))
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
@@ -759,7 +759,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
 			reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
-				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", fmt.Sprintf("%s ON %s", trig[1], trig[2]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
+				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", fmt.Sprintf("%s ON %s", trig[1], trig[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		} else if bulkCollectRegex.MatchString(sqlInfo.stmt) {
