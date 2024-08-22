@@ -73,7 +73,9 @@
         <p><strong>Database Version:</strong> {{.}}</p>
         {{end}}
 
-        {{with .SchemaSummary.MigrationComplexity}}
+        {{if eq .SchemaSummary.MigrationComplexity "NOT AVAILABLE"}} 
+        <!-- Do nothing -->
+        {{else}} 
         <p><strong>Migration Complexity:</strong> {{.}}</p>
         {{end}}
 
