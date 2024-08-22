@@ -110,7 +110,7 @@ func assessMigrationBulk() {
 	for _, dbConfig := range dbConfigs {
 		utils.PrintAndLog("\nAssessing '%s' schema", dbConfig.GetSchemaIdentifier())
 
-		if checkMigrationAssessmentForConfig(dbConfig) {
+		if isMigrationAssessmentDoneForConfig(dbConfig) {
 			utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.GetSchemaIdentifier())
 			continue
 		}
@@ -193,6 +193,11 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 	if dbConfig.Port != "" {
 		args = append(args, "--source-db-port", dbConfig.Port)
 	}
+
+	// Always safe to use --start-clean and --yes to cleanup if there is some state from previous runs in export-dir
+	// since bulk command has separate check to decide beforehand whether the existing report or need to be executed
+	args = append(args, "--start-clean", "true",
+		"--yes", "true")
 	return args
 }
 
@@ -281,13 +286,13 @@ const REPORT_PATH_NOTE = "To automatically apply the recommendations, continue t
 func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	log.Infof("generating bulk assessment report")
 	for _, dbConfig := range dbConfigs {
-		assessmentReportPath := dbConfig.GetAssessmentReportPath()
+		assessmentReportPath := dbConfig.GetAssessmentReportBasePath()
 		var assessmentDetail = AssessmentDetail{
 			Schema:             dbConfig.Schema,
 			DatabaseIdentifier: dbConfig.GetDatabaseIdentifier(),
 			Status:             COMPLETE,
 		}
-		if !checkMigrationAssessmentForConfig(dbConfig) {
+		if !isMigrationAssessmentDoneForConfig(dbConfig) {
 			assessmentDetail.Status = ERROR
 		} else {
 			assessmentReportRelPath, err := filepath.Rel(bulkAssessmentDir, assessmentReportPath)
@@ -314,10 +319,34 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	return nil
 }
 
+func generateBulkAssessmentJsonReport() error {
+	for i := range bulkAssessmentReport.Details {
+		bulkAssessmentReport.Details[i].ReportPath = utils.ChangeFileExtension(bulkAssessmentReport.Details[i].ReportPath, ".json")
+	}
+
+	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.json")
+	strReport, err := json.MarshalIndent(bulkAssessmentReport, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal the buk assessment report: %w", err)
+	}
+
+	err = os.WriteFile(reportPath, strReport, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write bulk assessment report to file: %w", err)
+	}
+
+	utils.PrintAndLog("generated bulk assessment JSON report at: %s", reportPath)
+	return nil
+}
+
 //go:embed templates/bulkAssessmentReport.template
 var bulkAssessmentHtmlTmpl string
 
 func generateBulkAssessmentHtmlReport() error {
+	for i := range bulkAssessmentReport.Details {
+		bulkAssessmentReport.Details[i].ReportPath = utils.ChangeFileExtension(bulkAssessmentReport.Details[i].ReportPath, ".html")
+	}
+
 	tmpl, err := template.New("bulk-assessement-report").Parse(bulkAssessmentHtmlTmpl)
 	if err != nil {
 		return fmt.Errorf("failed to parse the bulkAssessmentReport template: %w", err)
@@ -338,25 +367,9 @@ func generateBulkAssessmentHtmlReport() error {
 	return nil
 }
 
-func generateBulkAssessmentJsonReport() error {
-	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.json")
-
-	strReport, err := json.MarshalIndent(bulkAssessmentReport, "", "\t")
-	if err != nil {
-		return fmt.Errorf("failed to marshal the buk assessment report: %w", err)
-	}
-
-	err = os.WriteFile(reportPath, strReport, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write bulk assessment report to file: %w", err)
-	}
-
-	utils.PrintAndLog("\ngenerated bulk assessment JSON report at: %s", reportPath)
-	return nil
-}
-
-func checkMigrationAssessmentForConfig(dbConfig AssessMigrationDBConfig) bool {
-	if !utils.FileOrFolderExists(dbConfig.GetAssessmentReportPath()) {
+func isMigrationAssessmentDoneForConfig(dbConfig AssessMigrationDBConfig) bool {
+	if !utils.FileOrFolderExists(dbConfig.GetHtmlAssessmentReportPath()) ||
+		!utils.FileOrFolderExists(dbConfig.GetJsonAssessmentReportPath()) {
 		return false
 	}
 

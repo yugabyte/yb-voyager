@@ -1085,9 +1085,19 @@ func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
 	return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.GetDatabaseIdentifier(), dbConfig.Schema)
 }
 
-func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportPath() string {
+func (dbConfig *AssessMigrationDBConfig) GetHtmlAssessmentReportPath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
 	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.html")
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetJsonAssessmentReportPath() string {
+	exportDir := dbConfig.GetAssessmentExportDirPath()
+	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json")
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportBasePath() string {
+	exportDir := dbConfig.GetAssessmentExportDirPath()
+	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport")
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentLogFilePath() string {
