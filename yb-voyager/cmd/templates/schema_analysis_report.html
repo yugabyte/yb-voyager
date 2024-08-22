@@ -52,7 +52,7 @@
             {{if eq .SchemaSummary.MigrationComplexity "NOT AVAILABLE"}} 
             <!-- Do nothing -->
             {{else}} 
-            <p><strong>Migration Complexity:</strong> {{.}}</p>
+            <tr><th>Migration Complexity:</th><td> {{ .SchemaSummary.MigrationComplexity }}</td></tr>
             {{end}}
         </table>
     </div>
