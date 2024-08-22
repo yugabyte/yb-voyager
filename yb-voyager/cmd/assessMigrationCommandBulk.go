@@ -57,6 +57,7 @@ var assessMigrationBulkCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(assessMigrationBulkCmd)
+	registerCommonGlobalFlags(assessMigrationBulkCmd)
 
 	const fleetConfigFileHelp = `
 Path to the CSV file with connection parameters for schema(s) to be assessed.
