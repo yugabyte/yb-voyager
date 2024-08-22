@@ -976,10 +976,10 @@ var appChanges = []string{
 	DEFERRABLE_CONSTRAINT_ISSUE,
 	fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE),
 	fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE),
-	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this 
+	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this
 }
 
-//Migration complexity calculation from the conversion issues
+// Migration complexity calculation from the conversion issues
 func getMigrationComplexity(sourceDBType string) string {
 	if sourceDBType != POSTGRESQL {
 		return "NOT AVAILABLE"
@@ -997,10 +997,10 @@ func getMigrationComplexity(sourceDBType string) string {
 	if (appChangesCount >= 1 && appChangesCount < 5) || (schemaChangesCount >= 20) {
 		return MEDIUM
 	} else if appChangesCount > 5 {
-		return HARD
+		return HIGH
 	}
-	//EASY in case appChanges == 0 or schemaChanges [0-20)
-	return EASY
+	//LOW in case appChanges == 0 or schemaChanges [0-20)
+	return LOW
 }
 
 // =====================================================================
@@ -1015,6 +1015,7 @@ type AssessmentReport struct {
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
+	MigrationCaveats           []UnsupportedFeature                     `json:"MigrationCaveats"`
 }
 
 type AssessmentDetail struct {

@@ -87,6 +87,7 @@
             <li class="issue-item">
                 <h4>Issue in Object {{ $issue.ObjectType }}</h4>
                 <ul>
+                    <li><strong>Issue Type:</strong> {{ $issue.IssueType }}</li> 
                     <li><strong>Object Name:</strong> {{ $issue.ObjectName }}</li>
                     <li><strong>Reason:</strong> {{ $issue.Reason }}</li>
                     <li><strong>SQL Statement:</strong> {{ $issue.SqlStatement }}</li>
@@ -96,6 +97,9 @@
                     {{ end }}
                     {{ if $issue.GH }}
                     <li><strong>Github Issue Link:</strong> <a href='{{ $issue.GH }}'>{{ $issue.GH }}</a></li>
+                    {{ end }}
+                    {{ if $issue.DocsLink }}
+                    <li><strong>Docs Link:</strong> <a href='{{ $issue.DocsLink }}'>{{ $issue.DocsLink }}</a></li>
                     {{ end }}
                 </ul>
             </li>

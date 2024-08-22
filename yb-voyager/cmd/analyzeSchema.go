@@ -146,7 +146,7 @@ var (
 	dropForeignRegex          = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
 	dropIdxConcurRegex        = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
 	trigRefRegex              = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
-	constrTrgRegex            = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
+	constrTrgRegex            = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident), anything, "ON", capture(ident))
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
@@ -204,13 +204,13 @@ var (
 const (
 	CONVERSION_ISSUE_REASON                     = "CREATE CONVERSION is not supported yet"
 	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON         = "Schema contains gin index on multi column which is not supported."
-	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not yet implemented."
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not supported yet."
 	INHERITANCE_ISSUE_REASON                    = "TABLE INHERITANCE not supported in YugabyteDB"
 	CONSTRAINT_TRIGGER_ISSUE_REASON             = "CONSTRAINT TRIGGER not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
-	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB."
+	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB by default."
 	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
 	ALTER_TABLE_DISABLE_RULE_ISSUE       = "ALTER TABLE name DISABLE RULE not supported yet"
 	STORAGE_PARAMETERS_DDL_STMT_ISSUE    = "Storage parameters are not supported yet."
@@ -240,12 +240,13 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	} else {
 		issue.IssueType = UNSUPPORTED_FEATURES
 	}
+	issue.DocsLink = "" //TODO: fix this while adding docs link for issues
 
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
 
 func reportAddingPrimaryKey(fpath string, objType string, tbl string, line string) {
-	reportCase(fpath, "Adding primary key to a partitioned table is not yet implemented.",
+	reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
 		"https://github.com/yugabyte/yugabyte-db/issues/10074", "", objType, tbl, line, false)
 }
 
@@ -337,12 +338,12 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 			if len(columnList) > 1 {
 				summaryMap["INDEX"].invalidCount[matchGin[2]] = true
 				reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
-					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", matchGin[2], sqlInfo.formattedStmt, false)
+					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3]), sqlInfo.formattedStmt, false)
 			} else {
 				if strings.Contains(strings.ToUpper(columnList[0]), "ASC") || strings.Contains(strings.ToUpper(columnList[0]), "DESC") || strings.Contains(strings.ToUpper(columnList[0]), "HASH") {
 					summaryMap["INDEX"].invalidCount[matchGin[2]] = true
 					reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
-						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", matchGin[2], sqlInfo.formattedStmt, false)
+						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3]), sqlInfo.formattedStmt, false)
 				}
 			}
 		}
@@ -358,7 +359,7 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, GIST_INDEX_ISSUE_REASON,
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt, false)
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, false)
 		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[idx[2]] = true
 			reportCase(fpath, "index method 'brin' not supported yet.",
@@ -504,7 +505,7 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 				if !isForeignConstraint && isDeferrable {
 					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
-						"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+						"Remove these constraints from the exported schema and make the necessary changes to the application before pointing it to target",
 						"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, false)
 				}
 			}
@@ -762,7 +763,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt, false)
 		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
 			reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
-				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", trig[1], sqlInfo.formattedStmt, false)
+				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", fmt.Sprintf("%s ON %s", trig[1], trig[2]), sqlInfo.formattedStmt, false)
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", sqlInfo.formattedStmt, false)
 		} else if bulkCollectRegex.MatchString(sqlInfo.stmt) {
@@ -1008,7 +1009,7 @@ func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if sqlInfo.objName != "" && !slices.Contains(supportedExtensionsOnYB, sqlInfo.objName) {
 			summaryMap["EXTENSION"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE, "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
+			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE + " Refer to the docs link for the more information on supported extensions.", "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
 				sqlInfo.objName, sqlInfo.formattedStmt, false)
 		}
 		if strings.ToLower(sqlInfo.objName) == "hll" {

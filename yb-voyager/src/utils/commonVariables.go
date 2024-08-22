@@ -103,6 +103,7 @@ type Issue struct {
 	FilePath     string `json:"FilePath"`
 	Suggestion   string `json:"Suggestion"`
 	GH           string `json:"GH"`
+	DocsLink     string `json:"DocsLink,omitempty"`
 }
 
 type IndexInfo struct {
