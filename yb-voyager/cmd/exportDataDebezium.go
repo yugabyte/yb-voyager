@@ -171,6 +171,11 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 				return nil, nil, fmt.Errorf("failed to create yb replication slot and publication: %w", err)
 			}
 
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
+			}
+
 			config.ReplicationSlotName = msr.YBReplicationSlotName
 			config.PublicationName = msr.YBPublicationName
 		} else {
