@@ -290,7 +290,7 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		schemaSummary.Notes = append(schemaAnalysisReport.SchemaSummary.Notes, note)
 	}
-	schemaSummary.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType)
+	schemaSummary.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaAnalysisReport)
 	return schemaSummary
 }
 
@@ -1005,7 +1005,7 @@ func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if sqlInfo.objName != "" && !slices.Contains(supportedExtensionsOnYB, sqlInfo.objName) {
 			summaryMap["EXTENSION"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE + " Refer to the docs link for the more information on supported extensions.", "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
+			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE+" Refer to the docs link for the more information on supported extensions.", "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
 				sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		}
 		if strings.ToLower(sqlInfo.objName) == "hll" {

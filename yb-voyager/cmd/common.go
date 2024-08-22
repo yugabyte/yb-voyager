@@ -970,21 +970,63 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	return nil
 }
 
+var (
+	UNSUPPORTED_DATATYPE_XML_ISSUE = fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE)
+	UNSUPPORTED_DATATYPE_XID_ISSUE = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
+	APP_CHANGES_MAX_THRESHOLD      = 5
+	APP_CHANGES_MIN_THRESHOLD      = 1
+	SCHEMA_CHANGES_MAX_THRESHOLD   = int(math.Inf(1))
+	SCHEMA_CHANGES_MIN_THRESHOLD   = 20
+)
+
 var appChanges = []string{
 	INHERITANCE_ISSUE_REASON,
 	CONVERSION_ISSUE_REASON,
 	DEFERRABLE_CONSTRAINT_ISSUE,
-	fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE),
-	fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE),
+	UNSUPPORTED_DATATYPE_XML_ISSUE,
+	UNSUPPORTED_DATATYPE_XID_ISSUE,
 	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this
 }
 
+func parseToInt(s string, env string) int {
+	res, err := strconv.Atoi(s)
+	if err != nil {
+		utils.ErrExit("error parsing the env var - %s: %v", env, err)
+	}
+	return res
+}
+
+func readEnvForAppOrSchemaCounts() {
+	schemaCountMinStr := os.Getenv("SCHEMA_CHANGES_MIN_THRESHOLD")
+	schemaCountMaxStr := os.Getenv("SCHEMA_CHANGES_MAX_THRESHOLD")
+	appCountMinStr := os.Getenv("APP_CHANGES_MIN_THRESHOLD")
+	appCountMaxStr := os.Getenv("APP_CHANGES_MAX_THRESHOLD")
+	if schemaCountMaxStr != "" {
+		SCHEMA_CHANGES_MAX_THRESHOLD = parseToInt(schemaCountMaxStr, "SCHEMA_CHANGES_MIN_THRESHOLD")
+	}
+	if schemaCountMinStr != "" {
+		SCHEMA_CHANGES_MIN_THRESHOLD = parseToInt(schemaCountMinStr, "SCHEMA_CHANGES_MIN_THRESHOLD")
+	}
+	if appCountMaxStr != "" {
+		APP_CHANGES_MAX_THRESHOLD = parseToInt(appCountMaxStr, "APP_CHANGES_MAX_THRESHOLD")
+	}
+	if appCountMinStr != "" {
+		APP_CHANGES_MIN_THRESHOLD = parseToInt(appCountMinStr, "APP_CHANGES_MIN_THRESHOLD")
+	}
+}
+
 // Migration complexity calculation from the conversion issues
-func getMigrationComplexity(sourceDBType string) string {
+func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaReport) string {
 	if sourceDBType != POSTGRESQL {
 		return "NOT AVAILABLE"
 	}
+	if analysisReport.SchemaSummary.MigrationComplexity != "" {
+		return analysisReport.SchemaSummary.MigrationComplexity
+	}
+	readEnvForAppOrSchemaCounts()
+
 	log.Infof("Calculating migration complexity..")
+	os.Getenv("APP_CHANGES_HIGH_")
 	appChangesCount := 0
 	for _, issue := range schemaAnalysisReport.Issues {
 		for _, appChange := range appChanges {
@@ -994,12 +1036,13 @@ func getMigrationComplexity(sourceDBType string) string {
 		}
 	}
 	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
-	
-	if appChangesCount > 5 {
+
+	if appChangesCount > APP_CHANGES_MAX_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_MAX_THRESHOLD {
 		return HIGH
-	} else if (appChangesCount >= 1 && appChangesCount < 5) || (schemaChangesCount >= 20) {
+	} else if (appChangesCount >= APP_CHANGES_MIN_THRESHOLD && appChangesCount < APP_CHANGES_MAX_THRESHOLD) ||
+		(schemaChangesCount >= SCHEMA_CHANGES_MIN_THRESHOLD && schemaChangesCount <= SCHEMA_CHANGES_MAX_THRESHOLD) {
 		return MEDIUM
-	} 
+	}
 	//LOW in case appChanges == 0 or schemaChanges [0-20)
 	return LOW
 }
@@ -1016,7 +1059,7 @@ type AssessmentReport struct {
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
-	MigrationCaveats           []UnsupportedFeature                     `json:"MigrationCaveats"`
+	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 }
 
 type AssessmentDetail struct {

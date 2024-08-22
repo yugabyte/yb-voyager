@@ -402,7 +402,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalColocatedSize: sizeDetails.TotalColocatedSize,
 			TotalShardedSize:   sizeDetails.TotalShardedSize,
 		},
-		MigrationComplexity: schemaAnalysisReport.SchemaSummary.MigrationComplexity,
+		MigrationComplexity: getMigrationComplexity(source.DBType, schemaAnalysisReport),
 		ConversionIssues:    schemaAnalysisReport.Issues,
 	}
 
