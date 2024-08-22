@@ -262,7 +262,7 @@ func assessMigration() (err error) {
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
-	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
+	/*checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	err = retrieveMigrationUUID()
@@ -311,9 +311,9 @@ func assessMigration() (err error) {
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
-	}
+	}*/
 
-	err = runAssessment()
+	err = runAssessment(filepath.Join(exportDir, "assessment"))
 	if err != nil {
 		utils.PrintAndLog("failed to run assessment: %v", err)
 	}
@@ -326,10 +326,10 @@ func assessMigration() (err error) {
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
-	err = SetMigrationAssessmentDoneInMSR()
+	/*err = SetMigrationAssessmentDoneInMSR()
 	if err != nil {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
-	}
+	}*/
 	return nil
 }
 
@@ -458,10 +458,10 @@ func (ar *AssessmentReport) CalculateSizeDetails(dbType string) (SizeDetails, er
 	return details, nil
 }
 
-func runAssessment() error {
+func runAssessment(assessmentDir string) error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
 
-	err := migassessment.SizingAssessment()
+	err := migassessment.SizingAssessment(assessmentDir)
 	if err != nil {
 		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
 		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
@@ -713,7 +713,7 @@ var bytesTemplate []byte
 func generateAssessmentReport() (err error) {
 	utils.PrintAndLog("Generating assessment report...")
 
-	err = getAssessmentReportContentFromAnalyzeSchema()
+	/*err = getAssessmentReportContentFromAnalyzeSchema()
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
 	}
@@ -734,7 +734,7 @@ func generateAssessmentReport() (err error) {
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
-	}
+	}*/
 
 	addNotesToAssessmentReport()
 	postProcessingOfAssessmentReport()
