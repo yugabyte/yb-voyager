@@ -44,7 +44,9 @@ volume_dirs=("--export-dir"
 "--table-list-file-path"
 "--exclude-table-list-file-path"
 "--assessment-metadata-dir"
-"--assessment-report-path")
+"--assessment-report-path"
+"--bulk-assessment-dir"
+"--fleet-config-file")
 
 # Loop through the array and capture the environment variables
 for var_name in "${variables[@]}"; do
