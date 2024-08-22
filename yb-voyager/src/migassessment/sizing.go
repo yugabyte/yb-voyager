@@ -1109,7 +1109,7 @@ func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize f
 	importTimeWrtRowCount := (closestInRows.migrationTimeSecs.Float64 * objectSize) / closestInRows.csvSizeGB.Float64
 
 	// return the load time which is maximum of the two
-	return math.Max(importTimeWrtSize, importTimeWrtRowCount)
+	return math.Ceil(math.Max(importTimeWrtSize, importTimeWrtRowCount))
 }
 
 /*
@@ -1176,27 +1176,20 @@ Returns:
 */
 func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadata,
 	columnImpacts []ExpDataLoadTimeColumnsImpact, objectType string) float64 {
-	var multiplicationFactor float64 = 1
 	numOfColumnsInTable := lo.Ternary(table.ColumnCount.Valid, table.ColumnCount.Int64, 1)
 
-	closest := columnImpacts[0]
-	minDiff := math.Abs(float64(numOfColumnsInTable - closest.numColumns.Int64))
+	// Default to the first entry if no suitable entry is found
+	selectedImpactEntry := columnImpacts[0]
 
-	for _, indexImpactData := range columnImpacts {
-		diff := math.Abs(float64(numOfColumnsInTable - indexImpactData.numColumns.Int64))
-		if diff < minDiff {
-			minDiff = diff
-			closest = indexImpactData
+	for _, columnsImpactData := range columnImpacts {
+		if columnsImpactData.numColumns.Int64 >= numOfColumnsInTable {
+			selectedImpactEntry = columnsImpactData
+			break
 		}
 	}
 	// impact on load time for given table would be relative to the closest record's impact
-	if objectType == COLOCATED {
-		multiplicationFactor = (closest.multiplicationFactorColocated.Float64 / float64(closest.numColumns.Int64)) * float64(numOfColumnsInTable)
-	} else if objectType == SHARDED {
-		multiplicationFactor = (closest.multiplicationFactorSharded.Float64 / float64(closest.numColumns.Int64)) * float64(numOfColumnsInTable)
-	}
+	return lo.Ternary(objectType == COLOCATED, selectedImpactEntry.multiplicationFactorColocated.Float64, selectedImpactEntry.multiplicationFactorSharded.Float64)
 
-	return multiplicationFactor
 }
 
 /*
@@ -1217,7 +1210,8 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 			   writes_per_second, 
 			   is_index, 
 			   parent_table_name, 
-			   size_in_bytes 
+			   size_in_bytes,
+			   column_count 
 		FROM %v 
 		ORDER BY IFNULL(size_in_bytes, 0) ASC
 	`, GetTableIndexStatName())
@@ -1239,7 +1233,7 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 	for rows.Next() {
 		var metadata SourceDBMetadata
 		if err := rows.Scan(&metadata.SchemaName, &metadata.ObjectName, &metadata.RowCount, &metadata.ReadsPerSec, &metadata.WritesPerSec,
-			&metadata.IsIndex, &metadata.ParentTableName, &metadata.Size); err != nil {
+			&metadata.IsIndex, &metadata.ParentTableName, &metadata.Size, &metadata.ColumnCount); err != nil {
 			return nil, nil, 0.0, fmt.Errorf("failed to read from result set of query source metadata [%s]: %w", query, err)
 		}
 		// convert bytes to GB
