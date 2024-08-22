@@ -65,6 +65,11 @@ Mandatory: 'source-db-type', 'source-db-user', 'source-db-schema', and one of ['
 Guidelines:
 	- The first line must be a header row.
 	- Ensure mandatory fields are included and correctly spelled.
+
+Sample fleet_config_file:
+	source-db-type,source-db-host,source-db-port,source-db-name,oracle-db-sid,oracle-tns-alias,source-db-user,source-db-password,source-db-schema
+	oracle,localhost,1521,orclpdb,,,user1,password1,schema1
+	oracle,localhost,1521,,orclsid,,user2,password2,schema2
 `
 
 	// defining flags
