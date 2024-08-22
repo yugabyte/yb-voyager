@@ -553,7 +553,7 @@ func createYBReplicationSlotAndPublication(finalTableList []string) error {
 		return fmt.Errorf("create publication: %v", err)
 	}
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
-	res, err := ybDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
+	slotName, err := ybDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}
@@ -564,7 +564,7 @@ func createYBReplicationSlotAndPublication(finalTableList []string) error {
 
 	// save replication slot, publication name in MSR
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.YBReplicationSlotName = res.SlotName
+		record.YBReplicationSlotName = slotName
 		record.YBPublicationName = publicationName
 	})
 	if err != nil {

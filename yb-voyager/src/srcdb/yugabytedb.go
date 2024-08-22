@@ -839,12 +839,15 @@ func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
 }
 
-func (yb *YugabyteDB) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string, dropIfAlreadyExists bool) (*pglogrepl.CreateReplicationSlotResult, error) {
-	if dropIfAlreadyExists {
-		log.Infof("dropping replication slot %s if already exists", replicationSlotName)
-		err := yb.DropLogicalReplicationSlot(conn, replicationSlotName)
+func (yb *YugabyteDB) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string, dontCreateIfAlreadyExists bool) (string, error) {
+	if dontCreateIfAlreadyExists {
+		exists, err := yb.CheckIfReplicationSlotExists(replicationSlotName)
 		if err != nil {
-			return nil, err
+			return "", err
+		}
+		if exists {
+			log.Infof("replication slot %s already exists, skipping creation", replicationSlotName)
+			return replicationSlotName, nil
 		}
 	}
 
@@ -852,10 +855,10 @@ func (yb *YugabyteDB) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicat
 	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "yboutput",
 		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
 	if err != nil {
-		return nil, fmt.Errorf("create replication slot: %v", err)
+		return "", fmt.Errorf("create replication slot: %v", err)
 	}
 
-	return &res, nil
+	return res.SlotName, nil
 }
 
 func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) error {
@@ -884,11 +887,15 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName string, tablelistQualifiedQuoted []string, dropIfAlreadyExists bool) error {
-	if dropIfAlreadyExists {
-		err := yb.DropPublication(publicationName)
+func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName string, tablelistQualifiedQuoted []string, dontCreateIfAlreadyExists bool) error {
+	if dontCreateIfAlreadyExists {
+		exists, err := yb.CheckIfPublicationSlotExists(publicationName)
 		if err != nil {
-			return fmt.Errorf("drop publication: %v", err)
+			return err
+		}
+		if exists {
+			log.Infof("publication %s already exists, skipping creation", publicationName)
+			return nil
 		}
 	}
 	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))
@@ -909,4 +916,52 @@ func (yb *YugabyteDB) DropPublication(publicationName string) error {
 		return fmt.Errorf("drop publication(%s): %v", publicationName, err)
 	}
 	return nil
+}
+
+func (yb *YugabyteDB) CheckIfPublicationSlotExists(publicationName string) (bool, error) {
+	query := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = '%s');", publicationName)
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return false, fmt.Errorf("querying publication existence: %v", err)
+	}
+	defer rows.Close()
+
+	var exists bool
+	if rows.Next() {
+		if err := rows.Scan(&exists); err != nil {
+			return false, fmt.Errorf("scanning publication existence: %v", err)
+		}
+	}
+
+	// Check for any errors encountered during iteration
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("error during rows iteration: %v", err)
+	}
+
+	return exists, nil
+}
+
+func (yb *YugabyteDB) CheckIfReplicationSlotExists(replicationSlotName string) (bool, error) {
+	query := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = '%s');", replicationSlotName)
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return false, fmt.Errorf("querying replication slot existence: %v", err)
+	}
+	defer rows.Close()
+
+	var exists bool
+	if rows.Next() {
+		if err := rows.Scan(&exists); err != nil {
+			return false, fmt.Errorf("scanning replication slot existence: %v", err)
+		}
+	}
+
+	// Check for any errors encountered during iteration
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("error during rows iteration: %v", err)
+	}
+
+	return exists, nil
 }
