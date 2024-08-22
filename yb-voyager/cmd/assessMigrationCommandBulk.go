@@ -273,6 +273,11 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 		return nil, fmt.Errorf("mandatory fields missing in the record: '%s'", strings.Join(missingFields, "', '"))
 	}
 
+	// Check if the source-db-type is supported (only 'oracle' allowed)
+	if dbType, ok := configMap[SOURCE_DB_TYPE]; ok && strings.ToLower(dbType) != ORACLE {
+		return nil, fmt.Errorf("unsupported/invalid source-db-type: '%s'. Only '%s' is supported", dbType, ORACLE)
+	}
+
 	return &AssessMigrationDBConfig{
 		DbType:   configMap[SOURCE_DB_TYPE],
 		Host:     configMap[SOURCE_DB_HOST],
