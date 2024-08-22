@@ -76,7 +76,7 @@
         {{if eq .SchemaSummary.MigrationComplexity "NOT AVAILABLE"}} 
         <!-- Do nothing -->
         {{else}} 
-        <p><strong>Migration Complexity:</strong> {{.}}</p>
+        <p><strong>Migration Complexity:</strong> {{ .SchemaSummary.MigrationComplexity }}</p>
         {{end}}
 
         <h2>Database Objects</h2>
