@@ -42,10 +42,10 @@ source ${SCRIPTS}/functions.sh
 
 export SOURCE_DB_TYPE="oracle"
 export BULK_ASSESSMENT_DIR=${BULK_ASSESSMENT_DIR:-"${TEST_DIR}/bulk-assessment-dir"}
-export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"TEST_SCHEMA"}
+export SOURCE_DB_SCHEMA1=${SOURCE_DB_SCHEMA1:-"TEST_SCHEMA"}
 export SOURCE_DB_SCHEMA2=${SOURCE_DB_SCHEMA2:-"TEST_SCHEMA2"}
-export EXPORT_DIR1=${EXPORT_DIR1:-"${BULK_ASSESSMENT_DIR}/ORCLPDB1-TEST_SCHEMA-export-dir"}
-export EXPORT_DIR2=${EXPORT_DIR2:-"${BULK_ASSESSMENT_DIR}/ORCLPDB1-TEST_SCHEMA2-export-dir"}
+export EXPORT_DIR1=${EXPORT_DIR1:-"${BULK_ASSESSMENT_DIR}/${SOURCE_DB_NAME}-${SOURCE_DB_SCHEMA1}-export-dir"}
+export EXPORT_DIR2=${EXPORT_DIR2:-"${BULK_ASSESSMENT_DIR}/${SOURCE_DB_NAME}-${SOURCE_DB_SCHEMA2}-export-dir"}
 
 main() {
 
@@ -66,40 +66,21 @@ main() {
 	./init-db
 
 	step "Grant source database user permissions"
-	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA1}
 	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA2}
 
 	step "Bulk Assessment"
 	bulk_assessment
 
 	step "Validate Assessment Reports"
-	# Checking if the assessment reports were created
-	if [ -f "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.html" ] && [ -f "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json" ]; then
-		echo "High level Assessment reports created successfully."
-		echo "Comparing Report contents"
-        expected_file="${TEST_DIR}/expected_reports/expectedErrorBulkAssessmentReport.json"
-        actual_file="${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json"
-	    compare_assessment_reports ${expected_file} ${actual_file}
 
-		# Verifying 1st child assessment
+	echo "Verifying Bulk Assessment"
 
-		if [ -f "${EXPORT_DIR1}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR1}/assessment/reports/assessmentReport.json" ]; then
-			echo "Child 1 Assessment reports created successfully."
-			echo "Comparing Report contents"
-        	expected_file="${TEST_DIR}/expected_reports/expectedChild1AssessmentReport.json"
-        	actual_file="${EXPORT_DIR1}/assessment/reports/assessmentReport.json"
-	    	compare_assessment_reports ${expected_file} ${actual_file}
-		else
-		echo "Error: Assessment reports were not created successfully."
-		cat_file "${EXPORT_DIR1}/logs/yb-voyager-assess-migration.log"
-		exit 1
-		fi
+	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.html" "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json" "${TEST_DIR}/expected_reports/expectedErrorBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
 
-	else
-		echo "Error: Assessment reports were not created successfully."
-		cat_file "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
-		exit 1
-	fi
+	echo "Verifying 1st child assessment"
+
+	compare_and_validate_reports "${EXPORT_DIR1}/assessment/reports/assessmentReport.html" "${EXPORT_DIR1}/assessment/reports/assessmentReport.json" "${TEST_DIR}/expected_reports/expectedChild1AssessmentReport.json" "${EXPORT_DIR1}/logs/yb-voyager-assess-migration.log"
 	
 	step "Fix faulty parameter"
 	fix_config_file fleet-config-file.csv
@@ -108,37 +89,18 @@ main() {
 	bulk_assessment
 
 	step "Validate Assessment Reports"
-	# Checking if the assessment reports were created
-	if [ -f "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.html" ] && [ -f "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json" ]; then
-		echo "High level Assessment reports created successfully."
-		echo "Comparing Report contents"
-        expected_file="${TEST_DIR}/expected_reports/expectedCompleteBulkAssessmentReport.json"
-        actual_file="${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json"
-	    compare_assessment_reports ${expected_file} ${actual_file}
 
-		# Verifying 1st child assessment
+	echo "Verifying Bulk Assessment"
 
-		if [ -f "${EXPORT_DIR1}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR1}/assessment/reports/assessmentReport.json" ]; then
-			echo "Child 1 Assessment reports retained successfully."
-		fi
-		# Verifying 2nd child assessment
+	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.html" "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json" "${TEST_DIR}/expected_reports/expectedCompleteBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
 
-		if [ -f "${EXPORT_DIR2}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR2}/assessment/reports/assessmentReport.json" ]; then
-			echo "Child 2 Assessment reports created successfully."
-			echo "Comparing Report contents"
-        	expected_file="${TEST_DIR}/expected_reports/expectedChild2AssessmentReport.json"
-        	actual_file="${EXPORT_DIR2}/assessment/reports/assessmentReport.json"
-	    	compare_assessment_reports ${expected_file} ${actual_file}
-		else
-		echo "Error: Assessment reports were not created successfully."
-		cat_file "${EXPORT_DIR2}/logs/yb-voyager-assess-migration.log"
-		exit 1
-		fi
-	else
-		echo "Error: Assessment reports were not created successfully."
-		cat_file "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
-		exit 1
-	fi
+	echo "Verifying 1st child assessment"
+
+	compare_and_validate_reports "${EXPORT_DIR1}/assessment/reports/assessmentReport.html" "${EXPORT_DIR1}/assessment/reports/assessmentReport.json" "${TEST_DIR}/expected_reports/expectedChild1AssessmentReport.json" "${EXPORT_DIR1}/logs/yb-voyager-assess-migration.log"
+
+	echo "Verifying 2nd child assessment"
+
+	compare_and_validate_reports "${EXPORT_DIR2}/assessment/reports/assessmentReport.html" "${EXPORT_DIR2}/assessment/reports/assessmentReport.json" "${TEST_DIR}/expected_reports/expectedChild2AssessmentReport.json" "${EXPORT_DIR2}/logs/yb-voyager-assess-migration.log"
 
 	move_tables "${EXPORT_DIR2}/assessment/reports/assessmentReport.json" 100
 	export_schema "${EXPORT_DIR1}"

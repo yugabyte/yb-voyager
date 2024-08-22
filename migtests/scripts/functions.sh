@@ -867,3 +867,21 @@ fix_config_file() {
   local file="$1"
   awk -F, 'NR==2 {$8="password"}1' OFS=, "$file" > tmp && mv tmp "$file"
 }
+
+compare_and_validate_reports() {
+    local html_file="$1"
+    local json_file="$2"
+    local expected_file="$3"
+    local log_file="$4"
+
+    if [ -f "${html_file}" ] && [ -f "${json_file}" ]; then
+        echo "Assessment reports created successfully."
+        echo "Comparing Report contents"
+        compare_assessment_reports "${expected_file}" "${json_file}"
+    else
+        echo "Error: Assessment reports were not created successfully."
+        cat_file "${log_file}"
+        exit 1
+    fi
+}
+
