@@ -1052,23 +1052,23 @@ type BulkAssessmentReport struct {
 }
 
 type AssessMigrationDBConfig struct {
-	DbType      string
-	Host        string
-	Port        string
-	ServiceName string
-	SID         string
-	TnsAlias    string
-	User        string
-	Password    string
-	Schema      string
+	DbType   string
+	Host     string
+	Port     string
+	DbName   string
+	SID      string
+	TnsAlias string
+	User     string
+	Password string
+	Schema   string
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	switch {
 	case dbConfig.SID != "":
 		return dbConfig.SID
-	case dbConfig.ServiceName != "":
-		return dbConfig.ServiceName
+	case dbConfig.DbName != "":
+		return dbConfig.DbName
 	case dbConfig.TnsAlias != "":
 		return dbConfig.TnsAlias
 	default:
