@@ -99,6 +99,17 @@ const (
 	SYSTEM_PARTITION    = "SYSTEM PARTITION"
 
 	TABLE = "TABLE"
+
+	// assess-migration-bulk
+	SOURCE_DB_TYPE     = "source-db-type"
+	SOURCE_DB_HOST     = "source-db-host"
+	SOURCE_DB_PORT     = "source-db-port"
+	SOURCE_DB_NAME     = "source-db-name"
+	ORACLE_DB_SID      = "oracle-db-sid"
+	ORACLE_TNS_ALIAS   = "oracle-tns-alias"
+	SOURCE_DB_USER     = "source-db-user"
+	SOURCE_DB_PASSWORD = "source-db-password"
+	SOURCE_DB_SCHEMA   = "source-db-schema"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

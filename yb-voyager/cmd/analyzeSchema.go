@@ -211,6 +211,8 @@ const (
 	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
+	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB."
+	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
 	ALTER_TABLE_DISABLE_RULE_ISSUE       = "ALTER TABLE name DISABLE RULE not supported yet"
 	STORAGE_PARAMETERS_DDL_STMT_ISSUE    = "Storage parameters are not supported yet."
 	ALTER_TABLE_SET_ATTRUBUTE_ISSUE      = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
@@ -395,21 +397,56 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			}
 			continue
 		}
-
 		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
+			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 		}
 		if isAlterTable {
 			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
+			reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
 		}
 		if isCreateIndex {
 			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
 		}
+	}
+}
 
+func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	/*
+		e.g. CREATE TABLE "Test"(
+				id int,
+				room_id int,
+				time_range trange,
+				EXCLUDE USING gist (room_id WITH =, time_range WITH &&)
+			);
+		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:{column_def:
+		... table_elts:{column_def:{colname:"time_range" type_name:{names:{string:{sval:"trange"}}
+		typemod:-1 location:59} is_local:true location:48}} table_elts:{constraint:{contype:CONSTR_EXCLUSION
+		location:69 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT ...
+
+		here we are iterating over all the table_elts - table elements and which are comma separated column info in
+		the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def
+		is nil.
+
+	*/
+	for _, column := range columns {
+		//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
+		if column.GetColumnDef() == nil && column.GetConstraint() != nil {
+			if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
+					"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
+			}
+		}
 	}
 }
 
@@ -443,9 +480,8 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 		for set attribute issue we will the type of alter setting the options and in the 'def' definition field which has the
 		information of the type, we will check if there is any list which will only present in case there is syntax like <SubTYPE> (...)
 	*/
-	setParameters := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList()
 	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_SetOptions &&
-		len(setParameters.GetItems()) > 0 {
+		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList().GetItems()) > 0 {
 		reportCase(fpath, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
 			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
 	}
@@ -458,7 +494,8 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 		in this case only so checking that for this case.
 	*/
 
-	if len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
+	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_AddConstraint &&
+		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
 		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
 			"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
 	}
@@ -472,6 +509,25 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 		ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
 		reportCase(fpath, ALTER_TABLE_DISABLE_RULE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
 			fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.stmt)
+	}
+}
+
+func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
+
+	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+	tableName := alterTableNode.AlterTableStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
+	/*
+		e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
+		cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
+		here again same checking the definition of the alter stmt if it has constraint and checking its type
+	*/
+	constraint := alterCmd.GetDef().GetConstraint()
+	if alterCmd.Subtype == pg_query.AlterTableType_AT_AddConstraint && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+		reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
+			"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt)
 	}
 }
 
@@ -818,7 +874,7 @@ func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if sqlInfo.objName != "" && !slices.Contains(supportedExtensionsOnYB, sqlInfo.objName) {
 			summaryMap["EXTENSION"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "This extension is not supported in YugabyteDB.", "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
+			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE, "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
 				sqlInfo.objName, sqlInfo.formattedStmt)
 		}
 		if strings.ToLower(sqlInfo.objName) == "hll" {

@@ -811,6 +811,8 @@ normalize_json() {
     local input_file="$1"
     local output_file="$2"
 
+
+	# set RowCount to 0 because the approximate row count can vary with each database initialization
     jq 'walk(
         if type == "object" then
             if has("ObjectNames") and (."ObjectNames" | type == "string") then
@@ -821,6 +823,8 @@ normalize_json() {
                 .OptimalSelectConnectionsPerNode = "IGNORED"
             elif has("OptimalInsertConnectionsPerNode") then
                 .OptimalInsertConnectionsPerNode = "IGNORED"
+			elif has("RowCount") then
+				.RowCount = 0
             else
                 .
             end

@@ -409,6 +409,22 @@
         },
         {
             "ObjectType": "TABLE",
+            "ObjectName": "Test",
+            "Reason": "Exclusion constraint is not supported yet",
+            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026)\n);",
+            "Suggestion": "Refer this docs link for details on possible workaround - \u003cLINK_DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
+        },
+        {
+            "ObjectType": "TABLE",
+            "ObjectName": "public.meeting",
+            "Reason": "Exclusion constraint is not supported yet",
+            "SqlStatement": "ALTER TABLE ONLY public.meeting\n    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026);",
+            "Suggestion": "Refer this docs link for details on possible workaround - \u003cLINK_DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
+        },
+        {
+            "ObjectType": "TABLE",
             "ObjectName": "public.range_columns_partition_test",
             "Reason": "Adding primary key to a partitioned table is not yet implemented.",
             "SqlStatement": "ALTER TABLE ONLY public.range_columns_partition_test\n    ADD CONSTRAINT range_columns_partition_test_pkey PRIMARY KEY (a, b);",
