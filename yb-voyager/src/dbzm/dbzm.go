@@ -85,11 +85,18 @@ func (d *Debezium) Start() error {
 		return err
 	}
 
-	YB_OR_PG_CONNECTOR_PATH := filepath.Join(DEBEZIUM_DIST_DIR, "pg-connector")
-	if d.Config.UseLogicalReplicationYBConnector {
-		YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
-	} else if d.Config.SourceDBType == "yugabytedb" {
-		YB_OR_PG_CONNECTOR_PATH = ""
+	var YB_OR_PG_CONNECTOR_PATH string
+	if isTargetDBExporter(d.ExporterRole) {
+		if d.Config.UseLogicalReplicationYBConnector {
+			// In case of logical replication connector we need the path /opt/yb-voyager/debezium-server/yb-connector
+			YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
+		} else {
+			// In case of gRPC connector the DEBEZIUM_DIST_DIR is set to debezium-server-1.9.5, hence the connector path is empty to avoid any errors in run.sh
+			YB_OR_PG_CONNECTOR_PATH = ""
+		}
+	} else {
+		// In case of source db exporter we need the path /opt/yb-voyager/debezium-server/pg-connector
+		YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "pg-connector")
 	}
 
 	log.Infof("starting debezium...")

@@ -884,21 +884,12 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName string, tablelistQualifiedQuoted []string, dropIfAlreadyExists bool) error {
 	if dropIfAlreadyExists {
 		err := yb.DropPublication(publicationName)
 		if err != nil {
 			return fmt.Errorf("drop publication: %v", err)
 		}
-	}
-	tablelistQualifiedQuoted := []string{}
-	for _, tableName := range tableList {
-		_, ok := leafPartitions.Get(tableName)
-		if ok {
-			//In case of partiitons, tablelist in CREATE PUBLICATION query should not have root
-			continue
-		}
-		tablelistQualifiedQuoted = append(tablelistQualifiedQuoted, tableName.ForKey())
 	}
 	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))
 	result := conn.Exec(context.Background(), stmt)

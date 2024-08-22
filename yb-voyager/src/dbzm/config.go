@@ -30,6 +30,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+const (
+	TARGET_DB_EXPORTER_FF_ROLE = "target_db_exporter_ff"
+	TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb"
+)
+
 type Config struct {
 	MigrationUUID                    uuid.UUID
 	RunId                            string
@@ -273,7 +278,7 @@ debezium.source.database.sslrootcert=%s
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
-	if c.SourceDBType == "yugabytedb" {
+	if isTargetDBExporter(c.ExporterRole) {
 		offsetFile = filepath.Join(dataDir, "offsets_yb.dat")
 	}
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
@@ -461,6 +466,10 @@ func (c *Config) WriteToFile(filePath string) error {
 		return fmt.Errorf("failed to write config file %s: %v", filePath, err)
 	}
 	return nil
+}
+
+func isTargetDBExporter(exporterRole string) bool {
+	return exporterRole == TARGET_DB_EXPORTER_FB_ROLE || exporterRole == TARGET_DB_EXPORTER_FF_ROLE
 }
 
 // read config file DEBEZIUM_CONF_FILEPATH into a string
