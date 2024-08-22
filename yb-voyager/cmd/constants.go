@@ -98,8 +98,8 @@ const (
 	REFERENCE_PARTITION = "REFERENCE PARTITION"
 	SYSTEM_PARTITION    = "SYSTEM PARTITION"
 
-	UNSUPPORTED_FEATURES  = "Unsupported features"
-	UNSUPPORTED_DATATYPES = "Unsupported datatypes"
+	UNSUPPORTED_FEATURES  = "unsupported_features"
+	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
 
 	TABLE = "TABLE"
 )
