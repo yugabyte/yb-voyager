@@ -20,7 +20,6 @@ centos_yum_package_requirements=(
   "perl-DBI:min:0"
   "perl-App-cpanminus:min:0"
   "perl-ExtUtils-MakeMaker:min:0"
-  "postgresql14:min:0"
   "mysql-devel:min:0"
   "oracle-instantclient-tools:exact:21.5.0.0.0"
   "oracle-instantclient-basic:exact:21.5.0.0.0"
@@ -38,7 +37,6 @@ ubuntu_apt_package_requirements=(
   "libaio1:min:0"
   "cpanminus:min:0"
   "libmysqlclient-dev:min:0"
-  "postgresql-14:min:0"
   "oracle-instantclient-tools:exact:21.5.0.0.0"
   "oracle-instantclient-basic:exact:21.5.0.0.0"
   "oracle-instantclient-devel:exact:21.5.0.0.0"
@@ -54,8 +52,14 @@ cpan_modules_requirements=(
   "IO::Compress::Base|min|0"
 )
 
+ubuntu_missing_apt_packages=()
 centos_missing_yum_packages=()
 missing_cpan_modules=()
+binutils_wrong_version=0
+java_wrong_version=0
+pg_dump_wrong_version=0
+pg_restore_wrong_version=0
+psql_wrong_version=0
 
 trap on_exit EXIT
 
@@ -84,7 +88,7 @@ main() {
 			# Proceed to distribution check.
 			;;
 		*)
-			echo "ERROR: unsupported os ${os}"
+			echo -e "\e[31mERROR: unsupported os ${os}\e[0m"
 			exit 1
 			;;
 	esac
@@ -111,14 +115,14 @@ main() {
 			ubuntu_main
 			;;
 		*)
-			echo "ERROR: unsupported linux distribution: ${dist}"
+			echo -e "\e[31mERROR: unsupported linux distribution: ${dist}\e[0m"
 			exit 1
 			;;
 	esac
     # Check if yb-voyager is installed using yb-voyager version. Else exit with error and log it too.
     yb_voyager_version=$(yb-voyager version)
     if [ $? -ne 0 ]; then
-        echo "ERROR: yb-voyager did not get installed."
+        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
         exit 1
     else
         echo "yb-voyager version"
@@ -168,16 +172,19 @@ check_cpan_dependencies() {
     done
 
     if [ ${#missing_cpan_modules[@]} -ne 0 ]; then
-        echo "ERROR: the following CPAN modules are missing or do not meet the version requirements:"
+        echo ""
+        echo -e "\e[31mERROR: the following CPAN modules are missing or do not meet the version requirements:\e[0m"
         for missing in "${missing_cpan_modules[@]}"; do
             echo "$missing"
         done
     else
+        echo ""
         echo "All cpan dependencies are installed and meet the version requirements."
     fi
 }
 
 check_binutils_version() {
+    echo ""
 	output "Checking binutils version."
 	min_required_version='2.25'
 
@@ -190,8 +197,9 @@ check_binutils_version() {
 	version_ok=$(version_satisfied "$min_required_version" "$version")
 	if [[ $version_ok -eq 0 ]]
 	then
-		echo "ERROR: unsupported binutils version ${version}. Update to binutils version > ${min_required_version} ."
-		exit 1
+        echo ""
+		echo -e "\e[31mERROR: unsupported binutils version ${version}. Update to binutils version > ${min_required_version}.\e[0m"
+		binutils_wrong_version=1
 	fi
 }
 
@@ -251,10 +259,12 @@ check_java() {
 
     if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
     then
+        echo ""
         output "Found sufficient java version = ${JAVA_COMPLETE_VERSION}"
     else
-        output "ERROR: Java not found or insuffiencient version ${JAVA_COMPLETE_VERSION}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
-        exit 1;
+        echo ""
+        echo -e "\e[31mERROR: Java not found or insuffiencient version ${JAVA_COMPLETE_VERSION}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        java_wrong_version=1
     fi
 }
 
@@ -280,6 +290,48 @@ get_passed_options() {
 	done
 }
 
+check_pg_dump_and_pg_restore_version() {
+    # Check if pg_dump and pg_restore are installed and their major versions are greater than min required version
+    MIN_REQUIRED_MAJOR_VERSION='14'
+    PG_DUMP_VERSION=$(pg_dump --version | awk '{print $3}')
+    PG_RESTORE_VERSION=$(pg_restore --version | awk '{print $3}')
+    PSQL_VERSION=$(psql --version | awk '{print $3}')
+    PG_DUMP_MAJOR_VER=$(echo "${PG_DUMP_VERSION}" | awk -F. '{print $1}')
+    PG_RESTORE_MAJOR_VER=$(echo "${PG_RESTORE_VERSION}" | awk -F. '{print $1}')
+    PSQL_MAJOR_VER=$(echo "${PSQL_VERSION}" | awk -F. '{print $1}')
+
+    # Check them separately
+    if ([ -n "$PG_DUMP_MAJOR_VER" ] && (( 10#${PG_DUMP_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+    then
+        echo ""
+        output "Found sufficient pg_dump version = ${PG_DUMP_VERSION}"
+    else
+        echo ""
+        echo -e "\e[31mERROR: pg_dump not found or insufficient version ${PG_DUMP_VERSION}. Please install pg_dump>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        pg_dump_wrong_version=1
+    fi
+
+    if ([ -n "$PG_RESTORE_MAJOR_VER" ] && (( 10#${PG_RESTORE_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+    then
+        echo ""
+        output "Found sufficient pg_restore version = ${PG_RESTORE_VERSION}"
+    else
+        echo ""
+        echo -e "\e[31mERROR: pg_restore not found or insufficient version ${PG_RESTORE_VERSION}. Please install pg_restore>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        pg_restore_wrong_version=1
+    fi
+
+    if ([ -n "$PSQL_MAJOR_VER" ] && (( 10#${PSQL_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+    then
+        echo ""
+        output "Found sufficient psql version = ${PSQL_VERSION}"
+    else
+        echo ""
+        echo -e "\e[31mERROR: psql not found or insufficient version ${PSQL_VERSION}. Please install psql>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        psql_wrong_version=1
+    fi
+}
+
 #=============================================================================
 # CENTOS/RHEL
 #=============================================================================
@@ -290,40 +342,51 @@ centos_main() {
         echo "Checking dependencies..."
         check_binutils_version
         check_java
+        check_pg_dump_and_pg_restore_version
         check_yum_dependencies
         check_cpan_dependencies
-        # If either of the yum or cpan dependencies are missing, exit with error.
-        if { [ ${#centos_missing_yum_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ]; } && [ "$FORCE_INSTALL" = "false" ]; then
-            echo "If you want to install voyager anyway, use --force-install option."
+        # If either of the yum or cpan dependencies are missing or binutils wrong version, exit with error.
+        if { [ ${#centos_missing_yum_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then 
+            echo ""
+            echo -e "\e[33mWe search for specific package names only. If you have any similar packages installed which are not getting detected by us and you are confident in them, you can install voyager anyway using the --force-install option.\e[0m"
             exit 1
         fi
 
         if [ "$CHECK_ONLY_DEPENDENCIES" = "true" ]; then
+            echo ""
             echo "All dependencies are satisfied."
             exit 0
         fi
     else
+        echo ""
         echo "Force install option is passed. Proceeding with installation."
     fi
 
+    echo ""
     echo "Installing ora2pg..."
     sudo yum install -y -q ora2pg-"$ORA2PG_YUM_VERSION".noarch.rpm 1>&2 
     if [ $? -ne 0 ]; then
-        echo "ERROR: ora2pg did not get installed."
+        echo ""
+        echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
         exit 1
     fi
+    echo ""
     echo "Installing debezium..."
     sudo yum install -y -q debezium-"$DEBEZIUM_YUM_VERSION".noarch.rpm 1>&2
     if [ $? -ne 0 ]; then
-        echo "ERROR: debezium did not get installed."
+        echo ""
+        echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
         exit 1
     fi
+    echo ""
     echo "Installing yb-voyager..."
     sudo yum install -y -q yb-voyager-"$YB_VOYAGER_YUM_VERSION".x86_64.rpm 1>&2
     if [ $? -ne 0 ]; then
-        echo "ERROR: yb-voyager did not get installed."
+        echo ""
+        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
         exit 1
     fi
+    echo ""
     echo "Installation completed." 
 
     set +x 
@@ -364,11 +427,13 @@ check_yum_dependencies() {
     done
 
     if [ ${#centos_missing_yum_packages[@]} -ne 0 ]; then
-        echo "ERROR: the following yum packages are missing or do not meet the version requirements:"
+        echo ""
+        echo -e "\e[31mERROR: the following yum packages are missing or do not meet the version requirements:\e[0m"
         for missing in "${centos_missing_yum_packages[@]}"; do
             echo "$missing"
         done
     else
+        echo ""
         echo "All yum dependencies are installed and meet the version requirements."
     fi
 }
@@ -383,41 +448,52 @@ ubuntu_main() {
         echo "Checking dependencies..."
         check_binutils_version
         check_java
+        check_pg_dump_and_pg_restore_version
         check_apt_dependencies
         check_cpan_dependencies
 
-        # If either of the apt or cpan dependencies are missing, exit with error.
-        if { [ ${#ubuntu_missing_apt_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ]; } && [ "$FORCE_INSTALL" = "false" ]; then
-            echo "If you want to install voyager anyway, use --force-install option."
+        # If either of the apt or cpan dependencies are missing or binutils wrong version, exit with error.
+        if { [ ${#ubuntu_missing_apt_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then
+            echo ""
+            echo -e "\e[33mWe search for specific package names only. If you have any similar packages installed which are not getting detected by us and you are confident in them, you can install voyager anyway using the --force-install option.\e[0m"
             exit 1
         fi
     
         if [ "$CHECK_ONLY_DEPENDENCIES" = "true" ]; then
+            echo ""
             echo "All dependencies are satisfied."
             exit 0
         fi
     else 
+        echo ""
         echo "Force install option is passed. Proceeding with installation."
     fi
 
+    echo ""
     echo "Installing ora2pg..."
     sudo apt install -y -q ./ora2pg_"$ORA2PG_YUM_VERSION"_all.deb 1>&2
     if [ $? -ne 0 ]; then
-        echo "ERROR: ora2pg did not get installed."
+        echo ""
+        echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
         exit 1
     fi
+    echo ""
     echo "Installing debezium..."
     sudo apt install -y -q ./debezium_"$DEBEZIUM_YUM_VERSION"_all.deb 1>&2
     if [ $? -ne 0 ]; then
-        echo "ERROR: debezium did not get installed."
+        echo ""
+        echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
         exit 1
     fi
+    echo ""
     echo "Installing yb-voyager..."
     sudo apt install -y -q ./yb-voyager_"$YB_VOYAGER_YUM_VERSION"_amd64.deb 1>&2
     if [ $? -ne 0 ]; then
-        echo "ERROR: yb-voyager did not get installed."
+        echo ""
+        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
         exit 1
     fi
+    echo ""
     echo "Installation completed."
 
     set +x
@@ -430,11 +506,13 @@ check_apt_dependencies() {
     done
 
     if [ ${#ubuntu_missing_apt_packages[@]} -ne 0 ]; then
-        echo "ERROR: the following apt packages are missing or do not meet the version requirements:"
+        echo ""
+        echo -e "\e[31mERROR: the following apt packages are missing or do not meet the version requirements:\e[0m"
         for missing in "${ubuntu_missing_apt_packages[@]}"; do
             echo "$missing"
         done
     else
+        echo ""
         echo "All apt dependencies are installed and meet the version requirements."
     fi
 }
