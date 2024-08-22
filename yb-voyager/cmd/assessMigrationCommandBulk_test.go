@@ -33,15 +33,15 @@ func createTempFleetConfigFile(t *testing.T, content string) *os.File {
 Unit tests
 1. Header testing
     1. Invalid length header [length more than the total]
-    2. Missing each of the mandatory args from [dbtype, username, schema, one of [dbname,tns_alias,sid]]
+    2. Missing each of the mandatory args from [source-db-type, source-db-user, source-db-schema, one of [source-db-name, oracle-db-sid, oracle-tns-alias]]
     3. Mis-spell some of the header fields
 2. Records testing
     1. Invalid length header [length more than the total] or less than the minimum
-    2. Missing each of the mandatory args from [dbtype, username, schema, one of [dbname,tns_alias,sid]]
+    2. Missing each of the mandatory args from [source-db-type, source-db-user, source-db-schema, one of [source-db-name, oracle-db-sid, oracle-tns-alias]]
     3. No line after header
 3. Multi line config [generate below case, differently for each line]
     1. Invalid length header [length more than the total] or less than the minimum
-    2. Missing each of the mandatory args from [dbtype, username, schema, one of [dbname,tns_alias,sid]]
+    2. Missing each of the mandatory args from [source-db-type, source-db-user, source-db-schema, one of [source-db-name, oracle-db-sid, oracle-tns-alias]]
 4. Passing tests
     1. Minimum header
     2. Single line entry after header
@@ -57,68 +57,62 @@ func TestValidateFleetConfigFile(t *testing.T) {
 		// Header Tests
 		{
 			name: "Invalid Header Length",
-			fileContent: `dbtype,username,schema,dbname,extra_field1,extra_field2
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name,extra_field1,extra_field2
 	oracle,user1,schema1,db1`,
 			expectedErrSuffix: "invalid fields found in the fleet config file's header: ['extra_field1', 'extra_field2']",
 		},
 		{
-			name: "Missing Mandatory Field in Header (dbtype)",
-			fileContent: `username,schema,dbname
+			name: "Missing Mandatory Field in Header (source-db-type)",
+			fileContent: `source-db-user,source-db-schema,source-db-name
 	user1,schema1,db1`,
-			expectedErrSuffix: "mandatory fields missing in the header: 'dbtype'",
+			expectedErrSuffix: "mandatory fields missing in the header: 'source-db-type'",
 		},
 		{
-			name: "Missing Mandatory Field in Header (username)",
-			fileContent: `dbtype,schema,dbname
+			name: "Missing Mandatory Field in Header (source-db-user)",
+			fileContent: `source-db-type,source-db-schema,source-db-name
 	oracle,schema1,db1`,
-			expectedErrSuffix: "mandatory fields missing in the header: 'username'",
+			expectedErrSuffix: "mandatory fields missing in the header: 'source-db-user'",
 		},
 		{
-			name: "Missing Mandatory Field in Header (schema)",
-			fileContent: `dbtype,username,dbname
+			name: "Missing Mandatory Field in Header (source-db-schema)",
+			fileContent: `source-db-type,source-db-user,source-db-name
 	oracle,user1,db1`,
-			expectedErrSuffix: "mandatory fields missing in the header: 'schema'",
+			expectedErrSuffix: "mandatory fields missing in the header: 'source-db-schema'",
 		},
 		{
 			name: "Missing Required DB Identifier in Header",
-			fileContent: `dbtype,username,schema
+			fileContent: `source-db-type,source-db-user,source-db-schema
 	oracle,user1,schema1`,
-			expectedErrSuffix: "mandatory fields missing in the header: 'one of [dbname, sid, tns_alias]'",
-		},
-		{
-			name: "Missing Required DB Identifier in Header",
-			fileContent: `dbtype,username,schema
-	oracle,user1,schema1`,
-			expectedErrSuffix: "mandatory fields missing in the header: 'one of [dbname, sid, tns_alias]'",
+			expectedErrSuffix: "mandatory fields missing in the header: 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
 		},
 		{
 			name: "Misspelled Header Fields",
-			fileContent: `dbtype,uesrname,shcema,dbname
+			fileContent: `source-db-type,source-db-uesr,source-db-shcema,source-db-name
 		oracle,user1,schema1,db1`,
-			expectedErrSuffix: "invalid fields found in the fleet config file's header: ['uesrname', 'shcema']",
+			expectedErrSuffix: "invalid fields found in the fleet config file's header: ['source-db-uesr', 'source-db-shcema']",
 		},
 		// Single line Record Tests
 		{
 			name: "Invalid Record Length - Too Many Fields",
-			fileContent: `dbtype,username,schema,dbname
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,user1,schema1,db1,extra_field`,
 			expectedErrSuffix: "line 2 does not match header length: expected 4 fields, got 5",
 		},
 		{
 			name: "Invalid Record Length - Too Few Fields",
-			fileContent: `dbtype,username,schema,dbname
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,user1`,
 			expectedErrSuffix: "line 2 does not match header length: expected 4 fields, got 2",
 		},
 		{
 			name:              "No Line After Header",
-			fileContent:       `dbtype,username,schema,dbname`,
+			fileContent:       `source-db-type,source-db-user,source-db-schema,source-db-name`,
 			expectedErrSuffix: "fleet config file contains only a header with no data lines",
 		},
 		// Multi line Records Tests
 		{
 			name: "Multi-Line Config - Invalid Length (Too Many Fields) on Second Line",
-			fileContent: `dbtype,username,schema,dbname
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,user1,schema1,db1
 oracle,user2,schema2,db2,extra_field`,
 			expectedErrSuffix: "line 3 does not match header length: expected 4 fields, got 5",
@@ -126,19 +120,19 @@ oracle,user2,schema2,db2,extra_field`,
 		// Passing Tests
 		{
 			name: "Valid Config with Minimum Header",
-			fileContent: `dbtype,username,schema,dbname
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,user1,schema1,db1`,
 			expectedErrSuffix: "",
 		},
 		{
 			name: "Valid Config with Single Line Entry and all fields",
-			fileContent: `dbtype,hostname,port,username,schema,dbname,sid,tns_alias,password
+			fileContent: `source-db-type,source-db-host,source-db-port,source-db-user,source-db-schema,source-db-name,oracle-db-sid,oracle-tns-alias,source-db-password
 oracle,localhost,1521,user1,schema1,db1,,,password_easy`,
 			expectedErrSuffix: "",
 		},
 		{
 			name: "Valid Config with Multiple Entries",
-			fileContent: `dbtype,username,schema,dbname
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,user1,schema1,db1
 oracle,user2,schema2,db2
 oracle,user3,schema3,db3`,
@@ -171,33 +165,33 @@ func TestParseFleetConfigFile(t *testing.T) {
 	}{
 		// Single line Record Tests
 		{
-			name: "Missing Mandatory Field in Record (username, schema)",
-			fileContent: `dbtype,username,schema,dbname
+			name: "Missing Mandatory Field in Record (source-db-user, source-db-schema)",
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,,,dms`,
-			expectedErrSuffix: "mandatory fields missing in the record: 'username', 'schema'",
+			expectedErrSuffix: "mandatory fields missing in the record: 'source-db-user', 'source-db-schema'",
 		},
 		{
-			name: "Missing Mandatory Field in Record (username, schema)",
-			fileContent: `dbtype,username,schema,dbname
+			name: "Missing Mandatory Field in Record (source-db-user, source-db-schema)",
+			fileContent: `source-db-type,source-db-user,schema,source-db-name
 oracle,,,`,
-			expectedErrSuffix: "mandatory fields missing in the record: 'username', 'schema', 'one of [dbname, sid, tns_alias]'",
+			expectedErrSuffix: "mandatory fields missing in the record: 'source-db-user', 'source-db-schema', 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
 		},
 		// Multiple line Record Tests
 		{
 			name: "Multi-Line Config - Missing Mandatory Field on Third Line",
-			fileContent: `dbtype,username,schema,dbname
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,user1,schema1,db1
 oracle,user2,,db2
 oracle,user3,,db3`,
-			expectedErrSuffix: "mandatory fields missing in the record: 'schema'",
+			expectedErrSuffix: "mandatory fields missing in the record: 'source-db-schema'",
 		},
 		{
 			name: "Multi-Line Config - Missing DB Identifier on Fourth Line",
-			fileContent: `dbtype,username,schema,dbname
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,user1,schema1,db1
 oracle,user2,schema2,db2
 oracle,user3,schema3,`,
-			expectedErrSuffix: "mandatory fields missing in the record: 'one of [dbname, sid, tns_alias]'",
+			expectedErrSuffix: "mandatory fields missing in the record: 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
 		},
 	}
 

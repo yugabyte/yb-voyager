@@ -265,15 +265,15 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 	}
 
 	return &AssessMigrationDBConfig{
-		DbType:   configMap[DBCONF_DBTYPE],
-		Host:     configMap[DBCONF_HOSTNAME],
-		Port:     configMap[DBCONF_PORT],
-		DbName:   configMap[DBCONF_DBNAME],
-		SID:      configMap[DBCONF_SID],
-		TnsAlias: configMap[DBCONF_TNS_ALIAS],
-		User:     configMap[DBCONF_USERNAME],
-		Password: configMap[DBCONF_PASSWORD],
-		Schema:   configMap[DBCONF_SCHEMA],
+		DbType:   configMap[SOURCE_DB_TYPE],
+		Host:     configMap[SOURCE_DB_HOST],
+		Port:     configMap[SOURCE_DB_PORT],
+		DbName:   configMap[SOURCE_DB_NAME],
+		SID:      configMap[ORACLE_DB_SID],
+		TnsAlias: configMap[ORACLE_TNS_ALIAS],
+		User:     configMap[SOURCE_DB_USER],
+		Password: configMap[SOURCE_DB_PASSWORD],
+		Schema:   configMap[SOURCE_DB_SCHEMA],
 	}, nil
 }
 
@@ -391,11 +391,11 @@ func validateBulkAssessmentDirFlag() {
 	}
 }
 
-var fleetConfFileHeaderFields = []string{DBCONF_DBTYPE, DBCONF_HOSTNAME, DBCONF_PORT, DBCONF_DBNAME, DBCONF_SID,
-	DBCONF_TNS_ALIAS, DBCONF_USERNAME, DBCONF_PASSWORD, DBCONF_SCHEMA}
+var fleetConfFileHeaderFields = []string{SOURCE_DB_TYPE, SOURCE_DB_HOST, SOURCE_DB_PORT, SOURCE_DB_NAME, ORACLE_DB_SID,
+	ORACLE_TNS_ALIAS, SOURCE_DB_USER, SOURCE_DB_PASSWORD, SOURCE_DB_SCHEMA}
 
-var fleetConfRequiredFields = []string{DBCONF_DBTYPE, DBCONF_USERNAME, DBCONF_SCHEMA}
-var fleetConfDbIdentifierFields = []string{DBCONF_DBNAME, DBCONF_SID, DBCONF_TNS_ALIAS}
+var fleetConfRequiredFields = []string{SOURCE_DB_TYPE, SOURCE_DB_USER, SOURCE_DB_SCHEMA}
+var fleetConfDbIdentifierFields = []string{SOURCE_DB_NAME, ORACLE_DB_SID, ORACLE_TNS_ALIAS}
 
 // TODO: add unit tests for this function
 func validateFleetConfigFile(filePath string) error {

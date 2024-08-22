@@ -101,15 +101,15 @@ const (
 	TABLE = "TABLE"
 
 	// assess-migration-bulk
-	DBCONF_DBTYPE    = "dbtype"
-	DBCONF_HOSTNAME  = "hostname"
-	DBCONF_PORT      = "port"
-	DBCONF_DBNAME    = "dbname"
-	DBCONF_SID       = "sid"
-	DBCONF_TNS_ALIAS = "tns_alias"
-	DBCONF_USERNAME  = "username"
-	DBCONF_PASSWORD  = "password"
-	DBCONF_SCHEMA    = "schema"
+	SOURCE_DB_TYPE     = "source-db-type"
+	SOURCE_DB_HOST     = "source-db-host"
+	SOURCE_DB_PORT     = "source-db-port"
+	SOURCE_DB_NAME     = "source-db-name"
+	ORACLE_DB_SID      = "oracle-db-sid"
+	ORACLE_TNS_ALIAS   = "oracle-tns-alias"
+	SOURCE_DB_USER     = "source-db-user"
+	SOURCE_DB_PASSWORD = "source-db-password"
+	SOURCE_DB_SCHEMA   = "source-db-schema"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
