@@ -17,10 +17,11 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	_ "embed"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,6 +43,13 @@ var assessMigrationBulkCmd = &cobra.Command{
 	Short: "Bulk Assessment of multiple schemas across one or more Oracle database instances",
 	Long:  "Bulk Assessment of multiple schemas across one or more Oracle database instances",
 
+	PreRun: func(cmd *cobra.Command, args []string) {
+		err := validateFleetConfigFile(fleetConfigPath)
+		if err != nil {
+			utils.ErrExit("%s", err.Error())
+		}
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
 		assessMigrationBulk()
 	},
@@ -50,10 +58,19 @@ var assessMigrationBulkCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(assessMigrationBulkCmd)
 
+	const fleetConfigFileHelp = `
+Path to the CSV file with connection parameters for schema(s) to be assessed.
+Fields (case-insensitive): 'source-db-type', 'source-db-host', 'source-db-port', 'source-db-name', 'oracle-db-sid', 'oracle-tns-alias', 'source-db-user', 'source-db-password', 'source-db-schema'.
+Mandatory: 'source-db-type', 'source-db-user', 'source-db-schema', and one of ['source-db-name', 'oracle-db-sid', 'oracle-tns-alias'].
+Guidelines:
+	- The first line must be a header row.
+	- Ensure mandatory fields are included and correctly spelled.
+`
+
 	// defining flags
-	assessMigrationBulkCmd.Flags().StringVar(&fleetConfigPath, "fleet-config-file", "", "File containing the connection params for schema(s) to be assessed (required)")
+	assessMigrationBulkCmd.Flags().StringVar(&fleetConfigPath, "fleet-config-file", "", fleetConfigFileHelp)
 	BoolVar(assessMigrationBulkCmd.Flags(), &continueOnError, "continue-on-error", true, "If true, it will print the error message on console and continue to next schema’s assessment")
-	assessMigrationBulkCmd.Flags().StringVar(&bulkAssessmentDir, "bulk-assessment-dir", "", "Top-level directory storing the export-dir of each schema (default: pwd)")
+	assessMigrationBulkCmd.Flags().StringVar(&bulkAssessmentDir, "bulk-assessment-dir", "", "Top-level directory storing the export-dir of each schema")
 	BoolVar(assessMigrationBulkCmd.Flags(), &startClean, "start-clean", false, "Cleans up all the export-dirs in bulk assessment directory to start everything from scratch")
 
 	// marking mandatory flags
@@ -158,11 +175,17 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 	if dbConfig.User != "" {
 		args = append(args, "--source-db-user", dbConfig.User)
 	}
+	if dbConfig.DbName != "" {
+		args = append(args, "--source-db-name", dbConfig.DbName)
+	} else {
+		// special handling due to issue https://yugabyte.atlassian.net/browse/DB-12481
+		args = append(args, `--source-db-name ""`)
+	}
 	if dbConfig.TnsAlias != "" {
 		args = append(args, "--oracle-tns-alias", dbConfig.TnsAlias)
 	}
 	if dbConfig.SID != "" {
-		args = append(args, "--source-db-name", dbConfig.SID)
+		args = append(args, "--oracle-db-sid", dbConfig.SID)
 	}
 	if dbConfig.Host != "" {
 		args = append(args, "--source-db-host", dbConfig.Host)
@@ -173,6 +196,9 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 	return args
 }
 
+/*
+Sample header: <source-db-type>,<source-db-host>,<source-db-port>,<source-db-name>,<oracle-db-sid>,<oracle-tns-alias>,<source-db-user>,<source-db-password>,<source-db-schema>
+*/
 func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	log.Infof("parsing fleet config file %q", filePath)
 	var dbConfigs []AssessMigrationDBConfig
@@ -182,41 +208,71 @@ func parseFleetConfigFile(filePath string) ([]AssessMigrationDBConfig, error) {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) == 0 {
-			continue
-		}
-		dbConfig := parseFleetConfigLine(line)
-		dbConfigs = append(dbConfigs, dbConfig)
+	reader := csv.NewReader(file)
+	header, err := reader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read fleet config file header: %w", err)
 	}
+	header = normalizeFleetConfFileHeader(header)
 
-	if err := scanner.Err(); err != nil {
-		return nil, err
+	lineNum := 2
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("failed to read line %d: %w", lineNum, err)
+		}
+
+		dbConfig, err := createDBConfigFromRecord(record, header)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create config for line %d in fleet config file: %w", lineNum, err)
+		}
+		dbConfigs = append(dbConfigs, *dbConfig)
+		lineNum++
 	}
 
 	return dbConfigs, nil
 }
 
-/*
-Format: covers both SSL and non-SSL cases
-
-	<dbtype>,<hostname>,<port>,<service_name>,<sid>,<tns_alias>,<username>,<password>,<schema>
-*/
-func parseFleetConfigLine(line string) AssessMigrationDBConfig {
-	config := strings.Split(line, ",")
-	return AssessMigrationDBConfig{
-		DbType:      config[0],
-		Host:        config[1],
-		Port:        config[2],
-		ServiceName: config[3],
-		SID:         config[4],
-		TnsAlias:    config[5],
-		User:        config[6],
-		Password:    config[7],
-		Schema:      config[8],
+func createDBConfigFromRecord(record []string, header []string) (*AssessMigrationDBConfig, error) {
+	configMap := make(map[string]string)
+	for i, field := range header {
+		configMap[field] = strings.TrimSpace(record[i])
 	}
+
+	// Check if mandatory fields are present and non-empty
+	missingFields := []string{}
+	for _, field := range fleetConfRequiredFields {
+		if val, ok := configMap[field]; !ok || val == "" {
+			missingFields = append(missingFields, field)
+		}
+	}
+	hasDBIdentifier := false
+	for _, field := range fleetConfDbIdentifierFields {
+		if val, ok := configMap[field]; ok && val != "" {
+			hasDBIdentifier = true
+			break
+		}
+	}
+	if !hasDBIdentifier {
+		missingFields = append(missingFields, fmt.Sprintf("one of [%s]", strings.Join(fleetConfDbIdentifierFields, ", ")))
+	}
+	if len(missingFields) > 0 {
+		return nil, fmt.Errorf("mandatory fields missing in the record: '%s'", strings.Join(missingFields, "', '"))
+	}
+
+	return &AssessMigrationDBConfig{
+		DbType:   configMap[SOURCE_DB_TYPE],
+		Host:     configMap[SOURCE_DB_HOST],
+		Port:     configMap[SOURCE_DB_PORT],
+		DbName:   configMap[SOURCE_DB_NAME],
+		SID:      configMap[ORACLE_DB_SID],
+		TnsAlias: configMap[ORACLE_TNS_ALIAS],
+		User:     configMap[SOURCE_DB_USER],
+		Password: configMap[SOURCE_DB_PASSWORD],
+		Schema:   configMap[SOURCE_DB_SCHEMA],
+	}, nil
 }
 
 const REPORT_PATH_NOTE = "To automatically apply the recommendations, continue the migration steps(export-schema, import-schema, ..) using the auto-generated export-dirs.</br> " +
@@ -295,7 +351,7 @@ func generateBulkAssessmentJsonReport() error {
 		return fmt.Errorf("failed to write bulk assessment report to file: %w", err)
 	}
 
-	utils.PrintAndLog("generated bulk assessment JSON report at: %s", reportPath)
+	utils.PrintAndLog("\ngenerated bulk assessment JSON report at: %s", reportPath)
 	return nil
 }
 
@@ -333,13 +389,119 @@ func validateBulkAssessmentDirFlag() {
 	}
 }
 
-/*
-	TODO:
-		check if value valid or not,
-		expected/mandatory params are passed
-		strip any trailing spaces
-	func validateFleetConfigFilePath() {}
-*/
+var fleetConfFileHeaderFields = []string{SOURCE_DB_TYPE, SOURCE_DB_HOST, SOURCE_DB_PORT, SOURCE_DB_NAME, ORACLE_DB_SID,
+	ORACLE_TNS_ALIAS, SOURCE_DB_USER, SOURCE_DB_PASSWORD, SOURCE_DB_SCHEMA}
+
+var fleetConfRequiredFields = []string{SOURCE_DB_TYPE, SOURCE_DB_USER, SOURCE_DB_SCHEMA}
+var fleetConfDbIdentifierFields = []string{SOURCE_DB_NAME, ORACLE_DB_SID, ORACLE_TNS_ALIAS}
+
+// TODO: add unit tests for this function
+func validateFleetConfigFile(filePath string) error {
+	// Check if the file exists
+	if !utils.FileOrFolderExists(filePath) {
+		return fmt.Errorf("fleet config file %q does not exist", filePath)
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("could not open fleet config file: %w", err)
+	}
+	defer file.Close()
+
+	// Check if the file is empty
+	stat, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("could not obtain fleet config file stats: %w", err)
+	}
+	if stat.Size() == 0 {
+		return fmt.Errorf("fleet config file is empty")
+	}
+
+	reader := csv.NewReader(file)
+	// we can set it as 0 to error out during Read() but we won't be able to tell - "expected %d fields, got %d"
+	reader.FieldsPerRecord = -1
+	header, err := reader.Read()
+	if err != nil {
+		return fmt.Errorf("failed to read the header: %w", err)
+	} else if len(header) == 0 {
+		return fmt.Errorf("header is empty or missing")
+	}
+	header = normalizeFleetConfFileHeader(header)
+
+	// Validate that all fields in the header are allowed ones
+	invalidFields := []string{}
+	for _, field := range header {
+		if !utils.ContainsString(fleetConfFileHeaderFields, field) {
+			invalidFields = append(invalidFields, field)
+		}
+	}
+	if len(invalidFields) > 0 {
+		return fmt.Errorf("invalid fields found in the fleet config file's header: ['%s']", strings.Join(invalidFields, "', '"))
+	}
+
+	// Validate that all the mandatory fields are provided in the header
+	err = checkMandatoryFieldsInHeader(header)
+	if err != nil {
+		return fmt.Errorf("mandatory fields in header validation failed: %w", err)
+	}
+
+	// Validate all records to ensure they are correctly formatted as CSV
+	lineNumber := 2 // start after header line
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("error reading line %d: %w", lineNumber, err)
+		}
+		if len(record) != len(header) {
+			return fmt.Errorf("line %d does not match header length: expected %d fields, got %d",
+				lineNumber, len(header), len(record))
+		}
+		lineNumber++
+	}
+
+	// Check if there were no lines after the header
+	if lineNumber == 2 {
+		return fmt.Errorf("fleet config file contains only a header with no data lines")
+	}
+	return nil
+}
+
+func checkMandatoryFieldsInHeader(header []string) error {
+	missingFields := []string{}
+	for _, field := range fleetConfRequiredFields {
+		if !utils.ContainsString(header, field) {
+			missingFields = append(missingFields, field)
+		}
+	}
+
+	// Check if at least one of the optional DB identifier fields is present
+	hasDBIdentifier := false
+	for _, field := range fleetConfDbIdentifierFields {
+		if utils.ContainsString(header, field) {
+			hasDBIdentifier = true
+			break
+		}
+	}
+
+	if !hasDBIdentifier {
+		missingFields = append(missingFields, fmt.Sprintf("one of [%s]", strings.Join(fleetConfDbIdentifierFields, ", ")))
+	}
+	if len(missingFields) > 0 {
+		return fmt.Errorf("mandatory fields missing in the header: '%s'", strings.Join(missingFields, "', '"))
+	}
+	return nil
+}
+
+func normalizeFleetConfFileHeader(header []string) []string {
+	header = utils.ToCaseInsensitiveNames(header)
+	for i := 0; i < len(header); i++ {
+		header[i] = strings.TrimSpace(header[i])
+	}
+	return header
+}
 
 func isBulkAssessmentCommand(cmd *cobra.Command) bool {
 	return cmd.Name() == assessMigrationBulkCmd.Name()
