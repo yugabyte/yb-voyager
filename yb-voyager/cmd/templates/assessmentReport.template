@@ -48,6 +48,15 @@
             border: 1px solid #ccc;
             padding: 10px;
         }
+        #refer-p {
+            font-size: 0.8em; 
+            color: inherit; 
+        }
+
+        #refer-p a {
+            color: inherit; 
+        }
+
     </style>
 </head>
 <body>
@@ -62,6 +71,12 @@
         <p>
         {{with .SchemaSummary.DBVersion}}
         <p><strong>Database Version:</strong> {{.}}</p>
+        {{end}}
+
+        {{if eq .SchemaSummary.MigrationComplexity "NOT AVAILABLE"}} 
+        <!-- Do nothing -->
+        {{else}} 
+        <p><strong>Migration Complexity:</strong> {{.}}</p>
         {{end}}
 
         <h2>Database Objects</h2>
@@ -166,8 +181,8 @@
         {{range .UnsupportedFeatures}}
             {{if .Objects}} <!-- Check if Objects is not empty -->
                 {{ $hasUnsupportedFeatures = true }}
-                {{if eq .FeatureName "Unsupported DDL operations"}} <!-- for this feature we are displaying the DDLs-->
-                    <h3>{{.FeatureName}}</h3>
+                {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
+                    <h4>{{.FeatureName}}</h4>
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -176,7 +191,7 @@
                         </ul>
                     </div>
                 {{else}}
-                    <h3>{{.FeatureName}}</h3>
+                    <h4>{{.FeatureName}}</h4>
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -185,6 +200,9 @@
                         </ul>
                     </div>
                 {{end}}
+                 {{if .DocsLink}}
+                    <p id="refer-p"><a href="{{.DocsLink}}" target="_blank">Details</a></p>
+                {{end}} 
             {{end}}
         {{end}}
         {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
@@ -203,6 +221,39 @@
                         {{end}}
                     </ul>
             </div>
+        {{end}}
+
+        {{ if .MigrationCaveats}}
+            <h2>Migration caveats</h2>
+            <p></p>
+            {{range .MigrationCaveats}}
+                {{if .Objects}} <!-- Check if Objects is not empty -->
+                    {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
+                        <h4>{{.FeatureName}}</h4>
+                        <p>{{.FeatureDescription}}</p>
+                        <div class="scrollable-div">
+                            <ul>
+                                {{range .Objects}}
+                                    <li>{{.SqlStatement}}</li>
+                                {{end}}
+                            </ul>
+                        </div>
+                    {{else}}
+                        <h4>{{.FeatureName}}</h4>
+                        <p>{{.FeatureDescription}}</p>
+                        <div class="scrollable-div">
+                            <ul>
+                                {{range .Objects}}
+                                    <li>{{.ObjectName}}</li>
+                                {{end}}
+                            </ul>
+                        </div>
+                    {{end}}
+                    {{if .DocsLink}}
+                        <p id="refer-p"><a href="{{.DocsLink}}" target="_blank">Details</a></p>
+                    {{end}} 
+                {{end}}
+            {{end}}
         {{end}}
     </div>
 </body>

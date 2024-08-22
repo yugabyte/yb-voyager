@@ -974,6 +974,60 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	return nil
 }
 
+var (
+	UNSUPPORTED_DATATYPE_XML_ISSUE  = fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE)
+	UNSUPPORTED_DATATYPE_XID_ISSUE  = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
+	APP_CHANGES_HIGH_THRESHOLD      = 5
+	APP_CHANGES_MEDIUM_THRESHOLD    = 1
+	SCHEMA_CHANGES_HIGH_THRESHOLD   = int(math.Inf(1))
+	SCHEMA_CHANGES_MEDIUM_THRESHOLD = 20
+)
+
+var appChanges = []string{
+	INHERITANCE_ISSUE_REASON,
+	CONVERSION_ISSUE_REASON,
+	DEFERRABLE_CONSTRAINT_ISSUE,
+	UNSUPPORTED_DATATYPE_XML_ISSUE,
+	UNSUPPORTED_DATATYPE_XID_ISSUE,
+	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this
+}
+
+func readEnvForAppOrSchemaCounts() {
+	APP_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_HIGH_THRESHOLD", APP_CHANGES_HIGH_THRESHOLD)
+	APP_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_MEDIUM_THRESHOLD", APP_CHANGES_MEDIUM_THRESHOLD)
+	SCHEMA_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_HIGH_THRESHOLD", SCHEMA_CHANGES_HIGH_THRESHOLD)
+	SCHEMA_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_MEDIUM_THRESHOLD", SCHEMA_CHANGES_MEDIUM_THRESHOLD)
+}
+
+// Migration complexity calculation from the conversion issues
+func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaReport) string {
+	if sourceDBType != POSTGRESQL {
+		return "NOT AVAILABLE"
+	}
+	if analysisReport.SchemaSummary.MigrationComplexity != "" {
+		return analysisReport.SchemaSummary.MigrationComplexity
+	}
+	log.Infof("Calculating migration complexity..")
+	readEnvForAppOrSchemaCounts()
+	appChangesCount := 0
+	for _, issue := range schemaAnalysisReport.Issues {
+		for _, appChange := range appChanges {
+			if strings.Contains(issue.Reason, appChange) {
+				appChangesCount++
+			}
+		}
+	}
+	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
+
+	if appChangesCount > APP_CHANGES_HIGH_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_HIGH_THRESHOLD {
+		return HIGH
+	} else if appChangesCount > APP_CHANGES_MEDIUM_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_MEDIUM_THRESHOLD {
+		return MEDIUM
+	}
+	//LOW in case appChanges == 0 or schemaChanges [0-20]
+	return LOW
+}
+
 // =====================================================================
 
 type AssessmentReport struct {
@@ -986,6 +1040,7 @@ type AssessmentReport struct {
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
+	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 }
 
 type AssessmentDetail struct {
@@ -1001,23 +1056,23 @@ type BulkAssessmentReport struct {
 }
 
 type AssessMigrationDBConfig struct {
-	DbType      string
-	Host        string
-	Port        string
-	ServiceName string
-	SID         string
-	TnsAlias    string
-	User        string
-	Password    string
-	Schema      string
+	DbType   string
+	Host     string
+	Port     string
+	DbName   string
+	SID      string
+	TnsAlias string
+	User     string
+	Password string
+	Schema   string
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	switch {
 	case dbConfig.SID != "":
 		return dbConfig.SID
-	case dbConfig.ServiceName != "":
-		return dbConfig.ServiceName
+	case dbConfig.DbName != "":
+		return dbConfig.DbName
 	case dbConfig.TnsAlias != "":
 		return dbConfig.TnsAlias
 	default:
@@ -1170,12 +1225,12 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 			exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 			if err != nil {
 				if !errors.Is(err, fs.ErrNotExist) {
-					log.Errorf("callhome: failed to read export status file: %v", err)
+					log.Infof("callhome: failed to read export status file: %v", err)
 				}
 			} else {
 				exportedSnapshotRow, _, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
 				if err != nil {
-					log.Errorf("callhome: error while getting exported snapshot rows map: %v", err)
+					log.Infof("callhome: error while getting exported snapshot rows map: %v", err)
 				}
 				exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 					exportDataPayload.TotalRows += value
@@ -1197,7 +1252,7 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 		exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 		dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 		if err != nil {
-			log.Errorf("callhome: error in reading export status: %v", err)
+			log.Infof("callhome: error in reading export status: %v", err)
 		}
 		if dbzmStatus != nil {
 			for _, tableExportStatus := range dbzmStatus.Tables {

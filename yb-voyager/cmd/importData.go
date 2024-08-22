@@ -618,7 +618,7 @@ func packAndSendImportDataPayload(status string) {
 	//Getting the imported snapshot details
 	importRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
-		log.Errorf("callhome: error in getting the import data: %v", err)
+		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
 		importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 			importDataPayload.TotalRows += value
