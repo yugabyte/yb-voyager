@@ -2,9 +2,9 @@ name: "MySQL: Migration Tests"
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'priyanshi/report-XML-XID-deferrable']
   pull_request:
-    branches: ['main']
+    branches: ['main', 'priyanshi/report-XML-XID-deferrable']
 
 jobs:
   run-mysql-migration-tests:
