@@ -8,7 +8,11 @@ Database Information
 Database Name                 : {{ .SchemaSummary.DBName }}
 Schema Name(s)                : {{ join .SchemaSummary.SchemaNames ", " }}
 DB Version                    : {{ .SchemaSummary.DBVersion }}
+{{if eq .SchemaSummary.MigrationComplexity "NOT AVAILABLE"}} 
+{{else}} 
 Migration Complexity          : {{ .SchemaSummary.MigrationComplexity }}
+{{end}}
+
 
 Schema Summary
 --------------- 

@@ -49,7 +49,11 @@
             <tr><th>Database Name</th><td>{{ .SchemaSummary.DBName }}</td></tr>
             <tr><th>Schema Name(s)</th><td>{{ join .SchemaSummary.SchemaNames ", " }}</td></tr>
             <tr><th>DB Version</th><td>{{ .SchemaSummary.DBVersion }}</td></tr>
-            <tr><th>Migration Complexity</th><td>{{ .SchemaSummary.MigrationComplexity }}</td></tr>
+            {{if eq .SchemaSummary.MigrationComplexity "NOT AVAILABLE"}} 
+            <!-- Do nothing -->
+            {{else}} 
+            <p><strong>Migration Complexity:</strong> {{.}}</p>
+            {{end}}
         </table>
     </div>
 
