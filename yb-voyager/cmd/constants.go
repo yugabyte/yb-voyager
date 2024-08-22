@@ -98,6 +98,9 @@ const (
 	REFERENCE_PARTITION = "REFERENCE PARTITION"
 	SYSTEM_PARTITION    = "SYSTEM PARTITION"
 
+	UNSUPPORTED_FEATURES  = "unsupported_features"
+	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
+
 	TABLE = "TABLE"
 
 	// assess-migration-bulk

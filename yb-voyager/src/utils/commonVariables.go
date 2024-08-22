@@ -94,6 +94,7 @@ type DBObject struct {
 }
 
 type Issue struct {
+	IssueType    string `json:"IssueType"`
 	ObjectType   string `json:"ObjectType"`
 	ObjectName   string `json:"ObjectName"`
 	Reason       string `json:"Reason"`

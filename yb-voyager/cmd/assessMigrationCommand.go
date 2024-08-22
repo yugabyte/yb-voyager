@@ -815,6 +815,8 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 		ALTER_TABLE_DISABLE_RULE_ISSUE, STORAGE_PARAMETERS_DDL_STMT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", []string{UNSUPPORTED_EXTENSION_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", []string{EXCLUSION_CONSTRAINT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", []string{DEFERRABLE_CONSTRAINT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
+
 	return unsupportedFeatures, nil
 }
 
@@ -906,6 +908,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	switch source.DBType {
 	case POSTGRESQL:
 		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
+		//adding XID here as data export import should not fail as YugabyteDB supports inserts on it but its functions are not supported
+		sourceUnsupportedDataTypes = append(sourceUnsupportedDataTypes, "xid")
 	case ORACLE:
 		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
 	default:
