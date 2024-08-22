@@ -168,13 +168,13 @@ func TestParseFleetConfigFile(t *testing.T) {
 			name: "Missing Mandatory Field in Record (source-db-user, source-db-schema)",
 			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
 oracle,,,dms`,
-			expectedErrSuffix: "mandatory fields missing in the record: 'source-db-user', 'source-db-schema'",
+			expectedErrSuffix: "failed to create config for line 2 in fleet config file: mandatory fields missing in the record: 'source-db-user', 'source-db-schema'",
 		},
 		{
 			name: "Missing Mandatory Field in Record (source-db-user, source-db-schema)",
 			fileContent: `source-db-type,source-db-user,schema,source-db-name
 oracle,,,`,
-			expectedErrSuffix: "mandatory fields missing in the record: 'source-db-user', 'source-db-schema', 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
+			expectedErrSuffix: "failed to create config for line 2 in fleet config file: mandatory fields missing in the record: 'source-db-user', 'source-db-schema', 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
 		},
 		// Multiple line Record Tests
 		{
@@ -183,7 +183,7 @@ oracle,,,`,
 oracle,user1,schema1,db1
 oracle,user2,,db2
 oracle,user3,,db3`,
-			expectedErrSuffix: "mandatory fields missing in the record: 'source-db-schema'",
+			expectedErrSuffix: "failed to create config for line 3 in fleet config file: mandatory fields missing in the record: 'source-db-schema'",
 		},
 		{
 			name: "Multi-Line Config - Missing DB Identifier on Fourth Line",
@@ -191,7 +191,7 @@ oracle,user3,,db3`,
 oracle,user1,schema1,db1
 oracle,user2,schema2,db2
 oracle,user3,schema3,`,
-			expectedErrSuffix: "mandatory fields missing in the record: 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
+			expectedErrSuffix: "failed to create config for line 4 in fleet config file: mandatory fields missing in the record: 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
 		},
 	}
 
