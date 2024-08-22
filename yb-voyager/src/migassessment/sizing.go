@@ -1178,13 +1178,28 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 	columnImpacts []ExpDataLoadTimeColumnsImpact, objectType string) float64 {
 	numOfColumnsInTable := lo.Ternary(table.ColumnCount.Valid, table.ColumnCount.Int64, 1)
 
-	// Default to the first entry if no suitable entry is found
-	selectedImpact := columnImpacts[0]
+	// Initialize the selectedImpact as nil and minDiff with a high value
+	var selectedImpact ExpDataLoadTimeColumnsImpact
+	minDiff := int64(math.MaxInt64)
+	found := false
 
 	for _, columnsImpactData := range columnImpacts {
 		if columnsImpactData.numColumns.Int64 >= numOfColumnsInTable {
-			selectedImpact = columnsImpactData
-			break
+			diff := columnsImpactData.numColumns.Int64 - numOfColumnsInTable
+			if diff < minDiff {
+				minDiff = diff
+				selectedImpact = columnsImpactData
+				found = true
+			}
+		}
+	}
+
+	// If no suitable impact is found, use the one with the maximum ColumnCount
+	if !found {
+		for _, columnsImpactData := range columnImpacts {
+			if columnsImpactData.numColumns.Int64 > selectedImpact.numColumns.Int64 {
+				selectedImpact = columnsImpactData
+			}
 		}
 	}
 
