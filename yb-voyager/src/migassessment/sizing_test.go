@@ -29,7 +29,7 @@ import (
 
 var AssessmentDbSelectQuery = fmt.Sprintf("(?i)SELECT schema_name,.* FROM %v ORDER BY .* ASC", TABLE_INDEX_STATS)
 var AssessmentDBColumns = []string{"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
-	"is_index", "parent_table_name", "size_in_bytes"}
+	"is_index", "parent_table_name", "size_in_bytes", "column_count"}
 
 var colocatedThroughput = []ExpDataThroughput{
 	{
@@ -88,8 +88,8 @@ var colocatedLimits = []ExpDataColocatedLimit{
 func TestGetSourceMetadata_SuccessReadingSourceMetadata(t *testing.T) {
 	db, mock := createMockDB(t)
 	rows := sqlmock.NewRows(AssessmentDBColumns).
-		AddRow("public", "table1", 1000, 10, 5, false, "", 1048576000).
-		AddRow("public", "index1", 0, 0, 0, true, "table1", 104857600)
+		AddRow("public", "table1", 1000, 10, 5, false, "", 1048576000, 5).
+		AddRow("public", "index1", 0, 0, 0, true, "table1", 104857600, 5)
 
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
@@ -125,7 +125,7 @@ func TestGetSourceMetadata_QueryErrorIfTableDoesNotExistOrColumnsUnavailable(t *
 func TestGetSourceMetadata_RowScanError(t *testing.T) {
 	db, mock := createMockDB(t)
 	// 4th column is expected to be int, but as it is float, it will throw an error
-	rows := sqlmock.NewRows(AssessmentDBColumns).AddRow("public", "table1", 1000, 10.5, 5, false, "", 1048576000).
+	rows := sqlmock.NewRows(AssessmentDBColumns).AddRow("public", "table1", 1000, 10.5, 5, false, "", 1048576000, 5).
 		RowError(1, errors.New("row scan error"))
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
@@ -1344,9 +1344,9 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWitho
 	}
 
 	// Define expected results
-	// multiplication factor: closest MF of 80 columns ==> (2.24/80 : x/100) ==> x = 2.8
-	// Calculated as table0: 2.8 * ((1134 * 23) / 19) / 60
-	expectedTime := 65.0
+	// multiplication factor: high MF of 160 columns ==> 4.13
+	// Calculated as table0: 4.13 * ((1134 * 23) / 19) / 60
+	expectedTime := 95.0
 	expectedJobs := int64(1)
 	if estimatedTime != expectedTime || parallelJobs != expectedJobs {
 		t.Errorf("calculateTimeTakenAndParallelJobsForImport() = (%v, %v), want (%v, %v)",
@@ -1398,7 +1398,7 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWitho
 	}
 
 	// Define expected results
-	// multiplication factor: closest MF of 80 columns ==> (4.13/160 : x/250) ==> x = 6.45
+	// multiplication factor: closest MF of 160 columns ==> (4.13/160 : x/250) ==> x = 6.45
 	// Calculated as table0: 6.45 * ((1134 * 23) / 19) / 60
 	expectedTime := 148.0
 	expectedJobs := int64(1)

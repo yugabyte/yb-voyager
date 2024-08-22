@@ -1179,17 +1179,28 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 	numOfColumnsInTable := lo.Ternary(table.ColumnCount.Valid, table.ColumnCount.Int64, 1)
 
 	// Default to the first entry if no suitable entry is found
-	selectedImpactEntry := columnImpacts[0]
+	selectedImpact := columnImpacts[0]
 
 	for _, columnsImpactData := range columnImpacts {
 		if columnsImpactData.numColumns.Int64 >= numOfColumnsInTable {
-			selectedImpactEntry = columnsImpactData
+			selectedImpact = columnsImpactData
 			break
 		}
 	}
-	// impact on load time for given table would be relative to the closest record's impact
-	return lo.Ternary(objectType == COLOCATED, selectedImpactEntry.multiplicationFactorColocated.Float64, selectedImpactEntry.multiplicationFactorSharded.Float64)
 
+	var multiplicationFactor float64
+	// multiplication factor is different for colocated and sharded tables.
+	// multiplication factor would be maximum of the two:
+	//	max of (mf of selected entry from experiment data,  mf for table wrt selected entry)
+	if objectType == COLOCATED {
+		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorColocated.Float64,
+			(selectedImpact.multiplicationFactorColocated.Float64/float64(selectedImpact.numColumns.Int64))*float64(numOfColumnsInTable))
+	} else if objectType == SHARDED {
+		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorSharded.Float64,
+			(selectedImpact.multiplicationFactorSharded.Float64/float64(selectedImpact.numColumns.Int64))*float64(numOfColumnsInTable))
+	}
+
+	return multiplicationFactor
 }
 
 /*
