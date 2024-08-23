@@ -1095,6 +1095,8 @@ func (dbConfig *AssessMigrationDBConfig) GetJsonAssessmentReportPath() string {
 	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json")
 }
 
+// path to the assessment report without extension(like .json or .html).
+// example: bulkAssessmentDir/assessment/reports/assessmentReport
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportBasePath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
 	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport")

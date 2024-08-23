@@ -28,6 +28,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -200,10 +201,10 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 		args = append(args, "--source-db-port", dbConfig.Port)
 	}
 
-	// Always safe to use --start-clean and --yes to cleanup if there is some state from previous runs in export-dir
+	// Always safe to use --start-clean to cleanup if there is some state from previous runs in export-dir
 	// since bulk command has separate check to decide beforehand whether the report exists or assessment needs to be performed.
-	args = append(args, "--start-clean", "true",
-		"--yes", "true")
+	args = append(args, "--start-clean", "true")
+	args = append(args, "--yes", lo.Ternary(utils.DoNotPrompt, "true", "false"))
 	return args
 }
 
@@ -252,7 +253,7 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 		configMap[field] = strings.TrimSpace(record[i])
 	}
 
-	// Check if mandatory fields are present and non-empty
+	// Check if mandatory fields[fleetConfigRequiredFields + fleetConfDbIdentifierFields] are present and non-empty
 	missingFields := []string{}
 	for _, field := range fleetConfRequiredFields {
 		if val, ok := configMap[field]; !ok || val == "" {
@@ -274,7 +275,7 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 	}
 
 	// Check if the source-db-type is supported (only 'oracle' allowed)
-	if dbType, ok := configMap[SOURCE_DB_TYPE]; ok && strings.ToLower(dbType) != ORACLE {
+	if dbType := configMap[SOURCE_DB_TYPE]; strings.ToLower(dbType) != ORACLE {
 		return nil, fmt.Errorf("unsupported/invalid source-db-type: '%s'. Only '%s' is supported", dbType, ORACLE)
 	}
 
@@ -297,7 +298,8 @@ const REPORT_PATH_NOTE = "To automatically apply the recommendations, continue t
 func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	log.Infof("generating bulk assessment report")
 	for _, dbConfig := range dbConfigs {
-		assessmentReportPath := dbConfig.GetAssessmentReportBasePath()
+		// extension will set later on during html/json report generation
+		assessmentReportBasePath := dbConfig.GetAssessmentReportBasePath()
 		var assessmentDetail = AssessmentDetail{
 			Schema:             dbConfig.Schema,
 			DatabaseIdentifier: dbConfig.GetDatabaseIdentifier(),
@@ -306,11 +308,11 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 		if !isMigrationAssessmentDoneForConfig(dbConfig) {
 			assessmentDetail.Status = ERROR
 		} else {
-			assessmentReportRelPath, err := filepath.Rel(bulkAssessmentDir, assessmentReportPath)
+			assessmentReportRelBasePath, err := filepath.Rel(bulkAssessmentDir, assessmentReportBasePath)
 			if err != nil {
 				return fmt.Errorf("failed to get relative path for %s schema assessment report: %w", dbConfig.GetSchemaIdentifier(), err)
 			}
-			assessmentDetail.ReportPath = assessmentReportRelPath
+			assessmentDetail.ReportPath = assessmentReportRelBasePath
 		}
 		bulkAssessmentReport.Details = append(bulkAssessmentReport.Details, assessmentDetail)
 	}
