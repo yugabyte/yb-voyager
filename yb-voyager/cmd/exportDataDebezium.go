@@ -553,12 +553,12 @@ func createYBReplicationSlotAndPublication(finalTableList []string) error {
 	}()
 
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
-	err = ybDB.CreatePublication(replicationConn, publicationName, finalTableList, true)
+	err = ybDB.CreatePublication(replicationConn, publicationName, finalTableList)
 	if err != nil {
 		return fmt.Errorf("create publication: %v", err)
 	}
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
-	slotName, err := ybDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
+	slotName, err := ybDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName)
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}

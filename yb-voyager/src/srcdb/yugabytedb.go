@@ -839,16 +839,14 @@ func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
 }
 
-func (yb *YugabyteDB) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string, dontCreateIfAlreadyExists bool) (string, error) {
-	if dontCreateIfAlreadyExists {
-		exists, err := yb.CheckIfReplicationSlotExists(replicationSlotName)
-		if err != nil {
-			return "", err
-		}
-		if exists {
-			log.Infof("replication slot %s already exists, skipping creation", replicationSlotName)
-			return replicationSlotName, nil
-		}
+func (yb *YugabyteDB) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) (string, error) {
+	exists, err := yb.CheckIfReplicationSlotExists(replicationSlotName)
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		log.Infof("replication slot %s already exists, skipping creation", replicationSlotName)
+		return replicationSlotName, nil
 	}
 
 	log.Infof("creating replication slot %s", replicationSlotName)
@@ -887,20 +885,19 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName string, tablelistQualifiedQuoted []string, dontCreateIfAlreadyExists bool) error {
-	if dontCreateIfAlreadyExists {
-		exists, err := yb.CheckIfPublicationSlotExists(publicationName)
-		if err != nil {
-			return err
-		}
-		if exists {
-			log.Infof("publication %s already exists, skipping creation", publicationName)
-			return nil
-		}
+func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName string, tablelistQualifiedQuoted []string) error {
+	exists, err := yb.CheckIfPublicationSlotExists(publicationName)
+	if err != nil {
+		return err
 	}
+	if exists {
+		log.Infof("publication %s already exists, skipping creation", publicationName)
+		return nil
+	}
+
 	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))
 	result := conn.Exec(context.Background(), stmt)
-	_, err := result.ReadAll()
+	_, err = result.ReadAll()
 	if err != nil {
 		return fmt.Errorf("create publication with stmt %s: %v", err, stmt)
 	}
