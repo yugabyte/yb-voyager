@@ -869,7 +869,7 @@ bulk_assessment(){
 
 fix_config_file() {
   local file="$1"
-  awk -F, 'NR==2 {$8="password"}1' OFS=, "$file" > tmp && mv tmp "$file"
+  awk -F, 'NR==3 {$8="password"}1' OFS=, "$file" > tmp && mv tmp "$file"
 }
 
 compare_and_validate_reports() {
