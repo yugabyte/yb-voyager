@@ -78,11 +78,12 @@ type SchemaReport struct {
 }
 
 type SchemaSummary struct {
-	DBName      string     `json:"DbName,omitempty"`
-	SchemaNames []string   `json:"SchemaNames,omitempty"`
-	DBVersion   string     `json:"DbVersion,omitempty"`
-	Notes       []string   `json:"Notes,omitempty"`
-	DBObjects   []DBObject `json:"DatabaseObjects"`
+	MigrationComplexity string     `json:"MigrationComplexity"`
+	DBName              string     `json:"DbName,omitempty"`
+	SchemaNames         []string   `json:"SchemaNames,omitempty"`
+	DBVersion           string     `json:"DbVersion,omitempty"`
+	Notes               []string   `json:"Notes,omitempty"`
+	DBObjects           []DBObject `json:"DatabaseObjects"`
 }
 
 type DBObject struct {
@@ -94,6 +95,7 @@ type DBObject struct {
 }
 
 type Issue struct {
+	IssueType    string `json:"IssueType"`
 	ObjectType   string `json:"ObjectType"`
 	ObjectName   string `json:"ObjectName"`
 	Reason       string `json:"Reason"`
@@ -101,6 +103,7 @@ type Issue struct {
 	FilePath     string `json:"FilePath"`
 	Suggestion   string `json:"Suggestion"`
 	GH           string `json:"GH"`
+	DocsLink     string `json:"DocsLink,omitempty"`
 }
 
 type IndexInfo struct {

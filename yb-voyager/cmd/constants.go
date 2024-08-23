@@ -57,9 +57,9 @@ const (
 	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
 	ROW_UPDATE_STATUS_COMPLETED     = 3
 	COLOCATION_CLAUSE               = "colocation"
-	EASY                            = "EASY"
+	LOW                             = "LOW"
 	MEDIUM                          = "MEDIUM"
-	HARD                            = "HARD"
+	HIGH                            = "HIGH"
 	//phase names used in call-home payload
 	ANALYZE_PHASE                    = "analyze-schema"
 	EXPORT_SCHEMA_PHASE              = "export-schema"
@@ -97,6 +97,9 @@ const (
 	INHERITED_TYPE      = "INHERITED TYPE"
 	REFERENCE_PARTITION = "REFERENCE PARTITION"
 	SYSTEM_PARTITION    = "SYSTEM PARTITION"
+
+	UNSUPPORTED_FEATURES  = "unsupported_features"
+	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
 
 	TABLE = "TABLE"
 

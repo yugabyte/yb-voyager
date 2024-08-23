@@ -1,5 +1,6 @@
 {
 	"SchemaSummary": {
+		"MigrationComplexity": "HIGH",
 		"DbName": "pg_assessment_report",
 		"SchemaNames": [
 			"public",
@@ -35,8 +36,8 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 55,
-				"ObjectNames": "public.test_exclude_basic, public.sydney, schema2.ext_test, public.session_log2, schema2.audit, public.\"Recipients\", schema2.boston, schema2.mixed_data_types_table2, public.mixed_data_types_table2, schema2.\"Case_Sensitive_Columns\", schema2.employees2, schema2.sydney, schema2.session_log1, schema2.tt, public.audit, public.ext_test, public.session_log1, schema2.child_table, schema2.orders, schema2.products, public.\"Mixed_Case_Table_Name_Test\", public.session_log, public.tt, public.with_example1, schema2.\"Mixed_Case_Table_Name_Test\", schema2.c, public.mixed_data_types_table1, schema2.parent_table, public.employees2, schema2.\"WITH\", schema2.session_log2, schema2.with_example2, public.parent_table, schema2.session_log, public.\"WITH\", public.london, schema2.sales_region, schema2.london, public.products, schema2.foo, public.boston, public.foo, public.orders, schema2.with_example1, test_views.view_table1, public.\"Case_Sensitive_Columns\", public.sales_region, public.child_table, public.orders2, schema2.\"Recipients\", test_views.view_table2, public.c, public.with_example2, schema2.mixed_data_types_table1, schema2.orders2"
+				"TotalCount": 57,
+				"ObjectNames": "public.test_xml_type, schema2.test_xml_type, public.test_exclude_basic, public.sydney, schema2.ext_test, public.session_log2, schema2.audit, public.\"Recipients\", schema2.boston, schema2.mixed_data_types_table2, public.mixed_data_types_table2, schema2.\"Case_Sensitive_Columns\", schema2.employees2, schema2.sydney, schema2.session_log1, schema2.tt, public.audit, public.ext_test, public.session_log1, schema2.child_table, schema2.orders, schema2.products, public.\"Mixed_Case_Table_Name_Test\", public.session_log, public.tt, public.with_example1, schema2.\"Mixed_Case_Table_Name_Test\", schema2.c, public.mixed_data_types_table1, schema2.parent_table, public.employees2, schema2.\"WITH\", schema2.session_log2, schema2.with_example2, public.parent_table, schema2.session_log, public.\"WITH\", public.london, schema2.sales_region, schema2.london, public.products, schema2.foo, public.boston, public.foo, public.orders, schema2.with_example1, test_views.view_table1, public.\"Case_Sensitive_Columns\", public.sales_region, public.child_table, public.orders2, schema2.\"Recipients\", test_views.view_table2, public.c, public.with_example2, schema2.mixed_data_types_table1, schema2.orders2"
 			},
 			{
 				"ObjectType": "INDEX",
@@ -136,9 +137,11 @@
 				"schema2.london",
 				"schema2.boston",
 				"schema2.sydney",
-				"public.test_exclude_basic"
+				"public.test_exclude_basic",
+				"public.test_xml_type",
+				"schema2.test_xml_type"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 60 objects (53 tables and 7 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 62 objects (55 tables and 7 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -234,6 +237,18 @@
 			"TableName": "mixed_data_types_table2",
 			"ColumnName": "lseg_data",
 			"DataType": "lseg"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "test_xml_type",
+			"ColumnName": "data",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "schema2",
+			"TableName": "test_xml_type",
+			"ColumnName": "data",
+			"DataType": "xml"
 		}
 	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
@@ -242,35 +257,37 @@
 			"FeatureName": "GIST indexes",
 			"Objects": [
 				{
-					"ObjectName": "idx_box_data",
+					"ObjectName": "idx_box_data ON public.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_box_data ON public.mixed_data_types_table1 USING gist (box_data);"
 				},
 				{
-					"ObjectName": "idx_point_data",
+					"ObjectName": "idx_point_data ON public.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_point_data ON public.mixed_data_types_table1 USING gist (point_data);"
 				},
 				{
-					"ObjectName": "idx_box_data",
+					"ObjectName": "idx_box_data ON schema2.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_box_data ON schema2.mixed_data_types_table1 USING gist (box_data);"
 				},
 				{
-					"ObjectName": "idx_point_data",
+					"ObjectName": "idx_point_data ON schema2.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_point_data ON schema2.mixed_data_types_table1 USING gist (point_data);"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Constraint triggers",
 			"Objects": [
 				{
-					"ObjectName": "enforce_shipped_date_constraint",
+					"ObjectName": "enforce_shipped_date_constraint ON public.orders2",
 					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON public.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION public.prevent_update_shipped_without_date();"
 				},
 				{
-					"ObjectName": "enforce_shipped_date_constraint",
+					"ObjectName": "enforce_shipped_date_constraint ON schema2.orders2",
 					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON schema2.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION schema2.prevent_update_shipped_without_date();"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Inherited tables",
@@ -283,10 +300,11 @@
 					"ObjectName": "schema2.child_table",
 					"SqlStatement": "CREATE TABLE schema2.child_table (\n    specific_column1 date\n)\nINHERITS (schema2.parent_table);"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
-			"FeatureName": "Tables with Stored generated columns",
+			"FeatureName": "Tables with stored generated columns",
 			"Objects": [
 				{
 					"ObjectName": "public.employees2",
@@ -296,32 +314,43 @@
 					"ObjectName": "schema2.employees2",
 					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
 				}
-			]
+			],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Conversion objects",
-			"Objects": []
+			"Objects": [],
+			"DocsLink": "TBD"
 		},
 		{
-			"FeatureName": "Gin Indexes on Multi-columns",
-			"Objects": []
+			"FeatureName": "Gin indexes on multi-columns",
+			"Objects": [],
+			"DocsLink": "TBD"
 		},
 		{
-			"FeatureName": "Unsupported DDL operations",
-			"Objects": [
-				{
-					"ObjectName": "public.sales_region",
-					"SqlStatement": "ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
-				},
-				{
-					"ObjectName": "schema2.sales_region",
-					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
-				}
-			]
+			"FeatureName": "Setting attribute=value on column",
+			"Objects": [],
+			"DocsLink": "TBD"
+		},
+		{
+			"FeatureName": "Disabling rule on table",
+			"Objects": [],
+			"DocsLink": "TBD"
+		},
+		{
+			"FeatureName": "Clustering table on index",
+			"Objects": [],
+			"DocsLink": "TBD"
+		},
+		{
+			"FeatureName": "Storage parameters in DDLs",
+			"Objects": [],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Extensions",
-			"Objects": []
+			"Objects": [],
+			"DocsLink": "TBD"
 		},
 		{
 			"FeatureName": "Exclusion constraints",
@@ -330,7 +359,22 @@
 					"ObjectName": "public.test_exclude_basic",
 					"SqlStatement": "ALTER TABLE ONLY public.test_exclude_basic\n    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);"
 				}
-			]
+			],
+			"DocsLink": "TBD"
+		},
+		{
+			"FeatureName": "Deferrable constraints",
+			"Objects": [
+				{
+					"ObjectName": "public.orders2",
+					"SqlStatement": "ALTER TABLE ONLY public.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
+				},
+				{
+					"ObjectName": "schema2.orders2",
+					"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
+				}
+			],
+			"DocsLink": "TBD"
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -370,6 +414,34 @@
 			"ColumnCount": 4,
 			"Reads": 0,
 			"Writes": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "test_xml_type",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 2,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "test_xml_type",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 2,
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
@@ -1176,5 +1248,28 @@
 			"SizeInBytes": 0
 		}
 	],
-	"Notes": null
+	"Notes": null,
+	"MigrationCaveats": [
+		{
+			"FeatureName": "Alter partitioned tables to add Primary Key",
+			"Objects": [
+				{
+					"ObjectName": "public.sales_region",
+					"SqlStatement": "ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
+				},
+				{
+					"ObjectName": "schema2.sales_region",
+					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
+				}
+			],
+			"DocsLink": "TBD",
+			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported."
+		},
+		{
+			"FeatureName": "Foreign tables",
+			"Objects": [],
+			"DocsLink": "TBD",
+			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work."
+		}
+	]
 }
