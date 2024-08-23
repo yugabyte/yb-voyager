@@ -1054,6 +1054,11 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	} else if objType == "FOREIGN TABLE" {
 		createObjRegex = re("CREATE", opt("OR REPLACE"), "FOREIGN", "TABLE", ifNotExists, capture(ident))
 		objNameIndex = 3
+	} else if objType == "OPERATOR" {
+		// to include all three types of OPERATOR DDL
+		// CREATE OPERATOR / CREATE OPERATOR FAMILY / CREATE OPERATOR CLASS
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "OPERATOR", opt("FAMILY"), opt("CLASS"), ifNotExists, capture(ident))
+		objNameIndex = 5
 	} else { //TODO: check syntaxes for other objects and add more cases if required
 		createObjRegex = re("CREATE", opt("OR REPLACE"), objType, ifNotExists, capture(ident))
 		objNameIndex = 3
