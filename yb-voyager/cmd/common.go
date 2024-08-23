@@ -975,7 +975,7 @@ var (
 	UNSUPPORTED_DATATYPE_XID_ISSUE  = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
 	APP_CHANGES_HIGH_THRESHOLD      = 5
 	APP_CHANGES_MEDIUM_THRESHOLD    = 1
-	SCHEMA_CHANGES_HIGH_THRESHOLD   = int(math.Inf(1))
+	SCHEMA_CHANGES_HIGH_THRESHOLD   = 1000 // not adding infinity as converting is getting overflow negative number
 	SCHEMA_CHANGES_MEDIUM_THRESHOLD = 20
 )
 
