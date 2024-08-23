@@ -931,17 +931,18 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWitho
 			ObjectName: "table0", SchemaName: "public",
 			ColumnCount: sql.NullInt64{Int64: 5, Valid: true},
 			Size:        sql.NullFloat64{Float64: 23.0, Valid: true},
+			RowCount:    sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact
@@ -978,6 +979,7 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithO
 		{
 			ObjectName: "table0", Size: sql.NullFloat64{Float64: 23.0, Valid: true},
 			SchemaName: "public", ColumnCount: sql.NullInt64{Int64: 5, Valid: true},
+			RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	sourceIndexMetadata := []SourceDBMetadata{
@@ -986,11 +988,11 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithO
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1461},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 2009},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 
@@ -1030,7 +1032,10 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithO
 func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithFiveIndexes_Colocated(t *testing.T) {
 	// Define test data
 	colocatedTables := []SourceDBMetadata{
-		{ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true}, ColumnCount: sql.NullInt64{Int64: 5, Valid: true}},
+		{
+			ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 5, Valid: true}, RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
 	}
 	sourceIndexMetadata := []SourceDBMetadata{
 		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
@@ -1040,8 +1045,14 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithF
 		{ObjectName: "table0_idx5", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
 	}
 	colocatedLoadTimes := []ExpDataLoadTime{
-		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1461}, parallelThreads: sql.NullInt64{Int64: 1}},
-		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 2009}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{
+			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1461},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
+		{
+			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 2009},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
 	}
 	//TODO: modify index impact with actual colocated data when it is available and adjust the calculations
 	indexImpacts := []ExpDataLoadTimeIndexImpact{
@@ -1077,12 +1088,21 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithF
 func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithoutIndex_Sharded(t *testing.T) {
 	// Define test data
 	shardedTables := []SourceDBMetadata{
-		{ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true}, ColumnCount: sql.NullInt64{Int64: 5, Valid: true}},
+		{
+			ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 5, Valid: true}, RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 	shardedLoadTimes := []ExpDataLoadTime{
-		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
-		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{
+			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
+		{
+			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact
 	columnsImpact := []ExpDataLoadTimeColumnsImpact{ // doesn't have any impact because multiplication factor is 1
@@ -1114,14 +1134,23 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWitho
 func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithOneIndex_Sharded(t *testing.T) {
 	// Define test data
 	shardedTables := []SourceDBMetadata{
-		{ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true}, ColumnCount: sql.NullInt64{Int64: 5, Valid: true}},
+		{
+			ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 5, Valid: true}, RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
 	}
 	sourceIndexMetadata := []SourceDBMetadata{
 		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
 	}
 	shardedLoadTimes := []ExpDataLoadTime{
-		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
-		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{
+			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
+		{
+			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
 	}
 	indexImpacts := []ExpDataLoadTimeIndexImpact{
 		{numIndexes: sql.NullFloat64{Float64: 1}, multiplicationFactorSharded: sql.NullFloat64{Float64: 1.76}},
@@ -1156,7 +1185,10 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithO
 func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithFiveIndexes_Sharded(t *testing.T) {
 	// Define test data
 	shardedTables := []SourceDBMetadata{
-		{ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true}, ColumnCount: sql.NullInt64{Int64: 5, Valid: true}},
+		{
+			ObjectName: "table0", SchemaName: "public", Size: sql.NullFloat64{Float64: 23.0, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 5, Valid: true}, RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
 	}
 	sourceIndexMetadata := []SourceDBMetadata{
 		{ObjectName: "table0_idx1", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
@@ -1166,8 +1198,14 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWithF
 		{ObjectName: "table0_idx5", ParentTableName: sql.NullString{Valid: true, String: "public.table0"}},
 	}
 	shardedLoadTimes := []ExpDataLoadTime{
-		{csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134}, parallelThreads: sql.NullInt64{Int64: 1}},
-		{csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657}, parallelThreads: sql.NullInt64{Int64: 1}},
+		{
+			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
+		{
+			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
+		},
 	}
 
 	indexImpacts := []ExpDataLoadTimeIndexImpact{
@@ -1205,20 +1243,19 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWitho
 	// Define test data
 	colocatedTables := []SourceDBMetadata{
 		{
-			ObjectName: "table0", SchemaName: "public",
-			ColumnCount: sql.NullInt64{Int64: 5, Valid: true},
-			Size:        sql.NullFloat64{Float64: 23.0, Valid: true},
+			ObjectName: "table0", SchemaName: "public", ColumnCount: sql.NullInt64{Int64: 5, Valid: true},
+			Size: sql.NullFloat64{Float64: 23.0, Valid: true}, RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact // doesn't have any impact as there are no indexes
@@ -1253,20 +1290,19 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWitho
 	// Define test data
 	colocatedTables := []SourceDBMetadata{
 		{
-			ObjectName: "table0", SchemaName: "public",
-			ColumnCount: sql.NullInt64{Int64: 40, Valid: true},
-			Size:        sql.NullFloat64{Float64: 23.0, Valid: true},
+			ObjectName: "table0", SchemaName: "public", ColumnCount: sql.NullInt64{Int64: 40, Valid: true},
+			Size: sql.NullFloat64{Float64: 23.0, Valid: true}, RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact // doesn't have any impact as there are no indexes
@@ -1306,20 +1342,19 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWitho
 	// Define test data
 	colocatedTables := []SourceDBMetadata{
 		{
-			ObjectName: "table0", SchemaName: "public",
-			ColumnCount: sql.NullInt64{Int64: 100, Valid: true},
-			Size:        sql.NullFloat64{Float64: 23.0, Valid: true},
+			ObjectName: "table0", SchemaName: "public", ColumnCount: sql.NullInt64{Int64: 100, Valid: true},
+			Size: sql.NullFloat64{Float64: 23.0, Valid: true}, RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact // doesn't have any impact as there are no indexes
@@ -1360,20 +1395,19 @@ func TestCalculateTimeTakenAndParallelJobsForImport_ValidateImportTimeTableWitho
 	// Define test data
 	colocatedTables := []SourceDBMetadata{
 		{
-			ObjectName: "table0", SchemaName: "public",
-			ColumnCount: sql.NullInt64{Int64: 250, Valid: true},
-			Size:        sql.NullFloat64{Float64: 23.0, Valid: true},
+			ObjectName: "table0", SchemaName: "public", ColumnCount: sql.NullInt64{Int64: 250, Valid: true},
+			Size: sql.NullFloat64{Float64: 23.0, Valid: true}, RowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
-			parallelThreads: sql.NullInt64{Int64: 1},
+			parallelThreads: sql.NullInt64{Int64: 1}, rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact // doesn't have any impact as there are no indexes
@@ -1569,7 +1603,7 @@ func TestFindImportTimeFromExpDataLoadTime_RowsArePreferred(t *testing.T) {
 			rowCount:          sql.NullFloat64{Valid: true, Float64: 600000000},
 		},
 	}
-	expectedImportTime := 4500.0
+	expectedImportTime := 3750.0
 
 	var objectSize float64 = 19
 	var rowsInTable float64 = 500000000
