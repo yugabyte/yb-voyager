@@ -1127,7 +1127,7 @@ func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize f
 	importTimeWrtRowCount := (closestInRows.migrationTimeSecs.Float64 * rowsInTable) / closestInRows.rowCount.Float64
 
 	// return the load time which is maximum of the two
-	//fmt.Println(fmt.Sprintf("\t import time wrt size: %0.2fmin and wrt rows: %0.2fmin", importTimeWrtSize/60, importTimeWrtRowCount/60))
+	fmt.Println(fmt.Sprintf("closes wrt size: %v closest wrt row count: %v . import time wrt size: %0.2fmin and wrt rows: %0.2fmin", closestInSize, closestInRows, importTimeWrtSize/60, importTimeWrtRowCount/60))
 	return math.Ceil(math.Max(importTimeWrtSize, importTimeWrtRowCount))
 }
 
