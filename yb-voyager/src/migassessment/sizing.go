@@ -935,8 +935,13 @@ func calculateTimeTakenAndParallelJobsForImport(tables []SourceDBMetadata,
 			numColumnImpactData, objectType)
 
 		tableImportTimeSec := findImportTimeFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
+		loadtimestr := fmt.Sprintf("`%v` table `%v` of size: %0.2fGB ", objectType, table.ObjectName, tableSize)
 		// add maximum import time to total import time by converting it to minutes
-		importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
+		importTimeForTable := (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
+		loadtimestr += fmt.Sprintf("MF-index: %0.2f, MF-columns: %0.2f. Import time: %0.2fmin. ",
+			loadTimeMultiplicationFactorWrtIndexes, loadTimeMultiplicationFactorWrtNumColumns, importTimeForTable)
+		fmt.Println(loadtimestr)
+		importTime += importTimeForTable
 	}
 
 	return math.Ceil(importTime), loadTimes[0].parallelThreads.Int64, nil
@@ -1122,6 +1127,7 @@ func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize f
 	importTimeWrtRowCount := (closestInRows.migrationTimeSecs.Float64 * objectSize) / closestInRows.csvSizeGB.Float64
 
 	// return the load time which is maximum of the two
+	//fmt.Println(fmt.Sprintf("\t import time wrt size: %0.2fmin and wrt rows: %0.2fmin", importTimeWrtSize/60, importTimeWrtRowCount/60))
 	return math.Ceil(math.Max(importTimeWrtSize, importTimeWrtRowCount))
 }
 
