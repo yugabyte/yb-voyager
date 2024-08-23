@@ -1106,7 +1106,7 @@ func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize f
 
 	// calculate the time taken for import based on csv size and row count
 	importTimeWrtSize := (closestInSize.migrationTimeSecs.Float64 * objectSize) / closestInSize.csvSizeGB.Float64
-	importTimeWrtRowCount := (closestInRows.migrationTimeSecs.Float64 * objectSize) / closestInRows.csvSizeGB.Float64
+	importTimeWrtRowCount := (closestInRows.migrationTimeSecs.Float64 * rowsInTable) / closestInRows.rowCount.Float64
 
 	// return the load time which is maximum of the two
 	return math.Ceil(math.Max(importTimeWrtSize, importTimeWrtRowCount))
