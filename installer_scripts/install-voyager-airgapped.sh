@@ -263,7 +263,7 @@ check_java() {
         output "Found sufficient java version = ${JAVA_COMPLETE_VERSION}"
     else
         echo ""
-        echo -e "\e[31mERROR: Java not found or insuffiencient version ${JAVA_COMPLETE_VERSION}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        echo -e "\e[31mERROR: Java not found or insufficient version ${JAVA_COMPLETE_VERSION}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
         java_wrong_version=1
     fi
 }
@@ -348,7 +348,7 @@ centos_main() {
         # If either of the yum or cpan dependencies are missing or binutils wrong version, exit with error.
         if { [ ${#centos_missing_yum_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then 
             echo ""
-            echo -e "\e[33mWe search for specific package names only. If you have any similar packages installed which are not getting detected by us and you are confident in them, you can install voyager anyway using the --force-install option.\e[0m"
+            echo -e "\e[33mThe script searches for specific package names only. If similar packages are not detected but are present and deemed reliable, use --force-install to install Voyager.\e[0m"
             exit 1
         fi
 
@@ -359,7 +359,7 @@ centos_main() {
         fi
     else
         echo ""
-        echo "Force install option is passed. Proceeding with installation."
+        echo -e "\e[33mForce install option is passed. Skipping dependency checks and proceeding with installation.\e[0m"
     fi
 
     echo ""
