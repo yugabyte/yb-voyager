@@ -28,7 +28,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -186,7 +185,7 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 		args = append(args, "--source-db-name", dbConfig.DbName)
 	} else {
 		// special handling due to issue https://yugabyte.atlassian.net/browse/DB-12481
-		args = append(args, `--source-db-name ""`)
+		args = append(args, "--source-db-name", `""`)
 	}
 	if dbConfig.TnsAlias != "" {
 		args = append(args, "--oracle-tns-alias", dbConfig.TnsAlias)
@@ -204,7 +203,11 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 	// Always safe to use --start-clean to cleanup if there is some state from previous runs in export-dir
 	// since bulk command has separate check to decide beforehand whether the report exists or assessment needs to be performed.
 	args = append(args, "--start-clean", "true")
-	args = append(args, "--yes", lo.Ternary(utils.DoNotPrompt, "true", "false"))
+
+	if utils.DoNotPrompt {
+		args = append(args, "--yes")
+	}
+
 	return args
 }
 
