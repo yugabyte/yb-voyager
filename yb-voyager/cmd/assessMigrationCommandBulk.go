@@ -185,7 +185,7 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 		args = append(args, "--source-db-name", dbConfig.DbName)
 	} else {
 		// special handling due to issue https://yugabyte.atlassian.net/browse/DB-12481
-		args = append(args, "--source-db-name", `""`)
+		args = append(args, "--source-db-name", "")
 	}
 	if dbConfig.TnsAlias != "" {
 		args = append(args, "--oracle-tns-alias", dbConfig.TnsAlias)
