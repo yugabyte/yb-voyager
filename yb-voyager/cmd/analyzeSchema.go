@@ -457,7 +457,7 @@ func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePoli
 	}
 	if len(roleNames) > 0 {
 		policyNameWithTable := fmt.Sprintf("%s ON %s", policyName, fullyQualifiedName)
-		summaryMap["POLCIY"].invalidCount[policyNameWithTable] = true
+		summaryMap["POLICY"].invalidCount[policyNameWithTable] = true
 		reportCase(fpath, fmt.Sprintf("%s Users - (%s)", POLICY_ROLE_ISSUE, strings.Join(roleNames, ",")), "https://github.com/yugabyte/yb-voyager/issues/1655",
 			"Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
 			"POLICY", policyNameWithTable, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS)
