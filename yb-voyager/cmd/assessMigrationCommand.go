@@ -374,7 +374,7 @@ func getMigrationComplexityForOracle() error {
 	}
 	migrationLevel := reportData[5]
 	assessmentReport.SchemaSummary.MigrationComplexity = migrationLevel
-
+	return nil
 }
 
 func fetchSourceInfo() {
