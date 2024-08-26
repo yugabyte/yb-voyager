@@ -9,7 +9,7 @@
 		{
 			"Schema": "TEST_SCHEMA2",
 			"DatabaseIdentifier": "ORCLPDB1SSL",
-			"ReportPath": ".json",
+			"ReportPath": "",
 			"Status": "ERROR"
 		}
 	],
