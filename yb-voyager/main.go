@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -40,6 +41,10 @@ func main() {
 	atexit.Register(restoreTerminalState) // ensure terminal is always restored
 	cmd.Execute()
 	cmd.PrintElapsedDuration()
+	if cmd.ProcessShutdownRequested {
+		utils.PrintAndLog("waiting for exit handlers to complete the cleanup")
+		time.Sleep(time.Second * 120) // using here larger value than what we have for debezium(100sec)
+	}
 }
 
 func registerSignalHandlers() {
@@ -60,7 +65,7 @@ func registerSignalHandlers() {
 		}
 		// Ensure we restore the terminal even if everything goes well
 		restoreTerminalState()
-		atexit.Exit(0)
+		atexit.Exit(1)
 	}()
 }
 

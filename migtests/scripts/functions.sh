@@ -812,6 +812,7 @@ normalize_json() {
             .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
+			.RowCount? = "IGNORED" |
             .SqlStatement? |= (if type == "string" then gsub("\\n"; " ") else . end)
         elif type == "array" then
             sort_by(tostring)
