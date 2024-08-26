@@ -38,7 +38,7 @@ with open(table_file_path, 'w') as file:
     for i, line in enumerate(lines):
         if line in create_tables:
             file.write(output.pop(0))
-        elif line in alter_tables and line.find('PRIMARY KEY') == -1: # remove the ADD CONTRAINT lines with PK only
+        elif line in alter_tables and line.find('PRIMARY KEY') != -1: # remove the ADD CONTRAINT lines with PK only
             pass
         elif line.startswith('ALTER TABLE') and (i < len(lines)-1 and lines[i+1].find('PRIMARY KEY') != -1): # remove the ALTER TABLE lines for PK only
             pass
