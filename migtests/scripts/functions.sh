@@ -812,7 +812,7 @@ normalize_json() {
             .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
-			.RowCount? = "IGNORED" |
+            .RowCount? = "IGNORED" |
             .SqlStatement? |= (if type == "string" then gsub("\\n"; " ") else . end)
         elif type == "array" then
             sort_by(tostring)
@@ -840,7 +840,7 @@ compare_sql_files() {
     grep -v '^File :' "$sql_file1" > "$normalized_file1"
     grep -v '^File :' "$sql_file2" > "$normalized_file2"
 
-	sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file1"
+    sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file1"
     sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file2"
 
     # Compare the normalized files
