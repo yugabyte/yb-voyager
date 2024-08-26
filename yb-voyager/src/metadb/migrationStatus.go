@@ -17,6 +17,7 @@ type MigrationStatusRecord struct {
 	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                              bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                                 bool              `json:"FallbackEnabled"`
+	UseLogicalReplicationYBConnector                bool              `json:"UseLogicalReplicationYBConnector"`
 	TargetDBConf                                    *tgtdb.TargetConf `json:"TargetDBConf"`
 	SourceReplicaDBConf                             *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
 	SourceDBAsTargetConf                            *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
@@ -39,6 +40,8 @@ type MigrationStatusRecord struct {
 	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
 	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
 	PGPublicationName                               string            `json:"PGPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	YBReplicationSlotName                           string            `json:"YBReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	YBPublicationName                               string            `json:"YBPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
 	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump, ora2pg)
 	SourceRenameTablesMap                           map[string]string `json:"SourceRenameTablesMap"` // map of source table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
 	TargetRenameTablesMap                           map[string]string `json:"TargetRenameTablesMap"` // map of target table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
