@@ -1065,12 +1065,12 @@ type AssessMigrationDBConfig struct {
 
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	switch {
-	case dbConfig.SID != "":
-		return dbConfig.SID
-	case dbConfig.DbName != "":
-		return dbConfig.DbName
 	case dbConfig.TnsAlias != "":
 		return dbConfig.TnsAlias
+	case dbConfig.DbName != "":
+		return dbConfig.DbName
+	case dbConfig.SID != "":
+		return dbConfig.SID
 	default:
 		return ""
 	}
