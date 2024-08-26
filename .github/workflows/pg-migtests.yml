@@ -1,4 +1,4 @@
-name: "PG: Migration Tests"
+name: "PG 13: Migration Tests"
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
   run-pg-migration-tests:
     strategy:
       matrix:
-        version: [2.21.0.0-b545, 2.18.7.0-b30, 2.20.2.2-b1]
+        version: [2.21.1.0-b271, 2024.1.1.0-b137, 2.20.5.0-b72]
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}

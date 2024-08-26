@@ -252,6 +252,8 @@ func GetObjectFilePath(schemaDirPath string, objType string) string {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "FTS_INDEXES_table.sql")
 	} else if objType == "PARTITION_INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "partitions", "PARTITION_INDEXES_partition.sql")
+	} else if objType == "FOREIGN TABLE" {
+		requiredPath = filepath.Join(schemaDirPath, "tables", "foreign_table.sql")
 	} else {
 		requiredPath = filepath.Join(schemaDirPath, strings.ToLower(objType)+"s",
 			strings.ToLower(objType)+".sql")
@@ -596,4 +598,17 @@ func SafeDereferenceInt64(ptr *int64) int64 {
 		return *ptr
 	}
 	return 0
+}
+
+func ChangeFileExtension(filePath string, newExt string) string {
+	ext := filepath.Ext(filePath)
+	if ext != "" {
+		filePath = strings.TrimSuffix(filePath, ext)
+	}
+
+	if !strings.HasPrefix(newExt, ".") {
+		newExt = "." + newExt
+	}
+
+	return filePath + newExt
 }

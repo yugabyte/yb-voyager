@@ -167,6 +167,11 @@ alter table test alter column col set STORAGE EXTERNAL;
 
 alter table test_1 alter column col1 set (attribute_option=value);
 
+--disable rule case on alter table
+alter table test DISABLE RULE example_rule;
+
+-- for the storage parameters case
+ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor='70');
 
 alter table abc cluster on xyz;
 
@@ -200,17 +205,6 @@ PARTITION BY RANGE (a, b);
 
 
 
---foreign table issues
-CREATE FOREIGN TABLE tbl_p(
-	id int PRIMARY KEY
-) SERVER remote_server
-OPTIONS (
-    schema_name 'public',
-    table_name 'remote_table'
-);
-
---Foreign key constraints on Foreign table is not supported in PG
-
 -- datatype mapping not supported
 CREATE TABLE anydata_test (
 	id numeric,
@@ -236,3 +230,56 @@ Alter table only parent_tbl add constraint party_profile_pk primary key (party_p
 
 --Unsupported PG syntax caught by regex for ALTER TABLE OF..
 Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);
+
+--exclusion constraints
+CREATE TABLE "Test"(
+	id int, 
+	room_id int, 
+	time_range trange, 
+	EXCLUDE USING gist (room_id WITH =, time_range WITH &&)
+);
+
+CREATE TABLE public.meeting (
+    id integer NOT NULL,
+    room_id integer NOT NULL,
+    time_range tsrange NOT NULL
+);
+
+ALTER TABLE ONLY public.meeting
+    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
+
+
+--deferrable constraints all should be reported except foreign key constraints
+CREATE TABLE public.pr (
+	id integer PRIMARY KEY,
+	name text
+);
+
+CREATE TABLE public.foreign_def_test (
+	id integer,
+	id1 integer,
+	val text
+);
+
+ALTER TABLE ONLY public.foreign_def_test
+    ADD CONSTRAINT foreign_def_test_id_fkey FOREIGN KEY (id) REFERENCES public.pr(id) DEFERRABLE INITIALLY DEFERRED;
+
+CREATE TABLE public.users (
+	id int PRIMARY KEY,
+	email text
+);
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;
+
+create table foreign_def_test1(id int references pr(id) INITIALLY DEFERRED, c1 int);
+
+create table foreign_def_test2(id int, name text, FOREIGN KEY (id) REFERENCES public.pr(id) DEFERRABLE INITIALLY DEFERRED);
+
+create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
+
+create table unique_def_test1(id int, c1 int, UNIQUE(id)  DEFERRABLE INITIALLY DEFERRED);
+
+CREATE TABLE test_xml_type(id int, data xml);
+
+CREATE TABLE test_xid_type(id int, data xid);

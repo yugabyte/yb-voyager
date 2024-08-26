@@ -133,10 +133,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
 
-	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
-		utils.PrintAndLog(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. If a table has secondary indexes, setting --enable-upsert to true may lead to corruption of the indexes."))
-	}
-
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	// TODO: handle case-sensitive in table names with oracle ff-db
@@ -397,6 +393,13 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
+	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
+		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
+			"If a table has secondary indexes, setting --enable-upsert to true may lead to corruption of the indexes. Are you sure you want to proceed?")) {
+			utils.ErrExit("Aborting import.")
+		}
+	}
+
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		importDataStartEvent := createSnapshotImportStartedEvent()
 		controlPlane.SnapshotImportStarted(&importDataStartEvent)
@@ -618,7 +621,7 @@ func packAndSendImportDataPayload(status string) {
 	//Getting the imported snapshot details
 	importRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
-		log.Errorf("callhome: error in getting the import data: %v", err)
+		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
 		importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 			importDataPayload.TotalRows += value

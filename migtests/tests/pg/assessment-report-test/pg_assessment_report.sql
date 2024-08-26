@@ -32,7 +32,7 @@ CREATE INDEX idx_box_data ON Mixed_Data_Types_Table1 USING GIST (box_data);
 
 CREATE TABLE orders2 (
     id SERIAL PRIMARY KEY,
-    order_number VARCHAR(50) UNIQUE,
+    order_number VARCHAR(50) UNIQUE DEFERRABLE, --unique constraint deferrable test
     status VARCHAR(50) NOT NULL,
     shipped_date DATE
 );
@@ -67,3 +67,27 @@ CREATE TABLE sales_region (id int, amount int, branch text, region text, PRIMARY
 CREATE TABLE Boston PARTITION OF sales_region FOR VALUES IN ('Boston');
 CREATE TABLE London PARTITION OF sales_region FOR VALUES IN ('London');
 CREATE TABLE Sydney PARTITION OF sales_region FOR VALUES IN ('Sydney');
+
+--For exclusion constraints
+CREATE TABLE public.test_exclude_basic (
+    id integer, 
+    name text,
+    address text
+);
+ALTER TABLE ONLY public.test_exclude_basic
+    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);
+
+
+CREATE TABLE test_xml_type(id int, data xml);
+
+INSERT INTO test_xml_type values(1,'<person>
+<name>ABC</name>
+<age>34</age>
+</person>');
+
+INSERT INTO test_xml_type values(2,'<person>
+<name>XYZ</name>
+<age>36</age>
+</person>');
+
+
