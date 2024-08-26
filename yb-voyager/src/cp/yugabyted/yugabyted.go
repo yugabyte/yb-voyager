@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,11 +33,13 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	log "github.com/sirupsen/logrus"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type YugabyteD struct {
 	sync.Mutex
 	migrationDirectory       string
+	voyagerInfo              *VoyagerInstance
 	waitGroup                sync.WaitGroup
 	eventChan                chan (MigrationEvent)
 	rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
@@ -44,8 +48,53 @@ type YugabyteD struct {
 	latestInvocationSequence int
 }
 
+type VoyagerInstance struct {
+	IP                 string
+	OperatingSystem    string
+	DiskSpaceAvailable uint64 // Available disk space in bytes
+	ExportDirectory    string
+}
+
 func New(exportDir string) *YugabyteD {
-	return &YugabyteD{migrationDirectory: exportDir}
+	vi := prepareVoyagerInstance(exportDir)
+	utils.PrintAndLog("[debug]voyager instance info: %+v\n", vi)
+	return &YugabyteD{
+		voyagerInfo:        vi,
+		migrationDirectory: exportDir,
+	}
+}
+
+func prepareVoyagerInstance(exportDir string) *VoyagerInstance {
+	ip, err := utils.GetLocalIP()
+	utils.PrintAndLog("[debug]voyager machine ip: %s\n", ip)
+	if err != nil {
+		// TODO: exit in case of error or just log-and-continue
+		log.Fatalf("failed to obtain local IP address: %v", err)
+	}
+
+	diskSpace, err := getAvailableDiskSpace(exportDir)
+	utils.PrintAndLog("[debug]voyager disk space available: %d\n", diskSpace)
+	if err != nil {
+		// TODO: exit in case of error or just log-and-continue
+		log.Fatalf("failed to determine available disk space: %v", err)
+	}
+
+	return &VoyagerInstance{
+		IP:                 ip,
+		OperatingSystem:    runtime.GOOS,
+		DiskSpaceAvailable: diskSpace,
+		ExportDirectory:    exportDir,
+	}
+}
+
+// getAvailableDiskSpace returns the available disk space in bytes in the specified directory.
+func getAvailableDiskSpace(exportDir string) (uint64, error) {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(exportDir, &stat); err != nil {
+		return 0, fmt.Errorf("error getting disk space for directory %s: %w", exportDir, err)
+	}
+	// Available blocks * size per block to get available space in bytes
+	return stat.Bavail * uint64(stat.Bsize), nil
 }
 
 // Initialize the yugabyted DB for visualisation metadata

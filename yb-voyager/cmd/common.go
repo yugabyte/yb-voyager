@@ -31,6 +31,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
@@ -808,7 +809,11 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
 		SchemaNames:   cp.GetSchemaList(source.Schema),
+		HostIP:        utils.LookupIP(source.Host),
+		Port:          source.Port,
+		DBVersion:     source.DBVersion,
 	}
+	utils.PrintAndLog("[debug]base event: %s\n", spew.Sdump(bev))
 }
 
 func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
@@ -818,6 +823,9 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		DBType:        tconf.TargetDBType,
 		DatabaseName:  tconf.DBName,
 		SchemaNames:   []string{tconf.Schema},
+		HostIP:        utils.LookupIP(tconf.Host),
+		Port:          tconf.Port,
+		DBVersion:     tconf.DBVersion,
 	}
 }
 

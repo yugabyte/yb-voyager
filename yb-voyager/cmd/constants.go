@@ -101,7 +101,8 @@ const (
 	UNSUPPORTED_FEATURES  = "unsupported_features"
 	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
 
-	TABLE = "TABLE"
+	TABLE     = "TABLE"
+	YUGABYTED = "yugabyted"
 
 	// assess-migration-bulk
 	SOURCE_DB_TYPE     = "source-db-type"

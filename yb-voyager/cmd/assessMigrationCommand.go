@@ -273,9 +273,6 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 
-	startEvent := createMigrationAssessmentStartedEvent()
-	controlPlane.MigrationAssessmentStarted(startEvent)
-
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
@@ -301,6 +298,9 @@ func assessMigration() (err error) {
 
 		source.DB().Disconnect()
 	}
+
+	startEvent := createMigrationAssessmentStartedEvent()
+	controlPlane.MigrationAssessmentStarted(startEvent)
 
 	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 

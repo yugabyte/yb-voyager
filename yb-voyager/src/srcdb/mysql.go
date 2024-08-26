@@ -106,6 +106,10 @@ func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 }
 
 func (ms *MySQL) GetVersion() string {
+	if ms.source.DBVersion != "" {
+		return ms.source.DBVersion
+	}
+
 	var version string
 	query := "SELECT VERSION()"
 	err := ms.db.QueryRow(query).Scan(&version)

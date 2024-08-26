@@ -113,6 +113,10 @@ func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 }
 
 func (ora *Oracle) GetVersion() string {
+	if ora.source.DBVersion != "" {
+		return ora.source.DBVersion
+	}
+
 	var version string
 	query := "SELECT BANNER FROM V$VERSION"
 	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production

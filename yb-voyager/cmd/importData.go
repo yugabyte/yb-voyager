@@ -431,7 +431,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
 
 	targetDBVersion := tdb.GetVersion()
-
 	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
 
 	err = tdb.CreateVoyagerSchema()
@@ -1246,18 +1245,14 @@ func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {
 }
 
 func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
-
 	result := cp.SnapshotImportCompletedEvent{}
 	initBaseTargetEvent(&result.BaseEvent, "IMPORT DATA")
 	return result
 }
 
 func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
-
 	result := []*cp.UpdateImportedRowCountEvent{}
-
 	for _, task := range tasks {
-
 		var schemaName, tableName string
 		schemaName, tableName = cp.SplitTableNameForPG(task.TableNameTup.ForKey())
 		tableMetrics := cp.UpdateImportedRowCountEvent{

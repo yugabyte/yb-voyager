@@ -300,13 +300,12 @@ func metaDBIsCreated(exportDir string) bool {
 }
 
 func setControlPlane() {
-	cpType := os.Getenv("CONTROL_PLANE_TYPE")
-
+	cpType := getControlPlaneType()
 	switch cpType {
 	case "":
 		log.Infof("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
 		controlPlane = noopcp.New()
-	case "yugabyted":
+	case YUGABYTED:
 		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
 		if ybdConnString == "" {
 			utils.ErrExit("'YUGABYTED_DB_CONN_STRING' environment variable needs to be set if 'CONTROL_PLANE_TYPE' is 'yugabyted'.")
@@ -318,4 +317,8 @@ func setControlPlane() {
 			utils.ErrExit("ERROR: Failed to initialize the target DB for visualization. %s", err)
 		}
 	}
+}
+
+func getControlPlaneType() string {
+	return os.Getenv("CONTROL_PLANE_TYPE")
 }

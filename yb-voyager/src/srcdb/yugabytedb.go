@@ -99,6 +99,10 @@ func (yb *YugabyteDB) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 }
 
 func (yb *YugabyteDB) GetVersion() string {
+	if yb.source.DBVersion != "" {
+		return yb.source.DBVersion
+	}
+
 	var version string
 	query := "SELECT setting from pg_settings where name = 'server_version'"
 	err := yb.db.QueryRow(query).Scan(&version)
