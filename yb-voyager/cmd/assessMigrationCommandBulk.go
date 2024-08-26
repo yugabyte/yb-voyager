@@ -337,7 +337,9 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 
 func generateBulkAssessmentJsonReport() error {
 	for i := range bulkAssessmentReport.Details {
-		bulkAssessmentReport.Details[i].ReportPath = utils.ChangeFileExtension(bulkAssessmentReport.Details[i].ReportPath, ".json")
+		if bulkAssessmentReport.Details[i].ReportPath != "" {
+			bulkAssessmentReport.Details[i].ReportPath = utils.ChangeFileExtension(bulkAssessmentReport.Details[i].ReportPath, JSON_EXTENSION)
+		}
 	}
 
 	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.json")
@@ -360,7 +362,9 @@ var bulkAssessmentHtmlTmpl string
 
 func generateBulkAssessmentHtmlReport() error {
 	for i := range bulkAssessmentReport.Details {
-		bulkAssessmentReport.Details[i].ReportPath = utils.ChangeFileExtension(bulkAssessmentReport.Details[i].ReportPath, ".html")
+		if bulkAssessmentReport.Details[i].ReportPath != "" {
+			bulkAssessmentReport.Details[i].ReportPath = utils.ChangeFileExtension(bulkAssessmentReport.Details[i].ReportPath, HTML_EXTENSION)
+		}
 	}
 
 	tmpl, err := template.New("bulk-assessement-report").Parse(bulkAssessmentHtmlTmpl)
