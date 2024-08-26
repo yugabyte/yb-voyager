@@ -35,12 +35,12 @@ for i in range(len(create_tables)):
 
 with open(table_file_path, 'w') as file:
     # modify create_table lines to output ones
-    for line in lines:
+    for i, line in enumerate(lines):
         if line in create_tables:
             file.write(output.pop(0))
-        elif line in alter_tables: # remove the ADD CONTRAINT lines
+        elif line in alter_tables and line.find('PRIMARY KEY') == -1: # remove the ADD CONTRAINT lines with PK only
             pass
-        elif line.startswith('ALTER TABLE') and line.find('ATTACH PARTITION') == -1 and line.find('SET DEFAULT') == -1: # remove the ALTER TABLE with out ATTACH PARTITION lines
+        elif line.startswith('ALTER TABLE') and (i < len(lines)-1 and lines[i+1].find('PRIMARY KEY') != -1): # remove the ALTER TABLE lines for PK only
             pass
         else:
             file.write(line)
