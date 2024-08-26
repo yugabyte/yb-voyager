@@ -185,7 +185,7 @@
             "ObjectName": "v1",
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
             "SqlStatement": "CREATE VIEW v1 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH CHECK OPTION;",
-            "Suggestion": "",
+            "Suggestion": "Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716"
         },
         {

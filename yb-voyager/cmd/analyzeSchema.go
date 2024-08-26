@@ -219,6 +219,7 @@ const (
 	ALTER_TABLE_CLUSTER_ON_ISSUE         = "ALTER TABLE CLUSTER not supported yet."
 	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
 	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
+	VIEW_CHECK_OPTION_ISSUE              = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
@@ -741,7 +742,8 @@ func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 		} else */
 		if view := viewWithCheckRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
 			summaryMap["VIEW"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "Schema containing VIEW WITH CHECK OPTION is not supported yet.", "https://github.com/yugabyte/yugabyte-db/issues/22716", "", "VIEW", view[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
+			reportCase(fpath, VIEW_CHECK_OPTION_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/22716", 
+			"Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality", "VIEW", view[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		}
 	}
 }

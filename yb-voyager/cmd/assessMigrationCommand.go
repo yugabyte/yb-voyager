@@ -819,7 +819,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
-
+	addUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
 	return unsupportedFeatures, nil
 }
 
