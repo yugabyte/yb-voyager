@@ -5,11 +5,11 @@ LOG_FILE=/tmp/install-yb-voyager.log
 CHECK_ONLY_DEPENDENCIES="false"
 FORCE_INSTALL="false"
 
-YB_VOYAGER_YUM_VERSION="1.7.2-0"
-DEBEZIUM_YUM_VERSION="2.3.3-1.7.2"
+YB_VOYAGER_YUM_VERSION="1.8.0"
+DEBEZIUM_YUM_VERSION="2.3.3-1.8.0"
 ORA2PG_YUM_VERSION="23.2-yb.2"
-YB_VOYAGER_APT_VERSION="1.7.2-0"
-DEBEZIUM_APT_VERSION="2.3.3-1.7.2"
+YB_VOYAGER_APT_VERSION="1.8.0"
+DEBEZIUM_APT_VERSION="2.3.3-1.8.0"
 ORA2PG_APT_VERSION="23.2-yb.2"
 
 centos_yum_package_requirements=(
@@ -371,8 +371,9 @@ centos_main() {
         exit 1
     fi
     echo ""
+    # The package name is like debezium-2.3.3-1.8.0b0111.noarch.rpm. The DEBEZIUM_YUM_VERSION is 2.3.3-1.8.0. Add * to match the version.
     echo "Installing debezium..."
-    sudo yum install -y -q debezium-"$DEBEZIUM_YUM_VERSION".noarch.rpm 1>&2
+    sudo yum install -y -q debezium-"$DEBEZIUM_YUM_VERSION"*.noarch.rpm 1>&2
     if [ $? -ne 0 ]; then
         echo ""
         echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
@@ -380,7 +381,9 @@ centos_main() {
     fi
     echo ""
     echo "Installing yb-voyager..."
-    sudo yum install -y -q yb-voyager-"$YB_VOYAGER_YUM_VERSION".x86_64.rpm 1>&2
+    # The package name is like yb-voyager-1.8.0-b0111.x86_64.rpm. The YB_VOYAGER_YUM_VERSION is 1.8.0. Add * to match the version.
+    sudo yum install -y -q yb-voyager-"$YB_VOYAGER_YUM_VERSION"*.x86_64.rpm 1>&2
+  
     if [ $? -ne 0 ]; then
         echo ""
         echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
@@ -479,7 +482,7 @@ ubuntu_main() {
     fi
     echo ""
     echo "Installing debezium..."
-    sudo apt install -y -q ./debezium_"$DEBEZIUM_YUM_VERSION"_all.deb 1>&2
+    sudo apt install -y -q ./debezium_"$DEBEZIUM_YUM_VERSION"*_all.deb 1>&2
     if [ $? -ne 0 ]; then
         echo ""
         echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
@@ -487,7 +490,7 @@ ubuntu_main() {
     fi
     echo ""
     echo "Installing yb-voyager..."
-    sudo apt install -y -q ./yb-voyager_"$YB_VOYAGER_YUM_VERSION"_amd64.deb 1>&2
+    sudo apt install -y -q ./yb-voyager_"$YB_VOYAGER_YUM_VERSION"*_amd64.deb 1>&2
     if [ $? -ne 0 ]; then
         echo ""
         echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
