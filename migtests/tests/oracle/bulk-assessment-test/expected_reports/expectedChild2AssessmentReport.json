@@ -220,7 +220,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 262144
+			"SizeInBytes": 65536
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
@@ -570,7 +570,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 131072
+			"SizeInBytes": 65536
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
@@ -584,7 +584,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 131072
+			"SizeInBytes": 65536
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
@@ -598,7 +598,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 131072
+			"SizeInBytes": 65536
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
@@ -612,7 +612,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 131072
+			"SizeInBytes": 65536
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
@@ -626,7 +626,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 131072
+			"SizeInBytes": 65536
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
@@ -822,7 +822,7 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 131072
+			"SizeInBytes": 65536
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
