@@ -59,7 +59,8 @@ CREATE TABLE employees2 (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    full_name VARCHAR(101) GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED
+    full_name VARCHAR(101) GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED,
+    Department varchar(50)
 );
 
 --For the ALTER TABLE ADD PK on partitioned DDL in schema
@@ -99,3 +100,8 @@ CREATE POLICY policy_test_fine ON public.test_exclude_basic FOR ALL TO PUBLIC US
 
 CREATE POLICY policy_test_fine_2 ON public.employees2  USING (id NOT IN (12,123,41241));
 
+CREATE VIEW sales_employees as
+select id, first_name,
+last_name, full_name
+from employees2 where Department = 'sales'
+WITH CHECK OPTION;
