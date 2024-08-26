@@ -367,10 +367,21 @@ func exportData() bool {
 			if err != nil {
 				utils.ErrExit("get migration status record: %v", err)
 			}
-			if isTargetDBExporter(exporterRole) && !msr.UseLogicalReplicationYBConnector {
-				err = ybCDCClient.DeleteStreamID()
-				if err != nil {
-					utils.ErrExit("failed to delete stream id after data export: %v", err)
+			if isTargetDBExporter(exporterRole) {
+				if !msr.UseLogicalReplicationYBConnector {
+					err = ybCDCClient.DeleteStreamID()
+					if err != nil {
+						utils.ErrExit("failed to delete stream id after data export: %v", err)
+					}
+				} else {
+					if msr.TargetDBConf == nil {
+						log.Errorf("target db conf is nil, skipping deletion of replication slot and publication")
+					} else {
+						err = deleteYBReplicationSlotAndPublication(msr, source)
+						if err != nil {
+							utils.ErrExit("failed to delete replication slot and publication after data export: %v", err)
+						}
+					}
 				}
 			}
 			if exporterRole == SOURCE_DB_EXPORTER_ROLE {

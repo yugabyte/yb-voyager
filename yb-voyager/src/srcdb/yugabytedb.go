@@ -839,7 +839,7 @@ func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
 }
 
-func (yb *YugabyteDB) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) (string, error) {
+func (yb *YugabyteDB) CreateOrGetLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) (string, error) {
 	exists, err := yb.CheckIfReplicationSlotExists(replicationSlotName)
 	if err != nil {
 		return "", err
@@ -864,7 +864,7 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	if conn == nil {
 		conn, err = yb.GetReplicationConnection()
 		if err != nil {
-			utils.ErrExit("failed to create replication connection for dropping replication slot: %s", err)
+			return fmt.Errorf("failed to create replication connection for dropping replication slot: %w", err)
 		}
 		defer conn.Close(context.Background())
 	}
