@@ -230,25 +230,38 @@ run_sqlplus() {
 }
 
 export_schema() {
+    # Default values
+    export_dir="${EXPORT_DIR}"
+    source_db_schema="${SOURCE_DB_SCHEMA}"
 
-	export_dir="${1:-${EXPORT_DIR}}"
+    # Process arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            export_dir)
+                export_dir="$2"
+                shift 2
+                ;;
+            source_db_schema)
+                source_db_schema="$2"
+                shift 2
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
 
-    # Shift the arguments only if an export directory is provided as the first argument
-    if [ -n "$1" ]; then
-        shift
-    fi
-
-	args="--export-dir ${export_dir}
-		--source-db-type ${SOURCE_DB_TYPE}
-		--source-db-user ${SOURCE_DB_USER}
-		--source-db-password ${SOURCE_DB_PASSWORD}
+    args="--export-dir ${export_dir}
+ 		--source-db-type ${SOURCE_DB_TYPE}
+ 		--source-db-user ${SOURCE_DB_USER}
+ 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
 		--start-clean t
 	"
-	if [ "${SOURCE_DB_SCHEMA}" != "" ]
+	if [ "${source_db_schema}" != "" ]
 	then
-		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+		args="${args} --source-db-schema ${source_db_schema}"
 	fi
 	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
 	then

@@ -1,6 +1,6 @@
 {
 	"SchemaSummary": {
-		"DbName": "ORCLPDB1",
+		"MigrationComplexity": "NOT AVAILABLE",
 		"SchemaNames": [
 			"TEST_SCHEMA2"
 		],
@@ -9,12 +9,12 @@
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 63,
-				"ObjectNames": "mixed_case_table_name_test, test_timezone, empty_partition_table_p_east, order_items_range_partitioned_p3, c2, trunc_test, accounts_list_partitioned_p_northcentral, orders_interval_partition_interval_partition_less_than_2015, orders_interval_partition_interval_partition_less_than_2017, sales_hash_p2, c1, case_sensitive_columns, empty_partition_table2, accounts_list_partitioned_p_northwest, accounts_list_partitioned_p_southeast, sales_hash_p3, sub_par_test_p5, view_table2, sales_hash, synonym_table, view_table1, employees_misc, reserved_column, sub_par_test_p4, employees, order_items_range_partitioned, order_items_range_partitioned_p2, sub_par_test_p2, sub_par_test_p3_sp33, sub_par_test_p5_sp5, empty_partition_table, session_log3, \"group\", orders_interval_partition_interval_partition_less_than_2018, sub_par_test_p1_sp1, session_log1, sub_par_test_p1_sp11, sub_par_test_p3_sp3, sub_par_test_p4_sp4, c, sub_par_test, sub_par_test_p2_sp2, sub_par_test_p4_sp44, orders_interval_partition, accounts_list_partitioned_p_northeast, sales_hash_p1, sales_hash_p4, accounts_list_partitioned, foo, \"check\", empty_partition_table_p_west, empty_partition_table2_p_west, sub_par_test_p1, sub_par_test_p2_sp22, sub_par_test_p3, session_log, session_log2, session_log4, accounts_list_partitioned_p_southwest, empty_partition_table2_p_east, accounts_list_partitioned_p_southcentral, orders_interval_partition_interval_partition_less_than_2016, order_items_range_partitioned_p1"
+				"ObjectNames": "employees_misc, sub_par_test, view_table2, empty_partition_table2_p_west, orders_interval_partition_interval_partition_less_than_2016, order_items_range_partitioned_p2, sub_par_test_p3, orders_interval_partition, order_items_range_partitioned, \"group\", case_sensitive_columns, session_log2, accounts_list_partitioned_p_southeast, accounts_list_partitioned_p_southcentral, sub_par_test_p4_sp4, sub_par_test_p5_sp5, orders_interval_partition_interval_partition_less_than_2017, sales_hash_p1, sales_hash_p3, sub_par_test_p3_sp3, c1, employees, empty_partition_table2, reserved_column, empty_partition_table_p_west, order_items_range_partitioned_p3, sub_par_test_p1_sp1, c, foo, mixed_case_table_name_test, trunc_test, view_table1, synonym_table, accounts_list_partitioned_p_northwest, sub_par_test_p1, sub_par_test_p5, sub_par_test_p2_sp2, c2, session_log1, session_log4, test_timezone, \"check\", orders_interval_partition_interval_partition_less_than_2018, sub_par_test_p4, accounts_list_partitioned, sales_hash, accounts_list_partitioned_p_northcentral, empty_partition_table2_p_east, sub_par_test_p3_sp33, sub_par_test_p4_sp44, accounts_list_partitioned_p_southwest, sub_par_test_p2_sp22, empty_partition_table, accounts_list_partitioned_p_northeast, sales_hash_p2, sales_hash_p4, sub_par_test_p1_sp11, order_items_range_partitioned_p1, session_log, session_log3, empty_partition_table_p_east, orders_interval_partition_interval_partition_less_than_2015, sub_par_test_p2"
 			},
 			{
 				"ObjectType": "FUNCTION",
 				"TotalCount": 2,
-				"ObjectNames": "trunc_time_stamp, trunc_date"
+				"ObjectNames": "trunc_date, trunc_time_stamp"
 			},
 			{
 				"ObjectType": "PROCEDURE",
@@ -49,17 +49,17 @@
 				"FOO",
 				"Mixed_Case_Table_Name_Test",
 				"RESERVED_COLUMN",
-				"SESSION_LOG",
-				"SESSION_LOG1",
-				"SESSION_LOG2",
-				"SESSION_LOG3",
-				"SESSION_LOG4",
 				"TEST_TIMEZONE",
 				"TRUNC_TEST",
 				"VIEW_TABLE1",
 				"VIEW_TABLE2",
 				"check",
 				"group",
+				"SESSION_LOG",
+				"SESSION_LOG1",
+				"SESSION_LOG2",
+				"SESSION_LOG3",
+				"SESSION_LOG4",
 				"C",
 				"ACCOUNTS_LIST_PARTITIONED_P_NORTHCENTRAL",
 				"ACCOUNTS_LIST_PARTITIONED_P_NORTHEAST",
@@ -127,7 +127,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_NORTHCENTRAL",
-			"RowCount": 0,
+			"RowCount": 5,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -141,7 +141,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_NORTHEAST",
-			"RowCount": 0,
+			"RowCount": 11,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -155,7 +155,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_NORTHWEST",
-			"RowCount": 0,
+			"RowCount": 6,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -169,7 +169,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_SOUTHCENTRAL",
-			"RowCount": 0,
+			"RowCount": 6,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -183,7 +183,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_SOUTHEAST",
-			"RowCount": 0,
+			"RowCount": 7,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -197,7 +197,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_SOUTHWEST",
-			"RowCount": 0,
+			"RowCount": 7,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -211,7 +211,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "C",
-			"RowCount": 0,
+			"RowCount": 480,
 			"ColumnCount": 3,
 			"Reads": null,
 			"Writes": null,
@@ -220,12 +220,12 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 65536
+			"SizeInBytes": 262144
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "C1",
-			"RowCount": 0,
+			"RowCount": 80,
 			"ColumnCount": 3,
 			"Reads": null,
 			"Writes": null,
@@ -239,7 +239,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "C2",
-			"RowCount": 0,
+			"RowCount": 80,
 			"ColumnCount": 3,
 			"Reads": null,
 			"Writes": null,
@@ -253,7 +253,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "Case_Sensitive_Columns",
-			"RowCount": 0,
+			"RowCount": 240,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -267,7 +267,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPLOYEES",
-			"RowCount": 0,
+			"RowCount": 107,
 			"ColumnCount": 11,
 			"Reads": null,
 			"Writes": null,
@@ -281,7 +281,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPLOYEES_MISC",
-			"RowCount": 0,
+			"RowCount": 120,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -295,7 +295,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPLOYEE_MV_IMMEDIATE",
-			"RowCount": 0,
+			"RowCount": 12,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -365,7 +365,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "FOO",
-			"RowCount": 0,
+			"RowCount": 34,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -379,7 +379,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "Mixed_Case_Table_Name_Test",
-			"RowCount": 0,
+			"RowCount": 240,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -393,7 +393,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2015",
-			"RowCount": 0,
+			"RowCount": 1,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -407,7 +407,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2016",
-			"RowCount": 0,
+			"RowCount": 13,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -421,7 +421,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2017",
-			"RowCount": 0,
+			"RowCount": 79,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -435,7 +435,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2018",
-			"RowCount": 0,
+			"RowCount": 12,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -449,7 +449,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDER_ITEMS_RANGE_PARTITIONED_P1",
-			"RowCount": 0,
+			"RowCount": 49,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -463,7 +463,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDER_ITEMS_RANGE_PARTITIONED_P2",
-			"RowCount": 0,
+			"RowCount": 20,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -477,7 +477,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDER_ITEMS_RANGE_PARTITIONED_P3",
-			"RowCount": 0,
+			"RowCount": 10,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -491,7 +491,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "RESERVED_COLUMN",
-			"RowCount": 0,
+			"RowCount": 200,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -519,7 +519,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SALES_HASH_P2",
-			"RowCount": 0,
+			"RowCount": 2,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -547,7 +547,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SALES_HASH_P4",
-			"RowCount": 0,
+			"RowCount": 28,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -561,7 +561,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -570,12 +570,12 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 65536
+			"SizeInBytes": 131072
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG1",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -584,12 +584,12 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 65536
+			"SizeInBytes": 131072
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG2",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -598,12 +598,12 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 65536
+			"SizeInBytes": 131072
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG3",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -612,12 +612,12 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 65536
+			"SizeInBytes": 131072
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG4",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -626,12 +626,12 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 65536
+			"SizeInBytes": 131072
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P1_SP1",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -645,7 +645,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P1_SP11",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -659,7 +659,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P2_SP2",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -673,7 +673,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P2_SP22",
-			"RowCount": 0,
+			"RowCount": 2,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -687,7 +687,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P3_SP3",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -701,7 +701,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P3_SP33",
-			"RowCount": 0,
+			"RowCount": 2,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -715,7 +715,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P4_SP4",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -729,7 +729,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P4_SP44",
-			"RowCount": 0,
+			"RowCount": 2,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -743,7 +743,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P5_SP5",
-			"RowCount": 0,
+			"RowCount": 1,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -771,7 +771,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "TEST_TIMEZONE",
-			"RowCount": 0,
+			"RowCount": 1,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -785,7 +785,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "TRUNC_TEST",
-			"RowCount": 0,
+			"RowCount": 40,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -799,7 +799,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "VIEW_TABLE1",
-			"RowCount": 0,
+			"RowCount": 400,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -813,7 +813,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "VIEW_TABLE2",
-			"RowCount": 0,
+			"RowCount": 360,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -822,12 +822,12 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
-			"SizeInBytes": 65536
+			"SizeInBytes": 131072
 		},
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "check",
-			"RowCount": 0,
+			"RowCount": 200,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -841,7 +841,7 @@
 		{
 			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "group",
-			"RowCount": 0,
+			"RowCount": 5,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -869,5 +869,6 @@
 	],
 	"Notes": [
 		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e."
-	]
+	],
+	"MigrationCaveats": null
 }

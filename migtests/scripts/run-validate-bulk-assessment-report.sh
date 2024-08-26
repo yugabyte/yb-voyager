@@ -42,10 +42,8 @@ source ${SCRIPTS}/functions.sh
 
 export SOURCE_DB_TYPE="oracle"
 export BULK_ASSESSMENT_DIR=${BULK_ASSESSMENT_DIR:-"${TEST_DIR}/bulk-assessment-dir"}
-export SOURCE_DB_SCHEMA1=${SOURCE_DB_SCHEMA1:-"TEST_SCHEMA"}
-export SOURCE_DB_SCHEMA2=${SOURCE_DB_SCHEMA2:-"TEST_SCHEMA2"}
 export EXPORT_DIR1=${EXPORT_DIR1:-"${BULK_ASSESSMENT_DIR}/${SOURCE_DB_NAME}-${SOURCE_DB_SCHEMA1}-export-dir"}
-export EXPORT_DIR2=${EXPORT_DIR2:-"${BULK_ASSESSMENT_DIR}/${SOURCE_DB_NAME}-${SOURCE_DB_SCHEMA2}-export-dir"}
+export EXPORT_DIR2=${EXPORT_DIR2:-"${BULK_ASSESSMENT_DIR}/${SOURCE_DB_ORACLE_TNS_ALIAS}-${SOURCE_DB_SCHEMA2}-export-dir"}
 
 main() {
 
@@ -103,8 +101,8 @@ main() {
 	compare_and_validate_reports "${EXPORT_DIR2}/assessment/reports/assessmentReport.html" "${EXPORT_DIR2}/assessment/reports/assessmentReport.json" "${TEST_DIR}/expected_reports/expectedChild2AssessmentReport.json" "${EXPORT_DIR2}/logs/yb-voyager-assess-migration.log"
 
 	move_tables "${EXPORT_DIR2}/assessment/reports/assessmentReport.json" 100
-	export_schema "${EXPORT_DIR1}"
-	export_schema "${EXPORT_DIR2}"
+	export_schema export_dir "${EXPORT_DIR1}" source_db_schema ${SOURCE_DB_SCHEMA1}
+	export_schema export_dir "${EXPORT_DIR2}" source_db_schema ${SOURCE_DB_SCHEMA2}
 
 	if [ -f "${EXPORT_DIR2}/schema/tables/table.sql.orig" ]; then
 			echo "Assessment applied successfully to the schemas"

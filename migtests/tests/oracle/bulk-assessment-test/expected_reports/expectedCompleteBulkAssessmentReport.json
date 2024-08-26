@@ -3,13 +3,13 @@
 		{
 			"Schema": "TEST_SCHEMA",
 			"DatabaseIdentifier": "ORCLPDB1",
-			"ReportPath": "ORCLPDB1-TEST_SCHEMA-export-dir/assessment/reports/assessmentReport.html",
+			"ReportPath": "ORCLPDB1-TEST_SCHEMA-export-dir/assessment/reports/assessmentReport.json",
 			"Status": "COMPLETE"
 		},
 		{
 			"Schema": "TEST_SCHEMA2",
-			"DatabaseIdentifier": "ORCLPDB1",
-			"ReportPath": "ORCLPDB1-TEST_SCHEMA2-export-dir/assessment/reports/assessmentReport.html",
+			"DatabaseIdentifier": "ORCLPDB1SSL",
+			"ReportPath": "ORCLPDB1SSL-TEST_SCHEMA2-export-dir/assessment/reports/assessmentReport.json",
 			"Status": "COMPLETE"
 		}
 	],

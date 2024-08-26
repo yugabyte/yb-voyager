@@ -1,5 +1,6 @@
 {
 	"SchemaSummary": {
+		"MigrationComplexity": "NOT AVAILABLE",
 		"DbName": "ORCLPDB1",
 		"SchemaNames": [
 			"TEST_SCHEMA"
@@ -14,12 +15,12 @@
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 27,
-				"ObjectNames": "\", clob_table, customers, departments_p1, iot_table, rev_table, simple_log, departments, dept, func_rev_table, generated_column_table, orders, text_table, emp, func_based_table, sales_bitmap_idx_table, simple_table, departments_p3, bfile_table, nclob_table, simple_car_type, sales, simple_cars_table, blob_table, employees2, xml_table, departments_p2"
+				"ObjectNames": "clob_table, simple_cars_table, simple_log, dept, iot_table, sales, departments_p1, departments_p2, departments, func_based_table, bfile_table, xml_table, \", rev_table, nclob_table, sales_bitmap_idx_table, departments_p3, simple_car_type, blob_table, func_rev_table, text_table, customers, emp, employees2, generated_column_table, orders, simple_table"
 			},
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 3,
-				"ObjectNames": "orders_customer_id, sales_bitmap_idx_table_product_id, func_based_table_data",
+				"ObjectNames": "func_based_table_data, orders_customer_id, sales_bitmap_idx_table_product_id",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
 			{
@@ -77,15 +78,15 @@
 		},
 		{
 			"SchemaName": "TEST_SCHEMA",
-			"TableName": "TEXT_TABLE",
-			"ColumnName": "TEXT_DATA",
-			"DataType": "CLOB"
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
 			"TableName": "NCLOB_TABLE",
 			"ColumnName": "DATA",
 			"DataType": "NCLOB"
+		},
+		{
+			"SchemaName": "TEST_SCHEMA",
+			"TableName": "BFILE_TABLE",
+			"ColumnName": "DATA",
+			"DataType": "BFILE"
 		},
 		{
 			"SchemaName": "TEST_SCHEMA",
@@ -101,9 +102,9 @@
 		},
 		{
 			"SchemaName": "TEST_SCHEMA",
-			"TableName": "BFILE_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "BFILE"
+			"TableName": "TEXT_TABLE",
+			"ColumnName": "TEXT_DATA",
+			"DataType": "CLOB"
 		}
 	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
@@ -121,6 +122,10 @@
 			"FeatureName": "Unsupported Indexes",
 			"Objects": [
 				{
+					"ObjectName": "Index Name: TEXT_INDEX, Index Type=DOMAIN INDEX",
+					"SqlStatement": ""
+				},
+				{
 					"ObjectName": "Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX",
 					"SqlStatement": ""
 				},
@@ -130,10 +135,6 @@
 				},
 				{
 					"ObjectName": "Index Name: FUNC_REV_INDEX, Index Type=FUNCTION-BASED NORMAL/REV INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: TEXT_INDEX, Index Type=DOMAIN INDEX",
 					"SqlStatement": ""
 				},
 				{
@@ -535,5 +536,6 @@
 		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e.",
 		"Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.",
 		"There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yugabyte-db/issues/7850\"\u003ehttps://github.com/yugabyte/yugabyte-db/issues/7850\u003c/a\u003e so take a look and modify them if not supported."
-	]
+	],
+	"MigrationCaveats": null
 }
