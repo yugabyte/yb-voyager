@@ -691,5 +691,23 @@
             "SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: \u003cLINK_DOC\u003e",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "POLICY",
+            "ObjectName": "p ON tbl1",
+            "Reason": "Policy require roles to be created. Users - (regress_rls_eve,regress_rls_frank)",
+            "SqlStatement": "CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);",
+            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1655"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "POLICY",
+            "ObjectName": "p1 ON z1",
+            "Reason": "Policy require roles to be created. Users - (regress_rls_group1)",
+            "SqlStatement": "CREATE POLICY p1 ON z1 TO regress_rls_group1 USING (a % 2 = 0);",
+            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1655"
         }
 ]

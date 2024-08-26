@@ -78,6 +78,11 @@
 				"ObjectType": "RULE",
 				"TotalCount": 4,
 				"ObjectNames": "protect_test_views_v1, protect_test_views_v2, protect_test_views_v3, protect_test_views_view_table1"
+			},
+			{
+				"ObjectType": "POLICY",
+				"TotalCount": 4,
+				"ObjectNames": "policy_test_report, policy_test_fine, policy_test_fine_2"
 			}
 		]
 	},
@@ -1270,6 +1275,21 @@
 			"Objects": [],
 			"DocsLink": "TBD",
 			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work."
+		},
+		{
+			"FeatureName": "Policies",
+			"Objects": [
+				{
+					"ObjectName": "policy_test_report ON public.test_xml_type",
+					"SqlStatement": "CREATE POLICY policy_test_report ON public.test_xml_type TO test_policy USING (true);"
+				},
+				{
+					"ObjectName": "policy_test_report ON schema2.test_xml_type",
+					"SqlStatement": "CREATE POLICY policy_test_report ON schema2.test_xml_type TO test_policy USING (true);"
+				}
+			],
+			"DocsLink": "TBD",
+			"FeatureDescription": "During the export schema phase, USERs and GRANTs are not exported and there are some policies in the source which require these to be created before import schema."
 		}
 	]
 }

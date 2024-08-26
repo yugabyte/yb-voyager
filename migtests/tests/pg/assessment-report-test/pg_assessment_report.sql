@@ -91,3 +91,11 @@ INSERT INTO test_xml_type values(2,'<person>
 </person>');
 
 
+CREATE ROLE test_policy;
+
+CREATE POLICY policy_test_report ON test_xml_type TO test_policy USING (true);
+
+CREATE POLICY policy_test_fine ON public.test_exclude_basic FOR ALL TO PUBLIC USING (id % 2 = 1);
+
+CREATE POLICY policy_test_fine_2 ON public.employees2  USING (id NOT IN (12,123,41241));
+
