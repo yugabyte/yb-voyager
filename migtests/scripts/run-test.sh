@@ -127,9 +127,10 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] ; then
-		"${SCRIPTS}/add-pk-from-alter-to-create"
-	fi
+	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
+ 	then
+ 		"${TEST_DIR}/add-pk-from-alter-to-create"
+ 	fi
 
 	step "Import schema."
 	import_schema
