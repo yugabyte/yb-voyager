@@ -68,5 +68,5 @@ func init() {
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
 	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", true,
-		"Use the gRPC connector for export from YB. Default is true. If set to false, the new logical replication based connector will be used. The new logical replication based connector is only supported in 2024.1.1 and higher; need to ensure that no alter table stmts that do table rewrites (like add primary key)")
+		"Use the gRPC connector for YB export (default: true). If set to false, the logical replication connector (supported in 2024.1.1+) is used. For this new logical replication based connector, ensure no ALTER TABLE commands causing table rewrites (e.g., adding primary keys) are present in the schema for YB import")
 }
