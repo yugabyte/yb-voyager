@@ -82,7 +82,7 @@
 			{
 				"ObjectType": "POLICY",
 				"TotalCount": 4,
-				"ObjectNames": "policy_test_report, policy_test_fine, policy_test_fine_2"
+				"ObjectNames": "policy_test_report, policy_test_report, policy_test_fine, policy_test_fine_2"
 			}
 		]
 	},
