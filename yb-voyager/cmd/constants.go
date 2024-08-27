@@ -71,6 +71,7 @@ const (
 	IMPORT_DATA_SOURCE_PHASE         = "import-data-to-source"
 	END_MIGRATION_PHASE              = "end-migration"
 	ASSESS_MIGRATION_PHASE           = "assess-migration"
+	ASSESS_MIGRATION_BULK_PHASE      = "assess-migration-bulk"
 	IMPORT_DATA_FILE_PHASE           = "import-data-file"
 	//...more phases
 	OFFLINE        = "offline"
@@ -100,7 +101,7 @@ const (
 
 	UNSUPPORTED_FEATURES  = "unsupported_features"
 	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
-	MIGRATION_CAVEATS = "migration_caveats"
+	MIGRATION_CAVEATS     = "migration_caveats"
 
 	TABLE = "TABLE"
 

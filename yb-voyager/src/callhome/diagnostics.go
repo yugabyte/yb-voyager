@@ -93,13 +93,17 @@ type TargetDBDetails struct {
 
 type AssessMigrationPhasePayload struct {
 	UnsupportedFeatures  string `json:"unsupported_features"`
-	UnsupportedDataTypes string `json:"unsupported_datatypes"`
+	UnsupportedDatatypes string `json:"unsupported_datatypes"`
 	Error                string `json:"error,omitempty"`
 	TableSizingStats     string `json:"table_sizing_stats"`
 	IndexSizingStats     string `json:"index_sizing_stats"`
 	SchemaSummary        string `json:"schema_summary"`
 	SourceConnectivity   bool   `json:"source_connectivity"`
 	CommandLineArgs      string `json:"command_line_args"`
+}
+
+type AssessMigrationBulkPhasePayload struct {
+	FleetConfigData string `json:"fleet_config_data"`
 }
 
 type ObjectSizingStats struct {
@@ -219,7 +223,6 @@ func readCallHomeServiceEnv() {
 
 // Send http request to flask servers after saving locally
 func SendPayload(payload *Payload) error {
-
 	if !SendDiagnostics {
 		return nil
 	}
@@ -236,16 +239,17 @@ func SendPayload(payload *Payload) error {
 	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
 	callhomeURL := fmt.Sprintf("http://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
-
 	if err != nil {
-		return fmt.Errorf("error while sending diagnostic data: %v", err)
+		return fmt.Errorf("error while sending diagnostic data: %w", err)
 	}
-
-	defer resp.Body.Close()
+	defer func() {
+		closeErr := resp.Body.Close()
+		log.Infof("error closing response body: %s", closeErr)
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("error while reading HTTP response from call-home server: %v", err)
+		return fmt.Errorf("error while reading HTTP response from call-home server: %w", err)
 	}
 	log.Infof("callhome: HTTP response after sending diagnostics: %s\n", string(body))
 

@@ -109,7 +109,7 @@ var assessMigrationCmd = &cobra.Command{
 		err := assessMigration()
 		if err != nil {
 			packAndSendAssessMigrationPayload(ERROR, err.Error())
-			utils.ErrExit("failed to assess migration: %v", err)
+			utils.ErrExit("failed to assess migration: %s", err)
 		}
 		packAndSendAssessMigrationPayload(COMPLETE, "")
 	},
@@ -159,7 +159,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		UnsupportedFeatures:  callhome.MarshalledJsonString(assessmentReport.UnsupportedFeatures),
-		UnsupportedDataTypes: callhome.MarshalledJsonString(assessmentReport.UnsupportedDataTypes),
+		UnsupportedDatatypes: callhome.MarshalledJsonString(assessmentReport.UnsupportedDataTypes),
 		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:     callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:        callhome.MarshalledJsonString(schemaSummaryCopy),
