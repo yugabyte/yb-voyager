@@ -1303,7 +1303,7 @@
 				}
 			],
 			"DocsLink": "TBD",
-			"FeatureDescription": "During the export schema phase, USERs and GRANTs are not exported and there are some policies in the source which require these to be created before import schema."
+			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema."
 		}
 	]
 }

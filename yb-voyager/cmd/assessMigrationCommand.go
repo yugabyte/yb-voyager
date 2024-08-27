@@ -939,7 +939,7 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 
 	DESCRIPTION_ADD_PK_TO_PARTITION_TABLE = `After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.`
 	DESCRIPTION_FOREIGN_TABLES            = `During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.`
-	DESCRIPTION_POLICY_ROLE_ISSUE         = `During the export schema phase, USERs and GRANTs are not exported and there are some policies in the source which require these to be created before import schema.`
+	DESCRIPTION_POLICY_ROLE_ISSUE         = `There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.`
 )
 
 const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
