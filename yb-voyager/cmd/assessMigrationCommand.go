@@ -788,14 +788,14 @@ func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
 	link := "" // for oracle we shouldn't display any line for links
-	if source.DBType == POSTGRESQL {
-		link = "TBD"
-	}
 	for _, issue := range schemaAnalysisReport.Issues {
 		if strings.Contains(issue.Reason, issueReason) {
 			objectInfo := ObjectInfo{
 				ObjectName:   issue.ObjectName,
 				SqlStatement: issue.SqlStatement,
+			}
+			if source.DBType == POSTGRESQL {
+				link = issue.DocsLink
 			}
 			objects = append(objects, objectInfo)
 		}

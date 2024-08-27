@@ -100,10 +100,10 @@
                     <li><strong>Suggestion:</strong> {{ $issue.Suggestion }}</li>
                     {{ end }}
                     {{ if $issue.GH }}
-                    <li><strong>Github Issue Link:</strong> <a href='{{ $issue.GH }}'>{{ $issue.GH }}</a></li>
+                    <li><strong>Github Issue Link:</strong> <a href='{{ $issue.GH }}' target="_blank">{{ $issue.GH }}</a></li>
                     {{ end }}
                     {{ if $issue.DocsLink }}
-                    <li><strong>Docs Link:</strong> <a href='{{ $issue.DocsLink }}'>{{ $issue.DocsLink }}</a></li>
+                    <li><strong>Docs Link:</strong> <a href='{{ $issue.DocsLink }}' target="_blank">{{ $issue.DocsLink }}</a></li>
                     {{ end }}
                 </ul>
             </li>
