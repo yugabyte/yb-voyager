@@ -14,7 +14,7 @@ alter_tables = []
 for i, line in enumerate(lines):
     if line.startswith('CREATE TABLE'):
         create_tables.append(line)
-    elif line.strip(' ').startswith('ADD CONSTRAINT') and lines[i-1].startswith('ALTER TABLE'):
+    elif line.strip(' ').startswith('ADD CONSTRAINT') and line.strip(' ').find('PRIMARY KEY') != -1 and lines[i-1].startswith('ALTER TABLE'):
         alter_tables.append(lines[i])
 
 
