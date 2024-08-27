@@ -15,7 +15,6 @@ then
 	platform="--platform=linux/amd64"
 fi
 
-i=0
 exported_vars=""
 volume_mappings=""
 
@@ -116,86 +115,99 @@ map_host_path_inside_container() {
 		fi
 }
 
+# function to handle the mapping and storage of directory paths
+handle_directory_flag() {
+    local flag=$1
+    local path=$2
+    # Map the path to Docker volume
+    map_host_path_inside_container "$flag" "$path"
+    # Store the flag and path in metadata file if necessary
+    if [[ " ${flags_to_store[@]} " =~ " ${flag} " ]]; then
+        echo "${flag} ${path}" >> $command_metadata_file_name
+    fi
+}
+
+# function to handle data directory specifics, including cloud paths
+handle_data_dir() {
+    local index=$1
+    local data_dir=${argv[$(( index + 1 ))]}
+
+    case $data_dir in
+        s3://*)
+            # Capture AWS-specific variables
+            for var in $(env | grep -E '^AWS_'); do
+                exported_vars="${exported_vars} -e $var"
+            done
+            s3_vol="-v ${HOME}/.aws:/root/.aws"
+            ;;
+        gs://*)
+            # map gcp credentials directory
+            gcp_vol="-v ${HOME}/.config/gcloud:/root/.config/gcloud"
+            ;;
+        https://*)
+            # map azure credentials directory
+            azure_vol="-v ${HOME}/.azure:/root/.azure"
+            ;;
+        *)
+            # If the data-dir is not an S3 bucket
+			data_dir=$(realpath "$data_dir")
+            map_host_path_inside_container "data-dir" "$data_dir"
+            ;;
+    esac
+    return 1  # Skip the next parameter
+}
+
+process_flag() {
+    local flag=$1
+    local index=$2
+
+    case "$flag" in
+        "-e" | "--export-dir")
+            local dir_path=${argv[$(( index + 1 ))]}
+            echo "Export directory set to: ${dir_path}"
+            handle_directory_flag "--export-dir" "$dir_path"
+            return 1  # Skip the next parameter
+            ;;
+        "--data-dir")
+            handle_data_dir $index
+            return $?  # Return the increment defined in handle_data_dir
+            ;;
+        "--oracle-tns-alias" | "--fleet-config-file")
+            local tns_admin=${TNS_ADMIN:-"${ORACLE_HOME}/network/admin"}
+            local wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' "${tns_admin}/sqlnet.ora" | xargs)
+            tns_admin=$(realpath "$tns_admin")
+            wallet_dir=$(realpath "$wallet_dir")
+            handle_directory_flag "oracle-tns-alias" "$tns_admin"
+            handle_directory_flag "oracle-wallet-dir" "$wallet_dir"
+            exported_vars="${exported_vars} -e TNS_ADMIN=$tns_admin"
+            return 0
+            ;;
+        *)
+            if [[ " ${volume_dirs[@]} " =~ " ${flag} " ]]; then
+                local dir_path=${argv[$(( index + 1 ))]}
+                handle_directory_flag "$flag" "$dir_path"
+                return 1  # Skip the next parameter
+            fi
+            ;;
+    esac
+    return 0
+}
+
+
 if [ -f "$command_metadata_file_name" ]
 then
 	rm $command_metadata_file_name
 fi
-while [ $i -lt $# ]
-do
-	v=${argv[${i}]}
-	if [[ ${v} == "-e" ]]
-	then
-		v="--export-dir"
-	fi
-	if [[ ${v} == "--export-dir" ]]
-	then
-		export_dir=${argv[$(( $i + 1 ))]}
-	fi
-	# if v is present in volume_dirs array
-	if [[ " ${volume_dirs[@]} " =~ " ${v} " ]]
-	then
-		map_host_path_inside_container
-		# If the flag is in flags_to_store array then save them in a local text file. Store both flag and the path in the file. Save each flag in a new line.
-        if [[ " ${flags_to_store[@]} " =~ " ${v} " ]]
-        then
-            echo "${v} ${dir_path}" >> $command_metadata_file_name
-        fi
-		i=$(( $i + 1))
-		continue
-	fi
-	
-	if [[ ${argv[${i}]} == "--data-dir" ]]
-	then 
-		j=$(( $i + 1))
-		data_dir=${argv[${j}]}
 
-		# If the data-dir is an S3 bucket
-		if [[ $data_dir == 's3://'* ]]
-		then 
-			# Capture exported variables for aws
-			for var in $(env | grep -E '^AWS_') 
-			do
-				exported_vars="${exported_vars} -e $var"
-			done
-			s3_vol="-v ${HOME}/.aws:/root/.aws"
-		elif [[ $data_dir == 'gs://'* ]]
-		then 
-			# map gcp credentials directory
-			gcp_vol="-v ${HOME}/.config/gcloud:/root/.config/gcloud"
-		elif [[	$data_dir == 'https://'* ]]
-		then
-			# map azure credentials directory
-			azure_vol="-v ${HOME}/.azure:/root/.azure"
-			for var in $(env | grep -E '^AZURE_')
-			do 
-				exported_vars="${exported_vars} -e $var"
-			done
-		else 
-			# If the data-dir is not an S3 bucket
-			data_dir=$(realpath "$data_dir")
-			map_host_path_inside_container "data-dir" "${data_dir}"
-		fi
-	fi	
-
-	# If the flag is --oracle-tns-alias then find the exported variable TNS_ADMIN and map it to the container.  --oracle-tns-alias flag will be passed as it is.
-	if [[ ${argv[${i}]} == "--oracle-tns-alias" ]]
-	then
-		if [ -n "$TNS_ADMIN" ]; then
-  			tns_admin="$TNS_ADMIN"
-		else
-  			tns_admin="${ORACLE_HOME}/network/admin"
-		fi
-		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora | xargs)
-
-		tns_admin=$(realpath "$tns_admin")
-		wallet_dir=$(realpath "$wallet_dir")
-		map_host_path_inside_container "oracle-tns-alias" "${tns_admin}"
-		map_host_path_inside_container "oracle-wallet-dir" "${wallet_dir}"
-		exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
-	fi
-			
-    i=$(( $i + 1))
+# Main loop for processing command-line arguments
+i=0
+while [ $i -lt $# ]; do
+    echo "Current flag: ${argv[$i]}"
+    process_flag "${argv[$i]}" $i
+    increment=$?
+    i=$(( i + increment + 1 ))
 done
+
 
 # If the metadata file exists then move it to the export_dir and overwrite any existing file.
 if [ -f "$command_metadata_file_name" -a -n "$export_dir" ]
@@ -230,6 +242,6 @@ fi
 
 dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --pid=host --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
-# echo $dockerCmd
+echo $dockerCmd
 
 $dockerCmd
