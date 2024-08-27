@@ -386,7 +386,7 @@ func getMigrationComplexityForOracle() error {
 		assessmentReport.SchemaSummary.MigrationComplexity = HIGH
 	default:
 		log.Warnf("Invalid Migration level %s found in ora2pg report %v. Setting migration complexity to NOT_AVAILABLE", migrationLevel, reportData)
-		assessmentReport.SchemaSummary.MigrationComplexity = "NOT_AVAILABLE"
+		assessmentReport.SchemaSummary.MigrationComplexity = "NOT AVAILABLE"
 	}
 	return nil
 }
