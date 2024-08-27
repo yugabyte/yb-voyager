@@ -43,7 +43,7 @@ import (
 type summaryInfo struct {
 	totalCount   int
 	invalidCount map[string]bool
-	objSet       map[string]bool
+	objSet       []string
 	details      map[string]bool //any details about the object type
 }
 
@@ -252,7 +252,7 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 		summaryMap[objType].invalidCount[objName] = true
 	} else if comment == 2 {
 		// reportCase(fpath, "PACKAGE in oracle are exported as Schema, please review and edit to match PostgreSQL syntax if required, Package is "+objName, issue, suggestion, objType)
-		summaryMap["PACKAGE"].objSet[objName] = true
+		summaryMap["PACKAGE"].objSet = append(summaryMap["PACKAGE"].objSet, objName)
 	} else if comment == 3 {
 		reportCase(fpath, "SQLs in file might be unsupported please review and edit to match PostgreSQL syntax if required. ", issue, suggestion, objType, objName, line, UNSUPPORTED_FEATURES)
 	} else if comment == 4 {
@@ -280,8 +280,12 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		var dbObject utils.DBObject
 		dbObject.ObjectType = objType
 		dbObject.TotalCount = summaryMap[objType].totalCount
+		log.Infof("invalid count key for objType %s = %v", objType, lo.Keys(summaryMap[objType].invalidCount))
+		for k, v := range summaryMap[objType].invalidCount {
+			log.Infof("objType %s, k %v - v %v", objType, k, v)
+		}
 		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
-		dbObject.ObjectNames = getMapKeysString(summaryMap[objType].objSet)
+		dbObject.ObjectNames = strings.Join(summaryMap[objType].objSet, ", ")
 		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
 		schemaSummary.DBObjects = append(schemaSummary.DBObjects, dbObject)
 	}
@@ -303,7 +307,7 @@ func addSummaryDetailsForIndexes() {
 	if !found {
 		return
 	}
-	exportedIndexes := lo.Keys(summaryMap["INDEX"].objSet)
+	exportedIndexes := summaryMap["INDEX"].objSet
 	unexportedIdxsMsg := "Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:\n"
 	unexportedIdxsPresent := false
 	for _, indexInfo := range indexesInfo {
@@ -332,12 +336,12 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 			columnsFromGin := strings.Trim(matchGin[4], `()`)
 			columnList := strings.Split(columnsFromGin, ",")
 			if len(columnList) > 1 {
-				summaryMap["INDEX"].invalidCount[matchGin[2]] = true
+				summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3])] = true
 				reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
 					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 			} else {
 				if strings.Contains(strings.ToUpper(columnList[0]), "ASC") || strings.Contains(strings.ToUpper(columnList[0]), "DESC") || strings.Contains(strings.ToUpper(columnList[0]), "HASH") {
-					summaryMap["INDEX"].invalidCount[matchGin[2]] = true
+					summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3])] = true
 					reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
 						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 				}
@@ -353,21 +357,21 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			summaryMap["INDEX"].invalidCount[idx[2]] = true
+			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
 			reportCase(fpath, GIST_INDEX_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			summaryMap["INDEX"].invalidCount[idx[2]] = true
+			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
 			reportCase(fpath, "index method 'brin' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		} else if idx := spgistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			summaryMap["INDEX"].invalidCount[idx[2]] = true
+			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
 			reportCase(fpath, "index method 'spgist' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		} else if idx := rtreeRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			summaryMap["INDEX"].invalidCount[idx[2]] = true
+			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
 			reportCase(fpath, "index method 'rtree' is superceded by 'gist' which is not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		}
 	}
 }
@@ -541,7 +545,7 @@ func reportDeferrableConstraintAlterTable(alterTableNode *pg_query.Node_AlterTab
 	*/
 	constraint := alterCmd.GetDef().GetConstraint()
 	if constraint != nil && constraint.Deferrable && constraint.Contype != pg_query.ConstrType_CONSTR_FOREIGN {
-		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 		reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 			"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
 			"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES)
@@ -585,7 +589,10 @@ func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateS
 
 func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
 	indexName := createIndexNode.IndexStmt.GetIdxname()
-	summaryMap["INDEX"].invalidCount[sqlStmtInfo.objName] = true
+	relName := createIndexNode.IndexStmt.GetRelation()
+	schemaName := relName.GetSchemaname()
+	tableName := relName.GetRelname()
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 	/*
 		e.g. CREATE INDEX idx on table_name(id) with (fillfactor='70');
 		index_stmt:{idxname:"idx" relation:{relname:"table_name" inh:true relpersistence:"p" location:21} access_method:"btree"
@@ -596,6 +603,7 @@ func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt,
 	if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
 		//YB doesn't support any storage parameters from PG yet refer -
 		//https://docs.yugabyte.com/preview/api/ysql/the-sql-language/statements/ddl_create_table/#storage-parameters-1
+		summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)] = true
 		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
 			"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt, UNSUPPORTED_FEATURES)
 	}
@@ -658,7 +666,7 @@ func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTabl
 	*/
 	constraint := alterCmd.GetDef().GetConstraint()
 	if alterCmd.Subtype == pg_query.AlterTableType_AT_AddConstraint && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
-		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 		reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
 			"Refer this docs link for details on possible workaround - <LINK_DOC>", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES)
 	}
@@ -1014,11 +1022,6 @@ func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
 	}
 }
 
-func getMapKeysString(receivedMap map[string]bool) string {
-	keyString := strings.Join(lo.Keys(receivedMap), ", ")
-	return keyString
-}
-
 func invalidSqlComment(line string) int {
 	if cmt := unsupportedCommentRegex1.FindStringSubmatch(line); cmt != nil {
 		return 1
@@ -1074,12 +1077,12 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 		if objType == "PARTITION" || objType == "TABLE" {
 			if summaryMap != nil && summaryMap["TABLE"] != nil {
 				summaryMap["TABLE"].totalCount += 1
-				summaryMap["TABLE"].objSet[objName] = true
+				summaryMap["TABLE"].objSet = append(summaryMap["TABLE"].objSet, objName)
 			}
 		} else {
 			if summaryMap != nil && summaryMap[objType] != nil { //when just createSqlStrArray() is called from someother file, then no summaryMap exists
 				summaryMap[objType].totalCount += 1
-				summaryMap[objType].objSet[objName] = true
+				summaryMap[objType].objSet = append(summaryMap[objType].objSet, objName)
 			}
 		}
 	} else {
@@ -1091,7 +1094,7 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 				objName = createObjStmt[objNameIndex]
 				if summaryMap != nil && summaryMap["TABLE"] != nil {
 					summaryMap["TABLE"].totalCount += 1
-					summaryMap["TABLE"].objSet[objName] = true
+					summaryMap["TABLE"].objSet = append(summaryMap["TABLE"].objSet, objName)
 				}
 			}
 		}
@@ -1246,7 +1249,7 @@ func initializeSummaryMap() {
 	for _, objType := range sourceObjList {
 		summaryMap[objType] = &summaryInfo{
 			invalidCount: make(map[string]bool),
-			objSet:       make(map[string]bool),
+			objSet:       make([]string, 0),
 			details:      make(map[string]bool),
 		}
 
