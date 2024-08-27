@@ -141,7 +141,18 @@ check_cpan_module() {
   local installed_version=$(perl -M"$module" -e 'print $'"$module"'::VERSION' 2>/dev/null)
 
   if [ -z "$installed_version" ]; then
-    missing_cpan_modules+=("$module is not installed.")
+    case "$version_type" in
+      min)
+        if [ "$required_version" != "0" ]; then
+          missing_cpan_modules+=("$module with minimum version $required_version is not installed.")
+        else
+          missing_cpan_modules+=("$module is not installed.")
+        fi
+        ;;
+      exact)
+        missing_cpan_modules+=("$module with exact version $required_version is not installed.")
+        ;;
+    esac
   else
     case "$version_type" in
       min)
@@ -410,7 +421,18 @@ check_yum_package_version() {
     local installed_version=$(yum list installed "$package" 2>/dev/null | awk '/^Installed Packages/ {getline; print $2}' | cut -d- -f1)
 
     if [ -z "$installed_version" ]; then
-        centos_missing_yum_packages+=("$package is not installed.")
+        case $version_type in
+            min)
+                if [ "$required_version" != "0" ]; then
+                    centos_missing_yum_packages+=("$package with minimum version $required_version is not installed.")
+                else 
+                    centos_missing_yum_packages+=("$package is not installed.")
+                fi
+                ;;
+            exact)
+                centos_missing_yum_packages+=("$package with exact version $required_version is not installed.")
+                ;;
+        esac 
     else
         case "$version_type" in
         min)
@@ -550,7 +572,18 @@ check_apt_package_version() {
     local installed_version=$(dpkg-query -f '${Version}' -W "$package" 2>/dev/null)
 
     if [ -z "$installed_version" ]; then
-        ubuntu_missing_apt_packages+=("$package is not installed.")
+        case "$version_type" in
+            min)
+                if [ "$required_version" != "0" ]; then
+                    ubuntu_missing_apt_packages+=("$package with minimum version $required_version is not installed.")
+                else 
+                    ubuntu_missing_apt_packages+=("$package is not installed.")
+                fi
+                ;;
+            exact)
+                ubuntu_missing_apt_packages+=("$package with exact version $required_version is not installed.")
+                ;;
+        esac
     else
         case "$version_type" in
         min)
