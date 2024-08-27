@@ -977,8 +977,12 @@ func addMigrationCaveatsToAssessmentReport() {
 			schemaAnalysisReport, &migrationCaveats, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE)
 		addUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON,
 			schemaAnalysisReport, &migrationCaveats, false, DESCRIPTION_FOREIGN_TABLES)
-		if len(migrationCaveats) > 0 {
-			assessmentReport.MigrationCaveats = migrationCaveats
+		for _, caveat := range migrationCaveats {
+			if len(caveat.Objects) > 0 {
+				//for the case to not populate this in case there are no caveats
+				assessmentReport.MigrationCaveats = migrationCaveats
+				break
+			}
 		}
 	}
 }
