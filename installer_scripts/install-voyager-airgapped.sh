@@ -465,6 +465,15 @@ ubuntu_main() {
         echo -e "\e[33mForce install option is passed. Skipping dependency checks and proceeding with installation.\e[0m"
     fi
 
+    # Prompt the user for permission to install the packages
+    read -p "Do you want to install ora2pg? (y/n): " choice
+
+    if [[ "$choice" != "y" && "$choice" != "Y" ]]; then
+        echo ""
+        echo "Installation cancelled."
+        exit 0
+    fi
+
     echo ""
     echo "Installing ora2pg..."
     sudo apt install -y -q ./ora2pg*all.deb 1>&2
