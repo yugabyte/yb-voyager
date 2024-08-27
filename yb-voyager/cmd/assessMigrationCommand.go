@@ -374,20 +374,21 @@ func getMigrationComplexityForOracle() error {
 	if len(reportData) < 6 {
 		return fmt.Errorf("invalid ora2pg report file format. Expected more than 6 columns, found %d", len(reportData))
 	}
-	migrationLevel := strings.Split(reportData[5], "-")[0]
+	migrationLevel := reportData[5][1 : len(reportData[5])-1] // it is surrounded by double quotes
+	migrationLevel = strings.Split(migrationLevel, "-")[0]
+	utils.PrintAndLog("migrationLevel=%s", migrationLevel)
 
-	switch {
-	case migrationLevel == "A":
+	switch migrationLevel {
+	case "A":
 		assessmentReport.SchemaSummary.MigrationComplexity = LOW
-	case migrationLevel == "B":
+	case "B":
 		assessmentReport.SchemaSummary.MigrationComplexity = MEDIUM
-	case migrationLevel == "C":
+	case "C":
 		assessmentReport.SchemaSummary.MigrationComplexity = HIGH
 	default:
 		log.Warnf("Invalid Migration level %s found in ora2pg report %v. Setting migration complexity to NOT_AVAILABLE", migrationLevel, reportData)
 		assessmentReport.SchemaSummary.MigrationComplexity = "NOT_AVAILABLE"
 	}
-	assessmentReport.SchemaSummary.MigrationComplexity = migrationLevel
 	return nil
 }
 
