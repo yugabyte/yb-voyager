@@ -42,7 +42,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 4,
-				"ObjectNames": "idx_box_data, idx_point_data"
+				"ObjectNames": "idx_box_data, idx_point_data, idx_point_data, idx_box_data"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -67,7 +67,7 @@
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 2,
-				"ObjectNames": "audit_trigger"
+				"ObjectNames": "audit_trigger, audit_trigger"
 			},
 			{
 				"ObjectType": "MVIEW",

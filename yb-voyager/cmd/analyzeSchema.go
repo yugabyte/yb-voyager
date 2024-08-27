@@ -280,10 +280,6 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		var dbObject utils.DBObject
 		dbObject.ObjectType = objType
 		dbObject.TotalCount = summaryMap[objType].totalCount
-		log.Infof("invalid count key for objType %s = %v", objType, lo.Keys(summaryMap[objType].invalidCount))
-		for k, v := range summaryMap[objType].invalidCount {
-			log.Infof("objType %s, k %v - v %v", objType, k, v)
-		}
 		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
 		dbObject.ObjectNames = strings.Join(summaryMap[objType].objSet, ", ")
 		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
