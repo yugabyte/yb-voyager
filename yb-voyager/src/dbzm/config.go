@@ -36,13 +36,13 @@ const (
 )
 
 type Config struct {
-	MigrationUUID                    uuid.UUID
-	RunId                            string
-	SourceDBType                     string
-	ExporterRole                     string
-	ExportDir                        string
-	MetadataDBPath                   string
-	UseLogicalReplicationYBConnector bool
+	MigrationUUID      uuid.UUID
+	RunId              string
+	SourceDBType       string
+	ExporterRole       string
+	ExportDir          string
+	MetadataDBPath     string
+	UseYBgRPCConnector bool
 
 	Host     string
 	Port     int
@@ -324,7 +324,7 @@ func (c *Config) String() string {
 			conf = conf + fmt.Sprintf(postgresPublicationNameTemplate, c.PublicationName)
 		}
 	case "yugabytedb":
-		if c.UseLogicalReplicationYBConnector {
+		if !c.UseYBgRPCConnector {
 			conf = fmt.Sprintf(yugabyteLogicalReplicationConfigTemplate,
 				c.Username,
 				"never",

@@ -23,7 +23,7 @@ import (
 )
 
 var prepareForFallBack utils.BoolStr
-var useLogicalReplicationYBConnector utils.BoolStr
+var useYBgRPCConnector utils.BoolStr
 
 var cutoverToTargetCmd = &cobra.Command{
 	Use:   "target",
@@ -55,7 +55,7 @@ var cutoverToTargetCmd = &cobra.Command{
 				utils.ErrExit("Live migration with Fall-forward workflow is already started on this export-dir. So --prepare-for-fall-back is not applicable.")
 			}
 		}
-		err = InitiateCutover("target", bool(prepareForFallBack), bool(useLogicalReplicationYBConnector))
+		err = InitiateCutover("target", bool(prepareForFallBack), bool(useYBgRPCConnector))
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)
 		}
@@ -67,6 +67,6 @@ func init() {
 	registerExportDirFlag(cutoverToTargetCmd)
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
-	BoolVar(cutoverToTargetCmd.Flags(), &useLogicalReplicationYBConnector, "use-logical-replication-yb-connector", false,
-		"Use YugabyteDB connector that uses logical replication. Default is gRPC connector.")
+	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", true,
+		"Use the gRPC connector for export from YB. Default is true.")
 }
