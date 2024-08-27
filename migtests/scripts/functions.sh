@@ -229,6 +229,9 @@ run_sqlplus() {
 	echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
 
+# Sample invocation without default values
+# export_schema export_dir "${MY_EXPORT_DIR}" source_db_schema ${MY_SOURCE_DB_SCHEMA}
+
 export_schema() {
     # Default values
     export_dir="${EXPORT_DIR}"
