@@ -245,7 +245,7 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 
 func reportAddingPrimaryKey(fpath string, objType string, tbl string, line string) {
 	reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-		"https://github.com/yugabyte/yugabyte-db/issues/10074", "", objType, tbl, line, UNSUPPORTED_FEATURES)
+		"https://github.com/yugabyte/yugabyte-db/issues/10074", "", objType, tbl, line, MIGRATION_CAVEATS)
 }
 
 func reportBasedOnComment(comment int, fpath string, issue string, suggestion string, objName string, objType string, line string) {
@@ -388,7 +388,7 @@ func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
 			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
-				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt, UNSUPPORTED_FEATURES)
+				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt, MIGRATION_CAVEATS)
 		}
 	}
 }
@@ -746,8 +746,8 @@ func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 		} else */
 		if view := viewWithCheckRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
 			summaryMap["VIEW"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, VIEW_CHECK_OPTION_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/22716", 
-			"Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality", "VIEW", view[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
+			reportCase(fpath, VIEW_CHECK_OPTION_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/22716",
+				"Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality", "VIEW", view[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		}
 	}
 }

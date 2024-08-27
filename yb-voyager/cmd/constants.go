@@ -100,7 +100,7 @@ const (
 
 	UNSUPPORTED_FEATURES  = "unsupported_features"
 	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
-	MIGRATION_CAVEATS = "migration_caveats"
+	MIGRATION_CAVEATS     = "migration_caveats"
 
 	TABLE = "TABLE"
 

@@ -19,6 +19,15 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "abc",
+            "Reason": "Storage parameters are not supported yet.",
+            "SqlStatement": "CREATE INDEX abc ON schema2.example USING btree (new_id) WITH (fillfactor='70'); ",
+            "Suggestion": "Remove the storage parameters from the DDL",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "PROCEDURE",
             "ObjectName": "foo",
             "Reason": "temporary table is not a supported clause for drop",
@@ -522,7 +531,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "public.range_columns_partition_test",
             "Reason": "Adding primary key to a partitioned table is not supported yet.",
@@ -675,7 +684,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514"
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "FOREIGN TABLE",
             "ObjectName": "tbl_p",
             "Reason": "Foreign tables require manual intervention.",
