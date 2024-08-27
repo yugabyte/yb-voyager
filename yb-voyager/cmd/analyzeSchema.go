@@ -223,7 +223,7 @@ const (
 
 	GIST_INDEX_ISSUE_REASON                        = "Schema contains GIST index which is not supported."
 	GIN_INDEX_DETAILS                              = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE = "There are some data types in the schema that are not supported for live migration. These columns will be exluded when exporting and importing data."
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
 )
 
 // Reports one case in JSON
