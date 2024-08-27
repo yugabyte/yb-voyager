@@ -352,7 +352,16 @@ centos_main() {
         fi
     else
         echo ""
-        echo -e "\e[33mForce install option is passed. Skipping dependency checks and proceeding with installation.\e[0m"
+        echo -e "\e[33mForce install option is passed. Skipping dependency checks.\e[0m"
+    fi
+
+    # Prompt the user for permission to install the packages
+    read -p "Do you want to proceed with the installation of packages (ora2pg, debezium, yb-voyager)? (y/n): " choice
+
+    if [[ "$choice" != "y" && "$choice" != "Y" ]]; then
+        echo ""
+        echo "Installation cancelled."
+        exit 0
     fi
 
     echo ""
@@ -462,11 +471,11 @@ ubuntu_main() {
         fi
     else 
         echo ""
-        echo -e "\e[33mForce install option is passed. Skipping dependency checks and proceeding with installation.\e[0m"
+        echo -e "\e[33mForce install option is passed. Skipping dependency checks.\e[0m"
     fi
 
     # Prompt the user for permission to install the packages
-    read -p "Do you want to install ora2pg? (y/n): " choice
+    read -p "Do you want to proceed with the installation of packages (ora2pg, debezium, yb-voyager)? (y/n): " choice
 
     if [[ "$choice" != "y" && "$choice" != "Y" ]]; then
         echo ""
