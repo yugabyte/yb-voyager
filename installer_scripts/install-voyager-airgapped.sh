@@ -356,13 +356,19 @@ centos_main() {
     fi
 
     # Prompt the user for permission to install the packages
-    read -p "Do you want to proceed with the installation of packages (ora2pg, debezium, yb-voyager)? (y/n): " choice
-
-    if [[ "$choice" != "y" && "$choice" != "Y" ]]; then
+    while true; do
         echo ""
-        echo "Installation cancelled."
-        exit 0
-    fi
+	    echo -n "Do you want to proceed with the installation of packages (ora2pg, debezium, yb-voyager)? (y/n):"
+	    read yn
+	    case $yn in
+		[Yy]* )
+			break;;
+		[Nn]* )
+			echo "Installation cancelled."
+            exit 0;;
+		* ) ;;
+	    esac
+	done
 
     echo ""
     echo "Installing ora2pg..."
@@ -475,13 +481,19 @@ ubuntu_main() {
     fi
 
     # Prompt the user for permission to install the packages
-    read -p "Do you want to proceed with the installation of packages (ora2pg, debezium, yb-voyager)? (y/n): " choice
-
-    if [[ "$choice" != "y" && "$choice" != "Y" ]]; then
+    while true; do
         echo ""
-        echo "Installation cancelled."
-        exit 0
-    fi
+	    echo -n "Do you want to proceed with the installation of packages (ora2pg, debezium, yb-voyager)? (y/n):"
+	    read yn
+	    case $yn in
+		[Yy]* )
+			break;;
+		[Nn]* )
+			echo "Installation cancelled."
+            exit 0;;
+		* ) ;;
+	    esac
+	done
 
     echo ""
     echo "Installing ora2pg..."
