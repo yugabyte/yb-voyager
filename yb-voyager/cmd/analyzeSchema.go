@@ -218,6 +218,8 @@ const (
 	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables require manual intervention."
 	ALTER_TABLE_CLUSTER_ON_ISSUE         = "ALTER TABLE CLUSTER not supported yet."
 	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
+	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
+	VIEW_CHECK_OPTION_ISSUE              = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
@@ -405,6 +407,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
+		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
@@ -420,6 +423,45 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		if isCreateIndex {
 			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
 		}
+
+		if isCreatePolicy {
+			reportPolicyRequireRolesOrGrants(createPolicyNode, sqlStmtInfo, fpath)
+		}
+	}
+}
+
+func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePolicyStmt, sqlStmtInfo sqlInfo, fpath string) {
+	policyName := createPolicyNode.CreatePolicyStmt.GetPolicyName()
+	roles := createPolicyNode.CreatePolicyStmt.GetRoles()
+	relname := createPolicyNode.CreatePolicyStmt.GetTable()
+	schemaName := relname.Schemaname
+	tableName := relname.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	roleNames := make([]string, 0)
+	/*
+		e.g. CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);
+		stmt:{create_policy_stmt:{policy_name:"p" table:{relname:"tbl1" inh:true relpersistence:"p" location:20} cmd_name:"all"
+		permissive:true roles:{role_spec:{roletype:ROLESPEC_CSTRING rolename:"regress_rls_eve" location:28}} roles:{role_spec:
+		{roletype:ROLESPEC_CSTRING rolename:"regress_rls_frank" location:45}} qual:{a_const:{boolval:{boolval:true} location:70}}}}
+		stmt_len:75
+
+		here role_spec of each roles is managing the roles related information in a POLICY DDL if any, so we can just check if there is
+		a role name available in it which means there is a role associated with this DDL. Hence report it.
+
+	*/
+	for _, role := range roles {
+		roleName := role.GetRoleSpec().GetRolename() // only in case there is role associated with a policy it will error out in schema migration
+		if roleName != "" {
+			//this means there is some role or grants used in this Policy, so detecting it
+			roleNames = append(roleNames, roleName)
+		}
+	}
+	if len(roleNames) > 0 {
+		policyNameWithTable := fmt.Sprintf("%s ON %s", policyName, fullyQualifiedName)
+		summaryMap["POLICY"].invalidCount[policyNameWithTable] = true
+		reportCase(fpath, fmt.Sprintf("%s Users - (%s)", POLICY_ROLE_ISSUE, strings.Join(roleNames, ",")), "https://github.com/yugabyte/yb-voyager/issues/1655",
+			"Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+			"POLICY", policyNameWithTable, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS)
 	}
 }
 
@@ -704,7 +746,8 @@ func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 		} else */
 		if view := viewWithCheckRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
 			summaryMap["VIEW"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "Schema containing VIEW WITH CHECK OPTION is not supported yet.", "https://github.com/yugabyte/yugabyte-db/issues/22716", "", "VIEW", view[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
+			reportCase(fpath, VIEW_CHECK_OPTION_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/22716", 
+			"Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality", "VIEW", view[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		}
 	}
 }
@@ -1053,6 +1096,11 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	} else if objType == "FOREIGN TABLE" {
 		createObjRegex = re("CREATE", opt("OR REPLACE"), "FOREIGN", "TABLE", ifNotExists, capture(ident))
 		objNameIndex = 3
+	} else if objType == "OPERATOR" {
+		// to include all three types of OPERATOR DDL
+		// CREATE OPERATOR / CREATE OPERATOR FAMILY / CREATE OPERATOR CLASS
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "OPERATOR", opt("FAMILY"), opt("CLASS"), ifNotExists, capture(ident))
+		objNameIndex = 5
 	} else { //TODO: check syntaxes for other objects and add more cases if required
 		createObjRegex = re("CREATE", opt("OR REPLACE"), objType, ifNotExists, capture(ident))
 		objNameIndex = 3

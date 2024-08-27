@@ -1,0 +1,19 @@
+{
+	"Detail": [
+		{
+			"Schema": "TEST_SCHEMA",
+			"DatabaseIdentifier": "ORCLPDB1",
+			"ReportPath": "ORCLPDB1-TEST_SCHEMA-export-dir/assessment/reports/assessmentReport.json",
+			"Status": "COMPLETE"
+		},
+		{
+			"Schema": "TEST_SCHEMA2",
+			"DatabaseIdentifier": "ORCLPDB1SSL",
+			"ReportPath": "",
+			"Status": "ERROR"
+		}
+	],
+	"Notes": [
+		"To automatically apply the recommendations, continue the migration steps(export-schema, import-schema, ..) using the auto-generated export-dirs.\u003c/br\u003e If using a different export-dir, specify report path in export-schema cmd with `--assessment-report-path` flag  to apply the recommendations."
+	]
+}

@@ -432,10 +432,14 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 
 	// creating subdirs under schema dir
 	for _, schemaObjectType := range source.ExportObjectTypeList {
-		if schemaObjectType == "INDEX" { //no separate dir for indexes
+		if schemaObjectType == "INDEX" || schemaObjectType == "FOREIGN TABLE" || schemaObjectType == "ROW SECURITY" ||
+			schemaObjectType == "OPERATOR FAMILY" || schemaObjectType == "OPERATOR CLASS" { //no separate dir for indexes
 			continue
 		}
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
+		if schemaObjectType == "POLICY" {
+			databaseObjectDirName = "policies"
+		}
 
 		err := exec.Command("mkdir", "-p", filepath.Join(schemaDir, databaseObjectDirName)).Run()
 		if err != nil {
@@ -975,7 +979,7 @@ var (
 	UNSUPPORTED_DATATYPE_XID_ISSUE  = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
 	APP_CHANGES_HIGH_THRESHOLD      = 5
 	APP_CHANGES_MEDIUM_THRESHOLD    = 1
-	SCHEMA_CHANGES_HIGH_THRESHOLD   = int(math.Inf(1))
+	SCHEMA_CHANGES_HIGH_THRESHOLD   = math.MaxInt32
 	SCHEMA_CHANGES_MEDIUM_THRESHOLD = 20
 )
 
@@ -1065,12 +1069,12 @@ type AssessMigrationDBConfig struct {
 
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	switch {
-	case dbConfig.SID != "":
-		return dbConfig.SID
-	case dbConfig.DbName != "":
-		return dbConfig.DbName
 	case dbConfig.TnsAlias != "":
 		return dbConfig.TnsAlias
+	case dbConfig.DbName != "":
+		return dbConfig.DbName
+	case dbConfig.SID != "":
+		return dbConfig.SID
 	default:
 		return ""
 	}
@@ -1085,9 +1089,21 @@ func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
 	return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.GetDatabaseIdentifier(), dbConfig.Schema)
 }
 
-func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportPath() string {
+func (dbConfig *AssessMigrationDBConfig) GetHtmlAssessmentReportPath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
 	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.html")
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetJsonAssessmentReportPath() string {
+	exportDir := dbConfig.GetAssessmentExportDirPath()
+	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json")
+}
+
+// path to the assessment report without extension(like .json or .html).
+// example: bulkAssessmentDir/assessment/reports/assessmentReport
+func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportBasePath() string {
+	exportDir := dbConfig.GetAssessmentExportDirPath()
+	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport")
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentLogFilePath() string {

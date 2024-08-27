@@ -493,11 +493,65 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("clearing migration state from target db: %v", err)
 	}
 
+	if msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted {
+		fmt.Println("deleting yb replication slot and publication")
+		sourceYB := srcdb.Source{
+			DBType:         tconf.TargetDBType,
+			Host:           tconf.Host,
+			Port:           tconf.Port,
+			User:           tconf.User,
+			Password:       tconf.Password,
+			DBName:         tconf.DBName,
+			Schema:         tconf.Schema,
+			SSLMode:        tconf.SSLMode,
+			SSLCertPath:    tconf.SSLCertPath,
+			SSLKey:         tconf.SSLKey,
+			SSLRootCert:    tconf.SSLRootCert,
+			SSLCRL:         tconf.SSLCRL,
+			SSLQueryString: tconf.SSLQueryString,
+			Uri:            tconf.Uri,
+		}
+		err = sourceYB.DB().Connect()
+		if err != nil {
+			utils.ErrExit("connecting to YB as source db for deleting replication slot and publication: %v", err)
+		}
+		defer sourceYB.DB().Disconnect()
+		err = deleteYBReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, sourceYB)
+		if err != nil {
+			utils.ErrExit("deleting yb replication slot and publication: %v", err)
+		}
+	}
+
 	if msr.YBCDCStreamID == "" {
 		log.Info("yugabytedb cdc stream id is not set. skipping deleting stream id")
 		return
 	}
 	deleteCDCStreamIDForEndMigration(tconf)
+}
+
+func deleteYBReplicationSlotAndPublication(replicationSlotName string, publicationName string, source srcdb.Source) (err error) {
+	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
+	if !ok {
+		return fmt.Errorf("unable to cast source db to yugabytedb")
+	}
+
+	if replicationSlotName != "" && source.DBType == YUGABYTEDB {
+		log.Info("deleting yb replication slot: ", replicationSlotName)
+		err = ybDB.DropLogicalReplicationSlot(nil, replicationSlotName)
+		if err != nil {
+			return fmt.Errorf("dropping YB replication slot name: %v", err)
+		}
+	}
+
+	if publicationName != "" && source.DBType == YUGABYTEDB {
+		log.Info("deleting yb publication: ", publicationName)
+		err = ybDB.DropPublication(publicationName)
+		if err != nil {
+			return fmt.Errorf("dropping YB publication name: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {

@@ -100,6 +100,7 @@ const (
 
 	UNSUPPORTED_FEATURES  = "unsupported_features"
 	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
+	MIGRATION_CAVEATS = "migration_caveats"
 
 	TABLE = "TABLE"
 
@@ -113,6 +114,9 @@ const (
 	SOURCE_DB_USER     = "source-db-user"
 	SOURCE_DB_PASSWORD = "source-db-password"
 	SOURCE_DB_SCHEMA   = "source-db-schema"
+
+	HTML_EXTENSION = ".html"
+	JSON_EXTENSION = ".json"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

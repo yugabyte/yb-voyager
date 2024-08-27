@@ -56,6 +56,9 @@
         #refer-p a {
             color: inherit; 
         }
+        .list_item {
+            margin-bottom: 15px;
+        }
 
     </style>
 </head>
@@ -186,7 +189,7 @@
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
-                                <li>{{.SqlStatement}}</li>
+                                <li class='list_item'>{{.SqlStatement}}</li>
                             {{end}}
                         </ul>
                     </div>
@@ -195,7 +198,7 @@
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
-                                <li>{{.ObjectName}}</li>
+                                <li class='list_item'>{{.ObjectName}}</li>
                             {{end}}
                         </ul>
                     </div>
@@ -234,7 +237,7 @@
                         <div class="scrollable-div">
                             <ul>
                                 {{range .Objects}}
-                                    <li>{{.SqlStatement}}</li>
+                                    <li class='list_item'>{{.SqlStatement}}</li>
                                 {{end}}
                             </ul>
                         </div>
@@ -244,7 +247,7 @@
                         <div class="scrollable-div">
                             <ul>
                                 {{range .Objects}}
-                                    <li>{{.ObjectName}}</li>
+                                    <li class='list_item'>{{.ObjectName}}</li>
                                 {{end}}
                             </ul>
                         </div>
