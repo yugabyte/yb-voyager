@@ -403,6 +403,7 @@ centos_main() {
         echo ""
         echo -e "\e[33mCPAN modules:\e[0m"
         print_dependencies "${cpan_modules_requirements[@]}"
+        print_steps_to_install_oic_on_centos
         exit 0
     fi
 
@@ -479,6 +480,28 @@ centos_main() {
     set +x 
 }
 
+print_steps_to_install_oic_on_centos() {
+    echo ""
+    echo -e "\e[33mOracle Instant Client installation help for Centos/RHEL:\e[0m"
+    echo ""
+    echo "You can download the oracle instant client rpms from the following links:"
+    echo ""
+    echo -e "\e[33moracle-instantclient-tools:\e[0m"
+    echo "https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-tools-21.5.0.0.0-1.x86_64.rpm"
+    echo ""
+    echo -e "\e[33moracle-instantclient-basic:\e[0m"
+    echo "https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm"
+    echo ""
+    echo -e "\e[33moracle-instantclient-devel:\e[0m"
+    echo "https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm"
+    echo ""
+    echo -e "\e[33moracle-instantclient-jdbc:\e[0m"
+    echo "https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm"
+    echo ""
+    echo -e "\e[33moracle-instantclient-sqlplus:\e[0m"
+    echo "https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-sqlplus-21.5.0.0.0-1.x86_64.rpm"
+}
+
 check_yum_package_version() {
     local package=$1
     local version_type=$2
@@ -552,6 +575,7 @@ ubuntu_main() {
         echo ""
         echo -e "\e[33mCPAN modules:\e[0m"
         print_dependencies "${cpan_modules_requirements[@]}"
+        print_steps_to_install_oic_on_ubuntu
         exit 0
     fi
 
@@ -624,6 +648,28 @@ ubuntu_main() {
     echo "Installation completed."
 
     set +x
+}
+
+print_steps_to_install_oic_on_ubuntu() {
+    echo ""
+    echo -e "\e[33mOracle Instant Client installation help for Ubuntu:\e[0m"
+    echo ""
+    echo "You can download the oracle instant client debs from the following links:"
+    echo ""
+    echo -e "\e[33moracle-instantclient-tools:\e[0m"
+    echo "https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/apt/pool/main/oracle-instantclient-tools_21.5.0.0.0-1_amd64.deb"
+    echo ""
+    echo -e "\e[33moracle-instantclient-basic:\e[0m"
+    echo "https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/apt/pool/main/oracle-instantclient-basic_21.5.0.0.0-1_amd64.deb"
+    echo ""
+    echo -e "\e[33moracle-instantclient-devel:\e[0m"
+    echo "https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/apt/pool/main/oracle-instantclient-devel_21.5.0.0.0-1_amd64.deb"
+    echo ""
+    echo -e "\e[33moracle-instantclient-jdbc:\e[0m"
+    echo "https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/apt/pool/main/oracle-instantclient-jdbc_21.5.0.0.0-1_amd64.deb"
+    echo ""
+    echo -e "\e[33moracle-instantclient-sqlplus:\e[0m"
+    echo "https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/apt/pool/main/oracle-instantclient-sqlplus_21.5.0.0.0-1_amd64.deb"
 }
 
 check_apt_dependencies() {
