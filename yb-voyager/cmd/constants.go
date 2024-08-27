@@ -57,9 +57,9 @@ const (
 	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
 	ROW_UPDATE_STATUS_COMPLETED     = 3
 	COLOCATION_CLAUSE               = "colocation"
-	EASY                            = "EASY"
+	LOW                             = "LOW"
 	MEDIUM                          = "MEDIUM"
-	HARD                            = "HARD"
+	HIGH                            = "HIGH"
 	//phase names used in call-home payload
 	ANALYZE_PHASE                    = "analyze-schema"
 	EXPORT_SCHEMA_PHASE              = "export-schema"
@@ -113,6 +113,9 @@ const (
 	SOURCE_DB_USER     = "source-db-user"
 	SOURCE_DB_PASSWORD = "source-db-password"
 	SOURCE_DB_SCHEMA   = "source-db-schema"
+
+	HTML_EXTENSION = ".html"
+	JSON_EXTENSION = ".json"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

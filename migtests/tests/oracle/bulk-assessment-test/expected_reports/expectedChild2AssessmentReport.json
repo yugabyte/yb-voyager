@@ -1,32 +1,15 @@
 {
 	"SchemaSummary": {
-		"MigrationComplexity":"NOT AVAILABLE",
-		"DbName": "ORCLPDB1",
+		"MigrationComplexity": "NOT AVAILABLE",
 		"SchemaNames": [
-			"TEST_SCHEMA"
+			"TEST_SCHEMA2"
 		],
 		"DbVersion": "Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production",
 		"DatabaseObjects": [
 			{
-				"ObjectType": "SEQUENCE",
-				"TotalCount": 1,
-				"ObjectNames": "simple_log_seq"
-			},
-			{
 				"ObjectType": "TABLE",
-				"TotalCount": 90,
-				"ObjectNames": "simple_table, accounts_list_partitioned_p_southcentral, orders_interval_partition_interval_partition_less_than_2016, customers, iot_table, session_log2, session_log4, sales_hash_p3, sub_par_test_p2_sp2, sub_par_test_p2_sp22, c1, employees_misc, foo, order_items_range_partitioned, \", sales, sub_par_test_p3, sub_par_test_p3_sp33, accounts_list_partitioned_p_northeast, accounts_list_partitioned_p_southeast, departments_p1, simple_car_type, blob_table, clob_table, empty_partition_table2, employees, empty_partition_table, orders_interval_partition, simple_cars_table, session_log1, trunc_test, xml_table, orders_interval_partition_interval_partition_less_than_2017, sub_par_test_p1, sub_par_test_p5_sp5, accounts_list_partitioned, departments, orders, empty_partition_table_p_west, accounts_list_partitioned_p_northwest, empty_partition_table_p_east, sub_par_test_p4_sp4, sub_par_test_p4_sp44, func_rev_table, nclob_table, synonym_table, test_timezone, sub_par_test_p5, order_items_range_partitioned_p3, session_log, simple_log, orders_interval_partition_interval_partition_less_than_2018, sales_hash_p2, sales_hash_p4, session_log3, text_table, view_table1, departments_p3, sub_par_test_p1_sp1, sub_par_test_p3_sp3, case_sensitive_columns, view_table2, orders_interval_partition_interval_partition_less_than_2015, order_items_range_partitioned_p2, sales_bitmap_idx_table, accounts_list_partitioned_p_southwest, departments_p2, empty_partition_table2_p_east, emp, func_based_table, mixed_case_table_name_test, reserved_column, accounts_list_partitioned_p_northcentral, order_items_range_partitioned_p1, sub_par_test_p1_sp11, c2, rev_table, \"check\", \"group\", empty_partition_table2_p_west, sales_hash_p1, sub_par_test_p4, bfile_table, c, employees2, sales_hash, dept, generated_column_table, sub_par_test, sub_par_test_p2"
-			},
-			{
-				"ObjectType": "INDEX",
-				"TotalCount": 3,
-				"ObjectNames": "sales_bitmap_idx_table_product_id, func_based_table_data, orders_customer_id",
-				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
-			},
-			{
-				"ObjectType": "TRIGGER",
-				"TotalCount": 1,
-				"ObjectNames": "trg_simple_insert"
+				"TotalCount": 63,
+				"ObjectNames": "employees_misc, sub_par_test, view_table2, empty_partition_table2_p_west, orders_interval_partition_interval_partition_less_than_2016, order_items_range_partitioned_p2, sub_par_test_p3, orders_interval_partition, order_items_range_partitioned, \"group\", case_sensitive_columns, session_log2, accounts_list_partitioned_p_southeast, accounts_list_partitioned_p_southcentral, sub_par_test_p4_sp4, sub_par_test_p5_sp5, orders_interval_partition_interval_partition_less_than_2017, sales_hash_p1, sales_hash_p3, sub_par_test_p3_sp3, c1, employees, empty_partition_table2, reserved_column, empty_partition_table_p_west, order_items_range_partitioned_p3, sub_par_test_p1_sp1, c, foo, mixed_case_table_name_test, trunc_test, view_table1, synonym_table, accounts_list_partitioned_p_northwest, sub_par_test_p1, sub_par_test_p5, sub_par_test_p2_sp2, c2, session_log1, session_log4, test_timezone, \"check\", orders_interval_partition_interval_partition_less_than_2018, sub_par_test_p4, accounts_list_partitioned, sales_hash, accounts_list_partitioned_p_northcentral, empty_partition_table2_p_east, sub_par_test_p3_sp33, sub_par_test_p4_sp44, accounts_list_partitioned_p_southwest, sub_par_test_p2_sp22, empty_partition_table, accounts_list_partitioned_p_northeast, sales_hash_p2, sales_hash_p4, sub_par_test_p1_sp11, order_items_range_partitioned_p1, session_log, session_log3, empty_partition_table_p_east, orders_interval_partition_interval_partition_less_than_2015, sub_par_test_p2"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -41,7 +24,7 @@
 			{
 				"ObjectType": "SYNONYM",
 				"TotalCount": 1,
-				"ObjectNames": "test_schema.syn",
+				"ObjectNames": "test_schema2.syn",
 				"Details": "Synonyms in oracle are exported as view, please review and edit them(if needed) to match your requirements"
 			}
 		]
@@ -50,56 +33,34 @@
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
-				"DEPARTMENTS_P1",
-				"DEPARTMENTS_P2",
-				"DEPARTMENTS_P3",
-				"DEPT",
-				"EMP",
 				"EMPTY_PARTITION_TABLE2_P_EAST",
 				"EMPTY_PARTITION_TABLE2_P_WEST",
 				"EMPTY_PARTITION_TABLE_P_EAST",
 				"EMPTY_PARTITION_TABLE_P_WEST",
-				"GENERATED_COLUMN_TABLE",
-				"IOT_TABLE",
 				"SALES_HASH_P1",
 				"SALES_HASH_P3",
-				"SIMPLE_LOG",
-				"SIMPLE_TABLE",
 				"SYNONYM_TABLE",
-				"BFILE_TABLE",
-				"BLOB_TABLE",
-				"C",
 				"C1",
 				"C2",
-				"CLOB_TABLE",
-				"CUSTOMERS",
 				"Case_Sensitive_Columns",
 				"EMPLOYEES",
 				"EMPLOYEES_MISC",
 				"EMPLOYEE_MV_IMMEDIATE",
 				"FOO",
-				"FUNC_BASED_TABLE",
-				"FUNC_REV_TABLE",
 				"Mixed_Case_Table_Name_Test",
-				"NCLOB_TABLE",
-				"ORDERS",
 				"RESERVED_COLUMN",
-				"REV_TABLE",
-				"SALES_BITMAP_IDX_TABLE",
+				"TEST_TIMEZONE",
+				"TRUNC_TEST",
+				"VIEW_TABLE1",
+				"VIEW_TABLE2",
+				"check",
+				"group",
 				"SESSION_LOG",
 				"SESSION_LOG1",
 				"SESSION_LOG2",
 				"SESSION_LOG3",
 				"SESSION_LOG4",
-				"SIMPLE_CARS_TABLE",
-				"TEST_TIMEZONE",
-				"TEXT_TABLE",
-				"TRUNC_TEST",
-				"VIEW_TABLE1",
-				"VIEW_TABLE2",
-				"XML_TABLE",
-				"check",
-				"group",
+				"C",
 				"ACCOUNTS_LIST_PARTITIONED_P_NORTHCENTRAL",
 				"ACCOUNTS_LIST_PARTITIONED_P_NORTHEAST",
 				"ACCOUNTS_LIST_PARTITIONED_P_NORTHWEST",
@@ -125,7 +86,7 @@
 				"SUB_PAR_TEST_P4_SP44",
 				"SUB_PAR_TEST_P5_SP5"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 78 objects (74 tables and 4 explicit/implicit indexes) with 192.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 53 objects (52 tables and 1 explicit/implicit indexes) with 192.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -137,122 +98,36 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": [
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "XML_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "XMLTYPE"
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "TEXT_TABLE",
-			"ColumnName": "TEXT_DATA",
-			"DataType": "CLOB"
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "BFILE_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "BFILE"
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "BLOB_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "BLOB"
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "CLOB_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "CLOB"
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "NCLOB_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "NCLOB"
-		}
-	],
+	"UnsupportedDataTypes": null,
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "Compound Triggers",
-			"Objects": [
-				{
-					"ObjectName": "trg_simple_insert",
-					"SqlStatement": "CREATE TRIGGER trg_simple_insert\n\tCOMPOUND INSERT ON simple_table FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_trg_simple_insert();"
-				}
-			]
+			"Objects": []
 		},
 		{
 			"FeatureName": "Unsupported Indexes",
-			"Objects": [
-				{
-					"ObjectName": "Index Name: TEXT_INDEX, Index Type=DOMAIN INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: FUNC_REV_INDEX, Index Type=FUNCTION-BASED NORMAL/REV INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: PK_IOT_TABLE, Index Type=IOT - TOP INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX",
-					"SqlStatement": ""
-				}
-			]
+			"Objects": null
 		},
 		{
 			"FeatureName": "Virtual Columns",
-			"Objects": [
-				{
-					"ObjectName": "XML_TABLE.DATA",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "GENERATED_COLUMN_TABLE.TOTAL_PRICE",
-					"SqlStatement": ""
-				}
-			]
+			"Objects": null
 		},
 		{
 			"FeatureName": "Inherited Types",
-			"Objects": [
-				{
-					"ObjectName": "SIMPLE_CAR_TYPE",
-					"SqlStatement": ""
-				}
-			]
+			"Objects": null
 		},
 		{
 			"FeatureName": "Unsupported Partitioning Methods",
-			"Objects": [
-				{
-					"ObjectName": "Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Table Name: SALES, Partition Method: SYSTEM PARTITION",
-					"SqlStatement": ""
-				}
-			]
+			"Objects": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_NORTHCENTRAL",
-			"RowCount": 0,
+			"RowCount": 5,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -264,9 +139,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_NORTHEAST",
-			"RowCount": 0,
+			"RowCount": 11,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -278,9 +153,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_NORTHWEST",
-			"RowCount": 0,
+			"RowCount": 6,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -292,9 +167,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_SOUTHCENTRAL",
-			"RowCount": 0,
+			"RowCount": 6,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -306,9 +181,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_SOUTHEAST",
-			"RowCount": 0,
+			"RowCount": 7,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -320,9 +195,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ACCOUNTS_LIST_PARTITIONED_P_SOUTHWEST",
-			"RowCount": 0,
+			"RowCount": 7,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -334,37 +209,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "BFILE_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "BLOB_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "C",
-			"RowCount": 0,
+			"RowCount": 480,
 			"ColumnCount": 3,
 			"Reads": null,
 			"Writes": null,
@@ -376,9 +223,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "C1",
-			"RowCount": 0,
+			"RowCount": 80,
 			"ColumnCount": 3,
 			"Reads": null,
 			"Writes": null,
@@ -390,9 +237,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "C2",
-			"RowCount": 0,
+			"RowCount": 80,
 			"ColumnCount": 3,
 			"Reads": null,
 			"Writes": null,
@@ -404,37 +251,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "CLOB_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "CUSTOMERS",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "Case_Sensitive_Columns",
-			"RowCount": 0,
+			"RowCount": 240,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -446,79 +265,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "DEPARTMENTS_P1",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "DEPARTMENTS_P2",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "DEPARTMENTS_P3",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "DEPT",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "EMP",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPLOYEES",
-			"RowCount": 0,
+			"RowCount": 107,
 			"ColumnCount": 11,
 			"Reads": null,
 			"Writes": null,
@@ -530,9 +279,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPLOYEES_MISC",
-			"RowCount": 0,
+			"RowCount": 120,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -544,9 +293,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPLOYEE_MV_IMMEDIATE",
-			"RowCount": 0,
+			"RowCount": 12,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -558,7 +307,7 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPTY_PARTITION_TABLE2_P_EAST",
 			"RowCount": 0,
 			"ColumnCount": 4,
@@ -572,7 +321,7 @@
 			"SizeInBytes": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPTY_PARTITION_TABLE2_P_WEST",
 			"RowCount": 0,
 			"ColumnCount": 4,
@@ -586,7 +335,7 @@
 			"SizeInBytes": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPTY_PARTITION_TABLE_P_EAST",
 			"RowCount": 0,
 			"ColumnCount": 3,
@@ -600,7 +349,7 @@
 			"SizeInBytes": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "EMPTY_PARTITION_TABLE_P_WEST",
 			"RowCount": 0,
 			"ColumnCount": 3,
@@ -614,9 +363,9 @@
 			"SizeInBytes": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "FOO",
-			"RowCount": 0,
+			"RowCount": 34,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -628,65 +377,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "FUNC_BASED_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "FUNC_REV_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "GENERATED_COLUMN_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "IOT_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "Mixed_Case_Table_Name_Test",
-			"RowCount": 0,
+			"RowCount": 240,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -698,37 +391,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "NCLOB_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "ORDERS",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2015",
-			"RowCount": 0,
+			"RowCount": 1,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -740,9 +405,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2016",
-			"RowCount": 0,
+			"RowCount": 13,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -754,9 +419,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2017",
-			"RowCount": 0,
+			"RowCount": 79,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -768,9 +433,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2018",
-			"RowCount": 0,
+			"RowCount": 12,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -782,9 +447,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDER_ITEMS_RANGE_PARTITIONED_P1",
-			"RowCount": 0,
+			"RowCount": 49,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -796,9 +461,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDER_ITEMS_RANGE_PARTITIONED_P2",
-			"RowCount": 0,
+			"RowCount": 20,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -810,9 +475,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "ORDER_ITEMS_RANGE_PARTITIONED_P3",
-			"RowCount": 0,
+			"RowCount": 10,
 			"ColumnCount": 5,
 			"Reads": null,
 			"Writes": null,
@@ -824,9 +489,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "RESERVED_COLUMN",
-			"RowCount": 0,
+			"RowCount": 200,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -838,35 +503,7 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "REV_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "SALES_BITMAP_IDX_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SALES_HASH_P1",
 			"RowCount": 0,
 			"ColumnCount": 4,
@@ -880,9 +517,9 @@
 			"SizeInBytes": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SALES_HASH_P2",
-			"RowCount": 0,
+			"RowCount": 2,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -894,7 +531,7 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SALES_HASH_P3",
 			"RowCount": 0,
 			"ColumnCount": 4,
@@ -908,9 +545,9 @@
 			"SizeInBytes": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SALES_HASH_P4",
-			"RowCount": 0,
+			"RowCount": 28,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -922,9 +559,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -936,9 +573,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG1",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -950,9 +587,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG2",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -964,9 +601,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG3",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -978,9 +615,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SESSION_LOG4",
-			"RowCount": 0,
+			"RowCount": 4000,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -992,51 +629,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "SIMPLE_CARS_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 1,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "SIMPLE_LOG",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "SIMPLE_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": null
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P1_SP1",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1048,9 +643,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P1_SP11",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1062,9 +657,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P2_SP2",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1076,9 +671,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P2_SP22",
-			"RowCount": 0,
+			"RowCount": 2,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1090,9 +685,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P3_SP3",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1104,9 +699,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P3_SP33",
-			"RowCount": 0,
+			"RowCount": 2,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1118,9 +713,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P4_SP4",
-			"RowCount": 0,
+			"RowCount": 3,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1132,9 +727,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P4_SP44",
-			"RowCount": 0,
+			"RowCount": 2,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1146,9 +741,9 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SUB_PAR_TEST_P5_SP5",
-			"RowCount": 0,
+			"RowCount": 1,
 			"ColumnCount": 4,
 			"Reads": null,
 			"Writes": null,
@@ -1160,7 +755,7 @@
 			"SizeInBytes": 8388608
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "SYNONYM_TABLE",
 			"RowCount": 0,
 			"ColumnCount": 2,
@@ -1174,9 +769,9 @@
 			"SizeInBytes": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "TEST_TIMEZONE",
-			"RowCount": 0,
+			"RowCount": 1,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -1188,23 +783,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "TEXT_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "TRUNC_TEST",
-			"RowCount": 0,
+			"RowCount": 40,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -1216,9 +797,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "VIEW_TABLE1",
-			"RowCount": 0,
+			"RowCount": 400,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -1230,9 +811,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "VIEW_TABLE2",
-			"RowCount": 0,
+			"RowCount": 360,
 			"ColumnCount": 6,
 			"Reads": null,
 			"Writes": null,
@@ -1244,23 +825,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "XML_TABLE",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "check",
-			"RowCount": 0,
+			"RowCount": 200,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -1272,9 +839,9 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "group",
-			"RowCount": 0,
+			"RowCount": 5,
 			"ColumnCount": 2,
 			"Reads": null,
 			"Writes": null,
@@ -1286,35 +853,7 @@
 			"SizeInBytes": 65536
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "IDX_PRODUCT_ID",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": true,
-			"ObjectType": "",
-			"ParentTableName": "TEST_SCHEMA.SALES_BITMAP_IDX_TABLE",
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "IDX_BJI_CUSTOMER_ORDER",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": true,
-			"ObjectType": "",
-			"ParentTableName": "TEST_SCHEMA.ORDERS",
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
+			"SchemaName": "TEST_SCHEMA2",
 			"ObjectName": "I_SNAP$_EMPLOYEE_MV_IMMEDIATE",
 			"RowCount": null,
 			"ColumnCount": 1,
@@ -1324,28 +863,12 @@
 			"WritesPerSecond": null,
 			"IsIndex": true,
 			"ObjectType": "",
-			"ParentTableName": "TEST_SCHEMA.EMPLOYEE_MV_IMMEDIATE",
-			"SizeInBytes": 65536
-		},
-		{
-			"SchemaName": "TEST_SCHEMA",
-			"ObjectName": "FUNC_BASED_INDEX",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"Reads": null,
-			"Writes": null,
-			"ReadsPerSecond": null,
-			"WritesPerSecond": null,
-			"IsIndex": true,
-			"ObjectType": "",
-			"ParentTableName": "TEST_SCHEMA.FUNC_BASED_TABLE",
+			"ParentTableName": "TEST_SCHEMA2.EMPLOYEE_MV_IMMEDIATE",
 			"SizeInBytes": 65536
 		}
 	],
 	"Notes": [
-		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e.",
-		"Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.",
-		"There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yugabyte-db/issues/7850\"\u003ehttps://github.com/yugabyte/yugabyte-db/issues/7850\u003c/a\u003e so take a look and modify them if not supported."
+		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e."
 	],
 	"MigrationCaveats": null
 }

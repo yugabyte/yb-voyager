@@ -599,3 +599,16 @@ func SafeDereferenceInt64(ptr *int64) int64 {
 	}
 	return 0
 }
+
+func ChangeFileExtension(filePath string, newExt string) string {
+	ext := filepath.Ext(filePath)
+	if ext != "" {
+		filePath = strings.TrimSuffix(filePath, ext)
+	}
+
+	if !strings.HasPrefix(newExt, ".") {
+		newExt = "." + newExt
+	}
+
+	return filePath + newExt
+}
