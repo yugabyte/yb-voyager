@@ -723,10 +723,11 @@ func generateAssessmentReport() (err error) {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 
-	assessmentReport.UnsupportedDataTypes, err = fetchColumnsWithUnsupportedDataTypes()
+	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
+	assessmentReport.UnsupportedDataTypes = unsupportedDataTypes
 	assessmentReport.UnsupportedDataTypesDesc = "Data types of the source database that are not supported on the target YugabyteDB."
 
 	assessmentReport.Sizing = migassessment.SizingReport
@@ -736,7 +737,7 @@ func generateAssessmentReport() (err error) {
 	}
 
 	addNotesToAssessmentReport()
-	addMigrationCaveatsToAssessmentReport()
+	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration)
 	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
@@ -879,14 +880,15 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	return unsupportedFeatures, nil
 }
 
-func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, error) {
+func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, error) {
 	var unsupportedDataTypes []utils.TableColumnsDataTypes
+	var unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes
 
 	query := fmt.Sprintf(`SELECT schema_name, table_name, column_name, data_type FROM %s`,
 		migassessment.TABLE_COLUMNS_DATA_TYPES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error querying-%s: %w", query, err)
+		return nil, nil, fmt.Errorf("error querying-%s: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -901,18 +903,18 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 		err := rows.Scan(&columnDataTypes.SchemaName, &columnDataTypes.TableName,
 			&columnDataTypes.ColumnName, &columnDataTypes.DataType)
 		if err != nil {
-			return nil, fmt.Errorf("error scanning rows: %w", err)
+			return nil, nil, fmt.Errorf("error scanning rows: %w", err)
 		}
 
 		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
 	var sourceUnsupportedDataTypes []string
+	var liveMigrationUnsupportedDataTypes []string
 	switch source.DBType {
 	case POSTGRESQL:
-		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
-		//adding XID here as data export import should not fail as YugabyteDB supports inserts on it but its functions are not supported
-		sourceUnsupportedDataTypes = append(sourceUnsupportedDataTypes, "xid")
+		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypes
+		liveMigrationUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
 	case ORACLE:
 		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
 	default:
@@ -924,9 +926,12 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 		if utils.ContainsAnySubstringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
+		if utils.ContainsAnySubstringFromSlice(liveMigrationUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
+		}
 	}
 
-	return unsupportedDataTypes, nil
+	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, nil
 }
 
 const (
@@ -968,7 +973,7 @@ func addNotesToAssessmentReport() {
 	}
 }
 
-func addMigrationCaveatsToAssessmentReport() {
+func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes) {
 	switch source.DBType {
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
@@ -977,6 +982,14 @@ func addMigrationCaveatsToAssessmentReport() {
 			schemaAnalysisReport, &migrationCaveats, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE)
 		addUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON,
 			schemaAnalysisReport, &migrationCaveats, false, DESCRIPTION_FOREIGN_TABLES)
+
+		if len(unsupportedDataTypesForLiveMigration) > 0 {
+			columns := make([]ObjectInfo, 0)
+			for _, col := range unsupportedDataTypesForLiveMigration {
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s(%s) in TABLE:%s.%s", col.ColumnName, col.DataType, col.SchemaName, col.TableName)})
+			}
+			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration", columns, false, "", UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
+		}
 		if len(migrationCaveats) > 0 {
 			assessmentReport.MigrationCaveats = migrationCaveats
 		}

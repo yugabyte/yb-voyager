@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
 
 var PG_COMMAND_VERSION = map[string]string{
@@ -549,7 +550,8 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 func (pg *PostgreSQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
 	var columns, dataTypes, dataTypesOwner []string
 	sname, tname := tableName.ForCatalogQuery()
-	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, sname, tname)
+	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tname, sname)
+	utils.PrintAndLog("query to get table columns: %s", query)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
@@ -578,6 +580,7 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	for _, tableName := range tableList {
 		columns, dataTypes, _, err := pg.getTableColumns(tableName)
+		utils.PrintAndLog("Columns and datatypes for table %v: %v, %v", tableName, columns, dataTypes)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}
@@ -601,7 +604,8 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 			}
 		}
 	}
-
+	// utils.PrintAndLog("Supported columns for tables: %v", supportedTableColumnsMap)
+	utils.PrintAndLog("Unsupported columns for tables: %v", unsupportedTableColumnsMap)
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
