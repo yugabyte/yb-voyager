@@ -68,5 +68,5 @@ func init() {
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
 	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", true,
-		"Use the gRPC connector for export from YB. Default is true.")
+		"Use the gRPC connector for export from YB. Default is true. If set to false, the new logical replication based connector will be used.")
 }
