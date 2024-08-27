@@ -81,7 +81,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if perfProfile {
 				go startPprofServer()
 			}
-			setControlPlane()
+			// no info/payload is collected/supported for assess-migration-bulk
+			setControlPlane("")
 		} else {
 			validateExportDirFlag()
 			schemaDir = filepath.Join(exportDir, "schema")
@@ -105,7 +106,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if perfProfile {
 				go startPprofServer()
 			}
-			setControlPlane()
+			setControlPlane(getControlPlaneType())
 		}
 	},
 
@@ -299,8 +300,7 @@ func metaDBIsCreated(exportDir string) bool {
 	return utils.FileOrFolderExists(filepath.Join(exportDir, "metainfo", "meta.db"))
 }
 
-func setControlPlane() {
-	cpType := getControlPlaneType()
+func setControlPlane(cpType string) {
 	switch cpType {
 	case "":
 		log.Infof("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")

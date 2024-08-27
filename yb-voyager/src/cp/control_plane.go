@@ -16,9 +16,7 @@ limitations under the License.
 package cp
 
 import (
-	"fmt"
 	"strings"
-	"syscall"
 
 	"github.com/google/uuid"
 
@@ -66,15 +64,6 @@ func GetSchemaList(schema string) []string {
 func SplitTableNameForPG(tableName string) (string, string) {
 	splitTableName := strings.Split(tableName, ".")
 	return splitTableName[0], splitTableName[1]
-}
-
-func GetAvailableDiskSpace(exportDir string) (uint64, error) {
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(exportDir, &stat); err != nil {
-		return 0, fmt.Errorf("error getting disk space for directory %s: %w", exportDir, err)
-	}
-	// Available blocks * size per block to get available space in bytes
-	return stat.Bavail * uint64(stat.Bsize), nil
 }
 
 type BaseEvent struct {

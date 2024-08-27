@@ -88,10 +88,10 @@ func prepareVoyagerInstance(exportDir string) *VoyagerInstance {
 }
 
 // getAvailableDiskSpace returns the available disk space in bytes in the specified directory.
-func getAvailableDiskSpace(exportDir string) (uint64, error) {
+func getAvailableDiskSpace(dirPath string) (uint64, error) {
 	var stat syscall.Statfs_t
-	if err := syscall.Statfs(exportDir, &stat); err != nil {
-		return 0, fmt.Errorf("error getting disk space for directory %s: %w", exportDir, err)
+	if err := syscall.Statfs(dirPath, &stat); err != nil {
+		return 0, fmt.Errorf("error getting disk space for directory %q: %w", dirPath, err)
 	}
 	// Available blocks * size per block to get available space in bytes
 	return stat.Bavail * uint64(stat.Bsize), nil
