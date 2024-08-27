@@ -33,6 +33,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+
+	"github.com/jackc/pglogrepl"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
@@ -830,4 +833,132 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 		}
 	}
 	return nonPKTables, nil
+}
+
+func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
+	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
+}
+
+func (yb *YugabyteDB) CreateOrGetLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) (string, error) {
+	exists, err := yb.CheckIfReplicationSlotExists(replicationSlotName)
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		log.Infof("replication slot %s already exists, skipping creation", replicationSlotName)
+		return replicationSlotName, nil
+	}
+
+	log.Infof("creating replication slot %s", replicationSlotName)
+	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "yboutput",
+		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
+	if err != nil {
+		return "", fmt.Errorf("create replication slot: %v", err)
+	}
+
+	return res.SlotName, nil
+}
+
+func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) error {
+	var err error
+	if conn == nil {
+		conn, err = yb.GetReplicationConnection()
+		if err != nil {
+			return fmt.Errorf("failed to create replication connection for dropping replication slot: %w", err)
+		}
+		defer conn.Close(context.Background())
+	}
+	log.Infof("dropping replication slot: %s", replicationSlotName)
+
+	// TODO: Remove this sleep and check the status of the slot before dropping
+	// This sleep is added to avoid the error "replication slot is active" while dropping the slot since it takes 60 seconds by default to change the status of the slot
+	log.Info("sleeping for 60 seconds before dropping replication slot")
+	time.Sleep(60 * time.Second)
+
+	err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+	if err != nil {
+		// ignore "does not exist" error while dropping replication slot
+		if !strings.Contains(err.Error(), "does not exist") {
+			return fmt.Errorf("delete existing replication slot(%s): %v", replicationSlotName, err)
+		}
+	}
+	return nil
+}
+
+func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName string, tablelistQualifiedQuoted []string) error {
+	exists, err := yb.CheckIfPublicationSlotExists(publicationName)
+	if err != nil {
+		return err
+	}
+	if exists {
+		log.Infof("publication %s already exists, skipping creation", publicationName)
+		return nil
+	}
+
+	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))
+	result := conn.Exec(context.Background(), stmt)
+	_, err = result.ReadAll()
+	if err != nil {
+		return fmt.Errorf("create publication with stmt %s: %v", err, stmt)
+	}
+	log.Infof("created publication with stmt %s", stmt)
+	return nil
+}
+
+func (yb *YugabyteDB) DropPublication(publicationName string) error {
+	log.Infof("dropping publication: %s", publicationName)
+	res, err := yb.db.Exec(fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
+	log.Infof("drop publication result: %v", res)
+	if err != nil {
+		return fmt.Errorf("drop publication(%s): %v", publicationName, err)
+	}
+	return nil
+}
+
+func (yb *YugabyteDB) CheckIfPublicationSlotExists(publicationName string) (bool, error) {
+	query := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = '%s');", publicationName)
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return false, fmt.Errorf("querying publication existence: %v", err)
+	}
+	defer rows.Close()
+
+	var exists bool
+	if rows.Next() {
+		if err := rows.Scan(&exists); err != nil {
+			return false, fmt.Errorf("scanning publication existence: %v", err)
+		}
+	}
+
+	// Check for any errors encountered during iteration
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("error during rows iteration: %v", err)
+	}
+
+	return exists, nil
+}
+
+func (yb *YugabyteDB) CheckIfReplicationSlotExists(replicationSlotName string) (bool, error) {
+	query := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = '%s');", replicationSlotName)
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return false, fmt.Errorf("querying replication slot existence: %v", err)
+	}
+	defer rows.Close()
+
+	var exists bool
+	if rows.Next() {
+		if err := rows.Scan(&exists); err != nil {
+			return false, fmt.Errorf("scanning replication slot existence: %v", err)
+		}
+	}
+
+	// Check for any errors encountered during iteration
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("error during rows iteration: %v", err)
+	}
+
+	return exists, nil
 }
