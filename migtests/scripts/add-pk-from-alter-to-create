@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+
+import os
+import re
+
+table_file_path = os.getenv('TEST_DIR')+'/export-dir/schema/tables/table.sql'
+
+with open(table_file_path, 'r') as file:
+    lines = file.readlines()
+
+create_tables = []
+alter_tables = []
+for i, line in enumerate(lines):
+    if line.startswith('CREATE TABLE'):
+        create_tables.append(line)
+    elif line.strip(' ').startswith('ADD CONSTRAINT') and lines[i-1].startswith('ALTER TABLE'):
+        alter_tables.append(lines[i])
+
+
+output = []
+for i in range(len(create_tables)):
+    # Extract the primary key constraint from the ALTER TABLE statement
+    match = re.search(r'ADD CONSTRAINT (.*) PRIMARY KEY \((.*)\);', alter_tables[i])
+    if match:
+        constraint = match.group(1)
+        columns = match.group(2)
+
+        # Add the primary key constraint to the CREATE TABLE statement
+        if "WITH" in create_tables[i]:
+            create_table = create_tables[i].replace(') WITH', ',' + 'PRIMARY KEY (' +  columns + ')) WITH')
+        else:
+            create_table = create_tables[i] + '    PRIMARY KEY (' + columns + '),\n'
+        output.append(create_table)
+
+with open(table_file_path, 'w') as file:
+    # modify create_table lines to output ones
+    for i, line in enumerate(lines):
+         if line in create_tables:
+             file.write(output.pop(0))
+         elif line in alter_tables and line.find('PRIMARY KEY') != -1: # remove the ADD CONTRAINT lines with PK only
+             pass
+         elif line.startswith('ALTER TABLE') and (i < len(lines)-1 and lines[i+1].find('PRIMARY KEY') != -1): # remove the ALTER TABLE lines for PK only
+            pass
+         else:
+            file.write(line)

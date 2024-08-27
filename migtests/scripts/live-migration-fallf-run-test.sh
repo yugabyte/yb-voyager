@@ -121,9 +121,8 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
-	then
-		"${TEST_DIR}/add-pk-from-alter-to-create"
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] ; then
+		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
 	step "Import schema."
@@ -215,7 +214,7 @@ main() {
 	sleep 120
 	
 	step "Initiating cutover"
-	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --yes
+	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --yes --use-logical-replication-yb-connector true
 
 	# max sleep time = 20 * 20s = ~ 6.6 minutes, but that much sleep will be in failure cases
 	# in success case it will exit as soon as cutover is COMPLETED + 20sec

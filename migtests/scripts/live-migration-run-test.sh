@@ -112,9 +112,8 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
-	then
-		"${TEST_DIR}/add-pk-from-alter-to-create"
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] ; then
+		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
 	step "Import schema."
@@ -181,7 +180,7 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover"
-	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back false --yes
+	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back false --yes --use-logical-replication-yb-connector true
 
 	for ((i = 0; i < 10; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
