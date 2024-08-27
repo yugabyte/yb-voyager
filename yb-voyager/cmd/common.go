@@ -811,7 +811,7 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		SchemaNames:   cp.GetSchemaList(source.Schema),
 		HostIP:        utils.LookupIP(source.Host),
 		Port:          source.Port,
-		DBVersion:     source.DBVersion,
+		DbVersion:     source.DBVersion,
 	}
 	utils.PrintAndLog("[debug]base event: %s\n", spew.Sdump(bev))
 }
@@ -825,7 +825,7 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		SchemaNames:   []string{tconf.Schema},
 		HostIP:        utils.LookupIP(tconf.Host),
 		Port:          tconf.Port,
-		DBVersion:     tconf.DBVersion,
+		DbVersion:     tconf.DBVersion,
 	}
 }
 

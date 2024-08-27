@@ -169,7 +169,10 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 		MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
 		InvocationSequence:  invocationSequence,
 		DatabaseName:        event.DatabaseName,
-		SchemaName:          strings.Join(event.SchemaNames[:], "|"),
+		SchemaName:          strings.Join(event.SchemaNames, "|"),
+		HostIP:              strings.Join(event.HostIP, "|"),
+		Port:                event.Port,
+		DbVersion:           event.DbVersion,
 		Payload:             payload,
 		DBType:              event.DBType,
 		Status:              status,
@@ -194,7 +197,7 @@ func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.Bas
 		snapshotMigrateTableMetrics := VisualizerTableMetrics{
 			MigrationUUID:       event.MigrationUUID,
 			TableName:           event.TableName,
-			Schema:              strings.Join(event.SchemaNames[:], "|"),
+			Schema:              strings.Join(event.SchemaNames, "|"),
 			MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
 			Status:              UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
 			CountLiveRows:       event.CompletedRowCount,
@@ -426,6 +429,9 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 			migration_dir VARCHAR(250),
 			database_name VARCHAR(250),
 			schema_name VARCHAR(250),
+			host_ip VARCHAR,
+			port INT,
+			db_version VARCHAR(250),
 			payload TEXT,
 			complexity VARCHAR(30),
 			db_type VARCHAR(30),
@@ -500,20 +506,23 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 // Send visualisation metadata
 func (cp *YugabyteD) sendMigrationEvent(
 	migrationEvent MigrationEvent) error {
-	cmd := fmt.Sprintf("INSERT INTO %s ("+
-		"migration_uuid, "+
-		"migration_phase, "+
-		"invocation_sequence, "+
-		"migration_dir, "+
-		"database_name, "+
-		"schema_name, "+
-		"payload, "+
-		"db_type, "+
-		"status, "+
-		"invocation_timestamp"+
-		") VALUES ("+
-		"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10"+
-		")", YUGABYTED_METADATA_TABLE_NAME)
+	cmd := fmt.Sprintf(`
+		INSERT INTO %s (
+			migration_uuid,
+			migration_phase,
+			invocation_sequence,
+			migration_dir,
+			database_name,
+			schema_name,
+			host_ip,
+			port,
+			db_version,
+			payload,
+			db_type,
+			status,
+			invocation_timestamp
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	`, YUGABYTED_METADATA_TABLE_NAME)
 
 	var maxAttempts = 5
 	migrationEvent.MigrationDirectory = cp.migrationDirectory
@@ -601,6 +610,9 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 		migrationEvent.MigrationDirectory,
 		migrationEvent.DatabaseName,
 		migrationEvent.SchemaName,
+		migrationEvent.HostIP,
+		migrationEvent.Port,
+		migrationEvent.DbVersion,
 		migrationEvent.Payload,
 		migrationEvent.DBType,
 		migrationEvent.Status,

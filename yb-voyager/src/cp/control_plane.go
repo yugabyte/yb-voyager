@@ -85,7 +85,7 @@ type BaseEvent struct {
 	SchemaNames   []string
 	HostIP        []string
 	Port          int
-	DBVersion     string
+	DbVersion     string
 }
 
 type BaseUpdateRowCountEvent struct {

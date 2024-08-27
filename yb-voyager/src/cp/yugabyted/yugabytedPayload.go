@@ -24,6 +24,9 @@ type MigrationEvent struct {
 	MigrationDirectory  string    `json:"migration_dir"`
 	DatabaseName        string    `json:"database_name"`
 	SchemaName          string    `json:"schema_name"`
+	HostIP              string    `json:"host_ip"`
+	Port                int       `json:"port"`
+	DbVersion           string    `json:"db_version"`
 	Payload             string    `json:"payload"`
 	DBType              string    `json:"db_type"`
 	Status              string    `json:"status"`
