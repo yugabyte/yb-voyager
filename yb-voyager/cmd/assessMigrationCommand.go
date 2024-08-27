@@ -376,7 +376,6 @@ func getMigrationComplexityForOracle() error {
 	}
 	migrationLevel := reportData[5][1 : len(reportData[5])-1] // it is surrounded by double quotes
 	migrationLevel = strings.Split(migrationLevel, "-")[0]
-	utils.PrintAndLog("migrationLevel=%s", migrationLevel)
 
 	switch migrationLevel {
 	case "A":
