@@ -867,7 +867,7 @@ ubuntu_install_postgres() {
 	sudo grep -qxF "$line" /etc/apt/sources.list.d/pgdg.list || echo "$line" | sudo tee /etc/apt/sources.list.d/pgdg.list 1>&2
 	wget -nv -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 	sudo apt-get update 1>&2
-	sudo apt-get -y install postgresql-14 1>&2
+	sudo apt-get -y install postgresql-16 1>&2
 	output "Postgres Installed."
 }
 
