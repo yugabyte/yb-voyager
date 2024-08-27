@@ -4,37 +4,37 @@ ARGS_LINUX=$@
 LOG_FILE=/tmp/install-yb-voyager.log
 CHECK_ONLY_DEPENDENCIES="false"
 FORCE_INSTALL="false"
+PRINT_DEPENDENCIES="false"
 
 centos_yum_package_requirements=(
-  "gcc:min:0"
-  "make:min:0"
-  "sqlite:min:0"
-  "perl:min:0"
-  "perl-DBI:min:0"
-  "perl-App-cpanminus:min:0"
-  "perl-ExtUtils-MakeMaker:min:0"
-  "mysql-devel:min:0"
-  "oracle-instantclient-tools:exact:21.5.0.0.0"
-  "oracle-instantclient-basic:exact:21.5.0.0.0"
-  "oracle-instantclient-devel:exact:21.5.0.0.0"
-  "oracle-instantclient-jdbc:exact:21.5.0.0.0"
-  "oracle-instantclient-sqlplus:exact:21.5.0.0.0"
+  "gcc|min|0"
+  "make|min|0"
+  "sqlite|min|0"
+  "perl|min|0"
+  "perl-DBI|min|0"
+  "perl-App-cpanminus|min|0"
+  "perl-ExtUtils-MakeMaker|min|0"
+  "mysql-devel|min|0"
+  "oracle-instantclient-tools|exact|21.5.0.0.0"
+  "oracle-instantclient-basic|exact|21.5.0.0.0"
+  "oracle-instantclient-devel|exact|21.5.0.0.0"
+  "oracle-instantclient-jdbc|exact|21.5.0.0.0"
+  "oracle-instantclient-sqlplus|exact|21.5.0.0.0"
 )
 
 ubuntu_apt_package_requirements=(
-  "binutils:min:2.25"
-  "sqlite3:min:0"
-  "gcc:min:0"
-  "perl:min:0"
-  "libdbi-perl:min:0"
-  "libaio1:min:0"
-  "cpanminus:min:0"
-  "libmysqlclient-dev:min:0"
-  "oracle-instantclient-tools:exact:21.5.0.0.0"
-  "oracle-instantclient-basic:exact:21.5.0.0.0"
-  "oracle-instantclient-devel:exact:21.5.0.0.0"
-  "oracle-instantclient-jdbc:exact:21.5.0.0.0"
-  "oracle-instantclient-sqlplus:exact:21.5.0.0.0"
+  "sqlite3|min|0"
+  "gcc|min|0"
+  "perl|min|0"
+  "libdbi-perl|min|0"
+  "libaio1|min|0"
+  "cpanminus|min|0"
+  "libmysqlclient-dev|min|0"
+  "oracle-instantclient-tools|exact|21.5.0.0.0"
+  "oracle-instantclient-basic|exact|21.5.0.0.0"
+  "oracle-instantclient-devel|exact|21.5.0.0.0"
+  "oracle-instantclient-jdbc|exact|21.5.0.0.0"
+  "oracle-instantclient-sqlplus|exact|21.5.0.0.0"
 )
 
 cpan_modules_requirements=(
@@ -59,10 +59,8 @@ trap on_exit EXIT
 on_exit() {
 	rc=$?
 	set +x
-	if [ $rc -eq 0 ]
-	then
-		echo "Done!"
-	else
+	if [ $rc -ne 0 ]
+    then
 		echo "Script failed. Check log file ${LOG_FILE} ."
 		if [[ ${ON_INSTALLER_ERROR_OUTPUT_LOG:-N} = "Y" ]]
 		then
@@ -279,7 +277,7 @@ check_java() {
 }
 
 get_passed_options() {
-	OPTS=$(getopt -o "df", --long check-only-dependencies,force-install --name 'install-voyager-airgapped' -- $ARGS_LINUX)
+	OPTS=$(getopt -o "dfh", --long check-only-dependencies,force-install,help --name 'install-voyager-airgapped' -- $ARGS_LINUX)
 
 	eval set -- "$OPTS"
 
@@ -293,6 +291,15 @@ get_passed_options() {
                 FORCE_INSTALL="true"
 				shift
 				;;
+            -h | --help )
+                echo "Usage: $0 [options]"
+                echo "Options:"
+                echo "  -d, --check-only-dependencies  Check only dependencies and exit."
+                echo "  -f, --force-install            Force install packages without checking dependencies."
+                echo "  -h, --help                     Display this help message."
+                PRINT_DEPENDENCIES="true"
+                shift
+                ;;
 			* ) 
 				break 
 				;;
@@ -342,11 +349,63 @@ check_pg_dump_and_pg_restore_version() {
     fi
 }
 
+print_dependencies() {
+    # Properly format the dependencies and print them. with minimum version required, exact version no version specification etc
+    local dependencies=("$@")
+    for dependency in "${dependencies[@]}"; do
+        IFS='|' read -r package version_type required_version <<< "$dependency"
+        case "$version_type" in
+            min)
+                if [ "$required_version" != "0" ]; then
+                    echo "$package with minimum version $required_version"
+                else 
+                    echo "$package"
+                fi
+                ;;
+            exact)
+                echo "$package with exact version $required_version"
+                ;;
+        esac
+    done
+}
+
+print_misc_dependencies(){
+    echo ""
+    echo -e "\e[33mBinutils:\e[0m"
+    echo "Minimum version: 2.25"
+    echo ""
+    echo -e "\e[33mJava:\e[0m"
+    echo "Minimum version: 17"
+    echo ""
+    echo -e "\e[33mpg_dump:\e[0m"
+    echo "Minimum version: 14"
+    echo ""
+    echo -e "\e[33mpg_restore:\e[0m"
+    echo "Minimum version: 14"
+    echo ""
+    echo -e "\e[33mpsql:\e[0m"
+    echo "Minimum version: 14"
+}
+
 #=============================================================================
 # CENTOS/RHEL
 #=============================================================================
 
 centos_main() {
+    # If --help is passed, print dependencies and exit.
+    if [ "$PRINT_DEPENDENCIES" = "true" ]; then
+        echo ""
+        echo -e "\e[33mCentOS/RHEL dependencies:\e[0m"
+        print_misc_dependencies
+        echo ""
+        echo -e "\e[33mYum packages:\e[0m"
+        print_dependencies "${centos_yum_package_requirements[@]}"
+        echo ""
+        echo -e "\e[33mCPAN modules:\e[0m"
+        print_dependencies "${cpan_modules_requirements[@]}"
+        exit 0
+    fi
+
     # If --force-install is not passed, check dependencies.
     if [ "$FORCE_INSTALL" = "false" ]; then
         echo "Checking dependencies..."
@@ -461,7 +520,7 @@ check_yum_package_version() {
 
 check_yum_dependencies() {
     for requirement in "${centos_yum_package_requirements[@]}"; do
-        IFS=":" read -r package version_type required_version <<< "$requirement"
+        IFS='|' read -r package version_type required_version <<< "$requirement"
         check_yum_package_version "$package" "$version_type" "$required_version"
     done
 
@@ -482,6 +541,20 @@ check_yum_dependencies() {
 #=============================================================================
 
 ubuntu_main() {
+     # If --help is passed, print dependencies and exit.
+    if [ "$PRINT_DEPENDENCIES" = "true" ]; then
+        echo ""
+        echo -e "\e[33mUbuntu dependencies:\e[0m"
+        print_misc_dependencies
+        echo ""
+        echo -e "\e[33mApt packages:\e[0m"
+        print_dependencies "${ubuntu_apt_package_requirements[@]}"
+        echo ""
+        echo -e "\e[33mCPAN modules:\e[0m"
+        print_dependencies "${cpan_modules_requirements[@]}"
+        exit 0
+    fi
+
     # If --force-install is not passed, check dependencies.
     if [ "$FORCE_INSTALL" = "false" ]; then
         echo "Checking dependencies..."
@@ -555,7 +628,7 @@ ubuntu_main() {
 
 check_apt_dependencies() {
     for requirement in "${ubuntu_apt_package_requirements[@]}"; do
-        IFS=":" read -r package version_type required_version <<< "$requirement"
+        IFS='|' read -r package version_type required_version <<< "$requirement"
         check_apt_package_version "$package" "$version_type" "$required_version"
     done
 
