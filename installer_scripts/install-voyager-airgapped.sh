@@ -197,6 +197,12 @@ check_binutils_version() {
 	# Example output of "ld -v" on Ubuntu:
 	# GNU ld (GNU Binutils for Ubuntu) 2.38
 	version=$(ld -v | awk '{print $NF}' | awk -F '-' '{print $1}')
+    if [ -z "$version" ]; then
+        echo ""
+        echo -e "\e[31mERROR: binutils not found. Please install binutils version > ${min_required_version}.\e[0m"
+        binutils_wrong_version=1
+        return
+    fi
 
 	version_ok=$(version_satisfied "$min_required_version" "$version")
 	if [[ $version_ok -eq 0 ]]
