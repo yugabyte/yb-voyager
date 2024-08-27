@@ -163,9 +163,8 @@ process_flag() {
 
     case "$flag" in
         "-e" | "--export-dir")
-            local dir_path=${argv[$(( index + 1 ))]}
-            echo "Export directory set to: ${dir_path}"
-            handle_directory_flag "--export-dir" "$dir_path"
+            export_dir=${argv[$(( index + 1 ))]}
+            handle_directory_flag "--export-dir" "$export_dir"
             return 1  # Skip the next parameter
             ;;
         "--data-dir")
