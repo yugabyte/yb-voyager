@@ -155,7 +155,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "idx_name1",
+            "ObjectName": "idx_name1 ON table_name",
             "Reason": "index method 'spgist' not supported yet.",
             "SqlStatement": "CREATE INDEX idx_name1 ON table_name USING spgist (col1);",
             "Suggestion": "",
@@ -164,7 +164,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "idx_name2",
+            "ObjectName": "idx_name2 ON table_name",
             "Reason": "index method 'rtree' is superceded by 'gist' which is not supported yet.",
             "SqlStatement": "CREATE INDEX idx_name2 ON table_name USING rtree (col1);",
             "Suggestion": "",
