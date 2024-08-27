@@ -11,36 +11,47 @@ with open(table_file_path, 'r') as file:
 
 create_tables = []
 alter_tables = []
+create_table_map = {}
+alter_table_map = {}
 for i, line in enumerate(lines):
     if line.startswith('CREATE TABLE'):
+        match = re.search(r'CREATE TABLE (.*) ', line.split('(')[0]) 
+        if match:
+            table_name = match.group(1)
+            create_table_map[table_name] = line
         create_tables.append(line)
-    elif line.strip(' ').startswith('ADD CONSTRAINT') and lines[i-1].startswith('ALTER TABLE'):
+    elif line.strip(' ').startswith('ADD CONSTRAINT') and line.strip(' ').find('PRIMARY KEY') != -1 and lines[i-1].startswith('ALTER TABLE'):
+        match = re.search(r'ALTER TABLE ONLY (.*)', lines[i-1])
+        if match:
+            table_name = match.group(1)
+            alter_table_map[table_name] = lines[i]
         alter_tables.append(lines[i])
 
 
 output = []
-for i in range(len(create_tables)):
+
+for k,v in create_table_map.items():
     # Extract the primary key constraint from the ALTER TABLE statement
-    match = re.search(r'ADD CONSTRAINT (.*) PRIMARY KEY \((.*)\);', alter_tables[i])
+    match = re.search(r'ADD CONSTRAINT (.*) PRIMARY KEY \((.*)\);', alter_table_map[k])
     if match:
         constraint = match.group(1)
         columns = match.group(2)
 
         # Add the primary key constraint to the CREATE TABLE statement
-        if "WITH" in create_tables[i]:
-            create_table = create_tables[i].replace(') WITH', ',' + 'PRIMARY KEY (' +  columns + ')) WITH')
+        if "WITH" in v:
+            create_table = v.replace(') WITH', ',' + 'PRIMARY KEY (' +  columns + ')) WITH')
         else:
-            create_table = create_tables[i] + '    PRIMARY KEY (' + columns + '),\n'
+            create_table = v + '    PRIMARY KEY (' + columns + '),\n'
         output.append(create_table)
 
 with open(table_file_path, 'w') as file:
     # modify create_table lines to output ones
-    for line in lines:
+    for i, line in enumerate(lines):
         if line in create_tables:
             file.write(output.pop(0))
-        elif line in alter_tables: # remove the ADD CONTRAINT lines
+        elif line in alter_tables and line.find('PRIMARY KEY') != -1: # remove the ADD CONTRAINT lines with PK only
             pass
-        elif line.startswith('ALTER TABLE') and line.find('ATTACH PARTITION') == -1: # remove the ALTER TABLE with out ATTACH PARTITION lines
+        elif line.startswith('ALTER TABLE') and (i < len(lines)-1 and lines[i+1].find('PRIMARY KEY') != -1): # remove the ALTER TABLE lines for PK only
             pass
         else:
             file.write(line)

@@ -15,7 +15,7 @@ create_table_map = {}
 alter_table_map = {}
 for i, line in enumerate(lines):
     if line.startswith('CREATE TABLE'):
-        match = re.search(r'CREATE TABLE (.*) \(', line)
+        match = re.search(r'CREATE TABLE (.*) ', line.split('(')[0]) 
         if match:
             table_name = match.group(1)
             create_table_map[table_name] = line
