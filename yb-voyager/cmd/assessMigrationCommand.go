@@ -336,6 +336,8 @@ func assessMigration() (err error) {
 	return nil
 }
 
+// This is a temporary logic to get migration complexity for oracle based on the migration level from ora2pg report.
+// Ideally, we should ALSO be considering the schema analysis report to get the migration complexity.
 func getMigrationComplexityForOracle() error {
 	if source.DBType != ORACLE {
 		return nil
@@ -372,7 +374,19 @@ func getMigrationComplexityForOracle() error {
 	if len(reportData) < 6 {
 		return fmt.Errorf("invalid ora2pg report file format. Expected more than 6 columns, found %d", len(reportData))
 	}
-	migrationLevel := reportData[5]
+	migrationLevel := strings.Split(reportData[5], "-")[0]
+
+	switch {
+	case migrationLevel == "A":
+		assessmentReport.SchemaSummary.MigrationComplexity = LOW
+	case migrationLevel == "B":
+		assessmentReport.SchemaSummary.MigrationComplexity = MEDIUM
+	case migrationLevel == "C":
+		assessmentReport.SchemaSummary.MigrationComplexity = HIGH
+	default:
+		log.Warnf("Invalid Migration level %s found in ora2pg report %v. Setting migration complexity to NOT_AVAILABLE", migrationLevel, reportData)
+		assessmentReport.SchemaSummary.MigrationComplexity = "NOT_AVAILABLE"
+	}
 	assessmentReport.SchemaSummary.MigrationComplexity = migrationLevel
 	return nil
 }
