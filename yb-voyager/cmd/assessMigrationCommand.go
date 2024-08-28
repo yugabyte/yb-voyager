@@ -914,7 +914,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	switch source.DBType {
 	case POSTGRESQL:
 		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypes
-		liveMigrationUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
+		liveMigrationUnsupportedDataTypes, _ = lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
 	case ORACLE:
 		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
 	default:
