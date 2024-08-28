@@ -32,7 +32,7 @@ CREATE INDEX idx_box_data ON Mixed_Data_Types_Table1 USING GIST (box_data);
 
 CREATE TABLE orders2 (
     id SERIAL PRIMARY KEY,
-    order_number VARCHAR(50) UNIQUE,
+    order_number VARCHAR(50) UNIQUE DEFERRABLE, --unique constraint deferrable test
     status VARCHAR(50) NOT NULL,
     shipped_date DATE
 );
@@ -59,7 +59,8 @@ CREATE TABLE employees2 (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    full_name VARCHAR(101) GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED
+    full_name VARCHAR(101) GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED,
+    Department varchar(50)
 );
 
 --For the ALTER TABLE ADD PK on partitioned DDL in schema
@@ -76,3 +77,31 @@ CREATE TABLE public.test_exclude_basic (
 );
 ALTER TABLE ONLY public.test_exclude_basic
     ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);
+
+
+CREATE TABLE test_xml_type(id int, data xml);
+
+INSERT INTO test_xml_type values(1,'<person>
+<name>ABC</name>
+<age>34</age>
+</person>');
+
+INSERT INTO test_xml_type values(2,'<person>
+<name>XYZ</name>
+<age>36</age>
+</person>');
+
+
+CREATE ROLE test_policy;
+
+CREATE POLICY policy_test_report ON test_xml_type TO test_policy USING (true);
+
+CREATE POLICY policy_test_fine ON public.test_exclude_basic FOR ALL TO PUBLIC USING (id % 2 = 1);
+
+CREATE POLICY policy_test_fine_2 ON public.employees2  USING (id NOT IN (12,123,41241));
+
+CREATE VIEW sales_employees as
+select id, first_name,
+last_name, full_name
+from employees2 where Department = 'sales'
+WITH CHECK OPTION;

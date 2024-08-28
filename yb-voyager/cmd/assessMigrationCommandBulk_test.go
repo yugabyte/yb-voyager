@@ -39,9 +39,11 @@ Unit tests
     1. Invalid length header [length more than the total] or less than the minimum
     2. Missing each of the mandatory args from [source-db-type, source-db-user, source-db-schema, one of [source-db-name, oracle-db-sid, oracle-tns-alias]]
     3. No line after header
+	4. Invalid source db type
 3. Multi line config [generate below case, differently for each line]
     1. Invalid length header [length more than the total] or less than the minimum
     2. Missing each of the mandatory args from [source-db-type, source-db-user, source-db-schema, one of [source-db-name, oracle-db-sid, oracle-tns-alias]]
+	3. Invalid source db type
 4. Passing tests
     1. Minimum header
     2. Single line entry after header
@@ -176,6 +178,12 @@ oracle,,,dms`,
 oracle,,,`,
 			expectedErrSuffix: "failed to create config for line 2 in fleet config file: mandatory fields missing in the record: 'source-db-user', 'source-db-schema', 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
 		},
+		{
+			name: "Invalid source-db-type in Single Record",
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
+mysql,user1,schema1,db1`,
+			expectedErrSuffix: "failed to create config for line 2 in fleet config file: unsupported/invalid source-db-type: 'mysql'. Only 'oracle' is supported",
+		},
 		// Multiple line Record Tests
 		{
 			name: "Multi-Line Config - Missing Mandatory Field on Third Line",
@@ -192,6 +200,14 @@ oracle,user1,schema1,db1
 oracle,user2,schema2,db2
 oracle,user3,schema3,`,
 			expectedErrSuffix: "failed to create config for line 4 in fleet config file: mandatory fields missing in the record: 'one of [source-db-name, oracle-db-sid, oracle-tns-alias]'",
+		},
+		{
+			name: "Multi-Line Config - Invalid source-db-type on Third Line",
+			fileContent: `source-db-type,source-db-user,source-db-schema,source-db-name
+oracle,user1,schema1,db1
+postgresql,user2,schema2,db2
+oracle,user3,schema3,db3`,
+			expectedErrSuffix: "failed to create config for line 3 in fleet config file: unsupported/invalid source-db-type: 'postgresql'. Only 'oracle' is supported",
 		},
 	}
 

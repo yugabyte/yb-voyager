@@ -57,6 +57,7 @@ var assessMigrationBulkCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(assessMigrationBulkCmd)
+	registerCommonGlobalFlags(assessMigrationBulkCmd)
 
 	const fleetConfigFileHelp = `
 Path to the CSV file with connection parameters for schema(s) to be assessed.
@@ -65,6 +66,11 @@ Mandatory: 'source-db-type', 'source-db-user', 'source-db-schema', and one of ['
 Guidelines:
 	- The first line must be a header row.
 	- Ensure mandatory fields are included and correctly spelled.
+
+Sample fleet_config_file:
+	source-db-type,source-db-host,source-db-port,source-db-name,oracle-db-sid,oracle-tns-alias,source-db-user,source-db-password,source-db-schema
+	oracle,localhost,1521,orclpdb,,,user1,password1,schema1
+	oracle,localhost,1521,,orclsid,,user2,password2,schema2
 `
 
 	// defining flags
@@ -110,7 +116,7 @@ func assessMigrationBulk() {
 	for _, dbConfig := range dbConfigs {
 		utils.PrintAndLog("\nAssessing '%s' schema", dbConfig.GetSchemaIdentifier())
 
-		if checkMigrationAssessmentForConfig(dbConfig) {
+		if isMigrationAssessmentDoneForConfig(dbConfig) {
 			utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.GetSchemaIdentifier())
 			continue
 		}
@@ -179,7 +185,7 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 		args = append(args, "--source-db-name", dbConfig.DbName)
 	} else {
 		// special handling due to issue https://yugabyte.atlassian.net/browse/DB-12481
-		args = append(args, `--source-db-name ""`)
+		args = append(args, "--source-db-name", "")
 	}
 	if dbConfig.TnsAlias != "" {
 		args = append(args, "--oracle-tns-alias", dbConfig.TnsAlias)
@@ -193,6 +199,15 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 	if dbConfig.Port != "" {
 		args = append(args, "--source-db-port", dbConfig.Port)
 	}
+
+	// Always safe to use --start-clean to cleanup if there is some state from previous runs in export-dir
+	// since bulk command has separate check to decide beforehand whether the report exists or assessment needs to be performed.
+	args = append(args, "--start-clean", "true")
+
+	if utils.DoNotPrompt {
+		args = append(args, "--yes")
+	}
+
 	return args
 }
 
@@ -241,7 +256,7 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 		configMap[field] = strings.TrimSpace(record[i])
 	}
 
-	// Check if mandatory fields are present and non-empty
+	// Check if mandatory fields[fleetConfigRequiredFields + fleetConfDbIdentifierFields] are present and non-empty
 	missingFields := []string{}
 	for _, field := range fleetConfRequiredFields {
 		if val, ok := configMap[field]; !ok || val == "" {
@@ -260,6 +275,11 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 	}
 	if len(missingFields) > 0 {
 		return nil, fmt.Errorf("mandatory fields missing in the record: '%s'", strings.Join(missingFields, "', '"))
+	}
+
+	// Check if the source-db-type is supported (only 'oracle' allowed)
+	if dbType := configMap[SOURCE_DB_TYPE]; strings.ToLower(dbType) != ORACLE {
+		return nil, fmt.Errorf("unsupported/invalid source-db-type: '%s'. Only '%s' is supported", dbType, ORACLE)
 	}
 
 	return &AssessMigrationDBConfig{
@@ -281,20 +301,21 @@ const REPORT_PATH_NOTE = "To automatically apply the recommendations, continue t
 func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	log.Infof("generating bulk assessment report")
 	for _, dbConfig := range dbConfigs {
-		assessmentReportPath := dbConfig.GetAssessmentReportPath()
+		// extension will set later on during html/json report generation
+		assessmentReportBasePath := dbConfig.GetAssessmentReportBasePath()
 		var assessmentDetail = AssessmentDetail{
 			Schema:             dbConfig.Schema,
 			DatabaseIdentifier: dbConfig.GetDatabaseIdentifier(),
 			Status:             COMPLETE,
 		}
-		if !checkMigrationAssessmentForConfig(dbConfig) {
+		if !isMigrationAssessmentDoneForConfig(dbConfig) {
 			assessmentDetail.Status = ERROR
 		} else {
-			assessmentReportRelPath, err := filepath.Rel(bulkAssessmentDir, assessmentReportPath)
+			assessmentReportRelBasePath, err := filepath.Rel(bulkAssessmentDir, assessmentReportBasePath)
 			if err != nil {
 				return fmt.Errorf("failed to get relative path for %s schema assessment report: %w", dbConfig.GetSchemaIdentifier(), err)
 			}
-			assessmentDetail.ReportPath = assessmentReportRelPath
+			assessmentDetail.ReportPath = assessmentReportRelBasePath
 		}
 		bulkAssessmentReport.Details = append(bulkAssessmentReport.Details, assessmentDetail)
 	}
@@ -314,10 +335,38 @@ func generateBulkAssessmentReport(dbConfigs []AssessMigrationDBConfig) error {
 	return nil
 }
 
+func generateBulkAssessmentJsonReport() error {
+	for i := range bulkAssessmentReport.Details {
+		if bulkAssessmentReport.Details[i].ReportPath != "" {
+			bulkAssessmentReport.Details[i].ReportPath = utils.ChangeFileExtension(bulkAssessmentReport.Details[i].ReportPath, JSON_EXTENSION)
+		}
+	}
+
+	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.json")
+	strReport, err := json.MarshalIndent(bulkAssessmentReport, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal the buk assessment report: %w", err)
+	}
+
+	err = os.WriteFile(reportPath, strReport, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write bulk assessment report to file: %w", err)
+	}
+
+	utils.PrintAndLog("generated bulk assessment JSON report at: %s", reportPath)
+	return nil
+}
+
 //go:embed templates/bulkAssessmentReport.template
 var bulkAssessmentHtmlTmpl string
 
 func generateBulkAssessmentHtmlReport() error {
+	for i := range bulkAssessmentReport.Details {
+		if bulkAssessmentReport.Details[i].ReportPath != "" {
+			bulkAssessmentReport.Details[i].ReportPath = utils.ChangeFileExtension(bulkAssessmentReport.Details[i].ReportPath, HTML_EXTENSION)
+		}
+	}
+
 	tmpl, err := template.New("bulk-assessement-report").Parse(bulkAssessmentHtmlTmpl)
 	if err != nil {
 		return fmt.Errorf("failed to parse the bulkAssessmentReport template: %w", err)
@@ -338,25 +387,9 @@ func generateBulkAssessmentHtmlReport() error {
 	return nil
 }
 
-func generateBulkAssessmentJsonReport() error {
-	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.json")
-
-	strReport, err := json.MarshalIndent(bulkAssessmentReport, "", "\t")
-	if err != nil {
-		return fmt.Errorf("failed to marshal the buk assessment report: %w", err)
-	}
-
-	err = os.WriteFile(reportPath, strReport, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write bulk assessment report to file: %w", err)
-	}
-
-	utils.PrintAndLog("\ngenerated bulk assessment JSON report at: %s", reportPath)
-	return nil
-}
-
-func checkMigrationAssessmentForConfig(dbConfig AssessMigrationDBConfig) bool {
-	if !utils.FileOrFolderExists(dbConfig.GetAssessmentReportPath()) {
+func isMigrationAssessmentDoneForConfig(dbConfig AssessMigrationDBConfig) bool {
+	if !utils.FileOrFolderExists(dbConfig.GetHtmlAssessmentReportPath()) ||
+		!utils.FileOrFolderExists(dbConfig.GetJsonAssessmentReportPath()) {
 		return false
 	}
 

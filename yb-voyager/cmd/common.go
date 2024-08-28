@@ -432,10 +432,14 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 
 	// creating subdirs under schema dir
 	for _, schemaObjectType := range source.ExportObjectTypeList {
-		if schemaObjectType == "INDEX" { //no separate dir for indexes
+		if schemaObjectType == "INDEX" || schemaObjectType == "FOREIGN TABLE" || schemaObjectType == "ROW SECURITY" ||
+			schemaObjectType == "OPERATOR FAMILY" || schemaObjectType == "OPERATOR CLASS" { //no separate dir for indexes
 			continue
 		}
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
+		if schemaObjectType == "POLICY" {
+			databaseObjectDirName = "policies"
+		}
 
 		err := exec.Command("mkdir", "-p", filepath.Join(schemaDir, databaseObjectDirName)).Run()
 		if err != nil {
@@ -970,6 +974,60 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	return nil
 }
 
+var (
+	UNSUPPORTED_DATATYPE_XML_ISSUE  = fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE)
+	UNSUPPORTED_DATATYPE_XID_ISSUE  = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
+	APP_CHANGES_HIGH_THRESHOLD      = 5
+	APP_CHANGES_MEDIUM_THRESHOLD    = 1
+	SCHEMA_CHANGES_HIGH_THRESHOLD   = math.MaxInt32
+	SCHEMA_CHANGES_MEDIUM_THRESHOLD = 20
+)
+
+var appChanges = []string{
+	INHERITANCE_ISSUE_REASON,
+	CONVERSION_ISSUE_REASON,
+	DEFERRABLE_CONSTRAINT_ISSUE,
+	UNSUPPORTED_DATATYPE_XML_ISSUE,
+	UNSUPPORTED_DATATYPE_XID_ISSUE,
+	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this
+}
+
+func readEnvForAppOrSchemaCounts() {
+	APP_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_HIGH_THRESHOLD", APP_CHANGES_HIGH_THRESHOLD)
+	APP_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_MEDIUM_THRESHOLD", APP_CHANGES_MEDIUM_THRESHOLD)
+	SCHEMA_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_HIGH_THRESHOLD", SCHEMA_CHANGES_HIGH_THRESHOLD)
+	SCHEMA_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_MEDIUM_THRESHOLD", SCHEMA_CHANGES_MEDIUM_THRESHOLD)
+}
+
+// Migration complexity calculation from the conversion issues
+func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaReport) string {
+	if sourceDBType != POSTGRESQL {
+		return "NOT AVAILABLE"
+	}
+	if analysisReport.SchemaSummary.MigrationComplexity != "" {
+		return analysisReport.SchemaSummary.MigrationComplexity
+	}
+	log.Infof("Calculating migration complexity..")
+	readEnvForAppOrSchemaCounts()
+	appChangesCount := 0
+	for _, issue := range schemaAnalysisReport.Issues {
+		for _, appChange := range appChanges {
+			if strings.Contains(issue.Reason, appChange) {
+				appChangesCount++
+			}
+		}
+	}
+	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
+
+	if appChangesCount > APP_CHANGES_HIGH_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_HIGH_THRESHOLD {
+		return HIGH
+	} else if appChangesCount > APP_CHANGES_MEDIUM_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_MEDIUM_THRESHOLD {
+		return MEDIUM
+	}
+	//LOW in case appChanges == 0 or schemaChanges [0-20]
+	return LOW
+}
+
 // =====================================================================
 
 type AssessmentReport struct {
@@ -982,6 +1040,7 @@ type AssessmentReport struct {
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
+	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 }
 
 type AssessmentDetail struct {
@@ -1010,12 +1069,12 @@ type AssessMigrationDBConfig struct {
 
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	switch {
-	case dbConfig.SID != "":
-		return dbConfig.SID
-	case dbConfig.DbName != "":
-		return dbConfig.DbName
 	case dbConfig.TnsAlias != "":
 		return dbConfig.TnsAlias
+	case dbConfig.DbName != "":
+		return dbConfig.DbName
+	case dbConfig.SID != "":
+		return dbConfig.SID
 	default:
 		return ""
 	}
@@ -1030,9 +1089,21 @@ func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
 	return fmt.Sprintf("%s/%s-%s-export-dir", bulkAssessmentDir, dbConfig.GetDatabaseIdentifier(), dbConfig.Schema)
 }
 
-func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportPath() string {
+func (dbConfig *AssessMigrationDBConfig) GetHtmlAssessmentReportPath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
 	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.html")
+}
+
+func (dbConfig *AssessMigrationDBConfig) GetJsonAssessmentReportPath() string {
+	exportDir := dbConfig.GetAssessmentExportDirPath()
+	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport.json")
+}
+
+// path to the assessment report without extension(like .json or .html).
+// example: bulkAssessmentDir/assessment/reports/assessmentReport
+func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportBasePath() string {
+	exportDir := dbConfig.GetAssessmentExportDirPath()
+	return filepath.Join(exportDir, "assessment", "reports", "assessmentReport")
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentLogFilePath() string {

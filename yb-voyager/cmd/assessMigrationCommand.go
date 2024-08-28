@@ -66,8 +66,11 @@ var sourceConnectionFlags = []string{
 }
 
 type UnsupportedFeature struct {
-	FeatureName string       `json:"FeatureName"`
-	Objects     []ObjectInfo `json:"Objects"`
+	FeatureName        string       `json:"FeatureName"`
+	Objects            []ObjectInfo `json:"Objects"`
+	DisplayDDL         bool         `json:"-"` // just used by html format to display the DDL for some feature and object names for other
+	DocsLink           string       `json:"DocsLink,omitempty"`
+	FeatureDescription string       `json:"FeatureDescription,omitempty"`
 }
 
 type ObjectInfo struct {
@@ -399,7 +402,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalColocatedSize: sizeDetails.TotalColocatedSize,
 			TotalShardedSize:   sizeDetails.TotalShardedSize,
 		},
-		MigrationComplexity: getMigrationComplexity(), //TODO: to figure out proper algorithm
+		MigrationComplexity: getMigrationComplexity(source.DBType, schemaAnalysisReport),
 		ConversionIssues:    schemaAnalysisReport.Issues,
 	}
 
@@ -410,10 +413,6 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 	ev.Report = string(finalReportBytes)
 	return ev
-}
-
-func getMigrationComplexity() string {
-	return "NOT AVAILABLE"
 }
 
 type SizeDetails struct {
@@ -737,6 +736,7 @@ func generateAssessmentReport() (err error) {
 	}
 
 	addNotesToAssessmentReport()
+	addMigrationCaveatsToAssessmentReport()
 	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
@@ -784,44 +784,49 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	return nil
 }
 
-func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReasons []string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature) {
+func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature, displayDDLInHTML bool, description string) {
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
+	link := "" // for oracle we shouldn't display any line for links
+	if source.DBType == POSTGRESQL {
+		link = "TBD"
+	}
 	for _, issue := range schemaAnalysisReport.Issues {
-		for _, issueReason := range issueReasons {
-			if strings.Contains(issue.Reason, issueReason) {
-				objectInfo := ObjectInfo{
-					ObjectName:   issue.ObjectName,
-					SqlStatement: issue.SqlStatement,
-				}
-				objects = append(objects, objectInfo)
-				break
+		if strings.Contains(issue.Reason, issueReason) {
+			objectInfo := ObjectInfo{
+				ObjectName:   issue.ObjectName,
+				SqlStatement: issue.SqlStatement,
 			}
+			objects = append(objects, objectInfo)
 		}
 	}
-	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objects})
+	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description})
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", []string{GIST_INDEX_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", []string{CONSTRAINT_TRIGGER_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", []string{INHERITANCE_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Tables with Stored generated columns", []string{STORED_GENERATED_COLUMN_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", []string{CONVERSION_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin Indexes on Multi-columns", []string{GIN_INDEX_MULTI_COLUMN_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport(UNSUPPORTED_DDL_OPERATIONS, []string{ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON, ALTER_TABLE_SET_ATTRUBUTE_ISSUE,
-		ALTER_TABLE_DISABLE_RULE_ISSUE, STORAGE_PARAMETERS_DDL_STMT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", []string{UNSUPPORTED_EXTENSION_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", []string{EXCLUSION_CONSTRAINT_ISSUE}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Tables with stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin indexes on multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Setting attribute=value on column", ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Disabling rule on table", ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Clustering table on index", ALTER_TABLE_CLUSTER_ON_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Storage parameters in DDLs", STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
 	return unsupportedFeatures, nil
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", []string{COMPOUND_TRIGGER_ISSUE_REASON}, schemaAnalysisReport, &unsupportedFeatures)
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
 	return unsupportedFeatures, nil
 }
 
@@ -867,10 +872,10 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	}
 
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes, false, "", ""})
 	return unsupportedFeatures, nil
 }
 
@@ -906,6 +911,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, erro
 	switch source.DBType {
 	case POSTGRESQL:
 		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypesForDbzm
+		//adding XID here as data export import should not fail as YugabyteDB supports inserts on it but its functions are not supported
+		sourceUnsupportedDataTypes = append(sourceUnsupportedDataTypes, "xid")
 	case ORACLE:
 		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
 	default:
@@ -930,7 +937,9 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 
 	GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
 
-	UNSUPPORTED_DDL_OPERATIONS = "Unsupported DDL operations"
+	DESCRIPTION_ADD_PK_TO_PARTITION_TABLE = `After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.`
+	DESCRIPTION_FOREIGN_TABLES            = `During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.`
+	DESCRIPTION_POLICY_ROLE_ISSUE         = `There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.`
 )
 
 const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
@@ -957,11 +966,22 @@ func addNotesToAssessmentReport() {
 				}
 			}
 		}
+	}
+}
+
+func addMigrationCaveatsToAssessmentReport() {
+	switch source.DBType {
 	case POSTGRESQL:
-		for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
-			if dbObj.ObjectType == "FOREIGN TABLE" && len(dbObj.ObjectNames) > 0 {
-				assessmentReport.Notes = append(assessmentReport.Notes, FOREIGN_TABLE_NOTE)
-			}
+		log.Infof("add migration caveats to assessment report")
+		migrationCaveats := make([]UnsupportedFeature, 0)
+		addUnsupportedFeaturesFromSchemaAnalysisReport("Alter partitioned tables to add Primary Key", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+			schemaAnalysisReport, &migrationCaveats, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE)
+		addUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON,
+			schemaAnalysisReport, &migrationCaveats, false, DESCRIPTION_FOREIGN_TABLES)
+		addUnsupportedFeaturesFromSchemaAnalysisReport("Policies", POLICY_ROLE_ISSUE,
+			schemaAnalysisReport, &migrationCaveats, false, DESCRIPTION_POLICY_ROLE_ISSUE)
+		if len(migrationCaveats) > 0 {
+			assessmentReport.MigrationCaveats = migrationCaveats
 		}
 	}
 }
