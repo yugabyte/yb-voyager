@@ -128,7 +128,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 
-	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, bool(startClean))
+	// we don't want to re-register in case import data to source/source-replica
+	reregisterYBNames := importerRole == TARGET_DB_IMPORTER_ROLE && bool(startClean)
+	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, reregisterYBNames)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
