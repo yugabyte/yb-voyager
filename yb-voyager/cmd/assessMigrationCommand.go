@@ -995,7 +995,8 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		}
 		for _, caveat := range migrationCaveats {
 			if len(caveat.Objects) > 0 {
-				//for the case to not populate this in case there are no caveats
+				//Not populating the MigrationCaveats section in case there are no caveats at all
+				//TODO: fix it with proper solution in template for all sections
 				assessmentReport.MigrationCaveats = migrationCaveats
 				break
 			}

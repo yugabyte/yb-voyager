@@ -43,7 +43,7 @@ import (
 type summaryInfo struct {
 	totalCount   int
 	invalidCount map[string]bool
-	objSet       []string
+	objSet       []string //TODO: fix it with the set and proper names for INDEX, TRIGGER and POLICY types as "obj_name on table_name"
 	details      map[string]bool //any details about the object type
 }
 
@@ -354,6 +354,7 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 
 // Checks whether there is gist index
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
+	//TODO: add other index types in assessment 
 	for _, sqlInfo := range sqlInfoArr {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
