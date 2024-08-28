@@ -1276,6 +1276,8 @@ func PackAndSendCallhomePayloadOnExit() {
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
 		packAndSendAssessMigrationPayload(EXIT, "Exiting....")
+	case assessMigrationBulkCmd.CommandPath():
+		packAndSendAssessMigrationBulkPayload(EXIT)
 	case exportSchemaCmd.CommandPath():
 		packAndSendExportSchemaPayload(EXIT)
 	case analyzeSchemaCmd.CommandPath():

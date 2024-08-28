@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -37,6 +38,7 @@ var bulkAssessmentDir string
 var fleetConfigPath string
 var continueOnError utils.BoolStr
 var bulkAssessmentReport BulkAssessmentReport
+var bulkAssessmentDBConfigs []AssessMigrationDBConfig
 
 var assessMigrationBulkCmd = &cobra.Command{
 	Use:   "assess-migration-bulk",
@@ -51,10 +53,38 @@ var assessMigrationBulkCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		assessMigrationBulk()
+		err := assessMigrationBulk()
+		if err != nil {
+			packAndSendAssessMigrationBulkPayload(ERROR)
+			utils.ErrExit("failed assess migration bulk: %s", err)
+		}
+		packAndSendAssessMigrationBulkPayload(COMPLETE)
 	},
 }
 
+func packAndSendAssessMigrationBulkPayload(status string) {
+	if !shouldSendCallhome() {
+		return
+	}
+	log.Infof("sending callhome payload for assess-migration-bulk cmd with status as %s", status)
+	payload := createCallhomePayload()
+	payload.MigrationPhase = ASSESS_MIGRATION_BULK_PHASE
+
+	for i := 0; i < len(bulkAssessmentDBConfigs); i++ {
+		bulkAssessmentDBConfigs[i].Password = ""
+	}
+	assessMigBulkPayload := callhome.AssessMigrationBulkPhasePayload{
+		FleetConfigData: callhome.MarshalledJsonString(bulkAssessmentDBConfigs),
+	}
+
+	payload.PhasePayload = callhome.MarshalledJsonString(assessMigBulkPayload)
+	payload.Status = status
+
+	err := callhome.SendPayload(&payload)
+	if err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
+}
 func init() {
 	rootCmd.AddCommand(assessMigrationBulkCmd)
 	registerCommonGlobalFlags(assessMigrationBulkCmd)
@@ -84,19 +114,19 @@ Sample fleet_config_file:
 	assessMigrationBulkCmd.MarkFlagRequired("bulk-assessment-dir")
 }
 
-func assessMigrationBulk() {
+func assessMigrationBulk() error {
 	if startClean {
 		proceed := utils.AskPrompt(
 			"CAUTION: Using --start-clean will delete all progress in each export directory present inside the bulk-assessment-dir. " +
 				"Do you want to proceed")
 		if !proceed {
-			return
+			return nil
 		}
 
 		// cleaning all export-dir present inside bulk-assessment-dir
 		matches, err := filepath.Glob(fmt.Sprintf("%s/*-export-dir", bulkAssessmentDir))
 		if err != nil {
-			utils.ErrExit("error while cleaning up export directories: %s", err)
+			return fmt.Errorf("error while cleaning up export directories: %w", err)
 		}
 		for _, match := range matches {
 			utils.CleanDir(match)
@@ -104,16 +134,22 @@ func assessMigrationBulk() {
 
 		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html"))
 		if err != nil {
-			utils.ErrExit("failed to remove bulk assessment report: %s", err)
+			return fmt.Errorf("failed to remove bulk assessment report: %w", err)
 		}
 	}
 
-	dbConfigs, err := parseFleetConfigFile(fleetConfigPath)
+	var err error
+	bulkAssessmentDBConfigs, err = parseFleetConfigFile(fleetConfigPath)
 	if err != nil {
-		utils.ErrExit("failed to parse fleet config file: %v", err)
+		return fmt.Errorf("failed to parse fleet config file: %w", err)
 	}
 
-	for _, dbConfig := range dbConfigs {
+	err = retrieveMigrationUUID()
+	if err != nil {
+		return fmt.Errorf("failed to get migration UUID: %w", err)
+	}
+
+	for _, dbConfig := range bulkAssessmentDBConfigs {
 		utils.PrintAndLog("\nAssessing '%s' schema", dbConfig.GetSchemaIdentifier())
 
 		if isMigrationAssessmentDoneForConfig(dbConfig) {
@@ -137,14 +173,15 @@ func assessMigrationBulk() {
 
 		if ProcessShutdownRequested {
 			log.Info("Exiting from assess-migration-bulk. Further assessments will not be executed due to a shutdown request.")
-			return
+			return nil
 		}
 	}
 
-	err = generateBulkAssessmentReport(dbConfigs)
+	err = generateBulkAssessmentReport(bulkAssessmentDBConfigs)
 	if err != nil {
-		utils.ErrExit("failed to generate bulk assessment report: %s", err)
+		return fmt.Errorf("failed to generate bulk assessment report: %w", err)
 	}
+	return nil
 }
 
 func executeAssessment(dbConfig AssessMigrationDBConfig) error {
