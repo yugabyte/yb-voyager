@@ -61,8 +61,8 @@
 			},
 			{
 				"ObjectType": "VIEW",
-				"TotalCount": 5,
-				"ObjectNames": "test_views.v1, test_views.v2, test_views.v3, public.sales_employees, schema2.sales_employees"
+				"TotalCount": 6,
+				"ObjectNames": "test_views.v1, test_views.v2, test_views.v3, test_views.v4, public.sales_employees, schema2.sales_employees"
 			},
 			{
 				"ObjectType": "TRIGGER",
@@ -161,12 +161,6 @@
 	"UnsupportedDataTypes": [
 		{
 			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "box_data",
-			"DataType": "box"
-		},
-		{
-			"SchemaName": "schema2",
 			"TableName": "mixed_data_types_table2",
 			"ColumnName": "lsn_data",
 			"DataType": "pg_lsn"
@@ -178,70 +172,16 @@
 			"DataType": "txid_snapshot"
 		},
 		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "point_data",
-			"DataType": "point"
-		},
-		{
 			"SchemaName": "public",
 			"TableName": "mixed_data_types_table2",
 			"ColumnName": "lsn_data",
 			"DataType": "pg_lsn"
 		},
 		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "lseg_data",
-			"DataType": "lseg"
-		},
-		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "point_data",
-			"DataType": "point"
-		},
-		{
 			"SchemaName": "schema2",
 			"TableName": "mixed_data_types_table1",
 			"ColumnName": "snapshot_data",
 			"DataType": "txid_snapshot"
-		},
-		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table2",
-			"ColumnName": "path_data",
-			"DataType": "path"
-		},
-		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "lseg_data",
-			"DataType": "lseg"
-		},
-		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table2",
-			"ColumnName": "lseg_data",
-			"DataType": "lseg"
-		},
-		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table2",
-			"ColumnName": "path_data",
-			"DataType": "path"
-		},
-		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "box_data",
-			"DataType": "box"
-		},
-		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table2",
-			"ColumnName": "lseg_data",
-			"DataType": "lseg"
 		},
 		{
 			"SchemaName": "public",
@@ -1289,6 +1229,52 @@
 			"Objects": [],
 			"DocsLink": "TBD",
 			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work."
+		},
+		{
+			"FeatureName": "Unsupported Data Types for Live Migration",
+			"Objects": [
+				{
+					"ObjectName": "public.mixed_data_types_table1.box_data (box)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.mixed_data_types_table1.lseg_data (lseg)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.mixed_data_types_table1.point_data (point)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.mixed_data_types_table2.lseg_data (lseg)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.mixed_data_types_table2.path_data (path)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table1.box_data (box)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table1.lseg_data (lseg)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table1.point_data (point)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table2.lseg_data (lseg)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table2.path_data (path)",
+					"SqlStatement": ""
+				}
+			],
+			"FeatureDescription": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
 		},
 		{
 			"FeatureName": "Policies",
