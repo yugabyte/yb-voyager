@@ -31,7 +31,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
@@ -813,7 +812,6 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		Port:          source.Port,
 		DbVersion:     source.DBVersion,
 	}
-	utils.PrintAndLog("[debug]base event: %s\n", spew.Sdump(bev))
 }
 
 func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {

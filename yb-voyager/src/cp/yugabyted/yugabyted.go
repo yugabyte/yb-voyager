@@ -67,15 +67,13 @@ func prepareVoyagerInstance(exportDir string) *VoyagerInstance {
 	ip, err := utils.GetLocalIP()
 	log.Infof("voyager machine ip: %s\n", ip)
 	if err != nil {
-		// TODO: exit in case of error or just log-and-continue
-		log.Fatalf("failed to obtain local IP address: %v", err)
+		log.Warnf("failed to obtain local IP address: %v", err)
 	}
 
 	diskSpace, err := getAvailableDiskSpace(exportDir)
 	log.Infof("voyager disk space available: %d\n", diskSpace)
 	if err != nil {
-		// TODO: exit in case of error or just log-and-continue
-		log.Fatalf("failed to determine available disk space: %v", err)
+		log.Warnf("failed to determine available disk space: %v", err)
 	}
 
 	return &VoyagerInstance{
