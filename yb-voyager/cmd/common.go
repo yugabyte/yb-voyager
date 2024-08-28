@@ -808,9 +808,9 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
 		SchemaNames:   cp.GetSchemaList(source.Schema),
-		HostIP:        utils.LookupIP(source.Host),
+		DBIP:          utils.LookupIP(source.Host),
 		Port:          source.Port,
-		DbVersion:     source.DBVersion,
+		DBVersion:     source.DBVersion,
 	}
 }
 
@@ -821,9 +821,9 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		DBType:        tconf.TargetDBType,
 		DatabaseName:  tconf.DBName,
 		SchemaNames:   []string{tconf.Schema},
-		HostIP:        utils.LookupIP(tconf.Host),
+		DBIP:          utils.LookupIP(tconf.Host),
 		Port:          tconf.Port,
-		DbVersion:     tconf.DBVersion,
+		DBVersion:     tconf.DBVersion,
 	}
 }
 

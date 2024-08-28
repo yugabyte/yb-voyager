@@ -72,9 +72,9 @@ type BaseEvent struct {
 	DBType        string
 	DatabaseName  string
 	SchemaNames   []string
-	HostIP        []string
+	DBIP          []string
 	Port          int
-	DbVersion     string
+	DBVersion     string
 }
 
 type BaseUpdateRowCountEvent struct {
@@ -83,6 +83,13 @@ type BaseUpdateRowCountEvent struct {
 	Status            string
 	TotalRowCount     int64
 	CompletedRowCount int64
+}
+
+type VoyagerInstance struct {
+	IP                 string
+	OperatingSystem    string
+	DiskSpaceAvailable uint64 // Available disk space in bytes
+	ExportDirectory    string
 }
 
 type ExportSchemaStartedEvent struct {

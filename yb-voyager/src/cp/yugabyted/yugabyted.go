@@ -39,20 +39,13 @@ import (
 type YugabyteD struct {
 	sync.Mutex
 	migrationDirectory       string
-	voyagerInfo              *VoyagerInstance
+	voyagerInfo              *controlPlane.VoyagerInstance
 	waitGroup                sync.WaitGroup
 	eventChan                chan (MigrationEvent)
 	rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
 	connPool                 *pgxpool.Pool
 	lastRowCountUpdate       map[string]time.Time
 	latestInvocationSequence int
-}
-
-type VoyagerInstance struct {
-	IP                 string
-	OperatingSystem    string
-	DiskSpaceAvailable uint64 // Available disk space in bytes
-	ExportDirectory    string
 }
 
 func New(exportDir string) *YugabyteD {
@@ -63,20 +56,21 @@ func New(exportDir string) *YugabyteD {
 	}
 }
 
-func prepareVoyagerInstance(exportDir string) *VoyagerInstance {
+func prepareVoyagerInstance(exportDir string) *controlPlane.VoyagerInstance {
 	ip, err := utils.GetLocalIP()
 	log.Infof("voyager machine ip: %s\n", ip)
 	if err != nil {
 		log.Warnf("failed to obtain local IP address: %v", err)
 	}
 
+	// TODO: for import data cmd, the START and COMPLETE readings of available disk space can be very different
 	diskSpace, err := getAvailableDiskSpace(exportDir)
 	log.Infof("voyager disk space available: %d\n", diskSpace)
 	if err != nil {
 		log.Warnf("failed to determine available disk space: %v", err)
 	}
 
-	return &VoyagerInstance{
+	return &controlPlane.VoyagerInstance{
 		IP:                 ip,
 		OperatingSystem:    runtime.GOOS,
 		DiskSpaceAvailable: diskSpace,
@@ -162,7 +156,19 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 
 	voyagerInfoStr, err := json.Marshal(*cp.voyagerInfo)
 	if err != nil {
-		log.Warnf("failed to marsal voyager_info struct: %s", err)
+		log.Warnf("failed to marshal voyager_info struct: %s", err)
+	}
+
+	jsonData := make(map[string]string)
+	if isExportPhase(event.EventType) {
+		jsonData["SourceDBIP"] = strings.Join(event.DBIP, "|")
+	} else if isImportPhase(event.EventType) {
+		jsonData["TargetDBIP"] = strings.Join(event.DBIP, "|")
+	}
+
+	dbIps, err := json.Marshal(jsonData)
+	if err != nil {
+		log.Warnf("failed to marshal db_ip string slice into json format: %s", err)
 	}
 
 	migrationEvent := MigrationEvent{
@@ -171,9 +177,9 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 		InvocationSequence:  invocationSequence,
 		DatabaseName:        event.DatabaseName,
 		SchemaName:          strings.Join(event.SchemaNames, "|"),
-		HostIP:              strings.Join(event.HostIP, "|"),
+		DBIP:                string(dbIps),
 		Port:                event.Port,
-		DbVersion:           event.DbVersion,
+		DBVersion:           event.DBVersion,
 		Payload:             payload,
 		VoyagerInfo:         string(voyagerInfoStr),
 		DBType:              event.DBType,
@@ -614,9 +620,9 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 		migrationEvent.MigrationDirectory,
 		migrationEvent.DatabaseName,
 		migrationEvent.SchemaName,
-		migrationEvent.HostIP,
+		migrationEvent.DBIP,
 		migrationEvent.Port,
-		migrationEvent.DbVersion,
+		migrationEvent.DBVersion,
 		migrationEvent.Payload,
 		migrationEvent.VoyagerInfo,
 		migrationEvent.DBType,

@@ -24,9 +24,9 @@ type MigrationEvent struct {
 	MigrationDirectory  string    `json:"migration_dir"`
 	DatabaseName        string    `json:"database_name"`
 	SchemaName          string    `json:"schema_name"`
-	HostIP              string    `json:"host_ip"`
+	DBIP                string    `json:"db_ip"`
 	Port                int       `json:"port"`
-	DbVersion           string    `json:"db_version"`
+	DBVersion           string    `json:"db_version"`
 	Payload             string    `json:"payload"`
 	VoyagerInfo         string    `json:"voyager_info"`
 	DBType              string    `json:"db_type"`
@@ -41,4 +41,12 @@ var MIGRATION_PHASE_MAP = map[string]int{
 	"EXPORT DATA":      4,
 	"IMPORT SCHEMA":    5,
 	"IMPORT DATA":      6,
+}
+
+func isExportPhase(eventType string) bool {
+	return MIGRATION_PHASE_MAP[eventType] <= 4
+}
+
+func isImportPhase(eventType string) bool {
+	return MIGRATION_PHASE_MAP[eventType] > 4
 }
