@@ -70,6 +70,9 @@ func packAndSendAssessMigrationBulkPayload(status string) {
 	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_BULK_PHASE
 
+	for i := 0; i < len(bulkAssessmentDBConfigs); i++ {
+		bulkAssessmentDBConfigs[i].Password = ""
+	}
 	assessMigBulkPayload := callhome.AssessMigrationBulkPhasePayload{
 		FleetConfigData: callhome.MarshalledJsonString(bulkAssessmentDBConfigs),
 	}
