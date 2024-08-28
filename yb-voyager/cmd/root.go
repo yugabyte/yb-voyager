@@ -78,11 +78,6 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
 
-			if callhome.SendDiagnostics {
-				createCLIArgsString(cmd)
-				go sendCallhomePayloadAtIntervals()
-			}
-
 			metaDB = initMetaDB(bulkAssessmentDir)
 			if perfProfile {
 				go startPprofServer()
