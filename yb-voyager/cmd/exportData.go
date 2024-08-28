@@ -368,7 +368,7 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 			if isTargetDBExporter(exporterRole) {
-				if !msr.UseLogicalReplicationYBConnector {
+				if msr.UseYBgRPCConnector {
 					err = ybCDCClient.DeleteStreamID()
 					if err != nil {
 						utils.ErrExit("failed to delete stream id after data export: %v", err)

@@ -42,7 +42,7 @@ type Debezium struct {
 	done bool
 }
 
-func findDebeziumDistribution(sourceDBType string, useLogicalReplicationConnector bool) error {
+func findDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
@@ -63,7 +63,7 @@ func findDebeziumDistribution(sourceDBType string, useLogicalReplicationConnecto
 		}
 	}
 
-	if sourceDBType == "yugabytedb" && !useLogicalReplicationConnector {
+	if sourceDBType == "yugabytedb" && useYBgRPCConnector {
 		pathSuffix := "debezium-server-1.9.5"
 		DEBEZIUM_DIST_DIR = filepath.Join(DEBEZIUM_DIST_DIR, pathSuffix)
 	}
@@ -75,7 +75,7 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
-	err := findDebeziumDistribution(d.Config.SourceDBType, d.Config.UseLogicalReplicationYBConnector)
+	err := findDebeziumDistribution(d.Config.SourceDBType, d.Config.UseYBgRPCConnector)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (d *Debezium) Start() error {
 
 	var YB_OR_PG_CONNECTOR_PATH string
 	if isTargetDBExporter(d.ExporterRole) {
-		if d.Config.UseLogicalReplicationYBConnector {
+		if !d.Config.UseYBgRPCConnector {
 			// In case of logical replication connector we need the path /opt/yb-voyager/debezium-server/yb-connector
 			YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
 		} else {

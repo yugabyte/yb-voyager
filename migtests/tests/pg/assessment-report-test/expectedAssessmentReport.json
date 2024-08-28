@@ -61,8 +61,8 @@
 			},
 			{
 				"ObjectType": "VIEW",
-				"TotalCount": 3,
-				"ObjectNames": "test_views.v1, test_views.v2, test_views.v3"
+				"TotalCount": 5,
+				"ObjectNames": "test_views.v1, test_views.v2, test_views.v3, public.sales_employees, schema2.sales_employees"
 			},
 			{
 				"ObjectType": "TRIGGER",
@@ -78,6 +78,11 @@
 				"ObjectType": "RULE",
 				"TotalCount": 4,
 				"ObjectNames": "protect_test_views_v1, protect_test_views_v2, protect_test_views_v3, protect_test_views_view_table1"
+			},
+			{
+				"ObjectType": "POLICY",
+				"TotalCount": 4,
+				"ObjectNames": "policy_test_report, policy_test_fine, policy_test_fine_2"
 			}
 		]
 	},
@@ -248,11 +253,11 @@
 			"Objects": [
 				{
 					"ObjectName": "public.employees2",
-					"SqlStatement": "CREATE TABLE public.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
+					"SqlStatement": "CREATE TABLE public.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,\n    department character varying(50)\n);"
 				},
 				{
 					"ObjectName": "schema2.employees2",
-					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
+					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,\n    department character varying(50)\n);"
 				}
 			],
 			"DocsLink": "TBD"
@@ -312,6 +317,20 @@
 				{
 					"ObjectName": "schema2.orders2",
 					"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
+				}
+			],
+			"DocsLink": "TBD"
+		},
+		{
+			"FeatureName": "View with check option",
+			"Objects": [
+				{
+					"ObjectName": "public.sales_employees",
+					"SqlStatement": "CREATE VIEW public.sales_employees AS\n SELECT employees2.id,\n    employees2.first_name,\n    employees2.last_name,\n    employees2.full_name\n   FROM public.employees2\n  WHERE ((employees2.department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
+				},
+				{
+					"ObjectName": "schema2.sales_employees",
+					"SqlStatement": "CREATE VIEW schema2.sales_employees AS\n SELECT employees2.id,\n    employees2.first_name,\n    employees2.last_name,\n    employees2.full_name\n   FROM schema2.employees2\n  WHERE ((employees2.department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
 				}
 			],
 			"DocsLink": "TBD"
@@ -673,7 +692,7 @@
 			"SchemaName": "public",
 			"ObjectName": "employees2",
 			"RowCount": 0,
-			"ColumnCount": 4,
+			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -981,7 +1000,7 @@
 			"SchemaName": "schema2",
 			"ObjectName": "employees2",
 			"RowCount": 0,
-			"ColumnCount": 4,
+			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1227,23 +1246,11 @@
 					"SqlStatement": ""
 				},
 				{
-					"ObjectName": "public.mixed_data_types_table1.snapshot_data (txid_snapshot)",
-					"SqlStatement": ""
-				},
-				{
 					"ObjectName": "public.mixed_data_types_table2.lseg_data (lseg)",
 					"SqlStatement": ""
 				},
 				{
-					"ObjectName": "public.mixed_data_types_table2.lsn_data (pg_lsn)",
-					"SqlStatement": ""
-				},
-				{
 					"ObjectName": "public.mixed_data_types_table2.path_data (path)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "public.test_xml_type.data (xml)",
 					"SqlStatement": ""
 				},
 				{
@@ -1259,27 +1266,30 @@
 					"SqlStatement": ""
 				},
 				{
-					"ObjectName": "schema2.mixed_data_types_table1.snapshot_data (txid_snapshot)",
-					"SqlStatement": ""
-				},
-				{
 					"ObjectName": "schema2.mixed_data_types_table2.lseg_data (lseg)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "schema2.mixed_data_types_table2.lsn_data (pg_lsn)",
 					"SqlStatement": ""
 				},
 				{
 					"ObjectName": "schema2.mixed_data_types_table2.path_data (path)",
 					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "schema2.test_xml_type.data (xml)",
-					"SqlStatement": ""
 				}
 			],
 			"FeatureDescription": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+		},
+		{
+			"FeatureName": "Policies",
+			"Objects": [
+				{
+					"ObjectName": "policy_test_report ON public.test_xml_type",
+					"SqlStatement": "CREATE POLICY policy_test_report ON public.test_xml_type TO test_policy USING (true);"
+				},
+				{
+					"ObjectName": "policy_test_report ON schema2.test_xml_type",
+					"SqlStatement": "CREATE POLICY policy_test_report ON schema2.test_xml_type TO test_policy USING (true);"
+				}
+			],
+			"DocsLink": "TBD",
+			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema."
 		}
 	]
 }

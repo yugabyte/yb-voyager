@@ -59,6 +59,11 @@
                 "TotalCount": 1,
                 "InvalidCount": 1,
                 "ObjectNames": "tbl_p"
+            },
+            {
+                "ObjectType": "POLICY",
+                "TotalCount": 5,
+                "ObjectNames": "r1_2, p3_2, P, p2, p1"
             }
         ]
 }
