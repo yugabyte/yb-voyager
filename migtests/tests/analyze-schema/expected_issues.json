@@ -26,6 +26,7 @@
             "Reason": "Storage parameters are not supported yet.",
             "SqlStatement": "CREATE INDEX abc ON schema2.example USING btree (new_id) WITH (fillfactor='70'); ",
             "Suggestion": "Remove the storage parameters from the DDL",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
         },
         {
