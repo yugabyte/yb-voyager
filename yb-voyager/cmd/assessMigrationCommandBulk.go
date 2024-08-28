@@ -66,7 +66,7 @@ func packAndSendAssessMigrationBulkPayload(status string) {
 	if !shouldSendCallhome() {
 		return
 	}
-
+	log.Infof("sending callhome payload for assess-migration-bulk cmd with status as %s", status)
 	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_BULK_PHASE
 
@@ -139,6 +139,11 @@ func assessMigrationBulk() error {
 	bulkAssessmentDBConfigs, err = parseFleetConfigFile(fleetConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to parse fleet config file: %w", err)
+	}
+
+	err = retrieveMigrationUUID()
+	if err != nil {
+		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 
 	for _, dbConfig := range bulkAssessmentDBConfigs {

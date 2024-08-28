@@ -68,7 +68,6 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 
 		if isBulkAssessmentCommand(cmd) {
-			// TODO: implement call-home for bulkAssessment command
 			validateBulkAssessmentDirFlag()
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
@@ -77,7 +76,14 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			InitLogging(bulkAssessmentDir, cmd.Use == "status", GetCommandID(cmd))
 			startTime = time.Now()
+			log.Infof("Start time: %s\n", startTime)
 
+			if callhome.SendDiagnostics {
+				createCLIArgsString(cmd)
+				go sendCallhomePayloadAtIntervals()
+			}
+
+			metaDB = initMetaDB(bulkAssessmentDir)
 			if perfProfile {
 				go startPprofServer()
 			}
@@ -92,16 +98,16 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
 			startTime = time.Now()
+			log.Infof("Start time: %s\n", startTime)
 
 			if callhome.SendDiagnostics {
 				createCLIArgsString(cmd)
 				go sendCallhomePayloadAtIntervals()
 			}
-
-			log.Infof("Start time: %s\n", startTime)
 			if metaDBIsCreated(exportDir) {
 				metaDB = initMetaDB(exportDir)
 			}
+
 			if perfProfile {
 				go startPprofServer()
 			}
@@ -222,7 +228,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 		"assume answer as yes for all questions during migration (default false)")
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
-		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.")
+		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
 }
 
 func registerExportDirFlag(cmd *cobra.Command) {

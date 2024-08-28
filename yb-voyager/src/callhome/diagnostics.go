@@ -244,7 +244,9 @@ func SendPayload(payload *Payload) error {
 	}
 	defer func() {
 		closeErr := resp.Body.Close()
-		log.Infof("error closing response body: %s", closeErr)
+		if closeErr != nil {
+			log.Infof("error closing response body: %s", closeErr)
+		}
 	}()
 
 	body, err := io.ReadAll(resp.Body)
