@@ -354,6 +354,7 @@ func exportData() bool {
 			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
+
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -362,14 +363,24 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				utils.ErrExit("get migration status record: %v", err)
+			}
 			if isTargetDBExporter(exporterRole) {
-				err = ybCDCClient.DeleteStreamID()
-				if err != nil {
-					utils.ErrExit("failed to delete stream id after data export: %v", err)
+				if msr.UseYBgRPCConnector {
+					err = ybCDCClient.DeleteStreamID()
+					if err != nil {
+						utils.ErrExit("failed to delete stream id after data export: %v", err)
+					}
+				} else {
+					err = deleteYBReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, source)
+					if err != nil {
+						utils.ErrExit("failed to delete replication slot and publication after data export: %v", err)
+					}
 				}
 			}
 			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-				msr, err := metaDB.GetMigrationStatusRecord()
 				if err != nil {
 					utils.ErrExit("get migration status record: %v", err)
 				}
@@ -720,7 +731,6 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		utils.ErrExit("get columns with supported types: %v", err)
 	}
 	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
-
 	if len(unsupportedTableColumnsMap.Keys()) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
 		fmt.Println("The following columns data export is unsupported:")

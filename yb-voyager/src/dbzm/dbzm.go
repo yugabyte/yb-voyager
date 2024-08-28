@@ -42,7 +42,7 @@ type Debezium struct {
 	done bool
 }
 
-func findDebeziumDistribution(sourceDBType string) error {
+func findDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
@@ -62,7 +62,8 @@ func findDebeziumDistribution(sourceDBType string) error {
 			return err
 		}
 	}
-	if sourceDBType == "yugabytedb" {
+
+	if sourceDBType == "yugabytedb" && useYBgRPCConnector {
 		pathSuffix := "debezium-server-1.9.5"
 		DEBEZIUM_DIST_DIR = filepath.Join(DEBEZIUM_DIST_DIR, pathSuffix)
 	}
@@ -74,7 +75,7 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
-	err := findDebeziumDistribution(d.Config.SourceDBType)
+	err := findDebeziumDistribution(d.Config.SourceDBType, d.Config.UseYBgRPCConnector)
 	if err != nil {
 		return err
 	}
@@ -83,8 +84,23 @@ func (d *Debezium) Start() error {
 	if err != nil {
 		return err
 	}
+
+	var YB_OR_PG_CONNECTOR_PATH string
+	if isTargetDBExporter(d.ExporterRole) {
+		if !d.Config.UseYBgRPCConnector {
+			// In case of logical replication connector we need the path /opt/yb-voyager/debezium-server/yb-connector
+			YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
+		} else {
+			// In case of gRPC connector the DEBEZIUM_DIST_DIR is set to debezium-server-1.9.5, hence the connector path is empty to avoid any errors in run.sh
+			YB_OR_PG_CONNECTOR_PATH = ""
+		}
+	} else {
+		// In case of source db exporter we need the path /opt/yb-voyager/debezium-server/pg-connector
+		YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "pg-connector")
+	}
+
 	log.Infof("starting debezium...")
-	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
+	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH, YB_OR_PG_CONNECTOR_PATH)
 	d.cmd.Env = os.Environ()
 	// $TNS_ADMIN is used to set jdbc property oracle.net.tns_admin which will enable using TNS alias
 	d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("TNS_ADMIN=%s", d.Config.TNSAdmin))
