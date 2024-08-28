@@ -1065,6 +1065,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 	//     4 = manual: no stored functions but with triggers or views with code rewriting
 	//     5 = difficult: stored functions and/or triggers with code rewriting
 	reader := csv.NewReader(file)
+	reader.Comma = ';'
 	rows, err := reader.ReadAll()
 	if err != nil {
 		log.Errorf("error reading csv file %s: %v", ora2pgReportPath, err)
