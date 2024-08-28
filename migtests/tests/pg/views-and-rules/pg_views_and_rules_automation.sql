@@ -56,6 +56,7 @@ select * from test_views.v2;
 
 create or replace view test_views.v3 as select a.first_name,b.last_name from test_views.view_table1 a inner join test_views.view_table2 b using(id);
 
+create or replace view test_views.v4 as select (a.first_name || ' ' || a.last_name || ';'::text) as full_name from test_views.view_table1 a;
 select * from test_views.v3;
 
 -- need to refresh on the target as it exports as "with no data"
