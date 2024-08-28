@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1035,14 +1036,11 @@ func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysi
 // This is a temporary logic to get migration complexity for oracle based on the migration level from ora2pg report.
 // Ideally, we should ALSO be considering the schema analysis report to get the migration complexity.
 func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
-	if source.DBType != ORACLE {
-		return "", fmt.Errorf("cannot calculate migration complexity for non-Oracle source %s ", source.DBType)
-	}
 	ora2pgReportPath := filepath.Join(schemaDirectory, "ora2pg_report.csv")
 	if !utils.FileOrFolderExists(ora2pgReportPath) {
 		return "", fmt.Errorf("ora2pg report file not found at %s", ora2pgReportPath)
 	}
-	file, err := os.ReadFile(ora2pgReportPath)
+	file, err := os.Open(ora2pgReportPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", ora2pgReportPath, err)
 	}
@@ -1066,10 +1064,20 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 	//     3 = simple: stored functions and/or triggers, no manual rewriting
 	//     4 = manual: no stored functions but with triggers or views with code rewriting
 	//     5 = difficult: stored functions and/or triggers with code rewriting
-	reportData := strings.Split(string(file), ";") // it's a csv file with ; as delimiter
-	if len(reportData) < 6 {
-		return "", fmt.Errorf("invalid ora2pg report file format. Expected more than 6 columns, found %d", len(reportData))
+	reader := csv.NewReader(file)
+	rows, err := reader.ReadAll()
+	if err != nil {
+		log.Errorf("error reading csv file %s: %v", ora2pgReportPath, err)
+		return "", fmt.Errorf("error reading csv file %s: %w", ora2pgReportPath, err)
 	}
+	if len(rows) > 1 {
+		return "", fmt.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %v", len(rows), rows)
+	}
+	reportData := rows[0]
+	// reportData := strings.Split(string(file), ";") // it's a csv file with ; as delimiter
+	// if len(reportData) < 6 {
+	// 	return "", fmt.Errorf("invalid ora2pg report file format. Expected more than 6 columns, found %d", len(reportData))
+	// }
 	migrationLevel := reportData[5][1 : len(reportData[5])-1] // it is surrounded by double quotes
 	migrationLevel = strings.Split(migrationLevel, "-")[0]
 
