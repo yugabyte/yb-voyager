@@ -996,7 +996,15 @@ func readEnvForAppOrSchemaCounts() {
 }
 
 // Migration complexity calculation from the conversion issues
-func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaReport) string {
+func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysisReport utils.SchemaReport) string {
+	if sourceDBType == ORACLE {
+		mc, err := getMigrationComplexityForOracle(schemaDirectory)
+		if err != nil {
+			log.Errorf("Failed to get migration complexity for oracle: %w", err)
+			return "NOT AVAILABLE"
+		}
+		return mc
+	}
 	if sourceDBType != POSTGRESQL {
 		return "NOT AVAILABLE"
 	}
@@ -1022,6 +1030,59 @@ func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaRepo
 	}
 	//LOW in case appChanges == 0 or schemaChanges [0-20]
 	return LOW
+}
+
+// This is a temporary logic to get migration complexity for oracle based on the migration level from ora2pg report.
+// Ideally, we should ALSO be considering the schema analysis report to get the migration complexity.
+func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
+	if source.DBType != ORACLE {
+		return "", fmt.Errorf("cannot calculate migration complexity for non-Oracle source")
+	}
+	ora2pgReportPath := filepath.Join(schemaDirectory, "ora2pg_report.csv")
+	if !utils.FileOrFolderExists(ora2pgReportPath) {
+		return "", fmt.Errorf("ora2pg report file not found at %s", ora2pgReportPath)
+	}
+	file, err := os.ReadFile(ora2pgReportPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %w", ora2pgReportPath, err)
+	}
+	// Sample file contents
+
+	// "dbi:Oracle:(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = xyz)(PORT = 1521))(CONNECT_DATA = (SERVICE_NAME = DMS)))";
+	// "Oracle Database 19c Enterprise Edition Release 19.0.0.0.0";"ASSESS_MIGRATION";"261.62 MB";"1 person-day(s)";"A-2";
+	// "0/0/0.00";"0/0/0";"0/0/0";"25/0/6.50";"0/0/0.00";"0/0/0";"0/0/0";"0/0/0";"0/0/0";"3/0/1.00";"3/0/1.00";
+	// "44/0/4.90";"27/0/2.70";"9/0/1.80";"4/0/16.00";"5/0/3.00";"2/0/2.00";"125/0/58.90"
+	//
+	// X/Y/Z - total/invalid/cost for each type of objects(table,function,etc). Last data element is the sum total.
+	// total cost = 58.90 units (1 unit = 5 minutes). Therefore total cost is approx 1 person-days.
+	// column 6 is Migration level.
+	//  Migration levels:
+	//     A - Migration that might be run automatically
+	//     B - Migration with code rewrite and a human-days cost up to 5 days
+	//     C - Migration with code rewrite and a human-days cost above 5 days
+	// 	Technical levels:
+	//     1 = trivial: no stored functions and no triggers
+	//     2 = easy: no stored functions but with triggers, no manual rewriting
+	//     3 = simple: stored functions and/or triggers, no manual rewriting
+	//     4 = manual: no stored functions but with triggers or views with code rewriting
+	//     5 = difficult: stored functions and/or triggers with code rewriting
+	reportData := strings.Split(string(file), ";") // it's a csv file with ; as delimiter
+	if len(reportData) < 6 {
+		return "", fmt.Errorf("invalid ora2pg report file format. Expected more than 6 columns, found %d", len(reportData))
+	}
+	migrationLevel := reportData[5][1 : len(reportData[5])-1] // it is surrounded by double quotes
+	migrationLevel = strings.Split(migrationLevel, "-")[0]
+
+	switch migrationLevel {
+	case "A":
+		return LOW, nil
+	case "B":
+		return MEDIUM, nil
+	case "C":
+		return HIGH, nil
+	default:
+		return "", fmt.Errorf("invalid migration level %s found in ora2pg report %v", migrationLevel, reportData)
+	}
 }
 
 // =====================================================================
