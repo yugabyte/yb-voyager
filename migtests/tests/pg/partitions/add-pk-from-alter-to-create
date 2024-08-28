@@ -32,6 +32,9 @@ output = []
 
 for k,v in create_table_map.items():
     # Extract the primary key constraint from the ALTER TABLE statement
+    if k not in alter_table_map:
+        output.append(v)
+        continue
     match = re.search(r'ADD CONSTRAINT (.*) PRIMARY KEY \((.*)\);', alter_table_map[k])
     if match:
         constraint = match.group(1)
