@@ -293,7 +293,7 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		schemaSummary.Notes = append(schemaAnalysisReport.SchemaSummary.Notes, note)
 	}
-	schemaSummary.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaAnalysisReport)
+	schemaSummary.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaSummary
 }
 

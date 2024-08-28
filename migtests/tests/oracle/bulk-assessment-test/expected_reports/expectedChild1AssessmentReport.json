@@ -1,6 +1,6 @@
 {
 	"SchemaSummary": {
-		"MigrationComplexity": "NOT AVAILABLE",
+		"MigrationComplexity": "LOW",
 		"DbName": "ORCLPDB1",
 		"SchemaNames": [
 			"TEST_SCHEMA"
