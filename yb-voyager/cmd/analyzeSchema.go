@@ -1000,8 +1000,8 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "URIType datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with URIType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		} else if regMatch := jsonFuncRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			summaryMap[regMatch[2]].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "JSON_ARRAYAGG() function is not available in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1542", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, regMatch[2], regMatch[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
+			summaryMap[strings.ToUpper(regMatch[2])].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "JSON_ARRAYAGG() function is not available in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1542", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, strings.ToUpper(regMatch[2]), regMatch[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES)
 		}
 
 	}
