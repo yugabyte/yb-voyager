@@ -1044,6 +1044,11 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", ora2pgReportPath, err)
 	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Errorf("Error while closing file %s: %v", ora2pgReportPath, err)
+		}
+	}()
 	// Sample file contents
 
 	// "dbi:Oracle:(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = xyz)(PORT = 1521))(CONNECT_DATA = (SERVICE_NAME = DMS)))";
@@ -1075,12 +1080,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 		return "", fmt.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %v", len(rows), rows)
 	}
 	reportData := rows[0]
-	// reportData := strings.Split(string(file), ";") // it's a csv file with ; as delimiter
-	// if len(reportData) < 6 {
-	// 	return "", fmt.Errorf("invalid ora2pg report file format. Expected more than 6 columns, found %d", len(reportData))
-	// }
-	migrationLevel := reportData[5][1 : len(reportData[5])-1] // it is surrounded by double quotes
-	migrationLevel = strings.Split(migrationLevel, "-")[0]
+	migrationLevel := strings.Split(reportData[5], "-")[0]
 
 	switch migrationLevel {
 	case "A":
@@ -1090,7 +1090,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 	case "C":
 		return HIGH, nil
 	default:
-		return "", fmt.Errorf("invalid migration level %s found in ora2pg report %v", migrationLevel, reportData)
+		return "", fmt.Errorf("invalid migration level [%s] found in ora2pg report %v", migrationLevel, reportData)
 	}
 }
 
