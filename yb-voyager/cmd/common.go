@@ -1000,7 +1000,7 @@ func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysi
 	if sourceDBType == ORACLE {
 		mc, err := getMigrationComplexityForOracle(schemaDirectory)
 		if err != nil {
-			log.Errorf("Failed to get migration complexity for oracle: %w", err)
+			log.Errorf("failed to get migration complexity for oracle: %v", err)
 			return "NOT AVAILABLE"
 		}
 		return mc
@@ -1036,7 +1036,7 @@ func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysi
 // Ideally, we should ALSO be considering the schema analysis report to get the migration complexity.
 func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 	if source.DBType != ORACLE {
-		return "", fmt.Errorf("cannot calculate migration complexity for non-Oracle source")
+		return "", fmt.Errorf("cannot calculate migration complexity for non-Oracle source %s ", source.DBType)
 	}
 	ora2pgReportPath := filepath.Join(schemaDirectory, "ora2pg_report.csv")
 	if !utils.FileOrFolderExists(ora2pgReportPath) {
