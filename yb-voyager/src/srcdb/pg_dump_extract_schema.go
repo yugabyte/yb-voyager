@@ -145,6 +145,10 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 				objSqlStmts["FOREIGN TABLE"].WriteString(stmts)
 			case "CONVERSION":
 				objSqlStmts["CONVERSION"].WriteString(stmts)
+			case "POLICY":
+				objSqlStmts["POLICY"].WriteString(stmts)
+			case "OPERATOR", "OPERATOR FAMILY", "OPERATOR CLASS":
+				objSqlStmts["OPERATOR"].WriteString(stmts)
 			default:
 				uncategorizedSqls.WriteString(stmts)
 			}

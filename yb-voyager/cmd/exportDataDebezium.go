@@ -114,17 +114,17 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 
 	config := &dbzm.Config{
-		MigrationUUID:                    migrationUUID,
-		RunId:                            runId,
-		SourceDBType:                     source.DBType,
-		ExporterRole:                     exporterRole,
-		ExportDir:                        absExportDir,
-		MetadataDBPath:                   metadb.GetMetaDBPath(absExportDir),
-		UseLogicalReplicationYBConnector: msr.UseLogicalReplicationYBConnector,
-		Host:                             source.Host,
-		Port:                             source.Port,
-		Username:                         source.User,
-		Password:                         source.Password,
+		MigrationUUID:      migrationUUID,
+		RunId:              runId,
+		SourceDBType:       source.DBType,
+		ExporterRole:       exporterRole,
+		ExportDir:          absExportDir,
+		MetadataDBPath:     metadb.GetMetaDBPath(absExportDir),
+		UseYBgRPCConnector: msr.UseYBgRPCConnector,
+		Host:               source.Host,
+		Port:               source.Port,
+		Username:           source.User,
+		Password:           source.Password,
 
 		DatabaseName:          source.DBName,
 		SchemaNames:           source.Schema,
@@ -165,7 +165,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
 	} else if isTargetDBExporter(exporterRole) {
-		if msr.UseLogicalReplicationYBConnector {
+		if !msr.UseYBgRPCConnector {
 			err = createYBReplicationSlotAndPublication(dbzmTableList)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to create yb replication slot and publication: %w", err)
@@ -476,7 +476,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				// The momemnt a replication slot is created, we are guaranteed that we will receive events.
 				// In the case of the old connector, there is no such explicit operation to 'start' CDC.
 				// It used to happen implicitly, which is why we have to wait for a log message.
-				if !msr.UseLogicalReplicationYBConnector {
+				if msr.UseYBgRPCConnector {
 					utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
 					logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
 					pollingMessage := "Beginning to poll the changes from the server"

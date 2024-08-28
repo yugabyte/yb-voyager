@@ -432,10 +432,14 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 
 	// creating subdirs under schema dir
 	for _, schemaObjectType := range source.ExportObjectTypeList {
-		if schemaObjectType == "INDEX" { //no separate dir for indexes
+		if schemaObjectType == "INDEX" || schemaObjectType == "FOREIGN TABLE" || schemaObjectType == "ROW SECURITY" ||
+			schemaObjectType == "OPERATOR FAMILY" || schemaObjectType == "OPERATOR CLASS" { //no separate dir for indexes
 			continue
 		}
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
+		if schemaObjectType == "POLICY" {
+			databaseObjectDirName = "policies"
+		}
 
 		err := exec.Command("mkdir", "-p", filepath.Join(schemaDir, databaseObjectDirName)).Run()
 		if err != nil {

@@ -368,7 +368,7 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 			if isTargetDBExporter(exporterRole) {
-				if !msr.UseLogicalReplicationYBConnector {
+				if msr.UseYBgRPCConnector {
 					err = ybCDCClient.DeleteStreamID()
 					if err != nil {
 						utils.ErrExit("failed to delete stream id after data export: %v", err)
@@ -731,7 +731,6 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		utils.ErrExit("get columns with supported types: %v", err)
 	}
 	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
-
 	if len(unsupportedTableColumnsMap.Keys()) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
 		fmt.Println("The following columns data export is unsupported:")
