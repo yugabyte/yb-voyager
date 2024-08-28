@@ -57,7 +57,6 @@ type VoyagerInstance struct {
 
 func New(exportDir string) *YugabyteD {
 	vi := prepareVoyagerInstance(exportDir)
-	utils.PrintAndLog("[debug]voyager instance info: %+v\n", vi)
 	return &YugabyteD{
 		voyagerInfo:        vi,
 		migrationDirectory: exportDir,
@@ -66,14 +65,14 @@ func New(exportDir string) *YugabyteD {
 
 func prepareVoyagerInstance(exportDir string) *VoyagerInstance {
 	ip, err := utils.GetLocalIP()
-	utils.PrintAndLog("[debug]voyager machine ip: %s\n", ip)
+	log.Infof("voyager machine ip: %s\n", ip)
 	if err != nil {
 		// TODO: exit in case of error or just log-and-continue
 		log.Fatalf("failed to obtain local IP address: %v", err)
 	}
 
 	diskSpace, err := getAvailableDiskSpace(exportDir)
-	utils.PrintAndLog("[debug]voyager disk space available: %d\n", diskSpace)
+	log.Infof("voyager disk space available: %d\n", diskSpace)
 	if err != nil {
 		// TODO: exit in case of error or just log-and-continue
 		log.Fatalf("failed to determine available disk space: %v", err)
@@ -99,7 +98,6 @@ func getAvailableDiskSpace(dirPath string) (uint64, error) {
 
 // Initialize the yugabyted DB for visualisation metadata
 func (cp *YugabyteD) Init() error {
-
 	cp.eventChan = make(chan MigrationEvent, 100)
 	cp.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)
 
@@ -164,6 +162,11 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 		return
 	}
 
+	voyagerInfoStr, err := json.Marshal(*cp.voyagerInfo)
+	if err != nil {
+		log.Warnf("failed to marsal voyager_info struct: %s", err)
+	}
+
 	migrationEvent := MigrationEvent{
 		MigrationUUID:       event.MigrationUUID,
 		MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
@@ -174,6 +177,7 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 		Port:                event.Port,
 		DbVersion:           event.DbVersion,
 		Payload:             payload,
+		VoyagerInfo:         string(voyagerInfoStr),
 		DBType:              event.DBType,
 		Status:              status,
 		InvocationTimestamp: timestamp,
@@ -433,6 +437,7 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 			port INT,
 			db_version VARCHAR(250),
 			payload TEXT,
+			voyager_info VARCHAR,
 			complexity VARCHAR(30),
 			db_type VARCHAR(30),
 			status VARCHAR(30),
@@ -518,10 +523,11 @@ func (cp *YugabyteD) sendMigrationEvent(
 			port,
 			db_version,
 			payload,
+			voyager_info,
 			db_type,
 			status,
 			invocation_timestamp
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`, YUGABYTED_METADATA_TABLE_NAME)
 
 	var maxAttempts = 5
@@ -614,6 +620,7 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 		migrationEvent.Port,
 		migrationEvent.DbVersion,
 		migrationEvent.Payload,
+		migrationEvent.VoyagerInfo,
 		migrationEvent.DBType,
 		migrationEvent.Status,
 		migrationEvent.InvocationTimestamp)

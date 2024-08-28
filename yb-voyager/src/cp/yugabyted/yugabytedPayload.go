@@ -28,6 +28,7 @@ type MigrationEvent struct {
 	Port                int       `json:"port"`
 	DbVersion           string    `json:"db_version"`
 	Payload             string    `json:"payload"`
+	VoyagerInfo         string    `json:"voyager_info"`
 	DBType              string    `json:"db_type"`
 	Status              string    `json:"status"`
 	InvocationTimestamp string    `json:"invocation_timestamp"`
