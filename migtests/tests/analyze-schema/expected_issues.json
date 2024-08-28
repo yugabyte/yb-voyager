@@ -19,6 +19,15 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "abc",
+            "Reason": "Storage parameters are not supported yet.",
+            "SqlStatement": "CREATE INDEX abc ON schema2.example USING btree (new_id) WITH (fillfactor='70'); ",
+            "Suggestion": "Remove the storage parameters from the DDL",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "PROCEDURE",
             "ObjectName": "foo",
             "Reason": "temporary table is not a supported clause for drop",
@@ -155,7 +164,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "idx_name1",
+            "ObjectName": "idx_name1 ON table_name",
             "Reason": "index method 'spgist' not supported yet.",
             "SqlStatement": "CREATE INDEX idx_name1 ON table_name USING spgist (col1);",
             "Suggestion": "",
@@ -164,7 +173,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "idx_name2",
+            "ObjectName": "idx_name2 ON table_name",
             "Reason": "index method 'rtree' is superceded by 'gist' which is not supported yet.",
             "SqlStatement": "CREATE INDEX idx_name2 ON table_name USING rtree (col1);",
             "Suggestion": "",
@@ -522,7 +531,7 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "public.range_columns_partition_test",
             "Reason": "Adding primary key to a partitioned table is not supported yet.",
@@ -607,7 +616,7 @@
             "ObjectType": "VIEW",
             "ObjectName": "test",
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
-            "SqlStatement": "CREATE OR REPLACE VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "SqlStatement": "CREATE OR REPLACE view test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
             "Suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
         },
@@ -675,7 +684,7 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514"
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "FOREIGN TABLE",
             "ObjectName": "tbl_p",
             "Reason": "Foreign tables require manual intervention.",

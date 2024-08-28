@@ -993,9 +993,13 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			}
 			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration", columns, false, "", UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
 		}
-
-		if len(migrationCaveats) > 0 {
-			assessmentReport.MigrationCaveats = migrationCaveats
+		for _, caveat := range migrationCaveats {
+			if len(caveat.Objects) > 0 {
+				//Not populating the MigrationCaveats section in case there are no caveats at all
+				//TODO: fix it with proper solution in template for all sections
+				assessmentReport.MigrationCaveats = migrationCaveats
+				break
+			}
 		}
 	}
 }
