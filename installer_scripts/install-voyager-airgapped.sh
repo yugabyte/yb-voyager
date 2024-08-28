@@ -186,8 +186,6 @@ check_cpan_dependencies() {
 }
 
 check_binutils_version() {
-    echo ""
-	output "Checking binutils version."
 	min_required_version='2.25'
 
 	# Example output of "ld -v" on CentOS/RHEL:
@@ -209,6 +207,9 @@ check_binutils_version() {
 		echo -e "\e[31mERROR: unsupported binutils version ${version}. Update to binutils version > ${min_required_version}.\e[0m"
 		binutils_wrong_version=1
 	fi
+
+    echo ""
+    output "Found sufficient binutils version = ${version}."
 }
 
 # https://stackoverflow.com/a/4025065
