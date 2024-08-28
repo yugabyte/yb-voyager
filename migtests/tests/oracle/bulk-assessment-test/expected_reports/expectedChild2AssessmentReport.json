@@ -1,6 +1,6 @@
 {
 	"SchemaSummary": {
-		"MigrationComplexity": "NOT AVAILABLE",
+		"MigrationComplexity": "LOW",
 		"SchemaNames": [
 			"TEST_SCHEMA2"
 		],
