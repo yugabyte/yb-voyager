@@ -678,7 +678,7 @@
             "ObjectName": "aws_commons",
             "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS aws_commons WITH SCHEMA public;",
-            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/explore/ysql-language-features/pg-extensions/",
+            "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },
@@ -688,7 +688,7 @@
             "ObjectName": "plperl",
             "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS plperl WITH SCHEMA pg_catalog;",
-            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/explore/ysql-language-features/pg-extensions/",
+            "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },
@@ -698,7 +698,7 @@
             "ObjectName": "hstore_plperl",
             "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS hstore_plperl WITH SCHEMA public;",
-            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/explore/ysql-language-features/pg-extensions/",
+            "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },

@@ -127,7 +127,7 @@ const (
 	STORAGE_PARAMETERS_DDL_STMT_DOC_LINK    = DOCS_LINK_PREFIX + "postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
 	FOREIGN_TABLE_DOC_LINK                  = DOCS_LINK_PREFIX + "postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
 	EXCLUSION_CONSTRAINT_DOC_LINK           = DOCS_LINK_PREFIX + "postgresql/#exclusion-constraints-is-not-supported"
-	EXTENSION_DOC_LINK                      = DOCS_LINK_PREFIX + "preview/explore/ysql-language-features/pg-extensions/"
+	EXTENSION_DOC_LINK                      = "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/"
 	DEFERRABLE_CONSTRAINT_DOC_LINK          = DOCS_LINK_PREFIX + "postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported"
 	XML_DATATYPE_DOC_LINK                   = DOCS_LINK_PREFIX + "postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
 	GIST_INDEX_DOC_LINK                     = DOCS_LINK_PREFIX + "postgresql/#gist-index-type-is-not-supported"
