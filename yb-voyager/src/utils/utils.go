@@ -38,7 +38,6 @@ import (
 )
 
 var DoNotPrompt bool
-var localIP string
 
 func Wait(args ...string) {
 	var successMsg, failureMsg string
