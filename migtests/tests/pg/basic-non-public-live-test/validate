@@ -36,7 +36,7 @@ EXPECTED_DATA_TYPES = {
 	},
 	'test_enum': {
 		'id': 'integer',
-		'reason': 'decline_reason'
+		'reason': 'USER-DEFINED'
 	}
 }
 
