@@ -1457,6 +1457,10 @@ func analyzeSchema() {
 
 	switch analyzeSchemaReportFormat {
 	case "html":
+		if msr.SourceDBConf.DBType == POSTGRESQL {
+			// marking this as empty to not display this in html report for PG
+			schemaAnalysisReport.SchemaSummary.SchemaNames = []string{}
+		}
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisHtmlTmpl)
 		if err != nil {
 			utils.ErrExit("failed to apply template for html schema analysis report: %v", err)

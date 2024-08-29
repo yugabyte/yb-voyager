@@ -1063,6 +1063,10 @@ func generateAssessmentReportHtml(reportDir string) error {
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
 	log.Infof("execute template for assessment report...")
+	if source.DBType == POSTGRESQL {
+		// marking this as empty to not display this in html report for PG
+		assessmentReport.SchemaSummary.SchemaNames = []string{} 
+	}
 	err = tmpl.Execute(file, assessmentReport)
 	if err != nil {
 		return fmt.Errorf("failed to render the assessment report: %w", err)
