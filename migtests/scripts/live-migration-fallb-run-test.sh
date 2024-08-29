@@ -150,6 +150,8 @@ main() {
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 
+	sleep 10
+
 	step "Import data."
 	import_data || { 
 		tail_log_file "yb-voyager-import-data.log"
