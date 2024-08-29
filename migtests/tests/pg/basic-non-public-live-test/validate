@@ -20,7 +20,8 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'x':3,
- 	'user_table': 8
+ 	'user_table': 8,
+	'test_enum':4
 }
 
 EXPECTED_DATA_TYPES = {
@@ -32,6 +33,10 @@ EXPECTED_DATA_TYPES = {
 		'id': 'integer',
 		'email': 'character varying',
 		'status': 'character varying'
+	},
+	'test_enum': {
+		'id': 'integer',
+		'reason': 'decline_reason'
 	}
 }
 
@@ -42,6 +47,9 @@ EXPECTED_SUM_OF_COLUMN = {
 	},
 	'user_table': {
 		'id': '36',
+	},
+	'test_enum':{
+		'id':'10'
 	}
 }
 
