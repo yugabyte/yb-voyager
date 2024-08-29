@@ -49,6 +49,12 @@
                 "ObjectNames": "transfer_insert, emp_trig, test"
             },
             {
+                "ObjectType": "MVIEW",
+                "TotalCount": 1,
+                "InvalidCount": 1,
+                "ObjectNames": "test"
+            },
+            {
                 "ObjectType": "CONVERSION",
                 "TotalCount": 1,
                 "InvalidCount": 1,
@@ -63,6 +69,7 @@
             {
                 "ObjectType": "POLICY",
                 "TotalCount": 6,
+                "InvalidCount": 2, 
                 "ObjectNames": "r1_2, p3_2, p3_2, P, p2, p1"
             }
         ]

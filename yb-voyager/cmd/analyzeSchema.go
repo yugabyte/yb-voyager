@@ -820,7 +820,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 }
 
 // Checks unsupported DDL statements
-func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
+func checkDDL(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 	for _, sqlInfo := range sqlInfoArr {
 		if am := amRegex.FindStringSubmatch(sqlInfo.stmt); am != nil {
@@ -1004,8 +1004,8 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "URIType datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with URIType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 		} else if regMatch := jsonFuncRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			summaryMap[strings.ToUpper(regMatch[2])].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "JSON_ARRAYAGG() function is not available in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1542", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, strings.ToUpper(regMatch[2]), regMatch[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap[objType].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "JSON_ARRAYAGG() function is not available in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1542", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, objType, regMatch[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 		}
 
 	}
@@ -1046,7 +1046,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkSql(sqlInfoArr, fpath)
 	checkGist(sqlInfoArr, fpath)
 	checkGin(sqlInfoArr, fpath)
-	checkDDL(sqlInfoArr, fpath)
+	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
@@ -1457,6 +1457,10 @@ func analyzeSchema() {
 
 	switch analyzeSchemaReportFormat {
 	case "html":
+		if msr.SourceDBConf.DBType == POSTGRESQL {
+			// marking this as empty to not display this in html report for PG
+			schemaAnalysisReport.SchemaSummary.SchemaNames = []string{}
+		}
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisHtmlTmpl)
 		if err != nil {
 			utils.ErrExit("failed to apply template for html schema analysis report: %v", err)

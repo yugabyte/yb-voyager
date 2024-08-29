@@ -11,6 +11,15 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "MVIEW",
+            "ObjectName": "VIEW",
+            "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
+            "SqlStatement": "CREATE MATERIALIZED VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "Suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
             "ObjectName": "abc",
             "Reason": "Storage parameters are not supported yet.",

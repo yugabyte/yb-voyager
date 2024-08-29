@@ -65,13 +65,14 @@
 <body>
     <div class="wrapper">
         <h1>Migration Assessment Report</h1>
-        <h2>Schema Summary</h2>
         <p><strong>Database Name:</strong> {{.SchemaSummary.DBName}}</p>
-        <p><strong>Schema Name(s):</strong> 
-       {{range $i, $a := .SchemaSummary.SchemaNames}}
-            {{$a}}&nbsp;
+        {{ if .SchemaSummary.SchemaNames}}
+            <p><strong>Schema Name:</strong> 
+            {{range $i, $a := .SchemaSummary.SchemaNames}}
+                {{$a}}&nbsp;
+            {{end}}
+            <p>
         {{end}}
-        <p>
         {{with .SchemaSummary.DBVersion}}
         <p><strong>Database Version:</strong> {{.}}</p>
         {{end}}
