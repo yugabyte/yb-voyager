@@ -563,14 +563,27 @@ func (yb *YugabyteDB) getTableColumns(tableName sqlname.NameTuple) ([]string, []
 	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(dataTypes []string) []string {
+func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.NameTuple) []string {
 	// Currently all UDTs other than enums and domain are unsupported
-	query := fmt.Sprintf(`SELECT typname AS data_type, 
-						CASE WHEN n.nspname NOT IN ('pg_catalog', 'information_schema') 
-						AND t.typtype <> 'e' AND t.typtype <> 'd' THEN 'Yes' 
-						ELSE 'No' END AS is_user_defined 
-						FROM pg_type t JOIN pg_namespace n 
-						ON t.typnamespace = n.oid WHERE typname IN ('%s');`, strings.Join(dataTypes, `', '`))
+	sname, tname := tableName.ForCatalogQuery()
+	query := fmt.Sprintf(`SELECT 
+    	t.typname::regtype AS type_name,
+		CASE WHEN t.typtype = 'c' THEN 'Yes' ELSE 'No' END AS is_user_defined
+	FROM 
+		pg_class c
+	JOIN 
+		pg_namespace n ON c.relnamespace = n.oid
+	JOIN 
+		pg_attribute a ON a.attrelid = c.oid
+	JOIN 
+		pg_type t ON a.atttypid = t.oid
+	WHERE 
+		c.relname = '%s' 
+		AND n.nspname = '%s'  
+		AND a.attnum > 0 
+	ORDER BY 
+		a.attnum;`, tname, sname)
+	utils.PrintAndLog("Querying source database for user defined columns: %s", query)
 	rows, err := yb.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for user defined columns: %v\n", query, err)
@@ -592,6 +605,7 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(dataTypes []string) 
 			userDefinedDataTypes = append(userDefinedDataTypes, dataType)
 		}
 	}
+	utils.PrintAndLog("User defined data types in table %v: %v", tableName.ForOutput(), userDefinedDataTypes)
 	return userDefinedDataTypes
 }
 
@@ -603,13 +617,15 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}
-		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(dataTypes)
+		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableName)
 		yugabyteUnsupportedDataTypesForDbzm = append(yugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
+		utils.PrintAndLog("Unsupported data types for table %s: %v", tableName, yugabyteUnsupportedDataTypesForDbzm)
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
 				if utils.ContainsAnySubstringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
+					// utils.PrintAndLog("Skipping column %s of table %s as it has unsupported data type %s", column, tableName, dataTypes[i])
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)
