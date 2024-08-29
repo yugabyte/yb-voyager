@@ -571,7 +571,7 @@ func createYBReplicationSlotAndPublication(finalTableList []string) error {
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
 	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source YugabyteDB database. "+
-		"Be sure to run 'end migration' command after completing/aborting this migration to drop the replication slot. "+
+		"Be sure to run either 'initiate cutover to source', 'initiate cutover to source-replica' or 'end migration' command after completing/aborting this migration to drop the replication slot. "+
 		"This is important to avoid filling up disk space.", replicationSlotName))
 
 	// save replication slot, publication name in MSR

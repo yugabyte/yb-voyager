@@ -57,6 +57,13 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 		utils.PrintAndLog("Aborting %s", userFacingActionMsg)
 		return nil
 	}
+	if dbRole == "target" {
+		if useYBgRPCConnector {
+			utils.PrintAndLog("Using YB gRPC connector for export from target DB")
+		} else {
+			utils.PrintAndLog("Using YB Logical Replication connector for export from target DB")
+		}
+	}
 	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
 
