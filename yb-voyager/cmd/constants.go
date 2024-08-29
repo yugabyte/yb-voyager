@@ -103,7 +103,8 @@ const (
 	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
 	MIGRATION_CAVEATS     = "migration_caveats"
 
-	TABLE = "TABLE"
+	TABLE     = "TABLE"
+	YUGABYTED = "yugabyted"
 
 	// assess-migration-bulk
 	SOURCE_DB_TYPE     = "source-db-type"

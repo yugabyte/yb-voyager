@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,11 +33,13 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	log "github.com/sirupsen/logrus"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type YugabyteD struct {
 	sync.Mutex
 	migrationDirectory       string
+	voyagerInfo              *controlPlane.VoyagerInstance
 	waitGroup                sync.WaitGroup
 	eventChan                chan (MigrationEvent)
 	rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
@@ -45,12 +49,47 @@ type YugabyteD struct {
 }
 
 func New(exportDir string) *YugabyteD {
-	return &YugabyteD{migrationDirectory: exportDir}
+	vi := prepareVoyagerInstance(exportDir)
+	return &YugabyteD{
+		voyagerInfo:        vi,
+		migrationDirectory: exportDir,
+	}
+}
+
+func prepareVoyagerInstance(exportDir string) *controlPlane.VoyagerInstance {
+	ip, err := utils.GetLocalIP()
+	log.Infof("voyager machine ip: %s\n", ip)
+	if err != nil {
+		log.Warnf("failed to obtain local IP address: %v", err)
+	}
+
+	// TODO: for import data cmd, the START and COMPLETE readings of available disk space can be very different
+	diskSpace, err := getAvailableDiskSpace(exportDir)
+	log.Infof("voyager disk space available: %d\n", diskSpace)
+	if err != nil {
+		log.Warnf("failed to determine available disk space: %v", err)
+	}
+
+	return &controlPlane.VoyagerInstance{
+		IP:                 ip,
+		OperatingSystem:    runtime.GOOS,
+		DiskSpaceAvailable: diskSpace,
+		ExportDirectory:    exportDir,
+	}
+}
+
+// getAvailableDiskSpace returns the available disk space in bytes in the specified directory.
+func getAvailableDiskSpace(dirPath string) (uint64, error) {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(dirPath, &stat); err != nil {
+		return 0, fmt.Errorf("error getting disk space for directory %q: %w", dirPath, err)
+	}
+	// Available blocks * size per block to get available space in bytes
+	return stat.Bavail * uint64(stat.Bsize), nil
 }
 
 // Initialize the yugabyted DB for visualisation metadata
 func (cp *YugabyteD) Init() error {
-
 	cp.eventChan = make(chan MigrationEvent, 100)
 	cp.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)
 
@@ -115,13 +154,34 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 		return
 	}
 
+	voyagerInfoStr, err := json.Marshal(*cp.voyagerInfo)
+	if err != nil {
+		log.Warnf("failed to marshal voyager_info struct: %s", err)
+	}
+
+	jsonData := make(map[string]string)
+	if isExportPhase(event.EventType) {
+		jsonData["SourceDBIP"] = strings.Join(event.DBIP, "|")
+	} else if isImportPhase(event.EventType) {
+		jsonData["TargetDBIP"] = strings.Join(event.DBIP, "|")
+	}
+
+	dbIps, err := json.Marshal(jsonData)
+	if err != nil {
+		log.Warnf("failed to marshal db_ip string slice into json format: %s", err)
+	}
+
 	migrationEvent := MigrationEvent{
 		MigrationUUID:       event.MigrationUUID,
 		MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
 		InvocationSequence:  invocationSequence,
 		DatabaseName:        event.DatabaseName,
-		SchemaName:          strings.Join(event.SchemaNames[:], "|"),
+		SchemaName:          strings.Join(event.SchemaNames, "|"),
+		DBIP:                string(dbIps),
+		Port:                event.Port,
+		DBVersion:           event.DBVersion,
 		Payload:             payload,
+		VoyagerInfo:         string(voyagerInfoStr),
 		DBType:              event.DBType,
 		Status:              status,
 		InvocationTimestamp: timestamp,
@@ -145,7 +205,7 @@ func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.Bas
 		snapshotMigrateTableMetrics := VisualizerTableMetrics{
 			MigrationUUID:       event.MigrationUUID,
 			TableName:           event.TableName,
-			Schema:              strings.Join(event.SchemaNames[:], "|"),
+			Schema:              strings.Join(event.SchemaNames, "|"),
 			MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
 			Status:              UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
 			CountLiveRows:       event.CompletedRowCount,
@@ -377,7 +437,11 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 			migration_dir VARCHAR(250),
 			database_name VARCHAR(250),
 			schema_name VARCHAR(250),
+			host_ip VARCHAR,
+			port INT,
+			db_version VARCHAR(250),
 			payload TEXT,
+			voyager_info VARCHAR,
 			complexity VARCHAR(30),
 			db_type VARCHAR(30),
 			status VARCHAR(30),
@@ -451,20 +515,24 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 // Send visualisation metadata
 func (cp *YugabyteD) sendMigrationEvent(
 	migrationEvent MigrationEvent) error {
-	cmd := fmt.Sprintf("INSERT INTO %s ("+
-		"migration_uuid, "+
-		"migration_phase, "+
-		"invocation_sequence, "+
-		"migration_dir, "+
-		"database_name, "+
-		"schema_name, "+
-		"payload, "+
-		"db_type, "+
-		"status, "+
-		"invocation_timestamp"+
-		") VALUES ("+
-		"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10"+
-		")", YUGABYTED_METADATA_TABLE_NAME)
+	cmd := fmt.Sprintf(`
+		INSERT INTO %s (
+			migration_uuid,
+			migration_phase,
+			invocation_sequence,
+			migration_dir,
+			database_name,
+			schema_name,
+			host_ip,
+			port,
+			db_version,
+			payload,
+			voyager_info,
+			db_type,
+			status,
+			invocation_timestamp
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	`, YUGABYTED_METADATA_TABLE_NAME)
 
 	var maxAttempts = 5
 	migrationEvent.MigrationDirectory = cp.migrationDirectory
@@ -552,7 +620,11 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 		migrationEvent.MigrationDirectory,
 		migrationEvent.DatabaseName,
 		migrationEvent.SchemaName,
+		migrationEvent.DBIP,
+		migrationEvent.Port,
+		migrationEvent.DBVersion,
 		migrationEvent.Payload,
+		migrationEvent.VoyagerInfo,
 		migrationEvent.DBType,
 		migrationEvent.Status,
 		migrationEvent.InvocationTimestamp)

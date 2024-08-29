@@ -136,6 +136,10 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 }
 
 func (pg *PostgreSQL) GetVersion() string {
+	if pg.source.DBVersion != "" {
+		return pg.source.DBVersion
+	}
+
 	var version string
 	query := "SELECT setting from pg_settings where name = 'server_version'"
 	err := pg.db.QueryRow(query).Scan(&version)
