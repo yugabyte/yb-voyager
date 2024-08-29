@@ -158,50 +158,75 @@ handle_data_dir() {
     return 1  # Skip the next parameter
 }
 
+handle_oracle_tns() {
+    local index=$1
+    local tns_admin=""
+    local wallet_dir=""
+    echo "ORACLE_HOME is set to: $ORACLE_HOME"
+
+    if [ -n "$TNS_ADMIN" ]; then
+        tns_admin="$TNS_ADMIN"
+    else
+        tns_admin="${ORACLE_HOME}/network/admin"
+    fi
+    
+    if [ ! -d "$tns_admin" ]; then
+        echo "TNS_ADMIN directory does not exist: $tns_admin"
+        return 1  # Exit the function if TNS_ADMIN directory does not exist
+    fi
+
+    echo "current val of TNS_ADMIN: $tns_admin"
+    
+    if [ -f "${tns_admin}/sqlnet.ora" ]; then
+        wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' "${tns_admin}/sqlnet.ora" | xargs)
+        wallet_dir=$(realpath "$wallet_dir")
+    else
+        echo "sqlnet.ora file not found in $tns_admin"
+        return 1  # Exit if sqlnet.ora is not found
+    fi
+
+    tns_admin=$(realpath "$tns_admin")
+    
+    echo "Resolved TNS_ADMIN: $tns_admin"
+    echo "Resolved wallet directory: $wallet_dir"
+
+    handle_directory_flag "oracle-tns-alias" "$tns_admin"
+    handle_directory_flag "oracle-wallet-dir" "$wallet_dir"
+    exported_vars="${exported_vars} -e TNS_ADMIN=$tns_admin"
+}
+
+
 process_flag() {
     local flag=$1
     local index=$2
+    local retVal=0
 
+    echo "processing flag ${flag} value ${argv[$((index+1))]}"
+    # IMPORTANT: Resolve the path immediately if the flag is associated with a directory
+    if [[ " ${volume_dirs[@]} " =~ " ${flag} " ]]; then
+        dir_path=$(realpath "${argv[$(( index + 1 ))]}")
+        argv[$(( index + 1 ))]=$dir_path  # Update argv with the resolved path
+        handle_directory_flag "$flag" "$dir_path"
+        retVal=1  # Skip the next parameter
+    fi
+
+    # Handle specific flags that may need additional processing
     case "$flag" in
         "-e" | "--export-dir")
             export_dir=${argv[$(( index + 1 ))]}
-            handle_directory_flag "--export-dir" "$export_dir"
-            return 1  # Skip the next parameter
+            retVal=1  # Skip the next parameter
             ;;
         "--data-dir")
             handle_data_dir $index
-            return $?  # Return the increment defined in handle_data_dir
+            retVal=1  # Return the increment defined in handle_data_dir
             ;;
         "--oracle-tns-alias" | "--fleet-config-file")
-            if [[ "$flag" == "--fleet-config-file" ]]; then
-                local dir_path=${argv[$(( index + 1 ))]}
-                handle_directory_flag "$flag" "$dir_path"
-            fi
-            if [ -n "$TNS_ADMIN" ]; then
-                tns_admin="$TNS_ADMIN"
-            else
-                tns_admin="${ORACLE_HOME}/network/admin"
-            fi
-            wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora | xargs)
-
-            tns_admin=$(realpath "$tns_admin")
-            wallet_dir=$(realpath "$wallet_dir")
-            handle_directory_flag "oracle-tns-alias" "$tns_admin"
-            handle_directory_flag "oracle-wallet-dir" "$wallet_dir"
-            exported_vars="${exported_vars} -e TNS_ADMIN=$tns_admin"
-            return 1
-            ;;
-        *)
-            if [[ " ${volume_dirs[@]} " =~ " ${flag} " ]]; then
-                local dir_path=${argv[$(( index + 1 ))]}
-                handle_directory_flag "$flag" "$dir_path"
-                return 1  # Skip the next parameter
-            fi
+            handle_oracle_tns $index
+            retVal=1  # Assume we handle next parameter in handle_oracle_tns
             ;;
     esac
-    return 0
+    return $retVal
 }
-
 
 if [ -f "$command_metadata_file_name" ]
 then
@@ -211,7 +236,6 @@ fi
 # Main loop for processing command-line arguments
 i=0
 while [ $i -lt $# ]; do
-    echo "Current flag: ${argv[$i]}"
     process_flag "${argv[$i]}" $i
     increment=$?
     i=$(( i + increment + 1 ))
