@@ -244,6 +244,10 @@ debezium.source.database.port=%d
 debezium.source.database.dbname=%s
 debezium.source.plugin.name=yboutput
 debezium.source.schema.include.list=%s
+debezium.source.hstore.handling.mode=map
+debezium.source.decimal.handling.mode=string
+debezium.source.converters=postgres_source_converter
+debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 `
 
 var yugabyteLogicalReplicationSlotNameTemplate = `
