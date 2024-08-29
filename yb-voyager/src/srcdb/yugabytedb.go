@@ -583,7 +583,6 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.Na
 		AND a.attnum > 0 
 	ORDER BY 
 		a.attnum;`, tname, sname)
-	utils.PrintAndLog("Querying source database for user defined columns: %s", query)
 	rows, err := yb.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for user defined columns: %v\n", query, err)
@@ -605,7 +604,6 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.Na
 			userDefinedDataTypes = append(userDefinedDataTypes, dataType)
 		}
 	}
-	utils.PrintAndLog("User defined data types in table %v: %v", tableName.ForOutput(), userDefinedDataTypes)
 	return userDefinedDataTypes
 }
 
@@ -621,11 +619,9 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		yugabyteUnsupportedDataTypesForDbzm = append(yugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
-		utils.PrintAndLog("Unsupported data types for table %s: %v", tableName, yugabyteUnsupportedDataTypesForDbzm)
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
 				if utils.ContainsAnySubstringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
-					// utils.PrintAndLog("Skipping column %s of table %s as it has unsupported data type %s", column, tableName, dataTypes[i])
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)
