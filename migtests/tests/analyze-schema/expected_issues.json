@@ -422,7 +422,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "test_1",
             "Reason": "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )\t not supported yet",
-            "SqlStatement": "alter table test_1 alter column col1 set (attribute_option=value); ",
+            "SqlStatement": "alter table test_1 alter column col1 set (attribute_option=value);",
             "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddls-variants-in-source-schema",
             "Suggestion": "Remove it from the exported schema",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
@@ -432,7 +432,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "test",
             "Reason": "ALTER TABLE name DISABLE RULE not supported yet",
-            "SqlStatement": "alter table test DISABLE RULE example_rule; ",
+            "SqlStatement": "alter table test DISABLE RULE example_rule;",
             "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddls-variants-in-source-schema",
             "Suggestion": "Remove this and the rule 'example_rule' from the exported schema to be not enabled on the table.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
@@ -442,7 +442,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "public.example",
             "Reason": "Storage parameters are not supported yet.",
-            "SqlStatement": "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor='70'); ",
+            "SqlStatement": "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor='70');",
             "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
@@ -450,11 +450,11 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "",
+            "ObjectName": "abc",
             "Reason": "ALTER TABLE CLUSTER not supported yet.",
             "SqlStatement": "alter table abc cluster on xyz;",
             "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddls-variants-in-source-schema",
-            "Suggestion": "",
+            "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
         {
