@@ -18,7 +18,6 @@ package utils
 import (
 	"bufio"
 	"database/sql"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -310,47 +309,16 @@ func CsvStringToSlice(str string) []string {
 	return result
 }
 
+// TODO: This approach may not work when connections to external internet addresses are restricted
 func GetLocalIP() (string, error) {
-	if localIP != "" {
-		return localIP, nil
-	}
-
-	interfaces, err := net.Interfaces()
+	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		return "", err
 	}
-	// Iterate through each network interface.
-	for _, iface := range interfaces {
-		// Skip down or loopback interfaces.
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
+	defer conn.Close()
 
-		// Get all addresses assigned to the interface.
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		// Check each address associated with the interface.
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-			if ip == nil || ip.IsLoopback() {
-				continue
-			}
-			// Check for IPv4 and IPv6 addresses.
-			if ip.To4() != nil || ip.To16() != nil {
-				localIP = ip.String()
-				return localIP, nil
-			}
-		}
-	}
-	return "", errors.New("no active network interfaces found")
+	localAddress := conn.LocalAddr().(*net.UDPAddr)
+	return localAddress.IP.String(), nil
 }
 
 func LookupIP(name string) []string {
