@@ -59,9 +59,9 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	}
 	if dbRole == "target" {
 		if useYBgRPCConnector {
-			utils.PrintAndLog("Using YB gRPC connector for export from target DB")
+			utils.PrintAndLog("Using YB gRPC connector for export data from target")
 		} else {
-			utils.PrintAndLog("Using YB Logical Replication connector for export from target DB")
+			utils.PrintAndLog("Using YB Logical Replication connector for export data from target")
 		}
 	}
 	alreadyInitiated := false
