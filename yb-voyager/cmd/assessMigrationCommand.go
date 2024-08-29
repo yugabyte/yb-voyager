@@ -923,10 +923,13 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
-		if utils.ContainsAnySubstringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information 
+		//of these types there are other columns available for these information so we just do string match of types with our list
+		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
-		if utils.ContainsAnySubstringFromSlice(liveMigrationUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
 		}
 	}

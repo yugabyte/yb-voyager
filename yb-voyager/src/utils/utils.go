@@ -344,6 +344,15 @@ func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 	return false
 }
 
+func ContainsAnyStringFromSlice(slice []string, s string) bool {
+	for i := 0; i < len(slice); i++ {
+		if strings.EqualFold(s, slice[i]) {
+			return true
+		}
+	}
+	return false
+}
+
 func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.Duration) error {
 	// Wait for log file to be created
 	timeout := time.After(timeoutDuration)

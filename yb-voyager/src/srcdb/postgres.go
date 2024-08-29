@@ -586,7 +586,12 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		var supportedColumnNames []string
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
-				if utils.ContainsAnySubstringFromSlice(PostgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
+				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
+				//of these types there are other columns available for these information so we just do string match of types with our list
+				//And also for geometry or complex types like if a column is defined with  public.geometry(Point,4326) then also only geometry is available 
+				//in the typname column of those catalog tables  and further details (Point,4326) is managed by Postgis extension.
+				if utils.ContainsAnyStringFromSlice(PostgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)

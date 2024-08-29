@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pglogrepl"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -33,9 +35,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-
-	"github.com/jackc/pglogrepl"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
@@ -609,7 +608,10 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		var unsupportedColumnNames []string
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
-				if utils.ContainsAnySubstringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
+				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
+				//of these types there are other columns available for these information so we just do string match of types with our list
+				if utils.ContainsAnyStringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)
