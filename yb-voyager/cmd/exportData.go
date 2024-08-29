@@ -385,6 +385,7 @@ func exportData() bool {
 				if err != nil {
 					utils.ErrExit("get migration status record: %v", err)
 				}
+				fmt.Println("Deleting pg replication slot and publication")
 				deletePGReplicationSlot(msr, &source)
 				deletePGPublication(msr, &source)
 			}
