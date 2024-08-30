@@ -443,7 +443,7 @@ func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string
 }
 
 func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) []string {
-	query := fmt.Sprintf(`SELECT udt_name::regtype FROM information_schema.columns 
+	query := fmt.Sprintf(`SELECT udt_name FROM information_schema.columns 
 						WHERE table_schema = '%s' 
 						AND table_name='%s' 
 						AND data_type = 'ARRAY';`, schemaName, tableName)
@@ -488,7 +488,9 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 	outer:
 		for _, arrayType := range tableColumnArrayTypes {
 			for _, udt := range userDefinedTypes {
-				if strings.Contains(arrayType, udt) {
+				if strings.EqualFold(strings.TrimLeft(arrayType, "_"), udt) { 
+					// as the array_type is determined by an underscore at the first place
+					//ref - https://www.postgresql.org/docs/current/xtypes.html#:~:text=The%20array%20type%20typically%20has%20the%20same%20name%20as%20the%20base%20type%20with%20the%20underscore%20character%20(_)%20prepended
 					unsupportedTables = append(unsupportedTables, table)
 					break outer
 				}
@@ -499,7 +501,7 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 	if len(unsupportedTables) > 0 {
 		unsupportedTablesStringList := make([]string, len(unsupportedTables))
 		for i, table := range unsupportedTables {
-			unsupportedTablesStringList[i] = table.String()
+			unsupportedTablesStringList[i] = table.ForMinOutput()
 		}
 
 		if !utils.AskPrompt("\nThe following tables are unsupported since they contains an array of enums:\n" + strings.Join(unsupportedTablesStringList, "\n") +
@@ -570,7 +572,7 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.Na
 	// Currently all UDTs other than enums and domain are unsupported
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT 
-    	t.typname::regtype AS type_name,
+    	t.typname AS type_name,
 		CASE WHEN t.typtype = 'c' THEN 'Yes' ELSE 'No' END AS is_user_defined
 	FROM 
 		pg_class c
