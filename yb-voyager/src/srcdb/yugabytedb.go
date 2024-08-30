@@ -501,7 +501,7 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 	if len(unsupportedTables) > 0 {
 		unsupportedTablesStringList := make([]string, len(unsupportedTables))
 		for i, table := range unsupportedTables {
-			unsupportedTablesStringList[i] = table.String()
+			unsupportedTablesStringList[i] = table.ForMinOutput()
 		}
 
 		if !utils.AskPrompt("\nThe following tables are unsupported since they contains an array of enums:\n" + strings.Join(unsupportedTablesStringList, "\n") +
