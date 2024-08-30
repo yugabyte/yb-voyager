@@ -202,7 +202,7 @@ main() {
     fi
 	done
 	
-	sleep 60
+	sleep 120
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
@@ -232,6 +232,11 @@ main() {
 
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
+
+	#just to debugging the failure
+	tail_log_file "yb-voyager-import-data-to-source.log"
+	tail_log_file "yb-voyager-export-data-from-target.log"
+	tail_log_file "debezium-target_db_exporter_fb.log"
 
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
