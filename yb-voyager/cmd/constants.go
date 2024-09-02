@@ -125,7 +125,7 @@ const (
 	ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK = DOCS_LINK_PREFIX + "postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error"
 	CREATE_CONVERSION_DOC_LINK              = DOCS_LINK_PREFIX + "postgresql/#create-or-alter-conversion-is-not-supported"
 	GENERATED_STORED_COLUMN_DOC_LINK        = DOCS_LINK_PREFIX + "postgresql/#generated-always-as-stored-type-column-is-not-supported"
-	UNSUPPORTED_ALTER_VARIANTS_DOC_LINK     = DOCS_LINK_PREFIX + "postgresql/#unsupported-alter-table-ddls-variants-in-source-schema"
+	UNSUPPORTED_ALTER_VARIANTS_DOC_LINK     = DOCS_LINK_PREFIX + "postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
 	STORAGE_PARAMETERS_DDL_STMT_DOC_LINK    = DOCS_LINK_PREFIX + "postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
 	FOREIGN_TABLE_DOC_LINK                  = DOCS_LINK_PREFIX + "postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
 	EXCLUSION_CONSTRAINT_DOC_LINK           = DOCS_LINK_PREFIX + "postgresql/#exclusion-constraints-is-not-supported"
