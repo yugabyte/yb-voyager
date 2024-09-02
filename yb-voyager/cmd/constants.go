@@ -71,6 +71,7 @@ const (
 	IMPORT_DATA_SOURCE_PHASE         = "import-data-to-source"
 	END_MIGRATION_PHASE              = "end-migration"
 	ASSESS_MIGRATION_PHASE           = "assess-migration"
+	ASSESS_MIGRATION_BULK_PHASE      = "assess-migration-bulk"
 	IMPORT_DATA_FILE_PHASE           = "import-data-file"
 	//...more phases
 	OFFLINE        = "offline"
@@ -100,9 +101,10 @@ const (
 
 	UNSUPPORTED_FEATURES  = "unsupported_features"
 	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
-	MIGRATION_CAVEATS = "migration_caveats"
+	MIGRATION_CAVEATS     = "migration_caveats"
 
-	TABLE = "TABLE"
+	TABLE     = "TABLE"
+	YUGABYTED = "yugabyted"
 
 	// assess-migration-bulk
 	SOURCE_DB_TYPE     = "source-db-type"
@@ -117,6 +119,30 @@ const (
 
 	HTML_EXTENSION = ".html"
 	JSON_EXTENSION = ".json"
+
+	//adding constants for docs link
+	DOCS_LINK_PREFIX                        = "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/"
+	ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK = DOCS_LINK_PREFIX + "postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error"
+	CREATE_CONVERSION_DOC_LINK              = DOCS_LINK_PREFIX + "postgresql/#create-or-alter-conversion-is-not-supported"
+	GENERATED_STORED_COLUMN_DOC_LINK        = DOCS_LINK_PREFIX + "postgresql/#generated-always-as-stored-type-column-is-not-supported"
+	UNSUPPORTED_ALTER_VARIANTS_DOC_LINK     = DOCS_LINK_PREFIX + "postgresql/#unsupported-alter-table-ddls-variants-in-source-schema"
+	STORAGE_PARAMETERS_DDL_STMT_DOC_LINK    = DOCS_LINK_PREFIX + "postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+	FOREIGN_TABLE_DOC_LINK                  = DOCS_LINK_PREFIX + "postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
+	EXCLUSION_CONSTRAINT_DOC_LINK           = DOCS_LINK_PREFIX + "postgresql/#exclusion-constraints-is-not-supported"
+	EXTENSION_DOC_LINK                      = "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/"
+	DEFERRABLE_CONSTRAINT_DOC_LINK          = DOCS_LINK_PREFIX + "postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported"
+	XML_DATATYPE_DOC_LINK                   = DOCS_LINK_PREFIX + "postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+	GIST_INDEX_DOC_LINK                     = DOCS_LINK_PREFIX + "postgresql/#gist-index-type-is-not-supported"
+	CONSTRAINT_TRIGGER_DOC_LINK             = DOCS_LINK_PREFIX + "postgresql/#constraint-trigger-is-not-supported"
+	INHERITANCE_DOC_LINK                    = DOCS_LINK_PREFIX + "postgresql/#table-inheritance-is-not-supported"
+	GIN_INDEX_MULTI_COLUMN_DOC_LINK         = DOCS_LINK_PREFIX + "postgresql/#gin-indexes-on-multiple-columns-are-not-supported"
+	GIN_INDEX_DIFFERENT_ISSUE_DOC_LINK      = DOCS_LINK_PREFIX + "oracle/#issue-in-some-unsupported-cases-of-gin-indexes"
+	POLICY_DOC_LINK                         = DOCS_LINK_PREFIX + "postgresql/#policies-on-users-in-source-require-manual-user-creation"
+	VIEW_CHECK_OPTION_DOC_LINK              = DOCS_LINK_PREFIX + "postgresql/#view-with-check-option-is-not-supported"
+	EXPRESSION_PARTIITON_DOC_LINK           = DOCS_LINK_PREFIX + "mysql-oracle/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys"
+	LIST_PARTIION_MULTI_COLUMN_DOC_LINK     = DOCS_LINK_PREFIX + "mysql-oracle/#multi-column-partition-by-list-is-not-supported"
+	PARTITION_KEY_NOT_PK_DOC_LINK           = DOCS_LINK_PREFIX + "oracle/#partition-key-column-not-part-of-primary-key-columns"
+	DROP_TEMP_TABLE_DOC_LINK                = DOCS_LINK_PREFIX + "mysql/#drop-temporary-table-statements-are-not-supported"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

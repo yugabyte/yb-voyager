@@ -5,8 +5,18 @@
             "ObjectName": "film_fulltext_idx ON public.film",
             "Reason": "Schema contains GIST index which is not supported.",
             "SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "MVIEW",
+            "ObjectName": "VIEW",
+            "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
+            "SqlStatement": "CREATE MATERIALIZED VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "Suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
         },
         {
             "IssueType": "unsupported_features",
@@ -14,7 +24,18 @@
             "ObjectName": "abc",
             "Reason": "Storage parameters are not supported yet.",
             "SqlStatement": "CREATE INDEX abc ON public.example USING btree (new_id) WITH (fillfactor='70'); ",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
             "Suggestion": "Remove the storage parameters from the DDL",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "abc",
+            "Reason": "Storage parameters are not supported yet.",
+            "SqlStatement": "CREATE INDEX abc ON schema2.example USING btree (new_id) WITH (fillfactor='70'); ",
+            "Suggestion": "Remove the storage parameters from the DDL",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
         },
         {
@@ -23,6 +44,7 @@
             "ObjectName": "foo",
             "Reason": "temporary table is not a supported clause for drop",
             "SqlStatement": "CREATE OR REPLACE PROCEDURE foo (p_id integer) AS $body$\nBEGIN\n    drop temporary table if exists temp;\n    create temporary table temp(id int, name text);\n    insert into temp(id,name) select id,p_name from bar where p_id=id;\n    select name from temp;\nend;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/mysql/#drop-temporary-table-statements-are-not-supported",
             "Suggestion": "remove \"temporary\" and change it to \"drop table\"",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/705"
         }, 
@@ -32,6 +54,7 @@
             "ObjectName": "sales",
             "Reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
             "SqlStatement": "CREATE TABLE sales (\n\tcust_id bigint NOT NULL,\n\tname varchar(40),\n\tstore_id varchar(20) NOT NULL,\n\tbill_no bigint NOT NULL,\n\tbill_date timestamp NOT NULL,\n\tamount decimal(8,2) NOT NULL,\n\tPRIMARY KEY (bill_date)\n) PARTITION BY RANGE (extract(year from date(bill_date))) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/mysql-oracle/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
             "Suggestion": "Remove the Constriant from the table definition",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
         },
@@ -41,6 +64,7 @@
             "ObjectName": "salaries2",
             "Reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
             "SqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (extract(epoch from date(from_date))) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/mysql-oracle/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
             "Suggestion": "Remove the Constriant from the table definition",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
         },
@@ -77,6 +101,7 @@
             "ObjectName": "test_1",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
             "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/mysql-oracle/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
@@ -86,6 +111,7 @@
             "ObjectName": "test_2",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
             "SqlStatement": "CREATE TABLE test_2 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/mysql-oracle/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
@@ -95,6 +121,7 @@
             "ObjectName": "test_5",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
             "SqlStatement": "CREATE TABLE test_5 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY RANGE (country_code, record_type) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
@@ -104,6 +131,7 @@
             "ObjectName": "test_6",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
             "SqlStatement": "CREATE TABLE test_6 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (country_code, record_type) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
@@ -113,6 +141,7 @@
             "ObjectName": "test_7",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
             "SqlStatement": "CREATE TABLE test_7 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (descriptions, record_type) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
@@ -122,6 +151,7 @@
             "ObjectName": "test_8",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
             "SqlStatement": "CREATE TABLE test_8 (\n\torder_id bigint NOT NULL,\n\torder_date timestamp,\n\torder_mode varchar(8),\n\tcustomer_id integer,\n\torder_mode smallint,\n\torder_total double precision,\n\tsales_rep_id integer,\n\tpromotion_id integer,\n\tPRIMARY KEY (order_id,order_mode,customer_id,order_total,sales_rep_id)\n) PARTITION BY RANGE (promotion_id, order_date, sales_rep_id) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
@@ -131,6 +161,7 @@
             "ObjectName": "test_non_pk_multi_column_list",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
             "SqlStatement": "CREATE TABLE test_non_pk_multi_column_list (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/mysql-oracle/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
@@ -141,7 +172,8 @@
             "Reason": "CREATE CONVERSION is not supported yet",
             "SqlStatement": "CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;",
             "Suggestion": "Remove it from the exported schema",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10866"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10866",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#create-or-alter-conversion-is-not-supported"
         },
         {
             "IssueType": "unsupported_features",
@@ -150,12 +182,13 @@
             "Reason": "ALTER CONVERSION is not supported yet",
             "SqlStatement": "ALTER CONVERSION myconv rename to my_conv_1;",
             "Suggestion": "Remove it from the exported schema",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#create-or-alter-conversion-is-not-supported"
         },
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "idx_name1",
+            "ObjectName": "idx_name1 ON table_name",
             "Reason": "index method 'spgist' not supported yet.",
             "SqlStatement": "CREATE INDEX idx_name1 ON table_name USING spgist (col1);",
             "Suggestion": "",
@@ -164,7 +197,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "idx_name2",
+            "ObjectName": "idx_name2 ON table_name",
             "Reason": "index method 'rtree' is superceded by 'gist' which is not supported yet.",
             "SqlStatement": "CREATE INDEX idx_name2 ON table_name USING rtree (col1);",
             "Suggestion": "",
@@ -176,6 +209,7 @@
             "ObjectName": "idx_name3 ON schema_name.table_name",
             "Reason": "Schema contains gin index on multi column which is not supported.",
             "SqlStatement": "CREATE INDEX idx_name3 ON schema_name.table_name USING gin (col1,col2,col3);",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#gin-indexes-on-multiple-columns-are-not-supported",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/7850"
         },
@@ -186,6 +220,7 @@
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
             "SqlStatement": "CREATE VIEW v1 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH CHECK OPTION;",
             "Suggestion": "Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716"
         },
         {
@@ -195,6 +230,7 @@
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
             "SqlStatement": "CREATE VIEW v2 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH LOCAL CHECK OPTION;",
             "Suggestion": "Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716"
         },
         {
@@ -258,6 +294,7 @@
             "Reason": "CONSTRAINT TRIGGER not supported yet.",
             "SqlStatement": "CREATE CONSTRAINT TRIGGER some_trig\n   AFTER DELETE ON xyz_schema.abc\n   DEFERRABLE INITIALLY DEFERRED\n   FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();",
             "Suggestion": "",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1709"
         },
         {
@@ -284,7 +321,8 @@
             "ObjectName": "public.employees4",
             "Reason": "Stored generated columns are not supported. Generated Columns: (full_name)",
             "SqlStatement": "CREATE TABLE public.employees4 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: \u003cLINK_DOC\u003e",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
@@ -293,7 +331,8 @@
             "ObjectName": "order_details",
             "Reason": "Stored generated columns are not supported. Generated Columns: (amount)",
             "SqlStatement": "CREATE TABLE order_details (\n    detail_id integer NOT NULL,\n    quantity integer,\n    price_per_unit numeric,\n    amount numeric GENERATED ALWAYS AS (((quantity)::numeric * price_per_unit)) STORED\n);",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: \u003cLINK_DOC\u003e",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
@@ -320,6 +359,7 @@
             "ObjectName": "table_1",
             "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
             "SqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
         },
@@ -383,6 +423,7 @@
             "ObjectName": "test_1",
             "Reason": "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )\t not supported yet",
             "SqlStatement": "alter table test_1 alter column col1 set (attribute_option=value); ",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddls-variants-in-source-schema",
             "Suggestion": "Remove it from the exported schema",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
         },
@@ -392,6 +433,7 @@
             "ObjectName": "test",
             "Reason": "ALTER TABLE name DISABLE RULE not supported yet",
             "SqlStatement": "alter table test DISABLE RULE example_rule; ",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddls-variants-in-source-schema",
             "Suggestion": "Remove this and the rule 'example_rule' from the exported schema to be not enabled on the table.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
         },
@@ -401,6 +443,7 @@
             "ObjectName": "public.example",
             "Reason": "Storage parameters are not supported yet.",
             "SqlStatement": "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor='70'); ",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
         },
@@ -410,6 +453,7 @@
             "ObjectName": "",
             "Reason": "ALTER TABLE CLUSTER not supported yet.",
             "SqlStatement": "alter table abc cluster on xyz;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddls-variants-in-source-schema",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         },
@@ -455,6 +499,7 @@
             "ObjectName": "abc",
             "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "ALTER TABLE abc\nADD CONSTRAINT cnstr_id\n UNIQUE (id)\nDEFERRABLE;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
             "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
@@ -464,6 +509,7 @@
             "ObjectName": "public.users",
             "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "ALTER TABLE ONLY public.users\n    ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
             "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
@@ -473,6 +519,7 @@
             "ObjectName": "unique_def_test",
             "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
             "Suggestion": "Remove these constraints from the exported schema and make the necessary changes to the application before pointing it to target",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
@@ -482,6 +529,7 @@
             "ObjectName": "unique_def_test1",
             "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "create table unique_def_test1(id int, c1 int, UNIQUE(id)  DEFERRABLE INITIALLY DEFERRED);",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
             "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
         },
@@ -491,6 +539,7 @@
             "ObjectName": "test_xml_type",
             "Reason": "Unsupported datatype - xml on column - data",
             "SqlStatement": "CREATE TABLE test_xml_type(id int, data xml);",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043"
         },
@@ -509,7 +558,8 @@
             "ObjectName": "public.meeting",
             "Reason": "Exclusion constraint is not supported yet",
             "SqlStatement": "ALTER TABLE ONLY public.meeting\n    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026);",
-            "Suggestion": "Refer this docs link for details on possible workaround - \u003cLINK_DOC\u003e",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
+            "Suggestion": "Refer docs link for details on possible workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
         },
         {
@@ -518,15 +568,17 @@
             "ObjectName": "Test",
             "Reason": "Exclusion constraint is not supported yet",
             "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026)\n);",
-            "Suggestion": "Refer this docs link for details on possible workaround - \u003cLINK_DOC\u003e",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
+            "Suggestion": "Refer docs link for details on possible workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "public.range_columns_partition_test",
             "Reason": "Adding primary key to a partitioned table is not supported yet.",
             "SqlStatement": "ALTER TABLE ONLY public.range_columns_partition_test\n    ADD CONSTRAINT range_columns_partition_test_pkey PRIMARY KEY (a, b);",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10074"
         },
@@ -607,7 +659,7 @@
             "ObjectType": "VIEW",
             "ObjectName": "test",
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
-            "SqlStatement": "CREATE OR REPLACE VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "SqlStatement": "CREATE OR REPLACE view test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
             "Suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
         },
@@ -635,6 +687,7 @@
             "ObjectName": "sales_data",
             "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
             "SqlStatement": "CREATE TABLE sales_data (\n        sales_id numeric NOT NULL,\n        sales_date timestamp,\n        sales_amount numeric,\n        PRIMARY KEY (sales_id)\n) PARTITION BY RANGE (sales_date) ;",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
@@ -644,6 +697,7 @@
             "ObjectName": "aws_commons",
             "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS aws_commons WITH SCHEMA public;",
+            "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },
@@ -653,6 +707,7 @@
             "ObjectName": "plperl",
             "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS plperl WITH SCHEMA pg_catalog;",
+            "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },
@@ -662,6 +717,7 @@
             "ObjectName": "hstore_plperl",
             "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS hstore_plperl WITH SCHEMA public;",
+            "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
         },
@@ -675,11 +731,12 @@
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514"
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "FOREIGN TABLE",
             "ObjectName": "tbl_p",
             "Reason": "Foreign tables require manual intervention.",
             "SqlStatement": "CREATE FOREIGN TABLE tbl_p( \tid int PRIMARY KEY ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_table' ); ",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
             "Suggestion": "SERVER 'remote_server', and USER MAPPING should be created manually on the target to create and use the foreign table",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1627"
         },
@@ -689,7 +746,8 @@
             "ObjectName": "enum_example.bugs",
             "Reason": "Stored generated columns are not supported. Generated Columns: (_status,_severity,info)",
             "SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer link for more details: \u003cLINK_DOC\u003e",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
         },
         {
@@ -699,7 +757,8 @@
             "Reason": "Policy require roles to be created. Users - (regress_rls_eve,regress_rls_frank)",
             "SqlStatement": "CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);",
             "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1655"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation"
         },
         {
             "IssueType": "migration_caveats",
@@ -707,6 +766,7 @@
             "ObjectName": "p1 ON z1",
             "Reason": "Policy require roles to be created. Users - (regress_rls_group1)",
             "SqlStatement": "CREATE POLICY p1 ON z1 TO regress_rls_group1 USING (a % 2 = 0);",
+            "DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655"
         }

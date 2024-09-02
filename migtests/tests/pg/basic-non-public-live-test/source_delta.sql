@@ -28,3 +28,11 @@ UPDATE user_table SET email = 'user4@example.com' WHERE id = 6;
 
 -- events with NULL value for unique key columns
 UPDATE user_table SET status = 'inactive' where id > 0;
+
+--events for test_enum table 
+INSERT INTO test_enum values(5, 'duplicate_payment_method');
+INSERT INTO test_enum values(6, 'server_failure');
+
+UPDATE test_enum set reason = 'server_failure' where id = 4;
+
+DELETE from test_enum where id = 2;

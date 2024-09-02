@@ -128,7 +128,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 
-	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, bool(startClean))
+	// we don't want to re-register in case import data to source/source-replica
+	reregisterYBNames := importerRole == TARGET_DB_IMPORTER_ROLE && bool(startClean)
+	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, reregisterYBNames)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
@@ -431,7 +433,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
 
 	targetDBVersion := tdb.GetVersion()
-
 	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
 
 	err = tdb.CreateVoyagerSchema()
@@ -1246,18 +1247,14 @@ func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {
 }
 
 func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
-
 	result := cp.SnapshotImportCompletedEvent{}
 	initBaseTargetEvent(&result.BaseEvent, "IMPORT DATA")
 	return result
 }
 
 func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
-
 	result := []*cp.UpdateImportedRowCountEvent{}
-
 	for _, task := range tasks {
-
 		var schemaName, tableName string
 		schemaName, tableName = cp.SplitTableNameForPG(task.TableNameTup.ForKey())
 		tableMetrics := cp.UpdateImportedRowCountEvent{

@@ -374,6 +374,7 @@ func exportData() bool {
 						utils.ErrExit("failed to delete stream id after data export: %v", err)
 					}
 				} else {
+					fmt.Println("Deleting YB replication slot and publication")
 					err = deleteYBReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, source)
 					if err != nil {
 						utils.ErrExit("failed to delete replication slot and publication after data export: %v", err)
@@ -384,6 +385,7 @@ func exportData() bool {
 				if err != nil {
 					utils.ErrExit("get migration status record: %v", err)
 				}
+				fmt.Println("Deleting PG replication slot and publication")
 				deletePGReplicationSlot(msr, &source)
 				deletePGPublication(msr, &source)
 			}

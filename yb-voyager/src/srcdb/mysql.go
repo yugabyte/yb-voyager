@@ -106,6 +106,10 @@ func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 }
 
 func (ms *MySQL) GetVersion() string {
+	if ms.source.DBVersion != "" {
+		return ms.source.DBVersion
+	}
+
 	var version string
 	query := "SELECT VERSION()"
 	err := ms.db.QueryRow(query).Scan(&version)
@@ -344,7 +348,10 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, use
 		_, tname := tableName.ForCatalogQuery()
 		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
-			if utils.ContainsAnySubstringFromSlice(mysqlUnsupportedDataTypes, dataTypes[i]) {
+			//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+			// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
+			//of these types there are other columns available for these information so we just do string match of types with our list
+			if utils.ContainsAnyStringFromSlice(mysqlUnsupportedDataTypes, dataTypes[i]) {
 				log.Infof("Skipping unsupproted column %s.%s of type %s", tname, columns[i], dataTypes[i])
 				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tname, columns[i], dataTypes[i]))
 			} else {

@@ -212,6 +212,16 @@ func CleanDir(dir string) {
 	}
 }
 
+// EnsureDir checks if a directory exists and makes it if it does not.
+func EnsureDir(path string) error {
+	dirName := filepath.Dir(path)
+	err := os.MkdirAll(dirName, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("failed to create directory %q: %w", dirName, err)
+	}
+	return nil
+}
+
 func PrintIfTrue(message string, args ...bool) {
 	for i := 0; i < len(args); i++ {
 		if !args[i] {
@@ -254,7 +264,7 @@ func GetObjectFilePath(schemaDirPath string, objType string) string {
 		requiredPath = filepath.Join(schemaDirPath, "partitions", "PARTITION_INDEXES_partition.sql")
 	} else if objType == "FOREIGN TABLE" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "foreign_table.sql")
-	}else if objType == "POLICY" {
+	} else if objType == "POLICY" {
 		requiredPath = filepath.Join(schemaDirPath, "policies", strings.ToLower(objType)+".sql")
 	} else {
 		requiredPath = filepath.Join(schemaDirPath, strings.ToLower(objType)+"s",
@@ -310,6 +320,18 @@ func CsvStringToSlice(str string) []string {
 	return result
 }
 
+// TODO: This approach may not work when connections to external internet addresses are restricted
+func GetLocalIP() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddress := conn.LocalAddr().(*net.UDPAddr)
+	return localAddress.IP.String(), nil
+}
+
 func LookupIP(name string) []string {
 	var result []string
 
@@ -318,7 +340,6 @@ func LookupIP(name string) []string {
 		log.Infof("Error Resolving name=%s: %v", name, err)
 		return result
 	}
-
 	for _, ip := range ips {
 		result = append(result, ip.String())
 	}
@@ -328,6 +349,15 @@ func LookupIP(name string) []string {
 func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 	for i := 0; i < len(slice); i++ {
 		if strings.Contains(strings.ToLower(s), strings.ToLower(slice[i])) {
+			return true
+		}
+	}
+	return false
+}
+
+func ContainsAnyStringFromSlice(slice []string, s string) bool {
+	for i := 0; i < len(slice); i++ {
+		if strings.EqualFold(s, slice[i]) {
 			return true
 		}
 	}

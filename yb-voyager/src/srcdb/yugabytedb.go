@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pglogrepl"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -33,9 +35,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-
-	"github.com/jackc/pglogrepl"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
@@ -102,6 +101,10 @@ func (yb *YugabyteDB) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 }
 
 func (yb *YugabyteDB) GetVersion() string {
+	if yb.source.DBVersion != "" {
+		return yb.source.DBVersion
+	}
+
 	var version string
 	query := "SELECT setting from pg_settings where name = 'server_version'"
 	err := yb.db.QueryRow(query).Scan(&version)
@@ -440,7 +443,7 @@ func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string
 }
 
 func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) []string {
-	query := fmt.Sprintf(`SELECT udt_name::regtype FROM information_schema.columns 
+	query := fmt.Sprintf(`SELECT udt_name FROM information_schema.columns 
 						WHERE table_schema = '%s' 
 						AND table_name='%s' 
 						AND data_type = 'ARRAY';`, schemaName, tableName)
@@ -485,7 +488,9 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 	outer:
 		for _, arrayType := range tableColumnArrayTypes {
 			for _, udt := range userDefinedTypes {
-				if strings.Contains(arrayType, udt) {
+				if strings.EqualFold(strings.TrimLeft(arrayType, "_"), udt) { 
+					// as the array_type is determined by an underscore at the first place
+					//ref - https://www.postgresql.org/docs/current/xtypes.html#:~:text=The%20array%20type%20typically%20has%20the%20same%20name%20as%20the%20base%20type%20with%20the%20underscore%20character%20(_)%20prepended
 					unsupportedTables = append(unsupportedTables, table)
 					break outer
 				}
@@ -496,7 +501,7 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 	if len(unsupportedTables) > 0 {
 		unsupportedTablesStringList := make([]string, len(unsupportedTables))
 		for i, table := range unsupportedTables {
-			unsupportedTablesStringList[i] = table.String()
+			unsupportedTablesStringList[i] = table.ForMinOutput()
 		}
 
 		if !utils.AskPrompt("\nThe following tables are unsupported since they contains an array of enums:\n" + strings.Join(unsupportedTablesStringList, "\n") +
@@ -563,14 +568,26 @@ func (yb *YugabyteDB) getTableColumns(tableName sqlname.NameTuple) ([]string, []
 	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(dataTypes []string) []string {
+func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.NameTuple) []string {
 	// Currently all UDTs other than enums and domain are unsupported
-	query := fmt.Sprintf(`SELECT typname AS data_type, 
-						CASE WHEN n.nspname NOT IN ('pg_catalog', 'information_schema') 
-						AND t.typtype <> 'e' AND t.typtype <> 'd' THEN 'Yes' 
-						ELSE 'No' END AS is_user_defined 
-						FROM pg_type t JOIN pg_namespace n 
-						ON t.typnamespace = n.oid WHERE typname IN ('%s');`, strings.Join(dataTypes, `', '`))
+	sname, tname := tableName.ForCatalogQuery()
+	query := fmt.Sprintf(`SELECT 
+    	t.typname AS type_name,
+		CASE WHEN t.typtype = 'c' THEN 'Yes' ELSE 'No' END AS is_user_defined
+	FROM 
+		pg_class c
+	JOIN 
+		pg_namespace n ON c.relnamespace = n.oid
+	JOIN 
+		pg_attribute a ON a.attrelid = c.oid
+	JOIN 
+		pg_type t ON a.atttypid = t.oid
+	WHERE 
+		c.relname = '%s' 
+		AND n.nspname = '%s'  
+		AND a.attnum > 0 
+	ORDER BY 
+		a.attnum;`, tname, sname)
 	rows, err := yb.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for user defined columns: %v\n", query, err)
@@ -603,13 +620,16 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}
-		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(dataTypes)
+		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableName)
 		yugabyteUnsupportedDataTypesForDbzm = append(yugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
-				if utils.ContainsAnySubstringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
+				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
+				//of these types there are other columns available for these information so we just do string match of types with our list
+				if utils.ContainsAnyStringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)
@@ -872,7 +892,7 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 
 	// TODO: Remove this sleep and check the status of the slot before dropping
 	// This sleep is added to avoid the error "replication slot is active" while dropping the slot since it takes 60 seconds by default to change the status of the slot
-	log.Info("sleeping for 60 seconds before dropping replication slot")
+	log.Info("waiting for 60 seconds before dropping replication slot...")
 	time.Sleep(60 * time.Second)
 
 	err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})

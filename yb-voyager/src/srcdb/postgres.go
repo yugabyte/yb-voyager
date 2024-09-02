@@ -66,7 +66,7 @@ AND NOT a.attisdropped
 AND t.relkind IN ('r', 'P')
 AND seq.relkind = 'S';`
 
-const GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB = `SELECT a.attname AS column_name, t.typname::regtype AS data_type, rol.rolname AS data_type_owner 
+const GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB = `SELECT a.attname AS column_name, t.typname AS data_type, rol.rolname AS data_type_owner 
 FROM pg_attribute AS a 
 JOIN pg_type AS t ON t.oid = a.atttypid 
 JOIN pg_class AS c ON c.oid = a.attrelid 
@@ -136,6 +136,10 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 }
 
 func (pg *PostgreSQL) GetVersion() string {
+	if pg.source.DBVersion != "" {
+		return pg.source.DBVersion
+	}
+
 	var version string
 	query := "SELECT setting from pg_settings where name = 'server_version'"
 	err := pg.db.QueryRow(query).Scan(&version)
@@ -586,7 +590,12 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		var supportedColumnNames []string
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
-				if utils.ContainsAnySubstringFromSlice(PostgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
+				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
+				//of these types there are other columns available for these information so we just do string match of types with our list
+				//And also for geometry or complex types like if a column is defined with  public.geometry(Point,4326) then also only geometry is available
+				//in the typname column of those catalog tables  and further details (Point,4326) is managed by Postgis extension.
+				if utils.ContainsAnyStringFromSlice(PostgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)

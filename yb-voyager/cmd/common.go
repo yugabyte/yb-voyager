@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -812,6 +813,9 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
 		SchemaNames:   cp.GetSchemaList(source.Schema),
+		DBIP:          utils.LookupIP(source.Host),
+		Port:          source.Port,
+		DBVersion:     source.DBVersion,
 	}
 }
 
@@ -822,6 +826,9 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		DBType:        tconf.TargetDBType,
 		DatabaseName:  tconf.DBName,
 		SchemaNames:   []string{tconf.Schema},
+		DBIP:          utils.LookupIP(tconf.Host),
+		Port:          tconf.Port,
+		DBVersion:     tconf.DBVersion,
 	}
 }
 
@@ -1000,7 +1007,15 @@ func readEnvForAppOrSchemaCounts() {
 }
 
 // Migration complexity calculation from the conversion issues
-func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaReport) string {
+func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysisReport utils.SchemaReport) string {
+	if sourceDBType == ORACLE {
+		mc, err := getMigrationComplexityForOracle(schemaDirectory)
+		if err != nil {
+			log.Errorf("failed to get migration complexity for oracle: %v", err)
+			return "NOT AVAILABLE"
+		}
+		return mc
+	}
 	if sourceDBType != POSTGRESQL {
 		return "NOT AVAILABLE"
 	}
@@ -1026,6 +1041,67 @@ func getMigrationComplexity(sourceDBType string, analysisReport utils.SchemaRepo
 	}
 	//LOW in case appChanges == 0 or schemaChanges [0-20]
 	return LOW
+}
+
+// This is a temporary logic to get migration complexity for oracle based on the migration level from ora2pg report.
+// Ideally, we should ALSO be considering the schema analysis report to get the migration complexity.
+func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
+	ora2pgReportPath := filepath.Join(schemaDirectory, "ora2pg_report.csv")
+	if !utils.FileOrFolderExists(ora2pgReportPath) {
+		return "", fmt.Errorf("ora2pg report file not found at %s", ora2pgReportPath)
+	}
+	file, err := os.Open(ora2pgReportPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %w", ora2pgReportPath, err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Errorf("Error while closing file %s: %v", ora2pgReportPath, err)
+		}
+	}()
+	// Sample file contents
+
+	// "dbi:Oracle:(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = xyz)(PORT = 1521))(CONNECT_DATA = (SERVICE_NAME = DMS)))";
+	// "Oracle Database 19c Enterprise Edition Release 19.0.0.0.0";"ASSESS_MIGRATION";"261.62 MB";"1 person-day(s)";"A-2";
+	// "0/0/0.00";"0/0/0";"0/0/0";"25/0/6.50";"0/0/0.00";"0/0/0";"0/0/0";"0/0/0";"0/0/0";"3/0/1.00";"3/0/1.00";
+	// "44/0/4.90";"27/0/2.70";"9/0/1.80";"4/0/16.00";"5/0/3.00";"2/0/2.00";"125/0/58.90"
+	//
+	// X/Y/Z - total/invalid/cost for each type of objects(table,function,etc). Last data element is the sum total.
+	// total cost = 58.90 units (1 unit = 5 minutes). Therefore total cost is approx 1 person-days.
+	// column 6 is Migration level.
+	//  Migration levels:
+	//     A - Migration that might be run automatically
+	//     B - Migration with code rewrite and a human-days cost up to 5 days
+	//     C - Migration with code rewrite and a human-days cost above 5 days
+	// 	Technical levels:
+	//     1 = trivial: no stored functions and no triggers
+	//     2 = easy: no stored functions but with triggers, no manual rewriting
+	//     3 = simple: stored functions and/or triggers, no manual rewriting
+	//     4 = manual: no stored functions but with triggers or views with code rewriting
+	//     5 = difficult: stored functions and/or triggers with code rewriting
+	reader := csv.NewReader(file)
+	reader.Comma = ';'
+	rows, err := reader.ReadAll()
+	if err != nil {
+		log.Errorf("error reading csv file %s: %v", ora2pgReportPath, err)
+		return "", fmt.Errorf("error reading csv file %s: %w", ora2pgReportPath, err)
+	}
+	if len(rows) > 1 {
+		return "", fmt.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %v", len(rows), rows)
+	}
+	reportData := rows[0]
+	migrationLevel := strings.Split(reportData[5], "-")[0]
+
+	switch migrationLevel {
+	case "A":
+		return LOW, nil
+	case "B":
+		return MEDIUM, nil
+	case "C":
+		return HIGH, nil
+	default:
+		return "", fmt.Errorf("invalid migration level [%s] found in ora2pg report %v", migrationLevel, reportData)
+	}
 }
 
 // =====================================================================
@@ -1206,6 +1282,8 @@ func PackAndSendCallhomePayloadOnExit() {
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
 		packAndSendAssessMigrationPayload(EXIT, "Exiting....")
+	case assessMigrationBulkCmd.CommandPath():
+		packAndSendAssessMigrationBulkPayload(EXIT)
 	case exportSchemaCmd.CommandPath():
 		packAndSendExportSchemaPayload(EXIT)
 	case analyzeSchemaCmd.CommandPath():

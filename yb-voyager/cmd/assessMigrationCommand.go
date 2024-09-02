@@ -109,7 +109,7 @@ var assessMigrationCmd = &cobra.Command{
 		err := assessMigration()
 		if err != nil {
 			packAndSendAssessMigrationPayload(ERROR, err.Error())
-			utils.ErrExit("failed to assess migration: %v", err)
+			utils.ErrExit("failed to assess migration: %s", err)
 		}
 		packAndSendAssessMigrationPayload(COMPLETE, "")
 	},
@@ -159,7 +159,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		UnsupportedFeatures:  callhome.MarshalledJsonString(assessmentReport.UnsupportedFeatures),
-		UnsupportedDataTypes: callhome.MarshalledJsonString(assessmentReport.UnsupportedDataTypes),
+		UnsupportedDatatypes: callhome.MarshalledJsonString(assessmentReport.UnsupportedDataTypes),
 		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:     callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:        callhome.MarshalledJsonString(schemaSummaryCopy),
@@ -273,9 +273,6 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 
-	startEvent := createMigrationAssessmentStartedEvent()
-	controlPlane.MigrationAssessmentStarted(startEvent)
-
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
@@ -301,6 +298,9 @@ func assessMigration() (err error) {
 
 		source.DB().Disconnect()
 	}
+
+	startEvent := createMigrationAssessmentStartedEvent()
+	controlPlane.MigrationAssessmentStarted(startEvent)
 
 	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
@@ -402,7 +402,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalColocatedSize: sizeDetails.TotalColocatedSize,
 			TotalShardedSize:   sizeDetails.TotalShardedSize,
 		},
-		MigrationComplexity: getMigrationComplexity(source.DBType, schemaAnalysisReport),
+		MigrationComplexity: assessmentReport.SchemaSummary.MigrationComplexity,
 		ConversionIssues:    schemaAnalysisReport.Issues,
 	}
 
@@ -789,14 +789,14 @@ func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
 	link := "" // for oracle we shouldn't display any line for links
-	if source.DBType == POSTGRESQL {
-		link = "TBD"
-	}
 	for _, issue := range schemaAnalysisReport.Issues {
 		if strings.Contains(issue.Reason, issueReason) {
 			objectInfo := ObjectInfo{
 				ObjectName:   issue.ObjectName,
 				SqlStatement: issue.SqlStatement,
+			}
+			if source.DBType == POSTGRESQL {
+				link = issue.DocsLink
 			}
 			objects = append(objects, objectInfo)
 		}
@@ -923,10 +923,13 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
-		if utils.ContainsAnySubstringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information 
+		//of these types there are other columns available for these information so we just do string match of types with our list
+		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
-		if utils.ContainsAnySubstringFromSlice(liveMigrationUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
 		}
 	}
@@ -993,9 +996,13 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			}
 			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration", columns, false, "", UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
 		}
-
-		if len(migrationCaveats) > 0 {
-			assessmentReport.MigrationCaveats = migrationCaveats
+		for _, caveat := range migrationCaveats {
+			if len(caveat.Objects) > 0 {
+				//Not populating the MigrationCaveats section in case there are no caveats at all
+				//TODO: fix it with proper solution in template for all sections
+				assessmentReport.MigrationCaveats = migrationCaveats
+				break
+			}
 		}
 	}
 }
@@ -1059,6 +1066,10 @@ func generateAssessmentReportHtml(reportDir string) error {
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
 	log.Infof("execute template for assessment report...")
+	if source.DBType == POSTGRESQL {
+		// marking this as empty to not display this in html report for PG
+		assessmentReport.SchemaSummary.SchemaNames = []string{} 
+	}
 	err = tmpl.Execute(file, assessmentReport)
 	if err != nil {
 		return fmt.Errorf("failed to render the assessment report: %w", err)

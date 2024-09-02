@@ -22,3 +22,6 @@ ALTER INDEX abc set TABLESPACE new_tbl;
 
 --for the case of storage parameters
 CREATE INDEX abc ON public.example USING btree (new_id) WITH (fillfactor='70');
+
+-- for the duplicate index name
+CREATE INDEX abc ON schema2.example USING btree (new_id) WITH (fillfactor='70'); 
