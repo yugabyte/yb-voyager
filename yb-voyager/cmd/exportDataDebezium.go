@@ -166,7 +166,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 	} else if isTargetDBExporter(exporterRole) {
 		if !msr.UseYBgRPCConnector {
-			err = createYBReplicationSlotAndPublication(dbzmTableList)
+			err = createYBReplicationSlotAndPublication(tableList, leafPartitions)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to create yb replication slot and publication: %w", err)
 			}
@@ -542,7 +542,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
-func createYBReplicationSlotAndPublication(finalTableList []string) error {
+func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
 	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
 	if !ok {
 		return errors.New("unable to cast source DB to YugabyteDB")
@@ -558,6 +558,15 @@ func createYBReplicationSlotAndPublication(finalTableList []string) error {
 			log.Errorf("close replication connection: %v", err)
 		}
 	}()
+	var finalTableList []string
+	for _, table := range tableList {
+		_, ok := leafPartitions.Get(table)
+		if ok {
+			// tablelist should not have root and leaf both so not adding root table in table list
+			continue
+		}
+		finalTableList = append(finalTableList, table.ForOutput())
+	}
 
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
 	err = ybDB.CreatePublication(replicationConn, publicationName, finalTableList)
