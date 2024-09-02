@@ -181,7 +181,7 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Setup Fall Back environment"
-	#setup_fallback_environment
+	setup_fallback_environment
 
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true --yes --use-yb-grpc-connector f
