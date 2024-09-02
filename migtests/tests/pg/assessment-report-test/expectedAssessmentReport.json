@@ -218,7 +218,7 @@
 					"SqlStatement": "CREATE INDEX idx_point_data ON schema2.mixed_data_types_table1 USING gist (point_data);"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
 		},
 		{
 			"FeatureName": "Constraint triggers",
@@ -232,7 +232,7 @@
 					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON schema2.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION schema2.prevent_update_shipped_without_date();"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported"
 		},
 		{
 			"FeatureName": "Inherited tables",
@@ -246,7 +246,7 @@
 					"SqlStatement": "CREATE TABLE schema2.child_table (\n    specific_column1 date\n)\nINHERITS (schema2.parent_table);"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
 		},
 		{
 			"FeatureName": "Tables with stored generated columns",
@@ -260,7 +260,7 @@
 					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,\n    department character varying(50)\n);"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported"
 		},
 		{
 			"FeatureName": "Conversion objects",
@@ -298,7 +298,7 @@
 					"SqlStatement": "ALTER TABLE ONLY public.test_exclude_basic\n    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
 		},
 		{
 			"FeatureName": "Deferrable constraints",
@@ -312,7 +312,7 @@
 					"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported"
 		},
 		{
 			"FeatureName": "View with check option",
@@ -326,7 +326,7 @@
 					"SqlStatement": "CREATE VIEW schema2.sales_employees AS\n SELECT employees2.id,\n    employees2.first_name,\n    employees2.last_name,\n    employees2.full_name\n   FROM schema2.employees2\n  WHERE ((employees2.department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported"
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -1214,7 +1214,7 @@
 					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
 			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported."
 		},
 		{
@@ -1280,7 +1280,7 @@
 					"SqlStatement": "CREATE POLICY policy_test_report ON schema2.test_xml_type TO test_policy USING (true);"
 				}
 			],
-			"DocsLink": "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
 			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema."
 		}
 	]
