@@ -121,7 +121,7 @@ const (
 	JSON_EXTENSION = ".json"
 
 	//adding constants for docs link
-	DOCS_LINK_PREFIX                        = "https://deploy-preview-23634--infallible-bardeen-164bc9.netlify.app/preview/yugabyte-voyager/known-issues/"
+	DOCS_LINK_PREFIX                        = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"
 	ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK = DOCS_LINK_PREFIX + "postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error"
 	CREATE_CONVERSION_DOC_LINK              = DOCS_LINK_PREFIX + "postgresql/#create-or-alter-conversion-is-not-supported"
 	GENERATED_STORED_COLUMN_DOC_LINK        = DOCS_LINK_PREFIX + "postgresql/#generated-always-as-stored-type-column-is-not-supported"
