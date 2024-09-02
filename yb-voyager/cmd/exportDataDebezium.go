@@ -565,6 +565,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 			// tablelist should not have root and leaf both so not adding root table in table list
 			continue
 		}
+		// for case sensitive tables in yugabytedb, we need to use the quoted table name
 		finalTableList = append(finalTableList, table.ForOutput())
 	}
 
