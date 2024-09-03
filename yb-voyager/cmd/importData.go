@@ -531,6 +531,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			displayImportedRowCountSnapshot(state, importFileTasks)
 		}
 		importPhase = dbzm.MODE_STREAMING
+		waitForDebeziumStartIfRequired()
 		color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
 		if err != nil {
@@ -596,6 +597,39 @@ func importData(importFileTasks []*ImportFileTask) {
 		packAndSendImportDataToSourcePayload(COMPLETE)
 	}
 
+}
+
+func waitForDebeziumStartIfRequired() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr.SnapshotMechanism == "debezium" {
+		// we already wait for snapshot to have completed by debezium
+		// so no need to wait again here.
+		return nil
+	}
+
+	// in case pg_dump was used to export snapshot data,
+	// we need to wait for export-data to have started debezium in cdc phase
+	// in order to avoid any race conditions.
+	log.Infof("waiting for export-data to have started debezium in cdc phase")
+	for {
+		msr, err = metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("failed to get migration status record: %w", err)
+		}
+		if lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE}, importerRole) &&
+			msr.ExportDataSourceDebeziumStarted {
+			break
+		}
+		if importerRole == SOURCE_DB_IMPORTER_ROLE && msr.ExportDataTargetDebeziumStarted {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	return nil
 }
 
 func packAndSendImportDataPayload(status string) {
