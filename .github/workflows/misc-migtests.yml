@@ -1,0 +1,65 @@
+name: "Misc: Migration Tests"
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  run-misc-migration-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Cache local Maven repository
+        uses: actions/cache@v3
+
+      - name: Install python3 and psycopg2
+        run: |
+          sudo apt install -y python3
+          sudo apt install -y libpq-dev
+          sudo pip3 install psycopg2
+
+      - name: Run installer script to setup voyager
+        run: |
+          cd installer_scripts
+          yes | ./install-yb-voyager --install-from-local-source --only-pg-support
+        env:
+          ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+      - name: "TEST: Assessment Report Test"
+        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
+
+      - name: "TEST: analyze-schema"
+        run: migtests/tests/analyze-schema/run-analyze-schema-test
+
+      - name: Run YB cluster and tests for each version
+        run: |
+          versions=[2.21.1.0-b271, 2024.1.1.0-b137, 2.20.5.0-b72]
+          for version in "${versions[@]}"; do
+            echo "Running tests on version $version"
+
+            # Start YugabyteDB cluster
+            docker pull yugabytedb/yugabyte:$version
+            VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml up -d
+            sleep 20
+
+            # Test YugabyteDB connection
+            psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+
+            # Create YugabyteDB user
+            ./migtests/scripts/yugabytedb/create_yb_user
+
+            # Enable yb-tserver-n1 and yb-master-n1 name resolution
+            echo "127.0.0.1    yb-tserver-n1" | sudo tee -a /etc/hosts
+            echo "127.0.0.1    yb-master-n1" | sudo tee -a /etc/hosts
+            psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+
+            # TEST: import-data-file
+            migtests/tests/import-file/run-import-file-test
+
+            # Optionally, stop the cluster before the next iteration
+            docker compose -f migtests/setup/yb-docker-compose.yaml down
+          done
