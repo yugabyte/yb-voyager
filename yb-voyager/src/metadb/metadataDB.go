@@ -70,6 +70,11 @@ func CreateAndInitMetaDBIfRequired(exportDir string) error {
 }
 
 func createMetaDBFile(path string) error {
+	err := utils.EnsureDir(path)
+	if err != nil {
+		return err
+	}
+
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("not able to create meta db file :%w", err)

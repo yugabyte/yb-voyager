@@ -1,0 +1,3 @@
+source-db-type,source-db-host,source-db-port,source-db-name,oracle-db-sid,oracle-tns-alias,source-db-user,source-db-password,source-db-schema
+oracle,localhost,1521,ORCLPDB1,,,ybvoyager,password,TEST_SCHEMA
+oracle,,,db_name_to_be_ignored,db_sid_to_be_ignored,ORCLPDB1SSL,ybvoyager,wrong_password,TEST_SCHEMA2

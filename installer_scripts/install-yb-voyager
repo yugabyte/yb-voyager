@@ -71,15 +71,16 @@ ORA2PG_VERSION=${ORA2PG_VERSION:-"f08d47a4e5c20ff7d348e535ed05ab571b4bb350"}
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
 # debezium local installation envs
-DEBEZIUM_LOCAL_VERSION="2.3.3"
+DEBEZIUM_LOCAL_VERSION="2.5.2"
 DEBEZIUM_LOCAL_VERSION_1X="1.9.5"
 DEBEZIUM_LOCAL_POM_FILE="pom.xml"
 DEBEZIUM_LOCAL_POM_FILE_1X="195pom.xml"
-DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"3a8a497a8403794d69ce2f781989ad12c4060131"}
-DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"c4cad64f6d1869bcd15531c8f9cef98c651f86cc"}
+DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"2b5eb9f485d6a0e54c9af4e6a99d3abaa6839a95"}
+DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"1b9f1a87c35bc111ac44f875024c8068efe43e51"}
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
 DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.220.1/debezium-connector-yugabytedb-1.9.5.y.220.1.jar"
+DEBEZIUM_YUGABYTE_LOGICAL_REPLICATOR_CONNECTOR_URL="https://github.com/yugabyte/debezium/releases/download/dz.2.5.2.yb.2024.1/debezium-connector-yugabytedb-dz.2.5.2.yb.2024.1-jar-with-dependencies.jar"
 
 # only rebuild voyager
 REBUILD_VOYAGER_LOCAL="false"
@@ -274,7 +275,7 @@ check_java() {
 		JAVA_BINARY="$JAVA_HOME/bin/java"
 	fi
 
-    MIN_REQUIRED_MAJOR_VERSION='11'
+    MIN_REQUIRED_MAJOR_VERSION='17'
 	JAVA_COMPLETE_VERSION=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}')
     JAVA_MAJOR_VER=$(echo "${JAVA_COMPLETE_VERSION}" | awk -F. '{print $1}')
 
@@ -462,6 +463,15 @@ package_debezium_server_local(){
 	fi
 	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}"
 	sudo mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
+
+	# Make separete directory for yb-connector and pg-conector
+	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/yb-connector"
+	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/pg-connector"
+	# Move pg-connector from lib to pg-connector directory
+	sudo mv "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/lib/debezium-connector-postgres-${DEBEZIUM_LOCAL_VERSION}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/pg-connector/"
+	# Download and move yb-connector to yb-connector directory
+	sudo wget -nv "${DEBEZIUM_YUGABYTE_LOGICAL_REPLICATOR_CONNECTOR_URL}" -P "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/yb-connector" 1>&2
+
 	popd > /dev/null
 }
 
@@ -573,6 +583,12 @@ check_binutils_version() {
 	# Example output of "ld -v" on Ubuntu:
 	# GNU ld (GNU Binutils for Ubuntu) 2.38
 	version=$(ld -v | awk '{print $NF}' | awk -F '-' '{print $1}')
+	if [ -z "$version" ]; then
+        echo ""
+        echo -e "\e[31mERROR: binutils not found. Please install binutils version > ${min_required_version}.\e[0m"
+        binutils_wrong_version=1
+        return
+    fi
 
 	version_ok=$(version_satisfied "$min_required_version" "$version")
 	if [[ $version_ok -eq 0 ]]

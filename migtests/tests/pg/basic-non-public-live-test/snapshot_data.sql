@@ -12,3 +12,8 @@ INSERT INTO user_table (email) VALUES
     ('user6@example.com'),
     ('user7@example.com'),
     ('user8@example.com');
+
+INSERT INTO test_enum values(1, 'duplicate_payment_method');
+INSERT INTO test_enum values(2, 'server_failure');
+INSERT INTO test_enum values(3, 'server_failure');
+INSERT INTO test_enum values(4, 'duplicate_payment_method');

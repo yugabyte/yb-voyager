@@ -229,18 +229,42 @@ run_sqlplus() {
 	echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
 
+# Sample invocation without default values
+# export_schema export_dir "${MY_EXPORT_DIR}" source_db_schema ${MY_SOURCE_DB_SCHEMA}
+
 export_schema() {
-	args="--export-dir ${EXPORT_DIR}
-		--source-db-type ${SOURCE_DB_TYPE}
-		--source-db-user ${SOURCE_DB_USER}
-		--source-db-password ${SOURCE_DB_PASSWORD}
+    # Default values
+    export_dir="${EXPORT_DIR}"
+    source_db_schema="${SOURCE_DB_SCHEMA}"
+
+    # Process arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            export_dir)
+                export_dir="$2"
+                shift 2
+                ;;
+            source_db_schema)
+                source_db_schema="$2"
+                shift 2
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    args="--export-dir ${export_dir}
+ 		--source-db-type ${SOURCE_DB_TYPE}
+ 		--source-db-user ${SOURCE_DB_USER}
+ 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
 		--start-clean t
 	"
-	if [ "${SOURCE_DB_SCHEMA}" != "" ]
+	if [ "${source_db_schema}" != "" ]
 	then
-		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+		args="${args} --source-db-schema ${source_db_schema}"
 	fi
 	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
 	then
@@ -854,4 +878,30 @@ compare_assessment_reports() {
     rm "$temp_file1" "$temp_file2"
 }
 
+bulk_assessment(){
+	yb-voyager assess-migration-bulk --bulk-assessment-dir "${BULK_ASSESSMENT_DIR}" \
+	--fleet-config-file "${TEST_DIR}"/fleet-config-file.csv
+}
+
+fix_config_file() {
+  local file="$1"
+  awk -F, 'NR==3 {$8="password"}1' OFS=, "$file" > tmp && mv tmp "$file"
+}
+
+compare_and_validate_reports() {
+    local html_file="$1"
+    local json_file="$2"
+    local expected_file="$3"
+    local log_file="$4"
+
+    if [ -f "${html_file}" ] && [ -f "${json_file}" ]; then
+        echo "Assessment reports created successfully."
+        echo "Comparing Report contents"
+        compare_assessment_reports "${expected_file}" "${json_file}"
+    else
+        echo "Error: Assessment reports were not created successfully."
+        cat_file "${log_file}"
+        exit 1
+    fi
+}
 

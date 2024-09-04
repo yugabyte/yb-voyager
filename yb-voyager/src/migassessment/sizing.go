@@ -1106,10 +1106,10 @@ func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize f
 
 	// calculate the time taken for import based on csv size and row count
 	importTimeWrtSize := (closestInSize.migrationTimeSecs.Float64 * objectSize) / closestInSize.csvSizeGB.Float64
-	importTimeWrtRowCount := (closestInRows.migrationTimeSecs.Float64 * objectSize) / closestInRows.csvSizeGB.Float64
+	importTimeWrtRowCount := (closestInRows.migrationTimeSecs.Float64 * rowsInTable) / closestInRows.rowCount.Float64
 
 	// return the load time which is maximum of the two
-	return math.Max(importTimeWrtSize, importTimeWrtRowCount)
+	return math.Ceil(math.Max(importTimeWrtSize, importTimeWrtRowCount))
 }
 
 /*
@@ -1176,24 +1176,43 @@ Returns:
 */
 func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadata,
 	columnImpacts []ExpDataLoadTimeColumnsImpact, objectType string) float64 {
-	var multiplicationFactor float64 = 1
 	numOfColumnsInTable := lo.Ternary(table.ColumnCount.Valid, table.ColumnCount.Int64, 1)
 
-	closest := columnImpacts[0]
-	minDiff := math.Abs(float64(numOfColumnsInTable - closest.numColumns.Int64))
+	// Initialize the selectedImpact as nil and minDiff with a high value
+	var selectedImpact ExpDataLoadTimeColumnsImpact
+	minDiff := int64(math.MaxInt64)
+	found := false
 
-	for _, indexImpactData := range columnImpacts {
-		diff := math.Abs(float64(numOfColumnsInTable - indexImpactData.numColumns.Int64))
-		if diff < minDiff {
-			minDiff = diff
-			closest = indexImpactData
+	for _, columnsImpactData := range columnImpacts {
+		if columnsImpactData.numColumns.Int64 >= numOfColumnsInTable {
+			diff := columnsImpactData.numColumns.Int64 - numOfColumnsInTable
+			if diff < minDiff {
+				minDiff = diff
+				selectedImpact = columnsImpactData
+				found = true
+			}
 		}
 	}
-	// impact on load time for given table would be relative to the closest record's impact
+
+	// If no suitable impact is found, use the one with the maximum ColumnCount
+	if !found {
+		for _, columnsImpactData := range columnImpacts {
+			if columnsImpactData.numColumns.Int64 > selectedImpact.numColumns.Int64 {
+				selectedImpact = columnsImpactData
+			}
+		}
+	}
+
+	var multiplicationFactor float64
+	// multiplication factor is different for colocated and sharded tables.
+	// multiplication factor would be maximum of the two:
+	//	max of (mf of selected entry from experiment data,  mf for table wrt selected entry)
 	if objectType == COLOCATED {
-		multiplicationFactor = (closest.multiplicationFactorColocated.Float64 / float64(closest.numColumns.Int64)) * float64(numOfColumnsInTable)
+		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorColocated.Float64,
+			(selectedImpact.multiplicationFactorColocated.Float64/float64(selectedImpact.numColumns.Int64))*float64(numOfColumnsInTable))
 	} else if objectType == SHARDED {
-		multiplicationFactor = (closest.multiplicationFactorSharded.Float64 / float64(closest.numColumns.Int64)) * float64(numOfColumnsInTable)
+		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorSharded.Float64,
+			(selectedImpact.multiplicationFactorSharded.Float64/float64(selectedImpact.numColumns.Int64))*float64(numOfColumnsInTable))
 	}
 
 	return multiplicationFactor
@@ -1217,7 +1236,8 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 			   writes_per_second, 
 			   is_index, 
 			   parent_table_name, 
-			   size_in_bytes 
+			   size_in_bytes,
+			   column_count 
 		FROM %v 
 		ORDER BY IFNULL(size_in_bytes, 0) ASC
 	`, GetTableIndexStatName())
@@ -1239,7 +1259,7 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 	for rows.Next() {
 		var metadata SourceDBMetadata
 		if err := rows.Scan(&metadata.SchemaName, &metadata.ObjectName, &metadata.RowCount, &metadata.ReadsPerSec, &metadata.WritesPerSec,
-			&metadata.IsIndex, &metadata.ParentTableName, &metadata.Size); err != nil {
+			&metadata.IsIndex, &metadata.ParentTableName, &metadata.Size, &metadata.ColumnCount); err != nil {
 			return nil, nil, 0.0, fmt.Errorf("failed to read from result set of query source metadata [%s]: %w", query, err)
 		}
 		// convert bytes to GB

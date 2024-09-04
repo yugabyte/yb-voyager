@@ -337,7 +337,6 @@ func validateOracleParams() {
 	}
 
 }
-
 func getAndStoreSourceDBPasswordInSourceConf(cmd *cobra.Command) {
 	var err error
 	source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD")

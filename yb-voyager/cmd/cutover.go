@@ -51,11 +51,18 @@ func init() {
 	cutoverToCmd.PersistentFlags().MarkHidden("yes") //for non TTY shell e.g jenkins for docker case
 }
 
-func InitiateCutover(dbRole string, prepareforFallback bool) error {
+func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector bool) error {
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
 		utils.PrintAndLog("Aborting %s", userFacingActionMsg)
 		return nil
+	}
+	if dbRole == "target" {
+		if useYBgRPCConnector {
+			utils.PrintAndLog("Using YB gRPC connector for export data from target")
+		} else {
+			utils.PrintAndLog("Using YB Logical Replication connector for export data from target")
+		}
 	}
 	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
@@ -70,6 +77,9 @@ func InitiateCutover(dbRole string, prepareforFallback bool) error {
 			record.CutoverToTargetRequested = true
 			if prepareforFallback {
 				record.FallbackEnabled = true
+			}
+			if useYBgRPCConnector {
+				record.UseYBgRPCConnector = true
 			}
 		case "source-replica":
 			if record.CutoverToSourceReplicaRequested {
