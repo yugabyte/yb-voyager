@@ -9,6 +9,22 @@ on:
 jobs:
   run-misc-migration-tests:
     runs-on: ubuntu-latest
+    
+    services:
+        postgres:
+          image: postgres:13
+          env:
+            POSTGRES_PASSWORD: secret
+          # Set health checks to wait until postgres has started
+          options: >-
+            --health-cmd pg_isready
+            --health-interval 10s
+            --health-timeout 5s
+            --health-retries 5
+          ports:
+            # Maps tcp port 5432 on service container to the host
+            - 5432:5432
+
 
     steps:
       - uses: actions/checkout@v3
@@ -39,6 +55,14 @@ jobs:
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+      - name: Test PostgreSQL Connection
+        run: |
+          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+
+      - name: Create PostgreSQL user
+        run: |
+          ./migtests/scripts/postgresql/create_pg_user
 
       - name: "TEST: Assessment Report Test"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
