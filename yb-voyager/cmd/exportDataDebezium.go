@@ -108,17 +108,23 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+
 	config := &dbzm.Config{
-		MigrationUUID:  migrationUUID,
-		RunId:          runId,
-		SourceDBType:   source.DBType,
-		ExporterRole:   exporterRole,
-		ExportDir:      absExportDir,
-		MetadataDBPath: metadb.GetMetaDBPath(absExportDir),
-		Host:           source.Host,
-		Port:           source.Port,
-		Username:       source.User,
-		Password:       source.Password,
+		MigrationUUID:      migrationUUID,
+		RunId:              runId,
+		SourceDBType:       source.DBType,
+		ExporterRole:       exporterRole,
+		ExportDir:          absExportDir,
+		MetadataDBPath:     metadb.GetMetaDBPath(absExportDir),
+		UseYBgRPCConnector: msr.UseYBgRPCConnector,
+		Host:               source.Host,
+		Port:               source.Port,
+		Username:           source.User,
+		Password:           source.Password,
 
 		DatabaseName:          source.DBName,
 		SchemaNames:           source.Schema,
@@ -158,45 +164,69 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
-	} else if source.DBType == YUGABYTEDB {
-		if exportType == CHANGES_ONLY {
-			ybServers := source.DB().GetServers()
-			masterPort := "7100"
-			if os.Getenv("YB_MASTER_PORT") != "" {
-				masterPort = os.Getenv("YB_MASTER_PORT")
-			}
-			ybServers = lo.Map(ybServers, (func(s string, _ int) string {
-				return fmt.Sprintf("%s:%s", s, masterPort)
-			}),
-			)
-			ybCDCClient = dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0], metaDB)
-			err := ybCDCClient.Init()
+	} else if isTargetDBExporter(exporterRole) {
+		if !msr.UseYBgRPCConnector {
+			err = createYBReplicationSlotAndPublication(tableList, leafPartitions)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
+				return nil, nil, fmt.Errorf("failed to create yb replication slot and publication: %w", err)
 			}
-			config.YBMasterNodes, err = ybCDCClient.ListMastersNodes()
+
+			msr, err := metaDB.GetMigrationStatusRecord()
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to list master nodes: %w", err)
+				return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
 			}
-			if startClean {
-				err = ybCDCClient.DeleteStreamID()
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to delete stream id: %w", err)
-				}
-				config.YBStreamID, err = ybCDCClient.GenerateAndStoreStreamID()
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to generate stream id: %w", err)
-				}
-				utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
-			} else {
-				config.YBStreamID, err = ybCDCClient.GetStreamID()
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get stream id: %w", err)
-				}
+
+			config.ReplicationSlotName = msr.YBReplicationSlotName
+			config.PublicationName = msr.YBPublicationName
+		} else {
+			err = generateOrGetStreamIDForYugabyteCDCClient(config)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to generate or get stream id for yugabyte CDC client: %w", err)
 			}
 		}
 	}
+
 	return config, tableNameToApproxRowCountMap, nil
+}
+
+func generateOrGetStreamIDForYugabyteCDCClient(config *dbzm.Config) error {
+	if exportType == CHANGES_ONLY {
+		ybServers := source.DB().GetServers()
+		masterPort := "7100"
+		if os.Getenv("YB_MASTER_PORT") != "" {
+			masterPort = os.Getenv("YB_MASTER_PORT")
+		}
+		ybServers = lo.Map(ybServers, (func(s string, _ int) string {
+			return fmt.Sprintf("%s:%s", s, masterPort)
+		}),
+		)
+		ybCDCClient = dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0], metaDB)
+		err := ybCDCClient.Init()
+		if err != nil {
+			return fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
+		}
+		config.YBMasterNodes, err = ybCDCClient.ListMastersNodes()
+		if err != nil {
+			return fmt.Errorf("failed to list master nodes: %w", err)
+		}
+		if startClean {
+			err = ybCDCClient.DeleteStreamID()
+			if err != nil {
+				return fmt.Errorf("failed to delete stream id: %w", err)
+			}
+			config.YBStreamID, err = ybCDCClient.GenerateAndStoreStreamID()
+			if err != nil {
+				return fmt.Errorf("failed to generate stream id: %w", err)
+			}
+			utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
+		} else {
+			config.YBStreamID, err = ybCDCClient.GetStreamID()
+			if err != nil {
+				return fmt.Errorf("failed to get stream id: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
@@ -442,12 +472,18 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				return false, fmt.Errorf("failed to get migration status record: %w", err)
 			}
 			if !(msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted) {
-				utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
-				logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
-
-				err := utils.WaitForLineInLogFile(logFilePath, "Beginning to poll the changes from the server", 3*time.Minute)
-				if err != nil {
-					return false, fmt.Errorf("failed to poll for message in log file: %w", err)
+				// In case of the logical replication connector, we don't need to wait for the log message.
+				// The momemnt a replication slot is created, we are guaranteed that we will receive events.
+				// In the case of the old connector, there is no such explicit operation to 'start' CDC.
+				// It used to happen implicitly, which is why we have to wait for a log message.
+				if msr.UseYBgRPCConnector {
+					utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
+					logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
+					pollingMessage := "Beginning to poll the changes from the server"
+					err := utils.WaitForLineInLogFile(logFilePath, pollingMessage, 3*time.Minute)
+					if err != nil {
+						return false, fmt.Errorf("failed to poll for message in log file: %w", err)
+					}
 				}
 
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
@@ -503,5 +539,58 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		DataFileList: dataFileList,
 	}
 	dfd.Save()
+	return nil
+}
+
+func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
+	if !ok {
+		return errors.New("unable to cast source DB to YugabyteDB")
+	}
+	replicationConn, err := ybDB.GetReplicationConnection()
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
+	}
+
+	defer func() {
+		err := replicationConn.Close(context.Background())
+		if err != nil {
+			log.Errorf("close replication connection: %v", err)
+		}
+	}()
+	var finalTableList []string
+	for _, table := range tableList {
+		_, ok := leafPartitions.Get(table)
+		if ok {
+			// tablelist should not have root and leaf both so not adding root table in table list
+			continue
+		}
+		// for case sensitive tables in yugabytedb, we need to use the quoted table name
+		finalTableList = append(finalTableList, table.ForKey())
+	}
+
+	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+	err = ybDB.CreatePublication(replicationConn, publicationName, finalTableList)
+	if err != nil {
+		return fmt.Errorf("create publication: %v", err)
+	}
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
+	slotName, err := ybDB.CreateOrGetLogicalReplicationSlot(replicationConn, replicationSlotName)
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
+	}
+	yellowBold := color.New(color.FgYellow, color.Bold)
+	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source YugabyteDB database. "+
+		"Be sure to run either 'initiate cutover to source', 'initiate cutover to source-replica' or 'end migration' command after completing/aborting this migration to drop the replication slot. "+
+		"This is important to avoid filling up disk space.", replicationSlotName))
+
+	// save replication slot, publication name in MSR
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.YBReplicationSlotName = slotName
+		record.YBPublicationName = publicationName
+	})
+	if err != nil {
+		return fmt.Errorf("update YBReplicationSlotName: update migration status record: %s", err)
+	}
 	return nil
 }

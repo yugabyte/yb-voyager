@@ -30,13 +30,19 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+const (
+	TARGET_DB_EXPORTER_FF_ROLE = "target_db_exporter_ff"
+	TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb"
+)
+
 type Config struct {
-	MigrationUUID  uuid.UUID
-	RunId          string
-	SourceDBType   string
-	ExporterRole   string
-	ExportDir      string
-	MetadataDBPath string
+	MigrationUUID      uuid.UUID
+	RunId              string
+	SourceDBType       string
+	ExporterRole       string
+	ExportDir          string
+	MetadataDBPath     string
+	UseYBgRPCConnector bool
 
 	Host     string
 	Port     int
@@ -231,14 +237,39 @@ debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 `
 
+var yugabyteLogicalReplicationSrcConfigTemplate = `
+debezium.source.connector.class=io.debezium.connector.postgresql.YugabyteDBConnector
+debezium.source.database.hostname=%s
+debezium.source.database.port=%d
+debezium.source.database.dbname=%s
+debezium.source.plugin.name=yboutput
+debezium.source.schema.include.list=%s
+debezium.source.hstore.handling.mode=map
+debezium.source.decimal.handling.mode=string
+debezium.source.converters=postgres_source_converter
+debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+`
+
+var yugabyteLogicalReplicationSlotNameTemplate = `
+debezium.source.slot.name=%s`
+
+var yugabyteLogicalReplicationPublicationNameTemplate = `
+debezium.source.publication.name=%s
+`
+
 var yugabyteSrcTransactionOrderingConfigTemplate = `
 debezium.source.transaction.ordering=true
 debezium.source.tasks.max=1
 `
-
 var yugabyteConfigTemplate = baseConfigTemplate +
 	baseSrcConfigTemplate +
 	yugabyteSrcConfigTemplate +
+	baseSinkConfigTemplate
+
+// If we want the logical replication connector we need to use yugabyteLogicalReplicationSrcConfigTemplate
+var yugabyteLogicalReplicationConfigTemplate = baseConfigTemplate +
+	baseSrcConfigTemplate +
+	yugabyteLogicalReplicationSrcConfigTemplate +
 	baseSinkConfigTemplate
 
 var yugabyteSSLModeTemplate = `
@@ -250,7 +281,8 @@ debezium.source.database.sslrootcert=%s
 
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
-	offsetFile := filepath.Join(dataDir, "offsets.dat")
+	offsetFileName := fmt.Sprintf("offsets.%s.dat", c.ExporterRole)
+	offsetFile := filepath.Join(dataDir, offsetFileName)
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
 	logMiningFlushTable := utils.GetLogMiningFlushTableName(c.MigrationUUID)
 	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
@@ -296,26 +328,54 @@ func (c *Config) String() string {
 			conf = conf + fmt.Sprintf(postgresPublicationNameTemplate, c.PublicationName)
 		}
 	case "yugabytedb":
-		conf = fmt.Sprintf(yugabyteConfigTemplate,
-			c.Username,
-			"never",
-			offsetFile,
-			strings.Join(c.TableList, ","),
+		if !c.UseYBgRPCConnector {
+			conf = fmt.Sprintf(yugabyteLogicalReplicationConfigTemplate,
+				c.Username,
+				"never",
+				offsetFile,
+				strings.Join(c.TableList, ","),
 
-			c.Host, c.Port,
-			c.DatabaseName,
-			c.YBStreamID,
-			c.YBMasterNodes,
-			schemaNames,
+				c.Host, c.Port,
+				c.DatabaseName,
+				schemaNames,
 
-			dataDir,
-			c.ColumnSequenceMapping,
-			c.InitSequenceMaxMapping,
-			c.TableRenameMapping,
-			queueSegmentMaxBytes,
-			c.MetadataDBPath,
-			c.RunId,
-			c.ExporterRole)
+				dataDir,
+				c.ColumnSequenceMapping,
+				c.InitSequenceMaxMapping,
+				c.TableRenameMapping,
+				queueSegmentMaxBytes,
+				c.MetadataDBPath,
+				c.RunId,
+				c.ExporterRole)
+
+			if c.ReplicationSlotName != "" {
+				conf = conf + fmt.Sprintf(yugabyteLogicalReplicationSlotNameTemplate, c.ReplicationSlotName)
+			}
+			if c.PublicationName != "" {
+				conf = conf + fmt.Sprintf(yugabyteLogicalReplicationPublicationNameTemplate, c.PublicationName)
+			}
+		} else {
+			conf = fmt.Sprintf(yugabyteConfigTemplate,
+				c.Username,
+				"never",
+				offsetFile,
+				strings.Join(c.TableList, ","),
+
+				c.Host, c.Port,
+				c.DatabaseName,
+				c.YBStreamID,
+				c.YBMasterNodes,
+				schemaNames,
+
+				dataDir,
+				c.ColumnSequenceMapping,
+				c.InitSequenceMaxMapping,
+				c.TableRenameMapping,
+				queueSegmentMaxBytes,
+				c.MetadataDBPath,
+				c.RunId,
+				c.ExporterRole)
+		}
 		sslConf := fmt.Sprintf(yugabyteSSLModeTemplate, c.SSLMode)
 		if c.SSLRootCert != "" {
 			sslConf += fmt.Sprintf(yugabyteSSLRootCertTemplate, c.SSLRootCert)
@@ -408,6 +468,10 @@ func (c *Config) WriteToFile(filePath string) error {
 		return fmt.Errorf("failed to write config file %s: %v", filePath, err)
 	}
 	return nil
+}
+
+func isTargetDBExporter(exporterRole string) bool {
+	return exporterRole == TARGET_DB_EXPORTER_FB_ROLE || exporterRole == TARGET_DB_EXPORTER_FF_ROLE
 }
 
 // read config file DEBEZIUM_CONF_FILEPATH into a string

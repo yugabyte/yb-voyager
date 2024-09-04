@@ -85,7 +85,7 @@ func importSchema() error {
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
-	if callhome.SendDiagnostics {
+	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
 		if err != nil {

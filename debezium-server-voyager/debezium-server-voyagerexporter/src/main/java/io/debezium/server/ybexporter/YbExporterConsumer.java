@@ -105,6 +105,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             case "io.debezium.connector.yugabytedb.YugabyteDBConnector":
                 sourceType = "yb";
                 break;
+            case "io.debezium.connector.postgresql.YugabyteDBConnector":
+                sourceType = "yb";
+                break;
             default:
                 throw new RuntimeException("Invalid source type");
         }

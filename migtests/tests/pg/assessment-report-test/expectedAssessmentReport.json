@@ -42,7 +42,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 4,
-				"ObjectNames": "idx_box_data, idx_point_data"
+				"ObjectNames": "idx_box_data, idx_point_data, idx_point_data, idx_box_data"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -61,13 +61,13 @@
 			},
 			{
 				"ObjectType": "VIEW",
-				"TotalCount": 3,
-				"ObjectNames": "test_views.v1, test_views.v2, test_views.v3"
+				"TotalCount": 6,
+				"ObjectNames": "test_views.v1, test_views.v2, test_views.v3, test_views.v4, public.sales_employees, schema2.sales_employees"
 			},
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 2,
-				"ObjectNames": "audit_trigger"
+				"ObjectNames": "audit_trigger, audit_trigger"
 			},
 			{
 				"ObjectType": "MVIEW",
@@ -78,6 +78,11 @@
 				"ObjectType": "RULE",
 				"TotalCount": 4,
 				"ObjectNames": "protect_test_views_v1, protect_test_views_v2, protect_test_views_v3, protect_test_views_view_table1"
+			},
+			{
+				"ObjectType": "POLICY",
+				"TotalCount": 4,
+				"ObjectNames": "policy_test_report, policy_test_report, policy_test_fine, policy_test_fine_2"
 			}
 		]
 	},
@@ -156,12 +161,6 @@
 	"UnsupportedDataTypes": [
 		{
 			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "box_data",
-			"DataType": "box"
-		},
-		{
-			"SchemaName": "schema2",
 			"TableName": "mixed_data_types_table2",
 			"ColumnName": "lsn_data",
 			"DataType": "pg_lsn"
@@ -173,70 +172,16 @@
 			"DataType": "txid_snapshot"
 		},
 		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "point_data",
-			"DataType": "point"
-		},
-		{
 			"SchemaName": "public",
 			"TableName": "mixed_data_types_table2",
 			"ColumnName": "lsn_data",
 			"DataType": "pg_lsn"
 		},
 		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "lseg_data",
-			"DataType": "lseg"
-		},
-		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "point_data",
-			"DataType": "point"
-		},
-		{
 			"SchemaName": "schema2",
 			"TableName": "mixed_data_types_table1",
 			"ColumnName": "snapshot_data",
 			"DataType": "txid_snapshot"
-		},
-		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table2",
-			"ColumnName": "path_data",
-			"DataType": "path"
-		},
-		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "lseg_data",
-			"DataType": "lseg"
-		},
-		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table2",
-			"ColumnName": "lseg_data",
-			"DataType": "lseg"
-		},
-		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table2",
-			"ColumnName": "path_data",
-			"DataType": "path"
-		},
-		{
-			"SchemaName": "public",
-			"TableName": "mixed_data_types_table1",
-			"ColumnName": "box_data",
-			"DataType": "box"
-		},
-		{
-			"SchemaName": "schema2",
-			"TableName": "mixed_data_types_table2",
-			"ColumnName": "lseg_data",
-			"DataType": "lseg"
 		},
 		{
 			"SchemaName": "public",
@@ -273,7 +218,7 @@
 					"SqlStatement": "CREATE INDEX idx_point_data ON schema2.mixed_data_types_table1 USING gist (point_data);"
 				}
 			],
-			"DocsLink": "TBD"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
 		},
 		{
 			"FeatureName": "Constraint triggers",
@@ -287,7 +232,7 @@
 					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON schema2.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION schema2.prevent_update_shipped_without_date();"
 				}
 			],
-			"DocsLink": "TBD"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported"
 		},
 		{
 			"FeatureName": "Inherited tables",
@@ -301,56 +246,49 @@
 					"SqlStatement": "CREATE TABLE schema2.child_table (\n    specific_column1 date\n)\nINHERITS (schema2.parent_table);"
 				}
 			],
-			"DocsLink": "TBD"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
 		},
 		{
 			"FeatureName": "Tables with stored generated columns",
 			"Objects": [
 				{
 					"ObjectName": "public.employees2",
-					"SqlStatement": "CREATE TABLE public.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
+					"SqlStatement": "CREATE TABLE public.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,\n    department character varying(50)\n);"
 				},
 				{
 					"ObjectName": "schema2.employees2",
-					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);"
+					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,\n    department character varying(50)\n);"
 				}
 			],
-			"DocsLink": "TBD"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported"
 		},
 		{
 			"FeatureName": "Conversion objects",
-			"Objects": [],
-			"DocsLink": "TBD"
+			"Objects": []
 		},
 		{
 			"FeatureName": "Gin indexes on multi-columns",
-			"Objects": [],
-			"DocsLink": "TBD"
+			"Objects": []
 		},
 		{
 			"FeatureName": "Setting attribute=value on column",
-			"Objects": [],
-			"DocsLink": "TBD"
+			"Objects": []
 		},
 		{
 			"FeatureName": "Disabling rule on table",
-			"Objects": [],
-			"DocsLink": "TBD"
+			"Objects": []
 		},
 		{
 			"FeatureName": "Clustering table on index",
-			"Objects": [],
-			"DocsLink": "TBD"
+			"Objects": []
 		},
 		{
 			"FeatureName": "Storage parameters in DDLs",
-			"Objects": [],
-			"DocsLink": "TBD"
+			"Objects": []
 		},
 		{
 			"FeatureName": "Extensions",
-			"Objects": [],
-			"DocsLink": "TBD"
+			"Objects": []
 		},
 		{
 			"FeatureName": "Exclusion constraints",
@@ -360,7 +298,7 @@
 					"SqlStatement": "ALTER TABLE ONLY public.test_exclude_basic\n    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);"
 				}
 			],
-			"DocsLink": "TBD"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
 		},
 		{
 			"FeatureName": "Deferrable constraints",
@@ -374,7 +312,21 @@
 					"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
 				}
 			],
-			"DocsLink": "TBD"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported"
+		},
+		{
+			"FeatureName": "View with check option",
+			"Objects": [
+				{
+					"ObjectName": "public.sales_employees",
+					"SqlStatement": "CREATE VIEW public.sales_employees AS\n SELECT employees2.id,\n    employees2.first_name,\n    employees2.last_name,\n    employees2.full_name\n   FROM public.employees2\n  WHERE ((employees2.department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
+				},
+				{
+					"ObjectName": "schema2.sales_employees",
+					"SqlStatement": "CREATE VIEW schema2.sales_employees AS\n SELECT employees2.id,\n    employees2.first_name,\n    employees2.last_name,\n    employees2.full_name\n   FROM schema2.employees2\n  WHERE ((employees2.department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported"
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -733,7 +685,7 @@
 			"SchemaName": "public",
 			"ObjectName": "employees2",
 			"RowCount": 0,
-			"ColumnCount": 4,
+			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1041,7 +993,7 @@
 			"SchemaName": "schema2",
 			"ObjectName": "employees2",
 			"RowCount": 0,
-			"ColumnCount": 4,
+			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1262,14 +1214,74 @@
 					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
 				}
 			],
-			"DocsLink": "TBD",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
 			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported."
 		},
 		{
 			"FeatureName": "Foreign tables",
 			"Objects": [],
-			"DocsLink": "TBD",
 			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work."
+		},
+		{
+			"FeatureName": "Unsupported Data Types for Live Migration",
+			"Objects": [
+				{
+					"ObjectName": "public.mixed_data_types_table1.box_data (box)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.mixed_data_types_table1.lseg_data (lseg)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.mixed_data_types_table1.point_data (point)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.mixed_data_types_table2.lseg_data (lseg)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.mixed_data_types_table2.path_data (path)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table1.box_data (box)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table1.lseg_data (lseg)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table1.point_data (point)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table2.lseg_data (lseg)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.mixed_data_types_table2.path_data (path)",
+					"SqlStatement": ""
+				}
+			],
+			"FeatureDescription": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+		},
+		{
+			"FeatureName": "Policies",
+			"Objects": [
+				{
+					"ObjectName": "policy_test_report ON public.test_xml_type",
+					"SqlStatement": "CREATE POLICY policy_test_report ON public.test_xml_type TO test_policy USING (true);"
+				},
+				{
+					"ObjectName": "policy_test_report ON schema2.test_xml_type",
+					"SqlStatement": "CREATE POLICY policy_test_report ON schema2.test_xml_type TO test_policy USING (true);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema."
 		}
 	]
 }
