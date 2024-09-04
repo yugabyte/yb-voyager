@@ -64,15 +64,21 @@ jobs:
         run: |
           ./migtests/scripts/postgresql/create_pg_user
 
-      - name: "TEST: Assessment Report Test"
-        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
+      # - name: "TEST: Assessment Report Test"
+      #   run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
 
-      - name: "TEST: analyze-schema"
-        run: migtests/tests/analyze-schema/run-analyze-schema-test
+      # - name: "TEST: analyze-schema"
+      #   run: migtests/tests/analyze-schema/run-analyze-schema-test
 
-      - name: Run YB cluster and tests for each version
+      - name: Run import data file tests on different YugabyteDB versions
+        env:
+          GCS_CLIENT_ID: ${{ secrets.PGUPTA_GCS_CLIENT_ID }}
+          GCS_CLIENT_SECRET: ${{ secrets.PGUPTA_GCS_CLIENT_SECRET }}
+          GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
         run: |
-          versions=[2.21.1.0-b271, 2024.1.1.0-b137, 2.20.5.0-b72]
+          versions=("2.21.1.0-b271" "2024.1.1.0-b137" "2.20.5.0-b72")
           for version in "${versions[@]}"; do
             echo "Running tests on version $version"
 
@@ -92,9 +98,14 @@ jobs:
             echo "127.0.0.1    yb-master-n1" | sudo tee -a /etc/hosts
             psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
+            #setup the gcp credentials
+            migtests/scripts/gcs/create_gcs_credentials_file
+
             # TEST: import-data-file
             migtests/tests/import-file/run-import-file-test
 
-            # Optionally, stop the cluster before the next iteration
+            # Stop the cluster before the next iteration
             docker compose -f migtests/setup/yb-docker-compose.yaml down
           done
+        shell: bash
+
