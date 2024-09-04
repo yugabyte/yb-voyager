@@ -21,6 +21,11 @@ jobs:
       
       - name: Cache local Maven repository
         uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
       - name: Install python3 and psycopg2
         run: |
