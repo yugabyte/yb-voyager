@@ -82,30 +82,30 @@ jobs:
           for version in "${versions[@]}"; do
             echo "Running tests on version $version"
 
-            # Start YugabyteDB cluster
+            echo "Start YugabyteDB cluster"
             docker pull yugabytedb/yugabyte:$version
             VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml up -d
             sleep 20
 
-            # Test YugabyteDB connection
+            echo "Test YugabyteDB connection"
             psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
 
-            # Create YugabyteDB user
+            echo "Create YugabyteDB user"
             ./migtests/scripts/yugabytedb/create_yb_user
 
-            # Enable yb-tserver-n1 and yb-master-n1 name resolution
+            echo "Enable yb-tserver-n1 and yb-master-n1 name resolution"
             echo "127.0.0.1    yb-tserver-n1" | sudo tee -a /etc/hosts
             echo "127.0.0.1    yb-master-n1" | sudo tee -a /etc/hosts
             psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-            #setup the gcp credentials
+            echo "Setup the gcp credentials"
             migtests/scripts/gcs/create_gcs_credentials_file
 
-            # TEST: import-data-file
+            echo "TEST: import-data-file"
             migtests/tests/import-file/run-import-file-test
 
-            # Stop the cluster before the next iteration
-            docker compose -f migtests/setup/yb-docker-compose.yaml down
+            echo "Stop the cluster before the next iteration"
+            VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml down
           done
         shell: bash
 
