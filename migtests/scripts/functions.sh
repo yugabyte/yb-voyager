@@ -933,7 +933,9 @@ replace_files() {
             echo "Target file $target_file does not exist. Skipping."
         fi
     done
-bulk_assessment(){
+}
+
+bulk_assessment() {
 	yb-voyager assess-migration-bulk --bulk-assessment-dir "${BULK_ASSESSMENT_DIR}" \
 	--fleet-config-file "${TEST_DIR}"/fleet-config-file.csv
 }
