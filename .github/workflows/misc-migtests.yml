@@ -85,7 +85,7 @@ jobs:
             echo "Start YugabyteDB cluster"
             docker pull yugabytedb/yugabyte:$version
             VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml up -d
-            sleep 40
+            sleep 60
 
             echo "Test YugabyteDB connection"
             psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
@@ -106,7 +106,7 @@ jobs:
 
             echo "Stop the cluster before the next iteration"
             VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml down
-            sleep 40
+            sleep 60
           done
         shell: bash
 
