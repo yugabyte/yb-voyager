@@ -235,7 +235,12 @@ main() {
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges" --fb_enabled 'true' --ff_enabled 'false'
+	"${TEST_DIR}/validateAfterChanges" --fb_enabled 'true' --ff_enabled 'false' || { 
+		tail_log_file "yb-voyager-import-data-to-source.log"
+		tail_log_file "yb-voyager-export-data-from-target.log"
+		tail_log_file "debezium-target_db_exporter_fb.log"
+		exit 1
+	} 
 	fi
 
 	step "Run get data-migration-report"

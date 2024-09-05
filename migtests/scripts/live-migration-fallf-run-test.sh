@@ -265,7 +265,14 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run final validations."
-	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'true' --fb_enabled 'false'
+	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'true' --fb_enabled 'false' || { 
+		tail_log_file "yb-voyager-import-data-to-source-replica.log"
+		tail_log_file "yb-voyager-export-data-from-target.log"
+		tail_log_file "debezium-target_db_exporter_ff.log"
+		exit 1
+	} 
+
+
 
 	step "Run get data-migration-report"
 	get_data_migration_report
