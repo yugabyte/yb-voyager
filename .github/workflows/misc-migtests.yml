@@ -108,8 +108,8 @@ jobs:
             migtests/tests/import-file/run-import-file-test
 
             echo "Stop the cluster before the next iteration"
-            VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml down
-            sleep 60
+            VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml down --volumes
+            docker network prune -f
           done
         shell: bash
 
