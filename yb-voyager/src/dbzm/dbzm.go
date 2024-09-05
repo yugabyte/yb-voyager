@@ -85,6 +85,12 @@ func (d *Debezium) Start() error {
 		return err
 	}
 
+	schemasPath := filepath.Join(d.ExportDir, "data", "schemas", d.ExporterRole)
+	err = os.MkdirAll(schemasPath, 0755)
+	if err != nil {
+		return fmt.Errorf("Error creating schemas directory: %v", err)
+	}
+
 	var YB_OR_PG_CONNECTOR_PATH string
 	if isTargetDBExporter(d.ExporterRole) {
 		if !d.Config.UseYBgRPCConnector {
