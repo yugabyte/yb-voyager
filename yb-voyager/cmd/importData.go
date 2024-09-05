@@ -530,8 +530,9 @@ func importData(importFileTasks []*ImportFileTask) {
 		if importerRole != SOURCE_DB_IMPORTER_ROLE {
 			displayImportedRowCountSnapshot(state, importFileTasks)
 		}
-		importPhase = dbzm.MODE_STREAMING
+
 		waitForDebeziumStartIfRequired()
+		importPhase = dbzm.MODE_STREAMING
 		color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
 		if err != nil {
@@ -613,6 +614,7 @@ func waitForDebeziumStartIfRequired() error {
 	// in case pg_dump was used to export snapshot data,
 	// we need to wait for export-data to have started debezium in cdc phase
 	// in order to avoid any race conditions.
+	fmt.Println("Initializing streaming phase...")
 	log.Infof("waiting for export-data to have started debezium in cdc phase")
 	for {
 		msr, err = metaDB.GetMigrationStatusRecord()
