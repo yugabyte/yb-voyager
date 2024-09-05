@@ -87,6 +87,9 @@ jobs:
             VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml up -d
             sleep 60
 
+            docker logs yb-master-n1
+            docker logs yb-tserver-n1
+          
             echo "Test YugabyteDB connection"
             psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
 
