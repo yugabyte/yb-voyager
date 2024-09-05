@@ -64,11 +64,11 @@ jobs:
         run: |
           ./migtests/scripts/postgresql/create_pg_user
 
-      # - name: "TEST: Assessment Report Test"
-      #   run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
+      - name: "TEST: Assessment Report Test"
+        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
 
-      # - name: "TEST: analyze-schema"
-      #   run: migtests/tests/analyze-schema/run-analyze-schema-test
+      - name: "TEST: analyze-schema"
+        run: migtests/tests/analyze-schema/run-analyze-schema-test
 
       - name: Run import data file tests on different YugabyteDB versions
         env:
@@ -85,10 +85,7 @@ jobs:
             echo "Start YugabyteDB cluster"
             docker pull yugabytedb/yugabyte:$version
             VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml up -d
-            sleep 60
-
-            docker logs yb-master-n1
-            docker logs yb-tserver-n1
+            sleep 20
           
             echo "Test YugabyteDB connection"
             psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
