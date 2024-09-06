@@ -121,6 +121,7 @@ const (
 	JSON_EXTENSION            = ".json"
 	ASSESSMENT_FILE_NAME      = "migration_assessment_report"
 	ANALYSIS_REPORT_FILE_NAME = "schema_analysis_report"
+	BULK_ASSESSMENT_FILE_NAME = "bulk_assessment_report"
 
 	//adding constants for docs link
 	DOCS_LINK_PREFIX                        = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"

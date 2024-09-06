@@ -74,7 +74,7 @@ main() {
 
 	echo "Verifying Bulk Assessment"
 
-	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.html" "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json" "${TEST_DIR}/expected_reports/expectedErrorBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
+	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulk_assessment_report.html" "${BULK_ASSESSMENT_DIR}/bulk_assessment_report.json" "${TEST_DIR}/expected_reports/expectedErrorBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
 
 	echo "Verifying 1st child assessment"
 
@@ -90,7 +90,7 @@ main() {
 
 	echo "Verifying Bulk Assessment"
 
-	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.html" "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json" "${TEST_DIR}/expected_reports/expectedCompleteBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
+	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulk_assessment_report.html" "${BULK_ASSESSMENT_DIR}/bulk_assessment_report.json" "${TEST_DIR}/expected_reports/expectedCompleteBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
 
 	echo "Verifying 1st child assessment"
 
