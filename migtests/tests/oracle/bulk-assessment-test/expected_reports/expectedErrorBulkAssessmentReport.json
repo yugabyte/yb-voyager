@@ -3,7 +3,7 @@
 		{
 			"Schema": "TEST_SCHEMA",
 			"DatabaseIdentifier": "ORCLPDB1",
-			"ReportPath": "ORCLPDB1-TEST_SCHEMA-export-dir/assessment/reports/assessmentReport.json",
+			"ReportPath": "ORCLPDB1-TEST_SCHEMA-export-dir/assessment/reports/migration_assessement_report.json",
 			"Status": "COMPLETE"
 		},
 		{

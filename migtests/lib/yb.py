@@ -52,7 +52,7 @@ def new_source_db():
 
 def verify_colocation(tgt, source_db_type):
 	print("Verifying the colocation of the tables")
-	json_file = "export-dir/assessment/reports/assessmentReport.json"
+	json_file = "export-dir/assessment/reports/migration_assessement_report.json"
 
 	sharded_tables, colocated_tables = fetch_sharded_and_colocated_tables(json_file)
 

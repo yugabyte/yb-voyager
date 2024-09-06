@@ -68,13 +68,13 @@ main() {
 	
 	step "Validate Assessment Reports"
 	# Checking if the assessment reports were created
-	if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
+	if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessement_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessement_report.json" ]; then
 		echo "Assessment reports created successfully."
 		echo "Checking for Failures"
-		validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+		validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessement_report.json"
 		echo "Comparing Report contents"
         expected_file="${TEST_DIR}/expectedAssessmentReport.json"
-        actual_file="${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+        actual_file="${EXPORT_DIR}/assessment/reports/migration_assessement_report.json"
 	    compare_assessment_reports ${expected_file} ${actual_file}
 	else
 		echo "Error: Assessment reports were not created successfully."
@@ -85,7 +85,7 @@ main() {
 	step "End Migration: clearing metainfo about state of migration from everywhere."
 	end_migration --yes
     # check if backup-dir has assessment report or not
-	if [ -f "${EXPORT_DIR}/backup-dir/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/backup-dir/reports/assessmentReport.json" ]; then
+	if [ -f "${EXPORT_DIR}/backup-dir/reports/migration_assessement_report.html" ] && [ -f "${EXPORT_DIR}/backup-dir/reports/migration_assessement_report.json" ]; then
 		echo "End Migration saved Assessment Reports successfully."
 	else
 		echo "Assessment Reports were not saved by End Migration!"

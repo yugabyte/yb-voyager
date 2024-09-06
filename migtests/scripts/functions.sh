@@ -762,7 +762,7 @@ validate_failure_reasoning() {
 }
 
 post_assess_migration() {
-    json_file="$EXPORT_DIR/assessment/reports/assessmentReport.json"
+    json_file="$EXPORT_DIR/assessment/reports/migration_assessement_report.json"
     sharded_tables=$(fetch_sharded_tables "$json_file")
     echo "Sharded Tables: $sharded_tables"
     colocated_tables=$(fetch_colocated_tables "$json_file")

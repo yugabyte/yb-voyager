@@ -198,13 +198,13 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func saveMigrationAssessmentReport() {
-	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "assessmentReport.*"))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "migration_assessement_report.*"))
 	migrationAssessmentDone, err := IsMigrationAssessmentDone(metaDB)
 	if err != nil {
 		utils.ErrExit("checking if migration assessment is done: %v", err)
 	}
 	if alreadyBackedUp {
-		utils.PrintAndLog("assessment report is already present at %q", filepath.Join(backupDir, "reports", "assessmentReport.*"))
+		utils.PrintAndLog("assessment report is already present at %q", filepath.Join(backupDir, "reports", "migration_assessement_report.*"))
 		return
 	} else if !migrationAssessmentDone {
 		utils.PrintAndLog("no assessment report to save as assessment command is not executed as part of migration workflow")
@@ -216,7 +216,7 @@ func saveMigrationAssessmentReport() {
 		utils.ErrExit("reading assessment reports directory: %v", err)
 	}
 	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), "assessmentReport.") {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "migration_assessement_report.") {
 			continue
 		}
 		oldPath := filepath.Join(exportDir, "assessment", "reports", file.Name())

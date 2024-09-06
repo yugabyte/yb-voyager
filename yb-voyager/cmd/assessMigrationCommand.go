@@ -478,7 +478,7 @@ func runAssessment() error {
 
 func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
-	reportsFilePattern := filepath.Join(assessmentDir, "reports", "assessmentReport.*")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", "migration_assessement_report.*")
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
@@ -1028,7 +1028,7 @@ func postProcessingOfAssessmentReport() {
 }
 
 func generateAssessmentReportJson(reportDir string) error {
-	jsonReportFilePath := filepath.Join(reportDir, "assessmentReport.json")
+	jsonReportFilePath := filepath.Join(reportDir, "migration_assessement_report.json")
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
@@ -1045,7 +1045,7 @@ func generateAssessmentReportJson(reportDir string) error {
 }
 
 func generateAssessmentReportHtml(reportDir string) error {
-	htmlReportFilePath := filepath.Join(reportDir, "assessmentReport.html")
+	htmlReportFilePath := filepath.Join(reportDir, "migration_assessement_report.html")
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
 
 	file, err := os.Create(htmlReportFilePath)
