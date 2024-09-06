@@ -198,13 +198,14 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func saveMigrationAssessmentReport() {
-	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "migration_assessement_report.*"))
+	assessmentReportGlobPath := filepath.Join(backupDir, "reports", fmt.Sprintf("%s.*", ASSESSMENT_FILE_NAME))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(assessmentReportGlobPath)
 	migrationAssessmentDone, err := IsMigrationAssessmentDone(metaDB)
 	if err != nil {
 		utils.ErrExit("checking if migration assessment is done: %v", err)
 	}
 	if alreadyBackedUp {
-		utils.PrintAndLog("assessment report is already present at %q", filepath.Join(backupDir, "reports", "migration_assessement_report.*"))
+		utils.PrintAndLog("assessment report is already present at %q", assessmentReportGlobPath)
 		return
 	} else if !migrationAssessmentDone {
 		utils.PrintAndLog("no assessment report to save as assessment command is not executed as part of migration workflow")
@@ -216,7 +217,7 @@ func saveMigrationAssessmentReport() {
 		utils.ErrExit("reading assessment reports directory: %v", err)
 	}
 	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), "migration_assessement_report.") {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), fmt.Sprintf("%s.", ASSESSMENT_FILE_NAME)) {
 			continue
 		}
 		oldPath := filepath.Join(exportDir, "assessment", "reports", file.Name())
@@ -232,9 +233,10 @@ func saveMigrationAssessmentReport() {
 }
 
 func saveSchemaAnalysisReport() {
-	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
+	analysisReportGlobPath := filepath.Join(backupDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(analysisReportGlobPath)
 	if alreadyBackedUp {
-		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
+		utils.PrintAndLog("schema analysis report is already present at %q", analysisReportGlobPath)
 		return
 	} else if !schemaIsAnalyzed() {
 		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
@@ -246,7 +248,7 @@ func saveSchemaAnalysisReport() {
 		utils.ErrExit("reading reports directory: %v", err)
 	}
 	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), "schema_analysis_report.") {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), fmt.Sprintf("%s.", ANALYSIS_REPORT_FILE_NAME)) {
 			continue
 		}
 

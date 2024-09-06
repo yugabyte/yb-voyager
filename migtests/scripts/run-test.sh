@@ -69,9 +69,9 @@ main() {
 
 		step "Validate Assessment Reports"
 		# Checking if the assessment reports were created
-		if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessement_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessement_report.json" ]; then
+		if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json" ]; then
 			echo "Assessment reports created successfully."
-			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessement_report.json"
+			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
 			#TODO: Further validation to be added
 		else
 			echo "Error: Assessment reports were not created successfully."

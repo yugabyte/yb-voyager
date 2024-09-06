@@ -3,13 +3,13 @@
 		{
 			"Schema": "TEST_SCHEMA",
 			"DatabaseIdentifier": "ORCLPDB1",
-			"ReportPath": "ORCLPDB1-TEST_SCHEMA-export-dir/assessment/reports/migration_assessement_report.json",
+			"ReportPath": "ORCLPDB1-TEST_SCHEMA-export-dir/assessment/reports/migration_assessment_report.json",
 			"Status": "COMPLETE"
 		},
 		{
 			"Schema": "TEST_SCHEMA2",
 			"DatabaseIdentifier": "ORCLPDB1SSL",
-			"ReportPath": "ORCLPDB1SSL-TEST_SCHEMA2-export-dir/assessment/reports/migration_assessement_report.json",
+			"ReportPath": "ORCLPDB1SSL-TEST_SCHEMA2-export-dir/assessment/reports/migration_assessment_report.json",
 			"Status": "COMPLETE"
 		}
 	],

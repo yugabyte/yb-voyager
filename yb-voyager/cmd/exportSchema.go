@@ -258,7 +258,7 @@ func applyMigrationAssessmentRecommendations() error {
 
 	// TODO: copy the reports to "export-dir/assessment/reports" for further usage
 	assessmentReportPath := lo.Ternary(assessmentReportPath != "", assessmentReportPath,
-		filepath.Join(exportDir, "assessment", "reports", "migration_assessement_report.json"))
+		filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME)))
 	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
 	if !utils.FileOrFolderExists(assessmentReportPath) {
 		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
@@ -280,7 +280,7 @@ func applyMigrationAssessmentRecommendations() error {
 			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
 	}
-	
+
 	assessmentRecommendationsApplied = true
 	SetAssessmentRecommendationsApplied()
 
@@ -481,5 +481,5 @@ func clearAssessmentRecommendationsApplied() {
 	})
 	if err != nil {
 		utils.ErrExit("clear assessment recommendations applied: update migration status record: %s", err)
-	}	
+	}
 }

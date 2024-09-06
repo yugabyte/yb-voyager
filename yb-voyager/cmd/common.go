@@ -1167,19 +1167,19 @@ func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
 
 func (dbConfig *AssessMigrationDBConfig) GetHtmlAssessmentReportPath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
-	return filepath.Join(exportDir, "assessment", "reports", "migration_assessement_report.html")
+	return filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.html", ASSESSMENT_FILE_NAME))
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetJsonAssessmentReportPath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
-	return filepath.Join(exportDir, "assessment", "reports", "migration_assessement_report.json")
+	return filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
 }
 
 // path to the assessment report without extension(like .json or .html).
-// example: bulkAssessmentDir/*_export-dir/assessment/reports/migration_assessement_report
+// example: bulkAssessmentDir/*_export-dir/assessment/reports/migration_assessment_report
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportBasePath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
-	return filepath.Join(exportDir, "assessment", "reports", "migration_assessement_report")
+	return filepath.Join(exportDir, "assessment", "reports", ASSESSMENT_FILE_NAME)
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentLogFilePath() string {
