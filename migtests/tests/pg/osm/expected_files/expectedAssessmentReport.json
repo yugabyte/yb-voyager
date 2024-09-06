@@ -1,10 +1,11 @@
 {
 	"SchemaSummary": {
+		"MigrationComplexity": "LOW",
 		"DbName": "test_osm",
 		"SchemaNames": [
 			"public"
 		],
-		"DbVersion": "12.14",
+		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
 		"DatabaseObjects": [
 			{
 				"ObjectType": "SCHEMA",
@@ -24,7 +25,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 5,
-				"ObjectNames": "user_id_idx, user_name_idx, changeset_geom_gist, created_idx, tags_idx",
+				"ObjectNames": "changeset_geom_gist, created_idx, tags_idx, user_id_idx, user_name_idx",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
 			{
@@ -38,9 +39,9 @@
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
+				"public.osm_changeset_state",
 				"public.osm_changeset",
 				"public.osm_changeset_comment",
-				"public.osm_changeset_state",
 				"public.spatial_ref_sys"
 			],
 			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 9 objects (4 tables and 5 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
@@ -60,29 +61,93 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "GIST indexes",
-			"ObjectNames": [
-				"changeset_geom_gist"
-			]
+			"Objects": [
+				{
+					"ObjectName": "changeset_geom_gist ON public.osm_changeset",
+					"SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
 		},
 		{
 			"FeatureName": "Constraint triggers",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Inherited tables",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
-			"FeatureName": "Tables with Stored generated columns",
-			"ObjectNames": []
+			"FeatureName": "Tables with stored generated columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Conversion objects",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Gin indexes on multi-columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Setting attribute=value on column",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Disabling rule on table",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Clustering table on index",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Storage parameters in DDLs",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Extensions",
+			"Objects": [
+				{
+					"ObjectName": "postgis",
+					"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/"
+		},
+		{
+			"FeatureName": "Exclusion constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Deferrable constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "View with check option",
+			"Objects": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",
-			"ObjectName": "spatial_ref_sys",
+			"ObjectName": "osm_changeset_state",
 			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys",
+			"RowCount": 8500,
 			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 8500,
@@ -112,20 +177,6 @@
 			"ObjectName": "osm_changeset_comment",
 			"RowCount": 0,
 			"ColumnCount": 5,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "osm_changeset_state",
-			"RowCount": 0,
-			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -206,5 +257,6 @@
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null
+	"Notes": null,
+	"MigrationCaveats": null
 }

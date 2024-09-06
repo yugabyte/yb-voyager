@@ -1,5 +1,6 @@
 {
 	"SchemaSummary": {
+		"MigrationComplexity": "HIGH",
 		"DbName": "adventureworks",
 		"SchemaNames": [
 			"public",
@@ -14,17 +15,17 @@
 			"sa",
 			"sales"
 		],
-		"DbVersion": "12.14",
+		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
 		"DatabaseObjects": [
 			{
 				"ObjectType": "SCHEMA",
 				"TotalCount": 11,
-				"ObjectNames": "pr, sa, hr, humanresources, pe, person, sales, production, pu, public, purchasing"
+				"ObjectNames": "hr, humanresources, pe, person, pr, production, pu, public, purchasing, sa, sales"
 			},
 			{
 				"ObjectType": "EXTENSION",
 				"TotalCount": 2,
-				"ObjectNames": "\"uuid-ossp\", tablefunc"
+				"ObjectNames": "tablefunc, \"uuid-ossp\""
 			},
 			{
 				"ObjectType": "DOMAIN",
@@ -34,22 +35,22 @@
 			{
 				"ObjectType": "SEQUENCE",
 				"TotalCount": 36,
-				"ObjectNames": "sales.creditcard_creditcardid_seq, sales.shoppingcartitem_shoppingcartitemid_seq, production.illustration_illustrationid_seq, production.location_locationid_seq, production.product_productid_seq, purchasing.shipmethod_shipmethodid_seq, production.productphoto_productphotoid_seq, sales.salesorderheader_salesorderid_seq, production.productcategory_productcategoryid_seq, production.scrapreason_scrapreasonid_seq, sales.salesterritory_territoryid_seq, humanresources.department_departmentid_seq, person.address_addressid_seq, person.addresstype_addresstypeid_seq, person.businessentity_businessentityid_seq, production.transactionhistory_transactionid_seq, sales.salesorderdetail_salesorderdetailid_seq, sales.specialoffer_specialofferid_seq, person.stateprovince_stateprovinceid_seq, production.productdescription_productdescriptionid_seq, production.productsubcategory_productsubcategoryid_seq, purchasing.purchaseorderdetail_purchaseorderdetailid_seq, sales.customer_customerid_seq, sales.salestaxrate_salestaxrateid_seq, humanresources.shift_shiftid_seq, production.productreview_productreviewid_seq, production.workorder_workorderid_seq, purchasing.purchaseorderheader_purchaseorderid_seq, humanresources.jobcandidate_jobcandidateid_seq, person.contacttype_contacttypeid_seq, person.emailaddress_emailaddressid_seq, person.phonenumbertype_phonenumbertypeid_seq, production.billofmaterials_billofmaterialsid_seq, production.productmodel_productmodelid_seq, sales.currencyrate_currencyrateid_seq, sales.salesreason_salesreasonid_seq"
+				"ObjectNames": "humanresources.department_departmentid_seq, humanresources.jobcandidate_jobcandidateid_seq, humanresources.shift_shiftid_seq, person.address_addressid_seq, person.addresstype_addresstypeid_seq, person.businessentity_businessentityid_seq, person.contacttype_contacttypeid_seq, person.emailaddress_emailaddressid_seq, person.phonenumbertype_phonenumbertypeid_seq, person.stateprovince_stateprovinceid_seq, production.billofmaterials_billofmaterialsid_seq, production.illustration_illustrationid_seq, production.location_locationid_seq, production.product_productid_seq, production.productcategory_productcategoryid_seq, production.productdescription_productdescriptionid_seq, production.productmodel_productmodelid_seq, production.productphoto_productphotoid_seq, production.productreview_productreviewid_seq, production.productsubcategory_productsubcategoryid_seq, production.scrapreason_scrapreasonid_seq, production.transactionhistory_transactionid_seq, production.workorder_workorderid_seq, purchasing.purchaseorderdetail_purchaseorderdetailid_seq, purchasing.purchaseorderheader_purchaseorderid_seq, purchasing.shipmethod_shipmethodid_seq, sales.creditcard_creditcardid_seq, sales.currencyrate_currencyrateid_seq, sales.customer_customerid_seq, sales.salesorderdetail_salesorderdetailid_seq, sales.salesorderheader_salesorderid_seq, sales.salesreason_salesreasonid_seq, sales.salestaxrate_salestaxrateid_seq, sales.salesterritory_territoryid_seq, sales.shoppingcartitem_shoppingcartitemid_seq, sales.specialoffer_specialofferid_seq"
 			},
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 68,
-				"ObjectNames": "production.location, sales.salespersonquotahistory, sales.specialoffer, humanresources.jobcandidate, production.productphoto, purchasing.purchaseorderdetail, sales.specialofferproduct, person.businessentityaddress, production.document, sales.currency, person.addresstype, production.productmodelillustration, sales.store, humanresources.employee, humanresources.employeepayhistory, person.address, production.productmodel, sales.salesorderheader, sales.salesorderheadersalesreason, person.personphone, production.transactionhistoryarchive, sales.creditcard, sales.currencyrate, production.productproductphoto, production.scrapreason, person.countryregion, person.contacttype, production.illustration, sales.salesreason, person.emailaddress, production.product, sales.customer, production.workorderrouting, purchasing.shipmethod, purchasing.vendor, sales.personcreditcard, sales.salesterritoryhistory, humanresources.department, production.productdescription, production.productinventory, production.unitmeasure, production.workorder, purchasing.productvendor, sales.countryregioncurrency, sales.shoppingcartitem, humanresources.employeedepartmenthistory, person.businessentity, person.password, production.productcategory, production.productdocument, production.productlistpricehistory, production.transactionhistory, sales.salestaxrate, person.phonenumbertype, person.businessentitycontact, production.culture, sales.salesterritory, person.person, production.productcosthistory, production.productsubcategory, production.billofmaterials, production.productmodelproductdescriptionculture, purchasing.purchaseorderheader, sales.salesorderdetail, sales.salesperson, humanresources.shift, person.stateprovince, production.productreview"
+				"ObjectNames": "humanresources.department, humanresources.employee, humanresources.employeedepartmenthistory, humanresources.employeepayhistory, humanresources.jobcandidate, humanresources.shift, person.address, person.businessentityaddress, person.countryregion, person.emailaddress, person.person, person.personphone, person.phonenumbertype, person.stateprovince, person.addresstype, person.businessentity, person.businessentitycontact, person.contacttype, person.password, production.billofmaterials, production.culture, production.document, production.illustration, production.location, production.product, production.productcategory, production.productcosthistory, production.productdescription, production.productdocument, production.productinventory, production.productlistpricehistory, production.productmodel, production.productmodelillustration, production.productmodelproductdescriptionculture, production.productphoto, production.productproductphoto, production.productreview, production.productsubcategory, production.scrapreason, production.transactionhistory, production.transactionhistoryarchive, production.unitmeasure, production.workorder, production.workorderrouting, purchasing.purchaseorderdetail, purchasing.purchaseorderheader, purchasing.productvendor, purchasing.shipmethod, purchasing.vendor, sales.customer, sales.creditcard, sales.currencyrate, sales.countryregioncurrency, sales.currency, sales.personcreditcard, sales.store, sales.shoppingcartitem, sales.specialoffer, sales.salesorderdetail, sales.salesorderheader, sales.salesorderheadersalesreason, sales.specialofferproduct, sales.salesperson, sales.salespersonquotahistory, sales.salesreason, sales.salesterritory, sales.salesterritoryhistory, sales.salestaxrate"
 			},
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 2,
-				"ObjectNames": "ix_vproductanddescription, ix_vstateprovincecountryregion"
+				"ObjectNames": "ix_vstateprovincecountryregion, ix_vproductanddescription"
 			},
 			{
 				"ObjectType": "VIEW",
 				"TotalCount": 87,
-				"ObjectNames": "sa.sp, sales.vstorewithcontacts, pe.at, pe.bea, pr.i, production.vproductmodelcatalogdescription, humanresources.vemployeedepartment, humanresources.vjobcandidate, pr.psc, pr.th, sa.soh, sales.vsalesperson, sales.vsalespersonsalesbyfiscalyearsdata, pe.p, pe.pp, pr.ppp, sa.sod, pr.pc, humanresources.vemployeedepartmenthistory, pe.e, pr.bom, pr.p, pu.pv, sa.spqh, sa.tr, sales.vindividualcustomer, pr.pi, pr.pp, pr.tha, pr.wr, hr.eph, sales.vstorewithaddresses, sa.c, sa.pcc, sa.sohsr, sales.vsalespersonsalesbyfiscalyears, hr.edh, hr.s, pe.ct, pr.pdoc, sa.cr, sa.s, pe.be, pr.pr, pr.sr, production.vproductmodelinstructions, hr.jc, sa.sth, sa.so, hr.d, pe.cr, pr.pd, pr.w, pr.um, pu.sm, sa.st, sales.vpersondemographics, hr.e, humanresources.vemployee, pe.pa, pr.c, sales.vstorewithdemographics, sa.sr, humanresources.vjobcandidateeducation, pr.pch, pu.v, sa.sop, purchasing.vvendorwithcontacts, sa.cu, humanresources.vjobcandidateemployment, pe.bec, pr.l, pu.pod, sa.crc, pr.pmi, pu.poh, purchasing.vvendorwithaddresses, sa.cc, pr.d, pr.plph, pr.pm, pr.pmpdc, pe.a, pe.pnt, pe.sp, person.vadditionalcontactinfo, sa.sci"
+				"ObjectNames": "hr.d, hr.e, hr.edh, hr.eph, hr.jc, hr.s, humanresources.vemployee, humanresources.vemployeedepartment, humanresources.vemployeedepartmenthistory, humanresources.vjobcandidate, humanresources.vjobcandidateeducation, humanresources.vjobcandidateemployment, pe.a, pe.at, pe.be, pe.bea, pe.bec, pe.cr, pe.ct, pe.e, pe.p, pe.pa, pe.pnt, pe.pp, pe.sp, person.vadditionalcontactinfo, pr.bom, pr.c, pr.d, pr.i, pr.l, pr.p, pr.pc, pr.pch, pr.pd, pr.pdoc, pr.pi, pr.plph, pr.pm, pr.pmi, pr.pmpdc, pr.pp, pr.ppp, pr.pr, pr.psc, pr.sr, pr.th, pr.tha, pr.um, pr.w, pr.wr, production.vproductmodelcatalogdescription, production.vproductmodelinstructions, pu.pod, pu.poh, pu.pv, pu.sm, pu.v, purchasing.vvendorwithaddresses, purchasing.vvendorwithcontacts, sa.c, sa.cc, sa.cr, sa.crc, sa.cu, sa.pcc, sa.s, sa.sci, sa.so, sa.sod, sa.soh, sa.sohsr, sa.sop, sa.sp, sa.spqh, sa.sr, sa.st, sa.sth, sa.tr, sales.vindividualcustomer, sales.vpersondemographics, sales.vsalesperson, sales.vsalespersonsalesbyfiscalyears, sales.vsalespersonsalesbyfiscalyearsdata, sales.vstorewithaddresses, sales.vstorewithcontacts, sales.vstorewithdemographics"
 			},
 			{
 				"ObjectType": "MVIEW",
@@ -62,74 +63,74 @@
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
-				"humanresources.employee",
 				"humanresources.department",
+				"humanresources.employee",
 				"humanresources.employeedepartmenthistory",
-				"humanresources.shift",
 				"humanresources.employeepayhistory",
 				"humanresources.jobcandidate",
-				"person.businessentityaddress",
+				"humanresources.shift",
+				"person.businessentity",
+				"person.person",
 				"person.stateprovince",
 				"person.address",
 				"person.addresstype",
-				"person.businessentity",
-				"person.person",
-				"person.businessentitycontact",
-				"person.countryregion",
+				"person.businessentityaddress",
 				"person.contacttype",
+				"person.businessentitycontact",
 				"person.emailaddress",
 				"person.password",
-				"person.personphone",
 				"person.phonenumbertype",
+				"person.personphone",
+				"person.countryregion",
 				"production.billofmaterials",
-				"production.document",
-				"production.productsubcategory",
 				"production.culture",
+				"production.document",
 				"production.productcategory",
-				"production.product",
+				"production.productsubcategory",
 				"production.productmodel",
+				"production.product",
 				"production.productcosthistory",
+				"production.productdescription",
 				"production.productdocument",
 				"production.location",
 				"production.productinventory",
 				"production.productlistpricehistory",
-				"production.productmodelillustration",
 				"production.illustration",
-				"production.productdescription",
+				"production.productmodelillustration",
 				"production.productmodelproductdescriptionculture",
+				"production.productphoto",
+				"production.productproductphoto",
+				"production.productreview",
+				"production.scrapreason",
+				"production.transactionhistory",
 				"production.transactionhistoryarchive",
 				"production.unitmeasure",
-				"production.productproductphoto",
-				"production.productphoto",
-				"production.productreview",
-				"production.transactionhistory",
 				"production.workorder",
-				"production.scrapreason",
 				"production.workorderrouting",
 				"purchasing.productvendor",
 				"purchasing.purchaseorderdetail",
 				"purchasing.purchaseorderheader",
-				"purchasing.vendor",
 				"purchasing.shipmethod",
-				"sales.creditcard",
-				"sales.salesorderheader",
+				"purchasing.vendor",
 				"sales.countryregioncurrency",
+				"sales.creditcard",
 				"sales.currency",
 				"sales.currencyrate",
 				"sales.customer",
 				"sales.personcreditcard",
 				"sales.salesorderdetail",
-				"sales.salesperson",
+				"sales.salesorderheader",
 				"sales.salesorderheadersalesreason",
-				"sales.salesterritory",
-				"sales.store",
-				"sales.specialofferproduct",
-				"sales.salesreason",
+				"sales.salesperson",
 				"sales.salespersonquotahistory",
+				"sales.salesreason",
 				"sales.salestaxrate",
+				"sales.salesterritory",
 				"sales.salesterritoryhistory",
 				"sales.shoppingcartitem",
-				"sales.specialoffer"
+				"sales.specialoffer",
+				"sales.specialofferproduct",
+				"sales.store"
 			],
 			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 69 objects (68 tables and 1 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
@@ -143,42 +144,493 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
+	"UnsupportedDataTypes": [
+		{
+			"SchemaName": "sa",
+			"TableName": "s",
+			"ColumnName": "demographics",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "postalcode",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pr",
+			"TableName": "pm",
+			"ColumnName": "instructions",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "emailtelephonenumber",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pe",
+			"TableName": "p",
+			"ColumnName": "demographics",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pe",
+			"TableName": "p",
+			"ColumnName": "additionalcontactinfo",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "hr",
+			"TableName": "jc",
+			"ColumnName": "resume",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "sales",
+			"TableName": "store",
+			"ColumnName": "demographics",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "city",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pr",
+			"TableName": "pm",
+			"ColumnName": "catalogdescription",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "person",
+			"ColumnName": "demographics",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "production",
+			"TableName": "illustration",
+			"ColumnName": "diagram",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "street",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "humanresources",
+			"TableName": "jobcandidate",
+			"ColumnName": "resume",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "homeaddressspecialinstructions",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "countryregion",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "sales",
+			"TableName": "vindividualcustomer",
+			"ColumnName": "demographics",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pr",
+			"TableName": "i",
+			"ColumnName": "diagram",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "emailaddress",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "production",
+			"TableName": "productmodel",
+			"ColumnName": "instructions",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "telephonenumber",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "production",
+			"TableName": "productmodel",
+			"ColumnName": "catalogdescription",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "humanresources",
+			"TableName": "vemployee",
+			"ColumnName": "additionalcontactinfo",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "stateprovince",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "person",
+			"ColumnName": "additionalcontactinfo",
+			"DataType": "xml"
+		}
+	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "GIST indexes",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Constraint triggers",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Inherited tables",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
-			"FeatureName": "Tables with Stored generated columns",
-			"ObjectNames": []
+			"FeatureName": "Tables with stored generated columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Conversion objects",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Gin indexes on multi-columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Setting attribute=value on column",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Disabling rule on table",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Clustering table on index",
+			"Objects": [
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE humanresources.department CLUSTER ON \"PK_Department_DepartmentID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE humanresources.employeedepartmenthistory CLUSTER ON \"PK_EmployeeDepartmentHistory_BusinessEntityID_StartDate_Departm\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE humanresources.employeepayhistory CLUSTER ON \"PK_EmployeePayHistory_BusinessEntityID_RateChangeDate\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE humanresources.employee CLUSTER ON \"PK_Employee_BusinessEntityID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE humanresources.jobcandidate CLUSTER ON \"PK_JobCandidate_JobCandidateID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE humanresources.shift CLUSTER ON \"PK_Shift_ShiftID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.addresstype CLUSTER ON \"PK_AddressType_AddressTypeID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.address CLUSTER ON \"PK_Address_AddressID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.businessentityaddress CLUSTER ON \"PK_BusinessEntityAddress_BusinessEntityID_AddressID_AddressType\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.businessentitycontact CLUSTER ON \"PK_BusinessEntityContact_BusinessEntityID_PersonID_ContactTypeI\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.businessentity CLUSTER ON \"PK_BusinessEntity_BusinessEntityID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.contacttype CLUSTER ON \"PK_ContactType_ContactTypeID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.countryregion CLUSTER ON \"PK_CountryRegion_CountryRegionCode\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.emailaddress CLUSTER ON \"PK_EmailAddress_BusinessEntityID_EmailAddressID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.password CLUSTER ON \"PK_Password_BusinessEntityID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.personphone CLUSTER ON \"PK_PersonPhone_BusinessEntityID_PhoneNumber_PhoneNumberTypeID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.person CLUSTER ON \"PK_Person_BusinessEntityID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.phonenumbertype CLUSTER ON \"PK_PhoneNumberType_PhoneNumberTypeID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.stateprovince CLUSTER ON \"PK_StateProvince_StateProvinceID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.culture CLUSTER ON \"PK_Culture_CultureID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.document CLUSTER ON \"PK_Document_DocumentNode\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.illustration CLUSTER ON \"PK_Illustration_IllustrationID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.location CLUSTER ON \"PK_Location_LocationID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productcategory CLUSTER ON \"PK_ProductCategory_ProductCategoryID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productcosthistory CLUSTER ON \"PK_ProductCostHistory_ProductID_StartDate\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productdescription CLUSTER ON \"PK_ProductDescription_ProductDescriptionID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productdocument CLUSTER ON \"PK_ProductDocument_ProductID_DocumentNode\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productinventory CLUSTER ON \"PK_ProductInventory_ProductID_LocationID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productlistpricehistory CLUSTER ON \"PK_ProductListPriceHistory_ProductID_StartDate\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productmodelillustration CLUSTER ON \"PK_ProductModelIllustration_ProductModelID_IllustrationID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productmodelproductdescriptionculture CLUSTER ON \"PK_ProductModelProductDescriptionCulture_ProductModelID_Product\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productmodel CLUSTER ON \"PK_ProductModel_ProductModelID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productphoto CLUSTER ON \"PK_ProductPhoto_ProductPhotoID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productreview CLUSTER ON \"PK_ProductReview_ProductReviewID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.productsubcategory CLUSTER ON \"PK_ProductSubcategory_ProductSubcategoryID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.product CLUSTER ON \"PK_Product_ProductID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.scrapreason CLUSTER ON \"PK_ScrapReason_ScrapReasonID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.transactionhistoryarchive CLUSTER ON \"PK_TransactionHistoryArchive_TransactionID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.transactionhistory CLUSTER ON \"PK_TransactionHistory_TransactionID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.unitmeasure CLUSTER ON \"PK_UnitMeasure_UnitMeasureCode\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.workorderrouting CLUSTER ON \"PK_WorkOrderRouting_WorkOrderID_ProductID_OperationSequence\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.workorder CLUSTER ON \"PK_WorkOrder_WorkOrderID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE purchasing.productvendor CLUSTER ON \"PK_ProductVendor_ProductID_BusinessEntityID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE purchasing.purchaseorderdetail CLUSTER ON \"PK_PurchaseOrderDetail_PurchaseOrderID_PurchaseOrderDetailID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE purchasing.purchaseorderheader CLUSTER ON \"PK_PurchaseOrderHeader_PurchaseOrderID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE purchasing.shipmethod CLUSTER ON \"PK_ShipMethod_ShipMethodID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE purchasing.vendor CLUSTER ON \"PK_Vendor_BusinessEntityID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.countryregioncurrency CLUSTER ON \"PK_CountryRegionCurrency_CountryRegionCode_CurrencyCode\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.creditcard CLUSTER ON \"PK_CreditCard_CreditCardID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.currencyrate CLUSTER ON \"PK_CurrencyRate_CurrencyRateID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.currency CLUSTER ON \"PK_Currency_CurrencyCode\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.customer CLUSTER ON \"PK_Customer_CustomerID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.personcreditcard CLUSTER ON \"PK_PersonCreditCard_BusinessEntityID_CreditCardID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salesorderdetail CLUSTER ON \"PK_SalesOrderDetail_SalesOrderID_SalesOrderDetailID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salesorderheadersalesreason CLUSTER ON \"PK_SalesOrderHeaderSalesReason_SalesOrderID_SalesReasonID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salesorderheader CLUSTER ON \"PK_SalesOrderHeader_SalesOrderID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salespersonquotahistory CLUSTER ON \"PK_SalesPersonQuotaHistory_BusinessEntityID_QuotaDate\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salesperson CLUSTER ON \"PK_SalesPerson_BusinessEntityID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salesreason CLUSTER ON \"PK_SalesReason_SalesReasonID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salestaxrate CLUSTER ON \"PK_SalesTaxRate_SalesTaxRateID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salesterritoryhistory CLUSTER ON \"PK_SalesTerritoryHistory_BusinessEntityID_StartDate_TerritoryID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.salesterritory CLUSTER ON \"PK_SalesTerritory_TerritoryID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.shoppingcartitem CLUSTER ON \"PK_ShoppingCartItem_ShoppingCartItemID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.specialofferproduct CLUSTER ON \"PK_SpecialOfferProduct_SpecialOfferID_ProductID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.specialoffer CLUSTER ON \"PK_SpecialOffer_SpecialOfferID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE sales.store CLUSTER ON \"PK_Store_BusinessEntityID\";"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE person.vstateprovincecountryregion CLUSTER ON ix_vstateprovincecountryregion;"
+				},
+				{
+					"ObjectName": "",
+					"SqlStatement": "ALTER TABLE production.vproductanddescription CLUSTER ON ix_vproductanddescription;"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+		},
+		{
+			"FeatureName": "Storage parameters in DDLs",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Extensions",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Exclusion constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Deferrable constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "View with check option",
+			"Objects": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
-		{
-			"SchemaName": "humanresources",
-			"ObjectName": "employee",
-			"RowCount": 0,
-			"ColumnCount": 15,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
 		{
 			"SchemaName": "humanresources",
 			"ObjectName": "department",
@@ -195,9 +647,9 @@
 		},
 		{
 			"SchemaName": "humanresources",
-			"ObjectName": "employeedepartmenthistory",
+			"ObjectName": "employee",
 			"RowCount": 0,
-			"ColumnCount": 6,
+			"ColumnCount": 15,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -209,9 +661,9 @@
 		},
 		{
 			"SchemaName": "humanresources",
-			"ObjectName": "shift",
+			"ObjectName": "employeedepartmenthistory",
 			"RowCount": 0,
-			"ColumnCount": 5,
+			"ColumnCount": 6,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -250,10 +702,38 @@
 			"SizeInBytes": 0
 		},
 		{
-			"SchemaName": "person",
-			"ObjectName": "businessentityaddress",
+			"SchemaName": "humanresources",
+			"ObjectName": "shift",
 			"RowCount": 0,
 			"ColumnCount": 5,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "person",
+			"ObjectName": "businessentity",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "person",
+			"ObjectName": "person",
+			"RowCount": 0,
+			"ColumnCount": 13,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -307,51 +787,9 @@
 		},
 		{
 			"SchemaName": "person",
-			"ObjectName": "businessentity",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "person",
-			"ObjectName": "person",
-			"RowCount": 0,
-			"ColumnCount": 13,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "person",
-			"ObjectName": "businessentitycontact",
+			"ObjectName": "businessentityaddress",
 			"RowCount": 0,
 			"ColumnCount": 5,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "person",
-			"ObjectName": "countryregion",
-			"RowCount": 0,
-			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -366,6 +804,20 @@
 			"ObjectName": "contacttype",
 			"RowCount": 0,
 			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "person",
+			"ObjectName": "businessentitycontact",
+			"RowCount": 0,
+			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -405,6 +857,20 @@
 		},
 		{
 			"SchemaName": "person",
+			"ObjectName": "phonenumbertype",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "person",
 			"ObjectName": "personphone",
 			"RowCount": 0,
 			"ColumnCount": 4,
@@ -419,7 +885,7 @@
 		},
 		{
 			"SchemaName": "person",
-			"ObjectName": "phonenumbertype",
+			"ObjectName": "countryregion",
 			"RowCount": 0,
 			"ColumnCount": 3,
 			"Reads": 0,
@@ -447,37 +913,23 @@
 		},
 		{
 			"SchemaName": "production",
-			"ObjectName": "document",
-			"RowCount": 0,
-			"ColumnCount": 13,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "production",
-			"ObjectName": "productsubcategory",
-			"RowCount": 0,
-			"ColumnCount": 5,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "production",
 			"ObjectName": "culture",
 			"RowCount": 0,
 			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "production",
+			"ObjectName": "document",
+			"RowCount": 0,
+			"ColumnCount": 13,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -503,9 +955,9 @@
 		},
 		{
 			"SchemaName": "production",
-			"ObjectName": "product",
+			"ObjectName": "productsubcategory",
 			"RowCount": 0,
-			"ColumnCount": 25,
+			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -531,9 +983,37 @@
 		},
 		{
 			"SchemaName": "production",
+			"ObjectName": "product",
+			"RowCount": 0,
+			"ColumnCount": 25,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "production",
 			"ObjectName": "productcosthistory",
 			"RowCount": 0,
 			"ColumnCount": 5,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "production",
+			"ObjectName": "productdescription",
+			"RowCount": 0,
+			"ColumnCount": 4,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -601,20 +1081,6 @@
 		},
 		{
 			"SchemaName": "production",
-			"ObjectName": "productmodelillustration",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "production",
 			"ObjectName": "illustration",
 			"RowCount": 0,
 			"ColumnCount": 3,
@@ -629,9 +1095,9 @@
 		},
 		{
 			"SchemaName": "production",
-			"ObjectName": "productdescription",
+			"ObjectName": "productmodelillustration",
 			"RowCount": 0,
-			"ColumnCount": 4,
+			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -646,6 +1112,76 @@
 			"ObjectName": "productmodelproductdescriptionculture",
 			"RowCount": 0,
 			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "production",
+			"ObjectName": "productphoto",
+			"RowCount": 0,
+			"ColumnCount": 6,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "production",
+			"ObjectName": "productproductphoto",
+			"RowCount": 0,
+			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "production",
+			"ObjectName": "productreview",
+			"RowCount": 0,
+			"ColumnCount": 8,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "production",
+			"ObjectName": "scrapreason",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "production",
+			"ObjectName": "transactionhistory",
+			"RowCount": 0,
+			"ColumnCount": 9,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -685,79 +1221,9 @@
 		},
 		{
 			"SchemaName": "production",
-			"ObjectName": "productproductphoto",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "production",
-			"ObjectName": "productphoto",
-			"RowCount": 0,
-			"ColumnCount": 6,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "production",
-			"ObjectName": "productreview",
-			"RowCount": 0,
-			"ColumnCount": 8,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "production",
-			"ObjectName": "transactionhistory",
-			"RowCount": 0,
-			"ColumnCount": 9,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "production",
 			"ObjectName": "workorder",
 			"RowCount": 0,
 			"ColumnCount": 9,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "production",
-			"ObjectName": "scrapreason",
-			"RowCount": 0,
-			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -825,20 +1291,6 @@
 		},
 		{
 			"SchemaName": "purchasing",
-			"ObjectName": "vendor",
-			"RowCount": 0,
-			"ColumnCount": 8,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "purchasing",
 			"ObjectName": "shipmethod",
 			"RowCount": 0,
 			"ColumnCount": 6,
@@ -852,24 +1304,10 @@
 			"SizeInBytes": 0
 		},
 		{
-			"SchemaName": "sales",
-			"ObjectName": "creditcard",
+			"SchemaName": "purchasing",
+			"ObjectName": "vendor",
 			"RowCount": 0,
-			"ColumnCount": 6,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "sales",
-			"ObjectName": "salesorderheader",
-			"RowCount": 0,
-			"ColumnCount": 25,
+			"ColumnCount": 8,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -884,6 +1322,20 @@
 			"ObjectName": "countryregioncurrency",
 			"RowCount": 0,
 			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "creditcard",
+			"RowCount": 0,
+			"ColumnCount": 6,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -965,9 +1417,9 @@
 		},
 		{
 			"SchemaName": "sales",
-			"ObjectName": "salesperson",
+			"ObjectName": "salesorderheader",
 			"RowCount": 0,
-			"ColumnCount": 9,
+			"ColumnCount": 25,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -993,51 +1445,9 @@
 		},
 		{
 			"SchemaName": "sales",
-			"ObjectName": "salesterritory",
+			"ObjectName": "salesperson",
 			"RowCount": 0,
-			"ColumnCount": 10,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "sales",
-			"ObjectName": "store",
-			"RowCount": 0,
-			"ColumnCount": 6,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "sales",
-			"ObjectName": "specialofferproduct",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "sales",
-			"ObjectName": "salesreason",
-			"RowCount": 0,
-			"ColumnCount": 4,
+			"ColumnCount": 9,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1063,9 +1473,37 @@
 		},
 		{
 			"SchemaName": "sales",
+			"ObjectName": "salesreason",
+			"RowCount": 0,
+			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "sales",
 			"ObjectName": "salestaxrate",
 			"RowCount": 0,
 			"ColumnCount": 7,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "salesterritory",
+			"RowCount": 0,
+			"ColumnCount": 10,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1118,6 +1556,34 @@
 			"SizeInBytes": 0
 		},
 		{
+			"SchemaName": "sales",
+			"ObjectName": "specialofferproduct",
+			"RowCount": 0,
+			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "store",
+			"RowCount": 0,
+			"ColumnCount": 6,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
 			"SchemaName": "production",
 			"ObjectName": "document_rowguid_key",
 			"RowCount": null,
@@ -1160,5 +1626,6 @@
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null
+	"Notes": null,
+	"MigrationCaveats": null
 }
