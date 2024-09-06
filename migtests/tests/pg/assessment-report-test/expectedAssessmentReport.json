@@ -146,7 +146,7 @@
 				"public.test_xml_type",
 				"schema2.test_xml_type"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 65 objects (55 tables/materialized views and 7 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 65 objects (58 tables/materialized views and 7 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
