@@ -577,7 +577,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 			continue
 		}
 		// for case sensitive tables in yugabytedb, we need to use the quoted table name
-		finalTableList = append(finalTableList, table.ForKey())
+		finalTableList = append(finalTableList, table.ForUserQuery())
 	}
 
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
