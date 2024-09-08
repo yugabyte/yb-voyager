@@ -1,10 +1,11 @@
 {
 	"SchemaSummary": {
+		"MigrationComplexity": "LOW",
 		"DbName": "test_is",
 		"SchemaNames": [
 			"public"
 		],
-		"DbVersion": "12.14",
+		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
 		"DatabaseObjects": [
 			{
 				"ObjectType": "SCHEMA",
@@ -14,7 +15,7 @@
 			{
 				"ObjectType": "EXTENSION",
 				"TotalCount": 4,
-				"ObjectNames": "\"uuid-ossp\", btree_gist, dblink, hstore"
+				"ObjectNames": "btree_gist, dblink, hstore, \"uuid-ossp\""
 			},
 			{
 				"ObjectType": "DOMAIN",
@@ -24,7 +25,7 @@
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 9,
-				"ObjectNames": "public.reports, public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.points, public.gear_names, public.secret_missions"
+				"ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
 			},
 			{
 				"ObjectType": "INDEX",
@@ -43,14 +44,14 @@
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
-				"public.agent_statuses",
+				"public.agents",
 				"public.expenses",
 				"public.expensive_items",
+				"public.secret_missions",
+				"public.agent_statuses",
 				"public.gear_names",
 				"public.points",
 				"public.reports",
-				"public.agents",
-				"public.secret_missions",
 				"public.countries"
 			],
 			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 12 objects (9 tables and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
@@ -70,28 +71,74 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "GIST indexes",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Constraint triggers",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Inherited tables",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
-			"FeatureName": "Tables with Stored generated columns",
-			"ObjectNames": []
+			"FeatureName": "Tables with stored generated columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Conversion objects",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Gin indexes on multi-columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Setting attribute=value on column",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Disabling rule on table",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Clustering table on index",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Storage parameters in DDLs",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Extensions",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Exclusion constraints",
+			"Objects": [
+				{
+					"ObjectName": "public.secret_missions",
+					"SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+		},
+		{
+			"FeatureName": "Deferrable constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "View with check option",
+			"Objects": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",
-			"ObjectName": "agent_statuses",
+			"ObjectName": "agents",
 			"RowCount": 0,
-			"ColumnCount": 3,
+			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -120,6 +167,34 @@
 			"ObjectName": "expensive_items",
 			"RowCount": 0,
 			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "secret_missions",
+			"RowCount": 0,
+			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "agent_statuses",
+			"RowCount": 0,
+			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -173,34 +248,6 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "agents",
-			"RowCount": 0,
-			"ColumnCount": 5,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "secret_missions",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
 			"ObjectName": "countries",
 			"RowCount": 0,
 			"ColumnCount": 1,
@@ -215,17 +262,17 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "cnt_solo_agent",
+			"ObjectName": "reports_report_idx",
 			"RowCount": null,
-			"ColumnCount": 2,
+			"ColumnCount": 1,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
 			"ObjectType": "",
-			"ParentTableName": "public.secret_missions",
-			"SizeInBytes": 8192
+			"ParentTableName": "public.reports",
+			"SizeInBytes": 16384
 		},
 		{
 			"SchemaName": "public",
@@ -243,18 +290,19 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "reports_report_idx",
+			"ObjectName": "cnt_solo_agent",
 			"RowCount": null,
-			"ColumnCount": 1,
+			"ColumnCount": 2,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
 			"ObjectType": "",
-			"ParentTableName": "public.reports",
-			"SizeInBytes": 16384
+			"ParentTableName": "public.secret_missions",
+			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null
+	"Notes": null,
+	"MigrationCaveats": null
 }

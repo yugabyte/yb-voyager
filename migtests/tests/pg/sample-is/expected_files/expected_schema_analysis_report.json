@@ -1,10 +1,11 @@
 {
     "Summary": {
+        "MigrationComplexity": "LOW",
         "DbName": "test_is",
         "SchemaNames": [
             "public"
         ],
-        "DbVersion": "12.14",
+        "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
         "DatabaseObjects": [
             {
                 "ObjectType": "SCHEMA",
@@ -14,7 +15,7 @@
             {
                 "ObjectType": "EXTENSION",
                 "TotalCount": 4,
-                "ObjectNames": "hstore, \"uuid-ossp\", btree_gist, dblink"
+                "ObjectNames": "btree_gist, dblink, hstore, \"uuid-ossp\""
             },
             {
                 "ObjectType": "DOMAIN",
@@ -24,7 +25,8 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 9,
-                "ObjectNames": "public.agent_statuses, public.gear_names, public.points, public.agents, public.countries, public.expenses, public.expensive_items, public.reports, public.secret_missions"
+                "InvalidCount": 1,
+                "ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
             },
             {
                 "ObjectType": "INDEX",
@@ -39,5 +41,17 @@
             }
         ]
     },
-    "Issues": null
+    "Issues": [
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.secret_missions",
+            "Reason": "Exclusion constraint is not supported yet",
+            "SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
+            "Suggestion": "Refer docs link for details on possible workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+        }
+    ]
 }

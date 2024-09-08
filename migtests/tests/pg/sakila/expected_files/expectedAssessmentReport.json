@@ -1,10 +1,11 @@
 {
 	"SchemaSummary": {
+		"MigrationComplexity": "HIGH",
 		"DbName": "pg_sakila",
 		"SchemaNames": [
 			"public"
 		],
-		"DbVersion": "12.14",
+		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
 		"DatabaseObjects": [
 			{
 				"ObjectType": "SCHEMA",
@@ -24,22 +25,22 @@
 			{
 				"ObjectType": "SEQUENCE",
 				"TotalCount": 13,
-				"ObjectNames": "public.customer_customer_id_seq, public.actor_actor_id_seq, public.address_address_id_seq, public.city_city_id_seq, public.staff_staff_id_seq, public.store_store_id_seq, public.country_country_id_seq, public.language_language_id_seq, public.payment_payment_id_seq, public.rental_rental_id_seq, public.category_category_id_seq, public.film_film_id_seq, public.inventory_inventory_id_seq"
+				"ObjectNames": "public.customer_customer_id_seq, public.actor_actor_id_seq, public.category_category_id_seq, public.film_film_id_seq, public.address_address_id_seq, public.city_city_id_seq, public.country_country_id_seq, public.inventory_inventory_id_seq, public.language_language_id_seq, public.payment_payment_id_seq, public.rental_rental_id_seq, public.staff_staff_id_seq, public.store_store_id_seq"
 			},
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 21,
-				"ObjectNames": "public.payment_p2007_04, public.staff, public.customer, public.category, public.film, public.film_actor, public.address, public.inventory, public.film_category, public.city, public.country, public.language, public.payment_p2007_03, public.actor, public.payment, public.payment_p2007_06, public.payment_p2007_01, public.payment_p2007_02, public.payment_p2007_05, public.rental, public.store"
+				"ObjectNames": "public.customer, public.actor, public.category, public.film, public.film_actor, public.film_category, public.address, public.city, public.country, public.inventory, public.language, public.payment, public.payment_p2007_01, public.payment_p2007_02, public.payment_p2007_03, public.payment_p2007_04, public.payment_p2007_05, public.payment_p2007_06, public.rental, public.staff, public.store"
 			},
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 29,
-				"ObjectNames": "idx_fk_city_id, idx_fk_country_id, idx_fk_payment_p2007_02_customer_id, idx_fk_payment_p2007_03_staff_id, idx_fk_payment_p2007_04_customer_id, idx_fk_payment_p2007_05_staff_id, idx_last_name, idx_unq_manager_staff_id, idx_fk_language_id, idx_fk_payment_p2007_06_staff_id, idx_fk_store_id, idx_store_id_film_id, idx_title, idx_unq_rental_rental_date_inventory_id_customer_id, idx_fk_payment_p2007_06_customer_id, idx_fk_staff_id, idx_actor_last_name, idx_fk_customer_id, idx_fk_inventory_id, idx_fk_payment_p2007_01_customer_id, idx_fk_payment_p2007_02_staff_id, idx_fk_payment_p2007_04_staff_id, idx_fk_payment_p2007_05_customer_id, idx_fk_film_id, idx_fk_original_language_id, idx_fk_payment_p2007_03_customer_id, film_fulltext_idx, idx_fk_address_id, idx_fk_payment_p2007_01_staff_id"
+				"ObjectNames": "film_fulltext_idx, idx_actor_last_name, idx_fk_address_id, idx_fk_city_id, idx_fk_country_id, idx_fk_customer_id, idx_fk_film_id, idx_fk_inventory_id, idx_fk_language_id, idx_fk_original_language_id, idx_fk_payment_p2007_01_customer_id, idx_fk_payment_p2007_01_staff_id, idx_fk_payment_p2007_02_customer_id, idx_fk_payment_p2007_02_staff_id, idx_fk_payment_p2007_03_customer_id, idx_fk_payment_p2007_03_staff_id, idx_fk_payment_p2007_04_customer_id, idx_fk_payment_p2007_04_staff_id, idx_fk_payment_p2007_05_customer_id, idx_fk_payment_p2007_05_staff_id, idx_fk_payment_p2007_06_customer_id, idx_fk_payment_p2007_06_staff_id, idx_fk_staff_id, idx_fk_store_id, idx_last_name, idx_store_id_film_id, idx_title, idx_unq_manager_staff_id, idx_unq_rental_rental_date_inventory_id_customer_id"
 			},
 			{
 				"ObjectType": "FUNCTION",
 				"TotalCount": 9,
-				"ObjectNames": "public._group_concat, public.film_not_in_stock, public.get_customer_balance, public.inventory_held_by_customer, public.film_in_stock, public.inventory_in_stock, public.last_day, public.last_updated, public.rewards_report"
+				"ObjectNames": "public._group_concat, public.film_in_stock, public.film_not_in_stock, public.get_customer_balance, public.inventory_held_by_customer, public.inventory_in_stock, public.last_day, public.last_updated, public.rewards_report"
 			},
 			{
 				"ObjectType": "AGGREGATE",
@@ -49,17 +50,17 @@
 			{
 				"ObjectType": "VIEW",
 				"TotalCount": 7,
-				"ObjectNames": "public.sales_by_film_category, public.sales_by_store, public.staff_list, public.actor_info, public.customer_list, public.film_list, public.nicer_but_slower_film_list"
+				"ObjectNames": "public.actor_info, public.customer_list, public.film_list, public.nicer_but_slower_film_list, public.sales_by_film_category, public.sales_by_store, public.staff_list"
 			},
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 15,
-				"ObjectNames": "last_updated, film_fulltext_trigger"
+				"ObjectNames": "film_fulltext_trigger, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated"
 			},
 			{
 				"ObjectType": "RULE",
 				"TotalCount": 6,
-				"ObjectNames": "payment_insert_p2007_04, payment_insert_p2007_05, payment_insert_p2007_06, payment_insert_p2007_01, payment_insert_p2007_02, payment_insert_p2007_03"
+				"ObjectNames": "payment_insert_p2007_01, payment_insert_p2007_02, payment_insert_p2007_03, payment_insert_p2007_04, payment_insert_p2007_05, payment_insert_p2007_06"
 			}
 		]
 	},
@@ -67,26 +68,26 @@
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
-				"public.actor",
-				"public.category",
-				"public.film",
-				"public.payment_p2007_02",
+				"public.payment_p2007_06",
+				"public.payment_p2007_05",
 				"public.payment_p2007_03",
 				"public.payment_p2007_04",
-				"public.payment_p2007_05",
-				"public.payment_p2007_06",
-				"public.store",
 				"public.payment_p2007_01",
-				"public.address",
-				"public.city",
-				"public.country",
-				"public.customer",
 				"public.film_actor",
-				"public.film_category",
-				"public.inventory",
-				"public.language",
+				"public.address",
 				"public.rental",
+				"public.category",
+				"public.customer",
+				"public.language",
+				"public.film",
+				"public.city",
+				"public.payment_p2007_02",
+				"public.film_category",
+				"public.store",
+				"public.actor",
+				"public.country",
 				"public.staff",
+				"public.inventory",
 				"public.payment"
 			],
 			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 50 objects (21 tables and 29 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
@@ -106,37 +107,100 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "GIST indexes",
-			"ObjectNames": [
-				"film_fulltext_idx"
-			]
+			"Objects": [
+				{
+					"ObjectName": "film_fulltext_idx ON public.film",
+					"SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
 		},
 		{
 			"FeatureName": "Constraint triggers",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Inherited tables",
-			"ObjectNames": [
-				"public.payment_p2007_01",
-				"public.payment_p2007_02",
-				"public.payment_p2007_03",
-				"public.payment_p2007_04",
-				"public.payment_p2007_05",
-				"public.payment_p2007_06"
-			]
+			"Objects": [
+				{
+					"ObjectName": "public.payment_p2007_01",
+					"SqlStatement": "CREATE TABLE public.payment_p2007_01 (\n    CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date \u003e= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-02-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
+				},
+				{
+					"ObjectName": "public.payment_p2007_02",
+					"SqlStatement": "CREATE TABLE public.payment_p2007_02 (\n    CONSTRAINT payment_p2007_02_payment_date_check CHECK (((payment_date \u003e= '2007-02-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-03-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
+				},
+				{
+					"ObjectName": "public.payment_p2007_03",
+					"SqlStatement": "CREATE TABLE public.payment_p2007_03 (\n    CONSTRAINT payment_p2007_03_payment_date_check CHECK (((payment_date \u003e= '2007-03-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-04-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
+				},
+				{
+					"ObjectName": "public.payment_p2007_04",
+					"SqlStatement": "CREATE TABLE public.payment_p2007_04 (\n    CONSTRAINT payment_p2007_04_payment_date_check CHECK (((payment_date \u003e= '2007-04-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-05-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
+				},
+				{
+					"ObjectName": "public.payment_p2007_05",
+					"SqlStatement": "CREATE TABLE public.payment_p2007_05 (\n    CONSTRAINT payment_p2007_05_payment_date_check CHECK (((payment_date \u003e= '2007-05-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-06-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
+				},
+				{
+					"ObjectName": "public.payment_p2007_06",
+					"SqlStatement": "CREATE TABLE public.payment_p2007_06 (\n    CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date \u003e= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-07-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
 		},
 		{
-			"FeatureName": "Tables with Stored generated columns",
-			"ObjectNames": []
+			"FeatureName": "Tables with stored generated columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Conversion objects",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Gin indexes on multi-columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Setting attribute=value on column",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Disabling rule on table",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Clustering table on index",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Storage parameters in DDLs",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Extensions",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Exclusion constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Deferrable constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "View with check option",
+			"Objects": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",
-			"ObjectName": "actor",
+			"ObjectName": "payment_p2007_06",
 			"RowCount": 0,
-			"ColumnCount": 4,
+			"ColumnCount": 6,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -148,35 +212,7 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "category",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "film",
-			"RowCount": 0,
-			"ColumnCount": 14,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "payment_p2007_02",
+			"ObjectName": "payment_p2007_05",
 			"RowCount": 0,
 			"ColumnCount": 6,
 			"Reads": 0,
@@ -218,51 +254,23 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "payment_p2007_05",
-			"RowCount": 0,
-			"ColumnCount": 6,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "payment_p2007_06",
-			"RowCount": 0,
-			"ColumnCount": 6,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "store",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
 			"ObjectName": "payment_p2007_01",
 			"RowCount": 0,
 			"ColumnCount": 6,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "film_actor",
+			"RowCount": 0,
+			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -288,9 +296,9 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "city",
+			"ObjectName": "rental",
 			"RowCount": 0,
-			"ColumnCount": 4,
+			"ColumnCount": 7,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -302,7 +310,7 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "country",
+			"ObjectName": "category",
 			"RowCount": 0,
 			"ColumnCount": 3,
 			"Reads": 0,
@@ -330,9 +338,51 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "film_actor",
+			"ObjectName": "language",
 			"RowCount": 0,
 			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "film",
+			"RowCount": 0,
+			"ColumnCount": 14,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "city",
+			"RowCount": 0,
+			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "payment_p2007_02",
+			"RowCount": 0,
+			"ColumnCount": 6,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -358,7 +408,7 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "inventory",
+			"ObjectName": "store",
 			"RowCount": 0,
 			"ColumnCount": 4,
 			"Reads": 0,
@@ -372,9 +422,9 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "language",
+			"ObjectName": "actor",
 			"RowCount": 0,
-			"ColumnCount": 3,
+			"ColumnCount": 4,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -386,9 +436,9 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "rental",
+			"ObjectName": "country",
 			"RowCount": 0,
-			"ColumnCount": 7,
+			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -403,6 +453,20 @@
 			"ObjectName": "staff",
 			"RowCount": 0,
 			"ColumnCount": 11,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "inventory",
+			"RowCount": 0,
+			"ColumnCount": 4,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -833,5 +897,6 @@
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null
+	"Notes": null,
+	"MigrationCaveats": null
 }

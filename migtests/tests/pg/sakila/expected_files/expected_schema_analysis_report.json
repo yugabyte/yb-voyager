@@ -1,10 +1,11 @@
 {
     "Summary": {
+        "MigrationComplexity": "HIGH",
         "DbName": "pg_sakila",
         "SchemaNames": [
             "public"
         ],
-        "DbVersion": "12.14",
+        "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
         "DatabaseObjects": [
             {
                 "ObjectType": "SCHEMA",
@@ -24,24 +25,24 @@
             {
                 "ObjectType": "SEQUENCE",
                 "TotalCount": 13,
-                "ObjectNames": "public.customer_customer_id_seq, public.actor_actor_id_seq, public.rental_rental_id_seq, public.address_address_id_seq, public.inventory_inventory_id_seq, public.payment_payment_id_seq, public.staff_staff_id_seq, public.film_film_id_seq, public.city_city_id_seq, public.country_country_id_seq, public.language_language_id_seq, public.category_category_id_seq, public.store_store_id_seq"
+                "ObjectNames": "public.customer_customer_id_seq, public.actor_actor_id_seq, public.category_category_id_seq, public.film_film_id_seq, public.address_address_id_seq, public.city_city_id_seq, public.country_country_id_seq, public.inventory_inventory_id_seq, public.language_language_id_seq, public.payment_payment_id_seq, public.rental_rental_id_seq, public.staff_staff_id_seq, public.store_store_id_seq"
             },
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 21,
                 "InvalidCount": 6,
-                "ObjectNames": "public.payment_p2007_01, public.film_actor, public.film_category, public.address, public.payment, public.payment_p2007_05, public.staff, public.store, public.category, public.film, public.city, public.inventory, public.payment_p2007_02, public.payment_p2007_04, public.customer, public.country, public.language, public.payment_p2007_03, public.payment_p2007_06, public.rental, public.actor"
+                "ObjectNames": "public.customer, public.actor, public.category, public.film, public.film_actor, public.film_category, public.address, public.city, public.country, public.inventory, public.language, public.payment, public.payment_p2007_01, public.payment_p2007_02, public.payment_p2007_03, public.payment_p2007_04, public.payment_p2007_05, public.payment_p2007_06, public.rental, public.staff, public.store"
             },
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 29,
                 "InvalidCount": 1,
-                "ObjectNames": "idx_fk_city_id, idx_fk_payment_p2007_04_staff_id, idx_fk_store_id, idx_last_name, film_fulltext_idx, idx_fk_payment_p2007_02_staff_id, idx_fk_payment_p2007_02_customer_id, idx_fk_payment_p2007_05_staff_id, idx_fk_payment_p2007_06_staff_id, idx_fk_staff_id, idx_unq_rental_rental_date_inventory_id_customer_id, idx_fk_address_id, idx_fk_film_id, idx_fk_payment_p2007_01_staff_id, idx_fk_payment_p2007_06_customer_id, idx_title, idx_unq_manager_staff_id, idx_actor_last_name, idx_fk_language_id, idx_fk_country_id, idx_store_id_film_id, idx_fk_payment_p2007_03_customer_id, idx_fk_payment_p2007_03_staff_id, idx_fk_payment_p2007_04_customer_id, idx_fk_inventory_id, idx_fk_original_language_id, idx_fk_payment_p2007_05_customer_id, idx_fk_customer_id, idx_fk_payment_p2007_01_customer_id"
+                "ObjectNames": "film_fulltext_idx, idx_actor_last_name, idx_fk_address_id, idx_fk_city_id, idx_fk_country_id, idx_fk_customer_id, idx_fk_film_id, idx_fk_inventory_id, idx_fk_language_id, idx_fk_original_language_id, idx_fk_payment_p2007_01_customer_id, idx_fk_payment_p2007_01_staff_id, idx_fk_payment_p2007_02_customer_id, idx_fk_payment_p2007_02_staff_id, idx_fk_payment_p2007_03_customer_id, idx_fk_payment_p2007_03_staff_id, idx_fk_payment_p2007_04_customer_id, idx_fk_payment_p2007_04_staff_id, idx_fk_payment_p2007_05_customer_id, idx_fk_payment_p2007_05_staff_id, idx_fk_payment_p2007_06_customer_id, idx_fk_payment_p2007_06_staff_id, idx_fk_staff_id, idx_fk_store_id, idx_last_name, idx_store_id_film_id, idx_title, idx_unq_manager_staff_id, idx_unq_rental_rental_date_inventory_id_customer_id"
             },
             {
                 "ObjectType": "FUNCTION",
                 "TotalCount": 9,
-                "ObjectNames": "public.last_updated, public.rewards_report, public.film_in_stock, public.last_day, public.get_customer_balance, public.inventory_held_by_customer, public.inventory_in_stock, public._group_concat, public.film_not_in_stock"
+                "ObjectNames": "public._group_concat, public.film_in_stock, public.film_not_in_stock, public.get_customer_balance, public.inventory_held_by_customer, public.inventory_in_stock, public.last_day, public.last_updated, public.rewards_report"
             },
             {
                 "ObjectType": "AGGREGATE",
@@ -51,12 +52,12 @@
             {
                 "ObjectType": "VIEW",
                 "TotalCount": 7,
-                "ObjectNames": "public.sales_by_store, public.staff_list, public.actor_info, public.customer_list, public.film_list, public.nicer_but_slower_film_list, public.sales_by_film_category"
+                "ObjectNames": "public.actor_info, public.customer_list, public.film_list, public.nicer_but_slower_film_list, public.sales_by_film_category, public.sales_by_store, public.staff_list"
             },
             {
                 "ObjectType": "TRIGGER",
                 "TotalCount": 15,
-                "ObjectNames": "film_fulltext_trigger, last_updated"
+                "ObjectNames": "film_fulltext_trigger, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated"
             },
             {
                 "ObjectType": "RULE",
@@ -67,67 +68,81 @@
     },
     "Issues": [
         {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_01",
             "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
             "SqlStatement": "CREATE TABLE public.payment_p2007_01 (\n    CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date \u003e= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-02-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
-            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
         },
         {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_02",
             "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
             "SqlStatement": "CREATE TABLE public.payment_p2007_02 (\n    CONSTRAINT payment_p2007_02_payment_date_check CHECK (((payment_date \u003e= '2007-02-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-03-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
-            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
         },
         {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_03",
             "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
             "SqlStatement": "CREATE TABLE public.payment_p2007_03 (\n    CONSTRAINT payment_p2007_03_payment_date_check CHECK (((payment_date \u003e= '2007-03-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-04-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
-            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
         },
         {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_04",
             "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
             "SqlStatement": "CREATE TABLE public.payment_p2007_04 (\n    CONSTRAINT payment_p2007_04_payment_date_check CHECK (((payment_date \u003e= '2007-04-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-05-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
-            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
         },
         {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_05",
             "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
             "SqlStatement": "CREATE TABLE public.payment_p2007_05 (\n    CONSTRAINT payment_p2007_05_payment_date_check CHECK (((payment_date \u003e= '2007-05-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-06-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
-            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
         },
         {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_06",
             "Reason": "TABLE INHERITANCE not supported in YugabyteDB",
             "SqlStatement": "CREATE TABLE public.payment_p2007_06 (\n    CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date \u003e= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-07-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
-            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
         },
         {
+            "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "film_fulltext_idx",
+            "ObjectName": "film_fulltext_idx ON public.film",
             "Reason": "Schema contains GIST index which is not supported.",
             "SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
-            "FilePath": "/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
         }
     ]
 }

@@ -1,13 +1,11 @@
 {
     "Summary": {
+        "MigrationComplexity": "LOW",
         "DbName": "test_pgtbrus",
         "SchemaNames": [
             "public"
         ],
-        "DbVersion": "12.14",
-        "Notes": [
-            "Review and manually import the DDL statements from the file /home/centos/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/uncategorized.sql"
-        ],
+        "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
         "DatabaseObjects": [
             {
                 "ObjectType": "SCHEMA",
@@ -32,7 +30,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 2,
-                "ObjectNames": "public.t, public.c"
+                "ObjectNames": "public.c, public.t"
             },
             {
                 "ObjectType": "FUNCTION",
@@ -42,9 +40,38 @@
             {
                 "ObjectType": "TRIGGER",
                 "TotalCount": 6,
-                "ObjectNames": "tgd, tgi, tgu"
+                "ObjectNames": "tgd, tgd, tgi, tgi, tgu, tgu"
+            },
+            {
+                "ObjectType": "FOREIGN TABLE",
+                "TotalCount": 2,
+                "InvalidCount": 2,
+                "ObjectNames": "public.f_c, public.f_t"
             }
         ]
     },
-    "Issues": null
+    "Issues": [
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "FOREIGN TABLE",
+            "ObjectName": "public.f_c",
+            "Reason": "Foreign tables require manual intervention.",
+            "SqlStatement": "CREATE FOREIGN TABLE public.f_c (     i integer NOT NULL,     t integer,     x text ) SERVER p10 OPTIONS (     table_name 'c' ); ",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/tables/foreign_table.sql",
+            "Suggestion": "SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "FOREIGN TABLE",
+            "ObjectName": "public.f_t",
+            "Reason": "Foreign tables require manual intervention.",
+            "SqlStatement": "CREATE FOREIGN TABLE public.f_t (     i integer NOT NULL,     ts timestamp(0) with time zone DEFAULT now(),     j json,     t text,     e public.myenum,     c public.mycomposit ) SERVER p10 OPTIONS (     table_name 't' ); ",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/tables/foreign_table.sql",
+            "Suggestion": "SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
+        }
+    ]
 }

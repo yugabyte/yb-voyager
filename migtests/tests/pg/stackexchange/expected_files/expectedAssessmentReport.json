@@ -1,10 +1,11 @@
 {
 	"SchemaSummary": {
+		"MigrationComplexity": "MEDIUM",
 		"DbName": "test_stackex",
 		"SchemaNames": [
 			"public"
 		],
-		"DbVersion": "12.14",
+		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
 		"DatabaseObjects": [
 			{
 				"ObjectType": "SCHEMA",
@@ -19,12 +20,12 @@
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 21,
-				"ObjectNames": "public.postlinks, public.reviewtasktypes, public.usertagqa, public.posthistory, public.posttypes, public.reviewtaskresulttype, public.tags, public.allposttags, public.posts, public.comments, public.flagtypes, public.posthistorytypes, public.postlinktypes, public.questionanswer, public.votetypes, public.users, public.votes, public.badges, public.closeasofftopicreasontypes, public.closereasontypes, public.posttags"
+				"ObjectNames": "public.allposttags, public.posts, public.badges, public.closeasofftopicreasontypes, public.closereasontypes, public.comments, public.flagtypes, public.posthistory, public.posthistorytypes, public.postlinks, public.postlinktypes, public.posttags, public.posttypes, public.questionanswer, public.reviewtaskresulttype, public.reviewtasktypes, public.tags, public.users, public.usertagqa, public.votes, public.votetypes"
 			},
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 44,
-				"ObjectNames": "posts_comment_count_idx, posts_id_accepted_answers_id_idx, posts_owner_user_id_idx, user_down_votes_idx, postlinks_post_id_idx, posts_creation_date_idx, posts_score_idx, posts_viewcount_idx, posttags_postid_idx, usertagqa_answers_idx, badges_user_id_idx, posts_post_type_id_idx, user_created_at_idx, user_up_votes_idx, usertagqa_all_qa_posts_idx, usertagqa_questions_idx, cmnts_score_idx, ph_creation_date_idx, posts_answer_count_idx, tags_count_idx, user_acc_id_idx, badges_name_idx, ph_post_type_id_idx, ph_userid_idx, posts_accepted_answer_id_idx, posts_parent_id_idx, cmnts_postid_idx, cmnts_userid_idx, user_display_idx, votes_post_id_idx, badges_date_idx, cmnts_creation_date_idx, ph_revguid_idx, posts_id_parent_id_idx, posttags_tagid_idx, usertagqa_questions_answers_idx, votes_creation_date_idx, ph_postid_idx, postlinks_related_post_id_idx, posts_favorite_count_idx, posts_id_post_type_id_idx, posts_owner_user_id_creation_date_idx, tags_name_idx, votes_type_idx"
+				"ObjectNames": "badges_date_idx, badges_name_idx, badges_user_id_idx, cmnts_creation_date_idx, cmnts_postid_idx, cmnts_score_idx, cmnts_userid_idx, ph_creation_date_idx, ph_post_type_id_idx, ph_postid_idx, ph_revguid_idx, ph_userid_idx, postlinks_post_id_idx, postlinks_related_post_id_idx, posts_accepted_answer_id_idx, posts_answer_count_idx, posts_comment_count_idx, posts_creation_date_idx, posts_favorite_count_idx, posts_id_accepted_answers_id_idx, posts_id_parent_id_idx, posts_id_post_type_id_idx, posts_owner_user_id_creation_date_idx, posts_owner_user_id_idx, posts_parent_id_idx, posts_post_type_id_idx, posts_score_idx, posts_viewcount_idx, posttags_postid_idx, posttags_tagid_idx, tags_count_idx, tags_name_idx, user_acc_id_idx, user_created_at_idx, user_display_idx, user_down_votes_idx, user_up_votes_idx, usertagqa_all_qa_posts_idx, usertagqa_answers_idx, usertagqa_questions_answers_idx, usertagqa_questions_idx, votes_creation_date_idx, votes_post_id_idx, votes_type_idx"
 			},
 			{
 				"ObjectType": "VIEW",
@@ -37,30 +38,31 @@
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
+				"public.closereasontypes",
+				"public.closeasofftopicreasontypes",
+				"public.votetypes",
+				"public.comments",
+				"public.posthistorytypes",
+				"public.usertagqa",
+				"public.users",
+				"public.postlinktypes",
 				"public.allposttags",
+				"public.posttypes",
 				"public.tags",
 				"public.posthistory",
-				"public.posts",
-				"public.closeasofftopicreasontypes",
-				"public.closereasontypes",
-				"public.postlinks",
-				"public.flagtypes",
-				"public.posthistorytypes",
-				"public.postlinktypes",
+				"public.badges",
 				"public.posttags",
-				"public.posttypes",
+				"public.reviewtasktypes",
+				"public.votes",
 				"public.questionanswer",
 				"public.reviewtaskresulttype",
-				"public.reviewtasktypes",
-				"public.badges",
-				"public.votes",
-				"public.usertagqa",
-				"public.votetypes",
-				"public.users",
-				"public.comments"
+				"public.postlinks",
+				"public.flagtypes"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 65 objects (21 tables and 44 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			"ShardedTables": null,
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 50 objects (20 tables and 30 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 15 objects (1 tables and 14 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ShardedTables": [
+				"public.posts"
+			],
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
 			"MemoryPerInstance": 16,
@@ -76,26 +78,384 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "GIST indexes",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Constraint triggers",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
 			"FeatureName": "Inherited tables",
-			"ObjectNames": []
+			"Objects": []
 		},
 		{
-			"FeatureName": "Tables with Stored generated columns",
-			"ObjectNames": []
+			"FeatureName": "Tables with stored generated columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Conversion objects",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Gin indexes on multi-columns",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Setting attribute=value on column",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Disabling rule on table",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Clustering table on index",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Storage parameters in DDLs",
+			"Objects": [
+				{
+					"ObjectName": "badges_date_idx",
+					"SqlStatement": "CREATE INDEX badges_date_idx ON public.badges USING btree (date) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "badges_name_idx",
+					"SqlStatement": "CREATE INDEX badges_name_idx ON public.badges USING btree (name) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "badges_user_id_idx",
+					"SqlStatement": "CREATE INDEX badges_user_id_idx ON public.badges USING btree (userid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "cmnts_creation_date_idx",
+					"SqlStatement": "CREATE INDEX cmnts_creation_date_idx ON public.comments USING btree (creationdate) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "cmnts_postid_idx",
+					"SqlStatement": "CREATE INDEX cmnts_postid_idx ON public.comments USING hash (postid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "cmnts_score_idx",
+					"SqlStatement": "CREATE INDEX cmnts_score_idx ON public.comments USING btree (score) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "cmnts_userid_idx",
+					"SqlStatement": "CREATE INDEX cmnts_userid_idx ON public.comments USING btree (userid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "ph_creation_date_idx",
+					"SqlStatement": "CREATE INDEX ph_creation_date_idx ON public.posthistory USING btree (creationdate) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "ph_post_type_id_idx",
+					"SqlStatement": "CREATE INDEX ph_post_type_id_idx ON public.posthistory USING btree (posthistorytypeid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "ph_postid_idx",
+					"SqlStatement": "CREATE INDEX ph_postid_idx ON public.posthistory USING hash (postid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "ph_revguid_idx",
+					"SqlStatement": "CREATE INDEX ph_revguid_idx ON public.posthistory USING btree (revisionguid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "ph_userid_idx",
+					"SqlStatement": "CREATE INDEX ph_userid_idx ON public.posthistory USING btree (userid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "postlinks_post_id_idx",
+					"SqlStatement": "CREATE INDEX postlinks_post_id_idx ON public.postlinks USING btree (postid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "postlinks_related_post_id_idx",
+					"SqlStatement": "CREATE INDEX postlinks_related_post_id_idx ON public.postlinks USING btree (relatedpostid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_accepted_answer_id_idx",
+					"SqlStatement": "CREATE INDEX posts_accepted_answer_id_idx ON public.posts USING btree (acceptedanswerid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_answer_count_idx",
+					"SqlStatement": "CREATE INDEX posts_answer_count_idx ON public.posts USING btree (answercount) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_comment_count_idx",
+					"SqlStatement": "CREATE INDEX posts_comment_count_idx ON public.posts USING btree (commentcount) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_creation_date_idx",
+					"SqlStatement": "CREATE INDEX posts_creation_date_idx ON public.posts USING btree (creationdate) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_favorite_count_idx",
+					"SqlStatement": "CREATE INDEX posts_favorite_count_idx ON public.posts USING btree (favoritecount) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_id_accepted_answers_id_idx",
+					"SqlStatement": "CREATE INDEX posts_id_accepted_answers_id_idx ON public.posts USING btree (id, acceptedanswerid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_id_parent_id_idx",
+					"SqlStatement": "CREATE INDEX posts_id_parent_id_idx ON public.posts USING btree (id, parentid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_id_post_type_id_idx",
+					"SqlStatement": "CREATE INDEX posts_id_post_type_id_idx ON public.posts USING btree (id, posttypeid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_owner_user_id_creation_date_idx",
+					"SqlStatement": "CREATE INDEX posts_owner_user_id_creation_date_idx ON public.posts USING btree (owneruserid, creationdate) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_owner_user_id_idx",
+					"SqlStatement": "CREATE INDEX posts_owner_user_id_idx ON public.posts USING hash (owneruserid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_parent_id_idx",
+					"SqlStatement": "CREATE INDEX posts_parent_id_idx ON public.posts USING btree (parentid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_post_type_id_idx",
+					"SqlStatement": "CREATE INDEX posts_post_type_id_idx ON public.posts USING btree (posttypeid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_score_idx",
+					"SqlStatement": "CREATE INDEX posts_score_idx ON public.posts USING btree (score) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posts_viewcount_idx",
+					"SqlStatement": "CREATE INDEX posts_viewcount_idx ON public.posts USING btree (viewcount) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posttags_postid_idx",
+					"SqlStatement": "CREATE INDEX posttags_postid_idx ON public.posttags USING hash (postid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "posttags_tagid_idx",
+					"SqlStatement": "CREATE INDEX posttags_tagid_idx ON public.posttags USING btree (tagid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "tags_count_idx",
+					"SqlStatement": "CREATE INDEX tags_count_idx ON public.tags USING btree (count) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "tags_name_idx",
+					"SqlStatement": "CREATE INDEX tags_name_idx ON public.tags USING hash (tagname) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "user_acc_id_idx",
+					"SqlStatement": "CREATE INDEX user_acc_id_idx ON public.users USING hash (accountid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "user_created_at_idx",
+					"SqlStatement": "CREATE INDEX user_created_at_idx ON public.users USING btree (creationdate) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "user_display_idx",
+					"SqlStatement": "CREATE INDEX user_display_idx ON public.users USING hash (displayname) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "user_down_votes_idx",
+					"SqlStatement": "CREATE INDEX user_down_votes_idx ON public.users USING btree (downvotes) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "user_up_votes_idx",
+					"SqlStatement": "CREATE INDEX user_up_votes_idx ON public.users USING btree (upvotes) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "usertagqa_all_qa_posts_idx",
+					"SqlStatement": "CREATE INDEX usertagqa_all_qa_posts_idx ON public.usertagqa USING btree (((questions + answers))) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "usertagqa_answers_idx",
+					"SqlStatement": "CREATE INDEX usertagqa_answers_idx ON public.usertagqa USING btree (answers) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "usertagqa_questions_answers_idx",
+					"SqlStatement": "CREATE INDEX usertagqa_questions_answers_idx ON public.usertagqa USING btree (questions, answers) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "usertagqa_questions_idx",
+					"SqlStatement": "CREATE INDEX usertagqa_questions_idx ON public.usertagqa USING btree (questions) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "votes_creation_date_idx",
+					"SqlStatement": "CREATE INDEX votes_creation_date_idx ON public.votes USING btree (creationdate) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "votes_post_id_idx",
+					"SqlStatement": "CREATE INDEX votes_post_id_idx ON public.votes USING hash (postid) WITH (fillfactor='100'); "
+				},
+				{
+					"ObjectName": "votes_type_idx",
+					"SqlStatement": "CREATE INDEX votes_type_idx ON public.votes USING btree (votetypeid) WITH (fillfactor='100'); "
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+		},
+		{
+			"FeatureName": "Extensions",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Exclusion constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Deferrable constraints",
+			"Objects": []
+		},
+		{
+			"FeatureName": "View with check option",
+			"Objects": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",
+			"ObjectName": "posts",
+			"RowCount": 0,
+			"ColumnCount": 21,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "closereasontypes",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "closeasofftopicreasontypes",
+			"RowCount": 0,
+			"ColumnCount": 9,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "votetypes",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "comments",
+			"RowCount": 0,
+			"ColumnCount": 7,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "posthistorytypes",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "usertagqa",
+			"RowCount": 0,
+			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "users",
+			"RowCount": 0,
+			"ColumnCount": 15,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "postlinktypes",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
 			"ObjectName": "allposttags",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "posttypes",
 			"RowCount": 0,
 			"ColumnCount": 2,
 			"Reads": 0,
@@ -137,93 +497,9 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "posts",
+			"ObjectName": "badges",
 			"RowCount": 0,
-			"ColumnCount": 21,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "closeasofftopicreasontypes",
-			"RowCount": 0,
-			"ColumnCount": 9,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "closereasontypes",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "postlinks",
-			"RowCount": 0,
-			"ColumnCount": 6,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "flagtypes",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "posthistorytypes",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "postlinktypes",
-			"RowCount": 0,
-			"ColumnCount": 2,
+			"ColumnCount": 5,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -249,9 +525,23 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "posttypes",
+			"ObjectName": "reviewtasktypes",
 			"RowCount": 0,
-			"ColumnCount": 2,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "votes",
+			"RowCount": 0,
+			"ColumnCount": 7,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -291,93 +581,23 @@
 		},
 		{
 			"SchemaName": "public",
-			"ObjectName": "reviewtasktypes",
+			"ObjectName": "postlinks",
+			"RowCount": 0,
+			"ColumnCount": 6,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "flagtypes",
 			"RowCount": 0,
 			"ColumnCount": 3,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "badges",
-			"RowCount": 0,
-			"ColumnCount": 5,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "votes",
-			"RowCount": 0,
-			"ColumnCount": 7,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "usertagqa",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "votetypes",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "users",
-			"RowCount": 0,
-			"ColumnCount": 15,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "comments",
-			"RowCount": 0,
-			"ColumnCount": 7,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1004,5 +1224,6 @@
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null
+	"Notes": null,
+	"MigrationCaveats": null
 }
