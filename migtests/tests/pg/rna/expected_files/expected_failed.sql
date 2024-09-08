@@ -2,2318 +2,661 @@
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p10_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p10_deleted_check CHECK (((dbid = 10) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p10_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p10_deleted_check CHECK (dbid = 10 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p10_not_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p10_not_deleted_check CHECK (((dbid = 10) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p10_not_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p10_not_deleted_check CHECK (dbid = 10 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p11_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p11_deleted_check CHECK (((dbid = 11) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p11_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p11_deleted_check CHECK (dbid = 11 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p11_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p11_not_deleted_check CHECK (((dbid = 11) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p11_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p11_not_deleted_check CHECK (dbid = 11 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p12_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p12_deleted_check CHECK (((dbid = 12) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p12_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p12_deleted_check CHECK (dbid = 12 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p12_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p12_not_deleted_check CHECK (((dbid = 12) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p12_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p12_not_deleted_check CHECK (dbid = 12 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p13_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p13_deleted_check CHECK (((dbid = 13) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p13_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p13_deleted_check CHECK (dbid = 13 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p13_not_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p13_not_deleted_check CHECK (((dbid = 13) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p13_not_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p13_not_deleted_check CHECK (dbid = 13 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p14_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p14_deleted_check CHECK (((dbid = 14) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p14_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p14_deleted_check CHECK (dbid = 14 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p14_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p14_not_deleted_check CHECK (((dbid = 14) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p14_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p14_not_deleted_check CHECK (dbid = 14 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p15_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p15_deleted_check CHECK (((dbid = 15) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p15_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p15_deleted_check CHECK (dbid = 15 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p15_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p15_not_deleted_check CHECK (((dbid = 15) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p15_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p15_not_deleted_check CHECK (dbid = 15 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p16_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p16_deleted_check CHECK (((dbid = 16) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p16_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p16_deleted_check CHECK (dbid = 16 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p16_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p16_not_deleted_check CHECK (((dbid = 16) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p16_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p16_not_deleted_check CHECK (dbid = 16 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p17_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p17_deleted_check CHECK (((dbid = 17) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p17_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p17_deleted_check CHECK (dbid = 17 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p17_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p17_not_deleted_check CHECK (((dbid = 17) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p17_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p17_not_deleted_check CHECK (dbid = 17 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p18_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p18_deleted_check CHECK (((dbid = 18) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p18_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p18_deleted_check CHECK (dbid = 18 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p18_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p18_not_deleted_check CHECK (((dbid = 18) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p18_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p18_not_deleted_check CHECK (dbid = 18 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p19_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p19_deleted_check CHECK (((dbid = 19) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p19_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p19_deleted_check CHECK (dbid = 19 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p19_not_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p19_not_deleted_check CHECK (((dbid = 19) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p19_not_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p19_not_deleted_check CHECK (dbid = 19 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p1_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p1_deleted_check CHECK (((dbid = 1) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p1_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p1_deleted_check CHECK (dbid = 1 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p1_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p1_not_deleted_check CHECK (((dbid = 1) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p1_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p1_not_deleted_check CHECK (dbid = 1 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p20_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p20_deleted_check CHECK (((dbid = 20) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p20_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p20_deleted_check CHECK (dbid = 20 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p20_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p20_not_deleted_check CHECK (((dbid = 20) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p20_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p20_not_deleted_check CHECK (dbid = 20 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p21_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p21_deleted_check CHECK (((dbid = 21) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p21_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p21_deleted_check CHECK (dbid = 21 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p21_not_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p21_not_deleted_check CHECK (((dbid = 21) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p21_not_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p21_not_deleted_check CHECK (dbid = 21 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p22_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p22_deleted_check CHECK (((dbid = 22) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p22_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p22_deleted_check CHECK (dbid = 22 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p22_not_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p22_not_deleted_check CHECK (((dbid = 22) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p22_not_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p22_not_deleted_check CHECK (dbid = 22 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p23_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p23_deleted_check CHECK (((dbid = 23) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p23_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p23_deleted_check CHECK (dbid = 23 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p23_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p23_not_deleted_check CHECK (((dbid = 23) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p23_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p23_not_deleted_check CHECK (dbid = 23 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p24_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p24_deleted_check CHECK (((dbid = 24) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p24_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p24_deleted_check CHECK (dbid = 24 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p24_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p24_not_deleted_check CHECK (((dbid = 24) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p24_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p24_not_deleted_check CHECK (dbid = 24 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p25_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p25_deleted_check CHECK (((dbid = 25) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p25_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p25_deleted_check CHECK (dbid = 25 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p25_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p25_not_deleted_check CHECK (((dbid = 25) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p25_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p25_not_deleted_check CHECK (dbid = 25 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p26_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p26_deleted_check CHECK (((dbid = 26) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p26_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p26_deleted_check CHECK (dbid = 26 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p26_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p26_not_deleted_check CHECK (((dbid = 26) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p26_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p26_not_deleted_check CHECK (dbid = 26 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p27_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p27_deleted_check CHECK (((dbid = 27) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p27_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p27_deleted_check CHECK (dbid = 27 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p27_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p27_not_deleted_check CHECK (((dbid = 27) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p27_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p27_not_deleted_check CHECK (dbid = 27 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p28_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p28_deleted_check CHECK (((dbid = 28) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p28_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p28_deleted_check CHECK (dbid = 28 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p28_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p28_not_deleted_check CHECK (((dbid = 28) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p28_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p28_not_deleted_check CHECK (dbid = 28 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p29_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p29_deleted_check CHECK (((dbid = 29) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p29_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p29_deleted_check CHECK (dbid = 29 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p29_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p29_not_deleted_check CHECK (((dbid = 29) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p29_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p29_not_deleted_check CHECK (dbid = 29 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p2_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p2_deleted_check CHECK (((dbid = 2) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p2_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p2_deleted_check CHECK (dbid = 2 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p2_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p2_not_deleted_check CHECK (((dbid = 2) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p2_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p2_not_deleted_check CHECK (dbid = 2 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p30_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p30_deleted_check CHECK (((dbid = 30) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p30_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p30_deleted_check CHECK (dbid = 30 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p30_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p30_not_deleted_check CHECK (((dbid = 30) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p30_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p30_not_deleted_check CHECK (dbid = 30 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p31_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p31_deleted_check CHECK (((dbid = 31) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p31_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p31_deleted_check CHECK (dbid = 31 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p31_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p31_not_deleted_check CHECK (((dbid = 31) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p31_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p31_not_deleted_check CHECK (dbid = 31 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p32_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p32_deleted_check CHECK (((dbid = 32) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p32_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p32_deleted_check CHECK (dbid = 32 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p32_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p32_not_deleted_check CHECK (((dbid = 32) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p32_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p32_not_deleted_check CHECK (dbid = 32 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-CREATE TABLE rnacen.xref_p33_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p33_deleted_check CHECK (((dbid = 33) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
+CREATE TABLE rnacen.xref_p33_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p33_deleted_check CHECK (dbid = 33 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p33_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p33_not_deleted_check CHECK (((dbid = 33) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
+*/
+CREATE TABLE rnacen.xref_p33_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p33_not_deleted_check CHECK (dbid = 33 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p34_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p34_deleted_check CHECK (dbid = 34 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p34_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p34_not_deleted_check CHECK (dbid = 34 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p35_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p35_deleted_check CHECK (dbid = 35 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p35_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p35_not_deleted_check CHECK (dbid = 35 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p36_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p36_deleted_check CHECK (dbid = 36 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p36_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p36_not_deleted_check CHECK (dbid = 36 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p37_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p37_deleted_check CHECK (dbid = 37 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p37_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p37_not_deleted_check CHECK (dbid = 37 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p38_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p38_deleted_check CHECK (dbid = 38 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p38_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p38_not_deleted_check CHECK (dbid = 38 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p39_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p39_deleted_check CHECK (dbid = 39 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p39_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p39_not_deleted_check CHECK (dbid = 39 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p3_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p3_deleted_check CHECK (dbid = 3 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p3_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p3_not_deleted_check CHECK (dbid = 3 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p40_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p40_deleted_check CHECK (dbid = 40 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p40_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p40_not_deleted_check CHECK (dbid = 40 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p41_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p41_deleted_check CHECK (dbid = 41 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p41_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p41_not_deleted_check CHECK (dbid = 41 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p42_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p42_deleted_check CHECK (dbid = 42 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p42_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p42_not_deleted_check CHECK (dbid = 42 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p43_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p43_deleted_check CHECK (dbid = 43 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p43_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p43_not_deleted_check CHECK (dbid = 43 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p44_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p44_deleted_check CHECK (dbid = 44 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p44_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p44_not_deleted_check CHECK (dbid = 44 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p45_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p45_deleted_check CHECK (dbid = 45 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p45_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p45_not_deleted_check CHECK (dbid = 45 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p46_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p46_deleted_check CHECK (dbid = 46 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p46_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p46_not_deleted_check CHECK (dbid = 46 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p47_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p47_deleted_check CHECK (dbid = 47 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p47_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p47_not_deleted_check CHECK (dbid = 47 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p48_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p48_deleted_check CHECK (dbid = 48 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p48_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p48_not_deleted_check CHECK (dbid = 48 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p49_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p49_deleted_check CHECK (dbid = 49 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p49_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p49_not_deleted_check CHECK (dbid = 49 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p4_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p4_deleted_check CHECK (dbid = 4 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p4_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p4_not_deleted_check CHECK (dbid = 4 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p50_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p50_deleted_check CHECK (dbid = 50 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p50_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p50_not_deleted_check CHECK (dbid = 50 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p51_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p51_deleted_check CHECK (dbid = 51 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p51_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p51_not_deleted_check CHECK (dbid = 51 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p52_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p52_deleted_check CHECK (dbid = 52 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p52_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p52_not_deleted_check CHECK (dbid = 52 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p53_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p53_deleted_check CHECK (dbid = 53 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p34_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p34_deleted_check CHECK (((dbid = 34) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p34_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p34_not_deleted_check CHECK (((dbid = 34) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p35_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p35_deleted_check CHECK (((dbid = 35) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p35_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p35_not_deleted_check CHECK (((dbid = 35) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p36_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p36_deleted_check CHECK (((dbid = 36) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p36_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p36_not_deleted_check CHECK (((dbid = 36) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p37_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p37_deleted_check CHECK (((dbid = 37) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p37_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p37_not_deleted_check CHECK (((dbid = 37) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p38_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p38_deleted_check CHECK (((dbid = 38) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p38_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p38_not_deleted_check CHECK (((dbid = 38) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p39_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p39_deleted_check CHECK (((dbid = 39) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p39_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p39_not_deleted_check CHECK (((dbid = 39) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p3_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p3_deleted_check CHECK (((dbid = 3) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p3_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p3_not_deleted_check CHECK (((dbid = 3) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p40_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p40_deleted_check CHECK (((dbid = 40) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p40_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p40_not_deleted_check CHECK (((dbid = 40) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p41_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p41_deleted_check CHECK (((dbid = 41) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p41_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p41_not_deleted_check CHECK (((dbid = 41) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p42_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p42_deleted_check CHECK (((dbid = 42) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p42_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p42_not_deleted_check CHECK (((dbid = 42) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p43_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p43_deleted_check CHECK (((dbid = 43) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p43_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p43_not_deleted_check CHECK (((dbid = 43) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p44_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p44_deleted_check CHECK (((dbid = 44) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p44_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p44_not_deleted_check CHECK (((dbid = 44) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p45_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p45_deleted_check CHECK (((dbid = 45) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p45_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p45_not_deleted_check CHECK (((dbid = 45) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p46_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p46_deleted_check CHECK (((dbid = 46) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p46_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p46_not_deleted_check CHECK (((dbid = 46) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p47_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p47_deleted_check CHECK (((dbid = 47) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p47_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p47_not_deleted_check CHECK (((dbid = 47) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p48_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p48_deleted_check CHECK (((dbid = 48) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p48_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p48_not_deleted_check CHECK (((dbid = 48) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p49_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p49_deleted_check CHECK (((dbid = 49) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p49_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p49_not_deleted_check CHECK (((dbid = 49) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p4_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p4_deleted_check CHECK (((dbid = 4) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p4_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p4_not_deleted_check CHECK (((dbid = 4) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p50_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p50_deleted_check CHECK (((dbid = 50) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p50_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p50_not_deleted_check CHECK (((dbid = 50) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p51_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p51_deleted_check CHECK (((dbid = 51) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p51_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p51_not_deleted_check CHECK (((dbid = 51) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p52_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p52_deleted_check CHECK (((dbid = 52) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p52_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p52_not_deleted_check CHECK (((dbid = 52) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p53_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p53_deleted_check CHECK (((dbid = 53) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p53_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p53_not_deleted_check CHECK (((dbid = 53) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p54_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint NOT NULL,
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p54_deleted_check CHECK (((dbid = 54) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p54_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint NOT NULL,
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p54_not_deleted_check CHECK (((dbid = 54) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p55_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p55_deleted_check CHECK (((dbid = 55) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p55_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p55_not_deleted_check CHECK (((dbid = 55) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p5_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p5_deleted_check CHECK (((dbid = 5) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p5_not_deleted (
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p5_not_deleted_check CHECK (((dbid = 5) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p6_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p6_deleted_check CHECK (((dbid = 6) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p6_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p6_not_deleted_check CHECK (((dbid = 6) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p7_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p7_deleted_check CHECK (((dbid = 7) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p7_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p7_not_deleted_check CHECK (((dbid = 7) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p8_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p8_deleted_check CHECK (((dbid = 8) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p8_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p8_not_deleted_check CHECK (((dbid = 8) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p9_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p9_deleted_check CHECK (((dbid = 9) AND (deleted = 'Y'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: INHERITS not supported yet (SQLSTATE 0A000)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
-*/
-CREATE TABLE rnacen.xref_p9_not_deleted (
-    dbid smallint,
-    created integer,
-    last integer,
-    upi character varying(26),
-    version_i integer,
-    deleted character(1),
-    "timestamp" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,
-    userstamp character varying(20) DEFAULT 'USER'::character varying,
-    ac character varying(300),
-    version integer,
-    taxid bigint,
-    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),
-    CONSTRAINT "ck_xref$deleted" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),
-    CONSTRAINT xref_p9_not_deleted_check CHECK (((dbid = 9) AND (deleted = 'N'::bpchar)))
-)
-INHERITS (rnacen.xref);
-
-/*
-ERROR: syntax error at end of input (SQLSTATE 42601)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/views/view.sql
-*/
-CREATE VIEW rnacen.unindexed_foreign_keys AS
- WITH y AS (
-         SELECT format('%I.%I'::text, n1.nspname, c1.relname) AS referencing_tbl,
-            quote_ident((a1.attname)::text) AS referencing_column,
-            t.conname AS existing_fk_on_referencing_tbl,
-            format('%I.%I'::text, n2.nspname, c2.relname) AS referenced_tbl,
-            quote_ident((a2.attname)::text) AS referenced_column,
-            pg_relation_size((format('%I.%I'::text, n1.nspname, c1.relname))::regclass) AS referencing_tbl_bytes,
-            pg_relation_size((format('%I.%I'::text, n2.nspname, c2.relname))::regclass) AS referenced_tbl_bytes,
-            format('CREATE INDEX IF NOT EXISTS %I ON %I.%I(%I);'::text, (((c1.relname)::text || '$'::text) || (a1.attname)::text), n1.nspname, c1.relname, a1.attname) AS suggestion
-
-/*
-ERROR: syntax error at or near "FROM" (SQLSTATE 42601)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/views/view.sql
-*/
-           FROM ((((((pg_constraint t
-             JOIN pg_attribute a1 ON (((a1.attrelid = t.conrelid) AND (a1.attnum = t.conkey[1]))))
-             JOIN pg_class c1 ON ((c1.oid = t.conrelid)))
-             JOIN pg_namespace n1 ON ((n1.oid = c1.relnamespace)))
-             JOIN pg_class c2 ON ((c2.oid = t.confrelid)))
-             JOIN pg_namespace n2 ON ((n2.oid = c2.relnamespace)))
-             JOIN pg_attribute a2 ON (((a2.attrelid = t.confrelid) AND (a2.attnum = t.confkey[1]))))
-          WHERE ((t.contype = 'f'::"char") AND (NOT (EXISTS ( SELECT 1
-                   FROM pg_index i
-                  WHERE ((i.indrelid = t.conrelid) AND (i.indkey[0] = t.conkey[1]))))))
-        )
- SELECT y.referencing_tbl,
-    y.referencing_column,
-    y.existing_fk_on_referencing_tbl,
-    y.referenced_tbl,
-    y.referenced_column,
-    pg_size_pretty(y.referencing_tbl_bytes) AS referencing_tbl_size,
-    pg_size_pretty(y.referenced_tbl_bytes) AS referenced_tbl_size,
-    y.suggestion
-   FROM y
-  ORDER BY y.referencing_tbl_bytes DESC, y.referenced_tbl_bytes DESC, y.referencing_tbl, y.referenced_tbl, y.referencing_column, y.referenced_column;
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p53_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p53_not_deleted_check CHECK (dbid = 53 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p54_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint NOT NULL, CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p54_deleted_check CHECK (dbid = 54 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p54_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint NOT NULL, CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p54_not_deleted_check CHECK (dbid = 54 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p55_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p55_deleted_check CHECK (dbid = 55 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p55_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p55_not_deleted_check CHECK (dbid = 55 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p5_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p5_deleted_check CHECK (dbid = 5 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p5_not_deleted (CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p5_not_deleted_check CHECK (dbid = 5 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p6_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p6_deleted_check CHECK (dbid = 6 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p6_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p6_not_deleted_check CHECK (dbid = 6 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p7_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p7_deleted_check CHECK (dbid = 7 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p7_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p7_not_deleted_check CHECK (dbid = 7 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p8_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p8_deleted_check CHECK (dbid = 8 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p8_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p8_not_deleted_check CHECK (dbid = 8 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p9_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p9_deleted_check CHECK (dbid = 9 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
+
+/*
+ERROR: INHERITS not supported yet (SQLSTATE 0A000)
+File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
+*/
+CREATE TABLE rnacen.xref_p9_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), "timestamp" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT "ck_xref$deleted" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p9_not_deleted_check CHECK (dbid = 9 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);
 
 /*
 ERROR: relation "rnacen.xref_p10_deleted" does not exist (SQLSTATE 42P01)
