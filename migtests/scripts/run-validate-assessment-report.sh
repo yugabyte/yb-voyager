@@ -75,7 +75,7 @@ main() {
 		echo "Comparing Report contents"
         expected_file="${TEST_DIR}/expectedAssessmentReport.json"
         actual_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
-	    compare_assessment_reports ${expected_file} ${actual_file}
+	    compare_json_reports ${expected_file} ${actual_file}
 	else
 		echo "Error: Assessment reports were not created successfully."
 		cat_log_file "yb-voyager-assess-migration.log"

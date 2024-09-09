@@ -11,43 +11,48 @@ import (
 )
 
 type MigrationStatusRecord struct {
-	MigrationUUID                                   string            `json:"MigrationUUID"`
-	VoyagerVersion                                  string            `json:"VoyagerVersion"`
-	ExportType                                      string            `json:"ExportType"`
-	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`
-	FallForwardEnabled                              bool              `json:"FallForwardEnabled"`
-	FallbackEnabled                                 bool              `json:"FallbackEnabled"`
-	UseYBgRPCConnector                              bool              `json:"UseYBgRPCConnector"`
-	TargetDBConf                                    *tgtdb.TargetConf `json:"TargetDBConf"`
-	SourceReplicaDBConf                             *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
-	SourceDBAsTargetConf                            *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
-	TableListExportedFromSource                     []string          `json:"TableListExportedFromSource"`
-	SourceDBConf                                    *srcdb.Source     `json:"SourceDBConf"`
-	CutoverToTargetRequested                        bool              `json:"CutoverToTargetRequested"`
-	CutoverProcessedBySourceExporter                bool              `json:"CutoverProcessedBySourceExporter"`
-	CutoverProcessedByTargetImporter                bool              `json:"CutoverProcessedByTargetImporter"`
-	ExportFromTargetFallForwardStarted              bool              `json:"ExportFromTargetFallForwardStarted"`
-	CutoverToSourceReplicaRequested                 bool              `json:"CutoverToSourceReplicaRequested"`
-	CutoverToSourceReplicaProcessedByTargetExporter bool              `json:"CutoverToSourceReplicaProcessedByTargetExporter"`
-	CutoverToSourceReplicaProcessedBySRImporter     bool              `json:"CutoverToSourceReplicaProcessedBySRImporter"`
-	ExportFromTargetFallBackStarted                 bool              `json:"ExportFromTargetFallBackStarted"`
-	CutoverToSourceRequested                        bool              `json:"CutoverToSourceRequested"`
-	CutoverToSourceProcessedByTargetExporter        bool              `json:"CutoverToSourceProcessedByTargetExporter"`
-	CutoverToSourceProcessedBySourceImporter        bool              `json:"CutoverToSourceProcessedBySourceImporter"`
-	ExportSchemaDone                                bool              `json:"ExportSchemaDone"`
-	ExportDataDone                                  bool              `json:"ExportDataDone"`
-	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
-	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
-	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
-	PGPublicationName                               string            `json:"PGPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
-	YBReplicationSlotName                           string            `json:"YBReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
-	YBPublicationName                               string            `json:"YBPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
-	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump, ora2pg)
-	SourceRenameTablesMap                           map[string]string `json:"SourceRenameTablesMap"` // map of source table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
-	TargetRenameTablesMap                           map[string]string `json:"TargetRenameTablesMap"` // map of target table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
-	IsExportTableListSet                            bool              `json:"IsExportTableListSet"`
-	MigrationAssessmentDone                         bool              `json:"MigrationAssessmentDone"`
-	AssessmentRecommendationsApplied                bool              `json:"AssessmentRecommendationsApplied"`
+	MigrationUUID               string            `json:"MigrationUUID"`
+	VoyagerVersion              string            `json:"VoyagerVersion"`
+	ExportType                  string            `json:"ExportType"`
+	ArchivingEnabled            bool              `json:"ArchivingEnabled"`
+	FallForwardEnabled          bool              `json:"FallForwardEnabled"`
+	FallbackEnabled             bool              `json:"FallbackEnabled"`
+	UseYBgRPCConnector          bool              `json:"UseYBgRPCConnector"`
+	TargetDBConf                *tgtdb.TargetConf `json:"TargetDBConf"`
+	SourceReplicaDBConf         *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
+	SourceDBAsTargetConf        *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
+	TableListExportedFromSource []string          `json:"TableListExportedFromSource"`
+	SourceDBConf                *srcdb.Source     `json:"SourceDBConf"`
+
+	CutoverToTargetRequested                        bool `json:"CutoverToTargetRequested"`
+	CutoverProcessedBySourceExporter                bool `json:"CutoverProcessedBySourceExporter"`
+	CutoverProcessedByTargetImporter                bool `json:"CutoverProcessedByTargetImporter"`
+	ExportFromTargetFallForwardStarted              bool `json:"ExportFromTargetFallForwardStarted"`
+	CutoverToSourceReplicaRequested                 bool `json:"CutoverToSourceReplicaRequested"`
+	CutoverToSourceReplicaProcessedByTargetExporter bool `json:"CutoverToSourceReplicaProcessedByTargetExporter"`
+	CutoverToSourceReplicaProcessedBySRImporter     bool `json:"CutoverToSourceReplicaProcessedBySRImporter"`
+	ExportFromTargetFallBackStarted                 bool `json:"ExportFromTargetFallBackStarted"`
+	CutoverToSourceRequested                        bool `json:"CutoverToSourceRequested"`
+	CutoverToSourceProcessedByTargetExporter        bool `json:"CutoverToSourceProcessedByTargetExporter"`
+	CutoverToSourceProcessedBySourceImporter        bool `json:"CutoverToSourceProcessedBySourceImporter"`
+
+	ExportSchemaDone                bool `json:"ExportSchemaDone"`
+	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete
+	ExportDataSourceDebeziumStarted bool `json:"ExportDataSourceDebeziumStarted"`
+	ExportDataTargetDebeziumStarted bool `json:"ExportDataTargetDebeziumStarted"`
+
+	YBCDCStreamID                    string            `json:"YBCDCStreamID"`
+	EndMigrationRequested            bool              `json:"EndMigrationRequested"`
+	PGReplicationSlotName            string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	PGPublicationName                string            `json:"PGPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	YBReplicationSlotName            string            `json:"YBReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	YBPublicationName                string            `json:"YBPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	SnapshotMechanism                string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump, ora2pg)
+	SourceRenameTablesMap            map[string]string `json:"SourceRenameTablesMap"` // map of source table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
+	TargetRenameTablesMap            map[string]string `json:"TargetRenameTablesMap"` // map of target table.Qualified.Unquoted -> table.Qualified.Unquoted for renaming the leaf partitions to root table in case of PG migration
+	IsExportTableListSet             bool              `json:"IsExportTableListSet"`
+	MigrationAssessmentDone          bool              `json:"MigrationAssessmentDone"`
+	AssessmentRecommendationsApplied bool              `json:"AssessmentRecommendationsApplied"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
