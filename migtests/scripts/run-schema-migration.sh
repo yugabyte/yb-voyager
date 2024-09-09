@@ -51,6 +51,17 @@ main() {
 
 	pushd ${TEST_DIR}
 
+	step "Unzip expected and replacement files"
+	if [ -f expected_files.zip ]
+	then
+		unzip -o expected_files.zip
+	fi
+	
+	if [ -f replacement_dir.zip ]
+	then
+		unzip -o replacement_dir.zip
+	fi
+	
 	step "Initialise source database."
 	./init-db
 
