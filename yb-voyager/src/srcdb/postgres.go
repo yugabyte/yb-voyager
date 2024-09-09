@@ -755,7 +755,8 @@ func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
+		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
 	log.Infof("query to get unique key columns: %s", query)
 	rows, err := pg.db.Query(query)
 	if err != nil {
