@@ -1167,12 +1167,12 @@ func (dbConfig *AssessMigrationDBConfig) GetAssessmentExportDirPath() string {
 
 func (dbConfig *AssessMigrationDBConfig) GetHtmlAssessmentReportPath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
-	return filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.html", ASSESSMENT_FILE_NAME))
+	return filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 }
 
 func (dbConfig *AssessMigrationDBConfig) GetJsonAssessmentReportPath() string {
 	exportDir := dbConfig.GetAssessmentExportDirPath()
-	return filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+	return filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 }
 
 // path to the assessment report without extension(like .json or .html).

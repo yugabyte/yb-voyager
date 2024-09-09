@@ -1028,7 +1028,7 @@ func postProcessingOfAssessmentReport() {
 }
 
 func generateAssessmentReportJson(reportDir string) error {
-	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
@@ -1045,7 +1045,7 @@ func generateAssessmentReportJson(reportDir string) error {
 }
 
 func generateAssessmentReportHtml(reportDir string) error {
-	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s.html", ASSESSMENT_FILE_NAME))
+	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
 
 	file, err := os.Create(htmlReportFilePath)

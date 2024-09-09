@@ -141,7 +141,7 @@ func assessMigrationBulk() error {
 			utils.CleanDir(match)
 		}
 
-		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s.html", BULK_ASSESSMENT_FILE_NAME)))
+		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, HTML_EXTENSION)))
 		if err != nil {
 			return fmt.Errorf("failed to remove bulk assessment report: %w", err)
 		}
@@ -388,7 +388,7 @@ func generateBulkAssessmentJsonReport() error {
 		}
 	}
 
-	reportPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s.json", BULK_ASSESSMENT_FILE_NAME))
+	reportPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	strReport, err := json.MarshalIndent(bulkAssessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the buk assessment report: %w", err)
@@ -418,7 +418,7 @@ func generateBulkAssessmentHtmlReport() error {
 		return fmt.Errorf("failed to parse the bulkAssessmentReport template: %w", err)
 	}
 
-	reportPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s.html", BULK_ASSESSMENT_FILE_NAME))
+	reportPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	file, err := os.Create(reportPath)
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
