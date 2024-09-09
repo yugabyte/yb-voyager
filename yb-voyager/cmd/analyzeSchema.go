@@ -43,7 +43,7 @@ import (
 type summaryInfo struct {
 	totalCount   int
 	invalidCount map[string]bool
-	objSet       []string //TODO: fix it with the set and proper names for INDEX, TRIGGER and POLICY types as "obj_name on table_name"
+	objSet       []string        //TODO: fix it with the set and proper names for INDEX, TRIGGER and POLICY types as "obj_name on table_name"
 	details      map[string]bool //any details about the object type
 }
 
@@ -172,7 +172,6 @@ var (
 	alterColumnResetAttributesRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "RESET", anything)
 	alterConstrRegex                = re("ALTER", opt(capture(unqualifiedIdent)), ifExists, "TABLE", capture(ident), anything, "ALTER", "CONSTRAINT")
 	setOidsRegex                    = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "SET WITH OIDS")
-	clusterRegex                    = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "CLUSTER")
 	withoutClusterRegex             = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "SET WITHOUT CLUSTER")
 	alterSetRegex                   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "SET")
 	alterIdxRegex                   = re("ALTER", "INDEX", capture(ident), "SET")
@@ -356,7 +355,7 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 
 // Checks whether there is gist index
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
-	//TODO: add other index types in assessment 
+	//TODO: add other index types in assessment
 	for _, sqlInfo := range sqlInfoArr {
 		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
@@ -666,7 +665,7 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_SetOptions &&
 		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList().GetItems()) > 0 {
 		reportCase(fpath, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
-			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
+			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
 	}
 
 	/*
@@ -680,7 +679,7 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_AddConstraint &&
 		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
 		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
-			"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.stmt, UNSUPPORTED_FEATURES, STORAGE_PARAMETERS_DDL_STMT_DOC_LINK)
+			"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, STORAGE_PARAMETERS_DDL_STMT_DOC_LINK)
 	}
 
 	/*
@@ -691,8 +690,19 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
 		ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
 		reportCase(fpath, ALTER_TABLE_DISABLE_RULE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
-			fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.stmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
+			fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
 	}
+	/*
+		e.g. ALTER TABLE example CLUSTER ON idx;
+		stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13} 
+		cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
+	
+	*/
+	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_ClusterOn {
+		reportCase(fpath, ALTER_TABLE_CLUSTER_ON_ISSUE,
+			"https://github.com/YugaByte/yugabyte-db/issues/1124", "Remove it from the exported schema.", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
+	}
+
 }
 
 func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -886,9 +896,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		} else if tbl := withoutClusterRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if tbl := clusterRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, ALTER_TABLE_CLUSTER_ON_ISSUE,
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
 		} else if tbl := alterSetRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")

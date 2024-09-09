@@ -202,12 +202,12 @@ main() {
     fi
 	done
 	
-	sleep 60
+	sleep 120
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 60
+	sleep 120
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -232,7 +232,7 @@ main() {
 
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
-
+	
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
