@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-# The script takes up to two arguments:
-# 1. TEST_NAME: The name of the test to run (mandatory).
-# 2. env.sh: An optional environment setup script to source before running the test. If not provided, this file will be picked from the ${TESTS_DIR}
-
 set -e
 
 if [ $# -gt 2 ]
@@ -38,6 +34,7 @@ else
 	source ${TEST_DIR}/env.sh
 fi
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+source ${SCRIPTS}/yugabytedb/env.sh
 
 source ${SCRIPTS}/functions.sh
 
@@ -54,6 +51,17 @@ main() {
 
 	pushd ${TEST_DIR}
 
+	step "Unzip expected and replacement files"
+	if [ -f expected_files.zip ]
+	then
+		unzip -o expected_files.zip
+	fi
+	
+	if [ -f replacement_dir.zip ]
+	then
+		unzip -o replacement_dir.zip
+	fi
+	
 	step "Initialise source database."
 	./init-db
 
@@ -63,7 +71,7 @@ main() {
 	step "Check the Voyager version installed"
 	yb-voyager version
 
-	step "Assess Migration"
+    step "Assess Migration"
 	assess_migration
 	
 	step "Validate Assessment Reports"
@@ -73,7 +81,7 @@ main() {
 		echo "Checking for Failures"
 		validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
 		echo "Comparing Report contents"
-        expected_file="${TEST_DIR}/expectedAssessmentReport.json"
+        expected_file="${TEST_DIR}/expected_files/expectedAssessmentReport.json"
         actual_file="${EXPORT_DIR}/assessment/reports/assessmentReport.json"
 	    compare_json_reports ${expected_file} ${actual_file}
 	else
@@ -82,19 +90,56 @@ main() {
 		exit 1
 	fi
 
+	step "Export schema."
+	export_schema
+
+	step "Analyze schema."
+	analyze_schema --output-format json
+	compare_json_reports "${EXPORT_DIR}/reports/schema_analysis_report.json" "${TEST_DIR}/expected_files/expected_schema_analysis_report.json"
+
+	step "Create target database."
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
+
+	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
+	then
+		"${TEST_DIR}/add-pk-from-alter-to-create"
+	fi
+
+	step "Import schema."
+	import_schema --continue-on-error t
+	run_ysql ${TARGET_DB_NAME} "\dt"
+
+    if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
+    then
+        #compare the failed.sql to the expected_failed.sql
+        compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${TEST_DIR}/expected_files/expected_failed.sql"
+        #rename failed.sql
+        mv "${EXPORT_DIR}/schema/failed.sql" "${EXPORT_DIR}/schema/failed.sql.bak"
+        #replace_files
+        replace_files "${TEST_DIR}/replacement_dir" "${EXPORT_DIR}/schema"
+        import_schema
+
+        if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
+        then
+            cat "${EXPORT_DIR}/schema/failed.sql"
+            exit 1
+        fi
+    fi
+
+	step "Run validations."
+	if [ -x "${TEST_DIR}/validate" ]
+	then
+		 "${TEST_DIR}/validate"
+	fi
+
 	step "End Migration: clearing metainfo about state of migration from everywhere."
 	end_migration --yes
-    # check if backup-dir has assessment report or not
-	if [ -f "${EXPORT_DIR}/backup-dir/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/backup-dir/reports/assessmentReport.json" ]; then
-		echo "End Migration saved Assessment Reports successfully."
-	else
-		echo "Assessment Reports were not saved by End Migration!"
-		exit 1
-	fi
 
 	step "Clean up"
 	./cleanup-db
 	rm -rf "${EXPORT_DIR}/*"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 
 main

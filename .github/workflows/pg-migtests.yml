@@ -183,5 +183,3 @@ jobs:
       
       - name: "TEST: pg-case-sensitivity-reserved-words-offline"
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
-
-      
