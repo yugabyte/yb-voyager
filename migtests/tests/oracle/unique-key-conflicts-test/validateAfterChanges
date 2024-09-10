@@ -91,7 +91,7 @@ def migration_completed_checks_fb():
     yb.run_checks(migration_completed_checks, db_type="source")
 
 def migration_completed_checks(tgt):
-    print(f"Running validation checks")
+    print("Running validation checks")
     
     # Validation to check for matching row counts
     got_row_count = tgt.row_count_of_all_tables()
@@ -104,7 +104,6 @@ def migration_completed_checks(tgt):
         print(f"Table: {table_name}")
         for column, expected_values in column_final_state.items():
             actual_values = tgt.get_unique_values(table_name, column)
-            # Perform the validation check inside the caller
             assert sorted(actual_values) == sorted(expected_values), (
                 f"Unique values mismatch in {column} of {table_name}: "
                 f"Expected {expected_values}, Got {actual_values}"
