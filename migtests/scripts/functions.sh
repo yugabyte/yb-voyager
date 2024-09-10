@@ -954,7 +954,7 @@ compare_and_validate_reports() {
     if [ -f "${html_file}" ] && [ -f "${json_file}" ]; then
         echo "Assessment reports created successfully."
         echo "Comparing Report contents"
-        compare_assessment_reports "${expected_file}" "${json_file}"
+        compare_json_reports "${expected_file}" "${json_file}"
     else
         echo "Error: Assessment reports were not created successfully."
         cat_file "${log_file}"
