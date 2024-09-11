@@ -231,6 +231,7 @@ const (
 	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
 	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
 	VIEW_CHECK_OPTION_ISSUE              = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
+	ISSUE_INDEX_WITH_COMPLEX_DATATYPES   = `INDEX on column '%s' not yet supported`
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
@@ -526,6 +527,9 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		index_params:{index_elem:{expr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"data"}}  location:722}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1
 		location:728}  location:726}}  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:676  stmt_len:59
 	*/
+	if createIndexNode.IndexStmt.AccessMethod != "btree" {
+		return // Right now not reporting any other access method issues with such types.
+	}
 	_, ok := tableToColumnUnsupportedDataType[fullyQualifiedName]
 	if ok {
 		for _, param := range createIndexNode.IndexStmt.GetIndexParams() {
@@ -535,12 +539,12 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 					2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
 					3. expression index with  casting to unsupported types
 					4. normal index on column with UDTs
-					5. these type of indexes on different access method like gin etc.. [TODO to figure out those]
+					5. these type of indexes on different access method like gin etc.. [Not reporting the indexes on anyother access method than btree]
 			*/
 			colName := param.GetIndexElem().GetName()
 			typeName, ok := tableToColumnUnsupportedDataType[fullyQualifiedName][colName]
 			if ok {
-				reportCase(fpath, fmt.Sprintf("INDEX on column '%s' not yet supported", typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+				reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
 					"Refer to the docs link for the workaround", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName), sqlStmtInfo.formattedStmt,
 					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 				return
@@ -557,12 +561,12 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			}
 			if slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx0) || slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx1) {
 				reportTypeName := lo.Ternary(slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx0), castTypeNameOnIdx0, castTypeNameOnIdx1)
-				reportCase(fpath, fmt.Sprintf("INDEX on column '%s' not yet supported", reportTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+				reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, reportTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
 					"Refer to the docs link for the workaround", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName), sqlStmtInfo.formattedStmt,
 					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 				return
 			}
-			//TODO #4 #5.
+			//TODO #4.
 		}
 	}
 }

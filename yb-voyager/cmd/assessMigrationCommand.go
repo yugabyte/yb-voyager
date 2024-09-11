@@ -821,6 +821,12 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
 	addUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on jsonb types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "jsonb"), schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on tsvector types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsvector"), schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on tsquery types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsquery"), schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on citext types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "citext"), schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on inet types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "inet"), schemaAnalysisReport, &unsupportedFeatures, false, "")
+
 	return unsupportedFeatures, nil
 }
 
@@ -924,7 +930,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
-		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information 
+		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 		//of these types there are other columns available for these information so we just do string match of types with our list
 		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
@@ -1068,7 +1074,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("execute template for assessment report...")
 	if source.DBType == POSTGRESQL {
 		// marking this as empty to not display this in html report for PG
-		assessmentReport.SchemaSummary.SchemaNames = []string{} 
+		assessmentReport.SchemaSummary.SchemaNames = []string{}
 	}
 	err = tmpl.Execute(file, assessmentReport)
 	if err != nil {
