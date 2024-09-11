@@ -19,17 +19,17 @@ def main():
 
 # Define expected row count for tables
 EXPECTED_ROW_COUNT = {
-    'single_unique_index': 5,
-    'multi_unique_index': 5,
-    'different_columns_unique_constraint_and_index': 5,
-    'subset_columns_unique_constraint_and_index': 5,
-    'single_unique_constraint': 5,
-    'multi_unique_constraint': 5
+    'single_unique_constr': 5,
+    'multi_unique_constr': 5,
+    'single_unique_idx': 5,
+    'multi_unique_idx': 5,
+    'diff_columns_constr_idx': 5,
+    'subset_columns_constr_idx': 5
 }
 
 # Define expected final varchar state for all unique constraint/index columns
 EXPECTED_FINAL_STATE_VARCHAR = {
-    'single_unique_constraint': {
+    'single_unique_constr': {
         'email': [
             'user2@example.com', 
             'updated_user4@example.com', 
@@ -38,11 +38,11 @@ EXPECTED_FINAL_STATE_VARCHAR = {
             'user5@example.com'
         ]
     },
-    'multi_unique_constraint': {
+    'multi_unique_constr': {
         'first_name': ['John', 'Tom', 'Bob', 'Updated_Alice', 'Alice'],
         'last_name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Clark']
     },
-    'single_unique_index': {
+    'single_unique_idx': {
         'ssn': [
             'SSN2', 
             'updated_SSN4', 
@@ -51,11 +51,11 @@ EXPECTED_FINAL_STATE_VARCHAR = {
             'SSN5'
         ]
     },
-    'multi_unique_index': {
+    'multi_unique_idx': {
         'first_name': ['Jane', 'Updated_Tom', 'Tom', 'Updated_Alice', 'Alice'],
         'last_name': ['Smith', 'Clark', 'Williams']
     },
-    'different_columns_unique_constraint_and_index': {
+    'diff_columns_constr_idx': {
         'email': [
             'user3@example.com', 
             'updated_user4@example.com', 
@@ -71,7 +71,7 @@ EXPECTED_FINAL_STATE_VARCHAR = {
             '555-555-5555'
         ]
     },
-    'subset_columns_unique_constraint_and_index': {
+    'subset_columns_constr_idx': {
         'first_name': ['John', 'Updated_Bob', 'Bob', 'Updated_Alice', 'Alice'],
         'last_name': ['Doe', 'Smith', 'Johnson', 'Williams'],
         'phone_number': ['123-456-7890', '123-456-7892', '123-456-7893']
