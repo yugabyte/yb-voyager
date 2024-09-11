@@ -478,7 +478,7 @@ func runAssessment() error {
 
 func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
-	reportsFilePattern := filepath.Join(assessmentDir, "reports", "assessmentReport.*")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", fmt.Sprintf("%s.*", ASSESSMENT_FILE_NAME))
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
@@ -924,7 +924,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
-		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information 
+		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 		//of these types there are other columns available for these information so we just do string match of types with our list
 		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
@@ -1028,7 +1028,7 @@ func postProcessingOfAssessmentReport() {
 }
 
 func generateAssessmentReportJson(reportDir string) error {
-	jsonReportFilePath := filepath.Join(reportDir, "assessmentReport.json")
+	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
@@ -1045,7 +1045,7 @@ func generateAssessmentReportJson(reportDir string) error {
 }
 
 func generateAssessmentReportHtml(reportDir string) error {
-	htmlReportFilePath := filepath.Join(reportDir, "assessmentReport.html")
+	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
 
 	file, err := os.Create(htmlReportFilePath)
@@ -1068,7 +1068,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("execute template for assessment report...")
 	if source.DBType == POSTGRESQL {
 		// marking this as empty to not display this in html report for PG
-		assessmentReport.SchemaSummary.SchemaNames = []string{} 
+		assessmentReport.SchemaSummary.SchemaNames = []string{}
 	}
 	err = tmpl.Execute(file, assessmentReport)
 	if err != nil {

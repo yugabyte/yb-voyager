@@ -74,11 +74,11 @@ main() {
 
 	echo "Verifying Bulk Assessment"
 
-	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.html" "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json" "${TEST_DIR}/expected_reports/expectedErrorBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
+	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulk_assessment_report.html" "${BULK_ASSESSMENT_DIR}/bulk_assessment_report.json" "${TEST_DIR}/expected_reports/expectedErrorBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
 
 	echo "Verifying 1st child assessment"
 
-	compare_and_validate_reports "${EXPORT_DIR1}/assessment/reports/assessmentReport.html" "${EXPORT_DIR1}/assessment/reports/assessmentReport.json" "${TEST_DIR}/expected_reports/expectedChild1AssessmentReport.json" "${EXPORT_DIR1}/logs/yb-voyager-assess-migration.log"
+	compare_and_validate_reports "${EXPORT_DIR1}/assessment/reports/migration_assessment_report.html" "${EXPORT_DIR1}/assessment/reports/migration_assessment_report.json" "${TEST_DIR}/expected_reports/expectedChild1AssessmentReport.json" "${EXPORT_DIR1}/logs/yb-voyager-assess-migration.log"
 	
 	step "Fix faulty parameter"
 	fix_config_file fleet-config-file.csv
@@ -90,17 +90,17 @@ main() {
 
 	echo "Verifying Bulk Assessment"
 
-	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.html" "${BULK_ASSESSMENT_DIR}/bulkAssessmentReport.json" "${TEST_DIR}/expected_reports/expectedCompleteBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
+	compare_and_validate_reports "${BULK_ASSESSMENT_DIR}/bulk_assessment_report.html" "${BULK_ASSESSMENT_DIR}/bulk_assessment_report.json" "${TEST_DIR}/expected_reports/expectedCompleteBulkAssessmentReport.json" "${BULK_ASSESSMENT_DIR}/logs/yb-voyager-assess-migration-bulk.log"
 
 	echo "Verifying 1st child assessment"
 
-	compare_and_validate_reports "${EXPORT_DIR1}/assessment/reports/assessmentReport.html" "${EXPORT_DIR1}/assessment/reports/assessmentReport.json" "${TEST_DIR}/expected_reports/expectedChild1AssessmentReport.json" "${EXPORT_DIR1}/logs/yb-voyager-assess-migration.log"
+	compare_and_validate_reports "${EXPORT_DIR1}/assessment/reports/migration_assessment_report.html" "${EXPORT_DIR1}/assessment/reports/migration_assessment_report.json" "${TEST_DIR}/expected_reports/expectedChild1AssessmentReport.json" "${EXPORT_DIR1}/logs/yb-voyager-assess-migration.log"
 
 	echo "Verifying 2nd child assessment"
 
-	compare_and_validate_reports "${EXPORT_DIR2}/assessment/reports/assessmentReport.html" "${EXPORT_DIR2}/assessment/reports/assessmentReport.json" "${TEST_DIR}/expected_reports/expectedChild2AssessmentReport.json" "${EXPORT_DIR2}/logs/yb-voyager-assess-migration.log"
+	compare_and_validate_reports "${EXPORT_DIR2}/assessment/reports/migration_assessment_report.html" "${EXPORT_DIR2}/assessment/reports/migration_assessment_report.json" "${TEST_DIR}/expected_reports/expectedChild2AssessmentReport.json" "${EXPORT_DIR2}/logs/yb-voyager-assess-migration.log"
 
-	move_tables "${EXPORT_DIR2}/assessment/reports/assessmentReport.json" 100
+	move_tables "${EXPORT_DIR2}/assessment/reports/migration_assessment_report.json" 100
 	export_schema export_dir "${EXPORT_DIR1}" source_db_schema ${SOURCE_DB_SCHEMA1}
 	export_schema export_dir "${EXPORT_DIR2}" source_db_schema ${SOURCE_DB_SCHEMA2}
 

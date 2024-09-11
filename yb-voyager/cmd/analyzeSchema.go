@@ -694,9 +694,9 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 	}
 	/*
 		e.g. ALTER TABLE example CLUSTER ON idx;
-		stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13} 
+		stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13}
 		cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
-	
+
 	*/
 	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_ClusterOn {
 		reportCase(fpath, ALTER_TABLE_CLUSTER_ON_ISSUE,
@@ -1443,7 +1443,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-	reportFile := "schema_analysis_report." + analyzeSchemaReportFormat
+	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, analyzeSchemaReportFormat)
 
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
@@ -1579,7 +1579,7 @@ func validateReportOutputFormat(validOutputFormats []string, format string) {
 }
 
 func schemaIsAnalyzed() bool {
-	path := filepath.Join(exportDir, "reports", "schema_analysis_report.*")
+	path := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
 	return utils.FileOrFolderExistsWithGlobPattern(path)
 }
 
