@@ -459,6 +459,66 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "tsvector_idx ON public.documents",
+            "ObjectName": "INDEX",
+            "Reason": "INDEX on column 'tsvector' not yet supported",
+            "SqlStatement": "CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "tsquery_idx ON public.ts_query_table",
+            "ObjectName": "INDEX",
+            "Reason": "INDEX on column 'tsquery' not yet supported",
+            "SqlStatement": "CREATE INDEX tsquery_idx ON public.ts_query_table (query);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "idx_citext ON public.citext_type",
+            "ObjectName": "INDEX",
+            "Reason": "INDEX on column 'citext' not yet supported",
+            "SqlStatement": "CREATE INDEX idx_citext ON public.citext_type USING btree (data);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "idx_inet ON public.inet_type",
+            "ObjectName": "INDEX",
+            "Reason": "INDEX on column 'inet' not yet supported",
+            "SqlStatement": "CREATE INDEX idx_inet ON public.inet_type USING btree (data);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "idx_json ON public.test_jsonb",
+            "ObjectName": "INDEX",
+            "Reason": "INDEX on column 'jsonb' not yet supported",
+            "SqlStatement": "CREATE INDEX idx_json ON public.test_jsonb (data);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "idx_json2 ON public.test_jsonb",
+            "ObjectName": "INDEX",
+            "Reason": "INDEX on column 'jsonb' not yet supported",
+            "SqlStatement": "CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb));",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "",
             "Reason": "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",

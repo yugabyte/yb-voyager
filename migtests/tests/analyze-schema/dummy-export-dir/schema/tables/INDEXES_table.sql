@@ -25,3 +25,21 @@ CREATE INDEX abc ON public.example USING btree (new_id) WITH (fillfactor='70');
 
 -- for the duplicate index name
 CREATE INDEX abc ON schema2.example USING btree (new_id) WITH (fillfactor='70'); 
+
+
+--normal indexes on column with types not supported
+CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
+
+CREATE INDEX tsquery_idx ON public.ts_query_table (query);
+
+CREATE INDEX idx_citext ON public.citext_type USING btree (data);
+
+CREATE INDEX idx_inet ON public.inet_type USING btree (data);
+
+CREATE INDEX idx_json ON public.test_jsonb (data);
+
+-- expression index casting to types not supported
+CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb)); 
+
+-- valid case
+create index idx_valid on public.test_jsonb ((data::text)); 

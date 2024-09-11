@@ -135,7 +135,7 @@ var (
 			...
 		}
 		schema2.table2 -> {
-			column1: citext | jsonb | inet | tsquery | tsvector
+			column3: citext | jsonb | inet | tsquery | tsvector
 			...
 		}
 	*/
@@ -484,8 +484,6 @@ func prepareTableToColumnTypeMap(createTableNode *pg_query.Node_CreateStmt) {
 			typeNameOnIdx0 := ""
 			typeNameOnIdx1 := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
-			fmt.Printf("names:%v\n", typeNames)
-			fmt.Printf("stmt:%v\n", createTableNode.CreateStmt)
 			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
 				typeNameOnIdx0 = typeNames[0].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
 				if len(typeNames) > 1 {
@@ -509,14 +507,15 @@ func prepareTableToColumnTypeMap(createTableNode *pg_query.Node_CreateStmt) {
 }
 
 func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
-	fmt.Printf("%v", tableToColumnUnsupportedDataType)
+
 	indexName := createIndexNode.IndexStmt.GetIdxname()
 	relName := createIndexNode.IndexStmt.GetRelation()
 	schemaName := relName.GetSchemaname()
 	tableName := relName.GetRelname()
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 	/*
-		e.g. 1. CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
+		e.g.
+		1. CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
 		stmt:{index_stmt:{idxname:"tsvector_idx"  relation:{schemaname:"public"  relname:"documents"  inh:true  relpersistence:"p"  location:510}  access_method:"btree"
 		index_params:{index_elem:{name:"title_tsvector"  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}  index_params:{index_elem:{name:"id"
 		ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:479  stmt_len:69
@@ -530,9 +529,12 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 	if ok {
 		for _, param := range createIndexNode.IndexStmt.GetIndexParams() {
 			/*
-				1. normal index with column
-				2. expression index with  casting to unsupported types
-				3. Another case for supported these type of indexes on different access method
+				cases to cover
+					1. normal index on column with these types
+					2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
+					3. expression index with  casting to unsupported types
+					4. normal index on column with UDTs
+					5. these type of indexes on different access method like gin etc.. [TODO to figure out those]
 			*/
 			colName := param.GetIndexElem().GetName()
 			typeName, ok := tableToColumnUnsupportedDataType[fullyQualifiedName][colName]
@@ -542,7 +544,24 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 				return
 			}
-			//TODO #2 #3.
+			//For the expression index case to report in case casting to unsupported types #3
+			castTypeNameOnIdx0 := ""
+			castTypeNameOnIdx1 := ""
+			typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
+			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
+				castTypeNameOnIdx0 = typeNames[0].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
+				if len(typeNames) > 1 {
+					castTypeNameOnIdx1 = typeNames[1].GetString_().Sval // 1th index as for these non-native types pg_catalog won't be present on first location
+				}
+			}
+			if slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx0) || slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx1) {
+				reportTypeName := lo.Ternary(slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx0), castTypeNameOnIdx0, castTypeNameOnIdx1)
+				reportCase(fpath, fmt.Sprintf("INDEX on column '%s' not yet supported", reportTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+					"Refer to the docs link for the workaround", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName), "INDEX", sqlStmtInfo.formattedStmt,
+					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+				return
+			}
+			//TODO #4 #5.
 		}
 	}
 }
