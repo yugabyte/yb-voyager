@@ -127,7 +127,8 @@ CREATE TABLE public.citext_type (
 CREATE TABLE public.documents (
     id integer NOT NULL,
     title_tsvector tsvector,
-    content_tsvector tsvector
+    content_tsvector tsvector,
+    list_of_sections text[]
 );
 
 CREATE TABLE public.ts_query_table (
@@ -137,6 +138,8 @@ CREATE TABLE public.ts_query_table (
 
 --normal indexes on column with types not supported
 CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
+
+CREATE INDEX idx_array ON public.documents (list_of_sections);
 
 CREATE INDEX tsquery_idx ON public.ts_query_table (query);
 

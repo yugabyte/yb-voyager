@@ -41,8 +41,8 @@
 			},
 			{
 				"ObjectType": "INDEX",
-				"TotalCount": 14,
-				"ObjectNames": "idx_box_data, idx_citext, idx_citext1, idx_citext2, idx_inet, idx_inet1, idx_json, idx_json2, idx_point_data, idx_valid, tsquery_idx, tsvector_idx, idx_box_data, idx_point_data"
+				"TotalCount": 15,
+				"ObjectNames": "idx_array, idx_box_data, idx_citext, idx_citext1, idx_citext2, idx_inet, idx_inet1, idx_json, idx_json2, idx_point_data, idx_valid, tsquery_idx, tsvector_idx, idx_box_data, idx_point_data"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -383,6 +383,16 @@
 				{
 					"ObjectName": "idx_inet ON public.inet_type",
 					"SqlStatement": "CREATE INDEX idx_inet ON public.inet_type USING btree (data);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+		},
+		{
+			"FeatureName": "Index on array types",
+			"Objects": [
+				{
+					"ObjectName": "idx_array ON public.documents",
+					"SqlStatement": "CREATE INDEX idx_array ON public.documents (list_of_sections);"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"

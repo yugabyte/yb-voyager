@@ -43,3 +43,5 @@ CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb));
 
 -- valid case
 create index idx_valid on public.test_jsonb ((data::text)); 
+
+create index idx_array on public.documents (list_of_sections);
