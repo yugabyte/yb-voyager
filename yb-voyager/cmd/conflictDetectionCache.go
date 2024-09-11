@@ -177,6 +177,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 	if isTargetDBExporter(incomingEvent.ExporterRole) {
 		conflict := false
 		if cachedEvent.Op == "d" {
+			// future: https://yugabyte.atlassian.net/browse/DB-9681
 			conflict = true
 		} else if cachedEvent.Op == "u" {
 			// if both events are dealing with the same unique key columns then we consider it as a conflict
