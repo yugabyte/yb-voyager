@@ -453,6 +453,7 @@ var unsupportedIndexDatatypes = []string{
 	"tsquery",
 	"jsonb",
 	"inet",
+	//TODO: Handle Array type
 }
 
 func prepareTableToColumnTypeMap(createTableNode *pg_query.Node_CreateStmt) {
@@ -540,7 +541,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			typeName, ok := tableToColumnUnsupportedDataType[fullyQualifiedName][colName]
 			if ok {
 				reportCase(fpath, fmt.Sprintf("INDEX on column '%s' not yet supported", typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
-					"Refer to the docs link for the workaround", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName), "INDEX", sqlStmtInfo.formattedStmt,
+					"Refer to the docs link for the workaround", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName), sqlStmtInfo.formattedStmt,
 					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 				return
 			}
@@ -557,7 +558,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			if slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx0) || slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx1) {
 				reportTypeName := lo.Ternary(slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx0), castTypeNameOnIdx0, castTypeNameOnIdx1)
 				reportCase(fpath, fmt.Sprintf("INDEX on column '%s' not yet supported", reportTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
-					"Refer to the docs link for the workaround", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName), "INDEX", sqlStmtInfo.formattedStmt,
+					"Refer to the docs link for the workaround", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName), sqlStmtInfo.formattedStmt,
 					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 				return
 			}
