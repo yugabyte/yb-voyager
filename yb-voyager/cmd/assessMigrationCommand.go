@@ -826,6 +826,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on tsquery types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsquery"), schemaAnalysisReport, &unsupportedFeatures, false, "")
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on citext types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "citext"), schemaAnalysisReport, &unsupportedFeatures, false, "")
 	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on inet types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "inet"), schemaAnalysisReport, &unsupportedFeatures, false, "")
+	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on array types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), schemaAnalysisReport, &unsupportedFeatures, false, "")
 
 	return unsupportedFeatures, nil
 }
