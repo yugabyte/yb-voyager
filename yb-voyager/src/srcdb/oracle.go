@@ -594,8 +594,14 @@ unique_indexes AS (
         ALL_IND_COLUMNS indCols
     JOIN
         ALL_INDEXES ind ON ind.INDEX_NAME = indCols.INDEX_NAME
+		AND ind.TABLE_OWNER = indCols.TABLE_OWNER
+	LEFT JOIN
+		ALL_CONSTRAINTS cons ON cons.INDEX_NAME = ind.INDEX_NAME
+		AND cons.OWNER = indCols.TABLE_OWNER
+		AND cons.CONSTRAINT_TYPE = 'P' -- Primary key constraint
     WHERE
         ind.UNIQUENESS = 'UNIQUE'
+		AND cons.CONSTRAINT_TYPE IS NULL -- Ensure it's not a primary key
         AND ind.TABLE_OWNER = '%s'
         AND indCols.TABLE_NAME IN ('%s')
 )
