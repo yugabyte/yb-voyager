@@ -208,14 +208,6 @@ class PostgresDB:
 		cur.execute(f"SELECT count(routine_name) FROM  information_schema.routines WHERE  routine_type = 'FUNCTION' AND routine_schema = '{schema_name}' AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS});")
 		return cur.fetchone()[0]
 
-	def get_unique_values(self, schema_name, table_name, column_name):
-		query = f'SELECT DISTINCT "{column_name}" FROM "{schema_name}"."{table_name}";'
-		cur = self.conn.cursor()
-		cur.execute(query)
-		results = cur.fetchall()
-		# Return the list of distinct values for the single column
-		return [str(row[0]) for row in results]
-
 	def execute_query(self, query) -> Any:
 		cur=self.conn.cursor()
 		cur.execute(f"{query}")

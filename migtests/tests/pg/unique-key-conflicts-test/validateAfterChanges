@@ -128,7 +128,7 @@ def migration_completed_checks(tgt):
         for table_name, column_final_state in final_varchar_state.items():
             print(f"Schema: {schema_name}, Table: {table_name}")
             for column, expected_values in column_final_state.items():
-                actual_values = tgt.get_unique_values(schema_name, table_name, column)
+                actual_values = tgt.get_distinct_values__of_column_of_table(table_name, column, schema_name)
                 assert sorted(actual_values) == sorted(expected_values), (
                     f"Unique values mismatch in {column} of {table_name}: "
                     f"Expected {expected_values}, Got {actual_values}"

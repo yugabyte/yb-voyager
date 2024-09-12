@@ -766,8 +766,10 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
+// query retrieves all unique columns in the specified tables and schemas, handling both unique constraints and unique indexes, while excluding primary key columns.
 const ybQueryTmplForUniqCols = `
 WITH unique_constraints AS (
+	-- Retrieve columns with unique constraints
     SELECT
         tc.table_schema,
         tc.table_name,
@@ -785,18 +787,23 @@ WITH unique_constraints AS (
         AND tc.table_name = ANY('{%s}')
 ),
 unique_indexes AS (
+	-- Retrieve columns with unique indexes (excluding primary keys)
     SELECT
         n.nspname AS table_schema,
         t.relname AS table_name,
         a.attname AS column_name
     FROM
         pg_index ix
+	-- Join to get table and schema information from the index
     JOIN
         pg_class t ON t.oid = ix.indrelid
     JOIN
         pg_namespace n ON n.oid = t.relnamespace
+	-- Join to get column information
     JOIN
-        pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+        pg_attribute a ON a.attrelid = t.oid 
+		AND a.attnum = ANY(ix.indkey)  -- Match indexed columns
+	 -- Left join to ensure we exclude primary keys by checking associated constraints
     LEFT JOIN
         pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
     WHERE
