@@ -8,6 +8,10 @@ CREATE INDEX idx_name2 ON table_name USING rtree (col1);
 --gin index
 CREATE INDEX idx_name3 ON schema_name.table_name USING gin (col1,col2,col3);
 
+--valid case
+CREATE INDEX idx_fileinfo_name_splitted ON public.fileinfo USING gin (to_tsvector('english'::regconfig, translate((name)::text, '.,-'::text, ' '::text)));
+
+
 --dropping multiple objects
 DROP INDEX idx1,idx2,idx3;
 
