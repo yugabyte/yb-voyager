@@ -131,11 +131,11 @@ var (
 	/*
 		this will contain the information in this format:
 		public.table1 -> {
-			column1: citext | jsonb | inet | tsquery | tsvector
+			column1: citext | jsonb | inet | tsquery | tsvector | array
 			...
 		}
 		schema2.table2 -> {
-			column3: citext | jsonb | inet | tsquery | tsvector
+			column3: citext | jsonb | inet | tsquery | tsvector | array
 			...
 		}
 	*/
@@ -497,7 +497,7 @@ func prepareTableToColumnTypeMap(createTableNode *pg_query.Node_CreateStmt) {
 			}
 			colName := column.GetColumnDef().GetColname()
 			if len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0 {
-				//For Array types and storign the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
+				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
 				_, ok := tableToColumnUnsupportedDataType[fullyQualifiedName]
 				if !ok {
 					tableToColumnUnsupportedDataType[fullyQualifiedName] = make(map[string]string)
@@ -549,8 +549,8 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 					1. normal index on column with these types
 					2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
 					3. expression index with  casting to unsupported types
-					4. normal index on column with UDTs
-					5. these type of indexes on different access method like gin etc.. [Not reporting the indexes on anyother access method than btree]
+					4. normal index on column with UDTs [TODO]
+					5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 			*/
 			colName := param.GetIndexElem().GetName()
 			typeName, ok := tableToColumnUnsupportedDataType[fullyQualifiedName][colName]
@@ -572,6 +572,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				}
 			}
 			if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
+				//In case casting is happening for an array type 
 				summaryMap["INDEX"].invalidCount[displayObjName] = true
 				reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/9698",
 					"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
