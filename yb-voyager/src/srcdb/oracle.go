@@ -572,25 +572,53 @@ func (ora *Oracle) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
+var oraQueryTmplForUniqCols = `
+WITH unique_constraints AS (
+    SELECT
+        consCols.TABLE_NAME,
+        consCols.COLUMN_NAME
+    FROM
+        ALL_CONS_COLUMNS consCols
+    JOIN
+        ALL_CONSTRAINTS cons ON cons.CONSTRAINT_NAME = consCols.CONSTRAINT_NAME
+    WHERE
+        cons.CONSTRAINT_TYPE = 'U'
+        AND cons.OWNER = '%s'
+        AND consCols.TABLE_NAME IN ('%s')
+),
+unique_indexes AS (
+    SELECT
+        indCols.TABLE_NAME,
+        indCols.COLUMN_NAME
+    FROM
+        ALL_IND_COLUMNS indCols
+    JOIN
+        ALL_INDEXES ind ON ind.INDEX_NAME = indCols.INDEX_NAME
+		AND ind.TABLE_OWNER = indCols.TABLE_OWNER
+	LEFT JOIN
+		ALL_CONSTRAINTS cons ON cons.INDEX_NAME = ind.INDEX_NAME
+		AND cons.OWNER = indCols.TABLE_OWNER
+		AND cons.CONSTRAINT_TYPE = 'P' -- Primary key constraint
+    WHERE
+        ind.UNIQUENESS = 'UNIQUE'
+		AND cons.CONSTRAINT_TYPE IS NULL -- Ensure it's not a primary key
+        AND ind.TABLE_OWNER = '%s'
+        AND indCols.TABLE_NAME IN ('%s')
+)
+SELECT * FROM unique_constraints
+UNION
+SELECT * FROM unique_indexes
+`
+
 func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
 	result := make(map[string][]string)
-	queryTemplate := `
-		SELECT TABLE_NAME, COLUMN_NAME
-		FROM ALL_CONS_COLUMNS
-		WHERE CONSTRAINT_NAME IN (
-			SELECT CONSTRAINT_NAME
-			FROM ALL_CONSTRAINTS
-			WHERE CONSTRAINT_TYPE = 'U'
-			AND OWNER = '%s'
-			AND TABLE_NAME IN ('%s')
-		)`
-
 	var queryTableList []string
 	for _, table := range tableList {
 		_, tname := table.ForCatalogQuery()
 		queryTableList = append(queryTableList, tname)
 	}
-	query := fmt.Sprintf(queryTemplate, ora.source.Schema, strings.Join(queryTableList, "','"))
+	query := fmt.Sprintf(oraQueryTmplForUniqCols, ora.source.Schema, strings.Join(queryTableList, "','"),
+		ora.source.Schema, strings.Join(queryTableList, "','"))
 	log.Infof("query to get unique key columns for tables: %q", query)
 	rows, err := ora.db.Query(query)
 	if err != nil {
