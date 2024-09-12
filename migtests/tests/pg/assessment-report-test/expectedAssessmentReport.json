@@ -334,64 +334,34 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported"
 		},
 		{
-			"FeatureName": "Index on jsonb types",
+			"FeatureName": "Index on complex datatypes",
 			"Objects": [
 				{
-					"ObjectName": "idx_json ON public.test_jsonb",
+					"ObjectName": "JSONB: idx_json ON public.test_jsonb",
 					"SqlStatement": "CREATE INDEX idx_json ON public.test_jsonb USING btree (data);"
 				},
 				{
-					"ObjectName": "idx_json2 ON public.test_jsonb",
+					"ObjectName": "JSONB: idx_json2 ON public.test_jsonb",
 					"SqlStatement": "CREATE INDEX idx_json2 ON public.test_jsonb USING btree (((data2)::jsonb));"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
-		},
-		{
-			"FeatureName": "Index on tsvector types",
-			"Objects": [
+				},
 				{
-					"ObjectName": "tsvector_idx ON public.documents",
+					"ObjectName": "TSVECTOR: tsvector_idx ON public.documents",
 					"SqlStatement": "CREATE INDEX tsvector_idx ON public.documents USING btree (title_tsvector, id);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
-		},
-		{
-			"FeatureName": "Index on tsquery types",
-			"Objects": [
+				},
 				{
-					"ObjectName": "tsquery_idx ON public.ts_query_table",
+					"ObjectName": "TSQUERY: tsquery_idx ON public.ts_query_table",
 					"SqlStatement": "CREATE INDEX tsquery_idx ON public.ts_query_table USING btree (query);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
-		},
-		{
-			"FeatureName": "Index on citext types",
-			"Objects": [
+				},
 				{
-					"ObjectName": "idx_citext ON public.citext_type",
+					"ObjectName": "CITEXT: idx_citext ON public.citext_type",
 					"SqlStatement": "CREATE INDEX idx_citext ON public.citext_type USING btree (data);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
-		},
-		{
-			"FeatureName": "Index on inet types",
-			"Objects": [
+				},
 				{
-					"ObjectName": "idx_inet ON public.inet_type",
+					"ObjectName": "INET: idx_inet ON public.inet_type",
 					"SqlStatement": "CREATE INDEX idx_inet ON public.inet_type USING btree (data);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
-		},
-		{
-			"FeatureName": "Index on array types",
-			"Objects": [
+				},
 				{
-					"ObjectName": "idx_array ON public.documents",
+					"ObjectName": "ARRAY: idx_array ON public.documents",
 					"SqlStatement": "CREATE INDEX idx_array ON public.documents USING btree (list_of_sections);"
 				}
 			],

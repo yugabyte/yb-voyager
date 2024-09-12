@@ -785,7 +785,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	return nil
 }
 
-func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature, displayDDLInHTML bool, description string) {
+func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, displayDDLInHTML bool, description string) UnsupportedFeature {
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
 	link := "" // for oracle we shouldn't display any line for links
@@ -801,40 +801,61 @@ func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 			objects = append(objects, objectInfo)
 		}
 	}
-	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description})
+	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description}
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Tables with stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin indexes on multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Setting attribute=value on column", ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Disabling rule on table", ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Clustering table on index", ALTER_TABLE_CLUSTER_ON_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Storage parameters in DDLs", STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on jsonb types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "jsonb"), schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on tsvector types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsvector"), schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on tsquery types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsquery"), schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on citext types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "citext"), schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on inet types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "inet"), schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Index on array types", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), schemaAnalysisReport, &unsupportedFeatures, false, "")
-
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Gin indexes on multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Setting attribute=value on column", ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Disabling rule on table", ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Storage parameters in DDLs", STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport))
 	return unsupportedFeatures, nil
+}
+
+func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.SchemaReport) UnsupportedFeature {
+	jsonbIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("JSONB", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "jsonb"), schemaAnalysisReport, false, "")
+	tsvectorIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("TSVECTOR", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsvector"), schemaAnalysisReport, false, "")
+	tsqueryIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("TSQUERY", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsquery"), schemaAnalysisReport, false, "")
+	citextIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("CITEXT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "citext"), schemaAnalysisReport, false, "")
+	inetIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("INET", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "inet"), schemaAnalysisReport, false, "")
+	arrayIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("ARRAY", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), schemaAnalysisReport, false, "")
+	indexesOnComplexTypesFeature := UnsupportedFeature{
+		FeatureName: "Index on complex datatypes",
+		DisplayDDL:  false,
+		DocsLink:    jsonbIndexes.DocsLink,
+	}
+	//append objects from each of these to indexesOnComplexTypesFeature
+	appendObjects := func(feature UnsupportedFeature) {
+		for _, object := range feature.Objects {
+			formattedObject := object
+			formattedObject.ObjectName = fmt.Sprintf("%s: %s", feature.FeatureName, object.ObjectName)
+			indexesOnComplexTypesFeature.Objects = append(indexesOnComplexTypesFeature.Objects, formattedObject)
+		}
+	}
+	appendObjects(jsonbIndexes)
+	appendObjects(tsvectorIndexes)
+	appendObjects(tsqueryIndexes)
+	appendObjects(citextIndexes)
+	appendObjects(inetIndexes)
+	appendObjects(arrayIndexes)
+
+	return indexesOnComplexTypesFeature
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
 	return unsupportedFeatures, nil
 }
 
@@ -989,12 +1010,12 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
 		migrationCaveats := make([]UnsupportedFeature, 0)
-		addUnsupportedFeaturesFromSchemaAnalysisReport("Alter partitioned tables to add Primary Key", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-			schemaAnalysisReport, &migrationCaveats, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE)
-		addUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON,
-			schemaAnalysisReport, &migrationCaveats, false, DESCRIPTION_FOREIGN_TABLES)
-		addUnsupportedFeaturesFromSchemaAnalysisReport("Policies", POLICY_ROLE_ISSUE,
-			schemaAnalysisReport, &migrationCaveats, false, DESCRIPTION_POLICY_ROLE_ISSUE)
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Alter partitioned tables to add Primary Key", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+			schemaAnalysisReport, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE))
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON,
+			schemaAnalysisReport, false, DESCRIPTION_FOREIGN_TABLES))
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Policies", POLICY_ROLE_ISSUE,
+			schemaAnalysisReport, false, DESCRIPTION_POLICY_ROLE_ISSUE))
 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
