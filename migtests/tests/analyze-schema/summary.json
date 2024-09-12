@@ -25,9 +25,9 @@
                 "ObjectNames": "test_xml_type, test_xid_type, public.range_columns_partition_test_copy, anydata_test, uritype_test, public.foreign_def_test, test_4, enum_example.bugs, table_abc, anydataset_test, unique_def_test1, test_2, table_1, public.range_columns_partition_test, table_xyz, public.users, test_3, test_5, test_7, foreign_def_test2, unique_def_test, sales_data, table_test, test_interval, test_non_pk_multi_column_list, test_9, test_8, order_details, public.employees4, anytype_test, public.meeting, test_table_in_type_file, sales, test_1, \"Test\", foreign_def_test1, salaries2, test_6, public.pr"            },
             {
                 "ObjectType": "INDEX",
-                "TotalCount": 6,
-                "InvalidCount": 5,
-                "ObjectNames": "film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3, abc",
+                "TotalCount": 7,
+                "InvalidCount": 6,
+                "ObjectNames": "film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3, abc, abc",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
             {
@@ -49,6 +49,12 @@
                 "ObjectNames": "transfer_insert, emp_trig, test"
             },
             {
+                "ObjectType": "MVIEW",
+                "TotalCount": 1,
+                "InvalidCount": 1,
+                "ObjectNames": "test"
+            },
+            {
                 "ObjectType": "CONVERSION",
                 "TotalCount": 1,
                 "InvalidCount": 1,
@@ -59,6 +65,12 @@
                 "TotalCount": 1,
                 "InvalidCount": 1,
                 "ObjectNames": "tbl_p"
+            },
+            {
+                "ObjectType": "POLICY",
+                "TotalCount": 6,
+                "InvalidCount": 2, 
+                "ObjectNames": "r1_2, p3_2, p3_2, P, p2, p1"
             }
         ]
 }

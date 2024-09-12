@@ -68,7 +68,6 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 
 		if isBulkAssessmentCommand(cmd) {
-			// TODO: implement call-home for bulkAssessment command
 			validateBulkAssessmentDirFlag()
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
@@ -77,11 +76,14 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			InitLogging(bulkAssessmentDir, cmd.Use == "status", GetCommandID(cmd))
 			startTime = time.Now()
+			log.Infof("Start time: %s\n", startTime)
 
+			metaDB = initMetaDB(bulkAssessmentDir)
 			if perfProfile {
 				go startPprofServer()
 			}
-			setControlPlane()
+			// no info/payload is collected/supported for assess-migration-bulk
+			setControlPlane("")
 		} else {
 			validateExportDirFlag()
 			schemaDir = filepath.Join(exportDir, "schema")
@@ -92,20 +94,20 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
 			startTime = time.Now()
+			log.Infof("Start time: %s\n", startTime)
 
 			if callhome.SendDiagnostics {
 				createCLIArgsString(cmd)
 				go sendCallhomePayloadAtIntervals()
 			}
-
-			log.Infof("Start time: %s\n", startTime)
 			if metaDBIsCreated(exportDir) {
 				metaDB = initMetaDB(exportDir)
 			}
+
 			if perfProfile {
 				go startPprofServer()
 			}
-			setControlPlane()
+			setControlPlane(getControlPlaneType())
 		}
 	},
 
@@ -222,7 +224,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 		"assume answer as yes for all questions during migration (default false)")
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
-		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.")
+		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
 }
 
 func registerExportDirFlag(cmd *cobra.Command) {
@@ -299,14 +301,12 @@ func metaDBIsCreated(exportDir string) bool {
 	return utils.FileOrFolderExists(filepath.Join(exportDir, "metainfo", "meta.db"))
 }
 
-func setControlPlane() {
-	cpType := os.Getenv("CONTROL_PLANE_TYPE")
-
+func setControlPlane(cpType string) {
 	switch cpType {
 	case "":
 		log.Infof("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
 		controlPlane = noopcp.New()
-	case "yugabyted":
+	case YUGABYTED:
 		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
 		if ybdConnString == "" {
 			utils.ErrExit("'YUGABYTED_DB_CONN_STRING' environment variable needs to be set if 'CONTROL_PLANE_TYPE' is 'yugabyted'.")
@@ -318,4 +318,8 @@ func setControlPlane() {
 			utils.ErrExit("ERROR: Failed to initialize the target DB for visualization. %s", err)
 		}
 	}
+}
+
+func getControlPlaneType() string {
+	return os.Getenv("CONTROL_PLANE_TYPE")
 }

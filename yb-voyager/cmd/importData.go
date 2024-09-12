@@ -128,7 +128,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 
-	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, bool(startClean))
+	// we don't want to re-register in case import data to source/source-replica
+	reregisterYBNames := importerRole == TARGET_DB_IMPORTER_ROLE && bool(startClean)
+	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, reregisterYBNames)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
@@ -431,7 +433,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
 
 	targetDBVersion := tdb.GetVersion()
-
 	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
 
 	err = tdb.CreateVoyagerSchema()
@@ -529,6 +530,8 @@ func importData(importFileTasks []*ImportFileTask) {
 		if importerRole != SOURCE_DB_IMPORTER_ROLE {
 			displayImportedRowCountSnapshot(state, importFileTasks)
 		}
+
+		waitForDebeziumStartIfRequired()
 		importPhase = dbzm.MODE_STREAMING
 		color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
@@ -595,6 +598,40 @@ func importData(importFileTasks []*ImportFileTask) {
 		packAndSendImportDataToSourcePayload(COMPLETE)
 	}
 
+}
+
+func waitForDebeziumStartIfRequired() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr.SnapshotMechanism == "debezium" {
+		// we already wait for snapshot to have completed by debezium
+		// so no need to wait again here.
+		return nil
+	}
+
+	// in case pg_dump was used to export snapshot data,
+	// we need to wait for export-data to have started debezium in cdc phase
+	// in order to avoid any race conditions.
+	fmt.Println("Initializing streaming phase...")
+	log.Infof("waiting for export-data to have started debezium in cdc phase")
+	for {
+		msr, err = metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("failed to get migration status record: %w", err)
+		}
+		if lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE}, importerRole) &&
+			msr.ExportDataSourceDebeziumStarted {
+			break
+		}
+		if importerRole == SOURCE_DB_IMPORTER_ROLE && msr.ExportDataTargetDebeziumStarted {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	return nil
 }
 
 func packAndSendImportDataPayload(status string) {
@@ -1246,18 +1283,14 @@ func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {
 }
 
 func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
-
 	result := cp.SnapshotImportCompletedEvent{}
 	initBaseTargetEvent(&result.BaseEvent, "IMPORT DATA")
 	return result
 }
 
 func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
-
 	result := []*cp.UpdateImportedRowCountEvent{}
-
 	for _, task := range tasks {
-
 		var schemaName, tableName string
 		schemaName, tableName = cp.SplitTableNameForPG(task.TableNameTup.ForKey())
 		tableMetrics := cp.UpdateImportedRowCountEvent{

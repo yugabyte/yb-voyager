@@ -114,17 +114,17 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 
 	config := &dbzm.Config{
-		MigrationUUID:                    migrationUUID,
-		RunId:                            runId,
-		SourceDBType:                     source.DBType,
-		ExporterRole:                     exporterRole,
-		ExportDir:                        absExportDir,
-		MetadataDBPath:                   metadb.GetMetaDBPath(absExportDir),
-		UseLogicalReplicationYBConnector: msr.UseLogicalReplicationYBConnector,
-		Host:                             source.Host,
-		Port:                             source.Port,
-		Username:                         source.User,
-		Password:                         source.Password,
+		MigrationUUID:      migrationUUID,
+		RunId:              runId,
+		SourceDBType:       source.DBType,
+		ExporterRole:       exporterRole,
+		ExportDir:          absExportDir,
+		MetadataDBPath:     metadb.GetMetaDBPath(absExportDir),
+		UseYBgRPCConnector: msr.UseYBgRPCConnector,
+		Host:               source.Host,
+		Port:               source.Port,
+		Username:           source.User,
+		Password:           source.Password,
 
 		DatabaseName:          source.DBName,
 		SchemaNames:           source.Schema,
@@ -165,8 +165,8 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
 	} else if isTargetDBExporter(exporterRole) {
-		if msr.UseLogicalReplicationYBConnector {
-			err = createYBReplicationSlotAndPublication(dbzmTableList)
+		if !msr.UseYBgRPCConnector {
+			err = createYBReplicationSlotAndPublication(tableList, leafPartitions)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to create yb replication slot and publication: %w", err)
 			}
@@ -359,6 +359,17 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		return fmt.Errorf("failed to start debezium: %w", err)
 	}
 
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+			record.ExportDataSourceDebeziumStarted = true
+		} else {
+			record.ExportDataTargetDebeziumStarted = true
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
+
 	var status *dbzm.ExportStatus
 	snapshotComplete := false
 	for debezium.IsRunning() {
@@ -476,7 +487,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				// The momemnt a replication slot is created, we are guaranteed that we will receive events.
 				// In the case of the old connector, there is no such explicit operation to 'start' CDC.
 				// It used to happen implicitly, which is why we have to wait for a log message.
-				if !msr.UseLogicalReplicationYBConnector {
+				if msr.UseYBgRPCConnector {
 					utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
 					logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
 					pollingMessage := "Beginning to poll the changes from the server"
@@ -542,7 +553,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
-func createYBReplicationSlotAndPublication(finalTableList []string) error {
+func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
 	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
 	if !ok {
 		return errors.New("unable to cast source DB to YugabyteDB")
@@ -558,6 +569,16 @@ func createYBReplicationSlotAndPublication(finalTableList []string) error {
 			log.Errorf("close replication connection: %v", err)
 		}
 	}()
+	var finalTableList []string
+	for _, table := range tableList {
+		_, ok := leafPartitions.Get(table)
+		if ok {
+			// tablelist should not have root and leaf both so not adding root table in table list
+			continue
+		}
+		// for case sensitive tables in yugabytedb, we need to use the quoted table name
+		finalTableList = append(finalTableList, table.ForUserQuery())
+	}
 
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
 	err = ybDB.CreatePublication(replicationConn, publicationName, finalTableList)
@@ -571,7 +592,7 @@ func createYBReplicationSlotAndPublication(finalTableList []string) error {
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
 	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source YugabyteDB database. "+
-		"Be sure to run 'end migration' command after completing/aborting this migration to drop the replication slot. "+
+		"Be sure to run either 'initiate cutover to source', 'initiate cutover to source-replica' or 'end migration' command after completing/aborting this migration to drop the replication slot. "+
 		"This is important to avoid filling up disk space.", replicationSlotName))
 
 	// save replication slot, publication name in MSR

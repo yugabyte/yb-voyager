@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_EXTENSION_SET = set([("hstore",), ("pg_stat_statements",), ("plpgsql",), ("postgres_fdw",)])
+
+EXPECTED_COLLATION_SET = {"bad_us", "german_phonebook", "us"}
+
+EXPECTED_AGGREGATE_SET = {"my_avg", "my_sum"}
+
+EXPECTED_COUNTS = {
+	"agg_ex": {
+		"table_count": 1,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 1,
+		"mview_count": 0,		
+		"functions_procedures_count": 5,
+		"triggers_count": 0,
+	},
+	"am_examples": {
+		"table_count": 10,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 0,
+		"mview_count": 2,		
+		"functions_procedures_count": 0,
+		"triggers_count": 0,
+	},
+	"base_type_examples": {
+		"table_count": 1,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 0,
+		"mview_count": 0,		
+		"functions_procedures_count": 11,
+		"triggers_count": 0,
+	},
+	"collation_ex": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 0,
+		"mview_count": 0,		
+		"functions_procedures_count": 0,
+		"triggers_count": 0,
+	},
+	"composite_type_examples": {
+		"table_count": 260,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 1,
+		"mview_count": 0,		
+		"functions_procedures_count": 2,
+		"triggers_count": 4,
+	},
+	"conversion_example": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 0,
+		"mview_count": 0,		
+		"functions_procedures_count": 0,
+		"triggers_count": 0,
+	},
+	"create_cast": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 0,
+		"mview_count": 0,		
+		"functions_procedures_count": 1,
+		"triggers_count": 0,
+	},
+	"domain_examples": {
+		"table_count": 2,
+		"index_count": 1,
+		"sequence_count": 1,
+		"view_count": 0,
+		"mview_count": 0,		
+		"functions_procedures_count": 2,
+		"triggers_count": 0,
+	},
+	"enum_example": {
+		"table_count": 3,
+		"index_count": 0,
+		"sequence_count": 1,
+		"view_count": 1,
+		"mview_count": 0,
+		"functions_procedures_count": 3,
+		"triggers_count": 4,
+	},
+	"extension_example": {
+		"table_count": 1,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 1,
+		"mview_count": 0,
+		"functions_procedures_count": 58,
+		"triggers_count": 0,
+	},
+	"fn_examples": {
+		"table_count": 1,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 1,
+		"mview_count": 0,		
+		"functions_procedures_count": 9,
+		"triggers_count": 0,
+	},
+	"foreign_db_example": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 0,
+		"mview_count": 0,		
+		"functions_procedures_count": 4,
+		"triggers_count": 2,
+	},
+	"idx_ex": {
+		"table_count": 1,
+		"index_count": 8,
+		"sequence_count": 0,
+		"view_count": 0,
+		"mview_count": 0,		
+		"functions_procedures_count": 0,
+		"triggers_count": 0,
+	},
+	"ordinary_tables": {
+		"table_count": 9,
+		"index_count": 3,
+		"sequence_count": 3,
+		"view_count": 0,
+		"mview_count": 0,		
+		"functions_procedures_count": 0,
+		"triggers_count": 0,
+	},
+	"public": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 1,
+		"mview_count": 0,		
+		"functions_procedures_count": 1,
+		"triggers_count": 0,
+	},
+	"range_type_example": {
+		"table_count": 1,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 1,
+		"mview_count": 0,		
+		"functions_procedures_count": 5,
+		"triggers_count": 0,
+	},
+	"regress_rls_schema": {
+		"table_count": 42,
+		"index_count": 9,
+		"sequence_count": 0,
+		"view_count": 12,
+		"mview_count": 0,		
+		"functions_procedures_count": 2,
+		"triggers_count": 0,
+	},
+	"trigger_test": {
+		"table_count": 2,
+		"index_count": 2,
+		"sequence_count": 0,
+		"view_count": 1,
+		"mview_count": 0,		
+		"functions_procedures_count": 3,
+		"triggers_count": 5,
+	},
+}
+
+def check_validations_per_schema(tgt, schema_name) -> None:
+
+	table_list = tgt.get_objects_of_type("TABLE", schema_name)
+	print("table_list:", table_list)
+	assert len(table_list) == EXPECTED_COUNTS[schema_name]["table_count"]
+
+	index_list = tgt.get_objects_of_type("INDEX", schema_name)
+	print("index_list:", index_list)
+	assert len(index_list) == EXPECTED_COUNTS[schema_name]["index_count"]
+
+	sequence_list = tgt.get_objects_of_type("SEQUENCE", schema_name)
+	print("sequence_list:", sequence_list)
+	assert len(sequence_list) == EXPECTED_COUNTS[schema_name]["sequence_count"]
+
+	view_list = tgt.get_objects_of_type("VIEW", schema_name)
+	print("view_list:", view_list)
+	assert len(view_list) == EXPECTED_COUNTS[schema_name]["view_count"]
+
+	mview_list = tgt.get_objects_of_type("MVIEW", schema_name)
+	print("mview_list:", mview_list)
+	assert len(mview_list) == EXPECTED_COUNTS[schema_name]["mview_count"]
+
+	fetched_triggers = tgt.fetch_all_triggers(schema_name)
+	print(f"triggers list: {fetched_triggers}")
+	assert len(fetched_triggers) == EXPECTED_COUNTS[schema_name]["triggers_count"]
+
+	fetched_procedures_functions = tgt.fetch_all_procedures(schema_name)
+	print(f"procedures/functions list: {fetched_procedures_functions}")
+	assert len(fetched_procedures_functions) == EXPECTED_COUNTS[schema_name]["functions_procedures_count"]
+
+
+def migration_completed_checks(tgt):
+
+	check_validations_per_schema(tgt, "public")
+	check_validations_per_schema(tgt, "am_examples")
+	check_validations_per_schema(tgt, "create_cast")
+	check_validations_per_schema(tgt, "base_type_examples")
+	check_validations_per_schema(tgt, "regress_rls_schema")
+	check_validations_per_schema(tgt, "conversion_example")
+	check_validations_per_schema(tgt, "enum_example")
+	check_validations_per_schema(tgt, "extension_example")
+	check_validations_per_schema(tgt, "fn_examples")
+	check_validations_per_schema(tgt, "foreign_db_example")
+	check_validations_per_schema(tgt, "ordinary_tables")
+	check_validations_per_schema(tgt, "collation_ex")
+	check_validations_per_schema(tgt, "composite_type_examples")
+	check_validations_per_schema(tgt, "idx_ex")
+	check_validations_per_schema(tgt, "range_type_example")
+	check_validations_per_schema(tgt, "trigger_test")
+	check_validations_per_schema(tgt, "agg_ex")
+	check_validations_per_schema(tgt, "domain_examples")
+
+	extension_list = tgt.fetch_all_pg_extension("public")
+	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {EXPECTED_EXTENSION_SET}")
+	assert extension_list == EXPECTED_EXTENSION_SET
+
+	collation_list = tgt.get_user_defined_collations()
+	print(f"collation_list: {collation_list}\n Expected List: {EXPECTED_COLLATION_SET}")
+	assert set(collation_list) == EXPECTED_COLLATION_SET
+
+	aggregate_list = tgt.get_user_defined_aggregates()
+	print(f"aggregate_list: {aggregate_list}\n Expected List: {EXPECTED_AGGREGATE_SET}")
+	assert set(aggregate_list) == EXPECTED_AGGREGATE_SET
+
+	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('us_postal_code','positive_number', 'myvarchardom','positive_number','positive_even_number','basic_comp_type', 'bug_severity', 'abc', 'bug_status', 'avg_state', 'int42', 'text_w_default', 'default_test_row', 'myvarchar', 'nested', 'bug_info', 'example_type', 'base_type', 'shell', 'enum_abc', 'float8_range');"
+	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
+	print(f"count returned - {cnt_type_domain}")
+	assert cnt_type_domain == 21
+
+
+if __name__ == "__main__":
+	main()

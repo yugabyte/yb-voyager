@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_EXTENSION_SET = set([("postgres_fdw",), ("pg_stat_statements",), ("plpgsql",)])
+
+EXPECTED_TRIGGER_LIST = [
+		"tgd","tgi","tgu","tgd","tgi","tgu"
+	]
+
+
+def migration_completed_checks(tgt):
+
+	extension_list = tgt.fetch_all_pg_extension("public")
+	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {EXPECTED_EXTENSION_SET}")
+	assert extension_list == EXPECTED_EXTENSION_SET
+
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 2
+
+	table_list = tgt.get_foreign_table_names("public")
+	print("foreign table_list:", table_list)
+	assert len(table_list) == 2
+
+	fetched_triggers = tgt.fetch_all_triggers("public")
+	print(f"fetched triggers list: {fetched_triggers}\n Expected triggers: {EXPECTED_TRIGGER_LIST}")
+	assert sorted(fetched_triggers) == sorted(EXPECTED_TRIGGER_LIST), "Fetched triggers do not match expected triggers"
+
+	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('mycomposit','myenum');"
+	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
+	print(f"count returned - {cnt_type_domain}")
+	assert cnt_type_domain == 2
+
+	fetched_procedures_functions = tgt.fetch_all_procedures("public")
+	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
+	assert len(fetched_procedures_functions) == 6
+
+	num_sequences = tgt.count_sequences("public")
+	print(f"actual number_sequences: {num_sequences}, expected num_sequences: 4")
+	assert num_sequences == 4
+
+
+if __name__ == "__main__":
+	main()

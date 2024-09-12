@@ -26,7 +26,7 @@ var cutoverToSourceCmd = &cobra.Command{
 	Long:  `Initiate cutover to source DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		err := InitiateCutover("source", false, false)
+		err := InitiateCutover("source", false, true)
 		if err != nil {
 			utils.ErrExit("failed to initiate fallback: %v", err)
 		}

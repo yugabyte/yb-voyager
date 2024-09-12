@@ -52,7 +52,7 @@ def new_source_db():
 
 def verify_colocation(tgt, source_db_type):
 	print("Verifying the colocation of the tables")
-	json_file = "export-dir/assessment/reports/assessmentReport.json"
+	json_file = "export-dir/assessment/reports/migration_assessment_report.json"
 
 	sharded_tables, colocated_tables = fetch_sharded_and_colocated_tables(json_file)
 
@@ -143,6 +143,12 @@ class PostgresDB:
 	def get_table_names(self, schema="public") -> List[str]:
 		cur = self.conn.cursor()
 		q = "SELECT table_name FROM information_schema.tables WHERE table_schema=%s AND table_type='BASE TABLE'"
+		cur.execute(q, (schema,))
+		return [table[0] for table in cur.fetchall()]
+		
+	def get_foreign_table_names(self, schema="public") -> List[str]:
+		cur = self.conn.cursor()
+		q = "SELECT table_name FROM information_schema.tables WHERE table_schema=%s AND table_type='FOREIGN'"
 		cur.execute(q, (schema,))
 		return [table[0] for table in cur.fetchall()]
 
@@ -240,7 +246,7 @@ class PostgresDB:
 
 	def fetch_all_procedures(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS}); ")
+		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}' AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS}); ")
 		return [procedure[0] for procedure in cur.fetchall()]
 
 	def fetch_partitions(self, table_name, schema_name) -> int:
@@ -315,3 +321,13 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT is_colocated FROM yb_table_properties('\"{schema_name}\".\"{table_name}\"'::regclass);")
 		return cur.fetchone()[0]
+	
+	def get_user_defined_collations(self) -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute("SELECT collname FROM pg_collation JOIN pg_namespace ON pg_collation.collnamespace = pg_namespace.oid WHERE nspname NOT IN ('pg_catalog', 'information_schema');")
+		return [collation[0] for collation in cur.fetchall()]
+
+	def get_user_defined_aggregates(self) -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute("SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid JOIN pg_aggregate a ON p.oid = a.aggfnoid WHERE n.nspname NOT IN ('pg_catalog', 'information_schema');")
+		return [aggregate[0] for aggregate in cur.fetchall()]

@@ -1,0 +1,3 @@
+export SOURCE_DB_TYPE="postgresql"
+export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"test_omnibus"}
+export SOURCE_DB_SCHEMA="agg_ex,am_examples,base_type_examples,collation_ex,composite_type_examples,conversion_example,create_cast,domain_examples,enum_example,extension_example,fn_examples,foreign_db_example,idx_ex,ordinary_tables,public,range_type_example,regress_rls_schema,trigger_test"

@@ -8,3 +8,12 @@ CREATE TABLE user_table (
     status VARCHAR(50) DEFAULT 'active'
 );
 
+CREATE TYPE decline_reason AS ENUM (
+    'duplicate_payment_method',
+    'server_failure'
+);
+
+CREATE TABLE test_enum (
+    id int PRIMARY KEY,
+    reason decline_reason
+);

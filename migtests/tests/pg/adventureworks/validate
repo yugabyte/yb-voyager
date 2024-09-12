@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_EXTENSION_SET = set([("tablefunc",), ("pg_stat_statements",), ("plpgsql",), ("uuid-ossp",)])
+
+EXPECTED_COUNTS = {
+	"humanresources": {
+		"table_count": 6,
+		"index_count": 6,
+		"sequence_count": 3,
+		"view_count": 6,
+		"mview_count": 0,
+	},
+	"hr": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 6,
+		"mview_count": 0,
+	},
+	"pe": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 13,
+		"mview_count": 0,
+	},
+	"person": {
+		"table_count": 13,
+		"index_count": 14,
+		"sequence_count": 7,
+		"view_count": 1,
+		"mview_count": 1,
+	},
+	"pr": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 25,
+		"mview_count": 0,
+	},
+	"production": {
+		"table_count": 25,
+		"index_count": 27,
+		"sequence_count": 13,
+		"view_count": 2,
+		"mview_count": 1,
+	},
+	"pu": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 5,
+		"mview_count": 0,
+	},
+	"public": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 0,
+		"mview_count": 0,
+	},
+	"purchasing": {
+		"table_count": 5,
+		"index_count": 5,
+		"sequence_count": 3,
+		"view_count": 2,
+		"mview_count": 0,
+	},
+	"sa": {
+		"table_count": 0,
+		"index_count": 0,
+		"sequence_count": 0,
+		"view_count": 19,
+		"mview_count": 0,
+	},
+	"sales": {
+		"table_count": 19,
+		"index_count": 19,
+		"sequence_count": 10,
+		"view_count": 8,
+		"mview_count": 0,
+	},
+}
+
+def check_validations_per_schema(tgt, schema_name) -> None:
+
+	table_list = tgt.get_table_names(schema_name)
+	print("table_list:", table_list)
+	assert len(table_list) == EXPECTED_COUNTS[schema_name]["table_count"]
+
+	index_list = tgt.get_objects_of_type("INDEX", schema_name)
+	print("index_list:", index_list)
+	assert len(index_list) == EXPECTED_COUNTS[schema_name]["index_count"]
+
+	sequence_list = tgt.get_objects_of_type("SEQUENCE", schema_name)
+	print("sequence_list:", sequence_list)
+	assert len(sequence_list) == EXPECTED_COUNTS[schema_name]["sequence_count"]
+
+	view_list = tgt.get_objects_of_type("VIEW", schema_name)
+	print("view_list:", view_list)
+	assert len(view_list) == EXPECTED_COUNTS[schema_name]["view_count"]
+
+	mview_list = tgt.get_objects_of_type("MVIEW", schema_name)
+	print("mview_list:", mview_list)
+	assert len(mview_list) == EXPECTED_COUNTS[schema_name]["mview_count"]
+
+
+def migration_completed_checks(tgt):
+
+	check_validations_per_schema(tgt, "public")
+	check_validations_per_schema(tgt, "hr")
+	check_validations_per_schema(tgt, "humanresources")
+	check_validations_per_schema(tgt, "pe")
+	check_validations_per_schema(tgt, "person")
+	check_validations_per_schema(tgt, "pr")
+	check_validations_per_schema(tgt, "production")
+	check_validations_per_schema(tgt, "pu")
+	check_validations_per_schema(tgt, "purchasing")
+	check_validations_per_schema(tgt, "sa")
+	check_validations_per_schema(tgt, "sales")
+
+	extension_list = tgt.fetch_all_pg_extension("public")
+	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {EXPECTED_EXTENSION_SET}")
+	assert extension_list == EXPECTED_EXTENSION_SET
+
+	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('NameStyle','Phone','Flag','Name','OrderNumber','AccountNumber');"
+	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
+	print(f"count returned - {cnt_type_domain}")
+	assert cnt_type_domain == 6
+
+
+if __name__ == "__main__":
+	main()

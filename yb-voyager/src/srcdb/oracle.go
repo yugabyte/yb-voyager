@@ -113,6 +113,10 @@ func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 }
 
 func (ora *Oracle) GetVersion() string {
+	if ora.source.DBVersion != "" {
+		return ora.source.DBVersion
+	}
+
 	var version string
 	query := "SELECT BANNER FROM V$VERSION"
 	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
@@ -536,7 +540,10 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, u
 		var unsupportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			isUdtWithDebezium := (dataTypesOwner[i] == sname) && useDebezium // datatype owner check is for UDT type detection as VARRAY are created using UDT
-			if isUdtWithDebezium || utils.ContainsAnySubstringFromSlice(OracleUnsupportedDataTypes, dataTypes[i]) {
+			//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+			// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
+			//of these types there are other columns available for these information so we just do string match of types with our list
+			if isUdtWithDebezium || utils.ContainsAnyStringFromSlice(OracleUnsupportedDataTypes, dataTypes[i]) {
 				log.Infof("Skipping unsupproted column %s.%s of type %s", tname, columns[i], dataTypes[i])
 				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tname, columns[i], dataTypes[i]))
 			} else {
