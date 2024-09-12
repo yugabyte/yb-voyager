@@ -398,6 +398,8 @@ func (cp *YugabyteD) disconnect() {
 }
 
 const VISUALIZER_METADATA_SCHEMA = "ybvoyager_visualizer"
+const VISUALIZER_METADATA_TABLE = "ybvoyager_visualizer_metadata"
+const VISUALIZER_METRICS_TABLE = "ybvoyager_visualizer_table_metrics"
 
 // Set-up YBD database for visualisation metadata
 func (cp *YugabyteD) setupDatabase() error {
@@ -426,7 +428,7 @@ func (cp *YugabyteD) createVoyagerSchema() error {
 	return cp.executeCmdOnTarget(cmd)
 }
 
-const YUGABYTED_METADATA_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + "ybvoyager_visualizer_metadata"
+const YUGABYTED_METADATA_QUALIFIED_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + VISUALIZER_METADATA_TABLE
 
 // Create visualisation metadata table
 func (cp *YugabyteD) createYugabytedMetadataTable() error {
@@ -447,12 +449,71 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 			status VARCHAR(30),
 			invocation_timestamp TIMESTAMPTZ,
 			PRIMARY KEY (migration_uuid, migration_phase, invocation_sequence)
-			);`, YUGABYTED_METADATA_TABLE_NAME)
+			);`, YUGABYTED_METADATA_QUALIFIED_TABLE_NAME)
 
-	return cp.executeCmdOnTarget(cmd)
+	err := cp.executeCmdOnTarget(cmd)
+	if err != nil {
+		return err
+	}
+
+	alterTableCmds := []string{
+		fmt.Sprintf(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name = '%s'
+                           AND table_schema = '%s'
+                           AND column_name = 'host_ip') THEN
+                ALTER TABLE %s ADD COLUMN host_ip VARCHAR;
+            END IF;
+        END $$;`, VISUALIZER_METADATA_TABLE, VISUALIZER_METADATA_SCHEMA,YUGABYTED_METADATA_QUALIFIED_TABLE_NAME),
+
+		fmt.Sprintf(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name = '%s'
+                           AND table_schema = '%s'
+                           AND column_name = 'port') THEN
+                ALTER TABLE %s ADD COLUMN port INT;
+            END IF;
+        END $$;`, VISUALIZER_METADATA_TABLE, VISUALIZER_METADATA_SCHEMA,YUGABYTED_METADATA_QUALIFIED_TABLE_NAME),
+
+		fmt.Sprintf(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name = '%s'
+                           AND table_schema = '%s'
+                           AND column_name = 'db_version') THEN
+                ALTER TABLE %s ADD COLUMN db_version VARCHAR(250);
+            END IF;
+        END $$;`, VISUALIZER_METADATA_TABLE, VISUALIZER_METADATA_SCHEMA,YUGABYTED_METADATA_QUALIFIED_TABLE_NAME),
+
+		fmt.Sprintf(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name = '%s'
+                           AND table_schema = '%s'
+                           AND column_name = 'voyager_info') THEN
+                ALTER TABLE %s ADD COLUMN voyager_info VARCHAR;
+            END IF;
+        END $$;`, VISUALIZER_METADATA_TABLE, VISUALIZER_METADATA_SCHEMA,YUGABYTED_METADATA_QUALIFIED_TABLE_NAME),
+	}
+
+	// Loop through each command and execute it
+	for _, cmd := range alterTableCmds {
+		err := cp.executeCmdOnTarget(cmd)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-const YUGABYTED_TABLE_METRICS_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + "ybvoyager_visualizer_table_metrics"
+const YUGABYTED_TABLE_METRICS_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + VISUALIZER_METRICS_TABLE
 
 // Create table metrics table
 func (cp *YugabyteD) createYugabytedTableMetricsTable() error {
@@ -482,7 +543,7 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 
 	cmd := fmt.Sprintf(`SELECT MAX(invocation_sequence) AS latest_sequence 
 		FROM %s 
-		WHERE migration_uuid = '%s' AND migration_phase = %d`, YUGABYTED_METADATA_TABLE_NAME,
+		WHERE migration_uuid = '%s' AND migration_phase = %d`, YUGABYTED_METADATA_QUALIFIED_TABLE_NAME,
 		mUUID, phase)
 
 	log.Infof("Executing on yugabyted DB: [%s]", cmd)
@@ -532,7 +593,7 @@ func (cp *YugabyteD) sendMigrationEvent(
 			status,
 			invocation_timestamp
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-	`, YUGABYTED_METADATA_TABLE_NAME)
+	`, YUGABYTED_METADATA_QUALIFIED_TABLE_NAME)
 
 	var maxAttempts = 5
 	migrationEvent.MigrationDirectory = cp.migrationDirectory
