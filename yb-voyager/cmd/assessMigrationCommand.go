@@ -835,7 +835,7 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 	indexesOnComplexTypesFeature := UnsupportedFeature{
 		FeatureName: "Index on complex datatypes",
 		DisplayDDL:  false,
-		DocsLink:    jsonbIndexes.DocsLink,
+		Objects: []ObjectInfo{},
 	}
 	//append objects from each of these to indexesOnComplexTypesFeature
 	appendObjects := func(feature UnsupportedFeature) {
@@ -844,6 +844,7 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 			formattedObject.ObjectName = fmt.Sprintf("%s: %s", feature.FeatureName, object.ObjectName)
 			indexesOnComplexTypesFeature.Objects = append(indexesOnComplexTypesFeature.Objects, formattedObject)
 		}
+		indexesOnComplexTypesFeature.DocsLink = feature.DocsLink
 	}
 	appendObjects(jsonbIndexes)
 	appendObjects(tsvectorIndexes)
