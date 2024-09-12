@@ -428,7 +428,7 @@ func checkGinVariations(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sq
 	if len(createIndexNode.IndexStmt.GetIndexParams()) > 1 {
 		summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)] = true
 		reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
-			"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName),
+			"https://github.com/yugabyte/yugabyte-db/issues/10652", "", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName),
 			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_MULTI_COLUMN_DOC_LINK)
 		return
 	}
@@ -441,7 +441,7 @@ func checkGinVariations(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sq
 	if idxParam.GetIndexElem().GetOrdering() != pg_query.SortByDir_SORTBY_DEFAULT {
 		summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)] = true
 		reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
-			"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName),
+			"https://github.com/yugabyte/yugabyte-db/issues/10653", "", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName),
 			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_DIFFERENT_ISSUE_DOC_LINK)
 	}
 
