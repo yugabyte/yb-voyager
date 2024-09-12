@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -140,7 +141,7 @@ func assessMigrationBulk() error {
 			utils.CleanDir(match)
 		}
 
-		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html"))
+		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, HTML_EXTENSION)))
 		if err != nil {
 			return fmt.Errorf("failed to remove bulk assessment report: %w", err)
 		}
@@ -387,7 +388,7 @@ func generateBulkAssessmentJsonReport() error {
 		}
 	}
 
-	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.json")
+	reportPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	strReport, err := json.MarshalIndent(bulkAssessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the buk assessment report: %w", err)
@@ -417,7 +418,7 @@ func generateBulkAssessmentHtmlReport() error {
 		return fmt.Errorf("failed to parse the bulkAssessmentReport template: %w", err)
 	}
 
-	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html")
+	reportPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	file, err := os.Create(reportPath)
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)

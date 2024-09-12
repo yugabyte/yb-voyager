@@ -145,7 +145,6 @@ var (
 	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
 	spgistRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
 	rtreeRegex                = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
-	ginRegex                  = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
 	fetchRegex                = re("FETCH", capture(commonClause), "FROM")
@@ -335,37 +334,6 @@ func addSummaryDetailsForIndexes() {
 	}
 }
 
-// Checks Whether there is a GIN index
-/*
-Following type of SQL queries are being taken care of by this function -
-	1. CREATE INDEX index_name ON table_name USING gin(column1, column2 ...)
-	2. CREATE INDEX index_name ON table_name USING gin(column1 [ASC/DESC/HASH])
-	3. CREATE EXTENSION btree_gin;
-*/
-func checkGin(sqlInfoArr []sqlInfo, fpath string) {
-	for _, sqlInfo := range sqlInfoArr {
-		matchGin := ginRegex.FindStringSubmatch(sqlInfo.stmt)
-		if matchGin != nil {
-			columnsFromGin := strings.Trim(matchGin[4], `()`)
-			columnList := strings.Split(columnsFromGin, ",")
-			if len(columnList) > 1 {
-				summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3])] = true
-				reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
-					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_MULTI_COLUMN_DOC_LINK)
-			} else {
-				if strings.Contains(strings.ToUpper(columnList[0]), "ASC") || strings.Contains(strings.ToUpper(columnList[0]), "DESC") || strings.Contains(strings.ToUpper(columnList[0]), "HASH") {
-					summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3])] = true
-					reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
-						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_DIFFERENT_ISSUE_DOC_LINK)
-				}
-			}
-		}
-		if strings.Contains(strings.ToLower(sqlInfo.stmt), "using gin") {
-			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
-		}
-	}
-}
-
 // Checks whether there is gist index
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	//TODO: add other index types in assessment
@@ -440,6 +408,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		if isCreateIndex {
 			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
 			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
+			checkGinVariations(createIndexNode, sqlStmtInfo, fpath)
 		}
 
 		if isCreatePolicy {
@@ -519,7 +488,6 @@ func prepareTableToColumnTypeMap(createTableNode *pg_query.Node_CreateStmt) {
 }
 
 func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
-
 	indexName := createIndexNode.IndexStmt.GetIdxname()
 	relName := createIndexNode.IndexStmt.GetRelation()
 	schemaName := relName.GetSchemaname()
@@ -589,6 +557,52 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			//TODO #4.
 		}
 	}
+}
+
+// Checks Whether there is a GIN index
+/*
+Following type of SQL queries are being taken care of by this function -
+	1. CREATE INDEX index_name ON table_name USING gin(column1, column2 ...)
+	2. CREATE INDEX index_name ON table_name USING gin(column1 [ASC/DESC/HASH])
+*/
+func checkGinVariations(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
+	indexName := createIndexNode.IndexStmt.GetIdxname()
+	relName := createIndexNode.IndexStmt.GetRelation()
+	schemaName := relName.GetSchemaname()
+	tableName := relName.GetRelname()
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	displayObjectName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
+	if createIndexNode.IndexStmt.GetAccessMethod() != "gin" { // its always in lower
+		return
+	} else {
+		summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
+	}
+	/*
+		e.g. CREATE INDEX idx_name ON public.test USING gin (data, data2);
+		stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p"
+		location:125} access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		index_params:{index_elem:{name:"data2" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_location:81 stmt_len:81
+	*/
+	if len(createIndexNode.IndexStmt.GetIndexParams()) > 1 {
+		summaryMap["INDEX"].invalidCount[displayObjectName] = true
+		reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
+			"https://github.com/yugabyte/yugabyte-db/issues/10652", "", "INDEX", displayObjectName,
+			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_MULTI_COLUMN_DOC_LINK)
+		return
+	}
+	/*
+		e.g. CREATE INDEX idx_name ON public.test USING gin (data DESC);
+		stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p" location:44}
+		access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DESC nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:80
+	*/
+	idxParam := createIndexNode.IndexStmt.GetIndexParams()[0] // taking only the first as already checking len > 1 above so should be fine
+	if idxParam.GetIndexElem().GetOrdering() != pg_query.SortByDir_SORTBY_DEFAULT {
+		summaryMap["INDEX"].invalidCount[displayObjectName] = true
+		reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
+			"https://github.com/yugabyte/yugabyte-db/issues/10653", "", "INDEX", displayObjectName,
+			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_DIFFERENT_ISSUE_DOC_LINK)
+	}
+
 }
 
 func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePolicyStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -1210,7 +1224,6 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
 	checkGist(sqlInfoArr, fpath)
-	checkGin(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
@@ -1601,7 +1614,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-	reportFile := "schema_analysis_report." + analyzeSchemaReportFormat
+	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, analyzeSchemaReportFormat)
 
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
@@ -1737,7 +1750,7 @@ func validateReportOutputFormat(validOutputFormats []string, format string) {
 }
 
 func schemaIsAnalyzed() bool {
-	path := filepath.Join(exportDir, "reports", "schema_analysis_report.*")
+	path := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
 	return utils.FileOrFolderExistsWithGlobPattern(path)
 }
 
