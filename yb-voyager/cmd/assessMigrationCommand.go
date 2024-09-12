@@ -734,10 +734,11 @@ func generateAssessmentReport() (err error) {
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
-	}*/
+	}
 
 	addNotesToAssessmentReport()
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration)
+	*/
 	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
