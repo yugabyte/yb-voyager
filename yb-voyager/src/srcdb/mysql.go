@@ -473,6 +473,7 @@ func (ms *MySQL) GetPartitions(tableName sqlname.NameTuple) []string {
 }
 
 func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
+	// required in case of live migration(unsupported for MySQL)
 	return nil, nil
 }
 

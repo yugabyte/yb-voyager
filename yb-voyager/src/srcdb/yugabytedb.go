@@ -488,7 +488,7 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 	outer:
 		for _, arrayType := range tableColumnArrayTypes {
 			for _, udt := range userDefinedTypes {
-				if strings.EqualFold(strings.TrimLeft(arrayType, "_"), udt) { 
+				if strings.EqualFold(strings.TrimLeft(arrayType, "_"), udt) {
 					// as the array_type is determined by an underscore at the first place
 					//ref - https://www.postgresql.org/docs/current/xtypes.html#:~:text=The%20array%20type%20typically%20has%20the%20same%20name%20as%20the%20base%20type%20with%20the%20underscore%20character%20(_)%20prepended
 					unsupportedTables = append(unsupportedTables, table)
@@ -766,14 +766,56 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
+// query retrieves all unique columns in the specified tables and schemas, handling both unique constraints and unique indexes, while excluding primary key columns.
 const ybQueryTmplForUniqCols = `
-SELECT tc.table_schema, tc.table_name, kcu.column_name
-FROM information_schema.table_constraints tc
-JOIN information_schema.key_column_usage kcu
-    ON tc.constraint_name = kcu.constraint_name
-	AND tc.table_schema = kcu.table_schema
-    AND tc.table_name = kcu.table_name
-WHERE tc.table_schema = ANY('{%s}') AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
+WITH unique_constraints AS (
+	-- Retrieve columns with unique constraints
+    SELECT
+        tc.table_schema,
+        tc.table_name,
+        kcu.column_name
+    FROM
+        information_schema.table_constraints tc
+    JOIN
+        information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+        AND tc.table_name = kcu.table_name
+    WHERE
+        tc.constraint_type = 'UNIQUE'
+        AND tc.table_schema = ANY('{%s}')
+        AND tc.table_name = ANY('{%s}')
+),
+unique_indexes AS (
+	-- Retrieve columns with unique indexes (excluding primary keys)
+    SELECT
+        n.nspname AS table_schema,
+        t.relname AS table_name,
+        a.attname AS column_name
+    FROM
+        pg_index ix
+	-- Join to get table and schema information from the index
+    JOIN
+        pg_class t ON t.oid = ix.indrelid
+    JOIN
+        pg_namespace n ON n.oid = t.relnamespace
+	-- Join to get column information
+    JOIN
+        pg_attribute a ON a.attrelid = t.oid 
+		AND a.attnum = ANY(ix.indkey)  -- Match indexed columns
+	 -- Left join to ensure we exclude primary keys by checking associated constraints
+    LEFT JOIN
+        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+    WHERE
+        ix.indisunique = TRUE
+		AND c.contype IS NULL -- Ensure it's not a primary key
+        AND n.nspname = ANY('{%s}')
+        AND t.relname = ANY('{%s}')
+)
+-- UNION will remove duplicate rows between unique constraints and unique indexes
+SELECT table_schema, table_name, column_name FROM unique_constraints
+UNION
+SELECT table_schema, table_name, column_name FROM unique_indexes;
 `
 
 func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
@@ -787,7 +829,8 @@ func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
+		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
 	log.Infof("query to get unique key columns: %s", query)
 	rows, err := yb.db.Query(query)
 	if err != nil {

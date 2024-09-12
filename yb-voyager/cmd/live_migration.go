@@ -118,6 +118,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 	return nil
 }
 
+// used to determine if cache reinitialization is needed
 var prevExporterRole = ""
 
 func streamChangesFromSegment(
@@ -165,7 +166,7 @@ func streamChangesFromSegment(
 				we need to use the actual source db type at the moment since we save information like
 				TableToUniqueKeyColumns during export(from source/target) to reuse it during import
 			*/
-			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), "yugabytedb", sourceDBType)
+			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
 			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
 			if err != nil {
 				return fmt.Errorf("error initializing conflict detection cache: %w", err)
@@ -245,7 +246,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 
 	/*
 		Checking for all possible conflicts among events
-		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
+		For more details about ConflictDetectionCache see the related comment in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
 	uniqueKeyCols, _ := conflictDetectionCache.tableToUniqueKeyColumns.Get(event.TableNameTup)
 	if len(uniqueKeyCols) > 0 {

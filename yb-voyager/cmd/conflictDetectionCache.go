@@ -95,7 +95,7 @@ UPDATE example_table SET email = 'user42@example.com' WHERE id = 3;
 type ConflictDetectionCache struct {
 	sync.Mutex
 	/*
-		m caches separte copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
+		m caches separate copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
 		ConvertEvent() in some case modifies schemaName, tableName and before after values
 	*/
 	m                       map[int64]*tgtdb.Event
@@ -105,11 +105,11 @@ type ConflictDetectionCache struct {
 	sourceDBType            string
 }
 
-func NewConflictDetectionCache(tableToIdentityColumnNames *utils.StructMap[sqlname.NameTuple, []string], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
-	c.tableToUniqueKeyColumns = tableToIdentityColumnNames
+	c.tableToUniqueKeyColumns = tableToUniqueKeyColumns
 	c.sourceDBType = sourceDBType
 	c.evChans = evChans
 	return c
@@ -137,8 +137,8 @@ retry:
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
 
-			// we can't return after just one conflict, because there can be multiple conflicts
-			// for example, if we have 3 unique key columns conflicting with 3 different events
+			// can't return after just one conflict, incoming event can have multiple conflicts
+			// for example: table with 3 unique key columns conflicting with 3 different events
 			goto retry
 		}
 	}
@@ -177,6 +177,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 	if isTargetDBExporter(incomingEvent.ExporterRole) {
 		conflict := false
 		if cachedEvent.Op == "d" {
+			// future: https://yugabyte.atlassian.net/browse/DB-9681
 			conflict = true
 		} else if cachedEvent.Op == "u" {
 			// if both events are dealing with the same unique key columns then we consider it as a conflict
@@ -196,7 +197,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 	for _, column := range uniqueKeyColumns {
 		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
-			return false
+			continue // check for the other columns(case: multiple unique keys)
 		}
 
 		if *cachedEvent.BeforeFields[column] == *incomingEvent.Fields[column] {
