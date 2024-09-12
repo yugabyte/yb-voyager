@@ -414,6 +414,7 @@ func checkGinVariations(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sq
 	schemaName := relName.GetSchemaname()
 	tableName := relName.GetRelname()
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	displayObjectName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
 	if createIndexNode.IndexStmt.GetAccessMethod() != "gin" { // its always in lower
 		return
 	} else {
@@ -426,9 +427,9 @@ func checkGinVariations(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sq
 		index_params:{index_elem:{name:"data2" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_location:81 stmt_len:81
 	*/
 	if len(createIndexNode.IndexStmt.GetIndexParams()) > 1 {
-		summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)] = true
+		summaryMap["INDEX"].invalidCount[displayObjectName] = true
 		reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
-			"https://github.com/yugabyte/yugabyte-db/issues/10652", "", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName),
+			"https://github.com/yugabyte/yugabyte-db/issues/10652", "", "INDEX", displayObjectName,
 			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_MULTI_COLUMN_DOC_LINK)
 		return
 	}
@@ -439,9 +440,9 @@ func checkGinVariations(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sq
 	*/
 	idxParam := createIndexNode.IndexStmt.GetIndexParams()[0] // taking only the first as already checking len > 1 above so should be fine
 	if idxParam.GetIndexElem().GetOrdering() != pg_query.SortByDir_SORTBY_DEFAULT {
-		summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)] = true
+		summaryMap["INDEX"].invalidCount[displayObjectName] = true
 		reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
-			"https://github.com/yugabyte/yugabyte-db/issues/10653", "", "INDEX", fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName),
+			"https://github.com/yugabyte/yugabyte-db/issues/10653", "", "INDEX", displayObjectName,
 			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_DIFFERENT_ISSUE_DOC_LINK)
 	}
 
