@@ -426,20 +426,22 @@ var UnsupportedIndexDatatypes = []string{
 	"jsonb",
 	"inet",
 	"json",
+	"macaddr",
+	"macaddr8",
 	"cidr",
+	"bit",    // for BIT (n)
+	"varbit", // for BIT varying (n)
+	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
+	//Need to understand if there is other method or way available in PG to have these index key [TODO]
 	"circle",
 	"box",
 	"line",
 	"lseg",
-	"macaddr",
-	"macaddr8",
 	"point",
 	"pg_lsn",
 	"path",
 	"polygon",
 	"txid_snapshot",
-	"bit",    // for BIT (n)
-	"varbit", // for BIT varying (n)
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 

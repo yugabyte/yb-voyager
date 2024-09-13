@@ -160,3 +160,26 @@ CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb));
 
 -- valid case
 create index idx_valid on public.test_jsonb ((data::text)); 
+
+--other misc types
+create table public.combined_tbl (
+	id int, 
+	c cidr, 
+	maddr macaddr, 
+	maddr8 macaddr8,
+	lsn pg_lsn, 
+	bitt bit (13),
+	bittv bit varying(15)
+);
+
+CREATE index idx1 on public.combined_tbl (c);
+
+CREATE index idx2 on public.combined_tbl (maddr);
+
+CREATE index idx3 on public.combined_tbl (maddr8);
+
+CREATE index idx4 on public.combined_tbl (lsn);
+
+CREATE INDEX idx5 on public.combined_tbl (bitt);
+
+CREATE INDEX idx6 on public.combined_tbl (bittv);
