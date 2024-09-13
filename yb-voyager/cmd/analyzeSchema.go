@@ -138,8 +138,9 @@ var (
 			column3: citext | jsonb | inet | tsquery | tsvector | array
 			...
 		}
+		Here only those columns on tables are stored which have unsupported type for Index in YB
 	*/
-	tableToColumnUnsupportedDataType = make(map[string]map[string]string)
+	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
 	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
@@ -398,7 +399,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportXMLAndXIDDatatype(createTableNode, sqlStmtInfo, fpath)
-			prepareTableToColumnTypeMap(createTableNode)
+			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 		}
 		if isAlterTable {
 			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
@@ -426,7 +427,7 @@ var unsupportedIndexDatatypes = []string{
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
-func prepareTableToColumnTypeMap(createTableNode *pg_query.Node_CreateStmt) {
+func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_CreateStmt) {
 	schemaName := createTableNode.CreateStmt.Relation.Schemaname
 	tableName := createTableNode.CreateStmt.Relation.Relname
 	columns := createTableNode.CreateStmt.TableElts
@@ -455,33 +456,25 @@ func prepareTableToColumnTypeMap(createTableNode *pg_query.Node_CreateStmt) {
 
 		*/
 		if column.GetColumnDef() != nil {
-			typeNameOnIdx0 := ""
-			typeNameOnIdx1 := ""
+			typeName := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
 			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
-				typeNameOnIdx0 = typeNames[0].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
-				if len(typeNames) > 1 {
-					typeNameOnIdx1 = typeNames[1].GetString_().Sval // 1th index as for these non-native types pg_catalog won't be present on first location
-				}
+				typeName = typeNames[len(typeNames)-1].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 			}
 			colName := column.GetColumnDef().GetColname()
 			if len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0 {
 				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
-				_, ok := tableToColumnUnsupportedDataType[fullyQualifiedName]
+				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
 				if !ok {
-					tableToColumnUnsupportedDataType[fullyQualifiedName] = make(map[string]string)
+					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
-				tableToColumnUnsupportedDataType[fullyQualifiedName][colName] = "array"
-			} else if slices.Contains(unsupportedIndexDatatypes, typeNameOnIdx0) || slices.Contains(unsupportedIndexDatatypes, typeNameOnIdx1) {
-				_, ok := tableToColumnUnsupportedDataType[fullyQualifiedName]
+				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "array"
+			} else if slices.Contains(unsupportedIndexDatatypes, typeName) {
+				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
 				if !ok {
-					tableToColumnUnsupportedDataType[fullyQualifiedName] = make(map[string]string)
+					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
-				if slices.Contains(unsupportedIndexDatatypes, typeNameOnIdx0) {
-					tableToColumnUnsupportedDataType[fullyQualifiedName][colName] = typeNameOnIdx0
-				} else if slices.Contains(unsupportedIndexDatatypes, typeNameOnIdx1) {
-					tableToColumnUnsupportedDataType[fullyQualifiedName][colName] = typeNameOnIdx1
-				}
+				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName
 			}
 		}
 	}
@@ -509,54 +502,51 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 	if createIndexNode.IndexStmt.AccessMethod != "btree" {
 		return // Right now not reporting any other access method issues with such types.
 	}
-	_, ok := tableToColumnUnsupportedDataType[fullyQualifiedName]
-	if ok {
-		for _, param := range createIndexNode.IndexStmt.GetIndexParams() {
-			/*
-				cases to cover
-					1. normal index on column with these types
-					2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
-					3. expression index with  casting to unsupported types
-					4. normal index on column with UDTs [TODO]
-					5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
-			*/
-			colName := param.GetIndexElem().GetName()
-			typeName, ok := tableToColumnUnsupportedDataType[fullyQualifiedName][colName]
-			if ok {
-				summaryMap["INDEX"].invalidCount[displayObjName] = true
-				reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
-					"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
-					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
-				return
-			}
-			//For the expression index case to report in case casting to unsupported types #3
-			castTypeNameOnIdx0 := ""
-			castTypeNameOnIdx1 := ""
-			typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
-			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
-				castTypeNameOnIdx0 = typeNames[0].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
-				if len(typeNames) > 1 {
-					castTypeNameOnIdx1 = typeNames[1].GetString_().Sval // 1th index as for these non-native types pg_catalog won't be present on first location
-				}
-			}
-			if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
-				//In case casting is happening for an array type
-				summaryMap["INDEX"].invalidCount[displayObjName] = true
-				reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/9698",
-					"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
-					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
-				return
-			} else if slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx0) || slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx1) {
-				summaryMap["INDEX"].invalidCount[displayObjName] = true
-				reportTypeName := lo.Ternary(slices.Contains(unsupportedIndexDatatypes, castTypeNameOnIdx0), castTypeNameOnIdx0, castTypeNameOnIdx1)
-				reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, reportTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
-					"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
-					UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
-				return
-			}
-			//TODO #4.
-		}
+	_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
+	if !ok {
+		return 
 	}
+	for _, param := range createIndexNode.IndexStmt.GetIndexParams() {
+		/*
+			cases to cover
+				1. normal index on column with these types
+				2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
+				3. expression index with  casting to unsupported types
+				4. normal index on column with UDTs [TODO]
+				5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
+		*/
+		colName := param.GetIndexElem().GetName()
+		typeName, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName]
+		if ok {
+			summaryMap["INDEX"].invalidCount[displayObjName] = true
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+			return
+		}
+		//For the expression index case to report in case casting to unsupported types #3
+		castTypeName:= ""
+		typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
+		if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
+			castTypeName = typeNames[len(typeNames) - 1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+		}
+		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
+			//In case casting is happening for an array type
+			summaryMap["INDEX"].invalidCount[displayObjName] = true
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+			return
+		} else if slices.Contains(unsupportedIndexDatatypes, castTypeName) {
+			summaryMap["INDEX"].invalidCount[displayObjName] = true
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+			return
+		}
+		//TODO #4.
+	}
+	
 }
 
 // Checks Whether there is a GIN index
