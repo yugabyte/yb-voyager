@@ -283,3 +283,5 @@ create table unique_def_test1(id int, c1 int, UNIQUE(id)  DEFERRABLE INITIALLY D
 CREATE TABLE test_xml_type(id int, data xml);
 
 CREATE TABLE test_xid_type(id int, data xid);
+
+CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);

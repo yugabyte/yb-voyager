@@ -105,3 +105,5 @@ select id, first_name,
 last_name, full_name
 from employees2 where Department = 'sales'
 WITH CHECK OPTION;
+
+CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
