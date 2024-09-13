@@ -13,13 +13,72 @@
 --- <original_owner_of_tables>: The original owner of the tables to be added to the replication group.
 --- <db_name>: The name of the database to grant CREATE permission on.
 --- <is_live_migration>: A flag indicating if this is a live migration (1 for true, 0 for false). If set to 0 then the script will check for permissions for an offline migration.
---- <is_live_migration_fall_back>: A flag indicating if this is a live migration with fallback (1 for true, 0 for false). If set to 0 then the script will detect permissions for live migration with fall-forward.
+--- <is_live_migration_fall_back>: A flag indicating if this is a live migration with fallback (1 for true, 0 for false). If set to 0 then the script will detect permissions for live migration with fall-forward. Should only be set to 1 when is_live_migration is also set to 1.
 
+\echo '--- Checking Variables ---'
 
+-- Check if db_user is provided
+\if :{?db_user}
+    \echo 'Database user (db_user) is provided: ':db_user
+\else
+    \echo 'Error: Database user (db_user) is not provided!'
+    \q
+\endif
+
+-- Check if schema_list is provided
+\if :{?schema_list}
+    \echo 'Schema list (schema_list) is provided: ':schema_list
+\else
+    \echo 'Error: Schema list (schema_list) is not provided!'
+    \q
+\endif
+
+-- Check if replication_group is provided
+\if :{?replication_group}
+    \echo 'Replication group (replication_group) is provided: ':replication_group
+\else
+    \echo 'Error: Replication group (replication_group) is not provided!'
+    \q
+\endif
+
+-- Check if original_owner_of_tables is provided
+\if :{?original_owner_of_tables}
+    \echo 'Original owner of tables (original_owner_of_tables) is provided: ':original_owner_of_tables
+\else
+    \echo 'Error: Original owner of tables (original_owner_of_tables) is not provided!'
+    \q
+\endif
+
+-- Check if db_name is provided
+\if :{?db_name}
+    \echo 'Database name (db_name) is provided: ':db_name
+\else
+    \echo 'Error: Database name (db_name) is not provided!'
+    \q
+\endif
+
+-- Check if is_live_migration is provided
+\if :{?is_live_migration}
+    \echo 'Live migration flag (is_live_migration) is provided: ':is_live_migration
+\else
+    \echo 'Error: Live migration flag (is_live_migration) is not provided!'
+    \q
+\endif
+
+-- Check if is_live_migration_fall_back is provided
+\if :{?is_live_migration_fall_back}
+    \echo 'Live migration fallback flag (is_live_migration_fall_back) is provided: ':is_live_migration_fall_back
+\else
+    \echo 'Error: Live migration fallback flag (is_live_migration_fall_back) is not provided!'
+    \q
+\endif
+
+\o /dev/null
 SET myvars.schema_list = :'schema_list';
 SET myvars.replication_group = :'replication_group';
 SET myvars.db_name = :'db_name';
 SET myvars.db_user = :'db_user';
+\o
 
 -- Grant USAGE permission on all schemas to db_user
 \echo '--- Granting USAGE Permission on Schemas ---'

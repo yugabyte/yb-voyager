@@ -11,9 +11,51 @@
 --- <schema_list>: A comma-separated list of schemas to check permissions on. Example 'schema1,public,schema2'.
 --- <db_instance_type>: The type of the database instance. Options are 'rds' or 'standalone'.
 --- <is_live_migration>: A flag indicating if this is a live migration (1 for true, 0 for false). If set to 0 then the script will check for permissions for an offline migration.
---- <is_live_migration_fall_back>: A flag indicating if this is a live migration with fallback (1 for true, 0 for false). If set to 0 then the script will detect permissions for live migration with fall-forward.
+--- <is_live_migration_fall_back>: A flag indicating if this is a live migration with fallback (1 for true, 0 for false). If set to 0 then the script will detect permissions for live migration with fall-forward. Should only be set to 1 when is_live_migration is also set to 1.
 --- <path_to_script>: The path to the SQL script to be executed.
 --- <path_to_output_file>: The path where the output of the script will be saved.
+
+\echo '--- Checking Variables ---'
+
+-- Check if db_user is provided
+\if :{?db_user}
+    \echo 'Database user (db_user) is provided: ':db_user
+\else
+    \echo 'Error: Database user (db_user) is not provided!'
+    \q
+\endif
+
+-- Check if schema_list is provided
+\if :{?schema_list}
+    \echo 'Schema list (schema_list) is provided: ':schema_list
+\else
+    \echo 'Error: Schema list (schema_list) is not provided!'
+    \q
+\endif
+
+-- Check if db_instance_type is provided
+\if :{?db_instance_type}
+    \echo 'Database instance type (db_instance_type) is provided: ':db_instance_type
+\else
+    \echo 'Error: Database instance type (db_instance_type) is not provided!'
+    \q
+\endif
+
+-- Check if is_live_migration is provided
+\if :{?is_live_migration}
+    \echo 'Live migration flag (is_live_migration) is provided: ':is_live_migration
+\else
+    \echo 'Error: Live migration flag (is_live_migration) is not provided!'
+    \q
+\endif
+
+-- Check if is_live_migration_fall_back is provided
+\if :{?is_live_migration_fall_back}
+    \echo 'Live migration fallback flag (is_live_migration_fall_back) is provided: ':is_live_migration_fall_back
+\else
+    \echo 'Error: Live migration fallback flag (is_live_migration_fall_back) is not provided!'
+    \q
+\endif
 
 
 --- Check USAGE permission on schemas
