@@ -18,7 +18,7 @@ CREATE TABLE non_public.multi_unique_constraint (
 -- Public schema table with Single Column Unique Index
 CREATE TABLE public.single_unique_index (
     id SERIAL PRIMARY KEY,
-    ssn VARCHAR(20)
+    ssn VARCHAR(100)
 );
 CREATE UNIQUE INDEX idx_ssn_unique ON public.single_unique_index (ssn);
 

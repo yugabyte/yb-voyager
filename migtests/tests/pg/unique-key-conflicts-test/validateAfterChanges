@@ -16,19 +16,18 @@ def main():
     if test_type_flags['fb_enabled'] == 'true':
         migration_completed_checks_fb()
 
-
 # Define expected row count for tables in both schemas
 EXPECTED_ROW_COUNT = {
     'public': {
-        'single_unique_index': 5,
-        'multi_unique_index': 5,
-        'different_columns_unique_constraint_and_index': 5,
-        'subset_columns_unique_constraint_and_index': 5
+        'single_unique_index': 6,
+        'multi_unique_index': 6,
+        'different_columns_unique_constraint_and_index': 6,
+        'subset_columns_unique_constraint_and_index': 6
     },
     'non_public': {
-        'single_unique_constraint': 5,
-        'multi_unique_constraint': 5,
-        'same_column_unique_constraint_and_index': 5
+        'single_unique_constraint': 6,
+        'multi_unique_constraint': 6,
+        'same_column_unique_constraint_and_index': 6
     }
 }
 
@@ -41,12 +40,13 @@ EXPECTED_FINAL_STATE_VARCHAR = {
                 'updated_user4@example.com', 
                 'user4@example.com', 
                 'updated_user5@example.com', 
-                'user5@example.com'
+                'user5@example.com',
+                'updated_non_conflict_user1@example.com'
             ]
         },
         'multi_unique_constraint': {
-            'first_name': ['John', 'Tom', 'Bob', 'Updated_Alice', 'Alice'],
-            'last_name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Clark']
+            'first_name': ['John', 'Tom', 'Bob', 'Updated_Alice', 'Alice', 'Updated_Non_John'],
+            'last_name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Clark', 'Updated_Non_Doe']
         },
         'same_column_unique_constraint_and_index': {
             'email': [
@@ -54,7 +54,8 @@ EXPECTED_FINAL_STATE_VARCHAR = {
                 'updated_user4@example.com', 
                 'user4@example.com', 
                 'updated_user5@example.com', 
-                'user5@example.com'
+                'user5@example.com', 
+                'updated_non_conflict_user1@example.com'
             ]
         }
     },
@@ -64,13 +65,14 @@ EXPECTED_FINAL_STATE_VARCHAR = {
                 'SSN2', 
                 'updated_SSN4', 
                 'SSN4', 
-                'updated_SSN5', 
-                'SSN5'
+                'updated_SSN5',
+                'SSN5',
+                'updated_non_conflict_ssn1'
             ]
         },
         'multi_unique_index': {
-            'first_name': ['Jane', 'Updated_Tom', 'Tom', 'Updated_Alice', 'Alice'],
-            'last_name': ['Smith', 'Clark', 'Williams']
+            'first_name': ['Jane', 'Updated_Tom', 'Tom', 'Updated_Alice', 'Alice', 'Updated_Non_John'],
+            'last_name': ['Smith', 'Clark', 'Williams', 'Updated_Non_Doe']
         },
         'different_columns_unique_constraint_and_index': {
             'email': [
@@ -78,19 +80,21 @@ EXPECTED_FINAL_STATE_VARCHAR = {
                 'updated_user4@example.com', 
                 'user4@example.com', 
                 'user5@example.com', 
-                'user1@example.com'
+                'user1@example.com', 
+                'non_conflict_updated_user1@example.com'
             ],
             'phone_number': [
                 '555-555-5552', 
                 '555-555-5554', 
-                '555-555-5561', 
                 '555-555-5558', 
-                '555-555-5555'
+                '555-555-5555', 
+                '555-555-5561',
+                '555-555-5566', 
             ]
         },
         'subset_columns_unique_constraint_and_index': {
-            'first_name': ['John', 'Updated_Bob', 'Bob', 'Updated_Alice', 'Alice'],
-            'last_name': ['Doe', 'Smith', 'Johnson', 'Williams'],
+            'first_name': ['John', 'Updated_Bob', 'Bob', 'Updated_Alice', 'Alice', 'Updated_Non_John'],
+            'last_name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Updated_Non_Doe'],
             'phone_number': ['123-456-7890', '123-456-7892', '123-456-7893']
         }
     }
