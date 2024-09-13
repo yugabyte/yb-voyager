@@ -398,6 +398,8 @@ func (cp *YugabyteD) disconnect() {
 }
 
 const VISUALIZER_METADATA_SCHEMA = "ybvoyager_visualizer"
+const VISUALIZER_METADATA_TABLE = "ybvoyager_visualizer_metadata"
+const VISUALIZER_METRICS_TABLE = "ybvoyager_visualizer_table_metrics"
 
 // Set-up YBD database for visualisation metadata
 func (cp *YugabyteD) setupDatabase() error {
@@ -426,10 +428,11 @@ func (cp *YugabyteD) createVoyagerSchema() error {
 	return cp.executeCmdOnTarget(cmd)
 }
 
-const YUGABYTED_METADATA_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + "ybvoyager_visualizer_metadata"
+const QUALIFIED_YUGABYTED_METADATA_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + VISUALIZER_METADATA_TABLE
 
 // Create visualisation metadata table
 func (cp *YugabyteD) createYugabytedMetadataTable() error {
+	// NOTE: DON'T CHANGE TABLE SCHEMA, use ALTER ddls
 	cmd := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid UUID,
 			migration_phase INT,
@@ -437,22 +440,37 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 			migration_dir VARCHAR(250),
 			database_name VARCHAR(250),
 			schema_name VARCHAR(250),
-			host_ip VARCHAR,
-			port INT,
-			db_version VARCHAR(250),
 			payload TEXT,
-			voyager_info VARCHAR,
 			complexity VARCHAR(30),
 			db_type VARCHAR(30),
 			status VARCHAR(30),
 			invocation_timestamp TIMESTAMPTZ,
 			PRIMARY KEY (migration_uuid, migration_phase, invocation_sequence)
-			);`, YUGABYTED_METADATA_TABLE_NAME)
+			);`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME)
 
-	return cp.executeCmdOnTarget(cmd)
+	err := cp.executeCmdOnTarget(cmd)
+	if err != nil {
+		return err
+	}
+
+	// using ALTER to add new columns since TABLE might already exists due to old voyager version migrations
+	alterTableCmds := []string{
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS host_ip VARCHAR;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS port INT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS db_version VARCHAR(250);`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS voyager_info VARCHAR;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
+	}
+
+	for _, cmd := range alterTableCmds {
+		err := cp.executeCmdOnTarget(cmd)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-const YUGABYTED_TABLE_METRICS_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + "ybvoyager_visualizer_table_metrics"
+const YUGABYTED_TABLE_METRICS_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + VISUALIZER_METRICS_TABLE
 
 // Create table metrics table
 func (cp *YugabyteD) createYugabytedTableMetricsTable() error {
@@ -482,7 +500,7 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 
 	cmd := fmt.Sprintf(`SELECT MAX(invocation_sequence) AS latest_sequence 
 		FROM %s 
-		WHERE migration_uuid = '%s' AND migration_phase = %d`, YUGABYTED_METADATA_TABLE_NAME,
+		WHERE migration_uuid = '%s' AND migration_phase = %d`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME,
 		mUUID, phase)
 
 	log.Infof("Executing on yugabyted DB: [%s]", cmd)
@@ -532,7 +550,7 @@ func (cp *YugabyteD) sendMigrationEvent(
 			status,
 			invocation_timestamp
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-	`, YUGABYTED_METADATA_TABLE_NAME)
+	`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME)
 
 	var maxAttempts = 5
 	migrationEvent.MigrationDirectory = cp.migrationDirectory
@@ -640,7 +658,7 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 	}
 
 	if err != nil {
-		return fmt.Errorf("couldn't excute command %s on yugabyted db. error: %w", cmd, err)
+		return fmt.Errorf("couldn't execute command %s on yugabyted db. error: %w", cmd, err)
 	}
 
 	return nil
@@ -671,7 +689,7 @@ func (cp *YugabyteD) executeCmdOnTarget(cmd string) error {
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("couldn't excute command %s on yugabyted db. error: %w", cmd, err)
+		return fmt.Errorf("couldn't execute command %s on yugabyted db. error: %w", cmd, err)
 	}
 	return nil
 }
