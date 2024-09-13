@@ -19,15 +19,15 @@ def main():
 # Define expected row count for tables in both schemas
 EXPECTED_ROW_COUNT = {
     'public': {
-        'single_unique_index': 6,
-        'multi_unique_index': 6,
-        'different_columns_unique_constraint_and_index': 6,
-        'subset_columns_unique_constraint_and_index': 6
+        'single_unique_index': 12,
+        'multi_unique_index': 12,
+        'different_columns_unique_constraint_and_index': 12,
+        'subset_columns_unique_constraint_and_index': 12
     },
     'non_public': {
-        'single_unique_constraint': 6,
-        'multi_unique_constraint': 6,
-        'same_column_unique_constraint_and_index': 6
+        'single_unique_constraint': 12,
+        'multi_unique_constraint': 12,
+        'same_column_unique_constraint_and_index': 12
     }
 }
 
@@ -36,66 +36,98 @@ EXPECTED_FINAL_STATE_VARCHAR = {
     'non_public': {
         'single_unique_constraint': {
             'email': [
-                'user2@example.com', 
-                'updated_user4@example.com', 
-                'user4@example.com', 
-                'updated_user5@example.com', 
+                'updated_non_conflict_user1@example.com',
+                'user2@example.com',
+                'updated_user4@example.com',
+                'user4@example.com',
+                'updated_user5@example.com',
                 'user5@example.com',
-                'updated_non_conflict_user1@example.com'
+                'target_user101@example.com',
+                'updated_target_user102@example.com',
+                'updated_target_user105@example.com',
+                'target_user105@example.com',
+                'updated_target_user106@example.com',
+                'target_user106@example.com'
             ]
         },
         'multi_unique_constraint': {
-            'first_name': ['John', 'Tom', 'Bob', 'Updated_Alice', 'Alice', 'Updated_Non_John'],
-            'last_name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Clark', 'Updated_Non_Doe']
+            'first_name': [
+                'Bob', 'John', 'Updated_Non_John', 'Tom', 'Updated_Alice', 'Alice',
+                'Target_John', 'Updated_Target_Jane', 'Updated_Target_Bob', 'Target_Bob',
+                'Updated_Target_Dave', 'Target_Dave'
+            ],
+            'last_name': [
+                'Johnson', 'Doe', 'Updated_Non_Doe', 'Clark', 'Smith', 'Williams',
+                'Updated_Smith', 'Wilson'
+            ]
         },
         'same_column_unique_constraint_and_index': {
             'email': [
-                'user2@example.com', 
-                'updated_user4@example.com', 
-                'user4@example.com', 
-                'updated_user5@example.com', 
-                'user5@example.com', 
-                'updated_non_conflict_user1@example.com'
+                'updated_non_conflict_user1@example.com',
+                'user2@example.com',
+                'updated_user4@example.com',
+                'user4@example.com',
+                'updated_user5@example.com',
+                'user5@example.com',
+                'target_user101@example.com',
+                'updated_target_user102@example.com',
+                'updated_target_user105@example.com',
+                'target_user105@example.com',
+                'updated_target_user106@example.com',
+                'target_user106@example.com'
             ]
         }
     },
     'public': {
         'single_unique_index': {
             'ssn': [
-                'SSN2', 
-                'updated_SSN4', 
-                'SSN4', 
-                'updated_SSN5',
-                'SSN5',
-                'updated_non_conflict_ssn1'
+                'updated_non_conflict_ssn1', 'SSN2', 'updated_SSN4', 'SSN4',
+                'updated_SSN5', 'SSN5', 'target_ssn101', 'updated_target_ssn102',
+                'updated_target_ssn105', 'target_ssn105', 'updated_target_ssn106',
+                'target_ssn106'
             ]
         },
         'multi_unique_index': {
-            'first_name': ['Jane', 'Updated_Tom', 'Tom', 'Updated_Alice', 'Alice', 'Updated_Non_John'],
-            'last_name': ['Smith', 'Clark', 'Williams', 'Updated_Non_Doe']
+            'first_name': [
+                'Updated_Non_John', 'Jane', 'Updated_Tom', 'Tom', 'Updated_Alice',
+                'Alice', 'Target_Jane', 'Updated_Target_Tom', 'Updated_Target_Carol',
+                'Target_Carol', 'Updated_Target_Dave', 'Target_Dave'
+            ],
+            'last_name': [
+                'Updated_Non_Doe', 'Smith', 'Clark', 'Williams', 'Updated_Clark',
+                'Johnson', 'Brown', 'Wilson'
+            ]
         },
         'different_columns_unique_constraint_and_index': {
             'email': [
-                'user3@example.com', 
-                'updated_user4@example.com', 
-                'user4@example.com', 
-                'user5@example.com', 
-                'user1@example.com', 
-                'non_conflict_updated_user1@example.com'
+                'non_conflict_updated_user1@example.com', 'user3@example.com',
+                'updated_user4@example.com', 'user4@example.com', 'user5@example.com',
+                'user1@example.com', 'target_user101@example.com',
+                'updated_target_user102@example.com', 'updated_target_user105@example.com',
+                'target_user105@example.com', 'target_user106@example.com',
+                'target_user107@example.com'
             ],
             'phone_number': [
-                '555-555-5552', 
-                '555-555-5554', 
-                '555-555-5558', 
-                '555-555-5555', 
-                '555-555-5561',
-                '555-555-5566', 
+                '555-555-5566', '555-555-5552', '555-555-5554', '555-555-5561',
+                '555-555-5558', '555-555-5555', '555-555-5510', '555-555-5511',
+                '555-555-5513', '555-555-5515', '555-555-5518', '555-555-5516'
             ]
         },
         'subset_columns_unique_constraint_and_index': {
-            'first_name': ['John', 'Updated_Bob', 'Bob', 'Updated_Alice', 'Alice', 'Updated_Non_John'],
-            'last_name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Updated_Non_Doe'],
-            'phone_number': ['123-456-7890', '123-456-7892', '123-456-7893']
+            'first_name': [
+                'John', 'Updated_Non_John', 'Updated_Bob', 'Bob', 'Updated_Alice',
+                'Alice', 'Target_John', 'Updated_Target_Jane', 'Target_Alice',
+                'Target_Dave', 'Target_Eve', 'Target_Frank'
+            ],
+            'last_name': [
+                'Doe', 'Updated_Non_Doe', 'Smith', 'Johnson', 'Williams',
+                'Updated_Smith', 'Wilson', 'Davis', 'Miller'
+            ],
+            'phone_number': [
+                '123-456-7890', '123-456-7892', '123-456-7893', '123-456-7810',
+                '123-456-7811', '123-456-7855', '123-456-7815', '123-456-7818',
+                '123-456-7816'
+            ]
         }
     }
 }
