@@ -332,3 +332,4 @@ create table combined_tbl (
 	bittv bit varying(15)
 );
 
+CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);

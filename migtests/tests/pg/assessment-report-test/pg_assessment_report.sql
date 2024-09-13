@@ -183,3 +183,4 @@ CREATE index idx4 on public.combined_tbl (lsn);
 CREATE INDEX idx5 on public.combined_tbl (bitt);
 
 CREATE INDEX idx6 on public.combined_tbl (bittv);
+CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);

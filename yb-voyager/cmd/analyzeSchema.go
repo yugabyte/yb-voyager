@@ -232,6 +232,7 @@ const (
 	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
 	VIEW_CHECK_OPTION_ISSUE              = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 	ISSUE_INDEX_WITH_COMPLEX_DATATYPES   = `INDEX on column '%s' not yet supported`
+	ISSUE_UNLOGGED_TABLE                 = "UNLOGGED tables are not supported yet."
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
@@ -400,6 +401,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportXMLAndXIDDatatype(createTableNode, sqlStmtInfo, fpath)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
+			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
 		if isAlterTable {
 			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
@@ -580,7 +582,25 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		}
 		//TODO #4.
 	}
+}
 
+func reportUnloggedTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	/*
+		e.g CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
+		stmt:{create_stmt:{relation:{schemaname:"public" relname:"tbl_unlogged" inh:true relpersistence:"u" location:19}
+		table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}
+		typemod:-1 location:54} is_local:true location:51}} table_elts:{column_def:{colname:"val" type_name:{names:{string:{sval:"text"}}
+		typemod:-1 location:93} is_local:true location:89}} oncommit:ONCOMMIT_NOOP}} stmt_len:99
+		here, relpersistence is the information about the persistence of this table where u-> unlogged, p->persistent, t->temporary tables
+	*/
+	if createTableNode.CreateStmt.Relation.GetRelpersistence() == "u" {
+		reportCase(fpath, ISSUE_UNLOGGED_TABLE, "https://github.com/yugabyte/yugabyte-db/issues/1129/",
+			"Remove UNLOGGED keyword to make it work", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt,
+			UNSUPPORTED_FEATURES, UNLOGGED_TABLE_DOC_LINK)
+	}
 }
 
 // Checks Whether there is a GIN index
