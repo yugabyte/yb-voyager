@@ -821,52 +821,28 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport))
+	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, UnsupportedIndexDatatypes))
 	return unsupportedFeatures, nil
 }
 
-func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.SchemaReport) UnsupportedFeature {
-	jsonbIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("JSONB", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "jsonb"), schemaAnalysisReport, false, "")
-	tsvectorIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("TSVECTOR", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsvector"), schemaAnalysisReport, false, "")
-	tsqueryIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("TSQUERY", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "tsquery"), schemaAnalysisReport, false, "")
-	citextIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("CITEXT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "citext"), schemaAnalysisReport, false, "")
-	inetIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("INET", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "inet"), schemaAnalysisReport, false, "")
-	arrayIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("ARRAY", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), schemaAnalysisReport, false, "")
-	jsonIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("JSON", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "json"), schemaAnalysisReport, false, "")
-	cidrIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("CIDR", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "cidr"), schemaAnalysisReport, false, "")
-	circleIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("CIRCLE", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "circle"), schemaAnalysisReport, false, "")
-	boxIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("BOX", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "box"), schemaAnalysisReport, false, "")
-	lineIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("LINE", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "line"), schemaAnalysisReport, false, "")
-	lsegIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("LSEG", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "lseg"), schemaAnalysisReport, false, "")
-	macaddrIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("MACADDR", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "macaddr"), schemaAnalysisReport, false, "")
-	macaddr8Indexes := getUnsupportedFeaturesFromSchemaAnalysisReport("MACADDR8", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "macaddr8"), schemaAnalysisReport, false, "")
-	pointIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("POINT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "point"), schemaAnalysisReport, false, "")
-	pglsnIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("PG_LSN", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "pg_lsn"), schemaAnalysisReport, false, "")
-	pathIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("PATH", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "path"), schemaAnalysisReport, false, "")
-	polygonIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("POLYGON", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "polygon"), schemaAnalysisReport, false, "")
-	txidSnapshotIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("TXID_SNAPSHOT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "txid_snapshot"), schemaAnalysisReport, false, "")
-	bitIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("BIT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "bit"), schemaAnalysisReport, false, "")
-	varbitIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("VARBIT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "varbit"), schemaAnalysisReport, false, "")
-
+func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.SchemaReport, unsupportedIndexDatatypes []string) UnsupportedFeature {
 	indexesOnComplexTypesFeature := UnsupportedFeature{
 		FeatureName: "Index on complex datatypes",
 		DisplayDDL:  false,
 		Objects:     []ObjectInfo{},
 	}
-	//append objects from each of these to indexesOnComplexTypesFeature
-	appendObjects := func(features []UnsupportedFeature) {
-		for _, feature := range features {
-			for _, object := range feature.Objects {
-				formattedObject := object
-				formattedObject.ObjectName = fmt.Sprintf("%s: %s", feature.FeatureName, object.ObjectName)
-				indexesOnComplexTypesFeature.Objects = append(indexesOnComplexTypesFeature.Objects, formattedObject)
+	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array") // adding it here only as we know issue form analyze will come with type
+	for _, unsupportedType := range unsupportedIndexDatatypes {
+		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, unsupportedType), schemaAnalysisReport, false, "")
+		for _, object := range indexes.Objects {
+			formattedObject := object
+			formattedObject.ObjectName = fmt.Sprintf("%s: %s", strings.ToUpper(unsupportedType), object.ObjectName)
+			indexesOnComplexTypesFeature.Objects = append(indexesOnComplexTypesFeature.Objects, formattedObject)
+			if indexesOnComplexTypesFeature.DocsLink == "" {
+				indexesOnComplexTypesFeature.DocsLink = indexes.DocsLink
 			}
-			indexesOnComplexTypesFeature.DocsLink = feature.DocsLink
 		}
 	}
-	appendObjects([]UnsupportedFeature{jsonbIndexes, tsvectorIndexes, tsqueryIndexes, citextIndexes, inetIndexes, arrayIndexes,
-		jsonIndexes, cidrIndexes, circleIndexes, boxIndexes, lineIndexes, lsegIndexes, macaddrIndexes, macaddr8Indexes, pointIndexes,
-		pglsnIndexes, pathIndexes, polygonIndexes, txidSnapshotIndexes, bitIndexes, varbitIndexes})
 
 	return indexesOnComplexTypesFeature
 }
