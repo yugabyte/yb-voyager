@@ -76,13 +76,13 @@ main() {
 	
 	step "Validate Assessment Reports"
 	# Checking if the assessment reports were created
-	if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
+	if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json" ]; then
 		echo "Assessment reports created successfully."
 		echo "Checking for Failures"
-		validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+		validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
 		echo "Comparing Report contents"
         expected_file="${TEST_DIR}/expected_files/expectedAssessmentReport.json"
-        actual_file="${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+        actual_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
 	    compare_json_reports ${expected_file} ${actual_file}
 	else
 		echo "Error: Assessment reports were not created successfully."
