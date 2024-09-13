@@ -146,6 +146,7 @@ const (
 	LIST_PARTIION_MULTI_COLUMN_DOC_LINK     = DOCS_LINK_PREFIX + "mysql-oracle/#multi-column-partition-by-list-is-not-supported"
 	PARTITION_KEY_NOT_PK_DOC_LINK           = DOCS_LINK_PREFIX + "oracle/#partition-key-column-not-part-of-primary-key-columns"
 	DROP_TEMP_TABLE_DOC_LINK                = DOCS_LINK_PREFIX + "mysql/#drop-temporary-table-statements-are-not-supported"
+	UNLOGGED_TABLE_DOC_LINK                 = DOCS_LINK_PREFIX + "postgresql/#unlogged-table-is-not-supported"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
