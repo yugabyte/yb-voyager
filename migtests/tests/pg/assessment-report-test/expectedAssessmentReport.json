@@ -341,7 +341,8 @@
 					"ObjectName": "schema2.tbl_unlogged",
 					"SqlStatement": "CREATE UNLOGGED TABLE schema2.tbl_unlogged (\n    id integer,\n    val text\n);"
 				}
-			]
+			],
+			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported"
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
