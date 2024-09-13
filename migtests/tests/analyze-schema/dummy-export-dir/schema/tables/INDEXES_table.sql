@@ -49,3 +49,34 @@ CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb));
 create index idx_valid on public.test_jsonb ((data::text)); 
 
 create index idx_array on public.documents (list_of_sections);
+
+--indexes on misc datatypes
+CREATE index idx1 on combined_tbl (c);
+
+CREATE index idx2 on combined_tbl (ci);
+
+CREATE index idx3 on combined_tbl (b);
+
+CREATE index idx4 on combined_tbl (j);
+
+CREATE index idx5 on combined_tbl (l);
+
+CREATE index idx6 on combined_tbl (ls);
+
+CREATE index idx7 on combined_tbl (maddr);
+
+CREATE index idx8 on combined_tbl (maddr8);
+
+CREATE index idx9 on combined_tbl (p);
+
+CREATE index idx10 on combined_tbl (lsn);
+
+CREATE index idx11 on combined_tbl (p1);
+
+CREATE index idx12 on combined_tbl (p2);
+
+CREATE index idx13 on combined_tbl (id1);
+
+CREATE INDEX idx14 on combined_tbl (bitt);
+
+CREATE INDEX idx15 on combined_tbl (bittv);

@@ -313,3 +313,22 @@ CREATE TABLE public.ts_query_table (
     query tsquery
 );
 
+create table combined_tbl (
+	id int, 
+	c cidr, 
+	ci circle, 
+	b box, 
+	j json, 
+	l line, 
+	ls lseg, 
+	maddr macaddr, 
+	maddr8 macaddr8, 
+	p point, 
+	lsn pg_lsn, 
+	p1 path, 
+	p2 polygon, 
+	id1 txid_snapshot,
+	bitt bit (13),
+	bittv bit varying(15)
+);
+

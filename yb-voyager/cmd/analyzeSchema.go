@@ -424,6 +424,21 @@ var unsupportedIndexDatatypes = []string{
 	"tsquery",
 	"jsonb",
 	"inet",
+	"json",
+	"cidr",
+	"circle",
+	"box",
+	"line",
+	"lseg",
+	"macaddr",
+	"macaddr8",
+	"point",
+	"pg_lsn",
+	"path",
+	"polygon",
+	"txid_snapshot",
+	"bit", // for BIT (n)
+	"varbit", // for BIT varying (n)
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
@@ -504,7 +519,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 	}
 	_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
 	if !ok {
-		return 
+		return
 	}
 	for _, param := range createIndexNode.IndexStmt.GetIndexParams() {
 		/*
@@ -525,10 +540,10 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			return
 		}
 		//For the expression index case to report in case casting to unsupported types #3
-		castTypeName:= ""
+		castTypeName := ""
 		typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
 		if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
-			castTypeName = typeNames[len(typeNames) - 1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+			castTypeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 		}
 		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
 			//In case casting is happening for an array type
@@ -546,7 +561,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		}
 		//TODO #4.
 	}
-	
+
 }
 
 // Checks Whether there is a GIN index
