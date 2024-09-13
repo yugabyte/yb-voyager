@@ -418,6 +418,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	}
 }
 
+// Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)
 var unsupportedIndexDatatypes = []string{
 	"citext",
 	"tsvector",
@@ -468,6 +469,22 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1  location:242}  is_local:true  constraints:{constraint:{contype:CONSTR_IDENTITY
 				location:246  generated_when:"d"}}  location:239}}  table_elts:{column_def:{colname:"query"  type_name:{names:{string:{sval:"tsquery"}}
 				typemod:-1  location:290}  is_local:true  location:284}}  oncommit:ONCOMMIT_NOOP}}  stmt_location:196  stmt_len:110
+
+				3. create table combined_tbl (
+					id int, c cidr, ci circle, b box, j json, 
+					l line, ls lseg, maddr macaddr, maddr8 macaddr8, p point, 
+					lsn pg_lsn, p1 path, p2 polygon, id1 txid_snapshot,
+					bitt bit (13), bittv bit varying(15)
+				);
+				stmt:{create_stmt:{relation:{relname:"combined_tbl" ... colname:"id" type_name:...names:{string:{sval:"int4"}}... column_def:{colname:"c" type_name:{names:{string:{sval:"cidr"}}
+				... column_def:{colname:"ci" type_name:{names:{string:{sval:"circle"}} ... column_def:{colname:"b"type_name:{names:{string:{sval:"box"}} ... column_def:{colname:"j" type_name:{names:{string:{sval:"json"}}
+				 ... column_def:{colname:"l" type_name:{names:{string:{sval:"line"}} ...column_def:{colname:"ls" type_name:{names:{string:{sval:"lseg"}} ...column_def:{colname:"maddr" type_name:{names:{string:{sval:"macaddr"}} 
+				 ...column_def:{colname:"maddr8" type_name:{names:{string:{sval:"macaddr8"}}...column_def:{colname:"p" type_name:{names:{string:{sval:"point"}} ...column_def:{colname:"lsn" type_name:{names:{string:{sval:"pg_lsn"}} 
+				 ...column_def:{colname:"p1" type_name:{names:{string:{sval:"path"}} .... column_def:{colname:"p2" type_name:{names:{string:{sval:"polygon"}} .... column_def:{colname:"id1" type_name:{names:{string:{sval:"txid_snapshot"}} 
+				 ... column_def:{colname:"bitt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"bit"}} typmods:{a_const:{ival:{ival:13} location:241}} typemod:-1 location:236} is_local:true location:231}} 
+				 table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} is_local:true location:246}}
+				 oncommit:ONCOMMIT_NOOP}} stmt_location:51 stmt_len:217
+
 
 		*/
 		if column.GetColumnDef() != nil {

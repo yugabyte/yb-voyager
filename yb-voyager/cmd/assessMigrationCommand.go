@@ -832,26 +832,41 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 	citextIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("CITEXT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "citext"), schemaAnalysisReport, false, "")
 	inetIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("INET", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "inet"), schemaAnalysisReport, false, "")
 	arrayIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("ARRAY", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), schemaAnalysisReport, false, "")
+	jsonIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("JSON", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "json"), schemaAnalysisReport, false, "")
+	cidrIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("CIDR", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "cidr"), schemaAnalysisReport, false, "")
+	circleIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("CIRCLE", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "circle"), schemaAnalysisReport, false, "")
+	boxIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("BOX", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "box"), schemaAnalysisReport, false, "")
+	lineIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("LINE", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "line"), schemaAnalysisReport, false, "")
+	lsegIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("LSEG", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "lseg"), schemaAnalysisReport, false, "")
+	macaddrIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("MACADDR", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "macaddr"), schemaAnalysisReport, false, "")
+	macaddr8Indexes := getUnsupportedFeaturesFromSchemaAnalysisReport("MACADDR8", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "macaddr8"), schemaAnalysisReport, false, "")
+	pointIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("POINT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "point"), schemaAnalysisReport, false, "")
+	pglsnIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("PG_LSN", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "pg_lsn"), schemaAnalysisReport, false, "")
+	pathIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("PATH", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "path"), schemaAnalysisReport, false, "")
+	polygonIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("POLYGON", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "polygon"), schemaAnalysisReport, false, "")
+	txidSnapshotIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("TXID_SNAPSHOT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "txid_snapshot"), schemaAnalysisReport, false, "")
+	bitIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("BIT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "bit"), schemaAnalysisReport, false, "")
+	varbitIndexes := getUnsupportedFeaturesFromSchemaAnalysisReport("VARBIT", fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "varbit"), schemaAnalysisReport, false, "")
+
 	indexesOnComplexTypesFeature := UnsupportedFeature{
 		FeatureName: "Index on complex datatypes",
 		DisplayDDL:  false,
-		Objects: []ObjectInfo{},
+		Objects:     []ObjectInfo{},
 	}
 	//append objects from each of these to indexesOnComplexTypesFeature
-	appendObjects := func(feature UnsupportedFeature) {
-		for _, object := range feature.Objects {
-			formattedObject := object
-			formattedObject.ObjectName = fmt.Sprintf("%s: %s", feature.FeatureName, object.ObjectName)
-			indexesOnComplexTypesFeature.Objects = append(indexesOnComplexTypesFeature.Objects, formattedObject)
+	appendObjects := func(features []UnsupportedFeature) {
+		for _, feature := range features {
+			for _, object := range feature.Objects {
+				formattedObject := object
+				formattedObject.ObjectName = fmt.Sprintf("%s: %s", feature.FeatureName, object.ObjectName)
+				indexesOnComplexTypesFeature.Objects = append(indexesOnComplexTypesFeature.Objects, formattedObject)
+			}
+			indexesOnComplexTypesFeature.DocsLink = feature.DocsLink
 		}
-		indexesOnComplexTypesFeature.DocsLink = feature.DocsLink
 	}
-	appendObjects(jsonbIndexes)
-	appendObjects(tsvectorIndexes)
-	appendObjects(tsqueryIndexes)
-	appendObjects(citextIndexes)
-	appendObjects(inetIndexes)
-	appendObjects(arrayIndexes)
+	appendObjects([]UnsupportedFeature{jsonbIndexes, tsvectorIndexes, tsqueryIndexes, citextIndexes, inetIndexes, arrayIndexes,
+		jsonIndexes, cidrIndexes, circleIndexes, boxIndexes, lineIndexes, lsegIndexes, macaddrIndexes, macaddr8Indexes, pointIndexes,
+		pglsnIndexes, pathIndexes, polygonIndexes, txidSnapshotIndexes, bitIndexes, varbitIndexes})
 
 	return indexesOnComplexTypesFeature
 }
