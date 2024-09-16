@@ -884,6 +884,8 @@ ubuntu_install_postgres() {
 	sudo apt-get update 1>&2
 	sudo apt-get -y install postgresql-16 
 	output "Postgres Installed."
+	pg_dump --version
+	pg_restore --version
 }
 
 ubuntu_install_oracle_instant_clients() {
