@@ -886,6 +886,7 @@ ubuntu_install_postgres() {
 	sudo apt-get update 1>&2
 	sudo apt-get -y install postgresql-16 
 	output "Postgres Installed."
+	find /usr/lib/postgresql/16/bin -name pg_dump
 	pg_dump --version
 	pg_restore --version
 }
