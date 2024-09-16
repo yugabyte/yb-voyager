@@ -878,21 +878,12 @@ centos_install_oracle_instant_clients() {
 #=============================================================================
 
 ubuntu_install_postgres() {
-	pg_dump --version
-	pg_restore --version
 	output "Installing postgres."
 	sudo apt install -y postgresql-common 1>&2
     echo | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh 1>&2
 	sudo apt-get update 1>&2
 	sudo apt-get -y install postgresql-16 
 	output "Postgres Installed."
-	find /usr/lib/postgresql/16/bin -name pg_dump
-	#Print $PATH
-	echo $PATH
-	# Print path
-	echo "pg_dump path: $(which pg_dump)"
-	pg_dump --version
-	pg_restore --version
 }
 
 ubuntu_install_oracle_instant_clients() {
