@@ -878,6 +878,8 @@ centos_install_oracle_instant_clients() {
 #=============================================================================
 
 ubuntu_install_postgres() {
+	pg_dump --version
+	pg_restore --version
 	output "Installing postgres."
 	sudo apt install -y postgresql-common 1>&2
     echo | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh 1>&2
