@@ -841,15 +841,13 @@ create_guardrail_scripts_dir() {
 	scripts_dir_name="guardrail-scripts"
 	sudo mkdir -p $scripts_parent_dir/$scripts_dir_name
 
-	output "Installing the latest guardrail scripts"
+	output "Installing the guardrail scripts"
 	if [ "${VERSION}" == "latest" ]
 	then
 		pg_permissions_check_script_url="https://raw.githubusercontent.com/yugabyte/yb-voyager/main/guardrail-scripts/check_pg_permissions.sql"
 		sudo wget -nv -O $scripts_parent_dir/$scripts_dir_name/check_pg_permissions.sql $pg_permissions_check_script_url
 	else
-		pushd $REPO_ROOT > /dev/null
-		sudo cp ./guardrail-scripts/check_pg_permissions.sql $scripts_parent_dir/$scripts_dir_name/
-		popd > /dev/null
+		sudo cp $REPO_ROOT/guardrail-scripts/check_pg_permissions.sql $scripts_parent_dir/$scripts_dir_name/
 	fi
 }
 
