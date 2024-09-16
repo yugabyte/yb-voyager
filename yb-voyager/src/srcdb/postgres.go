@@ -42,8 +42,8 @@ var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "RASTER", "
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
 
 var PG_COMMAND_VERSION = map[string]string{
-	"pg_dump":    "14.0",
-	"pg_restore": "14.0",
+	"pg_dump":    "16.0",
+	"pg_restore": "16.0",
 	"psql":       "9.0", //psql features we need are available in 7.1 onwards, keeping it to 9.0 for safety
 }
 
