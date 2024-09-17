@@ -35,8 +35,7 @@ func (myb *mockYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *tgtdb.Ev
 
 func TestProcessEventsBasic(t *testing.T) {
 	evChan := make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE)
-	var lastAppliedVsn int64
-	lastAppliedVsn = 0
+	lastAppliedVsn := int64(0)
 	doneChan := make(chan bool, 1)
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
@@ -59,8 +58,7 @@ func TestProcessEventsBasic(t *testing.T) {
 
 func TestProcessEventsRemovesEventFromConflicDetectionCache(t *testing.T) {
 	evChan := make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE)
-	var lastAppliedVsn int64
-	lastAppliedVsn = 0
+	lastAppliedVsn := int64(0)
 	doneChan := make(chan bool, 1)
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
@@ -97,8 +95,7 @@ func TestProcessEventsRemovesIgnoredEventFromConflicDetectionCache(t *testing.T)
 	// all events that are not from the target db exporter.
 	importerRole = SOURCE_DB_IMPORTER_ROLE
 	evChan := make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE)
-	var lastAppliedVsn int64
-	lastAppliedVsn = 100 // so that event with vsn 1 is ignored.
+	lastAppliedVsn := int64(100) // so that event with vsn 1 is ignored.
 	doneChan := make(chan bool, 1)
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
