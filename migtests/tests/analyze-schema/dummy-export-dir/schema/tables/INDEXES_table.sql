@@ -80,3 +80,8 @@ CREATE index idx13 on combined_tbl (id1);
 CREATE INDEX idx14 on combined_tbl (bitt);
 
 CREATE INDEX idx15 on combined_tbl (bittv);
+
+
+CREATE INDEX idx_udt on test_udt(home_address);
+
+CREATE INDEX idx_udt1 on test_udt(home_address1);
