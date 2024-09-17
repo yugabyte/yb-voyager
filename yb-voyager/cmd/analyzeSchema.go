@@ -141,6 +141,10 @@ var (
 		Here only those columns on tables are stored which have unsupported type for Index in YB
 	*/
 	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
+	/*
+		list of composite types in the exported schema 
+	*/
+	compositeTypes = make([]string, 0)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
 	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
@@ -394,6 +398,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
+		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
@@ -416,6 +421,12 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if isCreatePolicy {
 			reportPolicyRequireRolesOrGrants(createPolicyNode, sqlStmtInfo, fpath)
+		}
+
+		if isCreateCompositeType {
+			//Adding the composite types (UDTs) in the list
+			typeName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetRelname()
+			compositeTypes = append(compositeTypes, typeName)
 		}
 	}
 }
@@ -505,12 +516,12 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
 				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "array"
-			} else if slices.Contains(UnsupportedIndexDatatypes, typeName) {
+			} else if slices.Contains(UnsupportedIndexDatatypes, typeName) || slices.Contains(compositeTypes, typeName) {
 				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
 				if !ok {
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
-				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName
+				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName				
 			}
 		}
 	}
