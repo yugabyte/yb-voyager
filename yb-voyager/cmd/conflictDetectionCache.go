@@ -59,8 +59,7 @@ event4: INSERT INTO users (id, email) VALUES (3, 'abc@example.com');
 6. event4 is applied successfully.
 7. event2 is retried but still fails (because now event4 is already applied).
 
-If you think about the end state, we should have only one row in the target table with id=3 (id=2 will be eventually deleted)
-However, event2 will keep failing because of unique key constraint error.
+Here, event2 will continue to fail even after multiple retries because event4 is already applied.
 --------------------------------------
 
 There can be total 4 types of conflicts:
