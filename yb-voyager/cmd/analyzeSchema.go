@@ -142,7 +142,7 @@ var (
 	*/
 	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
 	/*
-		list of composite types in the exported schema 
+		list of composite types in the exported schema
 	*/
 	compositeTypes = make([]string, 0)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
@@ -425,6 +425,19 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if isCreateCompositeType {
 			//Adding the composite types (UDTs) in the list
+			/*
+				e.g. CREATE TYPE non_public."Address_type" AS (
+						street VARCHAR(100),
+						city VARCHAR(50),
+						state VARCHAR(50),
+						zip_code VARCHAR(10)
+					);
+				stmt:{composite_type_stmt:{typevar:{schemaname:"non_public"  relname:"Address_type"  relpersistence:"p"  location:14}  coldeflist:{column_def:{colname:"street"
+				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"varchar"}}  typmods:{a_const:{ival:{ival:100}  location:65}}  typemod:-1  location:57} ...
+
+				Here the type name is required which is available in typevar->relname (not considering the qualified and all as while checking type in create table we will get
+				the last name of type which is the unqualified type name)
+			*/
 			typeName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetRelname()
 			compositeTypes = append(compositeTypes, typeName)
 		}
@@ -489,16 +502,16 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 					id int, c cidr, ci circle, b box, j json,
 					l line, ls lseg, maddr macaddr, maddr8 macaddr8, p point,
 					lsn pg_lsn, p1 path, p2 polygon, id1 txid_snapshot,
-					bitt bit (13), bittv bit varying(15)
+					bitt bit (13), bittv bit varying(15), address non_public."Address_type"
 				);
 				stmt:{create_stmt:{relation:{relname:"combined_tbl" ... colname:"id" type_name:...names:{string:{sval:"int4"}}... column_def:{colname:"c" type_name:{names:{string:{sval:"cidr"}}
 				... column_def:{colname:"ci" type_name:{names:{string:{sval:"circle"}} ... column_def:{colname:"b"type_name:{names:{string:{sval:"box"}} ... column_def:{colname:"j" type_name:{names:{string:{sval:"json"}}
-				 ... column_def:{colname:"l" type_name:{names:{string:{sval:"line"}} ...column_def:{colname:"ls" type_name:{names:{string:{sval:"lseg"}} ...column_def:{colname:"maddr" type_name:{names:{string:{sval:"macaddr"}}
-				 ...column_def:{colname:"maddr8" type_name:{names:{string:{sval:"macaddr8"}}...column_def:{colname:"p" type_name:{names:{string:{sval:"point"}} ...column_def:{colname:"lsn" type_name:{names:{string:{sval:"pg_lsn"}}
-				 ...column_def:{colname:"p1" type_name:{names:{string:{sval:"path"}} .... column_def:{colname:"p2" type_name:{names:{string:{sval:"polygon"}} .... column_def:{colname:"id1" type_name:{names:{string:{sval:"txid_snapshot"}}
-				 ... column_def:{colname:"bitt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"bit"}} typmods:{a_const:{ival:{ival:13} location:241}} typemod:-1 location:236} is_local:true location:231}}
-				 table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} is_local:true location:246}}
-				 oncommit:ONCOMMIT_NOOP}} stmt_location:51 stmt_len:217
+				... column_def:{colname:"l" type_name:{names:{string:{sval:"line"}} ...column_def:{colname:"ls" type_name:{names:{string:{sval:"lseg"}} ...column_def:{colname:"maddr" type_name:{names:{string:{sval:"macaddr"}}
+				...column_def:{colname:"maddr8" type_name:{names:{string:{sval:"macaddr8"}}...column_def:{colname:"p" type_name:{names:{string:{sval:"point"}} ...column_def:{colname:"lsn" type_name:{names:{string:{sval:"pg_lsn"}}
+				...column_def:{colname:"p1" type_name:{names:{string:{sval:"path"}} .... column_def:{colname:"p2" type_name:{names:{string:{sval:"polygon"}} .... column_def:{colname:"id1" type_name:{names:{string:{sval:"txid_snapshot"}}
+				... column_def:{colname:"bitt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"bit"}} typmods:{a_const:{ival:{ival:13} location:241}} typemod:-1 location:236} is_local:true location:231}}
+				table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} ... column_def:{colname:"address" 
+				type_name:{names:{string:{sval:"non_public"}}  names:{string:{sval:"Address_type"}} is_local:true location:246}} oncommit:ONCOMMIT_NOOP}} stmt_location:51 stmt_len:217
 
 
 		*/
@@ -521,7 +534,7 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 				if !ok {
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
-				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName				
+				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName
 			}
 		}
 	}
@@ -584,7 +597,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
-		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) {
+		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) || slices.Contains(compositeTypes, castTypeName) {
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
 			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
