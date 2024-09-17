@@ -21,7 +21,7 @@ def main():
 EXPECTED_ROW_COUNT = {
     'single_unique_constr': 12,
     'multi_unique_constr': 12,
-    'single_unique_idx': 8,
+    'single_unique_idx': 12,
     'multi_unique_idx': 12,
     'diff_columns_constr_idx': 12,
     'subset_columns_constr_idx': 12
