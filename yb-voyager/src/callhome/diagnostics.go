@@ -39,7 +39,7 @@ var (
 
 var (
 	CALL_HOME_SERVICE_HOST = "diagnostics.yugabyte.com"
-	CALL_HOME_SERVICE_PORT = 443
+	CALL_HOME_SERVICE_PORT = 443 // default https port
 )
 
 /*
@@ -230,7 +230,9 @@ func SendPayload(payload *Payload) error {
 	//for local call-home setup
 	readCallHomeServiceEnv()
 
-	//Disable PhasePayload field for now to be stored in callhome until we remove the sensitive information(e.g. object names/schema names)
+	//Disable PhasePayload field for now to be stored in callhome until we remove the sensitive information such as 
+	// 1. object names / schema names / etc..
+	// 3. sql statements (newly introduced in assesment's Unsupported features)
 	payload.PhasePayload = "" 
 
 	postBody, err := json.Marshal(payload)
