@@ -113,7 +113,7 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] ; then
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ] ; then
 		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
@@ -184,7 +184,7 @@ main() {
 	setup_fallback_environment
 
 	step "Initiating cutover"
-	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true --yes --use-yb-grpc-connector f
+	cutover_to_target --prepare-for-fall-back true 
 
 	for ((i = 0; i < 20; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
