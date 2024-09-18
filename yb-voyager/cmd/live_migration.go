@@ -118,6 +118,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 	return nil
 }
 
+// used to determine if cache reinitialization is needed
 var prevExporterRole = ""
 
 func streamChangesFromSegment(
@@ -165,7 +166,7 @@ func streamChangesFromSegment(
 				we need to use the actual source db type at the moment since we save information like
 				TableToUniqueKeyColumns during export(from source/target) to reuse it during import
 			*/
-			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), "yugabytedb", sourceDBType)
+			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), YUGABYTEDB, sourceDBType)
 			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
 			if err != nil {
 				return fmt.Errorf("error initializing conflict detection cache: %w", err)
@@ -245,7 +246,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 
 	/*
 		Checking for all possible conflicts among events
-		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
+		For more details about ConflictDetectionCache see the related comment in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
 	uniqueKeyCols, _ := conflictDetectionCache.tableToUniqueKeyColumns.Get(event.TableNameTup)
 	if len(uniqueKeyCols) > 0 {
@@ -307,10 +308,12 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 				}
 				if event.Vsn <= lastAppliedVsn {
 					log.Tracef("ignoring event %v because event vsn <= %v", event, lastAppliedVsn)
+					conflictDetectionCache.RemoveEvents([]*tgtdb.Event{event})
 					continue
 				}
 				if importerRole == SOURCE_DB_IMPORTER_ROLE && event.ExporterRole != TARGET_DB_EXPORTER_FB_ROLE {
 					log.Tracef("ignoring event %v because importer role is FB_DB_IMPORTER_ROLE and event exporter role is not TARGET_DB_EXPORTER_FB_ROLE.", event)
+					conflictDetectionCache.RemoveEvents([]*tgtdb.Event{event})
 					continue
 				}
 				batch = append(batch, event)
@@ -334,7 +337,6 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
 			if err == nil {
-				conflictDetectionCache.RemoveEvents(eventBatch)
 				break
 			} else if tdb.IsNonRetryableCopyError(err) {
 				break
@@ -367,6 +369,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
+		conflictDetectionCache.RemoveEvents(eventBatch.Events)
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())

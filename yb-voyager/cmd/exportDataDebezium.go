@@ -359,6 +359,17 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		return fmt.Errorf("failed to start debezium: %w", err)
 	}
 
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+			record.ExportDataSourceDebeziumStarted = true
+		} else {
+			record.ExportDataTargetDebeziumStarted = true
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
+
 	var status *dbzm.ExportStatus
 	snapshotComplete := false
 	for debezium.IsRunning() {
@@ -566,7 +577,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 			continue
 		}
 		// for case sensitive tables in yugabytedb, we need to use the quoted table name
-		finalTableList = append(finalTableList, table.ForKey())
+		finalTableList = append(finalTableList, table.ForUserQuery())
 	}
 
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")

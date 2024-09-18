@@ -36,10 +36,31 @@ event2: INSERT INTO users (id, email) VALUES (2, 'abc@example.com');
 
 In this case, event1 and event2 are considered as a conflicting events, because they have the same unique key column value.
 
-In a concurrent environment we can't just apply the second event because both the events can be part of different parallel batches
-and we can't guarantee the order of the events in the batches.
+During live migration, we create N different parallel channels via which events are batched and applied
+on the target database. Hash(event.PK) % N decides which channel to use for the event.
+Given that event1 and event2 will have different PKs, they can be part of different channels and can be processed in parallel.
+This can be problematic because event2 can be applied before event1 and can cause a unique constraint error.
+ConflictDetectionCache aims to solve this problem by making sure that conflicting events are processed in order.
+i.e event2 will be processed only after event1 is processed because they share the same unique key column value.
 
-So, this cache stores events like event1 and wait for them to be processed before processing event2.
+It might seem like simply retrying can solve the problem.
+I.e, if we retry the event2 enough times, after event1 is processed, it will be applied eventually.
+However consider this case:
+event1: DELETE FROM users WHERE id = 1;
+event2: INSERT INTO users (id, email) VALUES (2, 'abc@example.com');
+event3: DELETE FROM users WHERE id = 2;
+event4: INSERT INTO users (id, email) VALUES (3, 'abc@example.com');
+
+1. event1 is being processed in channel 1
+2. event2 is being processed in channel 2
+3. event2 is applied before event1, failing with unique constraint error, and is retried after a sleep of 10s.
+4. event4 is being processed in channel 3
+5. event1 is applied successfully.
+6. event4 is applied successfully.
+7. event2 is retried but still fails (because now event4 is already applied).
+
+Here, event2 will continue to fail even after multiple retries because event4 is already applied.
+--------------------------------------
 
 There can be total 4 types of conflicts:
 1. DELETE-INSERT
@@ -95,7 +116,7 @@ UPDATE example_table SET email = 'user42@example.com' WHERE id = 3;
 type ConflictDetectionCache struct {
 	sync.Mutex
 	/*
-		m caches separte copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
+		m caches separate copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
 		ConvertEvent() in some case modifies schemaName, tableName and before after values
 	*/
 	m                       map[int64]*tgtdb.Event
@@ -105,11 +126,11 @@ type ConflictDetectionCache struct {
 	sourceDBType            string
 }
 
-func NewConflictDetectionCache(tableToIdentityColumnNames *utils.StructMap[sqlname.NameTuple, []string], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToUniqueKeyColumns *utils.StructMap[sqlname.NameTuple, []string], evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
-	c.tableToUniqueKeyColumns = tableToIdentityColumnNames
+	c.tableToUniqueKeyColumns = tableToUniqueKeyColumns
 	c.sourceDBType = sourceDBType
 	c.evChans = evChans
 	return c
@@ -137,19 +158,19 @@ retry:
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
 
-			// we can't return after just one conflict, because there can be multiple conflicts
-			// for example, if we have 3 unique key columns conflicting with 3 different events
+			// can't return after just one conflict, incoming event can have multiple conflicts
+			// for example: table with 3 unique key columns conflicting with 3 different events
 			goto retry
 		}
 	}
 }
 
-func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
+func (c *ConflictDetectionCache) RemoveEvents(events []*tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
 	eventsRemoved := false
 
-	for _, event := range batch.Events {
+	for _, event := range events {
 		if _, ok := c.m[event.Vsn]; ok {
 			delete(c.m, event.Vsn)
 			eventsRemoved = true
@@ -177,6 +198,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 	if isTargetDBExporter(incomingEvent.ExporterRole) {
 		conflict := false
 		if cachedEvent.Op == "d" {
+			// future: https://yugabyte.atlassian.net/browse/DB-9681
 			conflict = true
 		} else if cachedEvent.Op == "u" {
 			// if both events are dealing with the same unique key columns then we consider it as a conflict
@@ -196,7 +218,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 	for _, column := range uniqueKeyColumns {
 		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
-			return false
+			continue // check for the other columns(case: multiple unique keys)
 		}
 
 		if *cachedEvent.BeforeFields[column] == *incomingEvent.Fields[column] {

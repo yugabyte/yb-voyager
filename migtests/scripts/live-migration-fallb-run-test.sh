@@ -74,9 +74,9 @@ main() {
 
 		step "Validate Assessment Reports"
 		# Checking if the assessment reports were created
-		if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
+		if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json" ]; then
 			echo "Assessment reports created successfully."
-			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
 			#TODO: Further validation to be added
 		else
 			echo "Error: Assessment reports were not created successfully."
@@ -231,11 +231,18 @@ main() {
 
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
+
+	
 	
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges" --fb_enabled 'true' --ff_enabled 'false'
+		"${TEST_DIR}/validateAfterChanges" --fb_enabled 'true' --ff_enabled 'false' || {
+			tail_log_file "yb-voyager-import-data-to-source.log"
+			tail_log_file "yb-voyager-export-data-from-target.log"
+			tail_log_file "debezium-target_db_exporter_fb.log"
+			exit 1
+		} 
 	fi
 
 	step "Run get data-migration-report"

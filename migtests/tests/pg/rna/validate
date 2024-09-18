@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_TRIGGER_LIST = [
+		"rna_audit", "rnc_database_audit", "rnc_modifications_tr", "rnc_release_audit", "xref_pk_update",
+		"xref_trigger_insert"
+	]
+
+def migration_completed_checks(tgt):
+
+	table_list = tgt.get_table_names("rnacen")
+	print("table_list:", table_list)
+	assert len(table_list) == 290
+
+	fetched_triggers = tgt.fetch_all_triggers("rnacen")
+	print(f"fetched triggers list: {fetched_triggers}\n Expected triggers: {EXPECTED_TRIGGER_LIST}")
+	assert sorted(fetched_triggers) == sorted(EXPECTED_TRIGGER_LIST), "Fetched triggers do not match expected triggers"
+
+	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('related_sequence_relationship','type_dbdesc_table','type_upi_table');"
+	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
+	print(f"count returned - {cnt_type_domain}")
+	assert cnt_type_domain == 3
+
+	fetched_procedures_functions = tgt.fetch_all_procedures("rnacen")
+	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
+	assert len(fetched_procedures_functions) == 25
+
+	num_sequences = tgt.count_sequences("rnacen")
+	print(f"actual number_sequences: {num_sequences}, expected num_sequences: 82")
+	assert num_sequences == 82
+
+	view_list = tgt.get_objects_of_type("VIEW", "rnacen")
+	print("view_list:", view_list)
+	assert len(view_list) == 3
+	# 1 view is commented out due to parsing issues
+
+	mview_list = tgt.get_objects_of_type("MVIEW", "rnacen")
+	print("mview_list:", mview_list)
+	assert len(mview_list) == 1
+
+	index_list = tgt.get_objects_of_type("INDEX", "rnacen")
+	print("index_list:", index_list)
+	assert len(index_list) == 1611
+
+if __name__ == "__main__":
+	main()

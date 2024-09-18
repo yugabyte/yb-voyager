@@ -16,8 +16,8 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 1,
-				"ObjectNames": "pgcrypto"
+				"TotalCount": 2,
+				"ObjectNames": "pgcrypto, citext"
 			},
 			{
 				"ObjectType": "TYPE",
@@ -36,13 +36,13 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 57,
-				"ObjectNames": "public.test_xml_type, schema2.test_xml_type, public.test_exclude_basic, public.sydney, schema2.ext_test, public.session_log2, schema2.audit, public.\"Recipients\", schema2.boston, schema2.mixed_data_types_table2, public.mixed_data_types_table2, schema2.\"Case_Sensitive_Columns\", schema2.employees2, schema2.sydney, schema2.session_log1, schema2.tt, public.audit, public.ext_test, public.session_log1, schema2.child_table, schema2.orders, schema2.products, public.\"Mixed_Case_Table_Name_Test\", public.session_log, public.tt, public.with_example1, schema2.\"Mixed_Case_Table_Name_Test\", schema2.c, public.mixed_data_types_table1, schema2.parent_table, public.employees2, schema2.\"WITH\", schema2.session_log2, schema2.with_example2, public.parent_table, schema2.session_log, public.\"WITH\", public.london, schema2.sales_region, schema2.london, public.products, schema2.foo, public.boston, public.foo, public.orders, schema2.with_example1, test_views.view_table1, public.\"Case_Sensitive_Columns\", public.sales_region, public.child_table, public.orders2, schema2.\"Recipients\", test_views.view_table2, public.c, public.with_example2, schema2.mixed_data_types_table1, schema2.orders2"
+				"TotalCount": 63,
+				"ObjectNames": "public.combined_tbl, public.ts_query_table, public.documents, public.citext_type, public.inet_type, public.test_jsonb, public.test_xml_type, schema2.test_xml_type, public.test_exclude_basic, public.sydney, schema2.ext_test, public.session_log2, schema2.audit, public.\"Recipients\", schema2.boston, schema2.mixed_data_types_table2, public.mixed_data_types_table2, schema2.\"Case_Sensitive_Columns\", schema2.employees2, schema2.sydney, schema2.session_log1, schema2.tt, public.audit, public.ext_test, public.session_log1, schema2.child_table, schema2.orders, schema2.products, public.\"Mixed_Case_Table_Name_Test\", public.session_log, public.tt, public.with_example1, schema2.\"Mixed_Case_Table_Name_Test\", schema2.c, public.mixed_data_types_table1, schema2.parent_table, public.employees2, schema2.\"WITH\", schema2.session_log2, schema2.with_example2, public.parent_table, schema2.session_log, public.\"WITH\", public.london, schema2.sales_region, schema2.london, public.products, schema2.foo, public.boston, public.foo, public.orders, schema2.with_example1, test_views.view_table1, public.\"Case_Sensitive_Columns\", public.sales_region, public.child_table, public.orders2, schema2.\"Recipients\", test_views.view_table2, public.c, public.with_example2, schema2.mixed_data_types_table1, schema2.orders2"
 			},
 			{
 				"ObjectType": "INDEX",
-				"TotalCount": 4,
-				"ObjectNames": "idx_box_data, idx_point_data, idx_point_data, idx_box_data"
+				"TotalCount": 21,
+				"ObjectNames": "idx1, idx2, idx3, idx4, idx5, idx6, idx_array, idx_box_data, idx_citext, idx_citext1, idx_citext2, idx_inet, idx_inet1, idx_json, idx_json2, idx_point_data, idx_valid, tsquery_idx, tsvector_idx, idx_box_data, idx_point_data"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -104,8 +104,15 @@
 				"schema2.tt",
 				"schema2.orders2",
 				"schema2.employees2",
+				"public.tbl_unlogged",
+				"schema2.tbl_unlogged",
 				"public.orders",
 				"public.products",
+				"public.test_jsonb",
+				"public.inet_type",
+				"public.citext_type",
+				"public.documents",
+				"public.ts_query_table",
 				"public.Recipients",
 				"public.session_log",
 				"public.session_log1",
@@ -146,8 +153,10 @@
 				"public.test_xml_type",
 				"schema2.test_xml_type"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 62 objects (55 tables and 7 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			"ShardedTables": null,
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 80 objects (62 tables and 18 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 7 objects (1 tables and 6 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ShardedTables": [
+				"public.combined_tbl"
+			],
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
 			"MemoryPerInstance": 16,
@@ -194,6 +203,12 @@
 			"TableName": "test_xml_type",
 			"ColumnName": "data",
 			"DataType": "xml"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "combined_tbl",
+			"ColumnName": "lsn",
+			"DataType": "pg_lsn"
 		}
 	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
@@ -327,7 +342,80 @@
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported"
+		},
+		{
+			"FeatureName": "Index on complex datatypes",
+			"Objects": [
+				{
+					"ObjectName": "JSONB: idx_json ON public.test_jsonb",
+					"SqlStatement": "CREATE INDEX idx_json ON public.test_jsonb USING btree (data);"
+				},
+				{
+					"ObjectName": "JSONB: idx_json2 ON public.test_jsonb",
+					"SqlStatement": "CREATE INDEX idx_json2 ON public.test_jsonb USING btree (((data2)::jsonb));"
+				},
+				{
+					"ObjectName": "TSVECTOR: tsvector_idx ON public.documents",
+					"SqlStatement": "CREATE INDEX tsvector_idx ON public.documents USING btree (title_tsvector, id);"
+				},
+				{
+					"ObjectName": "TSQUERY: tsquery_idx ON public.ts_query_table",
+					"SqlStatement": "CREATE INDEX tsquery_idx ON public.ts_query_table USING btree (query);"
+				},
+				{
+					"ObjectName": "CITEXT: idx_citext ON public.citext_type",
+					"SqlStatement": "CREATE INDEX idx_citext ON public.citext_type USING btree (data);"
+				},
+				{
+					"ObjectName": "INET: idx_inet ON public.inet_type",
+					"SqlStatement": "CREATE INDEX idx_inet ON public.inet_type USING btree (data);"
+				},
+				{
+					"ObjectName": "ARRAY: idx_array ON public.documents",
+					"SqlStatement": "CREATE INDEX idx_array ON public.documents USING btree (list_of_sections);"
+				},
+				{
+					"ObjectName": "CIDR: idx1 ON public.combined_tbl",
+					"SqlStatement": "CREATE INDEX idx1 ON public.combined_tbl USING btree (c);"
+				},
+				{
+					"ObjectName": "PG_LSN: idx4 ON public.combined_tbl",
+					"SqlStatement": "CREATE INDEX idx4 ON public.combined_tbl USING btree (lsn);"
+				},
+				{
+					"ObjectName": "MACADDR: idx2 ON public.combined_tbl",
+					"SqlStatement": "CREATE INDEX idx2 ON public.combined_tbl USING btree (maddr);"
+				},
+				{
+					"ObjectName": "MACADDR8: idx3 ON public.combined_tbl",
+					"SqlStatement": "CREATE INDEX idx3 ON public.combined_tbl USING btree (maddr8);"
+				},
+				{
+					"ObjectName": "BIT: idx5 ON public.combined_tbl",
+					"SqlStatement": "CREATE INDEX idx5 ON public.combined_tbl USING btree (bitt);"
+				},
+				{
+					"ObjectName": "VARBIT: idx6 ON public.combined_tbl",
+					"SqlStatement": "CREATE INDEX idx6 ON public.combined_tbl USING btree (bittv);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+		},
+		{
+			"FeatureName": "Unlogged tables",
+			"Objects": [
+				{
+					"ObjectName": "public.tbl_unlogged",
+					"SqlStatement": "CREATE UNLOGGED TABLE public.tbl_unlogged (\n    id integer,\n    val text\n);"
+				},
+				{
+					"ObjectName": "schema2.tbl_unlogged",
+					"SqlStatement": "CREATE UNLOGGED TABLE schema2.tbl_unlogged (\n    id integer,\n    val text\n);"
+				}
+			],
+			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported"
 		}
+
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
@@ -371,6 +459,356 @@
 			"IsIndex": false,
 			"ObjectType": "",
 			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "test_jsonb",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "tbl_unlogged",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "inet_type",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "tbl_unlogged",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "citext_type",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "documents",
+			"RowCount": 0,
+			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "ts_query_table",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "tsvector_idx",
+			"RowCount": null,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.documents",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "tsquery_idx",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.ts_query_table",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_valid",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.test_jsonb",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "combined_tbl",
+			"RowCount": 0,
+			"ColumnCount": 7,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx1",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx2",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx3",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx4",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx5",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx6",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_json2",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.test_jsonb",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_json",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.test_jsonb",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_inet1",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.inet_type",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_inet",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.inet_type",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_citext2",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.citext_type",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_citext1",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.citext_type",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_array",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.documents",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_citext",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.citext_type",
 			"SizeInBytes": 8192
 		},
 		{

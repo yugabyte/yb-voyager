@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -87,7 +88,15 @@ func packAndSendAssessMigrationBulkPayload(status string) {
 }
 func init() {
 	rootCmd.AddCommand(assessMigrationBulkCmd)
-	registerCommonGlobalFlags(assessMigrationBulkCmd)
+
+	// register common global flags
+	BoolVar(assessMigrationBulkCmd.Flags(), &perfProfile, "profile", false,
+		"profile yb-voyager for performance analysis")
+	assessMigrationBulkCmd.Flags().MarkHidden("profile")
+	assessMigrationBulkCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
+		"assume answer as yes for all questions during migration (default false)")
+	BoolVar(assessMigrationBulkCmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
+		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
 
 	const fleetConfigFileHelp = `
 Path to the CSV file with connection parameters for schema(s) to be assessed.
@@ -132,7 +141,7 @@ func assessMigrationBulk() error {
 			utils.CleanDir(match)
 		}
 
-		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html"))
+		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, HTML_EXTENSION)))
 		if err != nil {
 			return fmt.Errorf("failed to remove bulk assessment report: %w", err)
 		}
@@ -379,7 +388,7 @@ func generateBulkAssessmentJsonReport() error {
 		}
 	}
 
-	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.json")
+	reportPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	strReport, err := json.MarshalIndent(bulkAssessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the buk assessment report: %w", err)
@@ -409,7 +418,7 @@ func generateBulkAssessmentHtmlReport() error {
 		return fmt.Errorf("failed to parse the bulkAssessmentReport template: %w", err)
 	}
 
-	reportPath := filepath.Join(bulkAssessmentDir, "bulkAssessmentReport.html")
+	reportPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	file, err := os.Create(reportPath)
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
@@ -465,8 +474,10 @@ var fleetConfFileHeaderFields = []string{SOURCE_DB_TYPE, SOURCE_DB_HOST, SOURCE_
 var fleetConfRequiredFields = []string{SOURCE_DB_TYPE, SOURCE_DB_USER, SOURCE_DB_SCHEMA}
 var fleetConfDbIdentifierFields = []string{SOURCE_DB_NAME, ORACLE_DB_SID, ORACLE_TNS_ALIAS}
 
-// TODO: add unit tests for this function
 func validateFleetConfigFile(filePath string) error {
+	if filePath == "" {
+		utils.ErrExit(`ERROR: required flag "fleet-config-file" not set`)
+	}
 	// Check if the file exists
 	if !utils.FileOrFolderExists(filePath) {
 		return fmt.Errorf("fleet config file %q does not exist", filePath)
