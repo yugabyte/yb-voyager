@@ -165,7 +165,7 @@ retry:
 	}
 }
 
-func (c *ConflictDetectionCache) RemoveEvents(events []*tgtdb.Event) {
+func (c *ConflictDetectionCache) RemoveEvents(events ...*tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
 	eventsRemoved := false
