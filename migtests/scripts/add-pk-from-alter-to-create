@@ -3,8 +3,15 @@
 
 import os
 import re
+import shutil
 
 table_file_path = os.getenv('TEST_DIR')+'/export-dir/schema/tables/table.sql'
+
+#copy the table_file_path to table_file_path+'.old'
+src = table_file_path
+dest = table_file_path + '.old'
+
+shutil.copy(src,dest)
 
 with open(table_file_path, 'r') as file:
     lines = file.readlines()
