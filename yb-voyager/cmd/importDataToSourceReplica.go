@@ -108,7 +108,6 @@ func packAndSendImportDataToSrcReplicaPayload(status string) {
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_FORWARD,
-		CommandLineArgs:  cliArgsString,
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
 	if err != nil {

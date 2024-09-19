@@ -180,9 +180,8 @@ func packAndSendExportDataPayload(status string) {
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs:    int64(source.NumConnections),
-		StartClean:      bool(startClean),
-		CommandLineArgs: cliArgsString,
+		ParallelJobs: int64(source.NumConnections),
+		StartClean:   bool(startClean),
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)

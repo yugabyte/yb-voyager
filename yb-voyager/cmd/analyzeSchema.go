@@ -1744,12 +1744,17 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	payload.MigrationPhase = ANALYZE_PHASE
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {
-		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
+		issue.SqlStatement = ""  // Obfuscate sensitive information before sending to callhome cluster
+		issue.ObjectName = "XXX" // Redacting object name before sending
 		callhomeIssues = append(callhomeIssues, issue)
 	}
+
 	analyzePayload := callhome.AnalyzePhasePayload{
-		Issues:          callhome.MarshalledJsonString(callhomeIssues),
-		DatabaseObjects: callhome.MarshalledJsonString(schemaAnalysisReport.SchemaSummary.DBObjects),
+		Issues: callhome.MarshalledJsonString(callhomeIssues),
+		DatabaseObjects: callhome.MarshalledJsonString(lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
+			dbObject.ObjectNames = ""
+			return dbObject
+		})),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status

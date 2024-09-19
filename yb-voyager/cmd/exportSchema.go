@@ -155,7 +155,6 @@ func packAndSendExportSchemaPayload(status string) {
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
 	sourceDBDetails := callhome.SourceDBDetails{
-		Host:      source.Host,
 		DBType:    source.DBType,
 		DBVersion: source.DBVersion,
 		DBSize:    source.DBSize,
@@ -164,7 +163,8 @@ func packAndSendExportSchemaPayload(status string) {
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean:             bool(startClean),
 		AppliedRecommendations: assessmentRecommendationsApplied,
-		CommandLineArgs:        cliArgsString,
+		UseOrafce:              bool(source.UseOrafce),
+		CommentsOnObjects:      bool(source.CommentsOnObjects),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)

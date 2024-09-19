@@ -127,9 +127,8 @@ func packAndSendExportDataFromTargetPayload(status string) {
 
 	payload.MigrationPhase = EXPORT_DATA_FROM_TARGET_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs:    int64(source.NumConnections),
-		StartClean:      bool(startClean),
-		CommandLineArgs: cliArgsString,
+		ParallelJobs: int64(source.NumConnections),
+		StartClean:   bool(startClean),
 	}
 
 	exportDataPayload.Phase = exportPhase

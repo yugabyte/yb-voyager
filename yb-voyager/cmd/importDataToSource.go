@@ -107,7 +107,6 @@ func packAndSendImportDataToSourcePayload(status string) {
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_BACK,
-		CommandLineArgs:  cliArgsString,
 	}
 
 	importDataPayload.Phase = importPhase

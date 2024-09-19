@@ -234,10 +234,12 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	//import-schema specific payload details
 	importSchemaPayload := callhome.ImportSchemaPhasePayload{
 		ContinueOnError:    bool(tconf.ContinueOnError),
-		Errors:             errorsList,
+		EnableOrafce:       bool(enableOrafce),
+		IgnoreExist:        bool(tconf.IgnoreIfExists),
+		RefreshMviews:      bool(flagRefreshMViews),
+		Errors:             len(errorsList),
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
-		CommandLineArgs:    cliArgsString,
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
 	err := callhome.SendPayload(&payload)
