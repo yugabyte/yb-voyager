@@ -68,7 +68,6 @@ var sourceConnectionFlags = []string{
 type UnsupportedFeature struct {
 	FeatureName        string       `json:"FeatureName"`
 	Objects            []ObjectInfo `json:"Objects"`
-	ObjectCount        int          `json:"ObjectCount"`
 	DisplayDDL         bool         `json:"-"` // just used by html format to display the DDL for some feature and object names for other
 	DocsLink           string       `json:"DocsLink,omitempty"`
 	FeatureDescription string       `json:"FeatureDescription,omitempty"`
@@ -156,9 +155,11 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	})
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) UnsupportedFeature {
-			feature.Objects = []ObjectInfo{} // redacting object names and sqlstatements
-			return feature
+		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+			return callhome.UnsupportedFeature{
+				FeatureName: feature.FeatureName,
+				ObjectCount: len(feature.Objects),
+			}
 		})),
 		UnsupportedDatatypes: callhome.MarshalledJsonString(unsupportedDatatypesList),
 		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
@@ -801,7 +802,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 			objects = append(objects, objectInfo)
 		}
 	}
-	return UnsupportedFeature{featureName, objects, len(objects), displayDDLInHTML, link, description}
+	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description}
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
@@ -898,10 +899,10 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	}
 
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes, len(unsupportedIndexes), false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns, len(virtualColumns), false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes, len(inheritedTypes), false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes, len(unsupportedPartitionTypes), false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes, false, "", ""})
 	return unsupportedFeatures, nil
 }
 
@@ -1019,7 +1020,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			for _, col := range unsupportedDataTypesForLiveMigration {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration", columns, len(columns), false, "", UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
+			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration", columns, false, "", UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
 		}
 		for _, caveat := range migrationCaveats {
 			if len(caveat.Objects) > 0 {
