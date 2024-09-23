@@ -846,7 +846,7 @@ normalize_json() {
     )' "$input_file" > "$temp_file"
 
     # Remove unwanted lines
-    sed -i '' '/Review and manually import.*uncategorized.sql/d' "$temp_file"
+    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file"
 
     # Move cleaned file to output
     mv "$temp_file" "$output_file"
