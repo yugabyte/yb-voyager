@@ -83,7 +83,6 @@ func importSchema() error {
 	if err != nil {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
-	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
 		tdb = tgtdb.NewTargetDB(&tconf)
@@ -93,6 +92,8 @@ func importSchema() error {
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 	}
+
+	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
