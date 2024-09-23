@@ -112,7 +112,7 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] ; then
+	if [ "${MOVE_PK_FROM_ALTER_TO_CREATE}" = true ] ; then
 		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
