@@ -77,7 +77,7 @@ type Payload struct {
 }
 
 type SourceDBDetails struct {
-	Host      string `json:"host,omitempty"` //keeping it empty for now will remove the field altogether later
+	Host      string `json:"host"` //keeping it empty for now, as field iss used in big query app
 	DBType    string `json:"db_type"`
 	DBVersion string `json:"db_version"`
 	DBSize    int64  `json:"total_db_size_bytes"` //bytes

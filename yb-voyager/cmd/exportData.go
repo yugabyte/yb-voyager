@@ -170,7 +170,6 @@ func packAndSendExportDataPayload(status string) {
 		payload.MigrationType = LIVE_MIGRATION
 	}
 	sourceDBDetails := callhome.SourceDBDetails{
-		Host:      source.Host,
 		DBType:    source.DBType,
 		DBVersion: source.DBVersion,
 		DBSize:    source.DBSize,
