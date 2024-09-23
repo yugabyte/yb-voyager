@@ -478,7 +478,7 @@ func runAssessment() error {
 
 func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
-	reportsFilePattern := filepath.Join(assessmentDir, "reports", "assessmentReport.*")
+	reportsFilePattern := filepath.Join(assessmentDir, "reports", fmt.Sprintf("%s.*", ASSESSMENT_FILE_NAME))
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
@@ -785,7 +785,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	return nil
 }
 
-func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, unsupportedFeatures *[]UnsupportedFeature, displayDDLInHTML bool, description string) {
+func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, displayDDLInHTML bool, description string) UnsupportedFeature {
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
 	link := "" // for oracle we shouldn't display any line for links
@@ -801,33 +801,58 @@ func addUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 			objects = append(objects, objectInfo)
 		}
 	}
-	*unsupportedFeatures = append(*unsupportedFeatures, UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description})
+	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description}
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Tables with stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Gin indexes on multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Setting attribute=value on column", ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Disabling rule on table", ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Clustering table on index", ALTER_TABLE_CLUSTER_ON_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Storage parameters in DDLs", STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, true, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
-	addUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("GIST indexes", GIST_INDEX_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Tables with stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Gin indexes on multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Setting attribute=value on column", ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Disabling rule on table", ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Clustering table on index", ALTER_TABLE_CLUSTER_ON_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Storage parameters in DDLs", STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, UnsupportedIndexDatatypes))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Unlogged tables", ISSUE_UNLOGGED_TABLE, schemaAnalysisReport, false, ""))
+
 	return unsupportedFeatures, nil
+}
+
+func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.SchemaReport, unsupportedIndexDatatypes []string) UnsupportedFeature {
+	indexesOnComplexTypesFeature := UnsupportedFeature{
+		FeatureName: "Index on complex datatypes",
+		DisplayDDL:  false,
+		Objects:     []ObjectInfo{},
+	}
+	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array") // adding it here only as we know issue form analyze will come with type
+	for _, unsupportedType := range unsupportedIndexDatatypes {
+		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, unsupportedType), schemaAnalysisReport, false, "")
+		for _, object := range indexes.Objects {
+			formattedObject := object
+			formattedObject.ObjectName = fmt.Sprintf("%s: %s", strings.ToUpper(unsupportedType), object.ObjectName)
+			indexesOnComplexTypesFeature.Objects = append(indexesOnComplexTypesFeature.Objects, formattedObject)
+			if indexesOnComplexTypesFeature.DocsLink == "" {
+				indexesOnComplexTypesFeature.DocsLink = indexes.DocsLink
+			}
+		}
+	}
+
+	return indexesOnComplexTypesFeature
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	addUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, &unsupportedFeatures, false, "")
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
 	return unsupportedFeatures, nil
 }
 
@@ -924,7 +949,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
-		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information 
+		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 		//of these types there are other columns available for these information so we just do string match of types with our list
 		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
@@ -982,12 +1007,12 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
 		migrationCaveats := make([]UnsupportedFeature, 0)
-		addUnsupportedFeaturesFromSchemaAnalysisReport("Alter partitioned tables to add Primary Key", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-			schemaAnalysisReport, &migrationCaveats, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE)
-		addUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON,
-			schemaAnalysisReport, &migrationCaveats, false, DESCRIPTION_FOREIGN_TABLES)
-		addUnsupportedFeaturesFromSchemaAnalysisReport("Policies", POLICY_ROLE_ISSUE,
-			schemaAnalysisReport, &migrationCaveats, false, DESCRIPTION_POLICY_ROLE_ISSUE)
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Alter partitioned tables to add Primary Key", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+			schemaAnalysisReport, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE))
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON,
+			schemaAnalysisReport, false, DESCRIPTION_FOREIGN_TABLES))
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Policies", POLICY_ROLE_ISSUE,
+			schemaAnalysisReport, false, DESCRIPTION_POLICY_ROLE_ISSUE))
 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
@@ -1028,7 +1053,7 @@ func postProcessingOfAssessmentReport() {
 }
 
 func generateAssessmentReportJson(reportDir string) error {
-	jsonReportFilePath := filepath.Join(reportDir, "assessmentReport.json")
+	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
@@ -1045,7 +1070,7 @@ func generateAssessmentReportJson(reportDir string) error {
 }
 
 func generateAssessmentReportHtml(reportDir string) error {
-	htmlReportFilePath := filepath.Join(reportDir, "assessmentReport.html")
+	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
 
 	file, err := os.Create(htmlReportFilePath)
@@ -1068,7 +1093,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("execute template for assessment report...")
 	if source.DBType == POSTGRESQL {
 		// marking this as empty to not display this in html report for PG
-		assessmentReport.SchemaSummary.SchemaNames = []string{} 
+		assessmentReport.SchemaSummary.SchemaNames = []string{}
 	}
 	err = tmpl.Execute(file, assessmentReport)
 	if err != nil {

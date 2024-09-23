@@ -128,12 +128,24 @@ var (
 	summaryMap       = make(map[string]*summaryInfo)
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
+	/*
+		this will contain the information in this format:
+		public.table1 -> {
+			column1: citext | jsonb | inet | tsquery | tsvector | array
+			...
+		}
+		schema2.table2 -> {
+			column3: citext | jsonb | inet | tsquery | tsvector | array
+			...
+		}
+		Here only those columns on tables are stored which have unsupported type for Index in YB
+	*/
+	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
 	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
 	spgistRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
 	rtreeRegex                = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
-	ginRegex                  = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
 	fetchRegex                = re("FETCH", capture(commonClause), "FROM")
@@ -219,6 +231,8 @@ const (
 	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
 	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
 	VIEW_CHECK_OPTION_ISSUE              = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
+	ISSUE_INDEX_WITH_COMPLEX_DATATYPES   = `INDEX on column '%s' not yet supported`
+	ISSUE_UNLOGGED_TABLE                 = "UNLOGGED tables are not supported yet."
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
@@ -322,37 +336,6 @@ func addSummaryDetailsForIndexes() {
 	}
 }
 
-// Checks Whether there is a GIN index
-/*
-Following type of SQL queries are being taken care of by this function -
-	1. CREATE INDEX index_name ON table_name USING gin(column1, column2 ...)
-	2. CREATE INDEX index_name ON table_name USING gin(column1 [ASC/DESC/HASH])
-	3. CREATE EXTENSION btree_gin;
-*/
-func checkGin(sqlInfoArr []sqlInfo, fpath string) {
-	for _, sqlInfo := range sqlInfoArr {
-		matchGin := ginRegex.FindStringSubmatch(sqlInfo.stmt)
-		if matchGin != nil {
-			columnsFromGin := strings.Trim(matchGin[4], `()`)
-			columnList := strings.Split(columnsFromGin, ",")
-			if len(columnList) > 1 {
-				summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3])] = true
-				reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
-					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_MULTI_COLUMN_DOC_LINK)
-			} else {
-				if strings.Contains(strings.ToUpper(columnList[0]), "ASC") || strings.Contains(strings.ToUpper(columnList[0]), "DESC") || strings.Contains(strings.ToUpper(columnList[0]), "HASH") {
-					summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3])] = true
-					reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
-						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", fmt.Sprintf("%s ON %s", matchGin[2], matchGin[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_DIFFERENT_ISSUE_DOC_LINK)
-				}
-			}
-		}
-		if strings.Contains(strings.ToLower(sqlInfo.stmt), "using gin") {
-			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
-		}
-	}
-}
-
 // Checks whether there is gist index
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 	//TODO: add other index types in assessment
@@ -417,6 +400,8 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportXMLAndXIDDatatype(createTableNode, sqlStmtInfo, fpath)
+			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
+			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
 		if isAlterTable {
 			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
@@ -425,12 +410,243 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		}
 		if isCreateIndex {
 			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
+			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
+			checkGinVariations(createIndexNode, sqlStmtInfo, fpath)
 		}
 
 		if isCreatePolicy {
 			reportPolicyRequireRolesOrGrants(createPolicyNode, sqlStmtInfo, fpath)
 		}
 	}
+}
+
+// Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)
+var UnsupportedIndexDatatypes = []string{
+	"citext",
+	"tsvector",
+	"tsquery",
+	"jsonb",
+	"inet",
+	"json",
+	"macaddr",
+	"macaddr8",
+	"cidr",
+	"bit",    // for BIT (n)
+	"varbit", // for BIT varying (n)
+	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
+	//Need to understand if there is other method or way available in PG to have these index key [TODO]
+	"circle",
+	"box",
+	"line",
+	"lseg",
+	"point",
+	"pg_lsn",
+	"path",
+	"polygon",
+	"txid_snapshot",
+	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
+}
+
+func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_CreateStmt) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	for _, column := range columns {
+		/*
+			e.g. 1. CREATE TABLE public.citext_type (
+					id integer,
+					lists_of_data text[],
+					data public.citext
+				);
+				stmt:{create_stmt:{relation:{schemaname:"public"  relname:"citext_type"  inh:true  relpersistence:"p"  location:258}  table_elts:{column_def:{colname:"id"
+				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1  location:287}  is_local:true  location:284}}  table_elts:
+				{column_def:{colname:"lists_of_data"  type_name:{names:{string:{sval:"text"}}  typemod:-1  array_bounds:{integer:{ival:-1}}  location:315}  is_local:true
+				location:301}}  table_elts:{column_def:{colname:"data"  type_name:{names:{string:{sval:"public"}}  names:{string:{sval:"citext"}}  typemod:-1  location:333}
+				is_local:true  location:328}}  oncommit:ONCOMMIT_NOOP}}  stmt_location:244  stmt_len:108
+
+				2. CREATE TABLE public.ts_query_table (
+					id int generated by default as identity,
+					query tsquery
+				  );
+				stmt:{create_stmt:{relation:{schemaname:"public"  relname:"ts_query_table"  inh:true  relpersistence:"p"  location:211}  table_elts:{column_def:{colname:"id"
+				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1  location:242}  is_local:true  constraints:{constraint:{contype:CONSTR_IDENTITY
+				location:246  generated_when:"d"}}  location:239}}  table_elts:{column_def:{colname:"query"  type_name:{names:{string:{sval:"tsquery"}}
+				typemod:-1  location:290}  is_local:true  location:284}}  oncommit:ONCOMMIT_NOOP}}  stmt_location:196  stmt_len:110
+
+				3. create table combined_tbl (
+					id int, c cidr, ci circle, b box, j json,
+					l line, ls lseg, maddr macaddr, maddr8 macaddr8, p point,
+					lsn pg_lsn, p1 path, p2 polygon, id1 txid_snapshot,
+					bitt bit (13), bittv bit varying(15)
+				);
+				stmt:{create_stmt:{relation:{relname:"combined_tbl" ... colname:"id" type_name:...names:{string:{sval:"int4"}}... column_def:{colname:"c" type_name:{names:{string:{sval:"cidr"}}
+				... column_def:{colname:"ci" type_name:{names:{string:{sval:"circle"}} ... column_def:{colname:"b"type_name:{names:{string:{sval:"box"}} ... column_def:{colname:"j" type_name:{names:{string:{sval:"json"}}
+				 ... column_def:{colname:"l" type_name:{names:{string:{sval:"line"}} ...column_def:{colname:"ls" type_name:{names:{string:{sval:"lseg"}} ...column_def:{colname:"maddr" type_name:{names:{string:{sval:"macaddr"}}
+				 ...column_def:{colname:"maddr8" type_name:{names:{string:{sval:"macaddr8"}}...column_def:{colname:"p" type_name:{names:{string:{sval:"point"}} ...column_def:{colname:"lsn" type_name:{names:{string:{sval:"pg_lsn"}}
+				 ...column_def:{colname:"p1" type_name:{names:{string:{sval:"path"}} .... column_def:{colname:"p2" type_name:{names:{string:{sval:"polygon"}} .... column_def:{colname:"id1" type_name:{names:{string:{sval:"txid_snapshot"}}
+				 ... column_def:{colname:"bitt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"bit"}} typmods:{a_const:{ival:{ival:13} location:241}} typemod:-1 location:236} is_local:true location:231}}
+				 table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} is_local:true location:246}}
+				 oncommit:ONCOMMIT_NOOP}} stmt_location:51 stmt_len:217
+
+
+		*/
+		if column.GetColumnDef() != nil {
+			typeName := ""
+			typeNames := column.GetColumnDef().GetTypeName().GetNames()
+			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
+				typeName = typeNames[len(typeNames)-1].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+			}
+			colName := column.GetColumnDef().GetColname()
+			if len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0 {
+				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
+				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
+				if !ok {
+					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
+				}
+				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "array"
+			} else if slices.Contains(UnsupportedIndexDatatypes, typeName) {
+				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
+				if !ok {
+					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
+				}
+				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName
+			}
+		}
+	}
+}
+
+func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
+	indexName := createIndexNode.IndexStmt.GetIdxname()
+	relName := createIndexNode.IndexStmt.GetRelation()
+	schemaName := relName.GetSchemaname()
+	tableName := relName.GetRelname()
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
+	/*
+		e.g.
+		1. CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
+		stmt:{index_stmt:{idxname:"tsvector_idx"  relation:{schemaname:"public"  relname:"documents"  inh:true  relpersistence:"p"  location:510}  access_method:"btree"
+		index_params:{index_elem:{name:"title_tsvector"  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}  index_params:{index_elem:{name:"id"
+		ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:479  stmt_len:69
+
+		2. CREATE INDEX idx_json ON public.test_json ((data::jsonb));
+		stmt:{index_stmt:{idxname:"idx_json"  relation:{schemaname:"public"  relname:"test_json"  inh:true  relpersistence:"p"  location:703}  access_method:"btree"
+		index_params:{index_elem:{expr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"data"}}  location:722}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1
+		location:728}  location:726}}  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:676  stmt_len:59
+	*/
+	if createIndexNode.IndexStmt.AccessMethod != "btree" {
+		return // Right now not reporting any other access method issues with such types.
+	}
+	_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
+	if !ok {
+		return
+	}
+	for _, param := range createIndexNode.IndexStmt.GetIndexParams() {
+		/*
+			cases to cover
+				1. normal index on column with these types
+				2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
+				3. expression index with  casting to unsupported types
+				4. normal index on column with UDTs [TODO]
+				5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
+		*/
+		colName := param.GetIndexElem().GetName()
+		typeName, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName]
+		if ok {
+			summaryMap["INDEX"].invalidCount[displayObjName] = true
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+			return
+		}
+		//For the expression index case to report in case casting to unsupported types #3
+		castTypeName := ""
+		typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
+		if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
+			castTypeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+		}
+		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
+			//In case casting is happening for an array type
+			summaryMap["INDEX"].invalidCount[displayObjName] = true
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+			return
+		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) {
+			summaryMap["INDEX"].invalidCount[displayObjName] = true
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+			return
+		}
+		//TODO #4.
+	}
+}
+
+func reportUnloggedTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	/*
+		e.g CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
+		stmt:{create_stmt:{relation:{schemaname:"public" relname:"tbl_unlogged" inh:true relpersistence:"u" location:19}
+		table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}
+		typemod:-1 location:54} is_local:true location:51}} table_elts:{column_def:{colname:"val" type_name:{names:{string:{sval:"text"}}
+		typemod:-1 location:93} is_local:true location:89}} oncommit:ONCOMMIT_NOOP}} stmt_len:99
+		here, relpersistence is the information about the persistence of this table where u-> unlogged, p->persistent, t->temporary tables
+	*/
+	if createTableNode.CreateStmt.Relation.GetRelpersistence() == "u" {
+		reportCase(fpath, ISSUE_UNLOGGED_TABLE, "https://github.com/yugabyte/yugabyte-db/issues/1129/",
+			"Remove UNLOGGED keyword to make it work", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt,
+			UNSUPPORTED_FEATURES, UNLOGGED_TABLE_DOC_LINK)
+	}
+}
+
+// Checks Whether there is a GIN index
+/*
+Following type of SQL queries are being taken care of by this function -
+	1. CREATE INDEX index_name ON table_name USING gin(column1, column2 ...)
+	2. CREATE INDEX index_name ON table_name USING gin(column1 [ASC/DESC/HASH])
+*/
+func checkGinVariations(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
+	indexName := createIndexNode.IndexStmt.GetIdxname()
+	relName := createIndexNode.IndexStmt.GetRelation()
+	schemaName := relName.GetSchemaname()
+	tableName := relName.GetRelname()
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	displayObjectName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
+	if createIndexNode.IndexStmt.GetAccessMethod() != "gin" { // its always in lower
+		return
+	} else {
+		summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
+	}
+	/*
+		e.g. CREATE INDEX idx_name ON public.test USING gin (data, data2);
+		stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p"
+		location:125} access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		index_params:{index_elem:{name:"data2" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_location:81 stmt_len:81
+	*/
+	if len(createIndexNode.IndexStmt.GetIndexParams()) > 1 {
+		summaryMap["INDEX"].invalidCount[displayObjectName] = true
+		reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
+			"https://github.com/yugabyte/yugabyte-db/issues/10652", "", "INDEX", displayObjectName,
+			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_MULTI_COLUMN_DOC_LINK)
+		return
+	}
+	/*
+		e.g. CREATE INDEX idx_name ON public.test USING gin (data DESC);
+		stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p" location:44}
+		access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DESC nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:80
+	*/
+	idxParam := createIndexNode.IndexStmt.GetIndexParams()[0] // taking only the first as already checking len > 1 above so should be fine
+	if idxParam.GetIndexElem().GetOrdering() != pg_query.SortByDir_SORTBY_DEFAULT {
+		summaryMap["INDEX"].invalidCount[displayObjectName] = true
+		reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
+			"https://github.com/yugabyte/yugabyte-db/issues/10653", "", "INDEX", displayObjectName,
+			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_DIFFERENT_ISSUE_DOC_LINK)
+	}
+
 }
 
 func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePolicyStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -694,9 +910,9 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 	}
 	/*
 		e.g. ALTER TABLE example CLUSTER ON idx;
-		stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13} 
+		stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13}
 		cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
-	
+
 	*/
 	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_ClusterOn {
 		reportCase(fpath, ALTER_TABLE_CLUSTER_ON_ISSUE,
@@ -1052,7 +1268,6 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
 	checkGist(sqlInfoArr, fpath)
-	checkGin(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
@@ -1443,7 +1658,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-	reportFile := "schema_analysis_report." + analyzeSchemaReportFormat
+	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, analyzeSchemaReportFormat)
 
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
@@ -1579,7 +1794,7 @@ func validateReportOutputFormat(validOutputFormats []string, format string) {
 }
 
 func schemaIsAnalyzed() bool {
-	path := filepath.Join(exportDir, "reports", "schema_analysis_report.*")
+	path := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
 	return utils.FileOrFolderExistsWithGlobPattern(path)
 }
 
