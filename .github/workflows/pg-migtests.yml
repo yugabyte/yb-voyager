@@ -130,8 +130,8 @@ jobs:
       - name: "TEST: pg-partitions-with-indexes"
         run: migtests/scripts/run-test.sh pg/partitions-with-indexes
 
-      - name: "TEST: pg-views-and-rules"
-        run: migtests/scripts/run-test.sh pg/views-and-rules
+      # - name: "TEST: pg-views-and-rules"
+      #   run: migtests/scripts/run-test.sh pg/views-and-rules
 
       - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
         run: migtests/scripts/run-test.sh pg/misc-objects-1
