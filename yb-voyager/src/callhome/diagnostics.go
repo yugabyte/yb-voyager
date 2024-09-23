@@ -91,6 +91,11 @@ type TargetDBDetails struct {
 	Cores     int    `json:"total_cores"`
 }
 
+type UnsupportedFeature struct {
+	FeatureName string `json:"FeatureName"`
+	ObjectCount int `json:"ObjectCount"`
+}
+
 type AssessMigrationPhasePayload struct {
 	UnsupportedFeatures  string `json:"unsupported_features"`
 	UnsupportedDatatypes string `json:"unsupported_datatypes"`

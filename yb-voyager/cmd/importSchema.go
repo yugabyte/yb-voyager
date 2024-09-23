@@ -84,16 +84,8 @@ func importSchema() error {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 
-	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
-		tdb = tgtdb.NewTargetDB(&tconf)
-		err := tdb.Init()
-		if err != nil {
-			utils.ErrExit("Failed to initialize the target DB: %s", err)
-		}
-		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
-	}
-
 	tconf.Schema = strings.ToLower(tconf.Schema)
+
 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
@@ -130,6 +122,15 @@ func importSchema() error {
 
 		createTargetSchemas(conn)
 		installOrafceIfRequired(conn)
+	}
+
+	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
+		tdb = tgtdb.NewTargetDB(&tconf)
+		err := tdb.Init()
+		if err != nil {
+			utils.ErrExit("Failed to initialize the target DB: %s", err)
+		}
+		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 	}
 
 	var objectList []string
