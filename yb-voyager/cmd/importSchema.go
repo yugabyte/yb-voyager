@@ -86,7 +86,18 @@ func importSchema() error {
 
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
-
+	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
+		tconfSchema := tconf.Schema
+		tconf.Schema = "public" // to handle all cases where target isn't available before this init step
+		tdb = tgtdb.NewTargetDB(&tconf)
+		err := tdb.Init()
+		if err != nil {
+			utils.ErrExit("Failed to initialize the target DB: %s", err)
+		}
+		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
+		tconf.Schema = tconfSchema
+	}
+	
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
@@ -122,15 +133,6 @@ func importSchema() error {
 
 		createTargetSchemas(conn)
 		installOrafceIfRequired(conn)
-	}
-
-	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
-		tdb = tgtdb.NewTargetDB(&tconf)
-		err := tdb.Init()
-		if err != nil {
-			utils.ErrExit("Failed to initialize the target DB: %s", err)
-		}
-		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 	}
 
 	var objectList []string
