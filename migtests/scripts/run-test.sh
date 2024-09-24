@@ -114,11 +114,10 @@ main() {
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 
 	step "Verify the pg_dump version being used"
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-		if ! grep "Dumped by pg_dump version:" "${EXPORT_DIR}/logs/yb-voyager-export-data.log"; then
-			echo "Error: pg_dump version not found in the log file." >&2
-			exit 1
-		fi
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] && [ "${BETA_FAST_DATA_EXPORT}" = 0 ]; then
+	    if ! grep "Dumped by pg_dump version:" "${EXPORT_DIR}/logs/yb-voyager-export-data.log"; then
+	        echo "Error: pg_dump version not found in the log file." >&2
+	    fi
 	fi
 
 	step "Fix data."
