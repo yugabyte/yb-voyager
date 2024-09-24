@@ -115,7 +115,6 @@ main() {
 
 	step "Verify the pg_dump version being used"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] && { [ -z "${BETA_FAST_DATA_EXPORT}" ] || [ "${BETA_FAST_DATA_EXPORT}" = "0" ]; }; then
-		which pg_dump
 	    if ! grep "Dumped by pg_dump version:" "${EXPORT_DIR}/logs/yb-voyager-export-data.log"; then
 	        echo "Error: pg_dump version not found in the log file." >&2
 	    fi
