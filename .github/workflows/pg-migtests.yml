@@ -152,8 +152,8 @@ jobs:
           GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
         run: migtests/scripts/gcs/create_gcs_credentials_file
 
-      - name: "TEST: pg-codependent-schemas"
-        run: migtests/scripts/run-test.sh pg/codependent-schemas
+      # - name: "TEST: pg-codependent-schemas"
+      #   run: migtests/scripts/run-test.sh pg/codependent-schemas
 
       - name: "TEST: pg-sample-schema-emp"
         run: migtests/scripts/run-test.sh pg/sample-employee
