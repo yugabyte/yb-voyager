@@ -299,8 +299,13 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	allTables := lo.Uniq(lo.Map(importFileTasks, func(task *ImportFileTask, _ int) sqlname.NameTuple {
 		return task.TableNameTup
 	}))
-	slices.SortFunc(allTables, func(a, b sqlname.NameTuple) bool {
-		return a.ForKey() < b.ForKey()
+	slices.SortFunc(allTables, func(a, b sqlname.NameTuple) int {
+		if a.ForKey() < b.ForKey() {
+			return -1 // a is less than b
+		} else if a.ForKey() > b.ForKey() {
+			return 1 // a is greater than b
+		}
+		return 0 // a is equal to b
 	})
 	log.Infof("allTables: %v", allTables)
 
