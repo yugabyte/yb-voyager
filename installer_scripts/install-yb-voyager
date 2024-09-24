@@ -11,53 +11,6 @@ ARGS_LINUX=$@
 LOG_FILE=/tmp/install-yb-voyager.log
 VERSION="latest"
 
-# Check if jq is installed
-if ! command -v jq &> /dev/null
-then
-	echo "ERROR: jq is not installed. Please install jq before running this script."
-	exit 1
-fi
-
-# Fetch the latest release data from the github api
-LATEST_RELEASE_DATA=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest)
-# Check if API call was successful
-if [ -z "$LATEST_RELEASE_DATA" ]
-then
-	echo "ERROR: Failed to fetch the latest release data from the github api."
-	exit 1
-fi
-
-# Extract the latest release name and tag name from the fetched data
-LATEST_RELEASE_NAME=$(echo "$LATEST_RELEASE_DATA" | jq -r '.name')
-LATEST_TAG_NAME=$(echo "$LATEST_RELEASE_DATA" | jq -r '.tag_name')
-
-# Fetch the commit hash of the latest tagged commit
-LATEST_TAG_DATA=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/git/refs/tags/${LATEST_TAG_NAME})
-# Check if API call was successful
-if [ -z "$LATEST_TAG_DATA" ]
-then
-	echo "ERROR: Failed to fetch the latest tagged commit data from the github api."
-	exit 1
-fi
-
-LATEST_TAGGED_COMMIT=$(echo "$LATEST_TAG_DATA" | jq -r '.object.sha')
-
-# The release name is like v1.7.2, we can get the voyager version by removing the v
-VOYAGER_VERSION=$(echo $LATEST_RELEASE_NAME | sed 's/v//')
-
-# Log all the fetched data in the LOG_FILE
-echo "LATEST_RELEASE_NAME=${LATEST_RELEASE_NAME}" >> $LOG_FILE
-echo "LATEST_TAG_NAME=${LATEST_TAG_NAME}" >> $LOG_FILE
-echo "LATEST_TAGGED_COMMIT=${LATEST_TAGGED_COMMIT}" >> $LOG_FILE
-echo "VOYAGER_VERSION=${VOYAGER_VERSION}" >> $LOG_FILE
-
-VOYAGER_RELEASE_NAME=${VOYAGER_RELEASE_NAME:-${LATEST_RELEASE_NAME}}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.5.2-"${VOYAGER_VERSION}}
-
-# the hash corresponds to the latest tag's commit hash fetched using the github api
-YB_VOYAGER_GIT_HASH=${LATEST_TAGGED_COMMIT}
-
-
 ONLY_PG="false"
 
 trap on_exit EXIT
@@ -176,6 +129,13 @@ centos_main() {
 		rebuild_voyager_local
 		return
 	fi
+	
+	if [ "${VERSION}" == "latest" ]
+	then
+		$YUM install jq 1>&2
+		fetch_latest_release_data
+	fi
+	
 	centos_check_base_repo_enabled
 	output "Installing RPM dependencies."
 	$YUM which wget git gcc make 1>&2
@@ -211,11 +171,17 @@ ubuntu_main() {
 		rebuild_voyager_local
 		return
 	fi
-	output "Installing packages."
+
 	sudo apt-get update 1>&2
+	if [ "${VERSION}" == "latest" ]
+	then
+		sudo apt-get install -y jq 1>&2
+		fetch_latest_release_data
+	fi
+
+	output "Installing packages."
 	sudo apt-get -y install wget  1>&2
 	sudo apt-get -y install sqlite3 1>&2
-
 	install_golang linux
 	ubuntu_install_postgres
 	create_pg_dump_args_file
@@ -252,6 +218,13 @@ macos_main() {
 		return
 	fi
 	macos_install_brew
+
+	if [ "${VERSION}" == "latest" ]
+	then
+		brew install jq 1>&2
+		fetch_latest_release_data
+	fi
+
 	macos_install_pg_dump
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
@@ -267,6 +240,43 @@ macos_main() {
 #=============================================================================
 # COMMON
 #=============================================================================
+
+# Function to fetch the latest release data from GitHub API
+fetch_latest_release_data() {
+    # Fetch the latest release data from GitHub API
+    LATEST_RELEASE_DATA=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest)
+    if [ -z "$LATEST_RELEASE_DATA" ]; then
+        echo "ERROR: Failed to fetch the latest release data from the GitHub API."
+        exit 1
+    fi
+
+    # Extract the latest release name and tag name
+    LATEST_RELEASE_NAME=$(echo "$LATEST_RELEASE_DATA" | jq -r '.name')
+    LATEST_TAG_NAME=$(echo "$LATEST_RELEASE_DATA" | jq -r '.tag_name')
+
+    # Fetch the commit hash of the latest tagged commit
+    LATEST_TAG_DATA=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/git/refs/tags/${LATEST_TAG_NAME})
+    if [ -z "$LATEST_TAG_DATA" ]; then
+        echo "ERROR: Failed to fetch the latest tagged commit data from the GitHub API."
+        exit 1
+    fi
+
+    LATEST_TAGGED_COMMIT=$(echo "$LATEST_TAG_DATA" | jq -r '.object.sha')
+
+    # Extract voyager version from the release name
+    VOYAGER_VERSION=$(echo "$LATEST_RELEASE_NAME" | sed 's/v//')
+
+    # Log the fetched data to the log file
+    echo "LATEST_RELEASE_NAME=${LATEST_RELEASE_NAME}" >> "$LOG_FILE"
+    echo "LATEST_TAG_NAME=${LATEST_TAG_NAME}" >> "$LOG_FILE"
+    echo "LATEST_TAGGED_COMMIT=${LATEST_TAGGED_COMMIT}" >> "$LOG_FILE"
+    echo "VOYAGER_VERSION=${VOYAGER_VERSION}" >> "$LOG_FILE"
+
+    # Set global variables for version and hash
+    VOYAGER_RELEASE_NAME=${VOYAGER_RELEASE_NAME:-${LATEST_RELEASE_NAME}}
+    DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.5.2-${VOYAGER_VERSION}"}
+    YB_VOYAGER_GIT_HASH=${LATEST_TAGGED_COMMIT}
+}
 
 check_java() {
 	if [ -z "$JAVA_HOME" ]; then
@@ -289,12 +299,13 @@ check_java() {
 }
 
 install_debezium_server(){
-	output "Installing debezium:${VERSION}."
 	if [ "${VERSION}" == "latest" ]
 	then
+		output "Installing debezium:${VERSION}:${DEBEZIUM_VERSION}"
 		install_debezium_server_latest_release
 		return
 	fi
+	output "Installing debezium:${VERSION}."
 
 	check_install_maven
 	clean_debezium
@@ -311,7 +322,6 @@ install_debezium_server(){
 }
 
 install_debezium_server_latest_release() {
-	output "Installing debezium:${DEBEZIUM_VERSION}"
 	debezium_server_filename="debezium-server.tar.gz"
 	# download
 	wget -nv "https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager/${VOYAGER_RELEASE_NAME}/${debezium_server_filename}"
@@ -608,14 +618,15 @@ update_yb_voyager_bashrc() {
 
 
 install_yb_voyager() {
-	output "Installing yb-voyager:${VERSION}."
 	GO=${GO:-"go"}
 	if [ "${VERSION}" == "latest" ]
 	then
+	    output "Installing yb-voyager:${VERSION}:${VOYAGER_VERSION}"
 		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
 		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 		return
 	fi
+	output "Installing yb-voyager:${VERSION}."
 
 	inside_repo=`git rev-parse --is-inside-work-tree 2> /dev/null || echo "false"`
 	if [ "${inside_repo}" == "false" ]
@@ -728,6 +739,7 @@ install_ora2pg() {
 	sudo make install 1>&2
 	cd ..
 	rm -f ${ORA2PG_VERSION}.tar.gz
+	rm -rf ora2pg-${ORA2PG_VERSION}/
 	output "ora2pg installed."
 }
 
