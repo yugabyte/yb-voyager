@@ -156,6 +156,9 @@ main() {
 			exit 1
 			;;
 	esac
+	pg_dump --version
+	which pg_dump
+	ls -l $(which pg_dump)
 }
 
 
@@ -886,6 +889,7 @@ ubuntu_install_postgres() {
 	output "Postgres Installed."
 	pg_dump --version
 	which pg_dump
+	ls -l $(which pg_dump)
 }
 
 ubuntu_install_oracle_instant_clients() {
