@@ -104,6 +104,7 @@ const (
 	MIGRATION_CAVEATS     = "migration_caveats"
 
 	TABLE     = "TABLE"
+	MVIEW     = "MVIEW"
 	YUGABYTED = "yugabyted"
 
 	// assess-migration-bulk

@@ -7,14 +7,15 @@ SELECT
         WHEN c.relkind = 'p' THEN 'partitioned table'
         WHEN c.relkind = 'i' THEN 'index'
         WHEN c.relkind = 'I' THEN 'partitioned index'
+        WHEN c.relkind = 'm' THEN 'materialized view'
         ELSE 'unknown'
     END AS object_type,
     CASE 
-        WHEN c.relkind = 'r' THEN psut.seq_tup_read
+        WHEN c.relkind IN ('r', 'm') THEN psut.seq_tup_read
         WHEN c.relkind = 'i' THEN psi.idx_scan
     END AS seq_reads,
     CASE
-        WHEN c.relkind = 'r' THEN psut.n_tup_ins + psut.n_tup_upd + psut.n_tup_del
+        WHEN c.relkind IN ('r', 'm') THEN psut.n_tup_ins + psut.n_tup_upd + psut.n_tup_del
         WHEN c.relkind = 'i' THEN psi.idx_tup_read
     END AS row_writes,
     :'measurement_type' AS measurement_type
@@ -23,14 +24,14 @@ FROM
 JOIN
     pg_namespace n ON c.relnamespace = n.oid
 LEFT JOIN
-    pg_stat_user_tables psut ON psut.relid = c.oid AND c.relkind = 'r'
+    pg_stat_user_tables psut ON psut.relid = c.oid AND c.relkind IN ( 'r', 'm')
 LEFT JOIN
     pg_stat_all_indexes psi ON psi.indexrelid = c.oid AND c.relkind = 'i'
 LEFT JOIN
     pg_index pi ON pi.indexrelid = c.oid
 WHERE
     n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
-    AND (c.relkind IN ('r', 'p', 'i', 'I')) AND NOT (c.relkind IN ('i', 'I') AND pi.indisprimary);
+    AND (c.relkind IN ('r', 'p', 'i', 'I', 'm')) AND NOT (c.relkind IN ('i', 'I') AND pi.indisprimary);
 
 -- Now you can use the temporary table to fetch the data
 \copy temp_table TO 'table-index-iops.csv' WITH CSV HEADER;
