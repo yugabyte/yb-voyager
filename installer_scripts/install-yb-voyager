@@ -286,7 +286,7 @@ check_java() {
 	fi
 
     MIN_REQUIRED_MAJOR_VERSION='17'
-	MAX_REQUIRED_MAJOR_VERSION='21'
+	MAX_REQUIRED_MAJOR_VERSION='19'
 	JAVA_COMPLETE_VERSION=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}')
     JAVA_MAJOR_VER=$(echo "${JAVA_COMPLETE_VERSION}" | awk -F. '{print $1}')
 
