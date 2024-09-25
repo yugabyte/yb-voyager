@@ -1334,7 +1334,7 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 
 	// Add information about colocated objects if they exist
 	if len(colocatedObjects) > 0 {
-		reasoning += fmt.Sprintf("%v objects (%v tables and %v explicit/implicit indexes) with %0.2f %v size "+
+		reasoning += fmt.Sprintf("%v objects (%v tables/materialized views and %v explicit/implicit indexes) with %0.2f %v size "+
 			"and throughput requirement of %v reads/sec and %v writes/sec as colocated.", len(colocatedObjects),
 			len(colocatedObjects)-cumulativeIndexCountColocated, cumulativeIndexCountColocated, colocatedObjectsSize,
 			sizeUnitColocated, colocatedReads, colocatedWrites)
@@ -1344,7 +1344,7 @@ func getReasoning(recommendation IntermediateRecommendation, shardedObjects []So
 		// Calculate size and throughput of sharded objects
 		shardedObjectsSize, shardedReads, shardedWrites, sizeUnitSharded := getObjectsSize(shardedObjects)
 		// Construct reasoning for sharded objects
-		shardedReasoning := fmt.Sprintf("%v objects (%v tables and %v explicit/implicit indexes) with %0.2f %v "+
+		shardedReasoning := fmt.Sprintf("%v objects (%v tables/materialized views and %v explicit/implicit indexes) with %0.2f %v "+
 			"size and throughput requirement of %v reads/sec and %v writes/sec ", len(shardedObjects),
 			len(shardedObjects)-cumulativeIndexCountSharded, cumulativeIndexCountSharded, shardedObjectsSize,
 			sizeUnitSharded, shardedReads, shardedWrites)
