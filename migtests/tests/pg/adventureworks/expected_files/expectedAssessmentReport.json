@@ -82,6 +82,7 @@
 				"person.phonenumbertype",
 				"person.personphone",
 				"person.countryregion",
+				"person.vstateprovincecountryregion",
 				"production.billofmaterials",
 				"production.culture",
 				"production.document",
@@ -107,6 +108,7 @@
 				"production.unitmeasure",
 				"production.workorder",
 				"production.workorderrouting",
+				"production.vproductanddescription",
 				"purchasing.productvendor",
 				"purchasing.purchaseorderdetail",
 				"purchasing.purchaseorderheader",
@@ -132,7 +134,7 @@
 				"sales.specialofferproduct",
 				"sales.store"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 69 objects (68 tables and 1 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 73 objects (70 tables/materialized views and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -153,38 +155,26 @@
 		},
 		{
 			"SchemaName": "person",
-			"TableName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "stateprovince",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "sales",
+			"TableName": "vindividualcustomer",
 			"ColumnName": "demographics",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pr",
+			"TableName": "i",
+			"ColumnName": "diagram",
 			"DataType": "xml"
 		},
 		{
 			"SchemaName": "humanresources",
 			"TableName": "jobcandidate",
 			"ColumnName": "resume",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "production",
-			"TableName": "productmodel",
-			"ColumnName": "catalogdescription",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "production",
-			"TableName": "productmodel",
-			"ColumnName": "instructions",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "production",
-			"TableName": "illustration",
-			"ColumnName": "diagram",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "sales",
-			"TableName": "store",
-			"ColumnName": "demographics",
 			"DataType": "xml"
 		},
 		{
@@ -196,31 +186,31 @@
 		{
 			"SchemaName": "person",
 			"TableName": "vadditionalcontactinfo",
-			"ColumnName": "street",
+			"ColumnName": "emailaddress",
 			"DataType": "xml"
 		},
 		{
-			"SchemaName": "person",
-			"TableName": "vadditionalcontactinfo",
-			"ColumnName": "city",
+			"SchemaName": "production",
+			"TableName": "productmodel",
+			"ColumnName": "instructions",
 			"DataType": "xml"
 		},
 		{
-			"SchemaName": "person",
-			"TableName": "vadditionalcontactinfo",
-			"ColumnName": "stateprovince",
+			"SchemaName": "sa",
+			"TableName": "s",
+			"ColumnName": "demographics",
 			"DataType": "xml"
 		},
 		{
-			"SchemaName": "person",
-			"TableName": "vadditionalcontactinfo",
-			"ColumnName": "postalcode",
+			"SchemaName": "production",
+			"TableName": "productmodel",
+			"ColumnName": "catalogdescription",
 			"DataType": "xml"
 		},
 		{
-			"SchemaName": "person",
-			"TableName": "vadditionalcontactinfo",
-			"ColumnName": "countryregion",
+			"SchemaName": "hr",
+			"TableName": "jc",
+			"ColumnName": "resume",
 			"DataType": "xml"
 		},
 		{
@@ -232,55 +222,19 @@
 		{
 			"SchemaName": "person",
 			"TableName": "vadditionalcontactinfo",
-			"ColumnName": "emailaddress",
+			"ColumnName": "countryregion",
 			"DataType": "xml"
 		},
 		{
 			"SchemaName": "person",
 			"TableName": "vadditionalcontactinfo",
-			"ColumnName": "emailtelephonenumber",
+			"ColumnName": "street",
 			"DataType": "xml"
 		},
 		{
-			"SchemaName": "humanresources",
-			"TableName": "vemployee",
-			"ColumnName": "additionalcontactinfo",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "sales",
-			"TableName": "vindividualcustomer",
+			"SchemaName": "person",
+			"TableName": "person",
 			"ColumnName": "demographics",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "pe",
-			"TableName": "p",
-			"ColumnName": "additionalcontactinfo",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "pe",
-			"TableName": "p",
-			"ColumnName": "demographics",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "hr",
-			"TableName": "jc",
-			"ColumnName": "resume",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "pr",
-			"TableName": "i",
-			"ColumnName": "diagram",
-			"DataType": "xml"
-		},
-		{
-			"SchemaName": "pr",
-			"TableName": "pm",
-			"ColumnName": "catalogdescription",
 			"DataType": "xml"
 		},
 		{
@@ -290,9 +244,57 @@
 			"DataType": "xml"
 		},
 		{
-			"SchemaName": "sa",
-			"TableName": "s",
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "city",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pe",
+			"TableName": "p",
+			"ColumnName": "additionalcontactinfo",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pe",
+			"TableName": "p",
 			"ColumnName": "demographics",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "sales",
+			"TableName": "store",
+			"ColumnName": "demographics",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "emailtelephonenumber",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "pr",
+			"TableName": "pm",
+			"ColumnName": "catalogdescription",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "production",
+			"TableName": "illustration",
+			"ColumnName": "diagram",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "person",
+			"TableName": "vadditionalcontactinfo",
+			"ColumnName": "postalcode",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "humanresources",
+			"TableName": "vemployee",
+			"ColumnName": "additionalcontactinfo",
 			"DataType": "xml"
 		}
 	],
@@ -312,14 +314,6 @@
 		},
 		{
 			"FeatureName": "Tables with stored generated columns",
-			"Objects": []
-		},
-		{
-			"FeatureName": "Index on complex datatypes",
-			"Objects": []
-		},
-		{
-			"FeatureName": "Unlogged tables",
 			"Objects": []
 		},
 		{
@@ -635,6 +629,14 @@
 		{
 			"FeatureName": "View with check option",
 			"Objects": []
+		},
+		{
+			"FeatureName": "Index on complex datatypes",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Unlogged tables",
+			"Objects": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -896,6 +898,20 @@
 			"ObjectName": "countryregion",
 			"RowCount": 0,
 			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "person",
+			"ObjectName": "vstateprovincecountryregion",
+			"RowCount": 0,
+			"ColumnCount": 7,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1256,6 +1272,20 @@
 			"SizeInBytes": 0
 		},
 		{
+			"SchemaName": "production",
+			"ObjectName": "vproductanddescription",
+			"RowCount": 0,
+			"ColumnCount": 5,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
 			"SchemaName": "purchasing",
 			"ObjectName": "productvendor",
 			"RowCount": 0,
@@ -1606,20 +1636,6 @@
 			"SizeInBytes": 8192
 		},
 		{
-			"SchemaName": "production",
-			"ObjectName": "ix_vproductanddescription",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "",
-			"ParentTableName": "production.vproductanddescription",
-			"SizeInBytes": 8192
-		},
-		{
 			"SchemaName": "person",
 			"ObjectName": "ix_vstateprovincecountryregion",
 			"RowCount": null,
@@ -1631,6 +1647,20 @@
 			"IsIndex": true,
 			"ObjectType": "",
 			"ParentTableName": "person.vstateprovincecountryregion",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "production",
+			"ObjectName": "ix_vproductanddescription",
+			"RowCount": null,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "production.vproductanddescription",
 			"SizeInBytes": 8192
 		}
 	],
