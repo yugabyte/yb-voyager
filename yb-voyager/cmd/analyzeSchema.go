@@ -439,7 +439,9 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 				the last name of type which is the unqualified type name)
 			*/
 			typeName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetRelname()
-			compositeTypes = append(compositeTypes, typeName)
+			typeSchemaName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetSchemaname()
+			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
+			compositeTypes = append(compositeTypes, fullTypeName)
 		}
 	}
 }
@@ -510,17 +512,22 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 				...column_def:{colname:"maddr8" type_name:{names:{string:{sval:"macaddr8"}}...column_def:{colname:"p" type_name:{names:{string:{sval:"point"}} ...column_def:{colname:"lsn" type_name:{names:{string:{sval:"pg_lsn"}}
 				...column_def:{colname:"p1" type_name:{names:{string:{sval:"path"}} .... column_def:{colname:"p2" type_name:{names:{string:{sval:"polygon"}} .... column_def:{colname:"id1" type_name:{names:{string:{sval:"txid_snapshot"}}
 				... column_def:{colname:"bitt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"bit"}} typmods:{a_const:{ival:{ival:13} location:241}} typemod:-1 location:236} is_local:true location:231}}
-				table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} ... column_def:{colname:"address" 
+				table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} ... column_def:{colname:"address"
 				type_name:{names:{string:{sval:"non_public"}}  names:{string:{sval:"Address_type"}} is_local:true location:246}} oncommit:ONCOMMIT_NOOP}} stmt_location:51 stmt_len:217
 
 
 		*/
 		if column.GetColumnDef() != nil {
 			typeName := ""
+			typeSchemaName := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
 			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
 				typeName = typeNames[len(typeNames)-1].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 			}
+			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+			}
+			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 			colName := column.GetColumnDef().GetColname()
 			if len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0 {
 				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
@@ -529,7 +536,7 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
 				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "array"
-			} else if slices.Contains(UnsupportedIndexDatatypes, typeName) || slices.Contains(compositeTypes, typeName) {
+			} else if slices.Contains(UnsupportedIndexDatatypes, typeName) || slices.Contains(compositeTypes, fullTypeName) {
 				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
 				if !ok {
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
@@ -586,10 +593,15 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		}
 		//For the expression index case to report in case casting to unsupported types #3
 		castTypeName := ""
+		typeSchemaName := ""
 		typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
 		if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
 			castTypeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 		}
+		if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+			typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+		}
+		fullCastTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
 			//In case casting is happening for an array type
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
@@ -597,7 +609,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
-		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) || slices.Contains(compositeTypes, castTypeName) {
+		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) || slices.Contains(compositeTypes, fullCastTypeName) {
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
 			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
