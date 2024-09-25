@@ -96,8 +96,6 @@ func packAndSendImportDataToSourcePayload(status string) {
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
-		// Host:      tconf.Host,
-		DBType:    tconf.TargetDBType,
 		DBVersion: targetDBDetails.DBVersion,
 	}
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)

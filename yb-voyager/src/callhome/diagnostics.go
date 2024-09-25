@@ -77,7 +77,7 @@ type Payload struct {
 }
 
 type SourceDBDetails struct {
-	Host      string `json:"host"` //keeping it empty for now, as field iss used in big query app
+	Host      string `json:"host"` //keeping it empty for now, as field is parsed in big query app
 	DBType    string `json:"db_type"`
 	DBVersion string `json:"db_version"`
 	DBSize    int64  `json:"total_db_size_bytes"` //bytes

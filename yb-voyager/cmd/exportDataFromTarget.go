@@ -120,7 +120,6 @@ func packAndSendExportDataFromTargetPayload(status string) {
 	payload.MigrationType = LIVE_MIGRATION
 
 	targetDBDetails := callhome.TargetDBDetails{
-		// Host:      source.Host,
 		DBVersion: source.DBVersion,
 	}
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)

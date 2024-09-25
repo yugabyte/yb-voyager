@@ -88,7 +88,7 @@ func importSchema() error {
 
 	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
 		tconfSchema := tconf.Schema
-		tconf.Schema = "public" // to handle all cases where target isn't available before this init step
+		tconf.Schema = "public" // to handle all cases where target schema isn't available before this init step
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
 		if err != nil {
