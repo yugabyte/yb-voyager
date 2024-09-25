@@ -38,8 +38,8 @@ var (
 )
 
 var (
-	CALL_HOME_SERVICE_HOST = "34.105.39.253"
-	CALL_HOME_SERVICE_PORT = 80
+	CALL_HOME_SERVICE_HOST = "diagnostics.yugabyte.com"
+	CALL_HOME_SERVICE_PORT = 443 // default https port
 )
 
 /*
@@ -230,6 +230,11 @@ func SendPayload(payload *Payload) error {
 	//for local call-home setup
 	readCallHomeServiceEnv()
 
+	//Disable PhasePayload field for now to be stored in callhome until we remove the sensitive information such as 
+	// 1. object names / schema names / etc..
+	// 3. sql statements (newly introduced in assesment's Unsupported features)
+	payload.PhasePayload = "" 
+
 	postBody, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("error while creating http request for diagnostics: %v", err)
@@ -237,9 +242,10 @@ func SendPayload(payload *Payload) error {
 	requestBody := bytes.NewBuffer(postBody)
 
 	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
-	callhomeURL := fmt.Sprintf("http://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
+		log.Infof("error while sending diagnostic data: %s", err )
 		return fmt.Errorf("error while sending diagnostic data: %w", err)
 	}
 	defer func() {

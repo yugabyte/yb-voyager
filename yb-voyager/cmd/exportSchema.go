@@ -275,7 +275,11 @@ func applyMigrationAssessmentRecommendations() error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
 	} else {
-		err := applyShardedTablesRecommendation(shardedTables)
+		err := applyShardedTablesRecommendation(shardedTables, TABLE)
+		if err != nil {
+			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+		}
+		err = applyShardedTablesRecommendation(shardedTables, MVIEW)
 		if err != nil {
 			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
@@ -288,13 +292,13 @@ func applyMigrationAssessmentRecommendations() error {
 	return nil
 }
 
-func applyShardedTablesRecommendation(shardedTables []string) error {
+func applyShardedTablesRecommendation(shardedTables []string, objType string) error {
 	if shardedTables == nil {
 		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
 		return nil
 	}
 
-	filePath := utils.GetObjectFilePath(schemaDir, "TABLE")
+	filePath := utils.GetObjectFilePath(schemaDir, objType)
 	if !utils.FileOrFolderExists(filePath) {
 		utils.PrintAndLog("Required schema file %s does not exists, returning without applying Colocated/Sharded Tables recommendation", filePath)
 		return nil
@@ -302,7 +306,8 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 
 	log.Infof("applying colocated vs sharded tables recommendation")
 	var newSQLFileContent strings.Builder
-	sqlInfoArr := parseSqlFileForObjectType(filePath, "TABLE")
+	sqlInfoArr := parseSqlFileForObjectType(filePath, objType)
+
 	for _, sqlInfo := range sqlInfoArr {
 		/*
 			We can rely on pg_query to detect if it is CreateTable and also table name
@@ -311,7 +316,7 @@ func applyShardedTablesRecommendation(shardedTables []string) error {
 			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
-		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables)
+		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, objType)
 		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
 			if match {
@@ -373,7 +378,8 @@ error: nil/non-nil
 Drawback: pg_query module doesn't have functionality to format the query after parsing
 so the CREATE TABLE for sharding recommended tables will be one-liner
 */
-func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string) (string, bool, error) {
+func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, objType string) (string, bool, error) {
+
 	stmt := sqlInfo.stmt
 	formattedStmt := sqlInfo.formattedStmt
 	parseTree, err := pg_query.Parse(stmt)
@@ -386,28 +392,41 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 		return formattedStmt, false, nil
 	}
 
-	// Access the first statement directly
-	createStmtNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
-	if !ok { // return the original sql if it's not a CreateStmt
-		log.Infof("stmt=%s is not createTable as per the parse tree, expected tablename=%s", stmt, sqlInfo.objName)
-		return formattedStmt, false, nil
+	relation := &pg_query.RangeVar{}
+	switch objType {
+	case MVIEW:
+		createMViewNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+		if !ok || createMViewNode.CreateTableAsStmt.Objtype != pg_query.ObjectType_OBJECT_MATVIEW {
+			// return the original sql if it's not a Create Materialized view statement
+			log.Infof("stmt=%s is not create materialized view as per the parse tree,"+
+				" expected tablename=%s", stmt, sqlInfo.objName)
+			return formattedStmt, false, nil
+		}
+		relation = createMViewNode.CreateTableAsStmt.Into.Rel
+	case TABLE:
+		createStmtNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+		if !ok { // return the original sql if it's not a CreateStmt
+			log.Infof("stmt=%s is not createTable as per the parse tree, expected tablename=%s", stmt, sqlInfo.objName)
+			return formattedStmt, false, nil
+		}
+		relation = createStmtNode.CreateStmt.Relation
+	default:
+		panic(fmt.Sprintf("Object type not supported %s", objType))
 	}
-	createTableStmt := createStmtNode.CreateStmt
-	relation := createTableStmt.Relation
 
 	// true -> oracle, false -> PG
-	parsedTableName := lo.Ternary(relation.Schemaname == "", relation.Relname,
+	parsedObjectName := lo.Ternary(relation.Schemaname == "", relation.Relname,
 		relation.Schemaname+"."+relation.Relname)
 
 	match := false
 	switch source.DBType {
 	case POSTGRESQL:
-		match = slices.Contains(shardedTables, parsedTableName)
+		match = slices.Contains(shardedTables, parsedObjectName)
 	case ORACLE:
 		// TODO: handle case-sensitivity properly
 		for _, shardedTable := range shardedTables {
 			// in case of oracle, shardedTable is unqualified.
-			if strings.ToLower(shardedTable) == parsedTableName {
+			if strings.ToLower(shardedTable) == parsedObjectName {
 				match = true
 				break
 			}
@@ -416,10 +435,10 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 		panic(fmt.Sprintf("unsupported source db type %s for applying sharding recommendations", source.DBType))
 	}
 	if !match {
-		log.Infof("%q not present in the sharded table list", parsedTableName)
+		log.Infof("%q not present in the sharded table list", parsedObjectName)
 		return formattedStmt, false, nil
 	} else {
-		log.Infof("%q present in the sharded table list", parsedTableName)
+		log.Infof("%q present in the sharded table list", parsedObjectName)
 	}
 
 	colocationOption := &pg_query.DefElem{
@@ -432,19 +451,33 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	}
 
 	log.Infof("adding colocation option in the parse tree for table %s", sqlInfo.objName)
-	if createTableStmt.Options == nil {
-		createTableStmt.Options = []*pg_query.Node{
-			{
-				Node: nodeForColocationOption,
-			},
+	switch objType {
+	case MVIEW:
+		createMViewNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+
+		if createMViewNode.CreateTableAsStmt.Into.Options == nil {
+			createMViewNode.CreateTableAsStmt.Into.Options =
+				[]*pg_query.Node{{Node: nodeForColocationOption}}
+		} else {
+			createMViewNode.CreateTableAsStmt.Into.Options = append(
+				createMViewNode.CreateTableAsStmt.Into.Options,
+				&pg_query.Node{Node: nodeForColocationOption})
 		}
-	} else {
-		createTableStmt.Options = append(createTableStmt.Options, &pg_query.Node{
-			Node: nodeForColocationOption,
-		})
+	case TABLE:
+		createStmtNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+		if createStmtNode.CreateStmt.Options == nil {
+			createStmtNode.CreateStmt.Options =
+				[]*pg_query.Node{{Node: nodeForColocationOption}}
+		} else {
+			createStmtNode.CreateStmt.Options = append(
+				createStmtNode.CreateStmt.Options,
+				&pg_query.Node{Node: nodeForColocationOption})
+		}
+	default:
+		panic(fmt.Sprintf("Object type not supported %s", objType))
 	}
 
-	log.Infof("deparsing the updated parse tre into a stmt for table '%s'", parsedTableName)
+	log.Infof("deparsing the updated parse tre into a stmt for table '%s'", parsedObjectName)
 	modifiedQuery, err := pg_query.Deparse(parseTree)
 	if err != nil {
 		return formattedStmt, true, fmt.Errorf("error deparsing the parseTree into the query: %w", err)
