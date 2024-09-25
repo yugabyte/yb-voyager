@@ -289,6 +289,7 @@ func hashEvent(e *tgtdb.Event) int {
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }
 
+// TODO: return err instead of ErrExit so that we can test better.
 func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter, state *ImportDataState) {
 	endOfProcessing := false
 	for !endOfProcessing {
@@ -308,10 +309,12 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 				}
 				if event.Vsn <= lastAppliedVsn {
 					log.Tracef("ignoring event %v because event vsn <= %v", event, lastAppliedVsn)
+					conflictDetectionCache.RemoveEvents(event)
 					continue
 				}
 				if importerRole == SOURCE_DB_IMPORTER_ROLE && event.ExporterRole != TARGET_DB_EXPORTER_FB_ROLE {
 					log.Tracef("ignoring event %v because importer role is FB_DB_IMPORTER_ROLE and event exporter role is not TARGET_DB_EXPORTER_FB_ROLE.", event)
+					conflictDetectionCache.RemoveEvents(event)
 					continue
 				}
 				batch = append(batch, event)
@@ -335,7 +338,6 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
 			if err == nil {
-				conflictDetectionCache.RemoveEvents(eventBatch)
 				break
 			} else if tdb.IsNonRetryableCopyError(err) {
 				break
@@ -368,6 +370,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
+		conflictDetectionCache.RemoveEvents(eventBatch.Events...)
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
