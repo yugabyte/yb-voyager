@@ -141,7 +141,10 @@
 				"schema2.with_example2",
 				"schema2.audit",
 				"schema2.c",
+				"test_views.abc_mview",
+				"test_views.mv1",
 				"test_views.view_table2",
+				"test_views.xyz_mview",
 				"test_views.view_table1",
 				"public.boston",
 				"public.london",
@@ -153,7 +156,7 @@
 				"public.test_xml_type",
 				"schema2.test_xml_type"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 80 objects (62 tables and 18 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 8 objects (1 tables and 7 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 83 objects (65 tables/materialized views and 18 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 7 objects (1 tables/materialized views and 6 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": [
 				"public.combined_tbl"
 			],
@@ -1473,6 +1476,35 @@
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
+		
+		{
+			"SchemaName": "test_views",
+			"ObjectName": "abc_mview",
+			"RowCount": 4,
+			"ColumnCount": 2,
+			"Reads": 7,
+			"Writes": 7,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "test_views",
+			"ObjectName": "mv1",
+			"RowCount": 4,
+			"ColumnCount": 2,
+			"Reads": 7,
+			"Writes": 7,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
 		{
 			"SchemaName": "test_views",
 			"ObjectName": "view_table1",
@@ -1480,6 +1512,20 @@
 			"ColumnCount": 6,
 			"Reads": 72,
 			"Writes": 11,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "test_views",
+			"ObjectName": "xyz_mview",
+			"RowCount": 4,
+			"ColumnCount": 2,
+			"Reads": 14,
+			"Writes": 7,
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
@@ -1741,3 +1787,4 @@
 		}
 	]
 }
+
