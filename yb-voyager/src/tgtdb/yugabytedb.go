@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
@@ -1162,6 +1163,41 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	defer rows.Close()
 
 	return rows.Next()
+}
+
+func (yb *TargetYugabyteDB) IsAdaptiveParallelismSupported() bool {
+	return true
+}
+
+func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, error) {
+	result := make(map[string]map[string]string)
+
+	query := "select uuid, metrics, status, error from yb_servers_metrics();"
+	rows, err := yb.Query(query)
+	if err != nil {
+		return result, fmt.Errorf("querying yb_servers_metrics(): %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var uuid, metrics, status, errorStr string
+		if err := rows.Scan(&uuid, &metrics, &status, &errorStr); err != nil {
+			return result, fmt.Errorf("scanning row for yb_servers_metrics(): %w", err)
+		}
+		var metricsMap map[string]string
+		if err := json.Unmarshal([]byte(metrics), &metricsMap); err != nil {
+			return result, fmt.Errorf("unmarshalling metrics json string: %w", err)
+		}
+		result[uuid] = metricsMap
+	}
+	return result, nil
+}
+
+func (yb *TargetYugabyteDB) GetNumConnectionsInPool() int {
+	return 0
+}
+
+func (yb *TargetYugabyteDB) UpdateNumConnectionsInPool(newSize int) bool {
+	return true
 }
 
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {

@@ -36,7 +36,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 	UpdateNumConnectionsInPool(int) bool
 }
 
-func AdaptParalleism(yb TargetYugabyteDBWithConnectionPool) error {
+func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 	if !yb.IsAdaptiveParallelismSupported() {
 		return fmt.Errorf("adaptive parallelism not supported in target YB database.")
 	}
@@ -46,13 +46,14 @@ func AdaptParalleism(yb TargetYugabyteDBWithConnectionPool) error {
 		if err != nil {
 			utils.PrintAndLog("error getting cluster metrics: %v", err)
 		}
-		utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
+		// utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
 
 		// max cpu
 		maxCpuUsage, err := getMaxCpuUsageInCluster(clusterMetrics)
 		if err != nil {
 			return fmt.Errorf("getting max cpu usage in cluster: %w", err)
 		}
+		utils.PrintAndLog("PARALLELISM: max cpu usage in cluster = %d", maxCpuUsage)
 
 		if maxCpuUsage > MAX_CPU_THRESHOLD {
 			utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()-1)
@@ -67,8 +68,9 @@ func AdaptParalleism(yb TargetYugabyteDBWithConnectionPool) error {
 				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
 			}
 		}
-		time.Sleep(20 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
+	return nil
 }
 
 func getMaxCpuUsageInCluster(clusterMetrics map[string]map[string]string) (int, error) {

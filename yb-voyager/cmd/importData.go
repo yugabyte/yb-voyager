@@ -36,6 +36,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -436,6 +437,13 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
+		}
+		go adaptiveparallelism.AdaptParallelism(yb)
+	}
 
 	targetDBVersion := tdb.GetVersion()
 	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
