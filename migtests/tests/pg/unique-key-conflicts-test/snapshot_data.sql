@@ -1,6 +1,3 @@
--- Insert initial data for non-public schema tables
-SET search_path TO non_public;
-
 -- Insert data for single_unique_constraint
 INSERT INTO single_unique_constraint (email) 
 VALUES 
@@ -21,15 +18,12 @@ VALUES
 
 -- Insert data for same_column_unique_constraint_and_index
 INSERT INTO same_column_unique_constraint_and_index (email) 
-VALUES 
-    ('user1@example.com'), 
-    ('user2@example.com'), 
-    ('user3@example.com'), 
-    ('user4@example.com'), 
+VALUES
+    ('user1@example.com'),
+    ('user2@example.com'),
+    ('user3@example.com'),
+    ('user4@example.com'),
     ('user5@example.com');
-
--- Insert initial data for public schema tables
-SET search_path TO public;
 
 -- Insert data for single_unique_index
 INSERT INTO single_unique_index (ssn) 
