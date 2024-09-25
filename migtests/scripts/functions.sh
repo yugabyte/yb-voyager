@@ -259,7 +259,7 @@ export_schema() {
  		--source-db-user ${SOURCE_DB_USER}
  		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
-		--send-diagnostics=true --yes
+		--send-diagnostics=false --yes
 		--start-clean t
 	"
 	if [ "${source_db_schema}" != "" ]
@@ -302,7 +302,7 @@ export_data() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--disable-pb=true
-		--send-diagnostics=true
+		--send-diagnostics=false
 		--yes
 		--start-clean 1
 	"
@@ -382,7 +382,7 @@ export_data() {
 analyze_schema() {
 	args="--export-dir ${EXPORT_DIR}
 		--output-format txt
-		--send-diagnostics=true
+		--send-diagnostics=false
 	"
     yb-voyager analyze-schema ${args} $*
 }
@@ -395,7 +395,7 @@ import_schema() {
 		--target-db-password ${TARGET_DB_PASSWORD:-''} 
 		--target-db-name ${TARGET_DB_NAME}	
 		--yes
-		--send-diagnostics=true
+		--send-diagnostics=false
 		--start-clean 1
 		"
 
@@ -416,7 +416,7 @@ import_data() {
 		--target-db-password ${TARGET_DB_PASSWORD:-''} 
 		--target-db-name ${TARGET_DB_NAME}
 		--disable-pb true
-		--send-diagnostics=true 
+		--send-diagnostics=false 
 		--start-clean 1
 		--truncate-splits true
 		--max-retries 1
@@ -458,7 +458,7 @@ import_data_to_source_replica() {
 	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
 	--start-clean true
 	--disable-pb true
-	--send-diagnostics=true
+	--send-diagnostics=false
 	--parallel-jobs 3
 	--max-retries 1 
 	"
@@ -484,7 +484,7 @@ import_data_file() {
 		--target-db-schema ${TARGET_DB_SCHEMA:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
 		--disable-pb true \
-		--send-diagnostics=true \
+		--send-diagnostics=false \
 		--parallel-jobs 3 \
 		$* || {
 			cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
@@ -709,7 +709,7 @@ assess_migration() {
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
-		--send-diagnostics=true --yes
+		--send-diagnostics=false --yes
 		--start-clean t
 		--iops-capture-interval 0
 	"

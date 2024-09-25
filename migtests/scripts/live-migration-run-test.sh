@@ -11,7 +11,7 @@ fi
 
 set -x
 
-export YB_VOYAGER_SEND_DIAGNOSTICS=true
+export YB_VOYAGER_SEND_DIAGNOSTICS=false
 export TEST_NAME=$1
 
 export REPO_ROOT="${PWD}"
