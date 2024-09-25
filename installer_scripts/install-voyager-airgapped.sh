@@ -263,11 +263,11 @@ check_java() {
 	fi
 
     MIN_REQUIRED_MAJOR_VERSION='17'
-    MAX_REQUIRED_MAJOR_VERSION='22'
+    MAX_REQUIRED_MAJOR_VERSION='21'
 	JAVA_COMPLETE_VERSION=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}')
     JAVA_MAJOR_VER=$(echo "${JAVA_COMPLETE_VERSION}" | awk -F. '{print $1}')
 
-    if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) && (( 10#${JAVA_MAJOR_VER} < 10#${MAX_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+    if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) && (( 10#${JAVA_MAJOR_VER} <= 10#${MAX_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
     then
         echo ""
         output "Found sufficient java version = ${JAVA_COMPLETE_VERSION}"

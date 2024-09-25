@@ -44,9 +44,9 @@ else
   JAVA_BINARY="$JAVA_HOME/bin/java"
 fi
 MIN_REQUIRED_MAJOR_VERSION='17'
-MAX_REQUIRED_MAJOR_VERSION='22'
+MAX_REQUIRED_MAJOR_VERSION='21'
 JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
-if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) && (( 10#${JAVA_MAJOR_VER} < 10#${MAX_REQUIRED_MAJOR_VERSION} )) ); # Integer comparison
+if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) && (( 10#${JAVA_MAJOR_VER} <= 10#${MAX_REQUIRED_MAJOR_VERSION} )) ); # Integer comparison
 then
     echo "Found sufficient java version = ${JAVA_MAJOR_VER}"
 else
