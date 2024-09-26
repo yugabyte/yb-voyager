@@ -33,6 +33,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 	IsAdaptiveParallelismSupported() bool
 	GetClusterMetrics() (map[string]map[string]string, error) // node_uuid:metric_name:metric_value
 	GetNumConnectionsInPool() int
+	GetNumMaxConnectionsInPool() int
 	UpdateNumConnectionsInPool(int) bool
 }
 

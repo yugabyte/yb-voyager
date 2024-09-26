@@ -56,6 +56,7 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
 var identityColumnsMetaDBKey string
 var importPhase string
+var enableAdaptiveParallelism bool
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -437,7 +438,8 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
-	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+	enableAdaptiveParallelism = true
+	if enableAdaptiveParallelism {
 		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 		if !ok {
 			utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
@@ -491,6 +493,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
+			if enableAdaptiveParallelism {
+				yb := tdb.(*tgtdb.TargetYugabyteDB)
+				poolSize = yb.GetNumMaxConnectionsInPool() * 2
+			}
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
@@ -502,6 +508,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
 				// `parallelism` number of batches at a time.
 				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+				log.Info("created batch import pool of size: ", poolSize)
 
 				totalProgressAmount := getTotalProgressAmount(task)
 				progressReporter.ImportFileStarted(task, totalProgressAmount)

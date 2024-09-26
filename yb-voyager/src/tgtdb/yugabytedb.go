@@ -227,6 +227,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
+	log.Info("Initialized connection pool with settings: ", spew.Sdump(params))
 	return nil
 }
 
@@ -1195,6 +1196,10 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, e
 
 func (yb *TargetYugabyteDB) GetNumConnectionsInPool() int {
 	return yb.connPool.GetNumConnections()
+}
+
+func (yb *TargetYugabyteDB) GetNumMaxConnectionsInPool() int {
+	return yb.connPool.params.NumMaxConnections
 }
 
 func (yb *TargetYugabyteDB) UpdateNumConnectionsInPool(newSize int) bool {
