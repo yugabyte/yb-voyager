@@ -242,7 +242,6 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 func (pg *TargetPostgreSQL) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
 	totalCores, _ := fetchCores([]*TargetConf{pg.tconf})
 	return &callhome.TargetDBDetails{
-		Host:      pg.tconf.Host,
 		NodeCount: 1,
 		Cores:     totalCores,
 		DBVersion: pg.GetVersion(),

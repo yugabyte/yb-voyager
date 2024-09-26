@@ -110,7 +110,10 @@ func packAndSendEndMigrationPayload(status string) {
 	}
 	payload.MigrationPhase = END_MIGRATION_PHASE
 	endMigrationPayload := callhome.EndMigrationPhasePayload{
-		CommandLineArgs: cliArgsString,
+		BackupDataFiles:      bool(backupDataFiles),
+		BackupLogFiles:       bool(backupLogFiles),
+		BackupSchemaFiles:    bool(backupSchemaFiles),
+		SaveMigrationReports: bool(saveMigrationReports),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
 	payload.Status = status

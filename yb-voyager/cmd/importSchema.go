@@ -83,15 +83,25 @@ func importSchema() error {
 	if err != nil {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
+
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
+		tconfSchema := tconf.Schema
+		// setting the tconf schema to public here for initalisation to handle cases where non-public target schema
+		// is not created as it will be created with `createTargetSchemas` func, so not a problem in using public as it will be
+		// available always and this is just for initialisation of tdb and marking it nil again back.
+		tconf.Schema = "public"
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
 		if err != nil {
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
+		//Marking tdb as nil back to not allow others to use it as this is just dummy initialisation of tdb 
+		//with public schema so Reintialise tdb if required with proper configs when it is available.
+		tdb = nil
+		tconf.Schema = tconfSchema
 	}
 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
@@ -226,7 +236,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	if status == ERROR {
 		errorsList = append(errorsList, errMsg)
 	} else {
-		if len(errorsList) > 0 {
+		if len(errorsList) > 0 && status != EXIT {
 			payload.Status = COMPLETE_WITH_ERRORS
 		}
 	}
@@ -234,10 +244,12 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 	//import-schema specific payload details
 	importSchemaPayload := callhome.ImportSchemaPhasePayload{
 		ContinueOnError:    bool(tconf.ContinueOnError),
-		Errors:             errorsList,
+		EnableOrafce:       bool(enableOrafce),
+		IgnoreExist:        bool(tconf.IgnoreIfExists),
+		RefreshMviews:      bool(flagRefreshMViews),
+		ErrorCount:         len(errorsList),
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
-		CommandLineArgs:    cliArgsString,
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
 	err := callhome.SendPayload(&payload)

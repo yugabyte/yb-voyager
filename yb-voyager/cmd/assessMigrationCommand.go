@@ -127,8 +127,8 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			newStat := callhome.ObjectSizingStats{
-				SchemaName:      stat.SchemaName,
-				ObjectName:      stat.ObjectName,
+				//redacting schema and object name
+				ObjectName:      "XXX",
 				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
 				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
 				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
@@ -141,36 +141,36 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}
 	}
 	schemaSummaryCopy := utils.SchemaSummary{
-		SchemaNames: assessmentReport.SchemaSummary.SchemaNames,
-		Notes:       assessmentReport.SchemaSummary.Notes,
-	}
-	for _, dbObject := range assessmentReport.SchemaSummary.DBObjects {
-		//Creating a copy and not adding objectNames here, as those will anyway be available
-		//at analyze-schema step so no need to have non-relevant information to not clutter the payload
-		//only counts are useful at this point
-		dbObjectCopy := utils.DBObject{
-			ObjectType:   dbObject.ObjectType,
-			TotalCount:   dbObject.TotalCount,
-			InvalidCount: dbObject.InvalidCount,
-			Details:      dbObject.Details,
-		}
-		schemaSummaryCopy.DBObjects = append(schemaSummaryCopy.DBObjects, dbObjectCopy)
+		MigrationComplexity: assessmentReport.SchemaSummary.MigrationComplexity,
+		Notes:               assessmentReport.SchemaSummary.Notes,
+		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
+			dbObject.ObjectNames = ""
+			return dbObject
+		}),
 	}
 
+	unsupportedDatatypesList := lo.Map(assessmentReport.UnsupportedDataTypes, func(datatype utils.TableColumnsDataTypes, _ int) string {
+		return datatype.DataType
+	})
+
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		UnsupportedFeatures:  callhome.MarshalledJsonString(assessmentReport.UnsupportedFeatures),
-		UnsupportedDatatypes: callhome.MarshalledJsonString(assessmentReport.UnsupportedDataTypes),
+		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+			return callhome.UnsupportedFeature{
+				FeatureName: feature.FeatureName,
+				ObjectCount: len(feature.Objects),
+			}
+		})),
+		UnsupportedDatatypes: callhome.MarshalledJsonString(unsupportedDatatypesList),
 		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:     callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:        callhome.MarshalledJsonString(schemaSummaryCopy),
-		CommandLineArgs:      cliArgsString,
+		IopsInterval:         intervalForCapturingIOPS,
 	}
 	if status == ERROR {
-		assessPayload.Error = errMsg
+		assessPayload.Error = "ERROR" // removing error for now, TODO to see if we want to keep it
 	}
 	if assessmentMetadataDirFlag == "" {
 		sourceDBDetails := callhome.SourceDBDetails{
-			Host:      source.Host,
 			DBType:    source.DBType,
 			DBVersion: source.DBVersion,
 			DBSize:    source.DBSize,

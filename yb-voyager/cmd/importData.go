@@ -655,9 +655,9 @@ func packAndSendImportDataPayload(status string) {
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs:    int64(tconf.Parallelism),
-		StartClean:      bool(startClean),
-		CommandLineArgs: cliArgsString,
+		ParallelJobs: int64(tconf.Parallelism),
+		StartClean:   bool(startClean),
+		EnableUpsert: bool(tconf.EnableUpsert),
 	}
 
 	//Getting the imported snapshot details
