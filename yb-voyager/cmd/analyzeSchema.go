@@ -141,6 +141,10 @@ var (
 		Here only those columns on tables are stored which have unsupported type for Index in YB
 	*/
 	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
+	/*
+		list of composite types in the exported schema
+	*/
+	compositeTypes = make([]string, 0)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
 	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
@@ -394,6 +398,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
+		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
@@ -416,6 +421,26 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if isCreatePolicy {
 			reportPolicyRequireRolesOrGrants(createPolicyNode, sqlStmtInfo, fpath)
+		}
+
+		if isCreateCompositeType {
+			//Adding the composite types (UDTs) in the list
+			/*
+				e.g. CREATE TYPE non_public."Address_type" AS (
+						street VARCHAR(100),
+						city VARCHAR(50),
+						state VARCHAR(50),
+						zip_code VARCHAR(10)
+					);
+				stmt:{composite_type_stmt:{typevar:{schemaname:"non_public"  relname:"Address_type"  relpersistence:"p"  location:14}  coldeflist:{column_def:{colname:"street"
+				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"varchar"}}  typmods:{a_const:{ival:{ival:100}  location:65}}  typemod:-1  location:57} ...
+
+				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
+			*/
+			typeName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetRelname()
+			typeSchemaName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetSchemaname()
+			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
+			compositeTypes = append(compositeTypes, fullTypeName)
 		}
 	}
 }
@@ -478,25 +503,30 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 					id int, c cidr, ci circle, b box, j json,
 					l line, ls lseg, maddr macaddr, maddr8 macaddr8, p point,
 					lsn pg_lsn, p1 path, p2 polygon, id1 txid_snapshot,
-					bitt bit (13), bittv bit varying(15)
+					bitt bit (13), bittv bit varying(15), address non_public."Address_type"
 				);
 				stmt:{create_stmt:{relation:{relname:"combined_tbl" ... colname:"id" type_name:...names:{string:{sval:"int4"}}... column_def:{colname:"c" type_name:{names:{string:{sval:"cidr"}}
 				... column_def:{colname:"ci" type_name:{names:{string:{sval:"circle"}} ... column_def:{colname:"b"type_name:{names:{string:{sval:"box"}} ... column_def:{colname:"j" type_name:{names:{string:{sval:"json"}}
-				 ... column_def:{colname:"l" type_name:{names:{string:{sval:"line"}} ...column_def:{colname:"ls" type_name:{names:{string:{sval:"lseg"}} ...column_def:{colname:"maddr" type_name:{names:{string:{sval:"macaddr"}}
-				 ...column_def:{colname:"maddr8" type_name:{names:{string:{sval:"macaddr8"}}...column_def:{colname:"p" type_name:{names:{string:{sval:"point"}} ...column_def:{colname:"lsn" type_name:{names:{string:{sval:"pg_lsn"}}
-				 ...column_def:{colname:"p1" type_name:{names:{string:{sval:"path"}} .... column_def:{colname:"p2" type_name:{names:{string:{sval:"polygon"}} .... column_def:{colname:"id1" type_name:{names:{string:{sval:"txid_snapshot"}}
-				 ... column_def:{colname:"bitt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"bit"}} typmods:{a_const:{ival:{ival:13} location:241}} typemod:-1 location:236} is_local:true location:231}}
-				 table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} is_local:true location:246}}
-				 oncommit:ONCOMMIT_NOOP}} stmt_location:51 stmt_len:217
+				... column_def:{colname:"l" type_name:{names:{string:{sval:"line"}} ...column_def:{colname:"ls" type_name:{names:{string:{sval:"lseg"}} ...column_def:{colname:"maddr" type_name:{names:{string:{sval:"macaddr"}}
+				...column_def:{colname:"maddr8" type_name:{names:{string:{sval:"macaddr8"}}...column_def:{colname:"p" type_name:{names:{string:{sval:"point"}} ...column_def:{colname:"lsn" type_name:{names:{string:{sval:"pg_lsn"}}
+				...column_def:{colname:"p1" type_name:{names:{string:{sval:"path"}} .... column_def:{colname:"p2" type_name:{names:{string:{sval:"polygon"}} .... column_def:{colname:"id1" type_name:{names:{string:{sval:"txid_snapshot"}}
+				... column_def:{colname:"bitt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"bit"}} typmods:{a_const:{ival:{ival:13} location:241}} typemod:-1 location:236} is_local:true location:231}}
+				table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} ... column_def:{colname:"address"
+				type_name:{names:{string:{sval:"non_public"}}  names:{string:{sval:"Address_type"}} is_local:true location:246}} oncommit:ONCOMMIT_NOOP}} stmt_location:51 stmt_len:217
 
 
 		*/
 		if column.GetColumnDef() != nil {
 			typeName := ""
+			typeSchemaName := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
 			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
 				typeName = typeNames[len(typeNames)-1].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 			}
+			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+			}
+			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 			colName := column.GetColumnDef().GetColname()
 			if len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0 {
 				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
@@ -505,12 +535,15 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
 				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "array"
-			} else if slices.Contains(UnsupportedIndexDatatypes, typeName) {
+			} else if slices.Contains(UnsupportedIndexDatatypes, typeName) || slices.Contains(compositeTypes, fullTypeName) {
 				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
 				if !ok {
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
 				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName
+				if slices.Contains(compositeTypes, fullTypeName) { //For UDTs
+					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "user_defined_type"
+				}
 			}
 		}
 	}
@@ -548,7 +581,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				1. normal index on column with these types
 				2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
 				3. expression index with  casting to unsupported types
-				4. normal index on column with UDTs [TODO]
+				4. normal index on column with UDTs 
 				5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 		*/
 		colName := param.GetIndexElem().GetName()
@@ -562,10 +595,15 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		}
 		//For the expression index case to report in case casting to unsupported types #3
 		castTypeName := ""
+		typeSchemaName := ""
 		typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
 		if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
 			castTypeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 		}
+		if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+			typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+		}
+		fullCastTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+castTypeName, castTypeName)
 		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
 			//In case casting is happening for an array type
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
@@ -573,14 +611,17 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
-		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) {
+		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) || slices.Contains(compositeTypes, fullCastTypeName) {
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reason := fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName)
+			if slices.Contains(compositeTypes, fullCastTypeName) {
+				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type") 
+			}
+			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
 		}
-		//TODO #4.
 	}
 }
 

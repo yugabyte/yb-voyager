@@ -333,3 +333,11 @@ create table combined_tbl (
 );
 
 CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
+
+CREATE TABLE test_udt (
+	employee_id SERIAL PRIMARY KEY,
+	employee_name VARCHAR(100),
+	home_address address_type,
+	some_field enum_test,
+	home_address1 non_public.address_type1
+);

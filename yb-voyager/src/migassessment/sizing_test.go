@@ -351,8 +351,8 @@ func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 	}
 }
 
-// validate if the tables with more than 5 indexes are put in the sharded tables
-func TestShardingBasedOnTableSizeAndCount_TableWithMoreThan5IndexesAsSharded(t *testing.T) {
+// validate if the tables with more than COLOCATED_MAX_INDEXES_THRESHOLD indexes are put in the sharded tables
+func TestShardingBasedOnTableSizeAndCount_TableWithMoreThanThresholdIndexesAsSharded(t *testing.T) {
 	expectedShardedTableName := "table1"
 	sourceTableMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: expectedShardedTableName, Size: sql.NullFloat64{Float64: 10, Valid: true}},
@@ -372,16 +372,6 @@ func TestShardingBasedOnTableSizeAndCount_TableWithMoreThan5IndexesAsSharded(t *
 		},
 		{
 			SchemaName: "public", ObjectName: "index3-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index4-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index5-t1",
 			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
 			Size:            sql.NullFloat64{Float64: 1, Valid: true},
 		},
@@ -419,8 +409,8 @@ func TestShardingBasedOnTableSizeAndCount_TableWithMoreThan5IndexesAsSharded(t *
 	}
 }
 
-// validate if the tables with 5 or less indexes are put in the colocated tables
-func TestShardingBasedOnTableSizeAndCount_TableWith5OrLessIndexesAsColocated(t *testing.T) {
+// validate if the tables with COLOCATED_MAX_INDEXES_THRESHOLD or fewer indexes are put in the colocated tables
+func TestShardingBasedOnTableSizeAndCount_TableWithThresholdOrLessIndexesAsColocated(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 10, Valid: true}},
 		{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 2, Valid: true}},
@@ -433,21 +423,6 @@ func TestShardingBasedOnTableSizeAndCount_TableWith5OrLessIndexesAsColocated(t *
 		},
 		{
 			SchemaName: "public", ObjectName: "index2-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index3-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index4-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index5-t1",
 			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
 			Size:            sql.NullFloat64{Float64: 1, Valid: true},
 		},
