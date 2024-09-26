@@ -156,7 +156,7 @@
 				"public.test_xml_type",
 				"schema2.test_xml_type"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 83 objects (65 tables/materialized views and 18 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 7 objects (1 tables/materialized views and 6 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 83 objects (65 tables/materialized views and 18 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 8 objects (1 tables/materialized views and 7 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": [
 				"public.combined_tbl"
 			],
@@ -402,7 +402,7 @@
 					"SqlStatement": "CREATE INDEX idx6 ON public.combined_tbl USING btree (bittv);"
 				},
 				{
-					"ObjectName": "ADDRESS_TYPE: idx7 ON public.combined_tbl",
+					"ObjectName": "USER_DEFINED_TYPE: idx7 ON public.combined_tbl",
 					"SqlStatement": "CREATE INDEX idx7 ON public.combined_tbl USING btree (address);"
 				}
 			],

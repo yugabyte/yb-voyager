@@ -834,7 +834,7 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 		Objects:     []ObjectInfo{},
 	}
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array") // adding it here only as we know issue form analyze will come with type
-	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, compositeTypes...) // adding it here as we UDTs will come with this type.
+	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "user_defined_type") // adding it here as we UDTs will come with this type.
 	for _, unsupportedType := range unsupportedIndexDatatypes {
 		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, unsupportedType), schemaAnalysisReport, false, "")
 		for _, object := range indexes.Objects {

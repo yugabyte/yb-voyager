@@ -542,6 +542,9 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
 				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName
+				if slices.Contains(compositeTypes, fullTypeName) { //For UDTs
+					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "user_defined_type"
+				}
 			}
 		}
 	}
@@ -601,7 +604,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
 			typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
 		}
-		fullCastTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
+		fullCastTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+castTypeName, typeName)
 		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
 			//In case casting is happening for an array type
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
@@ -611,7 +614,11 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			return
 		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) || slices.Contains(compositeTypes, fullCastTypeName) {
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reason := fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName)
+			if slices.Contains(compositeTypes, fullCastTypeName) {
+				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName) 
+			}
+			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
