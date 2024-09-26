@@ -161,6 +161,14 @@ CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb));
 -- valid case
 create index idx_valid on public.test_jsonb ((data::text)); 
 
+
+CREATE TYPE public.address_type AS (     
+    street VARCHAR(100),
+    city VARCHAR(50),
+    state VARCHAR(50),
+    zip_code VARCHAR(10)
+);
+
 --other misc types
 create table public.combined_tbl (
 	id int, 
@@ -169,7 +177,8 @@ create table public.combined_tbl (
 	maddr8 macaddr8,
 	lsn pg_lsn, 
 	bitt bit (13),
-	bittv bit varying(15)
+	bittv bit varying(15),
+    address address_type
 );
 
 CREATE index idx1 on public.combined_tbl (c);
@@ -183,4 +192,7 @@ CREATE index idx4 on public.combined_tbl (lsn);
 CREATE INDEX idx5 on public.combined_tbl (bitt);
 
 CREATE INDEX idx6 on public.combined_tbl (bittv);
+
+CREATE INDEX idx7 on public.combined_tbl (address);
+
 CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);

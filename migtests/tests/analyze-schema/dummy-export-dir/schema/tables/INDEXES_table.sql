@@ -80,3 +80,12 @@ CREATE index idx13 on combined_tbl (id1);
 CREATE INDEX idx14 on combined_tbl (bitt);
 
 CREATE INDEX idx15 on combined_tbl (bittv);
+
+
+CREATE INDEX idx_udt on test_udt(home_address);
+
+CREATE INDEX idx_udt1 on test_udt(home_address1);
+
+CREATE INDEX idx_enum on test_udt(some_field);
+
+CREATE INDEX idx_enum2 on test_udt((some_field::non_public.enum_test));
