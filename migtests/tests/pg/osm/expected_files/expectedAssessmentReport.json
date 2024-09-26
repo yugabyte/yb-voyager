@@ -40,12 +40,13 @@
 		"SizingRecommendation": {
 			"ColocatedTables": [
 				"public.osm_changeset_state",
-				"public.osm_changeset",
 				"public.osm_changeset_comment",
 				"public.spatial_ref_sys"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 9 objects (4 tables/materialized views and 5 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			"ShardedTables": null,
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 3 objects (3 tables/materialized views and 0 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 6 objects (1 tables/materialized views and 5 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ShardedTables": [
+				"public.osm_changeset"
+			],
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
 			"MemoryPerInstance": 16,
@@ -106,14 +107,6 @@
 			"Objects": []
 		},
 		{
-			"FeatureName": "Index on complex datatypes",
-			"Objects": []
-		},
-		{
-			"FeatureName": "Unlogged tables",
-			"Objects": []
-		},
-		{
 			"FeatureName": "Extensions",
 			"Objects": [
 				{
@@ -134,24 +127,18 @@
 		{
 			"FeatureName": "View with check option",
 			"Objects": []
+		},
+		{
+			"FeatureName": "Index on complex datatypes",
+			"Objects": []
+		},
+		{
+			"FeatureName": "Unlogged tables",
+			"Objects": []
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
-		{
-			"SchemaName": "public",
-			"ObjectName": "osm_changeset_state",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"Reads": 0,
-			"Writes": 0,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
 		{
 			"SchemaName": "public",
 			"ObjectName": "spatial_ref_sys",
@@ -171,6 +158,20 @@
 			"ObjectName": "osm_changeset",
 			"RowCount": 0,
 			"ColumnCount": 13,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "osm_changeset_state",
+			"RowCount": 0,
+			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
