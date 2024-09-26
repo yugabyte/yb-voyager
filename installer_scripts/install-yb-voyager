@@ -130,6 +130,7 @@ centos_main() {
 		return
 	fi
 	
+	# TODO: Remove the usage of jq and use something inbuilt in the future.
 	if [ "${VERSION}" == "latest" ]
 	then
 		$YUM install jq 1>&2
@@ -173,6 +174,8 @@ ubuntu_main() {
 	fi
 
 	sudo apt-get update 1>&2
+
+	# TODO: Remove the usage of jq and use something inbuilt in the future.
 	if [ "${VERSION}" == "latest" ]
 	then
 		sudo apt-get install -y jq 1>&2
@@ -219,6 +222,7 @@ macos_main() {
 	fi
 	macos_install_brew
 
+	# TODO: Remove the usage of jq and use something inbuilt in the future.
 	if [ "${VERSION}" == "latest" ]
 	then
 		brew install jq 1>&2
@@ -286,7 +290,8 @@ check_java() {
 	fi
 
     MIN_REQUIRED_MAJOR_VERSION='17'
-	MAX_REQUIRED_MAJOR_VERSION='19'
+	# We checked build with 21 and above and it was failing. We could not check with 20 since it was not available. Hence keeping the max version as 19.
+	MAX_REQUIRED_MAJOR_VERSION='19' 
 	JAVA_COMPLETE_VERSION=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}')
     JAVA_MAJOR_VER=$(echo "${JAVA_COMPLETE_VERSION}" | awk -F. '{print $1}')
 
