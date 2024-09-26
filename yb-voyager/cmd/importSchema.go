@@ -88,13 +88,19 @@ func importSchema() error {
 
 	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
 		tconfSchema := tconf.Schema
-		tconf.Schema = "public" // to handle all cases where target schema isn't available before this init step
+		// setting the tconf schema to public here for initalisation to handle cases where non-public target schema
+		// is not created as it will be created with `createTargetSchemas` func, so not a problem in using public as it will be
+		// available always and this is just for initialisation of tdb and marking it nil again back.
+		tconf.Schema = "public"
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
 		if err != nil {
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
+		//Marking tdb as nil back to not allow others to use it as this is just dummy initialisation of tdb 
+		//with public schema so Reintialise tdb if required with proper configs when it is available.
+		tdb = nil
 		tconf.Schema = tconfSchema
 	}
 
