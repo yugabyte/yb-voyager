@@ -88,7 +88,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -98,7 +98,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
