@@ -52,7 +52,7 @@ echo "LATEST_TAGGED_COMMIT=${LATEST_TAGGED_COMMIT}" >> $LOG_FILE
 echo "VOYAGER_VERSION=${VOYAGER_VERSION}" >> $LOG_FILE
 
 VOYAGER_RELEASE_NAME=${VOYAGER_RELEASE_NAME:-${LATEST_RELEASE_NAME}}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-"${VOYAGER_VERSION}}
+DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.5.2-"${VOYAGER_VERSION}}
 
 # the hash corresponds to the latest tag's commit hash fetched using the github api
 YB_VOYAGER_GIT_HASH=${LATEST_TAGGED_COMMIT}
@@ -180,7 +180,7 @@ centos_main() {
 	output "Installing RPM dependencies."
 	$YUM which wget git gcc make 1>&2
 	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-${majorVersion}-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
-	$YUM postgresql14 1>&2
+	$YUM postgresql16 1>&2
 	$YUM sqlite 1>&2
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
@@ -645,7 +645,7 @@ output() {
 install_golang() {
 	if [ -x ${GO} ]; then
 		gov=`go version | { read _ _ v _; echo ${v#go}; }`
-		version_ok=$(version_satisfied 1.20 "$gov")
+		version_ok=$(version_satisfied 1.23.1 "$gov")
 		if [[ $version_ok -eq 1 ]]
 		then
 			output "Found golang=${gov}"
@@ -653,7 +653,7 @@ install_golang() {
 		fi
 	fi
 	export GOROOT="/tmp/go"
-	GO_VERSION="go1.20"
+	GO_VERSION="go1.23.1"
 	GO="$GOROOT/bin/go"
 
 	os=$1
@@ -666,7 +666,7 @@ install_golang() {
 	fi
 
 	file_name="${GO_VERSION}.${os}-${arch}.tar.gz"
-	output "Installing golang os=${os} arch=${arch}."
+	output "Installing golang os=${os} arch=${arch} version=${GO_VERSION}."
 
 	wget -nv https://golang.org/dl/${file_name} 1>&2
 	rm -rf $GOROOT
@@ -879,11 +879,10 @@ centos_install_oracle_instant_clients() {
 
 ubuntu_install_postgres() {
 	output "Installing postgres."
-	line="deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main"
-	sudo grep -qxF "$line" /etc/apt/sources.list.d/pgdg.list || echo "$line" | sudo tee /etc/apt/sources.list.d/pgdg.list 1>&2
-	wget -nv -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+	sudo apt install -y postgresql-common 1>&2
+    echo | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh 1>&2
 	sudo apt-get update 1>&2
-	sudo apt-get -y install postgresql-14 1>&2
+	sudo apt-get -y install postgresql-16  1>&2
 	output "Postgres Installed."
 }
 

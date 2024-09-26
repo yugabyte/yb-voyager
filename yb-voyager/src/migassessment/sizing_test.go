@@ -351,8 +351,8 @@ func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 	}
 }
 
-// validate if the tables with more than 5 indexes are put in the sharded tables
-func TestShardingBasedOnTableSizeAndCount_TableWithMoreThan5IndexesAsSharded(t *testing.T) {
+// validate if the tables with more than COLOCATED_MAX_INDEXES_THRESHOLD indexes are put in the sharded tables
+func TestShardingBasedOnTableSizeAndCount_TableWithMoreThanThresholdIndexesAsSharded(t *testing.T) {
 	expectedShardedTableName := "table1"
 	sourceTableMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: expectedShardedTableName, Size: sql.NullFloat64{Float64: 10, Valid: true}},
@@ -372,16 +372,6 @@ func TestShardingBasedOnTableSizeAndCount_TableWithMoreThan5IndexesAsSharded(t *
 		},
 		{
 			SchemaName: "public", ObjectName: "index3-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index4-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index5-t1",
 			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
 			Size:            sql.NullFloat64{Float64: 1, Valid: true},
 		},
@@ -419,8 +409,8 @@ func TestShardingBasedOnTableSizeAndCount_TableWithMoreThan5IndexesAsSharded(t *
 	}
 }
 
-// validate if the tables with 5 or less indexes are put in the colocated tables
-func TestShardingBasedOnTableSizeAndCount_TableWith5OrLessIndexesAsColocated(t *testing.T) {
+// validate if the tables with COLOCATED_MAX_INDEXES_THRESHOLD or fewer indexes are put in the colocated tables
+func TestShardingBasedOnTableSizeAndCount_TableWithThresholdOrLessIndexesAsColocated(t *testing.T) {
 	sourceTableMetadata := []SourceDBMetadata{
 		{SchemaName: "public", ObjectName: "table1", Size: sql.NullFloat64{Float64: 10, Valid: true}},
 		{SchemaName: "public", ObjectName: "table2", Size: sql.NullFloat64{Float64: 2, Valid: true}},
@@ -433,21 +423,6 @@ func TestShardingBasedOnTableSizeAndCount_TableWith5OrLessIndexesAsColocated(t *
 		},
 		{
 			SchemaName: "public", ObjectName: "index2-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index3-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index4-t1",
-			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
-			Size:            sql.NullFloat64{Float64: 1, Valid: true},
-		},
-		{
-			SchemaName: "public", ObjectName: "index5-t1",
 			ParentTableName: sql.NullString{String: "public.table1", Valid: true},
 			Size:            sql.NullFloat64{Float64: 1, Valid: true},
 		},
@@ -1467,7 +1442,7 @@ func TestGetReasoning_OnlyColocatedObjects(t *testing.T) {
 		{Size: sql.NullFloat64{Valid: true, Float64: 50.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 1000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 500}},
 		{Size: sql.NullFloat64{Valid: true, Float64: 30.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 2000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 1500}},
 	}
-	expected := "Recommended instance type with 8 vCPU and 64 GiB memory could fit 2 objects (2 tables and 0 " +
+	expected := "Recommended instance type with 8 vCPU and 64 GiB memory could fit 2 objects (2 tables/materialized views and 0 " +
 		"explicit/implicit indexes) with 80.00 GB size and throughput requirement of 3000 reads/sec and " +
 		"2000 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 
@@ -1485,7 +1460,7 @@ func TestGetReasoning_OnlyShardedObjects(t *testing.T) {
 		{Size: sql.NullFloat64{Valid: true, Float64: 200.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 5000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 4000}},
 	}
 	var colocatedObjects []SourceDBMetadata
-	expected := "Recommended instance type with 16 vCPU and 64 GiB memory could fit 2 objects (2 tables and 0 " +
+	expected := "Recommended instance type with 16 vCPU and 64 GiB memory could fit 2 objects (2 tables/materialized views and 0 " +
 		"explicit/implicit indexes) with 300.00 GB size and throughput requirement of 9000 reads/sec and " +
 		"7000 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 
@@ -1505,9 +1480,9 @@ func TestGetReasoning_ColocatedAndShardedObjects(t *testing.T) {
 		{Size: sql.NullFloat64{Valid: true, Float64: 70.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 3000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 2000}},
 		{Size: sql.NullFloat64{Valid: true, Float64: 50.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 2000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 1000}},
 	}
-	expected := "Recommended instance type with 32 vCPU and 64 GiB memory could fit 2 objects (2 tables and 0 " +
+	expected := "Recommended instance type with 32 vCPU and 64 GiB memory could fit 2 objects (2 tables/materialized views and 0 " +
 		"explicit/implicit indexes) with 120.00 GB size and throughput requirement of 5000 reads/sec and " +
-		"3000 writes/sec as colocated. Rest 1 objects (1 tables and 0 explicit/implicit indexes) with 150.00 GB " +
+		"3000 writes/sec as colocated. Rest 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 150.00 GB " +
 		"size and throughput requirement of 7000 reads/sec and 6000 writes/sec need to be migrated as range " +
 		"partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 
@@ -1526,9 +1501,9 @@ func TestGetReasoning_Indexes(t *testing.T) {
 	colocatedObjects := []SourceDBMetadata{
 		{Size: sql.NullFloat64{Valid: true, Float64: 100.0}, ReadsPerSec: sql.NullInt64{Valid: true, Int64: 3000}, WritesPerSec: sql.NullInt64{Valid: true, Int64: 2000}},
 	}
-	expected := "Recommended instance type with 4 vCPU and 64 GiB memory could fit 1 objects (0 tables and " +
+	expected := "Recommended instance type with 4 vCPU and 64 GiB memory could fit 1 objects (0 tables/materialized views and " +
 		"1 explicit/implicit indexes) with 100.00 GB size and throughput requirement of 3000 reads/sec and " +
-		"2000 writes/sec as colocated. Rest 1 objects (0 tables and 1 explicit/implicit indexes) with 200.00 GB size " +
+		"2000 writes/sec as colocated. Rest 1 objects (0 tables/materialized views and 1 explicit/implicit indexes) with 200.00 GB size " +
 		"and throughput requirement of 6000 reads/sec and 4000 writes/sec need to be migrated as range " +
 		"partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered."
 

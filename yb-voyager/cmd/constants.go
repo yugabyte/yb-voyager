@@ -104,6 +104,7 @@ const (
 	MIGRATION_CAVEATS     = "migration_caveats"
 
 	TABLE     = "TABLE"
+	MVIEW     = "MVIEW"
 	YUGABYTED = "yugabyted"
 
 	// assess-migration-bulk
@@ -117,8 +118,11 @@ const (
 	SOURCE_DB_PASSWORD = "source-db-password"
 	SOURCE_DB_SCHEMA   = "source-db-schema"
 
-	HTML_EXTENSION = ".html"
-	JSON_EXTENSION = ".json"
+	HTML_EXTENSION            = ".html"
+	JSON_EXTENSION            = ".json"
+	ASSESSMENT_FILE_NAME      = "migration_assessment_report"
+	ANALYSIS_REPORT_FILE_NAME = "schema_analysis_report"
+	BULK_ASSESSMENT_FILE_NAME = "bulk_assessment_report"
 
 	//adding constants for docs link
 	DOCS_LINK_PREFIX                        = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"
@@ -143,6 +147,8 @@ const (
 	LIST_PARTIION_MULTI_COLUMN_DOC_LINK     = DOCS_LINK_PREFIX + "mysql-oracle/#multi-column-partition-by-list-is-not-supported"
 	PARTITION_KEY_NOT_PK_DOC_LINK           = DOCS_LINK_PREFIX + "oracle/#partition-key-column-not-part-of-primary-key-columns"
 	DROP_TEMP_TABLE_DOC_LINK                = DOCS_LINK_PREFIX + "mysql/#drop-temporary-table-statements-are-not-supported"
+	INDEX_ON_UNSUPPORTED_TYPE               = DOCS_LINK_PREFIX + "postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+	UNLOGGED_TABLE_DOC_LINK                 = DOCS_LINK_PREFIX + "postgresql/#unlogged-table-is-not-supported"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

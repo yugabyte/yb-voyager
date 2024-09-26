@@ -69,9 +69,9 @@ main() {
 
 		step "Validate Assessment Reports"
 		# Checking if the assessment reports were created
-		if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
+		if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json" ]; then
 			echo "Assessment reports created successfully."
-			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
 			#TODO: Further validation to be added
 		else
 			echo "Error: Assessment reports were not created successfully."
@@ -112,6 +112,13 @@ main() {
 
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
+
+	step "Verify the pg_dump version being used"
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] && { [ -z "${BETA_FAST_DATA_EXPORT}" ] || [ "${BETA_FAST_DATA_EXPORT}" = "0" ]; }; then
+	    if ! grep "Dumped by pg_dump version:" "${EXPORT_DIR}/logs/yb-voyager-export-data.log"; then
+	        echo "Error: pg_dump version not found in the log file." >&2
+	    fi
+	fi
 
 	step "Fix data."
 	if [ -x "${TEST_DIR}/fix-data" ]

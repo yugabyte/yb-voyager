@@ -82,9 +82,9 @@ main() {
 
 		step "Validate Assessment Reports"
 		# Checking if the assessment reports were created
-		if [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/assessmentReport.json" ]; then
+		if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json" ]; then
 			echo "Assessment reports created successfully."
-			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/assessmentReport.json"
+			validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
 			#TODO: Further validation to be added
 		else
 			echo "Error: Assessment reports were not created successfully."
@@ -235,6 +235,11 @@ main() {
 	done
 
 	sleep 60
+
+	if [ -f ${TEST_DIR}/validateAfterCutoverToTarget ]; then
+		step "Run validations after cutover to target."
+		"${TEST_DIR}/validateAfterCutoverToTarget" --ff_enabled 'true' --fb_enabled 'false'
+	fi
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql

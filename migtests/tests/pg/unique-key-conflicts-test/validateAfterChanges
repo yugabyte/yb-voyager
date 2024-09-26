@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+
+import os
+import yb
+import collections
+import common
+
+def main():
+    test_type_flags = common.valparser()
+
+    migration_completed_checks_yb()
+
+    if test_type_flags['ff_enabled'] == 'true':
+        migration_completed_checks_ff()
+
+    if test_type_flags['fb_enabled'] == 'true':
+        migration_completed_checks_fb()
+
+# Define expected row count for tables in both schemas
+EXPECTED_ROW_COUNT = {
+    'single_unique_index': 12,
+    'multi_unique_index': 12,
+    'different_columns_unique_constraint_and_index': 12,
+    'subset_columns_unique_constraint_and_index': 12,
+    'single_unique_constraint': 12,
+    'multi_unique_constraint': 12,
+    'same_column_unique_constraint_and_index': 12
+}
+
+# Define expected final varchar state for all unique constraint/index columns
+EXPECTED_FINAL_STATE_VARCHAR = {
+    'single_unique_constraint': {
+        'email': [
+            'updated_non_conflict_user1@example.com',
+            'user2@example.com',
+            'updated_user4@example.com',
+            'user4@example.com',
+            'updated_user5@example.com',
+            'user5@example.com',
+            'target_user101@example.com',
+            'updated_target_user102@example.com',
+            'updated_target_user105@example.com',
+            'target_user105@example.com',
+            'updated_target_user106@example.com',
+            'target_user106@example.com'
+        ]
+    },
+    'multi_unique_constraint': {
+        'first_name': [
+            'Bob', 'John', 'Updated_Non_John', 'Tom', 'Updated_Alice', 'Alice',
+            'Target_John', 'Updated_Target_Jane', 'Updated_Target_Bob', 'Target_Bob',
+            'Updated_Target_Dave', 'Target_Dave'
+        ],
+        'last_name': [
+            'Johnson', 'Doe', 'Updated_Non_Doe', 'Clark', 'Smith', 'Williams',
+            'Updated_Smith', 'Wilson'
+        ]
+    },
+    'same_column_unique_constraint_and_index': {
+        'email': [
+            'updated_non_conflict_user1@example.com',
+            'user2@example.com',
+            'updated_user4@example.com',
+            'user4@example.com',
+            'updated_user5@example.com',
+            'user5@example.com',
+            'target_user101@example.com',
+            'updated_target_user102@example.com',
+            'updated_target_user105@example.com',
+            'target_user105@example.com',
+            'updated_target_user106@example.com',
+            'target_user106@example.com'
+        ]
+    },
+    'single_unique_index': {
+        'ssn': [
+            'updated_non_conflict_ssn1', 'SSN2', 'updated_SSN4', 'SSN4',
+            'updated_SSN5', 'SSN5', 'target_ssn101', 'updated_target_ssn102',
+            'updated_target_ssn105', 'target_ssn105', 'updated_target_ssn106',
+            'target_ssn106'
+        ]
+    },
+    'multi_unique_index': {
+        'first_name': [
+            'Updated_Non_John', 'Jane', 'Updated_Tom', 'Tom', 'Updated_Alice',
+            'Alice', 'Target_Jane', 'Updated_Target_Tom', 'Updated_Target_Carol',
+            'Target_Carol', 'Updated_Target_Dave', 'Target_Dave'
+        ],
+        'last_name': [
+            'Updated_Non_Doe', 'Smith', 'Clark', 'Williams', 'Updated_Clark',
+            'Johnson', 'Brown', 'Wilson'
+        ]
+    },
+    'different_columns_unique_constraint_and_index': {
+        'email': [
+            'non_conflict_updated_user1@example.com', 'user3@example.com',
+            'updated_user4@example.com', 'user4@example.com', 'user5@example.com',
+            'user1@example.com', 'target_user101@example.com',
+            'updated_target_user102@example.com', 'updated_target_user105@example.com',
+            'target_user105@example.com', 'target_user106@example.com',
+            'target_user107@example.com'
+        ],
+        'phone_number': [
+            '555-555-5566', '555-555-5552', '555-555-5554', '555-555-5561',
+            '555-555-5558', '555-555-5555', '555-555-5510', '555-555-5511',
+            '555-555-5513', '555-555-5515', '555-555-5518', '555-555-5516'
+        ]
+    },
+    'subset_columns_unique_constraint_and_index': {
+        'first_name': [
+            'John', 'Updated_Non_John', 'Updated_Bob', 'Bob', 'Updated_Alice',
+            'Alice', 'Target_John', 'Updated_Target_Jane', 'Target_Alice',
+            'Target_Dave', 'Target_Eve', 'Target_Frank'
+        ],
+        'last_name': [
+            'Doe', 'Updated_Non_Doe', 'Smith', 'Johnson', 'Williams',
+            'Updated_Smith', 'Wilson', 'Davis', 'Miller'
+        ],
+        'phone_number': [
+            '123-456-7890', '123-456-7892', '123-456-7893', '123-456-7810',
+            '123-456-7811', '123-456-7855', '123-456-7815', '123-456-7818',
+            '123-456-7816'
+        ]
+    }
+}
+
+def migration_completed_checks_yb():
+    print("Running tests on YB")
+    yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_ff():
+    print("Running tests on PG source replica")
+    yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_fb():
+    print("Running tests on PG source")
+    yb.run_checks(migration_completed_checks, db_type="source")
+
+def migration_completed_checks(tgt):
+    schema_names = ["public", "non_public"]
+
+    # Loop through each schema and run validation checks
+    for schema_name in schema_names:
+        print(f"Running validation checks for schema: {schema_name}")
+        
+        # Validation to check for matching row counts
+        got_row_count = tgt.row_count_of_all_tables(schema_name)
+        expected_row_count = EXPECTED_ROW_COUNT
+
+        for table_name, row_count in expected_row_count.items():
+            print(f"Schema: {schema_name}, Table: {table_name}, Expected Row Count: {row_count}, Got Row Count: {got_row_count[table_name]}")
+            assert row_count == got_row_count[table_name], f"Row count mismatch for {table_name} in schema {schema_name}"
+        
+        # Validation for final varchar state (unique values)
+        final_varchar_state = EXPECTED_FINAL_STATE_VARCHAR
+        for table_name, column_final_state in final_varchar_state.items():
+            print(f"Schema: {schema_name}, Table: {table_name}")
+            for column, expected_values in column_final_state.items():
+                actual_values = tgt.get_distinct_values__of_column_of_table(table_name, column, schema_name)
+                assert sorted(actual_values) == sorted(expected_values), (
+                    f"Unique values mismatch in {column} of {table_name}: "
+                    f"Expected {expected_values}, Got {actual_values}"
+                )
+                print(f"Validation passed for {column} in {schema_name}.{table_name}")
+
+if __name__ == "__main__":
+    main()
