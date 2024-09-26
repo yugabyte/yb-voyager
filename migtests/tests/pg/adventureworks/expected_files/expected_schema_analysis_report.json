@@ -1,0 +1,890 @@
+{
+    "Summary": {
+        "MigrationComplexity": "HIGH",
+        "DbName": "adventureworks",
+        "SchemaNames": [
+            "public",
+            "hr",
+            "humanresources",
+            "pe",
+            "person",
+            "pr",
+            "production",
+            "pu",
+            "purchasing",
+            "sa",
+            "sales"
+        ],
+        "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 11,
+                "ObjectNames": "hr, humanresources, pe, person, pr, production, pu, public, purchasing, sa, sales"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 2,
+                "ObjectNames": "tablefunc, \"uuid-ossp\""
+            },
+            {
+                "ObjectType": "DOMAIN",
+                "TotalCount": 6,
+                "ObjectNames": "public.\"AccountNumber\", public.\"Flag\", public.\"Name\", public.\"NameStyle\", public.\"OrderNumber\", public.\"Phone\""
+            },
+            {
+                "ObjectType": "SEQUENCE",
+                "TotalCount": 36,
+                "ObjectNames": "humanresources.department_departmentid_seq, humanresources.jobcandidate_jobcandidateid_seq, humanresources.shift_shiftid_seq, person.address_addressid_seq, person.addresstype_addresstypeid_seq, person.businessentity_businessentityid_seq, person.contacttype_contacttypeid_seq, person.emailaddress_emailaddressid_seq, person.phonenumbertype_phonenumbertypeid_seq, person.stateprovince_stateprovinceid_seq, production.billofmaterials_billofmaterialsid_seq, production.illustration_illustrationid_seq, production.location_locationid_seq, production.product_productid_seq, production.productcategory_productcategoryid_seq, production.productdescription_productdescriptionid_seq, production.productmodel_productmodelid_seq, production.productphoto_productphotoid_seq, production.productreview_productreviewid_seq, production.productsubcategory_productsubcategoryid_seq, production.scrapreason_scrapreasonid_seq, production.transactionhistory_transactionid_seq, production.workorder_workorderid_seq, purchasing.purchaseorderdetail_purchaseorderdetailid_seq, purchasing.purchaseorderheader_purchaseorderid_seq, purchasing.shipmethod_shipmethodid_seq, sales.creditcard_creditcardid_seq, sales.currencyrate_currencyrateid_seq, sales.customer_customerid_seq, sales.salesorderdetail_salesorderdetailid_seq, sales.salesorderheader_salesorderid_seq, sales.salesreason_salesreasonid_seq, sales.salestaxrate_salestaxrateid_seq, sales.salesterritory_territoryid_seq, sales.shoppingcartitem_shoppingcartitemid_seq, sales.specialoffer_specialofferid_seq"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 68,
+                "InvalidCount": 5,
+                "ObjectNames": "humanresources.department, humanresources.employee, humanresources.employeedepartmenthistory, humanresources.employeepayhistory, humanresources.jobcandidate, humanresources.shift, person.address, person.businessentityaddress, person.countryregion, person.emailaddress, person.person, person.personphone, person.phonenumbertype, person.stateprovince, person.addresstype, person.businessentity, person.businessentitycontact, person.contacttype, person.password, production.billofmaterials, production.culture, production.document, production.illustration, production.location, production.product, production.productcategory, production.productcosthistory, production.productdescription, production.productdocument, production.productinventory, production.productlistpricehistory, production.productmodel, production.productmodelillustration, production.productmodelproductdescriptionculture, production.productphoto, production.productproductphoto, production.productreview, production.productsubcategory, production.scrapreason, production.transactionhistory, production.transactionhistoryarchive, production.unitmeasure, production.workorder, production.workorderrouting, purchasing.purchaseorderdetail, purchasing.purchaseorderheader, purchasing.productvendor, purchasing.shipmethod, purchasing.vendor, sales.customer, sales.creditcard, sales.currencyrate, sales.countryregioncurrency, sales.currency, sales.personcreditcard, sales.store, sales.shoppingcartitem, sales.specialoffer, sales.salesorderdetail, sales.salesorderheader, sales.salesorderheadersalesreason, sales.specialofferproduct, sales.salesperson, sales.salespersonquotahistory, sales.salesreason, sales.salesterritory, sales.salesterritoryhistory, sales.salestaxrate"
+            },
+            {
+                "ObjectType": "INDEX",
+                "TotalCount": 2,
+                "ObjectNames": "ix_vstateprovincecountryregion, ix_vproductanddescription"
+            },
+            {
+                "ObjectType": "VIEW",
+                "TotalCount": 87,
+                "ObjectNames": "hr.d, hr.e, hr.edh, hr.eph, hr.jc, hr.s, humanresources.vemployee, humanresources.vemployeedepartment, humanresources.vemployeedepartmenthistory, humanresources.vjobcandidate, humanresources.vjobcandidateeducation, humanresources.vjobcandidateemployment, pe.a, pe.at, pe.be, pe.bea, pe.bec, pe.cr, pe.ct, pe.e, pe.p, pe.pa, pe.pnt, pe.pp, pe.sp, person.vadditionalcontactinfo, pr.bom, pr.c, pr.d, pr.i, pr.l, pr.p, pr.pc, pr.pch, pr.pd, pr.pdoc, pr.pi, pr.plph, pr.pm, pr.pmi, pr.pmpdc, pr.pp, pr.ppp, pr.pr, pr.psc, pr.sr, pr.th, pr.tha, pr.um, pr.w, pr.wr, production.vproductmodelcatalogdescription, production.vproductmodelinstructions, pu.pod, pu.poh, pu.pv, pu.sm, pu.v, purchasing.vvendorwithaddresses, purchasing.vvendorwithcontacts, sa.c, sa.cc, sa.cr, sa.crc, sa.cu, sa.pcc, sa.s, sa.sci, sa.so, sa.sod, sa.soh, sa.sohsr, sa.sop, sa.sp, sa.spqh, sa.sr, sa.st, sa.sth, sa.tr, sales.vindividualcustomer, sales.vpersondemographics, sales.vsalesperson, sales.vsalespersonsalesbyfiscalyears, sales.vsalespersonsalesbyfiscalyearsdata, sales.vstorewithaddresses, sales.vstorewithcontacts, sales.vstorewithdemographics"
+            },
+            {
+                "ObjectType": "MVIEW",
+                "TotalCount": 2,
+                "ObjectNames": "person.vstateprovincecountryregion, production.vproductanddescription"
+            }
+        ]
+    },
+    "Issues": [
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "humanresources.jobcandidate",
+            "Reason": "Unsupported datatype - xml on column - resume",
+            "SqlStatement": "CREATE TABLE humanresources.jobcandidate (\n    jobcandidateid integer NOT NULL,\n    businessentityid integer,\n    resume xml,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.person",
+            "Reason": "Unsupported datatype - xml on column - additionalcontactinfo",
+            "SqlStatement": "CREATE TABLE person.person (\n    businessentityid integer NOT NULL,\n    persontype character(2) NOT NULL,\n    namestyle public.\"NameStyle\" DEFAULT false NOT NULL,\n    title character varying(8),\n    firstname public.\"Name\" NOT NULL,\n    middlename public.\"Name\",\n    lastname public.\"Name\" NOT NULL,\n    suffix character varying(10),\n    emailpromotion integer DEFAULT 0 NOT NULL,\n    additionalcontactinfo xml,\n    demographics xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL,\n    CONSTRAINT \"CK_Person_EmailPromotion\" CHECK (((emailpromotion \u003e= 0) AND (emailpromotion \u003c= 2))),\n    CONSTRAINT \"CK_Person_PersonType\" CHECK (((persontype IS NULL) OR (upper((persontype)::text) = ANY (ARRAY['SC'::text, 'VC'::text, 'IN'::text, 'EM'::text, 'SP'::text, 'GC'::text]))))\n);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.person",
+            "Reason": "Unsupported datatype - xml on column - demographics",
+            "SqlStatement": "CREATE TABLE person.person (\n    businessentityid integer NOT NULL,\n    persontype character(2) NOT NULL,\n    namestyle public.\"NameStyle\" DEFAULT false NOT NULL,\n    title character varying(8),\n    firstname public.\"Name\" NOT NULL,\n    middlename public.\"Name\",\n    lastname public.\"Name\" NOT NULL,\n    suffix character varying(10),\n    emailpromotion integer DEFAULT 0 NOT NULL,\n    additionalcontactinfo xml,\n    demographics xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL,\n    CONSTRAINT \"CK_Person_EmailPromotion\" CHECK (((emailpromotion \u003e= 0) AND (emailpromotion \u003c= 2))),\n    CONSTRAINT \"CK_Person_PersonType\" CHECK (((persontype IS NULL) OR (upper((persontype)::text) = ANY (ARRAY['SC'::text, 'VC'::text, 'IN'::text, 'EM'::text, 'SP'::text, 'GC'::text]))))\n);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.illustration",
+            "Reason": "Unsupported datatype - xml on column - diagram",
+            "SqlStatement": "CREATE TABLE production.illustration (\n    illustrationid integer NOT NULL,\n    diagram xml,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productmodel",
+            "Reason": "Unsupported datatype - xml on column - catalogdescription",
+            "SqlStatement": "CREATE TABLE production.productmodel (\n    productmodelid integer NOT NULL,\n    name public.\"Name\" NOT NULL,\n    catalogdescription xml,\n    instructions xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productmodel",
+            "Reason": "Unsupported datatype - xml on column - instructions",
+            "SqlStatement": "CREATE TABLE production.productmodel (\n    productmodelid integer NOT NULL,\n    name public.\"Name\" NOT NULL,\n    catalogdescription xml,\n    instructions xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.store",
+            "Reason": "Unsupported datatype - xml on column - demographics",
+            "SqlStatement": "CREATE TABLE sales.store (\n    businessentityid integer NOT NULL,\n    name public.\"Name\" NOT NULL,\n    salespersonid integer,\n    demographics xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "humanresources.department",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.department CLUSTER ON \"PK_Department_DepartmentID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "humanresources.employeedepartmenthistory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.employeedepartmenthistory CLUSTER ON \"PK_EmployeeDepartmentHistory_BusinessEntityID_StartDate_Departm\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "humanresources.employeepayhistory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.employeepayhistory CLUSTER ON \"PK_EmployeePayHistory_BusinessEntityID_RateChangeDate\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "humanresources.employee",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.employee CLUSTER ON \"PK_Employee_BusinessEntityID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "humanresources.jobcandidate",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.jobcandidate CLUSTER ON \"PK_JobCandidate_JobCandidateID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "humanresources.shift",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE humanresources.shift CLUSTER ON \"PK_Shift_ShiftID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.addresstype",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.addresstype CLUSTER ON \"PK_AddressType_AddressTypeID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.address",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.address CLUSTER ON \"PK_Address_AddressID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.businessentityaddress",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.businessentityaddress CLUSTER ON \"PK_BusinessEntityAddress_BusinessEntityID_AddressID_AddressType\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.businessentitycontact",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.businessentitycontact CLUSTER ON \"PK_BusinessEntityContact_BusinessEntityID_PersonID_ContactTypeI\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.businessentity",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.businessentity CLUSTER ON \"PK_BusinessEntity_BusinessEntityID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.contacttype",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.contacttype CLUSTER ON \"PK_ContactType_ContactTypeID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.countryregion",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.countryregion CLUSTER ON \"PK_CountryRegion_CountryRegionCode\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.emailaddress",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.emailaddress CLUSTER ON \"PK_EmailAddress_BusinessEntityID_EmailAddressID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.password",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.password CLUSTER ON \"PK_Password_BusinessEntityID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.personphone",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.personphone CLUSTER ON \"PK_PersonPhone_BusinessEntityID_PhoneNumber_PhoneNumberTypeID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.person",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.person CLUSTER ON \"PK_Person_BusinessEntityID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.phonenumbertype",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.phonenumbertype CLUSTER ON \"PK_PhoneNumberType_PhoneNumberTypeID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.stateprovince",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.stateprovince CLUSTER ON \"PK_StateProvince_StateProvinceID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.culture",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.culture CLUSTER ON \"PK_Culture_CultureID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.document",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.document CLUSTER ON \"PK_Document_DocumentNode\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.illustration",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.illustration CLUSTER ON \"PK_Illustration_IllustrationID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.location",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.location CLUSTER ON \"PK_Location_LocationID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productcategory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productcategory CLUSTER ON \"PK_ProductCategory_ProductCategoryID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productcosthistory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productcosthistory CLUSTER ON \"PK_ProductCostHistory_ProductID_StartDate\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productdescription",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productdescription CLUSTER ON \"PK_ProductDescription_ProductDescriptionID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productdocument",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productdocument CLUSTER ON \"PK_ProductDocument_ProductID_DocumentNode\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productinventory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productinventory CLUSTER ON \"PK_ProductInventory_ProductID_LocationID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productlistpricehistory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productlistpricehistory CLUSTER ON \"PK_ProductListPriceHistory_ProductID_StartDate\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productmodelillustration",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productmodelillustration CLUSTER ON \"PK_ProductModelIllustration_ProductModelID_IllustrationID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productmodelproductdescriptionculture",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productmodelproductdescriptionculture CLUSTER ON \"PK_ProductModelProductDescriptionCulture_ProductModelID_Product\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productmodel",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productmodel CLUSTER ON \"PK_ProductModel_ProductModelID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productphoto",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productphoto CLUSTER ON \"PK_ProductPhoto_ProductPhotoID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productreview",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productreview CLUSTER ON \"PK_ProductReview_ProductReviewID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.productsubcategory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.productsubcategory CLUSTER ON \"PK_ProductSubcategory_ProductSubcategoryID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.product",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.product CLUSTER ON \"PK_Product_ProductID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.scrapreason",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.scrapreason CLUSTER ON \"PK_ScrapReason_ScrapReasonID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.transactionhistoryarchive",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.transactionhistoryarchive CLUSTER ON \"PK_TransactionHistoryArchive_TransactionID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.transactionhistory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.transactionhistory CLUSTER ON \"PK_TransactionHistory_TransactionID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.unitmeasure",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.unitmeasure CLUSTER ON \"PK_UnitMeasure_UnitMeasureCode\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.workorderrouting",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.workorderrouting CLUSTER ON \"PK_WorkOrderRouting_WorkOrderID_ProductID_OperationSequence\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.workorder",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.workorder CLUSTER ON \"PK_WorkOrder_WorkOrderID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "purchasing.productvendor",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.productvendor CLUSTER ON \"PK_ProductVendor_ProductID_BusinessEntityID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "purchasing.purchaseorderdetail",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.purchaseorderdetail CLUSTER ON \"PK_PurchaseOrderDetail_PurchaseOrderID_PurchaseOrderDetailID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "purchasing.purchaseorderheader",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.purchaseorderheader CLUSTER ON \"PK_PurchaseOrderHeader_PurchaseOrderID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "purchasing.shipmethod",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.shipmethod CLUSTER ON \"PK_ShipMethod_ShipMethodID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "purchasing.vendor",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE purchasing.vendor CLUSTER ON \"PK_Vendor_BusinessEntityID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.countryregioncurrency",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.countryregioncurrency CLUSTER ON \"PK_CountryRegionCurrency_CountryRegionCode_CurrencyCode\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.creditcard",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.creditcard CLUSTER ON \"PK_CreditCard_CreditCardID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.currencyrate",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.currencyrate CLUSTER ON \"PK_CurrencyRate_CurrencyRateID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.currency",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.currency CLUSTER ON \"PK_Currency_CurrencyCode\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.customer",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.customer CLUSTER ON \"PK_Customer_CustomerID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.personcreditcard",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.personcreditcard CLUSTER ON \"PK_PersonCreditCard_BusinessEntityID_CreditCardID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salesorderdetail",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesorderdetail CLUSTER ON \"PK_SalesOrderDetail_SalesOrderID_SalesOrderDetailID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salesorderheadersalesreason",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesorderheadersalesreason CLUSTER ON \"PK_SalesOrderHeaderSalesReason_SalesOrderID_SalesReasonID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salesorderheader",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesorderheader CLUSTER ON \"PK_SalesOrderHeader_SalesOrderID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salespersonquotahistory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salespersonquotahistory CLUSTER ON \"PK_SalesPersonQuotaHistory_BusinessEntityID_QuotaDate\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salesperson",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesperson CLUSTER ON \"PK_SalesPerson_BusinessEntityID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salesreason",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesreason CLUSTER ON \"PK_SalesReason_SalesReasonID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salestaxrate",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salestaxrate CLUSTER ON \"PK_SalesTaxRate_SalesTaxRateID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salesterritoryhistory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesterritoryhistory CLUSTER ON \"PK_SalesTerritoryHistory_BusinessEntityID_StartDate_TerritoryID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.salesterritory",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.salesterritory CLUSTER ON \"PK_SalesTerritory_TerritoryID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.shoppingcartitem",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.shoppingcartitem CLUSTER ON \"PK_ShoppingCartItem_ShoppingCartItemID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.specialofferproduct",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.specialofferproduct CLUSTER ON \"PK_SpecialOfferProduct_SpecialOfferID_ProductID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.specialoffer",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.specialoffer CLUSTER ON \"PK_SpecialOffer_SpecialOfferID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.store",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE sales.store CLUSTER ON \"PK_Store_BusinessEntityID\";",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "person.vstateprovincecountryregion",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE person.vstateprovincecountryregion CLUSTER ON ix_vstateprovincecountryregion;",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "production.vproductanddescription",
+            "Reason": "ALTER TABLE CLUSTER not supported yet.",
+            "SqlStatement": "ALTER TABLE production.vproductanddescription CLUSTER ON ix_vproductanddescription;",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "Remove it from the exported schema.",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+        }
+    ]
+}
