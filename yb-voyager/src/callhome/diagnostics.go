@@ -77,7 +77,7 @@ type Payload struct {
 }
 
 type SourceDBDetails struct {
-	Host      string `json:"host"`
+	Host      string `json:"host"` //keeping it empty for now, as field is parsed in big query app
 	DBType    string `json:"db_type"`
 	DBVersion string `json:"db_version"`
 	DBSize    int64  `json:"total_db_size_bytes"` //bytes
@@ -91,23 +91,28 @@ type TargetDBDetails struct {
 	Cores     int    `json:"total_cores"`
 }
 
+type UnsupportedFeature struct {
+	FeatureName string `json:"FeatureName"`
+	ObjectCount int    `json:"ObjectCount"`
+}
+
 type AssessMigrationPhasePayload struct {
 	UnsupportedFeatures  string `json:"unsupported_features"`
 	UnsupportedDatatypes string `json:"unsupported_datatypes"`
-	Error                string `json:"error,omitempty"`
+	Error                string `json:"error,omitempty"` // Removed it for now, TODO
 	TableSizingStats     string `json:"table_sizing_stats"`
 	IndexSizingStats     string `json:"index_sizing_stats"`
 	SchemaSummary        string `json:"schema_summary"`
 	SourceConnectivity   bool   `json:"source_connectivity"`
-	CommandLineArgs      string `json:"command_line_args"`
+	IopsInterval         int64  `json:"iops_interval"`
 }
 
 type AssessMigrationBulkPhasePayload struct {
-	FleetConfigData string `json:"fleet_config_data"`
+	FleetConfigCount int `json:"fleet_config_count"` // Not storing any source infor just the count of db configs passed to bulk cmd
 }
 
 type ObjectSizingStats struct {
-	SchemaName      string `json:"schema_name"`
+	SchemaName      string `json:"schema_name,omitempty"`
 	ObjectName      string `json:"object_name"`
 	ReadsPerSecond  int64  `json:"reads_per_second"`
 	WritesPerSecond int64  `json:"writes_per_second"`
@@ -115,9 +120,10 @@ type ObjectSizingStats struct {
 }
 
 type ExportSchemaPhasePayload struct {
-	StartClean             bool   `json:"start_clean"`
-	AppliedRecommendations bool   `json:"applied_recommendations"`
-	CommandLineArgs        string `json:"command_line_args"`
+	StartClean             bool `json:"start_clean"`
+	AppliedRecommendations bool `json:"applied_recommendations"`
+	UseOrafce              bool `json:"use_orafce"`
+	CommentsOnObjects      bool `json:"comments_on_objects"`
 }
 
 type AnalyzePhasePayload struct {
@@ -135,15 +141,16 @@ type ExportDataPhasePayload struct {
 	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
 	EventsExportRate    int64  `json:"events_export_rate_3m,omitempty"`
 	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-	CommandLineArgs     string `json:"command_line_args,omitempty"`
 }
 
 type ImportSchemaPhasePayload struct {
-	ContinueOnError    bool     `json:"continue_on_error"`
-	Errors             []string `json:"errors"`
-	PostSnapshotImport bool     `json:"post_snapshot_import"`
-	StartClean         bool     `json:"start_clean"`
-	CommandLineArgs    string   `json:"command_line_args"`
+	ContinueOnError    bool `json:"continue_on_error"`
+	EnableOrafce       bool `json:"enable_orafce"`
+	IgnoreExist        bool `json:"ignore_exist"`
+	RefreshMviews      bool `json:"refresh_mviews"`
+	ErrorCount         int  `json:"errors"` // changing it to count of errors only
+	PostSnapshotImport bool `json:"post_snapshot_import"`
+	StartClean         bool `json:"start_clean"`
 }
 
 type ImportDataPhasePayload struct {
@@ -156,7 +163,7 @@ type ImportDataPhasePayload struct {
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
 	EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
 	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-	CommandLineArgs     string `json:"command_line_args"`
+	EnableUpsert        bool   `json:"enable_upsert"`
 }
 
 type ImportDataFilePhasePayload struct {
@@ -178,7 +185,10 @@ type DataFileParameters struct {
 }
 
 type EndMigrationPhasePayload struct {
-	CommandLineArgs string `json:"command_line_args"`
+	BackupDataFiles      bool `json:"backup_data_files"`
+	BackupLogFiles       bool `json:"backup_log_files"`
+	BackupSchemaFiles    bool `json:"backup_schema_files"`
+	SaveMigrationReports bool `json:"save_migration_reports"`
 }
 
 var DoNotStoreFlags = []string{
@@ -230,11 +240,6 @@ func SendPayload(payload *Payload) error {
 	//for local call-home setup
 	readCallHomeServiceEnv()
 
-	//Disable PhasePayload field for now to be stored in callhome until we remove the sensitive information such as 
-	// 1. object names / schema names / etc..
-	// 3. sql statements (newly introduced in assesment's Unsupported features)
-	payload.PhasePayload = "" 
-
 	postBody, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("error while creating http request for diagnostics: %v", err)
@@ -245,7 +250,7 @@ func SendPayload(payload *Payload) error {
 	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
-		log.Infof("error while sending diagnostic data: %s", err )
+		log.Infof("error while sending diagnostic data: %s", err)
 		return fmt.Errorf("error while sending diagnostic data: %w", err)
 	}
 	defer func() {

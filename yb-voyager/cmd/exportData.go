@@ -170,7 +170,6 @@ func packAndSendExportDataPayload(status string) {
 		payload.MigrationType = LIVE_MIGRATION
 	}
 	sourceDBDetails := callhome.SourceDBDetails{
-		Host:      source.Host,
 		DBType:    source.DBType,
 		DBVersion: source.DBVersion,
 		DBSize:    source.DBSize,
@@ -180,9 +179,8 @@ func packAndSendExportDataPayload(status string) {
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs:    int64(source.NumConnections),
-		StartClean:      bool(startClean),
-		CommandLineArgs: cliArgsString,
+		ParallelJobs: int64(source.NumConnections),
+		StartClean:   bool(startClean),
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
