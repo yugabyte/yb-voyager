@@ -1,0 +1,57 @@
+{
+    "Summary": {
+        "MigrationComplexity": "LOW",
+        "DbName": "test_is",
+        "SchemaNames": [
+            "public"
+        ],
+        "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 1,
+                "ObjectNames": "public"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 4,
+                "ObjectNames": "btree_gist, dblink, hstore, \"uuid-ossp\""
+            },
+            {
+                "ObjectType": "DOMAIN",
+                "TotalCount": 1,
+                "ObjectNames": "public.currency"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 9,
+                "InvalidCount": 1,
+                "ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
+            },
+            {
+                "ObjectType": "INDEX",
+                "TotalCount": 2,
+                "ObjectNames": "reports_attrs_idx, reports_report_idx",
+                "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+            },
+            {
+                "ObjectType": "TRIGGER",
+                "TotalCount": 1,
+                "ObjectNames": "report_tsv_update"
+            }
+        ]
+    },
+    "Issues": [
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.secret_missions",
+            "Reason": "Exclusion constraint is not supported yet",
+            "SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
+            "Suggestion": "Refer docs link for details on possible workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+        }
+    ]
+}
