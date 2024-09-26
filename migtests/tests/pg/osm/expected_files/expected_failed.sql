@@ -8,21 +8,7 @@ CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
 ERROR: type "public.geometry" does not exist (SQLSTATE 42704)
 File :/home/centos/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/table.sql
 */
-CREATE TABLE public.osm_changeset (
-    id bigint NOT NULL,
-    user_id bigint,
-    created_at timestamp without time zone,
-    min_lat numeric(10,7),
-    max_lat numeric(10,7),
-    min_lon numeric(10,7),
-    max_lon numeric(10,7),
-    closed_at timestamp without time zone,
-    open boolean,
-    num_changes integer,
-    user_name character varying(255),
-    tags public.hstore,
-    geom public.geometry(Polygon,4326)
-);
+CREATE TABLE public.osm_changeset (id bigint NOT NULL, user_id bigint, created_at timestamp, min_lat numeric(10, 7), max_lat numeric(10, 7), min_lon numeric(10, 7), max_lon numeric(10, 7), closed_at timestamp, open boolean, num_changes int, user_name varchar(255), tags public.hstore, geom public.geometry(polygon, 4326)) WITH (colocation=false);
 
 /*
 ERROR: relation "public.osm_changeset" does not exist (SQLSTATE 42P01)

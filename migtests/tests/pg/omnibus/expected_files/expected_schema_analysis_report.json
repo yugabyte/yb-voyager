@@ -66,7 +66,7 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 11,
-                "InvalidCount": 6,
+                "InvalidCount": 7,
                 "ObjectNames": "grect2ind2, grect2ind3, idx_1, hidx, gin_idx, title_idx, title_idx_lower, title_idx_nulls_low, title_idx_u1, title_idx_u2, title_idx_with_duplicates",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
@@ -224,6 +224,17 @@
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx_1 ON composite_type_examples.ordinary_table",
+            "Reason": "INDEX on column 'user_defined_type' not yet supported",
+            "SqlStatement": "CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_);",
+            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
             "IssueType": "unsupported_features",
