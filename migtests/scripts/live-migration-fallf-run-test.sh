@@ -235,6 +235,11 @@ main() {
 
 	sleep 60
 
+	if [ -f ${TEST_DIR}/validateAfterCutoverToTarget ]; then
+		step "Run validations after cutover to target."
+		"${TEST_DIR}/validateAfterCutoverToTarget" --ff_enabled 'true' --fb_enabled 'false'
+	fi
+
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
