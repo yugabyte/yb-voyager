@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 import json
+import os
 
 def main():
+	validate_reports_sanity()
 	with open("dummy-export-dir/reports/schema_analysis_report.json") as fh:
 		report = json.load(fh)
 		print(json.dumps(report, indent=4))
@@ -18,6 +20,16 @@ def main():
 	validate_report_summary(report, expected_summary)
 	validate_report_issues(report, expected_issues)
 	print("All validations passed.")
+
+def validate_reports_sanity():
+    report_name_without_ext = "dummy-export-dir/reports/schema_analysis_report"
+    extensions = ['.json', '.html', '.xml', '.txt']
+    for ext in extensions:
+        file_path = report_name_without_ext + ext
+        # Check if file exists
+        assert os.path.exists(file_path), f"Report not found: {file_path}"
+        # Check if file is not empty
+        assert os.path.getsize(file_path) > 0, f"Report is empty: {file_path}"
 
 def validate_report_summary(report, expected_summary):
 	print("Ensure that all the expected summary fields are reported.")

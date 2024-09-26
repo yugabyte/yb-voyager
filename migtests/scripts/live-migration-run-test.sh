@@ -92,7 +92,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -102,7 +102,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"

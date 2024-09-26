@@ -103,6 +103,9 @@ const (
 	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
 	MIGRATION_CAVEATS     = "migration_caveats"
 
+	HTML = "html"
+	JSON = "json"
+
 	TABLE     = "TABLE"
 	MVIEW     = "MVIEW"
 	YUGABYTED = "yugabyted"

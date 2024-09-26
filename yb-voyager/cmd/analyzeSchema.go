@@ -1699,12 +1699,9 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, analyzeSchemaReportFormat)
 
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
-
-	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
 	if !schemaIsExported() {
 		utils.ErrExit("run export schema before running analyze-schema")
@@ -1716,10 +1713,24 @@ func analyzeSchema() {
 	}
 	analyzeSchemaInternal(msr.SourceDBConf)
 
-	var finalReport string
+	if analyzeSchemaReportFormat != "" {
+		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)
+	} else {
+		generateAnalyzeSchemaReport(msr, HTML)
+		generateAnalyzeSchemaReport(msr, JSON)
+	}
 
-	switch analyzeSchemaReportFormat {
+	packAndSendAnalyzeSchemaPayload(COMPLETE)
+
+	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
+	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
+}
+
+func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat string) (err error) {
+	var finalReport string
+	switch reportFormat {
 	case "html":
+		var schemaNames = schemaAnalysisReport.SchemaSummary.SchemaNames
 		if msr.SourceDBConf.DBType == POSTGRESQL {
 			// marking this as empty to not display this in html report for PG
 			schemaAnalysisReport.SchemaSummary.SchemaNames = []string{}
@@ -1728,6 +1739,8 @@ func analyzeSchema() {
 		if err != nil {
 			utils.ErrExit("failed to apply template for html schema analysis report: %v", err)
 		}
+		// restorting the value in struct for generating other format reports
+		schemaAnalysisReport.SchemaSummary.SchemaNames = schemaNames
 	case "json":
 		jsonReportBytes, err := json.MarshalIndent(schemaAnalysisReport, "", "    ")
 		if err != nil {
@@ -1746,9 +1759,11 @@ func analyzeSchema() {
 		}
 		finalReport = string(xmlReportBytes)
 	default:
-		panic(fmt.Sprintf("invalid report format: %q", analyzeSchemaReportFormat))
+		panic(fmt.Sprintf("invalid report format: %q", reportFormat))
 	}
 
+	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, reportFormat)
+	reportPath := filepath.Join(exportDir, "reports", reportFile)
 	//check & inform if file already exists
 	if utils.FileOrFolderExists(reportPath) {
 		fmt.Printf("\n%s already exists, overwriting it with a new generated report\n", reportFile)
@@ -1769,11 +1784,7 @@ func analyzeSchema() {
 		utils.ErrExit("failed to write report to %q: %s", reportPath, err)
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
-
-	packAndSendAnalyzeSchemaPayload(COMPLETE)
-
-	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
-	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
+	return nil
 }
 
 func packAndSendAnalyzeSchemaPayload(status string) {
@@ -1819,13 +1830,15 @@ var analyzeSchemaCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(analyzeSchemaCmd)
 	registerCommonGlobalFlags(analyzeSchemaCmd)
-	analyzeSchemaCmd.PersistentFlags().StringVar(&analyzeSchemaReportFormat, "output-format", "txt",
-		"format in which report will be generated: (html, txt, json, xml)")
+	analyzeSchemaCmd.PersistentFlags().StringVar(&analyzeSchemaReportFormat, "output-format", "",
+		"format in which report can be generated: ('html', 'txt', 'json', 'xml'). If not provided, reports will be generated in both 'json' and 'html' formats by default.")
 }
 
 func validateReportOutputFormat(validOutputFormats []string, format string) {
+	if format == "" {
+		return
+	}
 	format = strings.ToLower(format)
-
 	for i := 0; i < len(validOutputFormats); i++ {
 		if format == validOutputFormats[i] {
 			return
