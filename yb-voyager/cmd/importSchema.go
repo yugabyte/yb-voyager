@@ -97,7 +97,7 @@ func importSchema() error {
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 		tconf.Schema = tconfSchema
 	}
-	
+
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
@@ -241,7 +241,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		EnableOrafce:       bool(enableOrafce),
 		IgnoreExist:        bool(tconf.IgnoreIfExists),
 		RefreshMviews:      bool(flagRefreshMViews),
-		Errors:             len(errorsList),
+		ErrorCount:         len(errorsList),
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
 	}

@@ -142,7 +142,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	}
 	schemaSummaryCopy := utils.SchemaSummary{
 		MigrationComplexity: assessmentReport.SchemaSummary.MigrationComplexity,
-		SchemaNames:         assessmentReport.SchemaSummary.SchemaNames,
 		Notes:               assessmentReport.SchemaSummary.Notes,
 		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""

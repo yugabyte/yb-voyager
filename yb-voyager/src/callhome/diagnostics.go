@@ -93,7 +93,7 @@ type TargetDBDetails struct {
 
 type UnsupportedFeature struct {
 	FeatureName string `json:"FeatureName"`
-	ObjectCount int `json:"ObjectCount"`
+	ObjectCount int    `json:"ObjectCount"`
 }
 
 type AssessMigrationPhasePayload struct {
@@ -148,7 +148,7 @@ type ImportSchemaPhasePayload struct {
 	EnableOrafce       bool `json:"enable_orafce"`
 	IgnoreExist        bool `json:"ignore_exist"`
 	RefreshMviews      bool `json:"refresh_mviews"`
-	Errors             int  `json:"errors"` // changing it to count of errors only
+	ErrorCount         int  `json:"errors"` // changing it to count of errors only
 	PostSnapshotImport bool `json:"post_snapshot_import"`
 	StartClean         bool `json:"start_clean"`
 }
@@ -250,7 +250,7 @@ func SendPayload(payload *Payload) error {
 	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
-		log.Infof("error while sending diagnostic data: %s", err )
+		log.Infof("error while sending diagnostic data: %s", err)
 		return fmt.Errorf("error while sending diagnostic data: %w", err)
 	}
 	defer func() {
