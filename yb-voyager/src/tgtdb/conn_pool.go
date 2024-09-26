@@ -36,6 +36,7 @@ var defaultSessionVars = []string{
 
 type ConnectionParams struct {
 	NumConnections    int
+	NumMaxConnections int
 	ConnUriList       []string
 	SessionInitScript []string
 }
@@ -44,20 +45,31 @@ type ConnectionPool struct {
 	sync.Mutex
 	params                    *ConnectionParams
 	conns                     chan *pgx.Conn
+	idleConns                 chan *pgx.Conn
 	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
 	nextUriIndex              int
 	disableThrottling         bool
+	size                      int // current size of the pool
+	sizeChangeRequests        chan int
+	connLock                  sync.Mutex
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	pool := &ConnectionPool{
 		params:                    params,
-		conns:                     make(chan *pgx.Conn, params.NumConnections),
-		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumConnections),
+		conns:                     make(chan *pgx.Conn, params.NumMaxConnections),
+		idleConns:                 make(chan *pgx.Conn, params.NumMaxConnections),
+		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumMaxConnections),
 		disableThrottling:         false,
+		size:                      params.NumConnections,
+		sizeChangeRequests:        make(chan int, 1), //only allow one change request.
+	}
+	for i := 0; i < params.NumMaxConnections; i++ {
+		pool.idleConns <- nil
 	}
 	for i := 0; i < params.NumConnections; i++ {
-		pool.conns <- nil
+		c := <-pool.idleConns
+		pool.conns <- c
 	}
 	if pool.params.SessionInitScript == nil {
 		pool.params.SessionInitScript = defaultSessionVars
@@ -65,8 +77,48 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	return pool
 }
 
+func (pool *ConnectionPool) GetNumConnections() int {
+	return pool.size
+}
+
+func (pool *ConnectionPool) UpdateNumConnections(newSize int) bool {
+	if newSize < 1 || newSize > pool.params.NumMaxConnections {
+		return false
+	}
+	select {
+	case pool.sizeChangeRequests <- newSize:
+		return true
+	default:
+		return false
+	}
+}
+
 func (pool *ConnectionPool) DisableThrottling() {
 	pool.disableThrottling = true
+}
+
+func (pool *ConnectionPool) applySizeChangeRequest() {
+	select {
+	case newSize := <-pool.sizeChangeRequests:
+		if newSize > pool.size {
+			for i := 0; i < newSize-pool.size; i++ {
+				conn := <-pool.idleConns
+				pool.conns <- conn
+			}
+		} else if newSize < pool.size {
+			for i := 0; i < pool.size-newSize; i++ {
+				conn := <-pool.conns
+				pool.idleConns <- conn
+				// if conn != nil {
+				// 	conn.Close(context.Background())
+				// }
+			}
+		}
+		oldSize := pool.size
+		pool.size = newSize
+		utils.PrintAndLog("PARALLELISM: Updated pool size from %d to %d", oldSize, newSize)
+	default:
+	}
 }
 
 func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
@@ -77,15 +129,22 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		var conn *pgx.Conn
 		var gotIt bool
 		if pool.disableThrottling {
+			pool.connLock.Lock()
+			pool.applySizeChangeRequest()
 			conn = <-pool.conns
+			pool.connLock.Unlock()
 		} else {
+			pool.connLock.Lock()
+			pool.applySizeChangeRequest()
 			conn, gotIt = <-pool.conns
 			if !gotIt {
+				pool.connLock.Unlock()
 				// The following sleep is intentional. It is added so that voyager does not
 				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
 				time.Sleep(2 * time.Second)
 				continue
 			}
+			pool.connLock.Unlock()
 		}
 		if conn == nil {
 			conn, err = pool.createNewConnection()

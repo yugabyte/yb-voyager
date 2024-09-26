@@ -222,6 +222,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 
 	params := &ConnectionParams{
 		NumConnections:    yb.tconf.Parallelism,
+		NumMaxConnections: yb.tconf.Parallelism * 2,
 		ConnUriList:       targetUriList,
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
@@ -1193,11 +1194,11 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, e
 }
 
 func (yb *TargetYugabyteDB) GetNumConnectionsInPool() int {
-	return 0
+	return yb.connPool.GetNumConnections()
 }
 
 func (yb *TargetYugabyteDB) UpdateNumConnectionsInPool(newSize int) bool {
-	return true
+	return yb.connPool.UpdateNumConnections(newSize)
 }
 
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
