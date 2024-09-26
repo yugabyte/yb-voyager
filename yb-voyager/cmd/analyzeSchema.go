@@ -435,8 +435,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 				stmt:{composite_type_stmt:{typevar:{schemaname:"non_public"  relname:"Address_type"  relpersistence:"p"  location:14}  coldeflist:{column_def:{colname:"street"
 				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"varchar"}}  typmods:{a_const:{ival:{ival:100}  location:65}}  typemod:-1  location:57} ...
 
-				Here the type name is required which is available in typevar->relname (not considering the qualified and all as while checking type in create table we will get
-				the last name of type which is the unqualified type name)
+				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
 			*/
 			typeName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetRelname()
 			typeSchemaName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetSchemaname()
@@ -582,7 +581,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				1. normal index on column with these types
 				2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
 				3. expression index with  casting to unsupported types
-				4. normal index on column with UDTs [TODO]
+				4. normal index on column with UDTs 
 				5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 		*/
 		colName := param.GetIndexElem().GetName()
@@ -604,7 +603,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
 			typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
 		}
-		fullCastTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+castTypeName, typeName)
+		fullCastTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+castTypeName, castTypeName)
 		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
 			//In case casting is happening for an array type
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
@@ -616,14 +615,13 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
 			reason := fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName)
 			if slices.Contains(compositeTypes, fullCastTypeName) {
-				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName) 
+				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type") 
 			}
 			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
 		}
-		//TODO #4.
 	}
 }
 
