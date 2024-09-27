@@ -81,21 +81,18 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 }
 
 func (pool *ConnectionPool) GetNumConnections() int {
-	pool.pendingConnsToCloseLock.Lock()
-	defer pool.pendingConnsToCloseLock.Unlock()
-	return pool.size - pool.pendingConnsToClose
+	return pool.size
 }
 
 func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 	pool.pendingConnsToCloseLock.Lock()
 	defer pool.pendingConnsToCloseLock.Unlock()
 
-	effectiveSize := pool.size - pool.pendingConnsToClose
-	newEffectiveSize := effectiveSize + delta
+	newSize := pool.size + delta
 
-	if newEffectiveSize < 1 || newEffectiveSize > pool.params.NumMaxConnections {
+	if newSize < 1 || newSize > pool.params.NumMaxConnections {
 		return fmt.Errorf("invalid new pool size %d. "+
-			"Must be between 1 and %d", newEffectiveSize, pool.params.NumMaxConnections)
+			"Must be between 1 and %d", newSize, pool.params.NumMaxConnections)
 	}
 
 	if delta == 0 {
@@ -116,47 +113,18 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 			conn := <-pool.idleConns
 			pool.conns <- conn
 		}
-		pool.size = newEffectiveSize
+
 		utils.PrintAndLog("PARALLELISM: Added %d new connections. Pool size is now %d", delta, pool.size)
 	} else {
 		pool.pendingConnsToClose += -delta
 	}
+	pool.size = newSize
 	return nil
-	// select {
-	// case pool.sizeChangeRequests <- newSize:
-	// 	return true
-	// default:
-	// 	return false
-	// }
 }
 
 func (pool *ConnectionPool) DisableThrottling() {
 	pool.disableThrottling = true
 }
-
-// func (pool *ConnectionPool) applySizeChangeRequest() {
-// 	select {
-// 	case newSize := <-pool.sizeChangeRequests:
-// 		if newSize > pool.size {
-// 			for i := 0; i < newSize-pool.size; i++ {
-// 				conn := <-pool.idleConns
-// 				pool.conns <- conn
-// 			}
-// 		} else if newSize < pool.size {
-// 			for i := 0; i < pool.size-newSize; i++ {
-// 				conn := <-pool.conns
-// 				pool.idleConns <- conn
-// 				// if conn != nil {
-// 				// 	conn.Close(context.Background())
-// 				// }
-// 			}
-// 		}
-// 		oldSize := pool.size
-// 		pool.size = newSize
-// 		utils.PrintAndLog("PARALLELISM: Updated pool size from %d to %d", oldSize, newSize)
-// 	default:
-// 	}
-// }
 
 func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	var err error
@@ -195,9 +163,8 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
 				pool.pendingConnsToClose--
-				pool.size--
 				pool.idleConns <- nil
-				utils.PrintAndLog("PARALLELISM: Connection moved to idle pool. New size: %d", pool.size)
+				utils.PrintAndLog("PARALLELISM: Connection moved to idle pool.")
 			} else {
 				pool.conns <- nil
 			}
@@ -206,9 +173,8 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
 				pool.pendingConnsToClose--
-				pool.size--
 				pool.idleConns <- conn
-				utils.PrintAndLog("PARALLELISM: Connection moved to idle pool. New size: %d", pool.size)
+				utils.PrintAndLog("PARALLELISM: Connection moved to idle pool")
 			} else {
 				pool.conns <- conn
 			}
