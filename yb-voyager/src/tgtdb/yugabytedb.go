@@ -1202,8 +1202,8 @@ func (yb *TargetYugabyteDB) GetNumMaxConnectionsInPool() int {
 	return yb.connPool.params.NumMaxConnections
 }
 
-func (yb *TargetYugabyteDB) UpdateNumConnectionsInPool(newSize int) bool {
-	return yb.connPool.UpdateNumConnections(newSize)
+func (yb *TargetYugabyteDB) UpdateNumConnectionsInPool(delta int) error {
+	return yb.connPool.UpdateNumConnections(delta)
 }
 
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {

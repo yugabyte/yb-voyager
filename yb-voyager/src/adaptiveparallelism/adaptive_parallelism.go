@@ -34,7 +34,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 	GetClusterMetrics() (map[string]map[string]string, error) // node_uuid:metric_name:metric_value
 	GetNumConnectionsInPool() int
 	GetNumMaxConnectionsInPool() int
-	UpdateNumConnectionsInPool(int) bool
+	UpdateNumConnectionsInPool(int) error
 }
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
@@ -58,15 +58,15 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 
 		if maxCpuUsage > MAX_CPU_THRESHOLD {
 			utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()-1)
-			updated := yb.UpdateNumConnectionsInPool(yb.GetNumConnectionsInPool() - 1)
-			if !updated {
-				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
+			err = yb.UpdateNumConnectionsInPool(-1)
+			if err != nil {
+				utils.PrintAndLog("PARALLELISM: error updating parallelism: %v", err)
 			}
 		} else {
 			utils.PrintAndLog("PARALLELISM: found CPU usage = %d <= %d, increasing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()+1)
-			updated := yb.UpdateNumConnectionsInPool(yb.GetNumConnectionsInPool() + 1)
-			if !updated {
-				utils.PrintAndLog("PARALLELISM: no update. pending change request or change out of bounds")
+			err := yb.UpdateNumConnectionsInPool(1)
+			if err != nil {
+				utils.PrintAndLog("PARALLELISM: error updating parallelism: %v", err)
 			}
 		}
 		time.Sleep(10 * time.Second)
