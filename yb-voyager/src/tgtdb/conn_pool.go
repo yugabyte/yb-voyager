@@ -93,7 +93,7 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 	}
 
 	if delta == 0 {
-		utils.PrintAndLog("adaptive: No change in pool size. Current size is %d", pool.size)
+		log.Infof("adaptive: No change in pool size. Current size is %d", pool.size)
 		return nil
 	}
 	if delta > 0 {
