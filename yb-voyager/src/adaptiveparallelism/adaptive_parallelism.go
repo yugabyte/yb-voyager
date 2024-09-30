@@ -45,40 +45,46 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 	}
 	for {
 		time.Sleep(ADAPTIVE_PARALLELISM_FREQUENCY)
-		clusterMetrics, err := yb.GetClusterMetrics()
-		log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics)) // TODO: move to debug?
+		err := fetchClusterMetricsAndUpdateParallelism(yb)
 		if err != nil {
-			// we don't want to return here, just log the error and continue.
-			log.Warnf("adaptive: error getting cluster metrics: %v", err)
-			continue
-		}
-
-		// get max CPU
-		// Note that right now, voyager ingests data into the target in parallel,
-		// but one table at a time. Therefore, in cases where there is a single tablet for a table,
-		// either due to pre-split or colocated table, it is possible that the load on the cluster
-		// will be uneven. Nevertheless, we still want to ensure that the cluster is not overloaded,
-		// therefore we use the max CPU usage across all nodes in the cluster.
-		maxCpuUsage, err := getMaxCpuUsageInCluster(clusterMetrics)
-		if err != nil {
-			return fmt.Errorf("getting max cpu usage in cluster: %w", err)
-		}
-		log.Infof("adaptive: max cpu usage in cluster = %d", maxCpuUsage)
-
-		if maxCpuUsage > MAX_CPU_THRESHOLD {
-			log.Infof("adaptive: found CPU usage = %d > %d, reducing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()-1)
-			err = yb.UpdateNumConnectionsInPool(-1)
-			if err != nil {
-				log.Warnf("adaptive: error updating parallelism: %v", err)
-			}
-		} else {
-			log.Infof("adaptive: found CPU usage = %d <= %d, increasing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()+1)
-			err := yb.UpdateNumConnectionsInPool(1)
-			if err != nil {
-				log.Warnf("adaptive: error updating parallelism: %v", err)
-			}
+			log.Warnf("adaptive: error updating parallelism: %v", err)
 		}
 	}
+}
+
+func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPool) error {
+	clusterMetrics, err := yb.GetClusterMetrics()
+	log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics)) // TODO: move to debug?
+	if err != nil {
+		return fmt.Errorf("getting cluster metrics: %w", err)
+	}
+
+	// get max CPU
+	// Note that right now, voyager ingests data into the target in parallel,
+	// but one table at a time. Therefore, in cases where there is a single tablet for a table,
+	// either due to pre-split or colocated table, it is possible that the load on the cluster
+	// will be uneven. Nevertheless, we still want to ensure that the cluster is not overloaded,
+	// therefore we use the max CPU usage across all nodes in the cluster.
+	maxCpuUsage, err := getMaxCpuUsageInCluster(clusterMetrics)
+	if err != nil {
+		return fmt.Errorf("getting max cpu usage in cluster: %w", err)
+	}
+	log.Infof("adaptive: max cpu usage in cluster = %d", maxCpuUsage)
+
+	if maxCpuUsage > MAX_CPU_THRESHOLD {
+		log.Infof("adaptive: found CPU usage = %d > %d, reducing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()-1)
+		err = yb.UpdateNumConnectionsInPool(-1)
+		if err != nil {
+			return fmt.Errorf("updating parallelism with -1: %w", err)
+		}
+	} else {
+		log.Infof("adaptive: found CPU usage = %d <= %d, increasing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()+1)
+		err := yb.UpdateNumConnectionsInPool(1)
+		if err != nil {
+			return fmt.Errorf("updating parallelism with +1 : %w", err)
+		}
+	}
+	return nil
 }
 
 func getMaxCpuUsageInCluster(clusterMetrics map[string]map[string]string) (int, error) {
