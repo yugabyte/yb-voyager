@@ -19,62 +19,88 @@ def main():
 
 # Define expected row count for tables
 EXPECTED_ROW_COUNT = {
-    'single_unique_constr': 5,
-    'multi_unique_constr': 5,
-    'single_unique_idx': 5,
-    'multi_unique_idx': 5,
-    'diff_columns_constr_idx': 5,
-    'subset_columns_constr_idx': 5
+    'single_unique_constr': 12,
+    'multi_unique_constr': 12,
+    'single_unique_idx': 12,
+    'multi_unique_idx': 12,
+    'diff_columns_constr_idx': 12,
+    'subset_columns_constr_idx': 12
 }
 
 # Define expected final varchar state for all unique constraint/index columns
 EXPECTED_FINAL_STATE_VARCHAR = {
     'single_unique_constr': {
         'email': [
-            'user2@example.com', 
-            'updated_user4@example.com', 
-            'user4@example.com', 
-            'updated_user5@example.com', 
+            'target_user101@example.com',
+            'target_user105@example.com',
+            'target_user106@example.com',
+            'updated_non_conflict_user1@example.com',
+            'updated_target_user102@example.com',
+            'updated_target_user105@example.com',
+            'updated_target_user106@example.com',
+            'updated_user4@example.com',
+            'updated_user5@example.com',
+            'user2@example.com',
+            'user4@example.com',
             'user5@example.com'
         ]
     },
     'multi_unique_constr': {
-        'first_name': ['John', 'Tom', 'Bob', 'Updated_Alice', 'Alice'],
-        'last_name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Clark']
+        'first_name': [
+            'Alice', 'Bob', 'John', 'Target_Bob', 'Target_Dave', 'Target_John', 'Tom',
+            'Updated_Alice', 'Updated_Non_John', 'Updated_Target_Bob', 'Updated_Target_Dave',
+            'Updated_Target_Jane'
+        ],
+        'last_name': [
+            'Clark', 'Doe', 'Johnson', 'Smith', 'Updated_Non_Doe', 'Updated_Smith',
+            'Williams', 'Wilson'
+        ]
     },
     'single_unique_idx': {
         'ssn': [
-            'SSN2', 
-            'updated_SSN4', 
-            'SSN4', 
-            'updated_SSN5', 
-            'SSN5'
+            'SSN2', 'SSN4', 'SSN5', 'target_ssn101', 'target_ssn105', 'target_ssn106',
+            'updated_SSN4', 'updated_SSN5', 'updated_non_conflict_SSN',
+            'updated_target_ssn102', 'updated_target_ssn105', 'updated_target_ssn106'
         ]
     },
     'multi_unique_idx': {
-        'first_name': ['Jane', 'Updated_Tom', 'Tom', 'Updated_Alice', 'Alice'],
-        'last_name': ['Smith', 'Clark', 'Williams']
+        'first_name': [
+            'Alice', 'Jane', 'Target_Carol', 'Target_Dave', 'Target_Jane', 'Tom',
+            'Updated_Alice', 'Updated_Non_John', 'Updated_Target_Carol',
+            'Updated_Target_Dave', 'Updated_Target_Tom', 'Updated_Tom'
+        ],
+        'last_name': [
+            'Brown', 'Clark', 'Johnson', 'Smith', 'Updated_Clark', 'Updated_Non_Doe',
+            'Williams', 'Wilson'
+        ]
     },
     'diff_columns_constr_idx': {
         'email': [
-            'user3@example.com', 
-            'updated_user4@example.com', 
-            'user4@example.com', 
-            'user5@example.com', 
-            'user1@example.com'
+            'non_conflict_updated_user1@example.com', 'target_user101@example.com',
+            'target_user105@example.com', 'target_user106@example.com', 'target_user107@example.com',
+            'updated_target_user102@example.com', 'updated_target_user105@example.com',
+            'updated_user4@example.com', 'user1@example.com', 'user3@example.com',
+            'user4@example.com', 'user5@example.com'
         ],
         'phone_number': [
-            '555-555-5552', 
-            '555-555-5554', 
-            '555-555-5561', 
-            '555-555-5558', 
-            '555-555-5555'
+            '555-555-5510', '555-555-5511', '555-555-5513', '555-555-5515', '555-555-5516',
+            '555-555-5518', '555-555-5552', '555-555-5554', '555-555-5555', '555-555-5558',
+            '555-555-5561', '555-555-5566'
         ]
     },
     'subset_columns_constr_idx': {
-        'first_name': ['John', 'Updated_Bob', 'Bob', 'Updated_Alice', 'Alice'],
-        'last_name': ['Doe', 'Smith', 'Johnson', 'Williams'],
-        'phone_number': ['123-456-7890', '123-456-7892', '123-456-7893']
+        'first_name': [
+            'Alice', 'Bob', 'John', 'Target_Alice', 'Target_Dave', 'Target_Eve', 'Target_Frank',
+            'Target_John', 'Updated_Alice', 'Updated_Bob', 'Updated_Non_John', 'Updated_Target_Jane'
+        ],
+        'last_name': [
+            'Davis', 'Doe', 'Johnson', 'Miller', 'Smith', 'Updated_Non_Doe', 'Updated_Smith',
+            'Williams', 'Wilson'
+        ],
+        'phone_number': [
+            '123-456-7810', '123-456-7811', '123-456-7815', '123-456-7816', '123-456-7818',
+            '123-456-7855', '123-456-7890', '123-456-7892', '123-456-7893'
+        ]
     }
 }
 
@@ -108,7 +134,7 @@ def migration_completed_checks(tgt):
     for table_name, column_final_state in EXPECTED_FINAL_STATE_VARCHAR.items():
         print(f"Schema: {db_schema}, Table: {table_name}")
         for column, expected_values in column_final_state.items():
-            actual_values = tgt.get_distinct_values__of_column_of_table(table_name, column, db_schema)
+            actual_values = tgt.get_distinct_values_of_column_of_table(table_name, column, db_schema)
             assert sorted(actual_values) == sorted(expected_values), (
                 f"Unique values mismatch in {column} of {table_name}: "
                 f"Expected {expected_values}, Got {actual_values}"
