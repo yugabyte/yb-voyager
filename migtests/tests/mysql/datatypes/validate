@@ -151,13 +151,13 @@ def migration_completed_checks(tgt):
 			print(f"column_name: {column}, sum: {col_sum}")
 			assert sum == str(col_sum)
 
-	distinct_values_enum_types = tgt.get_distinct_values__of_column_of_table("enum_types", "priority", "public")
+	distinct_values_enum_types = tgt.get_distinct_values_of_column_of_table("enum_types", "priority", "public")
 	print(f"distinct_enum_values:")
 	for distinct_value in distinct_values_enum_types:
 		print(f"{distinct_value}")
 		assert distinct_value.lower() in EXPECTED_ENUM_VALUES
 
-	distinct_values_bool_types = tgt.get_distinct_values__of_column_of_table("bool_types", "val", "public")
+	distinct_values_bool_types = tgt.get_distinct_values_of_column_of_table("bool_types", "val", "public")
 	print(f"distinct_bool_values:")
 	for distinct_value in distinct_values_bool_types:
 		print(f"{distinct_value}")

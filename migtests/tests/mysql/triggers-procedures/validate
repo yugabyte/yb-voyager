@@ -41,7 +41,7 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert (row_count + 1) == got_row_count[table_name]
 
-	id_values = tgt.get_distinct_values__of_column_of_table("view_table1", "id", "public")
+	id_values = tgt.get_distinct_values_of_column_of_table("view_table1", "id", "public")
 	print(f"Returned id_values - {id_values} and expected id values - {EXPECTED_ID_VALUES_AFTER_PROC_CALL}")
 	id_values.sort()
 	assert  id_values == EXPECTED_ID_VALUES_AFTER_PROC_CALL

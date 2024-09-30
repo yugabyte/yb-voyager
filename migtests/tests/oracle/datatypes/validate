@@ -169,7 +169,7 @@ def migration_completed_checks(tgt):
 		}
 	}
 	for column, expected_distinct_values in COLUMNS_NUMERIC_TYPES[os.environ.get("BETA_FAST_DATA_EXPORT")].items():
-		distinct_values = tgt.get_distinct_values__of_column_of_table("numeric_types", column, "public")
+		distinct_values = tgt.get_distinct_values_of_column_of_table("numeric_types", column, "public")
 		for value in distinct_values:
 			distinct_values[distinct_values.index(value)] = float(value) if value is not None else value
 		print(f"distinct_values for {column} column: {distinct_values}")
@@ -181,7 +181,7 @@ def migration_completed_checks(tgt):
 	}
 
 	for column, expected_distinct_values in COLUMNS_DATE_TIME_TYPES.items():
-		distinct_values = tgt.get_distinct_values__of_column_of_table("date_time_types", column, "public")
+		distinct_values = tgt.get_distinct_values_of_column_of_table("date_time_types", column, "public")
 		for value in distinct_values:
 			distinct_values[distinct_values.index(value)] = str(value) if value is not None else value
 		print(f"distinct_values for {column} column: {distinct_values}")
@@ -195,7 +195,7 @@ def migration_completed_checks(tgt):
 
 	if os.environ.get("BETA_FAST_DATA_EXPORT") == '1': #facing different values for int_d_s in ora2pg n dbzm needs testing (todo)
 		for column, expected_distinct_values in COLUMNS_INTERVAL_TYPES.items():
-			distinct_values = tgt.get_distinct_values__of_column_of_table("interval_types", column, "public")
+			distinct_values = tgt.get_distinct_values_of_column_of_table("interval_types", column, "public")
 			for value in distinct_values:
 				distinct_values[distinct_values.index(value)] = str(value) if value is not None else value
 			print(f"distinct_values for {column} column: {distinct_values}")
@@ -209,7 +209,7 @@ def migration_completed_checks(tgt):
 
 	if os.environ.get("BETA_FAST_DATA_EXPORT") == '1': #facing different values for long_raw_value in ora2pg n dbzm needs testing (todo)
 		for column, expected_distinct_values in COLUMNS_RAW_TYPE.items():
-			distinct_values = tgt.get_distinct_values__of_column_of_table("raw_type", column, "public")
+			distinct_values = tgt.get_distinct_values_of_column_of_table("raw_type", column, "public")
 			for value in distinct_values:
 				distinct_values[distinct_values.index(value)] = value.hex() if value is not None else value
 			print(f"distinct_values for {column} column: {distinct_values}")
@@ -225,7 +225,7 @@ def migration_completed_checks(tgt):
 	}
 
 	for column, expected_distinct_values in COLUMNS_NUMBER_PS.items():
-		distinct_values = tgt.get_distinct_values__of_column_of_table("number_ps", column, "public")
+		distinct_values = tgt.get_distinct_values_of_column_of_table("number_ps", column, "public")
 		for value in distinct_values:
 			distinct_values[distinct_values.index(value)] = float(value) if value is not None else value
 		print(f"distinct_values for {column} column: {distinct_values}")
