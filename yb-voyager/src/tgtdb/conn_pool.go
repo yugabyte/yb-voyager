@@ -111,10 +111,10 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 			pool.conns <- conn
 		}
 
-		log.Info("adaptive: Added %d new connections. Pool size is now %d", delta, newSize)
+		log.Infof("adaptive: Added %d new connections. Pool size is now %d", delta, newSize)
 	} else {
 		pool.pendingConnsToClose += -delta
-		log.Info("adaptive: registered request to close %d conns. Total pending conns to close=%d", -delta, pool.pendingConnsToClose)
+		log.Infof("adaptive: registered request to close %d conns. Total pending conns to close=%d", -delta, pool.pendingConnsToClose)
 	}
 	pool.size = newSize
 	return nil
@@ -161,7 +161,7 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
 				pool.idleConns <- nil
-				log.Info("adaptive: Closed and moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
+				log.Infof("adaptive: Closed and moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
 				pool.pendingConnsToClose--
 			} else {
 				pool.conns <- nil
@@ -171,7 +171,7 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
 				pool.idleConns <- conn
-				log.Info("adaptive: Moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
+				log.Infof("adaptive: Moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
 				pool.pendingConnsToClose--
 			} else {
 				pool.conns <- conn

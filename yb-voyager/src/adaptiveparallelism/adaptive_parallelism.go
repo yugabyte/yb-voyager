@@ -27,7 +27,7 @@ import (
 const (
 	CPU_USAGE_USER                 = "cpu_usage_user"
 	CPU_USAGE_SYSTEM               = "cpu_usage_system"
-	MAX_CPU_THRESHOLD              = 100
+	MAX_CPU_THRESHOLD              = 70
 	ADAPTIVE_PARALLELISM_FREQUENCY = 10 * time.Second
 )
 
@@ -46,7 +46,7 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 	for {
 		time.Sleep(ADAPTIVE_PARALLELISM_FREQUENCY)
 		clusterMetrics, err := yb.GetClusterMetrics()
-		log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics))
+		log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics)) // TODO: move to debug?
 		if err != nil {
 			log.Warnf("adaptive: error getting cluster metrics: %v", err)
 			continue
@@ -72,9 +72,7 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 				log.Warnf("adaptive: error updating parallelism: %v", err)
 			}
 		}
-
 	}
-	return nil
 }
 
 func getMaxCpuUsageInCluster(clusterMetrics map[string]map[string]string) (int, error) {
