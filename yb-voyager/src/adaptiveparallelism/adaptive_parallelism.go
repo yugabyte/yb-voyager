@@ -41,7 +41,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 	if !yb.IsAdaptiveParallelismSupported() {
-		return fmt.Errorf("adaptive parallelism not supported in target YB database.")
+		return fmt.Errorf("adaptive parallelism not supported in target YB database")
 	}
 	for {
 		time.Sleep(ADAPTIVE_PARALLELISM_FREQUENCY)
