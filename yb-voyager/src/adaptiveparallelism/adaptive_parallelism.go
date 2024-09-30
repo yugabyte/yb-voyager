@@ -42,10 +42,12 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 		return fmt.Errorf("adaptive parallelism not supported in target YB database.")
 	}
 	for {
+		time.Sleep(10 * time.Second)
 		utils.PrintAndLog("--------------------------------------------------------")
 		clusterMetrics, err := yb.GetClusterMetrics()
 		if err != nil {
 			utils.PrintAndLog("error getting cluster metrics: %v", err)
+			continue
 		}
 		// utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
 
@@ -69,7 +71,7 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 				utils.PrintAndLog("PARALLELISM: error updating parallelism: %v", err)
 			}
 		}
-		time.Sleep(10 * time.Second)
+
 	}
 	return nil
 }
