@@ -1798,6 +1798,21 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = ""  // Obfuscate sensitive information before sending to callhome cluster
 		issue.ObjectName = "XXX" // Redacting object name before sending
+		/*
+		Removing Reason and Suggestion completely for now as there can be sensitive information in some of the cases 
+		so will enable it later with proper understanding
+		some of the examples -
+		Reason:
+			Stored generated columns are not supported. [columns]
+			Unsupported datatype - xml on [column]
+			Unsupported datatype - xid on [column]
+			Unsupported PG syntax - [error msg from parser]
+			Policy require roles to be created. [role names]
+		Suggestion:
+			Foreign Table issue mentions Server name to be created.
+		*/
+		issue.Reason = "XXX"
+		issue.Suggestion = "XXX"
 		callhomeIssues = append(callhomeIssues, issue)
 	}
 
