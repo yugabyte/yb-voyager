@@ -90,6 +90,11 @@ class OracleDB:
         tables = ['"{}"'.format(table[0]) for table in cur.fetchall()]
         #return tables in lower case to match EXPECTED values Todo handled it properly later
         return {table[1:-1].lower(): self.get_row_count(table, schema_name) for table in tables}
+    
+    def get_distinct_values_of_column_of_table(self, table_name, column_name, schema_name) -> List[Any]:
+        cur = self.conn.cursor()
+        cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
+        return [value[0] for value in cur.fetchall()]
 
     def get_sum_of_column_of_table(self, table_name, column_name, schema_name) -> int:
         cur = self.conn.cursor()
