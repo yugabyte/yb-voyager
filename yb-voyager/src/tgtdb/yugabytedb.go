@@ -1175,8 +1175,8 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 }
 
 func (yb *TargetYugabyteDB) IsAdaptiveParallelismSupported() bool {
-	// TODO:
-	return true
+	query := "SELECT * FROM pg_proc WHERE proname='yb_servers_metrics'"
+	return yb.isQueryResultNonEmpty(query)
 }
 
 func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, error) {
