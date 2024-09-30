@@ -457,10 +457,8 @@ func importData(importFileTasks []*ImportFileTask) {
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
-		utils.PrintAndLog("cleaning import state")
 		cleanImportState(state, importFileTasks)
 		pendingTasks = importFileTasks
-		utils.PrintAndLog("import state cleaned")
 	} else {
 		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
 		if err != nil {
@@ -474,7 +472,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
 	}
-	utils.PrintAndLog("getting import table list")
 	importTableList, err := getImportTableList(sourceTableList)
 	if err != nil {
 		utils.ErrExit("Error generating table list to import: %v", err)
@@ -495,6 +492,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
 			if tconf.EnableAdaptiveParallelism {
+				// in case of adaptive parallelism, we need to use maxParalllelism * 2
 				yb := tdb.(*tgtdb.TargetYugabyteDB)
 				poolSize = yb.GetNumMaxConnectionsInPool() * 2
 			}
@@ -509,7 +507,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
 				// `parallelism` number of batches at a time.
 				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-				utils.PrintAndLog("created batch import pool of size: ", poolSize)
+				log.Info("created batch import pool of size: ", poolSize)
 
 				totalProgressAmount := getTotalProgressAmount(task)
 				progressReporter.ImportFileStarted(task, totalProgressAmount)

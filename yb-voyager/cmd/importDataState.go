@@ -175,12 +175,11 @@ func (s *ImportDataState) Clean(filePath string, tableNameTup sqlname.NameTuple)
 	if err != nil {
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
-	utils.PrintAndLog("cleaning import state from db")
+
 	err = s.cleanFileImportStateFromDB(filePath, tableNameTup)
 	if err != nil {
 		return fmt.Errorf("error while cleaning file import state for %q: %w", tableNameTup, err)
 	}
-	utils.PrintAndLog("cleaned import state from db")
 	return nil
 }
 

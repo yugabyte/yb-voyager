@@ -52,8 +52,6 @@ type ConnectionPool struct {
 	size                      int // current size of the pool
 	pendingConnsToClose       int
 	pendingConnsToCloseLock   sync.Mutex
-	// sizeChangeRequests        chan int
-	// connLock                  sync.Mutex
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
@@ -65,7 +63,6 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 		disableThrottling:         false,
 		size:                      params.NumConnections,
 		pendingConnsToClose:       0,
-		// sizeChangeRequests:        make(chan int, 1), //only allow one change request.
 	}
 	for i := 0; i < params.NumMaxConnections; i++ {
 		pool.idleConns <- nil
@@ -96,7 +93,7 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 	}
 
 	if delta == 0 {
-		utils.PrintAndLog("PARALLELISM: No change in pool size. Current size is %d", pool.size)
+		utils.PrintAndLog("adaptive: No change in pool size. Current size is %d", pool.size)
 		return nil
 	}
 	if delta > 0 {
@@ -114,9 +111,10 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 			pool.conns <- conn
 		}
 
-		utils.PrintAndLog("PARALLELISM: Added %d new connections. Pool size is now %d", delta, newSize)
+		log.Info("adaptive: Added %d new connections. Pool size is now %d", delta, newSize)
 	} else {
 		pool.pendingConnsToClose += -delta
+		log.Info("adaptive: registered request to close %d conns. Total pending conns to close=%d", -delta, pool.pendingConnsToClose)
 	}
 	pool.size = newSize
 	return nil
@@ -162,9 +160,9 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
-				pool.pendingConnsToClose--
 				pool.idleConns <- nil
-				utils.PrintAndLog("PARALLELISM: Connection moved to idle pool.")
+				log.Info("adaptive: Closed and moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
+				pool.pendingConnsToClose--
 			} else {
 				pool.conns <- nil
 			}
@@ -172,9 +170,9 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		} else {
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
-				pool.pendingConnsToClose--
 				pool.idleConns <- conn
-				utils.PrintAndLog("PARALLELISM: Connection moved to idle pool")
+				log.Info("adaptive: Moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
+				pool.pendingConnsToClose--
 			} else {
 				pool.conns <- conn
 			}

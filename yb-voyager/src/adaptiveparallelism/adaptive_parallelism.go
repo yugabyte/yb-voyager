@@ -20,13 +20,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/davecgh/go-spew/spew"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
-	CPU_USAGE_USER    = "cpu_usage_user"
-	CPU_USAGE_SYSTEM  = "cpu_usage_system"
-	MAX_CPU_THRESHOLD = 100
+	CPU_USAGE_USER                 = "cpu_usage_user"
+	CPU_USAGE_SYSTEM               = "cpu_usage_system"
+	MAX_CPU_THRESHOLD              = 100
+	ADAPTIVE_PARALLELISM_FREQUENCY = 10 * time.Second
 )
 
 type TargetYugabyteDBWithConnectionPool interface {
@@ -42,33 +44,32 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 		return fmt.Errorf("adaptive parallelism not supported in target YB database.")
 	}
 	for {
-		time.Sleep(10 * time.Second)
-		utils.PrintAndLog("--------------------------------------------------------")
+		time.Sleep(ADAPTIVE_PARALLELISM_FREQUENCY)
 		clusterMetrics, err := yb.GetClusterMetrics()
+		log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics))
 		if err != nil {
-			utils.PrintAndLog("error getting cluster metrics: %v", err)
+			log.Warnf("adaptive: error getting cluster metrics: %v", err)
 			continue
 		}
-		// utils.PrintAndLog("PARALLELISM: cluster metrics: %v", clusterMetrics)
 
 		// max cpu
 		maxCpuUsage, err := getMaxCpuUsageInCluster(clusterMetrics)
 		if err != nil {
 			return fmt.Errorf("getting max cpu usage in cluster: %w", err)
 		}
-		utils.PrintAndLog("PARALLELISM: max cpu usage in cluster = %d", maxCpuUsage)
+		log.Infof("adaptive: max cpu usage in cluster = %d", maxCpuUsage)
 
 		if maxCpuUsage > MAX_CPU_THRESHOLD {
-			utils.PrintAndLog("PARALLELISM: found CPU usage = %d > %d, reducing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()-1)
+			log.Infof("adaptive: found CPU usage = %d > %d, reducing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()-1)
 			err = yb.UpdateNumConnectionsInPool(-1)
 			if err != nil {
-				utils.PrintAndLog("PARALLELISM: error updating parallelism: %v", err)
+				log.Warnf("adaptive: error updating parallelism: %v", err)
 			}
 		} else {
-			utils.PrintAndLog("PARALLELISM: found CPU usage = %d <= %d, increasing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()+1)
+			log.Infof("adaptive: found CPU usage = %d <= %d, increasing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()+1)
 			err := yb.UpdateNumConnectionsInPool(1)
 			if err != nil {
-				utils.PrintAndLog("PARALLELISM: error updating parallelism: %v", err)
+				log.Warnf("adaptive: error updating parallelism: %v", err)
 			}
 		}
 

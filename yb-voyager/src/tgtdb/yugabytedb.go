@@ -223,8 +223,6 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	if yb.tconf.EnableAdaptiveParallelism {
 		if yb.tconf.MaxParallelism <= 0 {
 			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
-		} else {
-			yb.tconf.MaxParallelism = yb.tconf.MaxParallelism
 		}
 	} else {
 		yb.tconf.MaxParallelism = yb.tconf.Parallelism
@@ -236,7 +234,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
-	utils.PrintAndLog("Initialized connection pool with settings: ", spew.Sdump(params))
+	log.Info("Initialized connection pool with settings: ", spew.Sdump(params))
 	return nil
 }
 
@@ -1177,6 +1175,7 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 }
 
 func (yb *TargetYugabyteDB) IsAdaptiveParallelismSupported() bool {
+	// TODO:
 	return true
 }
 
