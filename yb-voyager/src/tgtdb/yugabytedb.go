@@ -236,7 +236,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
-	log.Info("Initialized connection pool with settings: ", spew.Sdump(params))
+	utils.PrintAndLog("Initialized connection pool with settings: ", spew.Sdump(params))
 	return nil
 }
 

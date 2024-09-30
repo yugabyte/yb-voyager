@@ -114,7 +114,7 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 			pool.conns <- conn
 		}
 
-		utils.PrintAndLog("PARALLELISM: Added %d new connections. Pool size is now %d", delta, pool.size)
+		utils.PrintAndLog("PARALLELISM: Added %d new connections. Pool size is now %d", delta, newSize)
 	} else {
 		pool.pendingConnsToClose += -delta
 	}

@@ -26,7 +26,7 @@ import (
 const (
 	CPU_USAGE_USER    = "cpu_usage_user"
 	CPU_USAGE_SYSTEM  = "cpu_usage_system"
-	MAX_CPU_THRESHOLD = 70
+	MAX_CPU_THRESHOLD = 100
 )
 
 type TargetYugabyteDBWithConnectionPool interface {

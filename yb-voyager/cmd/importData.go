@@ -509,7 +509,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
 				// `parallelism` number of batches at a time.
 				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-				log.Info("created batch import pool of size: ", poolSize)
+				utils.PrintAndLog("created batch import pool of size: ", poolSize)
 
 				totalProgressAmount := getTotalProgressAmount(task)
 				progressReporter.ImportFileStarted(task, totalProgressAmount)
