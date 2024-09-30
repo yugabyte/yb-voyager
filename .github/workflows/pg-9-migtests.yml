@@ -105,6 +105,10 @@ jobs:
         if: always()
         run: migtests/scripts/run-test.sh pg/datatypes
 
+      - name: "TEST: fake-test"
+        if: always()
+        run: migtests/scripts/run-test.sh pg/fake-test
+
       - name: "TEST: pg-constraints"
         if: always()
         run: migtests/scripts/run-test.sh pg/constraints
