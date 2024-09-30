@@ -101,7 +101,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -111,7 +111,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
@@ -121,9 +121,8 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
-	then
-		"${TEST_DIR}/add-pk-from-alter-to-create"
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true  || "${MOVE_PK_FROM_ALTER_TO_CREATE}" = true ] ; then
+		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
 	step "Import schema."
@@ -215,7 +214,7 @@ main() {
 	sleep 120
 	
 	step "Initiating cutover"
-	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --yes
+	cutover_to_target
 
 	# max sleep time = 20 * 20s = ~ 6.6 minutes, but that much sleep will be in failure cases
 	# in success case it will exit as soon as cutover is COMPLETED + 20sec
@@ -235,6 +234,11 @@ main() {
 	done
 
 	sleep 60
+
+	if [ -f ${TEST_DIR}/validateAfterCutoverToTarget ]; then
+		step "Run validations after cutover to target."
+		"${TEST_DIR}/validateAfterCutoverToTarget" --ff_enabled 'true' --fb_enabled 'false'
+	fi
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql

@@ -381,7 +381,6 @@ export_data() {
 
 analyze_schema() {
 	args="--export-dir ${EXPORT_DIR}
-		--output-format txt
 		--send-diagnostics=false
 	"
     yb-voyager analyze-schema ${args} $*
@@ -962,3 +961,13 @@ compare_and_validate_reports() {
     fi
 }
 
+cutover_to_target() {
+	args="
+	--export-dir ${EXPORT_DIR} --yes
+	"    
+    if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
+        args="${args} --use-yb-grpc-connector false"
+    fi
+    
+    yb-voyager initiate cutover to target ${args} $*
+}

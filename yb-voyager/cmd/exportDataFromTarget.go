@@ -120,16 +120,14 @@ func packAndSendExportDataFromTargetPayload(status string) {
 	payload.MigrationType = LIVE_MIGRATION
 
 	targetDBDetails := callhome.TargetDBDetails{
-		Host:      source.Host,
 		DBVersion: source.DBVersion,
 	}
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 
 	payload.MigrationPhase = EXPORT_DATA_FROM_TARGET_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs:    int64(source.NumConnections),
-		StartClean:      bool(startClean),
-		CommandLineArgs: cliArgsString,
+		ParallelJobs: int64(source.NumConnections),
+		StartClean:   bool(startClean),
 	}
 
 	exportDataPayload.Phase = exportPhase

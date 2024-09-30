@@ -75,7 +75,7 @@ func packAndSendAssessMigrationBulkPayload(status string) {
 		bulkAssessmentDBConfigs[i].Password = ""
 	}
 	assessMigBulkPayload := callhome.AssessMigrationBulkPhasePayload{
-		FleetConfigData: callhome.MarshalledJsonString(bulkAssessmentDBConfigs),
+		FleetConfigCount: len(bulkAssessmentDBConfigs),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessMigBulkPayload)

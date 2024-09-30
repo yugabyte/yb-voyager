@@ -96,7 +96,6 @@ func packAndSendImportDataToSrcReplicaPayload(status string) {
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
-		Host:      tconf.Host,
 		DBType:    tconf.TargetDBType,
 		DBVersion: targetDBDetails.DBVersion,
 		Role:      "replica",
@@ -108,7 +107,6 @@ func packAndSendImportDataToSrcReplicaPayload(status string) {
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_FORWARD,
-		CommandLineArgs:  cliArgsString,
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
 	if err != nil {

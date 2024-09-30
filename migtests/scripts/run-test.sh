@@ -88,7 +88,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -98,7 +98,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
@@ -112,6 +112,13 @@ main() {
 
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
+
+	step "Verify the pg_dump version being used"
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] && { [ -z "${BETA_FAST_DATA_EXPORT}" ] || [ "${BETA_FAST_DATA_EXPORT}" = "0" ]; }; then
+	    if ! grep "Dumped by pg_dump version:" "${EXPORT_DIR}/logs/yb-voyager-export-data.log"; then
+	        echo "Error: pg_dump version not found in the log file." >&2
+	    fi
+	fi
 
 	step "Fix data."
 	if [ -x "${TEST_DIR}/fix-data" ]
@@ -127,9 +134,8 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
-	then
-		"${TEST_DIR}/add-pk-from-alter-to-create"
+	if [ "${MOVE_PK_FROM_ALTER_TO_CREATE}" = true ] ; then
+		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
 	step "Import schema."

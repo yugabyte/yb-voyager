@@ -93,7 +93,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -103,7 +103,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
@@ -113,9 +113,8 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ -x "${TEST_DIR}/add-pk-from-alter-to-create" ]
-	then
-		"${TEST_DIR}/add-pk-from-alter-to-create"
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true  || "${MOVE_PK_FROM_ALTER_TO_CREATE}" = true ] ; then
+		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
 	step "Import schema."
@@ -185,7 +184,7 @@ main() {
 	setup_fallback_environment
 
 	step "Initiating cutover"
-	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true --yes
+	cutover_to_target --prepare-for-fall-back true 
 
 	for ((i = 0; i < 20; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
@@ -203,6 +202,11 @@ main() {
 	done
 	
 	sleep 120
+
+	if [ -f ${TEST_DIR}/validateAfterCutoverToTarget ]; then
+		step "Run validations after cutover to target."
+		"${TEST_DIR}/validateAfterCutoverToTarget" --ff_enabled 'false' --fb_enabled 'true'
+	fi
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql

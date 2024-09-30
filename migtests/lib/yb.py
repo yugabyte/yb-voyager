@@ -187,7 +187,7 @@ class PostgresDB:
 		cur.execute(f"SELECT tablename, count(indexname) FROM pg_indexes WHERE schemaname = '{schema_name}' GROUP  BY tablename;")
 		return {tablename: cnt for tablename,cnt in cur.fetchall()}
 
-	def get_distinct_values__of_column_of_table(self, table_name, column_name, schema_name="public") -> List[Any]:
+	def get_distinct_values_of_column_of_table(self, table_name, column_name, schema_name="public") -> List[Any]:
 		cur = self.conn.cursor()
 		cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
 		return [value[0] for value in cur.fetchall()]
@@ -285,7 +285,7 @@ class PostgresDB:
 		return [column[0] for column in cur.fetchall()]
 	
 	def assert_distinct_values_of_col(self, table_name, column_name, schema_name="public", transform_func=None, expected_distinct_values=[]):
-		distinct_values = self.get_distinct_values__of_column_of_table(table_name, column_name, schema_name)
+		distinct_values = self.get_distinct_values_of_column_of_table(table_name, column_name, schema_name)
 		for distinct_value in distinct_values:
 			if transform_func:
 				transformed_distinct_value = transform_func(distinct_value) if distinct_value else distinct_value

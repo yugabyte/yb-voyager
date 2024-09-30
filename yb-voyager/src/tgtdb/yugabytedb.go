@@ -834,7 +834,6 @@ func (yb *TargetYugabyteDB) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails 
 	targetConfs := yb.getYBServers()
 	totalCores, _ := fetchCores(targetConfs) // no need to handle error in case we couldn't fine cores
 	return &callhome.TargetDBDetails{
-		Host:      yb.tconf.Host,
 		NodeCount: len(targetConfs),
 		Cores:     totalCores,
 		DBVersion: yb.GetVersion(),

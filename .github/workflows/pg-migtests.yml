@@ -61,10 +61,13 @@ jobs:
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
+          sudo rm /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/16/bin/pg_dump /usr/bin/pg_dump
+          sudo rm /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/16/bin/pg_restore /usr/bin/pg_restore
+          pg_dump --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-          DEBEZIUM_VERSION: aneesh_ff-fb-remove
-          DEBEZIUM_RELEASE_TAG: voyager-debezium
 
       - name: Test PostgreSQL Connection
         run: |
@@ -165,7 +168,7 @@ jobs:
         run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test
       
       - name: "TEST: pg-unique-key-conflicts-test"
-        run: migtests/scripts/live-migration-run-test.sh pg/unique-key-conflicts-test
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test
 
       # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
       - name: "TEST: pg-live-migration-multiple-schemas"
@@ -175,9 +178,12 @@ jobs:
       - name: "TEST: pg-basic-public-fall-forward-test"
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
 
-      
-      - name: "TEST: pg-basic-non-public-fall-back-test"
-        run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
+
+      # - name: "TEST: pg-basic-non-public-fall-back-test"
+      #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
+
+      - name: "TEST: pg-datatypes-fall-back-test"
+        run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes
 
 
       - name: "TEST: pg-live-migration-partitions-fall-forward"
