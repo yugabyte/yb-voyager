@@ -348,9 +348,11 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 			"Any value less than 1 reverts to the default calculation.")
 	BoolVar(cmd.Flags(), &tconf.EnableAdaptiveParallelism, "enable-adaptive-parallelism", false,
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster")
+	cmd.Flags().MarkHidden("enable-adaptive-parallelism") // not officially released
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled."+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs. ")
+	cmd.Flags().MarkHidden("adaptive-parallelism-max") // not officially released
 }
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {
