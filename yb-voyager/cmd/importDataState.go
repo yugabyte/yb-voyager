@@ -175,11 +175,12 @@ func (s *ImportDataState) Clean(filePath string, tableNameTup sqlname.NameTuple)
 	if err != nil {
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
-
+	utils.PrintAndLog("cleaning import state from db")
 	err = s.cleanFileImportStateFromDB(filePath, tableNameTup)
 	if err != nil {
 		return fmt.Errorf("error while cleaning file import state for %q: %w", tableNameTup, err)
 	}
+	utils.PrintAndLog("cleaned import state from db")
 	return nil
 }
 
@@ -628,7 +629,7 @@ func (s *ImportDataState) GetImportedEventsStatsForTableList(tableNameTupList []
 		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var eventCounter tgtdb.EventCounter
 		var tableName string

@@ -220,9 +220,18 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
+	if yb.tconf.EnableAdaptiveParallelism {
+		if yb.tconf.MaxParallelism <= 0 {
+			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
+		} else {
+			yb.tconf.MaxParallelism = yb.tconf.MaxParallelism
+		}
+	} else {
+		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+	}
 	params := &ConnectionParams{
 		NumConnections:    yb.tconf.Parallelism,
-		NumMaxConnections: yb.tconf.Parallelism * 2,
+		NumMaxConnections: yb.tconf.MaxParallelism,
 		ConnUriList:       targetUriList,
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}

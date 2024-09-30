@@ -56,7 +56,6 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
 var identityColumnsMetaDBKey string
 var importPhase string
-var enableAdaptiveParallelism bool
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -438,8 +437,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
-	enableAdaptiveParallelism = true
-	if enableAdaptiveParallelism {
+	if tconf.EnableAdaptiveParallelism {
 		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 		if !ok {
 			utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
@@ -459,8 +457,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
+		utils.PrintAndLog("cleaning import state")
 		cleanImportState(state, importFileTasks)
 		pendingTasks = importFileTasks
+		utils.PrintAndLog("import state cleaned")
 	} else {
 		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
 		if err != nil {
@@ -474,6 +474,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
 	}
+	utils.PrintAndLog("getting import table list")
 	importTableList, err := getImportTableList(sourceTableList)
 	if err != nil {
 		utils.ErrExit("Error generating table list to import: %v", err)
@@ -493,7 +494,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
-			if enableAdaptiveParallelism {
+			if tconf.EnableAdaptiveParallelism {
 				yb := tdb.(*tgtdb.TargetYugabyteDB)
 				poolSize = yb.GetNumMaxConnectionsInPool() * 2
 			}

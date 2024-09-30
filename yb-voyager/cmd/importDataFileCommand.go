@@ -207,6 +207,7 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	getTargetPassword(cmd)
 	validateTargetPortRange()
 	validateTargetSchemaFlag()
+	validateParallelismFlags()
 }
 
 func checkFileFormat() {

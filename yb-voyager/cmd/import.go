@@ -89,6 +89,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	case SOURCE_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
+	validateParallelismFlags()
 	return nil
 }
 
@@ -345,6 +346,11 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 			"number of cores N and use N/4 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
 			"Any value less than 1 reverts to the default calculation.")
+	BoolVar(cmd.Flags(), &tconf.EnableAdaptiveParallelism, "enable-adaptive-parallelism", false,
+		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster")
+	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
+		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled."+
+			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs. ")
 }
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {
@@ -385,5 +391,18 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 func validateFFDBSchemaFlag() {
 	if tconf.Schema == "" && tconf.TargetDBType == ORACLE {
 		utils.ErrExit("Error: --source-replica-db-schema flag is mandatory for import data to source-replica")
+	}
+}
+
+func validateParallelismFlags() {
+	if tconf.EnableAdaptiveParallelism {
+		if tconf.Parallelism > 0 {
+			utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism flag")
+		}
+	}
+	if tconf.MaxParallelism > 0 {
+		if !tconf.EnableAdaptiveParallelism {
+			utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+		}
 	}
 }

@@ -54,6 +54,8 @@ type TargetConf struct {
 	EnableUpsert               utils.BoolStr `json:"enable_upsert"`
 	DisableTransactionalWrites utils.BoolStr `json:"disable_transactional_writes"`
 	Parallelism                int           `json:"parallelism"`
+	EnableAdaptiveParallelism  utils.BoolStr `json:"enable_adaptive_parallelism"`
+	MaxParallelism             int           `json:"max_parallelism"` // in case adaptive parallelism is enabled.
 }
 
 func (t *TargetConf) Clone() *TargetConf {
