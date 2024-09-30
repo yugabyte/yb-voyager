@@ -97,6 +97,8 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 		return nil
 	}
 	if delta > 0 {
+		// for increases, process them synchronously.
+		// If there is non-zero pendingConnsToClose, then we reduce that count.
 		if pool.pendingConnsToClose >= 0 {
 			// since we are increasing, we can just reduce the pending close count
 			if pool.pendingConnsToClose > delta {
@@ -106,13 +108,21 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 				pool.pendingConnsToClose = 0
 			}
 		}
+		// Additionally, pick conns from the idle pool, and add it to the main pool.
 		for i := 0; i < delta; i++ {
 			conn := <-pool.idleConns
 			pool.conns <- conn
 		}
-
 		log.Infof("adaptive: Added %d new connections. Pool size is now %d", delta, newSize)
 	} else {
+		// for decreases, process them asynchronously.
+		// The problem with processing them synchronously is that we may have to wait for the
+		// connections to be returned to the pool. Not only that, this goroutine that is trying to
+		// update the pool size by reading from the channel is also competing with multiple
+		// other goroutines that are trying to ingest data.
+		//  This might take significant time depending on the query execution time and the lock contention
+		//  So, instead, we just register the request to close the connections,
+		// and the connections are returned to the idle pool when the query execution is done.
 		pool.pendingConnsToClose += -delta
 		log.Infof("adaptive: registered request to close %d conns. Total pending conns to close=%d", -delta, pool.pendingConnsToClose)
 	}

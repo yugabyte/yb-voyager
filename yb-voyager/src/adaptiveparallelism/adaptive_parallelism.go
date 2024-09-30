@@ -36,7 +36,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 	GetClusterMetrics() (map[string]map[string]string, error) // node_uuid:metric_name:metric_value
 	GetNumConnectionsInPool() int
 	GetNumMaxConnectionsInPool() int
-	UpdateNumConnectionsInPool(int) error
+	UpdateNumConnectionsInPool(int) error // (delta)
 }
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
@@ -48,11 +48,17 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 		clusterMetrics, err := yb.GetClusterMetrics()
 		log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics)) // TODO: move to debug?
 		if err != nil {
+			// we don't want to return here, just log the error and continue.
 			log.Warnf("adaptive: error getting cluster metrics: %v", err)
 			continue
 		}
 
-		// max cpu
+		// get max CPU
+		// Note that right now, voyager ingests data into the target in parallel,
+		// but one table at a time. Therefore, in cases where there is a single tablet for a table,
+		// either due to pre-split or colocated table, it is possible that the load on the cluster
+		// will be uneven. Nevertheless, we still want to ensure that the cluster is not overloaded,
+		// therefore we use the max CPU usage across all nodes in the cluster.
 		maxCpuUsage, err := getMaxCpuUsageInCluster(clusterMetrics)
 		if err != nil {
 			return fmt.Errorf("getting max cpu usage in cluster: %w", err)
