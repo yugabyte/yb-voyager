@@ -130,3 +130,48 @@ func TestIncreaseConnectionsUptoMax(t *testing.T) {
 	// THEN: we should have as many as maxSize connections in pool now.
 	assert.Equal(t, maxSize, len(pool.conns))
 }
+
+func TestDecreaseConnectionsUptoMin(t *testing.T) {
+	postgres := setupPostgres(t)
+	defer shutdownPostgres(postgres, t)
+	// GIVEN: a conn pool of size 10, with max 20 connections.
+	size := 10
+	maxSize := 20
+
+	connParams := &ConnectionParams{
+		NumConnections:    size,
+		NumMaxConnections: maxSize,
+		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		SessionInitScript: []string{},
+	}
+	pool := NewConnectionPool(connParams)
+	assert.Equal(t, size, len(pool.conns))
+
+	// WHEN: multiple goroutines acquire connection, perform some operation
+	// and release connection back to pool
+	// WHEN: we keep decrease the connnections upto the minimum(1)..
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		for i := 0; i < size-1; i++ {
+			err := pool.UpdateNumConnections(-1)
+			assert.NoError(t, err)
+			time.Sleep(1 * time.Second)
+			assert.Equal(t, size-(i+1), pool.size) // assert that size is increasing
+		}
+		// now that we will decrease beyond 1, we should get an error.
+		err := pool.UpdateNumConnections(-1)
+		assert.Error(t, err)
+		wg.Done()
+	}()
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go dummyProcess(pool, 1, &wg)
+	}
+	wg.Wait()
+
+	// THEN: we should have as many as maxSize connections in pool now.
+	assert.Equal(t, 1, len(pool.conns))
+}
