@@ -17,6 +17,7 @@ package tgtdb
 
 import (
 	"fmt"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -174,4 +175,55 @@ func TestDecreaseConnectionsUptoMin(t *testing.T) {
 
 	// THEN: we should have as many as maxSize connections in pool now.
 	assert.Equal(t, 1, len(pool.conns))
+}
+
+func TestUpdateConnectionsRandom(t *testing.T) {
+	postgres := setupPostgres(t)
+	defer shutdownPostgres(postgres, t)
+	// GIVEN: a conn pool of size 10, with max 20 connections.
+	size := 10
+	maxSize := 20
+
+	connParams := &ConnectionParams{
+		NumConnections:    size,
+		NumMaxConnections: maxSize,
+		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		SessionInitScript: []string{},
+	}
+	pool := NewConnectionPool(connParams)
+	assert.Equal(t, size, len(pool.conns))
+
+	// WHEN: multiple goroutines acquire connection, perform some operation
+	// and release connection back to pool
+	// WHEN: we keep increasing and decreasing the connnections randomly..
+
+	expectedFinalSize := size
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func(expectedFinalSize *int) {
+		// 100 random updates either increase or decrease
+		for i := 0; i < 10; i++ {
+			randomNumber := rand.Intn(11) - 5 // Generates a number between -5 and 5
+			if pool.size+randomNumber < 1 || (pool.size+randomNumber > pool.params.NumMaxConnections) {
+				continue
+			}
+			// fmt.Printf("i=%d, updating by %d. New pool size expected = %d\n", i, randomNumber, *expectedFinalSize+randomNumber)
+			err := pool.UpdateNumConnections(randomNumber)
+			assert.NoError(t, err)
+			time.Sleep(100 * time.Millisecond)
+			*expectedFinalSize = *expectedFinalSize + randomNumber
+			assert.Equal(t, *expectedFinalSize, pool.size) // assert that size is increasing
+		}
+		// fmt.Printf("done updating. expectedFinalSize=%d\n", *expectedFinalSize)
+		wg.Done()
+	}(&expectedFinalSize)
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go dummyProcess(pool, 1, &wg)
+	}
+	wg.Wait()
+
+	// THEN: we should have as many as maxSize connections in pool now.
+	assert.Equal(t, expectedFinalSize, len(pool.conns))
 }
