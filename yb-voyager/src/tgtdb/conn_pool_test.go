@@ -71,7 +71,7 @@ func TestBasic(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
-		go dummyProcess(pool, 1, &wg)
+		go dummyProcess(pool, 1000, &wg)
 	}
 	wg.Wait()
 
@@ -79,10 +79,10 @@ func TestBasic(t *testing.T) {
 	assert.Equal(t, size, len(pool.conns))
 }
 
-func dummyProcess(pool *ConnectionPool, seconds int, wg *sync.WaitGroup) {
+func dummyProcess(pool *ConnectionPool, milliseconds int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	_ = pool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
-		time.Sleep(time.Duration(seconds) * time.Second)
+		time.Sleep(time.Duration(milliseconds) * time.Millisecond)
 		return false, nil
 	})
 }
@@ -124,7 +124,7 @@ func TestIncreaseConnectionsUptoMax(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
-		go dummyProcess(pool, 1, &wg)
+		go dummyProcess(pool, 1000, &wg)
 	}
 	wg.Wait()
 
@@ -169,11 +169,11 @@ func TestDecreaseConnectionsUptoMin(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
-		go dummyProcess(pool, 1, &wg)
+		go dummyProcess(pool, 1000, &wg)
 	}
 	wg.Wait()
 
-	// THEN: we should have as many as maxSize connections in pool now.
+	// THEN: we should have as many as 1 connections in pool now.
 	assert.Equal(t, 1, len(pool.conns))
 }
 
@@ -202,28 +202,35 @@ func TestUpdateConnectionsRandom(t *testing.T) {
 	wg.Add(1)
 	go func(expectedFinalSize *int) {
 		// 100 random updates either increase or decrease
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 1000; i++ {
 			randomNumber := rand.Intn(11) - 5 // Generates a number between -5 and 5
 			if pool.size+randomNumber < 1 || (pool.size+randomNumber > pool.params.NumMaxConnections) {
 				continue
 			}
-			// fmt.Printf("i=%d, updating by %d. New pool size expected = %d\n", i, randomNumber, *expectedFinalSize+randomNumber)
+			fmt.Printf("i=%d, updating by %d. New pool size expected = %d\n", i, randomNumber, *expectedFinalSize+randomNumber)
 			err := pool.UpdateNumConnections(randomNumber)
 			assert.NoError(t, err)
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 			*expectedFinalSize = *expectedFinalSize + randomNumber
 			assert.Equal(t, *expectedFinalSize, pool.size) // assert that size is increasing
 		}
-		// fmt.Printf("done updating. expectedFinalSize=%d\n", *expectedFinalSize)
+		fmt.Printf("done updating. expectedFinalSize=%d\n", *expectedFinalSize)
 		wg.Done()
 	}(&expectedFinalSize)
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		wg.Add(1)
-		go dummyProcess(pool, 1, &wg)
+		go dummyProcess(pool, 100, &wg)
 	}
 	wg.Wait()
 
-	// THEN: we should have as many as maxSize connections in pool now.
-	assert.Equal(t, expectedFinalSize, len(pool.conns))
+	if pool.pendingConnsToClose > 0 {
+		// some are yet to be closed. but there are no jobs running at the end of which, they will be closed.
+		assert.Equal(t, expectedFinalSize, len(pool.conns)-pool.pendingConnsToClose)
+	} else {
+		// THEN: we should have as many as expectedFinalSize connections in pool now.
+		assert.Equal(t, expectedFinalSize, len(pool.conns))
+		// idle connections should have the rest.
+		assert.Equal(t, maxSize-expectedFinalSize, len(pool.idleConns))
+	}
 }

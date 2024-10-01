@@ -184,7 +184,7 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
 				pool.idleConns <- conn
-				log.Infof("adaptive: Moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
+				log.Infof("adaptive: Moved connection to idle pool because pendingConnsToClose = %d. main connection pool size=%d", pool.pendingConnsToClose, len(pool.conns))
 				pool.pendingConnsToClose--
 			} else {
 				pool.conns <- conn
