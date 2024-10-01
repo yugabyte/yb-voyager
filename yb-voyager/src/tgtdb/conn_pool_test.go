@@ -27,18 +27,34 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 )
 
-func TestBasic(t *testing.T) {
-	// GIVEN: a conn pool of size 10.
-	size := 10
+// var postgres *embeddedpostgres.EmbeddedPostgres
+
+func setupPostgres(t *testing.T) *embeddedpostgres.EmbeddedPostgres {
 	postgres := embeddedpostgres.NewDatabase(embeddedpostgres.DefaultConfig().
 		Username("postgres").
 		Password("postgres").
 		Database("test").
 		Port(9876).
-		StartTimeout(45 * time.Second))
+		StartTimeout(30 * time.Second))
 	err := postgres.Start()
-	assert.NoError(t, err)
-	defer postgres.Stop()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return postgres
+}
+
+func shutdownPostgres(postgres *embeddedpostgres.EmbeddedPostgres, t *testing.T) {
+	err := postgres.Stop()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBasic(t *testing.T) {
+	postgres := setupPostgres(t)
+	defer shutdownPostgres(postgres, t)
+	// GIVEN: a conn pool of size 10.
+	size := 10
 
 	connParams := &ConnectionParams{
 		NumConnections:    size,
@@ -68,4 +84,49 @@ func dummyProcess(pool *ConnectionPool, seconds int, wg *sync.WaitGroup) {
 		time.Sleep(time.Duration(seconds) * time.Second)
 		return false, nil
 	})
+}
+
+func TestIncreaseConnectionsUptoMax(t *testing.T) {
+	postgres := setupPostgres(t)
+	defer shutdownPostgres(postgres, t)
+	// GIVEN: a conn pool of size 10, with max 20 connections.
+	size := 10
+	maxSize := 20
+
+	connParams := &ConnectionParams{
+		NumConnections:    size,
+		NumMaxConnections: maxSize,
+		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		SessionInitScript: []string{},
+	}
+	pool := NewConnectionPool(connParams)
+	assert.Equal(t, size, len(pool.conns))
+
+	// WHEN: multiple goroutines acquire connection, perform some operation
+	// and release connection back to pool
+	// WHEN: we keep increasing the connnections upto the max..
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		for i := 0; i < maxSize-size; i++ {
+			err := pool.UpdateNumConnections(1)
+			assert.NoError(t, err)
+			time.Sleep(1 * time.Second)
+			assert.Equal(t, size+i+1, pool.size) // assert that size is increasing
+		}
+		// now that we will increase beyond maxSize, we should get an error.
+		err := pool.UpdateNumConnections(1)
+		assert.Error(t, err)
+		wg.Done()
+	}()
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go dummyProcess(pool, 1, &wg)
+	}
+	wg.Wait()
+
+	// THEN: we should have as many as maxSize connections in pool now.
+	assert.Equal(t, maxSize, len(pool.conns))
 }
