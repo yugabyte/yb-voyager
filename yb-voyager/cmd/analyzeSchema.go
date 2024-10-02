@@ -238,6 +238,7 @@ const (
 	ISSUE_INDEX_WITH_COMPLEX_DATATYPES   = `INDEX on column '%s' not yet supported`
 	ISSUE_UNLOGGED_TABLE                 = "UNLOGGED tables are not supported yet."
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION  = "Unsupported datatype for Live migration"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
 	GIST_INDEX_ISSUE_REASON                        = "Schema contains GIST index which is not supported."
@@ -404,7 +405,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			reportXMLAndXIDDatatype(createTableNode, sqlStmtInfo, fpath)
+			reportUnsupportedDatatypes(createTableNode, sqlStmtInfo, fpath)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
@@ -581,7 +582,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				1. normal index on column with these types
 				2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
 				3. expression index with  casting to unsupported types
-				4. normal index on column with UDTs 
+				4. normal index on column with UDTs
 				5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 		*/
 		colName := param.GetIndexElem().GetName()
@@ -615,7 +616,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
 			reason := fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName)
 			if slices.Contains(compositeTypes, fullCastTypeName) {
-				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type") 
+				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type")
 			}
 			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
@@ -725,7 +726,7 @@ func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePoli
 	}
 }
 
-func reportXMLAndXIDDatatype(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
 	schemaName := createTableNode.CreateStmt.Relation.Schemaname
 	tableName := createTableNode.CreateStmt.Relation.Relname
 	columns := createTableNode.CreateStmt.TableElts
@@ -744,22 +745,38 @@ func reportXMLAndXIDDatatype(createTableNode *pg_query.Node_CreateStmt, sqlStmtI
 		*/
 		if column.GetColumnDef() != nil {
 			typeName := ""
-			if len(column.GetColumnDef().GetTypeName().GetNames()) > 0 {
-				typeName = column.GetColumnDef().GetTypeName().GetNames()[0].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
+			typeNames := column.GetColumnDef().GetTypeName().GetNames()
+			if len(typeNames) > 0 {
+				typeName = column.GetColumnDef().GetTypeName().GetNames()[len(typeNames)-1].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
 			}
 			colName := column.GetColumnDef().GetColname()
-			reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
-			if typeName == "xml" {
+			liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
+			if utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName) {
+				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/1043",
-					"Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - <LINK DOC>",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, XML_DATATYPE_DOC_LINK)
-			}
-			if typeName == "xid" {
+				var ghIssue, suggestion, docLink string
+
+				switch typeName {
+				case "xml":
+					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/1043"
+					suggestion = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
+					docLink = XML_DATATYPE_DOC_LINK
+				case "xid":
+					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/15638"
+					suggestion = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
+				default:
+					ghIssue = "<GHISSUE>"
+					suggestion = ""
+					docLink = "<LINKDOC>"
+
+				}
+				reportCase(fpath, reason, ghIssue, suggestion,
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
+			} else if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
+				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/15638",
-					"Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, "")
+				reportCase(fpath, reason, "<GHISSUE>", "",
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, "<LINKDOC>")
 			}
 		}
 	}
@@ -1799,17 +1816,17 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 		issue.SqlStatement = ""  // Obfuscate sensitive information before sending to callhome cluster
 		issue.ObjectName = "XXX" // Redacting object name before sending
 		/*
-		Removing Reason and Suggestion completely for now as there can be sensitive information in some of the cases 
-		so will enable it later with proper understanding
-		some of the examples -
-		Reason:
-			Stored generated columns are not supported. [columns]
-			Unsupported datatype - xml on [column]
-			Unsupported datatype - xid on [column]
-			Unsupported PG syntax - [error msg from parser]
-			Policy require roles to be created. [role names]
-		Suggestion:
-			Foreign Table issue mentions Server name to be created.
+			Removing Reason and Suggestion completely for now as there can be sensitive information in some of the cases
+			so will enable it later with proper understanding
+			some of the examples -
+			Reason:
+				Stored generated columns are not supported. [columns]
+				Unsupported datatype - xml on [column]
+				Unsupported datatype - xid on [column]
+				Unsupported PG syntax - [error msg from parser]
+				Policy require roles to be created. [role names]
+			Suggestion:
+				Foreign Table issue mentions Server name to be created.
 		*/
 		issue.Reason = "XXX"
 		issue.Suggestion = "XXX"
