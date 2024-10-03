@@ -213,6 +213,11 @@ func exportData() bool {
 	}
 	defer source.DB().Disconnect()
 
+	err = source.DB().CheckSourceDBVersion()
+	if err != nil {
+		utils.ErrExit("Source DB version check failed: %s", err)
+	}
+
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {

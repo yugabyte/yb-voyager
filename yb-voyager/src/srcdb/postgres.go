@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -37,6 +38,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
+
+const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
+const MIN_SUPPORTED_PG_VERSION_LIVE = "10"
+const MAX_SUPPORTED_PG_VERSION = "16"
 
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
@@ -102,6 +107,21 @@ func (pg *PostgreSQL) Disconnect() {
 	if err != nil {
 		log.Infof("Failed to close connection to the source database: %s", err)
 	}
+}
+
+func (pg *PostgreSQL) CheckSourceDBVersion() error {
+	pgVersion := pg.GetVersion()
+	if pgVersion == "" {
+		return fmt.Errorf("failed to get source database version")
+	}
+
+	if version.CompareSimple(pgVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
+		return fmt.Errorf("source database version %s is not supported. Supported versions are %s to %s", pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
+	} else if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
+		utils.PrintAndLog(color.RedString("Warning: Source database version %s is not supported for live migration. Supported versions are %s to %s\n", pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION))
+	}
+
+	return nil
 }
 
 func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {

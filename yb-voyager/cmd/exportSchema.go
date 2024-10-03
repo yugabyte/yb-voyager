@@ -99,6 +99,11 @@ func exportSchema() error {
 	}
 	defer source.DB().Disconnect()
 
+	err = source.DB().CheckSourceDBVersion()
+	if err != nil {
+		return fmt.Errorf("source DB version check failed: %w", err)
+	}
+
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	sourceDBVersion := source.DB().GetVersion()

@@ -112,6 +112,10 @@ func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	return approxRowCount.Int64
 }
 
+func (ora *Oracle) CheckSourceDBVersion() error {
+	return nil
+}
+
 func (ora *Oracle) GetVersion() string {
 	if ora.source.DBVersion != "" {
 		return ora.source.DBVersion
