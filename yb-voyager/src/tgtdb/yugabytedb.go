@@ -547,6 +547,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
 	ybBatch := pgx.Batch{}
 	stmtToPrepare := make(map[string]string)
+	sqlStmts := []string{}
 	// processing batch events to convert into prepared or unprepared statements based on Op type
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
@@ -556,6 +557,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
 			ybBatch.Queue(stmt)
+			sqlStmts = append(sqlStmts, stmt)
 		} else {
 			stmt, err := event.GetPreparedSQLStmt(yb, yb.tconf.TargetDBType)
 			if err != nil {
@@ -567,6 +569,16 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				stmtToPrepare[psName] = stmt
 			}
 			ybBatch.Queue(psName, params...)
+			paramsStr := ""
+			for _, p := range params {
+				pstr := p.(*string)
+				if pstr != nil {
+					paramsStr += fmt.Sprintf("%s, ", *pstr)
+				} else {
+					paramsStr += "nil, "
+				}
+			}
+			sqlStmts = append(sqlStmts, fmt.Sprintf("%s [%v]", stmt, paramsStr))
 		}
 	}
 
@@ -611,9 +623,10 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return nil
 		}
 		for i := 0; i < len(batch.Events); i++ {
+			log.Infof("statement with vsn(%d) = [%s]", batch.Events[i].Vsn, sqlStmts[i])
 			res, err := br.Exec()
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
+				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s), stmt=[%s]: %v", batch.Events[i].Vsn, batch.ID(), sqlStmts[i], err)
 				closeBatch()
 				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
 			}
