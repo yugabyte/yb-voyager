@@ -397,14 +397,18 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	if tconf.EnableAdaptiveParallelism {
-		if tconf.Parallelism > 0 {
-			utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism flag")
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		if tconf.EnableAdaptiveParallelism {
+			if tconf.Parallelism > 0 {
+				utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism flag")
+			}
 		}
-	}
-	if tconf.MaxParallelism > 0 {
-		if !tconf.EnableAdaptiveParallelism {
-			utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+		if tconf.MaxParallelism > 0 {
+			if !tconf.EnableAdaptiveParallelism {
+				utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+			}
 		}
+	} else {
+		tconf.EnableAdaptiveParallelism = false
 	}
 }
