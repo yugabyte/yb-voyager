@@ -225,7 +225,7 @@ func updateCallhomeImportPhase(event *tgtdb.Event) {
 func shouldFormatValues(event *tgtdb.Event) bool {
 	switch tconf.TargetDBType {
 	case YUGABYTEDB, POSTGRESQL:
-		return event.Op == "u"
+		return true
 	case ORACLE:
 		return true
 	}
