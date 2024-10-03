@@ -158,7 +158,7 @@ main() {
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
 	step "Import data."
-	import_data --parallel-jobs 3 || { 
+	import_data || { 
     	tail_log_file "yb-voyager-import-data.log"
     	for i in {1..3}; do
     	    sleep 5
