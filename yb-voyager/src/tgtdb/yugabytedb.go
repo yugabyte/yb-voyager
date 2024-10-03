@@ -551,41 +551,35 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	// processing batch events to convert into prepared or unprepared statements based on Op type
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
-		stmt, err := event.GetSQLStmt(yb)
-		if err != nil {
-			return fmt.Errorf("get sql stmt: %w", err)
+		if event.Op == "u" {
+			stmt, err := event.GetSQLStmt(yb)
+			if err != nil {
+				return fmt.Errorf("get sql stmt: %w", err)
+			}
+			ybBatch.Queue(stmt)
+			sqlStmts = append(sqlStmts, stmt)
+		} else {
+			stmt, err := event.GetPreparedSQLStmt(yb, yb.tconf.TargetDBType)
+			if err != nil {
+				return fmt.Errorf("get prepared sql stmt: %w", err)
+			}
+			psName := event.GetPreparedStmtName()
+			params := event.GetParams()
+			if _, ok := stmtToPrepare[psName]; !ok {
+				stmtToPrepare[psName] = stmt
+			}
+			ybBatch.Queue(psName, params...)
+			paramsStr := ""
+			for _, p := range params {
+				pstr := p.(*string)
+				if pstr != nil {
+					paramsStr += fmt.Sprintf("%s, ", *pstr)
+				} else {
+					paramsStr += "nil, "
+				}
+			}
+			sqlStmts = append(sqlStmts, fmt.Sprintf("%s [%v]", stmt, paramsStr))
 		}
-		ybBatch.Queue(stmt)
-		sqlStmts = append(sqlStmts, stmt)
-		// if event.Op == "u" {
-		// 	stmt, err := event.GetSQLStmt(yb)
-		// 	if err != nil {
-		// 		return fmt.Errorf("get sql stmt: %w", err)
-		// 	}
-		// 	ybBatch.Queue(stmt)
-		// 	sqlStmts = append(sqlStmts, stmt)
-		// } else {
-		// 	stmt, err := event.GetPreparedSQLStmt(yb, yb.tconf.TargetDBType)
-		// 	if err != nil {
-		// 		return fmt.Errorf("get prepared sql stmt: %w", err)
-		// 	}
-		// 	psName := event.GetPreparedStmtName()
-		// 	params := event.GetParams()
-		// 	if _, ok := stmtToPrepare[psName]; !ok {
-		// 		stmtToPrepare[psName] = stmt
-		// 	}
-		// 	ybBatch.Queue(psName, params...)
-		// 	paramsStr := ""
-		// 	for _, p := range params {
-		// 		pstr := p.(*string)
-		// 		if pstr != nil {
-		// 			paramsStr += fmt.Sprintf("%s, ", *pstr)
-		// 		} else {
-		// 			paramsStr += "nil, "
-		// 		}
-		// 	}
-		// 	sqlStmts = append(sqlStmts, fmt.Sprintf("%s [%v]", stmt, paramsStr))
-		// }
 	}
 
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
