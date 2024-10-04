@@ -193,94 +193,6 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported"
         },
         {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "am_examples.fast_emp4000",
-            "Reason": "Unsupported datatype for Live migration - box on column - home_base",
-            "SqlStatement": "CREATE TABLE am_examples.fast_emp4000 (     home_base box );",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "<GHISSUE>",
-            "DocsLink": "<LINKDOC>"
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "ordinary_tables.geometric_examples",
-            "Reason": "Unsupported datatype for Live migration - box on column - box_example",
-            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (     point_example point,     line_example line,     lseg_example lseg,     box_example box,     path_example path,     polygon_example polygon,     circle_example circle );",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "<GHISSUE>",
-            "DocsLink": "<LINKDOC>"
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "ordinary_tables.geometric_examples",
-            "Reason": "Unsupported datatype for Live migration - circle on column - circle_example",
-            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (     point_example point,     line_example line,     lseg_example lseg,     box_example box,     path_example path,     polygon_example polygon,     circle_example circle );",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "<GHISSUE>",
-            "DocsLink": "<LINKDOC>"
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "ordinary_tables.geometric_examples",
-            "Reason": "Unsupported datatype for Live migration - line on column - line_example",
-            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (     point_example point,     line_example line,     lseg_example lseg,     box_example box,     path_example path,     polygon_example polygon,     circle_example circle );",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "<GHISSUE>",
-            "DocsLink": "<LINKDOC>"
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "ordinary_tables.geometric_examples",
-            "Reason": "Unsupported datatype for Live migration - lseg on column - lseg_example",
-            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (     point_example point,     line_example line,     lseg_example lseg,     box_example box,     path_example path,     polygon_example polygon,     circle_example circle );",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "<GHISSUE>",
-            "DocsLink": "<LINKDOC>"
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "ordinary_tables.geometric_examples",
-            "Reason": "Unsupported datatype for Live migration - path on column - path_example",
-            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (     point_example point,     line_example line,     lseg_example lseg,     box_example box,     path_example path,     polygon_example polygon,     circle_example circle );",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "<GHISSUE>",
-            "DocsLink": "<LINKDOC>"
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "ordinary_tables.geometric_examples",
-            "Reason": "Unsupported datatype for Live migration - point on column - point_example",
-            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (     point_example point,     line_example line,     lseg_example lseg,     box_example box,     path_example path,     polygon_example polygon,     circle_example circle );",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "<GHISSUE>",
-            "DocsLink": "<LINKDOC>"
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "ordinary_tables.geometric_examples",
-            "Reason": "Unsupported datatype for Live migration - polygon on column - polygon_example",
-            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (     point_example point,     line_example line,     lseg_example lseg,     box_example box,     path_example path,     polygon_example polygon,     circle_example circle );",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "<GHISSUE>",
-            "DocsLink": "<LINKDOC>"
-        },
-        {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
             "ObjectName": "grect2ind2 ON am_examples.fast_emp4000",
@@ -441,8 +353,8 @@
             "Reason": "Unsupported datatype for Live migration - box on column - home_base",
             "SqlStatement": "CREATE TABLE am_examples.fast_emp4000 (\n    home_base box\n);",
             "Suggestion": "",
-            "GH": "\u003cGHISSUE\u003e",
-            "DocsLink": "\u003cLINKDOC\u003e"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -452,8 +364,8 @@
             "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "\u003cGHISSUE\u003e",
-            "DocsLink": "\u003cLINKDOC\u003e"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -463,8 +375,8 @@
             "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "\u003cGHISSUE\u003e",
-            "DocsLink": "\u003cLINKDOC\u003e"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -474,8 +386,8 @@
             "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "\u003cGHISSUE\u003e",
-            "DocsLink": "\u003cLINKDOC\u003e"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -485,8 +397,8 @@
             "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "\u003cGHISSUE\u003e",
-            "DocsLink": "\u003cLINKDOC\u003e"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -496,8 +408,8 @@
             "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "\u003cGHISSUE\u003e",
-            "DocsLink": "\u003cLINKDOC\u003e"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -507,8 +419,8 @@
             "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "\u003cGHISSUE\u003e",
-            "DocsLink": "\u003cLINKDOC\u003e"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -518,8 +430,8 @@
             "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "\u003cGHISSUE\u003e",
-            "DocsLink": "\u003cLINKDOC\u003e"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "migration_caveats",

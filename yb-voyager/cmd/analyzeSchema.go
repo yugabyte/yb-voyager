@@ -764,19 +764,23 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 				case "xid":
 					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/15638"
 					suggestion = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
-				default:
-					ghIssue = "<GHISSUE>"
+					docLink = XID_DATATYPE_DOC_LINK
+				case "geometry", "geography":
+					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/11323"
 					suggestion = ""
-					docLink = "<LINKDOC>"
-
+					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
+				default:
+					ghIssue = "https://github.com/yugabyte/yb-voyager/issues/1731"
+					suggestion = ""
+					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
 				}
 				reportCase(fpath, reason, ghIssue, suggestion,
 					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
 			} else if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "<GHISSUE>", "",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, "<LINKDOC>")
+				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
 			}
 		}
 	}
