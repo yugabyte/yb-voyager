@@ -29,7 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 )
 
-var BIT_VARYING_MAX_LEN = 2147483647 // max len for datatype like bit varying without n 
+var BIT_VARYING_MAX_LEN = 2147483647 // max len for datatype like bit varying without n
 
 // value converter Function type
 type ConverterFn func(v string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error)
@@ -117,13 +117,13 @@ var YBValueConverterSuite = map[string]ConverterFn{
 				data |= uint64(b) << (8 * i)
 			}
 		}
-		quote := lo.Ternary(formatIfRequired, "'", "") 
+		quote := lo.Ternary(formatIfRequired, "'", "")
 		strLength, ok := dbzmSchema.Parameters["length"]
 		length := lo.Ternary(ok, lo.Must(strconv.Atoi(strLength)), BIT_VARYING_MAX_LEN)
 		if length == BIT_VARYING_MAX_LEN {
 			return fmt.Sprintf("%s%b%s", quote, data, quote), nil
 		} else {
-			return fmt.Sprintf("%s%0*b%s", quote, length, data, quote), nil	
+			return fmt.Sprintf("%s%0*b%s", quote, length, data, quote), nil
 		}
 	},
 	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
@@ -176,6 +176,15 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
 	},
 	"STRING": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
+		if formatIfRequired {
+			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
+			return fmt.Sprintf("'%s'", formattedColumnValue), nil
+		} else {
+			return columnValue, nil
+		}
+	},
+	"io.debezium.data.Uuid": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
+		// utils.PrintAndLog("input=[%s], formatIfRequired=[%v]", columnValue, formatIfRequired)
 		if formatIfRequired {
 			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
 			return fmt.Sprintf("'%s'", formattedColumnValue), nil
