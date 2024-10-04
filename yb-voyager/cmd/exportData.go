@@ -229,6 +229,22 @@ func exportData() bool {
 		utils.ErrExit("schema %q does not exist", source.Schema)
 	}
 
+	// Check if source DB has required permissions for export data
+	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
+	if err != nil {
+		utils.ErrExit("get missing export data permissions: %v", err)
+	}
+	if len(missingPermissions) > 0 {
+		// Iterate over missing permissions and print them
+		// Print in red color
+		color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+		for _, perm := range missingPermissions {
+			utils.PrintAndLog("%s\n", perm)
+		}
+		fmt.Println()
+		utils.ErrExit("Please grant the required permissions to the user %s and try again.", source.User)
+	}
+
 	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()

@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/color"
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -117,6 +118,23 @@ func exportSchema() error {
 	res := source.DB().CheckSchemaExists()
 	if !res {
 		return fmt.Errorf("schema %q does not exist", source.Schema)
+	}
+
+	// Check if the source database has the required permissions for exporting schema.
+
+	missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
+	if err != nil {
+		return fmt.Errorf("failed to get missing migration permissions: %w", err)
+	}
+	if len(missingPerms) > 0 {
+		// Traverse the missing permissions and print them
+		// Print in red
+		color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+		for _, perm := range missingPerms {
+			utils.PrintAndLog("%s\n", perm)
+		}
+		fmt.Println()
+		return fmt.Errorf("some permissions are missing for the source database on user %s", source.User)
 	}
 
 	err = retrieveMigrationUUID()

@@ -116,6 +116,14 @@ func (ora *Oracle) CheckSourceDBVersion() error {
 	return nil
 }
 
+func (ora *Oracle) GetMissingExportSchemaPermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (ora *Oracle) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+	return nil, nil
+}
+
 func (ora *Oracle) GetVersion() string {
 	if ora.source.DBVersion != "" {
 		return ora.source.DBVersion

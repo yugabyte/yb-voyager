@@ -33,6 +33,7 @@ import (
 	"github.com/mcuadros/go-version"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -43,6 +44,8 @@ const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
 const MIN_SUPPORTED_PG_VERSION_LIVE = "10"
 const MAX_SUPPORTED_PG_VERSION = "16"
 
+var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace"}
+var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
 
@@ -110,6 +113,7 @@ func (pg *PostgreSQL) Disconnect() {
 }
 
 func (pg *PostgreSQL) CheckSourceDBVersion() error {
+	utils.PrintAndLog("checking postgres version")
 	pgVersion := pg.GetVersion()
 	if pgVersion == "" {
 		return fmt.Errorf("failed to get source database version")
@@ -122,6 +126,264 @@ func (pg *PostgreSQL) CheckSourceDBVersion() error {
 	}
 
 	return nil
+}
+
+func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+	var combinedResult []string
+
+	// For offline migration
+	// Check if schemas have USAGE permission and check if tables in the provided schemas have SELECT permission
+	res, err := pg.GetMissingExportSchemaPermissions()
+	if err != nil {
+		return nil, fmt.Errorf("error in getting missing export data permissions: %w", err)
+	}
+	combinedResult = append(combinedResult, res...)
+
+	// Check if sequences have SELECT permission
+	sequencesWithMissingPerm, sequencesWithNoUsagePerm, err := pg.checkWhichSequencesDontHaveSelectPermission()
+	if err != nil {
+		return nil, fmt.Errorf("error in checking sequence select permissions: %w", err)
+	}
+	if len(sequencesWithMissingPerm) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("Sequences missing SELECT permission: %v", sequencesWithMissingPerm))
+	}
+	if len(sequencesWithNoUsagePerm) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("Following sequences could not be checked for SELECT permission as the parent schema does not have USAGE permission: %v", sequencesWithNoUsagePerm))
+	}
+
+	return combinedResult, nil
+}
+
+func (pg *PostgreSQL) getTrimmedSchemaList() []string {
+	list := strings.Split(pg.source.Schema, "|")
+	var trimmedList []string
+	for _, schema := range list {
+		if utils.IsQuotedString(schema) {
+			schema = strings.Trim(schema, `"`)
+		}
+		trimmedList = append(trimmedList, schema)
+	}
+	return trimmedList
+}
+
+func (pg *PostgreSQL) checkWhichSequencesDontHaveSelectPermission() (sequencesWithMissingPerm []string, sequencesWithNoUsagePerm []string, err error) {
+	trimmedSchemaList := pg.getTrimmedSchemaList()
+	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+
+	checkSequenceSelectPermissionQuery := fmt.Sprintf(`WITH schema_permissions AS (
+		SELECT
+			n.nspname AS schema_name,
+			CASE
+				WHEN has_schema_privilege('%s', n.nspname, 'USAGE') THEN 'Granted'
+				ELSE 'Missing'
+			END AS usage_status
+		FROM pg_namespace n
+		WHERE n.nspname IN (%s)
+	),
+	sequence_permissions AS (
+		SELECT
+			s.schemaname AS schema_name,
+			s.sequencename AS sequence_name,
+			CASE
+				WHEN sp.usage_status = 'Granted' THEN
+					CASE
+						WHEN has_sequence_privilege('%s', s.schemaname || '.' || s.sequencename, 'SELECT') THEN 'Granted'
+						ELSE 'Missing'
+					END
+				ELSE 'No Usage Permission On The Table Parent Schema'
+			END AS select_status
+		FROM pg_sequences s
+		JOIN schema_permissions sp ON s.schemaname = sp.schema_name
+	)
+	SELECT
+		schema_name,
+		sequence_name,
+		select_status
+	FROM sequence_permissions
+	ORDER BY schema_name, sequence_name;`, pg.source.User, querySchemaList, pg.source.User)
+	rows, err := pg.db.Query(checkSequenceSelectPermissionQuery)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error in querying(%q) source database for checking sequence select permission: %w", checkSequenceSelectPermissionQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkSequenceSelectPermissionQuery, closeErr)
+		}
+	}()
+
+	var sequenceSchemaName, sequenceName, selectStatus string
+
+	for rows.Next() {
+		err = rows.Scan(&sequenceSchemaName, &sequenceName, &selectStatus)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in scanning query rows for sequence names: %w", err)
+		}
+		if selectStatus == "Missing" {
+			sequencesWithMissingPerm = append(sequencesWithMissingPerm, fmt.Sprintf("%s.%s", sequenceSchemaName, sequenceName))
+		} else if selectStatus == "No Usage Permission On The Table Parent Schema" {
+			sequencesWithNoUsagePerm = append(sequencesWithNoUsagePerm, fmt.Sprintf("%s.%s", sequenceSchemaName, sequenceName))
+		}
+	}
+
+	// Check for errors during row iteration
+	if err = rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	return sequencesWithMissingPerm, sequencesWithNoUsagePerm, nil
+
+}
+
+func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
+	var combinedResult []string
+	// Check if schemas have USAGE permission
+
+	missingSchemas, err := pg.checkWhichSchemasDontHaveUsagePermission()
+	if err != nil {
+		return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
+	}
+	if len(missingSchemas) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("Schemas missing USAGE permission: %s", missingSchemas))
+	}
+
+	// Check if tables have SELECT permission
+	missingTables, tablesWithNoUsagePerm, err := pg.checkWhichTablesDontHaveSelectPermission()
+	if err != nil {
+		return nil, fmt.Errorf("error checking table select permissions: %w", err)
+	}
+	if len(missingTables) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("Tables missing SELECT permission: %v", missingTables))
+	}
+	if len(tablesWithNoUsagePerm) > 0 {
+		// Print that some tables could not be checked for SELECT permission as the parent schema does not have USAGE permission
+		combinedResult = append(combinedResult, fmt.Sprintf("Following tables could not be checked for SELECT permission as the parent schema does not have USAGE permission: %v", tablesWithNoUsagePerm))
+	}
+
+	// Return combined result of checks if any issues, else return nothing (empty string and nil)
+	return combinedResult, nil
+
+}
+
+func (pg *PostgreSQL) checkWhichTablesDontHaveSelectPermission() (tablesWithMissingPerm []string, tablesWithNoUsagePerm []string, err error) {
+	// Users only need SELECT permissions on the tables of the schema they want to export for export schema
+	trimmedSchemaList := pg.getTrimmedSchemaList()
+	trimmedSchemaList = append(trimmedSchemaList, "pg_catalog", "information_schema")
+	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+
+	checkTableSelectPermissionQuery := fmt.Sprintf(`WITH schema_list AS (
+		SELECT unnest(ARRAY[%s]) AS schema_name
+	),
+	accessible_schemas AS (
+		SELECT schema_name
+		FROM schema_list
+		WHERE has_schema_privilege('%s', schema_name, 'USAGE')
+	)
+	SELECT
+		t.schemaname AS schema_name,
+		t.tablename AS table_name,
+		CASE WHEN has_table_privilege('%s', t.schemaname || '.' || t.tablename, 'SELECT') THEN 'Granted' ELSE 'Missing' END AS status
+	FROM pg_tables t
+	JOIN accessible_schemas a ON t.schemaname = a.schema_name
+	UNION ALL
+	SELECT
+		t.schemaname AS schema_name,
+		t.tablename AS table_name,
+		'No Usage Permission On The Table Parent Schema' AS status
+	FROM pg_tables t
+	WHERE t.schemaname IN (SELECT schema_name FROM schema_list)
+	AND NOT EXISTS (
+		SELECT 1
+		FROM accessible_schemas a
+		WHERE t.schemaname = a.schema_name
+	);`, querySchemaList, pg.source.User, pg.source.User)
+	rows, err := pg.db.Query(checkTableSelectPermissionQuery)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error in querying(%q) source database for checking table select permission: %w", checkTableSelectPermissionQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkTableSelectPermissionQuery, closeErr)
+		}
+	}()
+
+	// If result is No Usage Permission On The Table Parent Schema, then the schema itself doesn't have USAGE permission store them in tablesWithNoUsagePerm
+	var tableSchemaName, tableName, status string
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &tableName, &status)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		if status == "Missing" {
+			if tableSchemaName == "pg_catalog" || tableSchemaName == "information_schema" {
+				// If table name is in pg_catalog_tables_required or information_schema_tables_required and missing SELECT permission, then add to tablesWithMissingPerm
+				if slices.Contains(pg_catalog_tables_required, tableName) || slices.Contains(information_schema_tables_required, tableName) {
+					tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+				}
+			} else {
+				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+			}
+		} else if status == "No Usage Permission On The Table Parent Schema" {
+			if tableSchemaName == "pg_catalog" || tableSchemaName == "information_schema" {
+				// If table name is in pg_catalog_tables_required or information_schema_tables_required and missing USAGE permission, then add to tablesWithNoUsagePerm
+				if slices.Contains(pg_catalog_tables_required, tableName) || slices.Contains(information_schema_tables_required, tableName) {
+					tablesWithNoUsagePerm = append(tablesWithNoUsagePerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+				}
+			} else {
+				// If table name is not in pg_catalog_tables_required or information_schema_tables_required and missing USAGE permission, then add to tablesWithMissingPerm
+				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+			}
+		}
+	}
+
+	// Check for errors during row iteration
+	if err = rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	return tablesWithMissingPerm, tablesWithNoUsagePerm, nil
+}
+
+func (pg *PostgreSQL) checkWhichSchemasDontHaveUsagePermission() ([]string, error) {
+	// Users need usage permissions on the schemas they want to export and the pg_catalog and information_schema schemas
+	trimmedSchemaList := pg.getTrimmedSchemaList()
+	trimmedSchemaList = append(trimmedSchemaList, "pg_catalog", "information_schema")
+	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+	// Add pg_catalog and information_schema to the schema list
+	chkSchemaUsagePermissionQuery := fmt.Sprintf(`SELECT nspname AS schema_name,
+	CASE WHEN has_schema_privilege('%s', nspname, 'USAGE') THEN 'Granted' ELSE 'Missing' END AS usage_permission_status
+	FROM pg_namespace
+	WHERE nspname IN (%s);`, pg.source.User, querySchemaList)
+	rows, err := pg.db.Query(chkSchemaUsagePermissionQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for checking schema usage permission: %w", chkSchemaUsagePermissionQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", chkSchemaUsagePermissionQuery, closeErr)
+		}
+	}()
+	var listOfSchemaWithMissingUsagePermission []string
+	var tableSchemaName, usagePermissionStatus string
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &usagePermissionStatus)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w", err)
+		}
+		if usagePermissionStatus == "Missing" {
+			listOfSchemaWithMissingUsagePermission = append(listOfSchemaWithMissingUsagePermission, tableSchemaName)
+		}
+	}
+
+	// Check for errors during row iteration
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	return listOfSchemaWithMissingUsagePermission, nil
 }
 
 func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
@@ -176,17 +438,11 @@ func (pg *PostgreSQL) CheckSchemaExists() bool {
 }
 
 func (pg *PostgreSQL) checkSchemasExists() []string {
-	list := strings.Split(pg.source.Schema, "|")
-	var trimmedList []string
-	for _, schema := range list {
-		if utils.IsQuotedString(schema) {
-			schema = strings.Trim(schema, `"`)
-		}
-		trimmedList = append(trimmedList, schema)
-	}
-	querySchemaList := "'" + strings.Join(trimmedList, "','") + "'"
-	chkSchemaExistsQuery := fmt.Sprintf(`SELECT schema_name
-	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
+	trimmedSchemaList := pg.getTrimmedSchemaList()
+	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+	chkSchemaExistsQuery := fmt.Sprintf(`SELECT nspname AS schema_name
+	FROM pg_namespace
+	WHERE nspname IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(chkSchemaExistsQuery)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for checking mentioned schema(s) present or not: %v\n", chkSchemaExistsQuery, err)
@@ -208,11 +464,11 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
 	}
 
-	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
+	schemaNotPresent := utils.SetDifference(trimmedSchemaList, listOfSchemaPresent)
 	if len(schemaNotPresent) > 0 {
 		utils.ErrExit("Following schemas are not present in source database %v, please provide a valid schema list.\n", schemaNotPresent)
 	}
-	return trimmedList
+	return trimmedSchemaList
 }
 
 func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {

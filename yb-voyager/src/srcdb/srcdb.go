@@ -57,6 +57,8 @@ type SourceDB interface {
 	ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion() error
+	GetMissingExportSchemaPermissions() ([]string, error)
+	GetMissingExportDataPermissions(exportType string) ([]string, error)
 }
 
 func newSourceDB(source *Source) SourceDB {
