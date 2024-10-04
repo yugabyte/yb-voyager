@@ -45,6 +45,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.data.Json":     quoteValueIfRequired,
 	"io.debezium.data.Enum":     quoteValueIfRequired,
 	"io.debezium.time.Interval": quoteValueIfRequired,
+	"io.debezium.data.Uuid":     quoteValueIfRequired,
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
@@ -176,15 +177,6 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
 	},
 	"STRING": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
-		if formatIfRequired {
-			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
-			return fmt.Sprintf("'%s'", formattedColumnValue), nil
-		} else {
-			return columnValue, nil
-		}
-	},
-	"io.debezium.data.Uuid": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
-		// utils.PrintAndLog("input=[%s], formatIfRequired=[%v]", columnValue, formatIfRequired)
 		if formatIfRequired {
 			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
 			return fmt.Sprintf("'%s'", formattedColumnValue), nil
