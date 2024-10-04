@@ -44,7 +44,7 @@ const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
 const MIN_SUPPORTED_PG_VERSION_LIVE = "10"
 const MAX_SUPPORTED_PG_VERSION = "16"
 
-var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace"}
+var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
@@ -151,7 +151,231 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 		combinedResult = append(combinedResult, fmt.Sprintf("Following sequences could not be checked for SELECT permission as the parent schema does not have USAGE permission: %v", sequencesWithNoUsagePerm))
 	}
 
+	// For live migration
+	// Check wal_level is set to logical
+	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
+		correctlySet := pg.checkWalLevel()
+		if !correctlySet {
+			combinedResult = append(combinedResult, "wal_level is not set to logical")
+		}
+
+		// Check replica identity of tables
+		missingTables, err := pg.checkWhichTablesDontHaveReplicaIdentityFull()
+		if err != nil {
+			return nil, fmt.Errorf("error in checking table replica identity: %w", err)
+		}
+		if len(missingTables) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("Tables missing replica identity: %v", missingTables))
+		}
+
+		// Check Replication permission for user
+		hasReplicationPermission, err := pg.checkReplicationPermission()
+		if err != nil {
+			return nil, fmt.Errorf("error in checking replication permission: %w", err)
+		}
+		if !hasReplicationPermission {
+			combinedResult = append(combinedResult, "User does not have replication permission")
+		}
+
+		// Check user has create permission on db
+		hasCreatePermission, err := pg.checkCreatePermissionOnDB()
+		if err != nil {
+			return nil, fmt.Errorf("error in checking create permission: %w", err)
+		}
+		if !hasCreatePermission {
+			combinedResult = append(combinedResult, "User does not have create permission on database")
+		}
+
+		// Check if user has ownership over all tables
+		missingTables, err = pg.checkWhichTablesDontHaveOwnerPermission()
+		if err != nil {
+			return nil, fmt.Errorf("error in checking table owner permissions: %w", err)
+		}
+		if len(missingTables) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("Tables over which user does not have ownership: %v", missingTables))
+		}
+	}
+
 	return combinedResult, nil
+}
+
+func (pg *PostgreSQL) checkWhichTablesDontHaveOwnerPermission() ([]string, error) {
+	trimmedSchemaList := pg.getTrimmedSchemaList()
+	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+	checkTableOwnerPermissionQuery := fmt.Sprintf(`WITH table_ownership AS (
+		SELECT
+			n.nspname AS schema_name,
+			c.relname AS table_name,
+			pg_get_userbyid(c.relowner) AS owner_name
+		FROM pg_class c
+		JOIN pg_namespace n ON c.relnamespace = n.oid
+		WHERE c.relkind = 'r' -- 'r' indicates a table
+		  AND n.nspname IN (%s)
+	)
+	SELECT
+		schema_name,
+		table_name,
+		owner_name,
+		CASE
+			WHEN owner_name = '%s' THEN true
+			WHEN EXISTS (
+				SELECT 1
+				FROM pg_roles r
+				JOIN pg_auth_members am ON r.oid = am.roleid
+				JOIN pg_roles ur ON am.member = ur.oid
+				WHERE r.rolname = owner_name
+				  AND ur.rolname = '%s'
+			) THEN true
+			ELSE false
+		END AS has_ownership
+	FROM table_ownership;`, querySchemaList, pg.source.User, pg.source.User)
+	rows, err := pg.db.Query(checkTableOwnerPermissionQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for checking table owner permission: %w", checkTableOwnerPermissionQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkTableOwnerPermissionQuery, closeErr)
+		}
+	}()
+
+	var missingTables []string
+	var tableSchemaName, tableName, ownerName string
+	var hasOwnership bool
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &tableName, &ownerName, &hasOwnership)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		if !hasOwnership {
+			missingTables = append(missingTables, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+		}
+	}
+
+	// Check for errors during row iteration
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	return missingTables, nil
+}
+
+func (pg *PostgreSQL) checkCreatePermissionOnDB() (bool, error) {
+	query := `SELECT
+	EXISTS (
+		SELECT 1
+		FROM pg_database
+		WHERE datname = current_database()
+		  AND has_database_privilege($1, datname, 'CREATE')
+	) AS has_create_permission;`
+	var hasCreatePermission bool
+	err := pg.db.QueryRow(query, pg.source.User).Scan(&hasCreatePermission)
+	if err != nil {
+		return false, fmt.Errorf("error in checking create permission: %w", err)
+	}
+	return hasCreatePermission, nil
+}
+
+func (pg *PostgreSQL) checkReplicationPermission() (bool, error) {
+	query := `WITH instance_check AS (
+		SELECT
+			CASE
+				WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rds_superuser')
+				THEN 'rds'
+				ELSE 'standalone'
+			END AS db_instance_type
+	)
+	SELECT
+		CASE
+			WHEN db_instance_type = 'rds' THEN
+				EXISTS (
+					SELECT 1
+					FROM pg_roles
+					WHERE rolname = $1
+					  AND pg_has_role($1, 'rds_replication', 'USAGE')
+				)
+			ELSE
+				EXISTS (
+					SELECT 1
+					FROM pg_roles
+					WHERE rolname = $1
+					  AND rolreplication
+				)
+		END AS has_permission
+	FROM instance_check;`
+
+	var hasPermission bool
+	err := pg.db.QueryRow(query, pg.source.User).Scan(&hasPermission)
+	if err != nil {
+		return false, fmt.Errorf("error in checking replication permission: %w", err)
+	}
+	return hasPermission, nil
+}
+
+func (pg *PostgreSQL) checkWhichTablesDontHaveReplicaIdentityFull() ([]string, error) {
+	trimmedSchemaList := pg.getTrimmedSchemaList()
+	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+	checkTableReplicaIdentityQuery := fmt.Sprintf(`SELECT
+	n.nspname AS schema_name,
+	c.relname AS table_name,
+	c.relreplident AS replica_identity,
+	CASE WHEN c.relreplident <> 'f' THEN 'Missing FULL' ELSE 'Correct' END AS status
+FROM pg_class c
+JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname IN (%s)
+	AND c.relkind = 'r';`, querySchemaList)
+	rows, err := pg.db.Query(checkTableReplicaIdentityQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
+		}
+	}()
+
+	var missingTables []string
+	var tableSchemaName, tableName, replicaIdentity, status string
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		if status == "Missing FULL" {
+			missingTables = append(missingTables, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+		}
+	}
+
+	// Check for errors during row iteration
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	return missingTables, nil
+}
+
+func (pg *PostgreSQL) checkWalLevel() bool {
+	// 	# Check wal level
+	// SELECT
+	//     CASE WHEN current_setting('wal_level') = 'logical'
+	//          THEN true
+	//          ELSE false
+	//     END AS wal_level_status_correct;
+	query := `SELECT
+	CASE WHEN current_setting('wal_level') = 'logical'
+		THEN true
+		ELSE false
+	END AS wal_level_status_correct;`
+	var walLevelStatusCorrect bool
+	err := pg.db.QueryRow(query).Scan(&walLevelStatusCorrect)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for checking wal_level: %v\n", query, err)
+	}
+	return walLevelStatusCorrect
 }
 
 func (pg *PostgreSQL) getTrimmedSchemaList() []string {
