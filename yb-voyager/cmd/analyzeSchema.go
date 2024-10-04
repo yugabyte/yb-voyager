@@ -1022,7 +1022,9 @@ func reportGeneratedStoredColumnTables(createTableNode *pg_query.Node_CreateStmt
 	if len(generatedColumns) > 0 {
 		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 		reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
-			"https://github.com/yugabyte/yugabyte-db/issues/10695", "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GENERATED_STORED_COLUMN_DOC_LINK)
+			"https://github.com/yugabyte/yugabyte-db/issues/10695",
+			"Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+			TABLE, fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GENERATED_STORED_COLUMN_DOC_LINK)
 	}
 }
 

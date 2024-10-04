@@ -38,6 +38,7 @@ const (
 	OBJECT_TYPE_MAPPING      = "object_type_mapping"
 	TABLE_COLUMNS_DATA_TYPES = "table_columns_data_types"
 	TABLE_INDEX_STATS        = "table_index_stats"
+	DB_QUERIES_SUMMARY       = "db_queries_summary"
 
 	PARTITIONED_TABLE_OBJECT_TYPE = "partitioned table"
 	PARTITIONED_INDEX_OBJECT_TYPE = "partitioned index"
@@ -132,6 +133,16 @@ func InitAssessmentDB() error {
 			parent_table_name   TEXT,
 			size_in_bytes       INTEGER,
 			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			queryid			BIGINT,
+			query		TEXT,
+			calls		BIGINT,
+			total_exec_time REAL,
+			mean_exec_time REAL,
+			min_exec_time REAL,
+			max_exec_time REAL,
+			rows		BIGINT,
+			PRIMARY KEY(queryid));`, DB_QUERIES_SUMMARY),
 	}
 
 	for _, cmd := range cmds {

@@ -67,7 +67,7 @@
         <h1>Migration Assessment Report</h1>
         <p><strong>Database Name:</strong> {{.SchemaSummary.DBName}}</p>
         {{ if .SchemaSummary.SchemaNames}}
-            <p><strong>Schema Name:</strong> 
+            <p><strong>Schema Name:</strong>
             {{range $i, $a := .SchemaSummary.SchemaNames}}
                 {{$a}}&nbsp;
             {{end}}
@@ -213,7 +213,6 @@
             <p>No unsupported features were present among the ones assessed.</p>
         {{end}}
 
-
         {{if .Notes}}
             <br>
             <hr>
@@ -226,6 +225,41 @@
                     </ul>
             </div>
         {{end}}
+
+        <h2>Unsupported  Query Constructs</h2>
+        <p>Below are source database queries not supported in YugabyteDB, identified by scanning system tables.:</p>
+        <table>
+            <tr>
+                <th>Construct Type</th>
+                <th>Queries</th>
+            </tr>
+            {{ $currentType := "" }}
+            {{ range $i, $construct := .UnsupportedQueryConstructs }}
+                {{ if ne $construct.ConstructType $currentType }}
+                    {{ if ne $currentType "" }}
+                            </ul>
+                        </div>
+                    </td>
+                    </tr>
+                    {{ end }}
+                    <tr>
+                        <td><strong>{{ $construct.ConstructType }}</strong></td>
+                        <td>
+                            <div class="scrollable-div">
+                                <ul>
+                {{ $currentType = $construct.ConstructType }}
+                {{ end }}
+                <li class="list_item">{{ $construct.Query }}</li>
+            {{ end }}
+            <!-- Close the last construct type -->
+            {{ if ne $currentType "" }}
+                        </ul>
+                    </div>
+                </td>
+                </tr>
+            {{ end }}
+        </table>
+
 
         {{ if .MigrationCaveats}}
             <h2>Migration caveats</h2>

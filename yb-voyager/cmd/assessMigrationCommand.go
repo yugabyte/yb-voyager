@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -723,6 +724,12 @@ func generateAssessmentReport() (err error) {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 
+	unsupportedQueries, err := fetchUnsupportedQueryConstructs()
+	if err != nil {
+		return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
+	}
+	assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
+
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
@@ -833,7 +840,7 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 		DisplayDDL:  false,
 		Objects:     []ObjectInfo{},
 	}
-	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array") // adding it here only as we know issue form analyze will come with type
+	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array")             // adding it here only as we know issue form analyze will come with type
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "user_defined_type") // adding it here as we UDTs will come with this type.
 	for _, unsupportedType := range unsupportedIndexDatatypes {
 		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, unsupportedType), schemaAnalysisReport, false, "")
@@ -906,6 +913,66 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	return unsupportedFeatures, nil
 }
 
+func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
+	query := fmt.Sprintf("SELECT DISTINCT query from %s", migassessment.DB_QUERIES_SUMMARY)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying=%s on assessmentDB: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching database queries summary metadata: %v", err)
+		}
+	}()
+
+	var executedQueries []string
+	for rows.Next() {
+		var executedQuery string
+		err := rows.Scan(&executedQuery)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows: %w", err)
+		}
+		executedQueries = append(executedQueries, executedQuery)
+	}
+
+	var result []utils.UnsupportedQueryConstruct
+	for i := 0; i < len(executedQueries); i++ {
+		query := executedQueries[i]
+
+		// Check if the query starts with CREATE, INSERT, UPDATE, or DELETE
+		upperQuery := strings.ToUpper(strings.TrimSpace(query))
+		if strings.HasPrefix(upperQuery, "CREATE") || strings.HasPrefix(upperQuery, "INSERT") ||
+			strings.HasPrefix(upperQuery, "UPDATE") || strings.HasPrefix(upperQuery, "DELETE") {
+			continue
+		}
+
+		queryParser := queryparser.New(query)
+		err := queryParser.Parse()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse query-%s: %w", query, err)
+		}
+
+		// Check for unsupported constructs in the parsed query
+		unsupportedConstructType, err := queryParser.CheckUnsupportedQueryConstruct()
+		if err != nil {
+			log.Warnf("failed while trying to parse the query: %s", err.Error())
+		}
+		if unsupportedConstructType != "" {
+			fmt.Printf("Unsupported query: %s, Type: %s\n", query, unsupportedConstructType)
+			result = append(result, utils.UnsupportedQueryConstruct{
+				ConstructType: unsupportedConstructType,
+				Query:         query,
+			})
+		}
+	}
+	if len(result) != 0 {
+		utils.PrintAndLog("Found YB unsupported queries in source DB, for more details please refer migration assessment report")
+	}
+	// TODO: sort the slice for better readability
+	return result, nil
+}
+
 func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, error) {
 	var unsupportedDataTypes []utils.TableColumnsDataTypes
 	var unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes
@@ -914,7 +981,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		migassessment.TABLE_COLUMNS_DATA_TYPES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error querying-%s: %w", query, err)
+		return nil, nil, fmt.Errorf("error querying-%s on assessmentDB: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
