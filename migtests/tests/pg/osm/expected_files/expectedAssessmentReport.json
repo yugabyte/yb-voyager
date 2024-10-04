@@ -57,7 +57,21 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
+	"UnsupportedDataTypes": [
+		{
+	       "SchemaName": "public",
+	       "TableName": "osm_changeset",
+	       "ColumnName": "geom",
+	       "DataType": "geometry",
+	       "ObjectNames": null,
+	       "DbVersion": "IGNORED",
+	       "FilePath": "IGNORED",
+	       "OptimalSelectConnectionsPerNode": "IGNORED",
+	       "OptimalInsertConnectionsPerNode": "IGNORED",
+	       "RowCount": "IGNORED",
+	       "SqlStatement": null
+    	}
+	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": [
 		{
