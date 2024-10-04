@@ -464,21 +464,21 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
-	msr, err := metaDBInstance.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
-	}
-	if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
-		userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
-			"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh "+
-			"with a new export-dir.", migrationExportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
-		if msr.VoyagerVersion == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
-			userFacingMsg = fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
-				"The export-dir %q was created using older version and the current version is %q. Either use older version to continue the migration or start afresh "+
-				"with a new export-dir.", migrationExportDir, utils.YB_VOYAGER_VERSION)
-		}
-		utils.ErrExit(userFacingMsg)
-	}
+	// msr, err := metaDBInstance.GetMigrationStatusRecord()
+	// if err != nil {
+	// 	utils.ErrExit("get migration status record: %v", err)
+	// }
+	// if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
+	// 	userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
+	// 		"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh "+
+	// 		"with a new export-dir.", migrationExportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
+	// 	if msr.VoyagerVersion == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
+	// 		userFacingMsg = fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
+	// 			"The export-dir %q was created using older version and the current version is %q. Either use older version to continue the migration or start afresh "+
+	// 			"with a new export-dir.", migrationExportDir, utils.YB_VOYAGER_VERSION)
+	// 	}
+	// 	utils.ErrExit(userFacingMsg)
+	// }
 	return metaDBInstance
 }
 
