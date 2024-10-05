@@ -41,8 +41,16 @@ func quoteValueIfRequired(value string, formatIfRequired bool, _ *schemareg.Colu
 	return value, nil
 }
 
+func quoteValueIfRequiredWithEscape(value string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
+	if formatIfRequired {
+		formattedColumnValue := strings.Replace(value, "'", "''", -1)
+		return fmt.Sprintf("'%s'", formattedColumnValue), nil
+	}
+	return value, nil
+}
+
 var YBValueConverterSuite = map[string]ConverterFn{
-	"io.debezium.data.Json":     quoteValueIfRequired,
+	"io.debezium.data.Json":     quoteValueIfRequiredWithEscape,
 	"io.debezium.data.Enum":     quoteValueIfRequired,
 	"io.debezium.time.Interval": quoteValueIfRequired,
 	"io.debezium.data.Uuid":     quoteValueIfRequired,
