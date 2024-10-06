@@ -352,6 +352,7 @@
             "ObjectName": "am_examples.fast_emp4000",
             "Reason": "Unsupported datatype for Live migration - box on column - home_base",
             "SqlStatement": "CREATE TABLE am_examples.fast_emp4000 (\n    home_base box\n);",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
