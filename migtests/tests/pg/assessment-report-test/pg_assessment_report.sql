@@ -30,6 +30,10 @@ CREATE INDEX idx_point_data ON Mixed_Data_Types_Table1 USING GIST (point_data);
 -- GIST Index on box_data column
 CREATE INDEX idx_box_data ON Mixed_Data_Types_Table1 USING GIST (box_data);
 
+CREATE INDEX idx_box_data_brin ON public.Mixed_Data_Types_Table1 USING BRIN (box_data);
+
+CREATE INDEX idx_box_data_spgist ON schema2.Mixed_Data_Types_Table1 USING SPGIST (box_data);
+
 CREATE TABLE orders2 (
     id SERIAL PRIMARY KEY,
     order_number VARCHAR(50) UNIQUE DEFERRABLE, --unique constraint deferrable test

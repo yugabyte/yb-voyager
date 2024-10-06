@@ -146,10 +146,6 @@ var (
 	*/
 	compositeTypes = make([]string, 0)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	gistRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
-	brinRegex                 = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
-	spgistRegex               = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
-	rtreeRegex                = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
 	fetchRegex                = re("FETCH", capture(commonClause), "FROM")
@@ -240,7 +236,7 @@ const (
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
-	GIST_INDEX_ISSUE_REASON                        = "Schema contains GIST index which is not supported."
+	INDEX_METHOD_ISSUE_REASON                      = "Schema contains %s index which is not supported."
 	GIN_INDEX_DETAILS                              = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
 )
@@ -340,30 +336,6 @@ func addSummaryDetailsForIndexes() {
 	}
 }
 
-// Checks whether there is gist index
-func checkGist(sqlInfoArr []sqlInfo, fpath string) {
-	//TODO: add other index types in assessment
-	for _, sqlInfo := range sqlInfoArr {
-		if idx := gistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
-			reportCase(fpath, GIST_INDEX_ISSUE_REASON,
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, GIST_INDEX_DOC_LINK)
-		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
-			reportCase(fpath, "index method 'brin' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if idx := spgistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
-			reportCase(fpath, "index method 'spgist' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if idx := rtreeRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", idx[2], idx[3])] = true
-			reportCase(fpath, "index method 'rtree' is superceded by 'gist' which is not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", fmt.Sprintf("%s ON %s", idx[2], idx[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		}
-	}
-}
-
 func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
 		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
@@ -414,6 +386,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportDeferrableConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
 		}
 		if isCreateIndex {
+			reportIndexMethods(createIndexNode, sqlStmtInfo, fpath)
 			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
 			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
 			checkGinVariations(createIndexNode, sqlStmtInfo, fpath)
@@ -581,7 +554,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				1. normal index on column with these types
 				2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
 				3. expression index with  casting to unsupported types
-				4. normal index on column with UDTs 
+				4. normal index on column with UDTs
 				5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 		*/
 		colName := param.GetIndexElem().GetName()
@@ -615,7 +588,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
 			reason := fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName)
 			if slices.Contains(compositeTypes, fullCastTypeName) {
-				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type") 
+				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type")
 			}
 			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
@@ -623,6 +596,32 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			return
 		}
 	}
+}
+
+var unsupportedIndexMethods = []string{
+	"gist",
+	"brin",
+	"spgist",
+}
+
+func reportIndexMethods(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
+	indexMethod := createIndexNode.IndexStmt.AccessMethod
+	
+	if !slices.Contains(unsupportedIndexMethods, indexMethod) {
+		return
+	}
+
+	indexName := createIndexNode.IndexStmt.GetIdxname()
+	relName := createIndexNode.IndexStmt.GetRelation()
+	schemaName := relName.GetSchemaname()
+	tableName := relName.GetRelname()
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
+
+	summaryMap["INDEX"].invalidCount[displayObjName] = true
+	
+	reportCase(fpath, fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, strings.ToUpper(indexMethod)),
+		"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", displayObjName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIST_INDEX_DOC_LINK)
 }
 
 func reportUnloggedTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -1308,7 +1307,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	}
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
-	checkGist(sqlInfoArr, fpath)
+	// checkGist(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
@@ -1799,17 +1798,17 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 		issue.SqlStatement = ""  // Obfuscate sensitive information before sending to callhome cluster
 		issue.ObjectName = "XXX" // Redacting object name before sending
 		/*
-		Removing Reason and Suggestion completely for now as there can be sensitive information in some of the cases 
-		so will enable it later with proper understanding
-		some of the examples -
-		Reason:
-			Stored generated columns are not supported. [columns]
-			Unsupported datatype - xml on [column]
-			Unsupported datatype - xid on [column]
-			Unsupported PG syntax - [error msg from parser]
-			Policy require roles to be created. [role names]
-		Suggestion:
-			Foreign Table issue mentions Server name to be created.
+			Removing Reason and Suggestion completely for now as there can be sensitive information in some of the cases
+			so will enable it later with proper understanding
+			some of the examples -
+			Reason:
+				Stored generated columns are not supported. [columns]
+				Unsupported datatype - xml on [column]
+				Unsupported datatype - xid on [column]
+				Unsupported PG syntax - [error msg from parser]
+				Policy require roles to be created. [role names]
+			Suggestion:
+				Foreign Table issue mentions Server name to be created.
 		*/
 		issue.Reason = "XXX"
 		issue.Suggestion = "XXX"

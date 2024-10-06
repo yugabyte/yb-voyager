@@ -41,8 +41,8 @@
 			},
 			{
 				"ObjectType": "INDEX",
-				"TotalCount": 22,
-				"ObjectNames": "idx1, idx2, idx3, idx4, idx5, idx6, idx7, idx_array, idx_box_data, idx_citext, idx_citext1, idx_citext2, idx_inet, idx_inet1, idx_json, idx_json2, idx_point_data, idx_valid, tsquery_idx, tsvector_idx, idx_box_data, idx_point_data"
+				"TotalCount": 24,
+				"ObjectNames": "idx1, idx2, idx3, idx4, idx5, idx6, idx7, idx_array, idx_box_data, idx_citext, idx_citext1, idx_citext2, idx_inet, idx_inet1, idx_json, idx_json2, idx_point_data, idx_valid, tsquery_idx, tsvector_idx, idx_box_data, idx_point_data, idx_box_data_brin, idx_box_data_spgist"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -98,7 +98,6 @@
 				"public.london",
 				"public.employees2",
 				"public.tbl_unlogged",
-				"public.mixed_data_types_table1",
 				"public.sydney",
 				"public.boston",
 				"public.child_table",
@@ -112,7 +111,6 @@
 				"schema2.ext_test",
 				"schema2.london",
 				"schema2.boston",
-				"schema2.mixed_data_types_table1",
 				"schema2.sydney",
 				"schema2.employees2",
 				"schema2.mixed_data_types_table2",
@@ -154,11 +152,13 @@
 				"test_views.abc_mview",
 				"test_views.view_table1"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 75 objects (63 tables/materialized views and 12 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 16 objects (3 tables/materialized views and 13 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 69 objects (61 tables/materialized views and 8 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 24 objects (5 tables/materialized views and 19 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": [
 				"public.combined_tbl",
 				"public.citext_type",
-				"public.test_jsonb"
+				"public.test_jsonb",
+				"schema2.mixed_data_types_table1",
+				"public.mixed_data_types_table1"
 			],
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -234,6 +234,26 @@
 				{
 					"ObjectName": "idx_point_data ON schema2.mixed_data_types_table1",
 					"SqlStatement": "CREATE INDEX idx_point_data ON schema2.mixed_data_types_table1 USING gist (point_data);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+		},
+		{
+			"FeatureName": "BRIN indexes",
+			"Objects": [
+				{
+					"ObjectName": "idx_box_data_brin ON public.mixed_data_types_table1",
+					"SqlStatement": "CREATE INDEX idx_box_data_brin ON public.mixed_data_types_table1 USING brin (box_data);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+		},
+		{
+			"FeatureName": "SPGIST indexes",
+			"Objects": [
+				{
+					"ObjectName": "idx_box_data_spgist ON schema2.mixed_data_types_table1",
+					"SqlStatement": "CREATE INDEX idx_box_data_spgist ON schema2.mixed_data_types_table1 USING spgist (box_data);"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
@@ -1684,6 +1704,34 @@
 			"ObjectType": "",
 			"ParentTableName": "schema2.mixed_data_types_table1",
 			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "idx_box_data_spgist",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "schema2.mixed_data_types_table1",
+			"SizeInBytes": 24576
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_box_data_brin",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.mixed_data_types_table1",
+			"SizeInBytes": 24576
 		},
 		{
 			"SchemaName": "schema2",
