@@ -204,13 +204,13 @@ func (pg *PostgreSQL) checkWhichTablesDontHaveOwnerPermission() ([]string, error
 	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
 	checkTableOwnerPermissionQuery := fmt.Sprintf(`WITH table_ownership AS (
 		SELECT
-			n.nspname AS schema_name,
-			c.relname AS table_name,
+			quote_ident(n.nspname) AS schema_name,
+			quote_ident(c.relname) AS table_name,
 			pg_get_userbyid(c.relowner) AS owner_name
 		FROM pg_class c
 		JOIN pg_namespace n ON c.relnamespace = n.oid
 		WHERE c.relkind = 'r' -- 'r' indicates a table
-		  AND n.nspname IN (%s)
+		AND quote_ident(n.nspname) IN (%s)
 	)
 	SELECT
 		schema_name,
@@ -324,7 +324,7 @@ func (pg *PostgreSQL) checkWhichTablesDontHaveReplicaIdentityFull() ([]string, e
 	CASE WHEN c.relreplident <> 'f' THEN 'Missing FULL' ELSE 'Correct' END AS status
 FROM pg_class c
 JOIN pg_namespace n ON c.relnamespace = n.oid
-WHERE n.nspname IN (%s)
+WHERE quote_ident(n.nspname) IN (%s)
 	AND c.relkind = 'r';`, querySchemaList)
 	rows, err := pg.db.Query(checkTableReplicaIdentityQuery)
 	if err != nil {
@@ -388,11 +388,12 @@ func (pg *PostgreSQL) checkWhichSequencesDontHaveSelectPermission() (sequencesWi
 	trimmedSchemaList := pg.getTrimmedSchemaList()
 	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
 
-	checkSequenceSelectPermissionQuery := fmt.Sprintf(`WITH schema_permissions AS (
+	checkSequenceSelectPermissionQuery := fmt.Sprintf(`
+	WITH schema_permissions AS (
 		SELECT
 			n.nspname AS schema_name,
 			CASE
-				WHEN has_schema_privilege('%s', n.nspname, 'USAGE') THEN 'Granted'
+				WHEN has_schema_privilege('%s', quote_ident(n.nspname), 'USAGE') THEN 'Granted'
 				ELSE 'Missing'
 			END AS usage_status
 		FROM pg_namespace n
@@ -405,10 +406,10 @@ func (pg *PostgreSQL) checkWhichSequencesDontHaveSelectPermission() (sequencesWi
 			CASE
 				WHEN sp.usage_status = 'Granted' THEN
 					CASE
-						WHEN has_sequence_privilege('%s', s.schemaname || '.' || s.sequencename, 'SELECT') THEN 'Granted'
+						WHEN has_sequence_privilege('%s', quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename), 'SELECT') THEN 'Granted'
 						ELSE 'Missing'
 					END
-				ELSE 'No Usage Permission On The Table Parent Schema'
+				ELSE 'No Usage Permission On The Sequence Parent Schema'
 			END AS select_status
 		FROM pg_sequences s
 		JOIN schema_permissions sp ON s.schemaname = sp.schema_name
@@ -418,7 +419,8 @@ func (pg *PostgreSQL) checkWhichSequencesDontHaveSelectPermission() (sequencesWi
 		sequence_name,
 		select_status
 	FROM sequence_permissions
-	ORDER BY schema_name, sequence_name;`, pg.source.User, querySchemaList, pg.source.User)
+	ORDER BY schema_name, sequence_name;
+`, pg.source.User, querySchemaList, pg.source.User)
 	rows, err := pg.db.Query(checkSequenceSelectPermissionQuery)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error in querying(%q) source database for checking sequence select permission: %w", checkSequenceSelectPermissionQuery, err)
@@ -495,12 +497,12 @@ func (pg *PostgreSQL) checkWhichTablesDontHaveSelectPermission() (tablesWithMiss
 	accessible_schemas AS (
 		SELECT schema_name
 		FROM schema_list
-		WHERE has_schema_privilege('%s', schema_name, 'USAGE')
+		WHERE has_schema_privilege('%s', quote_ident(schema_name), 'USAGE')
 	)
 	SELECT
 		t.schemaname AS schema_name,
 		t.tablename AS table_name,
-		CASE WHEN has_table_privilege('%s', t.schemaname || '.' || t.tablename, 'SELECT') THEN 'Granted' ELSE 'Missing' END AS status
+		CASE WHEN has_table_privilege('%s', quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT') THEN 'Granted' ELSE 'Missing' END AS status
 	FROM pg_tables t
 	JOIN accessible_schemas a ON t.schemaname = a.schema_name
 	UNION ALL
@@ -569,10 +571,10 @@ func (pg *PostgreSQL) checkWhichSchemasDontHaveUsagePermission() ([]string, erro
 	trimmedSchemaList = append(trimmedSchemaList, "pg_catalog", "information_schema")
 	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
 	// Add pg_catalog and information_schema to the schema list
-	chkSchemaUsagePermissionQuery := fmt.Sprintf(`SELECT nspname AS schema_name,
-	CASE WHEN has_schema_privilege('%s', nspname, 'USAGE') THEN 'Granted' ELSE 'Missing' END AS usage_permission_status
+	chkSchemaUsagePermissionQuery := fmt.Sprintf(`SELECT quote_ident(nspname) AS schema_name,
+	CASE WHEN has_schema_privilege('%s', quote_ident(nspname), 'USAGE') THEN 'Granted' ELSE 'Missing' END AS usage_permission_status
 	FROM pg_namespace
-	WHERE nspname IN (%s);`, pg.source.User, querySchemaList)
+	WHERE quote_ident(nspname) IN (%s);`, pg.source.User, querySchemaList)
 	rows, err := pg.db.Query(chkSchemaUsagePermissionQuery)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for checking schema usage permission: %w", chkSchemaUsagePermissionQuery, err)
