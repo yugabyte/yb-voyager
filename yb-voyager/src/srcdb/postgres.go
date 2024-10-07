@@ -401,18 +401,20 @@ func (pg *PostgreSQL) checkWhichSequencesDontHaveSelectPermission() (sequencesWi
 	),
 	sequence_permissions AS (
 		SELECT
-			s.schemaname AS schema_name,
-			s.sequencename AS sequence_name,
+			n.nspname AS schema_name,
+			c.relname AS sequence_name,
 			CASE
 				WHEN sp.usage_status = 'Granted' THEN
 					CASE
-						WHEN has_sequence_privilege('%s', quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename), 'SELECT') THEN 'Granted'
+						WHEN has_sequence_privilege('%s', quote_ident(n.nspname) || '.' || quote_ident(c.relname), 'SELECT') THEN 'Granted'
 						ELSE 'Missing'
 					END
 				ELSE 'No Usage Permission On The Sequence Parent Schema'
 			END AS select_status
-		FROM pg_sequences s
-		JOIN schema_permissions sp ON s.schemaname = sp.schema_name
+		FROM pg_class c
+		JOIN pg_namespace n ON c.relnamespace = n.oid
+		JOIN schema_permissions sp ON n.nspname = sp.schema_name
+		WHERE c.relkind = 'S'  -- 'S' indicates a sequence
 	)
 	SELECT
 		schema_name,
