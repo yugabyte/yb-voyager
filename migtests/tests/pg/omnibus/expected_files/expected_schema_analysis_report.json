@@ -66,7 +66,7 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 11,
-                "InvalidCount": 7,
+                "InvalidCount": 5,
                 "ObjectNames": "grect2ind2, grect2ind3, idx_1, hidx, gin_idx, title_idx, title_idx_lower, title_idx_nulls_low, title_idx_u1, title_idx_u2, title_idx_with_duplicates",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
