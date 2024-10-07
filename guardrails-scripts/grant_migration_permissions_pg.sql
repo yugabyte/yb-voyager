@@ -124,11 +124,12 @@ FROM information_schema.schemata
     SELECT 
         CASE 
             WHEN db_is_rds THEN 
-                (EXECUTE 'GRANT rds_replication TO ' || :db_user || ';')
+                'GRANT rds_replication TO ' || :'db_user' || ';'
             ELSE 
-                (EXECUTE 'ALTER USER ' || :db_user || ' REPLICATION;')
-        END AS permission_status
-    FROM is_rds;
+                'ALTER USER ' || :'db_user' || ' REPLICATION;'
+        END AS permission_command
+    FROM is_rds
+    \gexec
 
     -- Create a replication group
     \echo '--- Creating Replication Group ---'
