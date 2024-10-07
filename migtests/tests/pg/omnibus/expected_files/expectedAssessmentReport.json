@@ -478,14 +478,6 @@
 			"FeatureName": "GIST indexes",
 			"Objects": [
 				{
-					"ObjectName": "grect2ind2 ON am_examples.fast_emp4000",
-					"SqlStatement": "CREATE INDEX grect2ind2 ON am_examples.fast_emp4000 USING gist2 (home_base);"
-				},
-				{
-					"ObjectName": "grect2ind3 ON am_examples.fast_emp4000",
-					"SqlStatement": "CREATE INDEX grect2ind3 ON am_examples.fast_emp4000 USING gist2 (home_base);"
-				},
-				{
 					"ObjectName": "hidx ON extension_example.testhstore",
 					"SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));"
 				}

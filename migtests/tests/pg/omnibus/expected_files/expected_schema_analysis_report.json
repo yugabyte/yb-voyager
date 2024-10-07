@@ -195,28 +195,6 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "grect2ind2 ON am_examples.fast_emp4000",
-            "Reason": "Schema contains GIST index which is not supported.",
-            "SqlStatement": "CREATE INDEX grect2ind2 ON am_examples.fast_emp4000 USING gist2 (home_base);",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "INDEX",
-            "ObjectName": "grect2ind3 ON am_examples.fast_emp4000",
-            "Reason": "Schema contains GIST index which is not supported.",
-            "SqlStatement": "CREATE INDEX grect2ind3 ON am_examples.fast_emp4000 USING gist2 (home_base);",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "INDEX",
             "ObjectName": "hidx ON extension_example.testhstore",
             "Reason": "Schema contains GIST index which is not supported.",
             "SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));",
