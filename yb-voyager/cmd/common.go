@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1120,16 +1121,40 @@ type AssessmentReport struct {
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
 }
 
+// MarshalJSON customizes the JSON output of AssessmentReport based on the environment setting.
+func (ar AssessmentReport) MarshalJSON() ([]byte, error) {
+	type Alias AssessmentReport
+
+	// Include all fields if the environment variable is set to "true".
+	if os.Getenv("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS") == "true" {
+		// NOTE: if return json.Marshal(ar) it will stuck in infinite loop
+		return json.Marshal(&struct {
+			*Alias
+		}{
+			Alias: (*Alias)(&ar),
+		})
+	} else { // Exclude the UnsupportedQueryConstructs field when the environment variable is not "true".
+		return json.Marshal(&struct {
+			*Alias
+			UnsupportedQueryConstructs *[]utils.UnsupportedQueryConstruct `json:"UnsupportedQueryConstructs,omitempty"`
+		}{
+			Alias:                      (*Alias)(&ar),
+			UnsupportedQueryConstructs: nil, // Explicitly set to nil to exclude it.
+		})
+	}
+}
+
+// ======================================================================
+type BulkAssessmentReport struct {
+	Details []AssessmentDetail `json:"Detail"`
+	Notes   []string           `json:"Notes"`
+}
+
 type AssessmentDetail struct {
 	Schema             string `json:"Schema"`
 	DatabaseIdentifier string `json:"DatabaseIdentifier"`
 	ReportPath         string `json:"ReportPath"`
 	Status             string `json:"Status"`
-}
-
-type BulkAssessmentReport struct {
-	Details []AssessmentDetail `json:"Detail"`
-	Notes   []string           `json:"Notes"`
 }
 
 type AssessMigrationDBConfig struct {

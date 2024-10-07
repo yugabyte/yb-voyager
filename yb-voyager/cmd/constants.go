@@ -99,9 +99,10 @@ const (
 	REFERENCE_PARTITION = "REFERENCE PARTITION"
 	SYSTEM_PARTITION    = "SYSTEM PARTITION"
 
-	UNSUPPORTED_FEATURES  = "unsupported_features"
-	UNSUPPORTED_DATATYPES = "unsupported_datatypes"
-	MIGRATION_CAVEATS     = "migration_caveats"
+	UNSUPPORTED_FEATURES                = "unsupported_features"
+	UNSUPPORTED_DATATYPES               = "unsupported_datatypes"
+	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
+	MIGRATION_CAVEATS                   = "migration_caveats"
 
 	HTML = "html"
 	JSON = "json"

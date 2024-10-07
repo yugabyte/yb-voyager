@@ -257,7 +257,6 @@ func init() {
 
 	assessMigrationCmd.Flags().Int64Var(&intervalForCapturingIOPS, "iops-capture-interval", 120,
 		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). (only valid for PostgreSQL)")
-
 }
 
 func assessMigration() (err error) {
@@ -724,11 +723,13 @@ func generateAssessmentReport() (err error) {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 
-	unsupportedQueries, err := fetchUnsupportedQueryConstructs()
-	if err != nil {
-		return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
+	if os.Getenv(REPORT_UNSUPPORTED_QUERY_CONSTRUCTS) == "true" {
+		unsupportedQueries, err := fetchUnsupportedQueryConstructs()
+		if err != nil {
+			return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
+		}
+		assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 	}
-	assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {

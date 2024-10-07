@@ -68,7 +68,6 @@ if [ "$#" -eq 4 ]; then
     echo "sleep interval for calculating iops: $iops_capture_interval seconds"
 fi
 
-
 pg_connection_string=$1
 schema_list=$2
 assessment_metadata_dir=$3
@@ -154,6 +153,9 @@ main() {
     print_and_log "INFO" "Assessment metadata collection started for '$schema_list' schemas"
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
+        if [[ "$script_name" == "db_queries_summary" && ( -z "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" || "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ) ]]; then
+            continue
+        fi
         script_action=$(basename "$script" .psql | sed 's/-/ /g')
         print_and_log "INFO" "Collecting $script_action..."
         if [ $script_name == "table-index-iops" ]; then
