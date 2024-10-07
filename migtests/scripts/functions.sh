@@ -42,16 +42,24 @@ psql_import_file() {
 }
 
 grant_user_permission_postgresql() {
+	# psql -h <host> -d <database> -U <username> -v db_user='ybvoyager' -v schema_list='schema1,public,schema2' -v replication_group='replication_group' -v original_owner_of_tables='postgres' -v db_name='test_db' -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /home/ubuntu/grant_pg_permissions.sql
+	# db_name=$1
+	# conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	# commands=(
+	# 	"SELECT 'GRANT USAGE ON SCHEMA '"
+	# 	"SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA '" 
+	# 	"SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA '"
+	# 	)
+	# for command in "${commands[@]}"; do
+	# 	echo "${command} || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "${conn_string}" 
+	# done
+
 	db_name=$1
-	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
-	commands=(
-		"SELECT 'GRANT USAGE ON SCHEMA '"
-		"SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA '" 
-		"SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA '"
-		)
-	for command in "${commands[@]}"; do
-		echo "${command} || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "${conn_string}" 
-	done
+	db_schema=$2
+	# Run this script. Script is at ../guardrails-scripts/grant_pg_permissions.sql
+	# psql -h <host> -d <database> -U <username> -v db_user='ybvoyager' -v schema_list='schema1,public,schema2' -v replication_group='replication_group' -v original_owner_of_tables='postgres' -v db_name='test_db' -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /home/ubuntu/grant_pg_permissions.sql
+	psql -h ${SOURCE_DB_HOST} -d ${db_name} -U ${SOURCE_DB_ADMIN_USER} -v db_user=${SOURCE_DB_USER} -v schema_list=${db_schema} -v replication_group='replication_group' -v original_owner_of_tables=${SOURCE_DB_ADMIN_USER} -v db_name=${db_name} -v is_live_migration=0 -v is_live_migration_fall_back=0 -f ../guardrails-scripts/grant_pg_permissions.sql
+
 }
 
 run_pg_restore() {
@@ -188,7 +196,7 @@ grant_permissions() {
 	db_schema=$3
 	case ${db_type} in
 		postgresql)
-			grant_user_permission_postgresql ${db_name}
+			grant_user_permission_postgresql ${db_name} ${db_schema}
 			;;
 		mysql)
 			grant_user_permission_mysql ${db_name}
