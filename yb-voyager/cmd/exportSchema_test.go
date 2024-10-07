@@ -35,6 +35,12 @@ func TestShardingRecommendations(t *testing.T) {
 		formattedStmt: "CREATE MATERIALIZED VIEW m1 AS SELECT * FROM t1 WHERE a = 3 with no data",
 		fileName:      "",
 	}
+	sqlInfo_mview3 := sqlInfo{
+		objName:       "m1",
+		stmt:          "CREATE MATERIALIZED VIEW m1 WITH (fillfactor=70) AS SELECT * FROM t1 WHERE a = 3 with no data",
+		formattedStmt: "CREATE MATERIALIZED VIEW m1 WITH (fillfactor=70) AS SELECT * FROM t1 WHERE a = 3 with no data",
+		fileName:      "",
+	}
 	source.DBType = POSTGRESQL
 	modifiedSqlStmt, match, _ := applyShardingRecommendationIfMatching(&sqlInfo_mview1, []string{"m1"}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
@@ -50,6 +56,12 @@ func TestShardingRecommendations(t *testing.T) {
 	assert.Equal(t, modifiedSqlStmt, "CREATE MATERIALIZED VIEW m1 AS SELECT * FROM t1 WHERE a = 3 with no data")
 	assert.Equal(t, match, false)
 
+	modifiedSqlStmt, match, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview3, []string{"m1"}, MVIEW)
+	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
+		strings.ToLower("create materialized view m1 with (fillfactor=70, colocation=false) "+
+			"as select * from t1 where a = 3 with no data;"))
+	assert.Equal(t, match, true)
+
 	sqlInfo_table1 := sqlInfo{
 		objName:       "m1",
 		stmt:          "create table a (a int, b int)",
@@ -60,6 +72,12 @@ func TestShardingRecommendations(t *testing.T) {
 		objName:       "m1",
 		stmt:          "create table a (a int, b int) WITH (fillfactor=70)",
 		formattedStmt: "create table a (a int, b int) WITH (fillfactor=70)",
+		fileName:      "",
+	}
+	sqlInfo_table3 := sqlInfo{
+		objName:       "m1",
+		stmt:          "alter table a add col text",
+		formattedStmt: "alter table a add col text",
 		fileName:      "",
 	}
 	modifiedTableStmt, matchTable, _ := applyShardingRecommendationIfMatching(&sqlInfo_table1, []string{"a"}, TABLE)
@@ -74,5 +92,10 @@ func TestShardingRecommendations(t *testing.T) {
 
 	modifiedSqlStmt, matchTable, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"m1_notfound"}, TABLE)
 	assert.Equal(t, modifiedSqlStmt, "create table a (a int, b int) WITH (fillfactor=70)")
+	assert.Equal(t, matchTable, false)
+
+	modifiedTableStmt, matchTable, _ = applyShardingRecommendationIfMatching(&sqlInfo_table3, []string{"a"}, TABLE)
+	assert.Equal(t, strings.ToLower(modifiedTableStmt),
+		strings.ToLower("alter table a add col text"))
 	assert.Equal(t, matchTable, false)
 }
