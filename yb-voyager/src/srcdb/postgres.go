@@ -359,12 +359,6 @@ WHERE n.nspname IN (%s)
 }
 
 func (pg *PostgreSQL) checkWalLevel() bool {
-	// 	# Check wal level
-	// SELECT
-	//     CASE WHEN current_setting('wal_level') = 'logical'
-	//          THEN true
-	//          ELSE false
-	//     END AS wal_level_status_correct;
 	query := `SELECT
 	CASE WHEN current_setting('wal_level') = 'logical'
 		THEN true

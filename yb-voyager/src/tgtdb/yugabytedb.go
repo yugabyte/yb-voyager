@@ -1216,3 +1216,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 
 	return nil
 }
+
+func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
+	return nil, nil
+}

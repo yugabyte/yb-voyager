@@ -714,3 +714,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 	DROP USER %s CASCADE`, schema, tdb.tconf.Host, schema)
 	return nil
 }
+
+func (tdb *TargetOracleDB) GetMissingImportDataPermissions() ([]string, error) {
+	return nil, nil
+}
