@@ -57,9 +57,10 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	db_schema=$2
 	# Run this script. Script is at ../guardrails-scripts/grant_pg_permissions.sql
+	ls ../../../../guardrails-scripts
 	# psql -h <host> -d <database> -U <username> -v db_user='ybvoyager' -v schema_list='schema1,public,schema2' -v replication_group='replication_group' -v original_owner_of_tables='postgres' -v db_name='test_db' -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /home/ubuntu/grant_pg_permissions.sql
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v db_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v db_name="${db_name}" -v is_live_migration=0 -v is_live_migration_fall_back=0 -f ../guardrails-scripts/grant_pg_permissions.sql
+	psql "${conn_string}" -v db_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v db_name="${db_name}" -v is_live_migration=0 -v is_live_migration_fall_back=0 -f ../../../../guardrails-scripts/grant_migration_permissions_pg.sql
 
 }
 
@@ -192,7 +193,7 @@ grant_permissions_for_live_migration_pg() {
 
 	# Run this script. Script is at ../guardrails-scripts/grant_pg_permissions.sql
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v db_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v db_name="${db_name}" -v is_live_migration=1 -v is_live_migration_fall_back=0 -f ../guardrails-scripts/grant_pg_permissions.sql
+	psql "${conn_string}" -v db_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v db_name="${db_name}" -v is_live_migration=1 -v is_live_migration_fall_back=0 -f ../../../../guardrails-scripts/grant_migration_permissions_pg.sql
 }
 
 grant_permissions() {
