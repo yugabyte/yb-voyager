@@ -116,6 +116,20 @@ FROM information_schema.schemata
     END LOOP;
     END $$;
 
+    -- Grant replication permissions to the user
+    \echo '--- Granting Replication Permissions ---'
+    WITH is_rds AS (
+        SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rds_superuser') AS db_is_rds
+    )
+    SELECT 
+        CASE 
+            WHEN db_is_rds THEN 
+                (EXECUTE 'GRANT rds_replication TO ' || :db_user || ';')
+            ELSE 
+                (EXECUTE 'ALTER USER ' || :db_user || ' REPLICATION;')
+        END AS permission_status
+    FROM is_rds;
+
     -- Create a replication group
     \echo '--- Creating Replication Group ---'
     CREATE ROLE :replication_group;
@@ -142,6 +156,9 @@ FROM information_schema.schemata
             EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' OWNER TO ' || current_setting('myvars.replication_group');
         END LOOP;
     END $$;
+
+    -- Grant replication permissions to the user
+
 
     -- Grant CREATE permission on the specified database to the specified user
     \echo '--- Granting CREATE Permission on Database ---'
