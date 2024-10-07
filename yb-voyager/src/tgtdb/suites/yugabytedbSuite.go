@@ -52,7 +52,7 @@ func quoteValueIfRequiredWithEscaping(value string, formatIfRequired bool, _ *sc
 
 var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.data.Json":     quoteValueIfRequiredWithEscaping,
-	"io.debezium.data.Enum":     quoteValueIfRequired,
+	"io.debezium.data.Enum":     quoteValueIfRequiredWithEscaping,
 	"io.debezium.time.Interval": quoteValueIfRequired,
 	"io.debezium.data.Uuid":     quoteValueIfRequired,
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {

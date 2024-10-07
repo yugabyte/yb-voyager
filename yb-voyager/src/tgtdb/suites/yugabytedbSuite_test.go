@@ -62,6 +62,26 @@ func TestJsonConversionWithFormattingWithSingleQuotesEscaped(t *testing.T) {
 	assert.Equal(t, `'{"key":"value''s"}'`, result)
 }
 
+func TestEnumConversionWithFormattingWithDoubleQuotes(t *testing.T) {
+	// Given
+	value := `enum"Value`
+	// When we convert with formatIfRequired is true
+	result, err := YBValueConverterSuite["io.debezium.data.Enum"](value, true, nil)
+	assert.NoError(t, err)
+	// Then
+	assert.Equal(t, `'enum"Value'`, result)
+}
+
+func TestEnumConversionWithFormattingWithSingleQuotesEscaped(t *testing.T) {
+	// Given
+	value := "enum'Value"
+	// When we convert with formatIfRequired is true
+	result, err := YBValueConverterSuite["io.debezium.data.Enum"](value, true, nil)
+	assert.NoError(t, err)
+	// Then
+	assert.Equal(t, "'enum''Value'", result)
+}
+
 func TestUUIDConversionWithFormatting(t *testing.T) {
 	// Given
 	value := "123e4567-e89b-12d3-a456-426614174000"
