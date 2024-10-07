@@ -812,42 +812,42 @@ func (pg *TargetPostgreSQL) checkWhichTablesHaveMissingSelectInsertUpdateDeleteP
 
 	query := fmt.Sprintf(`WITH table_privileges AS (
 		SELECT
-			schemaname AS schema_name,
-			tablename AS table_name,
+			quote_ident(schemaname) AS schema_name,
+			quote_ident(tablename) AS table_name,
 			CASE
-				WHEN has_schema_privilege('%s', schemaname, 'USAGE') THEN
+				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
 					CASE
-						WHEN has_table_privilege('%s', schemaname || '.' || tablename, 'SELECT') THEN 'Granted'
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'SELECT') THEN 'Granted'
 						ELSE 'Missing'
 					END
 				ELSE 'No USAGE privilege on schema'
 			END AS select_status,
 			CASE
-				WHEN has_schema_privilege('%s', schemaname, 'USAGE') THEN
+				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
 					CASE
-						WHEN has_table_privilege('%s', schemaname || '.' || tablename, 'INSERT') THEN 'Granted'
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'INSERT') THEN 'Granted'
 						ELSE 'Missing'
 					END
 				ELSE 'No USAGE privilege on schema'
 			END AS insert_status,
 			CASE
-				WHEN has_schema_privilege('%s', schemaname, 'USAGE') THEN
+				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
 					CASE
-						WHEN has_table_privilege('%s', schemaname || '.' || tablename, 'UPDATE') THEN 'Granted'
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'UPDATE') THEN 'Granted'
 						ELSE 'Missing'
 					END
 				ELSE 'No USAGE privilege on schema'
 			END AS update_status,
 			CASE
-				WHEN has_schema_privilege('%s', schemaname, 'USAGE') THEN
+				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
 					CASE
-						WHEN has_table_privilege('%s', schemaname || '.' || tablename, 'DELETE') THEN 'Granted'
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'DELETE') THEN 'Granted'
 						ELSE 'Missing'
 					END
 				ELSE 'No USAGE privilege on schema'
 			END AS delete_status
 		FROM pg_tables
-		WHERE schemaname = ANY(string_to_array('%s', ','))
+		WHERE quote_ident(schemaname) = ANY(string_to_array('%s', ','))
 	)
 	SELECT
 		schema_name,
