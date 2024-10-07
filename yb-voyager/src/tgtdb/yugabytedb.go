@@ -544,7 +544,7 @@ TODO(future): figure out the sql error codes for prepared statements which have 
 and needs to be prepared again
 */
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
-	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
+
 	ybBatch := pgx.Batch{}
 	stmtToPrepare := make(map[string]string)
 	// processing batch events to convert into prepared or unprepared statements based on Op type
@@ -571,6 +571,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	}
 
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
+		log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
 		ctx := context.Background()
 		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
 		if err != nil {
@@ -602,6 +603,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				err, res.RowsAffected())
 		}
 		var rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64
+		log.Infof("sending batch(%s) to target db", batch.ID())
 		br := tx.SendBatch(ctx, &ybBatch)
 		closeBatch := func() error {
 			if closeErr := br.Close(); closeErr != nil {
@@ -633,6 +635,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err != nil {
 			return false, err
 		}
+		log.Infof("updating metadata of batch(%s) in target db", batch.ID())
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
 		res, err = tx.Exec(context.Background(), updateVsnQuery)
@@ -663,6 +666,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 			log.Debugf("Updated table stats meta info with query = %s; rows Affected = %d", updateTableStatsQuery, res.RowsAffected())
 		}
+		log.Infof("commiting transaction for batch(%s)", batch.ID())
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}

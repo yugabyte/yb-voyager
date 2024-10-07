@@ -370,6 +370,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
+		log.Infof("executed batch(%s) of %d events", eventBatch.ID(), len(eventBatch.Events))
 		conflictDetectionCache.RemoveEvents(eventBatch.Events...)
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
