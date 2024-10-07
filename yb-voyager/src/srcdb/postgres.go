@@ -484,7 +484,7 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 }
 
 func (pg *PostgreSQL) GetDatabaseSize() (int64, error) {
-	var totalSchemasSize, totalSize int64
+	var totalSchemasSize int64
 	schemaList := strings.Replace(pg.source.Schema, "|", "','", -1)
 	query := fmt.Sprintf(`SELECT
     nspname AS schema_name,
@@ -510,17 +510,18 @@ GROUP BY
 	}()
 
 	var schemaName string
+	var totalSize sql.NullInt64
 	for rows.Next() {
 		err = rows.Scan(&schemaName, &totalSize)
 		if err != nil {
 			return -1, fmt.Errorf("error in scanning query rows for schemas ('%s'): %v", schemaList, err)
 		}
-		totalSchemasSize += totalSize
+		totalSchemasSize += totalSize.Int64
 	}
 	if rows.Err() != nil {
 		return -1, fmt.Errorf("error in scanning query rows for schemas('%s'): %v", schemaList, rows.Err())
 	}
-	log.Infof("Total size of all PG sourceDB schemas ('%s'): %v", schemaList, totalSchemasSize)
+	log.Infof("Total size of all PG sourceDB schemas ('%s'): %d", schemaList, totalSchemasSize)
 	return totalSchemasSize, nil
 }
 

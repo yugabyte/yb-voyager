@@ -395,14 +395,14 @@ func (yb *YugabyteDB) GetCharset() (string, error) {
 }
 
 func (yb *YugabyteDB) GetDatabaseSize() (int64, error) {
-	var dbSize int64
+	var dbSize sql.NullInt64
 	query := fmt.Sprintf("select pg_database_size('%s'); ", yb.source.DBName)
 	err := yb.db.QueryRow(query).Scan(&dbSize)
 	if err != nil {
 		return 0, fmt.Errorf("error in querying database encoding: %w", err)
 	}
-	log.Infof("Total Database size of YugabyteDB sourceDB: %v", dbSize)
-	return dbSize, nil
+	log.Infof("Total Database size of YugabyteDB sourceDB: %d", dbSize.Int64)
+	return dbSize.Int64, nil
 }
 
 func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
