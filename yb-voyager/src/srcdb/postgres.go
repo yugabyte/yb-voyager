@@ -152,8 +152,8 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 	}
 
 	// For live migration
-	// Check wal_level is set to logical
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
+		// Check wal_level is set to logical
 		correctlySet := pg.checkWalLevel()
 		if !correctlySet {
 			combinedResult = append(combinedResult, "wal_level is not set to logical")

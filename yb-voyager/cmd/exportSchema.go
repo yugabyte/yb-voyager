@@ -131,7 +131,6 @@ func exportSchema() error {
 		}
 		if len(missingPerms) > 0 {
 			// Traverse the missing permissions and print them
-			// Print in red
 			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
 			for _, perm := range missingPerms {
 				utils.PrintAndLog("%s\n", perm)
