@@ -747,7 +747,7 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 			typeName := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
 			if len(typeNames) > 0 {
-				typeName = column.GetColumnDef().GetTypeName().GetNames()[len(typeNames)-1].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
+				typeName = column.GetColumnDef().GetTypeName().GetNames()[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 			}
 			colName := column.GetColumnDef().GetColname()
 			liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
