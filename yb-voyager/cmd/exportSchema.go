@@ -100,9 +100,12 @@ func exportSchema() error {
 	}
 	defer source.DB().Disconnect()
 
-	err = source.DB().CheckSourceDBVersion()
-	if err != nil {
-		return fmt.Errorf("source DB version check failed: %w", err)
+	// Check source database version.
+	if source.RunGuardrailsChecks {
+		err = source.DB().CheckSourceDBVersion()
+		if err != nil {
+			return fmt.Errorf("source DB version check failed: %w", err)
+		}
 	}
 
 	checkSourceDBCharset()
@@ -121,20 +124,21 @@ func exportSchema() error {
 	}
 
 	// Check if the source database has the required permissions for exporting schema.
-
-	missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
-	if err != nil {
-		return fmt.Errorf("failed to get missing migration permissions: %w", err)
-	}
-	if len(missingPerms) > 0 {
-		// Traverse the missing permissions and print them
-		// Print in red
-		color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
-		for _, perm := range missingPerms {
-			utils.PrintAndLog("%s\n", perm)
+	if source.RunGuardrailsChecks {
+		missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
+		if err != nil {
+			return fmt.Errorf("failed to get missing migration permissions: %w", err)
 		}
-		fmt.Println()
-		return fmt.Errorf("some permissions are missing for the source database on user %s", source.User)
+		if len(missingPerms) > 0 {
+			// Traverse the missing permissions and print them
+			// Print in red
+			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+			for _, perm := range missingPerms {
+				utils.PrintAndLog("%s\n", perm)
+			}
+			fmt.Println()
+			return fmt.Errorf("some permissions are missing for the source database on user %s", source.User)
+		}
 	}
 
 	err = retrieveMigrationUUID()

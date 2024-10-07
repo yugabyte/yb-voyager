@@ -213,9 +213,11 @@ func exportData() bool {
 	}
 	defer source.DB().Disconnect()
 
-	err = source.DB().CheckSourceDBVersion()
-	if err != nil {
-		utils.ErrExit("Source DB version check failed: %s", err)
+	if source.RunGuardrailsChecks {
+		err = source.DB().CheckSourceDBVersion()
+		if err != nil {
+			utils.ErrExit("Source DB version check failed: %s", err)
+		}
 	}
 
 	source.DBVersion = source.DB().GetVersion()
@@ -230,19 +232,22 @@ func exportData() bool {
 	}
 
 	// Check if source DB has required permissions for export data
-	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
-	if err != nil {
-		utils.ErrExit("get missing export data permissions: %v", err)
-	}
-	if len(missingPermissions) > 0 {
-		// Iterate over missing permissions and print them
-		// Print in red color
-		color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
-		for _, perm := range missingPermissions {
-			utils.PrintAndLog("%s\n", perm)
+	if source.RunGuardrailsChecks {
+		missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
+		if err != nil {
+			utils.ErrExit("get missing export data permissions: %v", err)
 		}
-		fmt.Println()
-		utils.ErrExit("Please grant the required permissions to the user %s and try again.", source.User)
+		if len(missingPermissions) > 0 {
+			// Iterate over missing permissions and print them
+			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+			for _, perm := range missingPermissions {
+				utils.PrintAndLog("%s\n", perm)
+			}
+			fmt.Println()
+			utils.ErrExit("Please grant the required permissions to the user %s and try again.", source.User)
+		} else {
+			log.Info("All required permissions are present for the source database.")
+		}
 	}
 
 	clearMigrationStateIfRequired()

@@ -128,19 +128,21 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Check if target DB has the required permissions
-	missingPermissions, err := tdb.GetMissingImportDataPermissions()
-	if err != nil {
-		utils.ErrExit("Failed to get missing import data permissions: %s", err)
-	}
-	if len(missingPermissions) > 0 {
-		utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
-		// Iterate over the missing permissions and print them
-		for _, permission := range missingPermissions {
-			utils.PrintAndLog(permission)
+	if tconf.RunGuardrailsChecks {
+		missingPermissions, err := tdb.GetMissingImportDataPermissions()
+		if err != nil {
+			utils.ErrExit("Failed to get missing import data permissions: %s", err)
 		}
-		utils.ErrExit("Please grant the required permissions and retry the import.")
-	} else {
-		utils.PrintAndLog("The target database has the required permissions for importing data.")
+		if len(missingPermissions) > 0 {
+			utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
+			// Iterate over the missing permissions and print them
+			for _, permission := range missingPermissions {
+				utils.PrintAndLog(permission)
+			}
+			utils.ErrExit("Please grant the required permissions and retry the import.")
+		} else {
+			log.Info("The target database has the required permissions for importing data.")
+		}
 	}
 
 	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
