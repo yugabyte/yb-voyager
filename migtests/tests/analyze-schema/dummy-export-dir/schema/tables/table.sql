@@ -341,3 +341,9 @@ CREATE TABLE test_udt (
 	some_field enum_test,
 	home_address1 non_public.address_type1
 );
+
+CREATE TABLE public.locations (
+    id integer NOT NULL,
+    name character varying(100),
+    geom geometry(Point,4326)
+ );

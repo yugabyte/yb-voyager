@@ -68,7 +68,7 @@
             "Reason": "Unsupported datatype - xml on column - resume",
             "SqlStatement": "CREATE TABLE humanresources.jobcandidate (\n    jobcandidateid integer NOT NULL,\n    businessentityid integer,\n    resume xml,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
         },
@@ -79,7 +79,7 @@
             "Reason": "Unsupported datatype - xml on column - additionalcontactinfo",
             "SqlStatement": "CREATE TABLE person.person (\n    businessentityid integer NOT NULL,\n    persontype character(2) NOT NULL,\n    namestyle public.\"NameStyle\" DEFAULT false NOT NULL,\n    title character varying(8),\n    firstname public.\"Name\" NOT NULL,\n    middlename public.\"Name\",\n    lastname public.\"Name\" NOT NULL,\n    suffix character varying(10),\n    emailpromotion integer DEFAULT 0 NOT NULL,\n    additionalcontactinfo xml,\n    demographics xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL,\n    CONSTRAINT \"CK_Person_EmailPromotion\" CHECK (((emailpromotion \u003e= 0) AND (emailpromotion \u003c= 2))),\n    CONSTRAINT \"CK_Person_PersonType\" CHECK (((persontype IS NULL) OR (upper((persontype)::text) = ANY (ARRAY['SC'::text, 'VC'::text, 'IN'::text, 'EM'::text, 'SP'::text, 'GC'::text]))))\n);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
         },
@@ -90,7 +90,7 @@
             "Reason": "Unsupported datatype - xml on column - demographics",
             "SqlStatement": "CREATE TABLE person.person (\n    businessentityid integer NOT NULL,\n    persontype character(2) NOT NULL,\n    namestyle public.\"NameStyle\" DEFAULT false NOT NULL,\n    title character varying(8),\n    firstname public.\"Name\" NOT NULL,\n    middlename public.\"Name\",\n    lastname public.\"Name\" NOT NULL,\n    suffix character varying(10),\n    emailpromotion integer DEFAULT 0 NOT NULL,\n    additionalcontactinfo xml,\n    demographics xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL,\n    CONSTRAINT \"CK_Person_EmailPromotion\" CHECK (((emailpromotion \u003e= 0) AND (emailpromotion \u003c= 2))),\n    CONSTRAINT \"CK_Person_PersonType\" CHECK (((persontype IS NULL) OR (upper((persontype)::text) = ANY (ARRAY['SC'::text, 'VC'::text, 'IN'::text, 'EM'::text, 'SP'::text, 'GC'::text]))))\n);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
         },
@@ -101,7 +101,7 @@
             "Reason": "Unsupported datatype - xml on column - diagram",
             "SqlStatement": "CREATE TABLE production.illustration (\n    illustrationid integer NOT NULL,\n    diagram xml,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
         },
@@ -112,7 +112,7 @@
             "Reason": "Unsupported datatype - xml on column - catalogdescription",
             "SqlStatement": "CREATE TABLE production.productmodel (\n    productmodelid integer NOT NULL,\n    name public.\"Name\" NOT NULL,\n    catalogdescription xml,\n    instructions xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
         },
@@ -123,7 +123,7 @@
             "Reason": "Unsupported datatype - xml on column - instructions",
             "SqlStatement": "CREATE TABLE production.productmodel (\n    productmodelid integer NOT NULL,\n    name public.\"Name\" NOT NULL,\n    catalogdescription xml,\n    instructions xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
         },
@@ -134,7 +134,7 @@
             "Reason": "Unsupported datatype - xml on column - demographics",
             "SqlStatement": "CREATE TABLE sales.store (\n    businessentityid integer NOT NULL,\n    name public.\"Name\" NOT NULL,\n    salespersonid integer,\n    demographics xml,\n    rowguid uuid DEFAULT public.uuid_generate_v1() NOT NULL,\n    modifieddate timestamp without time zone DEFAULT now() NOT NULL\n);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
         },

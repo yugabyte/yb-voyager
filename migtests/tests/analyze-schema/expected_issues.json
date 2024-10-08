@@ -234,7 +234,7 @@
             "ObjectName": "sales",
             "Reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
             "SqlStatement": "CREATE TABLE sales (\n\tcust_id bigint NOT NULL,\n\tname varchar(40),\n\tstore_id varchar(20) NOT NULL,\n\tbill_no bigint NOT NULL,\n\tbill_date timestamp NOT NULL,\n\tamount decimal(8,2) NOT NULL,\n\tPRIMARY KEY (bill_date)\n) PARTITION BY RANGE (extract(year from date(bill_date))) ;",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql-oracle/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
             "Suggestion": "Remove the Constriant from the table definition",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
         },
@@ -244,7 +244,7 @@
             "ObjectName": "salaries2",
             "Reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
             "SqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (extract(epoch from date(from_date))) ;",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql-oracle/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
             "Suggestion": "Remove the Constriant from the table definition",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
         },
@@ -281,7 +281,7 @@
             "ObjectName": "test_1",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
             "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql-oracle/#multi-column-partition-by-list-is-not-supported",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
@@ -291,7 +291,7 @@
             "ObjectName": "test_2",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
             "SqlStatement": "CREATE TABLE test_2 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql-oracle/#multi-column-partition-by-list-is-not-supported",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
@@ -341,7 +341,7 @@
             "ObjectName": "test_non_pk_multi_column_list",
             "Reason": "cannot use \"list\" partition strategy with more than one column",
             "SqlStatement": "CREATE TABLE test_non_pk_multi_column_list (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql-oracle/#multi-column-partition-by-list-is-not-supported",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         },
@@ -800,7 +800,7 @@
             "Reason": "Unsupported datatype - xml on column - data",
             "SqlStatement": "CREATE TABLE test_xml_type(id int, data xml);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
-            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - \u003cLINK DOC\u003e",
+            "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043"
         },
         {
@@ -810,7 +810,108 @@
             "Reason": "Unsupported datatype - xid on column - data",
             "SqlStatement": "CREATE TABLE test_xid_type(id int, data xid);",
             "Suggestion": "Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/15638"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/15638",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-not-supported-yet"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype - pg_lsn on column - lsn",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-the-yugabytedb"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype - txid_snapshot on column - id1",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-the-yugabytedb"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.locations",
+            "Reason": "Unsupported datatype - geometry on column - geom",
+            "SqlStatement": "CREATE TABLE public.locations (\n    id integer NOT NULL,\n    name character varying(100),\n    geom geometry(Point,4326)\n );",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/11323",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-the-yugabytedb"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype for Live migration - circle on column - ci",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype for Live migration - box on column - b",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype for Live migration - line on column - l",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype for Live migration - lseg on column - ls",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype for Live migration - point on column - p",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype for Live migration - path on column - p1",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl",
+            "Reason": "Unsupported datatype for Live migration - polygon on column - p2",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
         },
         {
             "IssueType": "unsupported_features",
