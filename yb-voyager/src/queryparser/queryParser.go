@@ -24,10 +24,10 @@ func (qp *QueryParser) Parse() error {
 	return nil
 }
 
-func (qp *QueryParser) CheckUnsupportedQueryConstruct() (string, error) {
+func (qp *QueryParser) CheckUnsupportedQueryConstruct() (string, bool, error) {
 	if qp.containsAdvisoryLocks() {
-		return ADVISORY_LOCKS, nil
+		return ADVISORY_LOCKS, true, nil
 	}
 	// TODO: Add checks for unsupported constructs - system columns, XML functions
-	return "", nil
+	return "", false, nil
 }

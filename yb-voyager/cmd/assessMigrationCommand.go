@@ -955,21 +955,18 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		}
 
 		// Check for unsupported constructs in the parsed query
-		unsupportedConstructType, err := queryParser.CheckUnsupportedQueryConstruct()
+		unsupportedConstructType, ok, err := queryParser.CheckUnsupportedQueryConstruct()
 		if err != nil {
 			log.Warnf("failed while trying to parse the query: %s", err.Error())
 		}
-		if unsupportedConstructType != "" {
-			fmt.Printf("Unsupported query: %s, Type: %s\n", query, unsupportedConstructType)
+		if ok {
 			result = append(result, utils.UnsupportedQueryConstruct{
 				ConstructType: unsupportedConstructType,
 				Query:         query,
 			})
 		}
 	}
-	if len(result) != 0 {
-		utils.PrintAndLog("Found YB unsupported queries in source DB, for more details please refer migration assessment report")
-	}
+
 	// TODO: sort the slice for better readability
 	return result, nil
 }
