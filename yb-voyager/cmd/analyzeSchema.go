@@ -1808,6 +1808,15 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 	return nil
 }
 
+var reasonsIncludingSensitiveInformation = []string{
+	UNSUPPORTED_PG_SYNTAX,
+	POLICY_ROLE_ISSUE,
+	UNSUPPORTED_DATATYPE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+	STORED_GENERATED_COLUMN_ISSUE_REASON,
+}
+
+
 func packAndSendAnalyzeSchemaPayload(status string) {
 	if !shouldSendCallhome() {
 		return
@@ -1819,20 +1828,20 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = ""  // Obfuscate sensitive information before sending to callhome cluster
 		issue.ObjectName = "XXX" // Redacting object name before sending
-		/*
-			Removing Reason and Suggestion completely for now as there can be sensitive information in some of the cases
-			so will enable it later with proper understanding
-			some of the examples -
-			Reason:
-				Stored generated columns are not supported. [columns]
-				Unsupported datatype - xml on [column]
-				Unsupported datatype - xid on [column]
-				Unsupported PG syntax - [error msg from parser]
-				Policy require roles to be created. [role names]
-			Suggestion:
-				Foreign Table issue mentions Server name to be created.
-		*/
-		issue.Reason = "XXX"
+		for _, sensitiveReason := range reasonsIncludingSensitiveInformation {
+			if strings.Contains(issue.Reason, sensitiveReason) {
+				switch sensitiveReason {
+				case UNSUPPORTED_DATATYPE, UNSUPPORTED_DATATYPE_LIVE_MIGRATION:
+					//e.g. Reason "Unsupported datatype - xml on column - data"
+					//sending only "Unsupported datatype - xml"
+					issue.Reason = strings.Split(issue.Reason, "on column -")[0]
+				default:
+					issue.Reason = sensitiveReason
+				}
+			}
+		}
+		//I believe there is no point storing the suggestions as it is something we provide
+		//so we know what is the suggestion for a particular reason.
 		issue.Suggestion = "XXX"
 		callhomeIssues = append(callhomeIssues, issue)
 	}
