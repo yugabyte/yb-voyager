@@ -142,7 +142,7 @@ const (
 	EXTENSION_DOC_LINK                           = "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/"
 	DEFERRABLE_CONSTRAINT_DOC_LINK               = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported"
 	XML_DATATYPE_DOC_LINK                        = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#data-ingestion-on-xml-data-type-is-not-supported"
-	GIST_INDEX_DOC_LINK                          = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gist-index-type-is-not-supported"
+	UNSUPPORTED_INDEX_METHODS_DOC_LINK           = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gist-brin-and-spgist-index-types-are-not-supported"
 	CONSTRAINT_TRIGGER_DOC_LINK                  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#constraint-trigger-is-not-supported"
 	INHERITANCE_DOC_LINK                         = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#table-inheritance-is-not-supported"
 	GIN_INDEX_MULTI_COLUMN_DOC_LINK              = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gin-indexes-on-multiple-columns-are-not-supported"

@@ -607,7 +607,7 @@ var unsupportedIndexMethods = []string{
 
 func reportIndexMethods(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
 	indexMethod := createIndexNode.IndexStmt.AccessMethod
-	
+
 	if !slices.Contains(unsupportedIndexMethods, indexMethod) {
 		return
 	}
@@ -620,9 +620,9 @@ func reportIndexMethods(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sq
 	displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
 
 	summaryMap["INDEX"].invalidCount[displayObjName] = true
-	
+
 	reportCase(fpath, fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, strings.ToUpper(indexMethod)),
-		"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", displayObjName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIST_INDEX_DOC_LINK)
+		"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", displayObjName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_INDEX_METHODS_DOC_LINK)
 }
 
 func reportUnloggedTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {

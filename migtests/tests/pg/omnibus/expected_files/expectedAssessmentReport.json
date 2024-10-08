@@ -482,7 +482,7 @@
 					"SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
 		},
 		{
 			"FeatureName": "BRIN indexes",

@@ -236,7 +236,7 @@
 					"SqlStatement": "CREATE INDEX idx_point_data ON schema2.mixed_data_types_table1 USING gist (point_data);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
 		},
 		{
 			"FeatureName": "BRIN indexes",
@@ -246,7 +246,7 @@
 					"SqlStatement": "CREATE INDEX idx_box_data_brin ON public.mixed_data_types_table1 USING brin (box_data);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
 		},
 		{
 			"FeatureName": "SPGIST indexes",
@@ -256,7 +256,7 @@
 					"SqlStatement": "CREATE INDEX idx_box_data_spgist ON schema2.mixed_data_types_table1 USING spgist (box_data);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
 		},
 		{
 			"FeatureName": "Constraint triggers",
