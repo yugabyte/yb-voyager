@@ -155,9 +155,9 @@ const (
 	DROP_TEMP_TABLE_DOC_LINK                     = DOCS_LINK_PREFIX + MYSQL_PREFIX + "#drop-temporary-table-statements-are-not-supported"
 	INDEX_ON_UNSUPPORTED_TYPE                    = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported"
 	UNLOGGED_TABLE_DOC_LINK                      = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unlogged-table-is-not-supported"
-	XID_DATATYPE_DOC_LINK                        = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-not-supported-yet"
-	UNSUPPORTED_DATATYPES_DOC_LINK               = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-the-yugabytedb"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-the-live-migration"
+	XID_DATATYPE_DOC_LINK                        = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported"
+	UNSUPPORTED_DATATYPES_DOC_LINK               = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
