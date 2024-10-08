@@ -234,6 +234,7 @@ const (
 	ISSUE_INDEX_WITH_COMPLEX_DATATYPES   = `INDEX on column '%s' not yet supported`
 	ISSUE_UNLOGGED_TABLE                 = "UNLOGGED tables are not supported yet."
 	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION  = "Unsupported datatype for Live migration"
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
 	INDEX_METHOD_ISSUE_REASON                      = "Schema contains %s index which is not supported."
@@ -376,7 +377,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			reportXMLAndXIDDatatype(createTableNode, sqlStmtInfo, fpath)
+			reportUnsupportedDatatypes(createTableNode, sqlStmtInfo, fpath)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
@@ -724,7 +725,7 @@ func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePoli
 	}
 }
 
-func reportXMLAndXIDDatatype(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
 	schemaName := createTableNode.CreateStmt.Relation.Schemaname
 	tableName := createTableNode.CreateStmt.Relation.Relname
 	columns := createTableNode.CreateStmt.TableElts
@@ -743,22 +744,42 @@ func reportXMLAndXIDDatatype(createTableNode *pg_query.Node_CreateStmt, sqlStmtI
 		*/
 		if column.GetColumnDef() != nil {
 			typeName := ""
-			if len(column.GetColumnDef().GetTypeName().GetNames()) > 0 {
-				typeName = column.GetColumnDef().GetTypeName().GetNames()[0].GetString_().Sval // 0th index as for these non-native types pg_catalog won't be present on first location
+			typeNames := column.GetColumnDef().GetTypeName().GetNames()
+			if len(typeNames) > 0 {
+				typeName = column.GetColumnDef().GetTypeName().GetNames()[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 			}
 			colName := column.GetColumnDef().GetColname()
-			reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
-			if typeName == "xml" {
+			liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
+			if utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName) {
+				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/1043",
-					"Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details - <LINK DOC>",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, XML_DATATYPE_DOC_LINK)
-			}
-			if typeName == "xid" {
+				var ghIssue, suggestion, docLink string
+
+				switch typeName {
+				case "xml":
+					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/1043"
+					suggestion = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
+					docLink = XML_DATATYPE_DOC_LINK
+				case "xid":
+					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/15638"
+					suggestion = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
+					docLink = XID_DATATYPE_DOC_LINK
+				case "geometry", "geography":
+					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/11323"
+					suggestion = ""
+					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
+				default:
+					ghIssue = "https://github.com/yugabyte/yb-voyager/issues/1731"
+					suggestion = ""
+					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
+				}
+				reportCase(fpath, reason, ghIssue, suggestion,
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
+			} else if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
+				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/15638",
-					"Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, "")
+				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
 			}
 		}
 	}
