@@ -158,9 +158,6 @@ FROM information_schema.schemata
         END LOOP;
     END $$;
 
-    -- Grant replication permissions to the user
-
-
     -- Grant CREATE permission on the specified database to the specified user
     \echo '--- Granting CREATE Permission on Database ---'
     DO $$
