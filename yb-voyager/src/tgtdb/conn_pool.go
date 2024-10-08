@@ -41,6 +41,15 @@ type ConnectionParams struct {
 	SessionInitScript []string
 }
 
+/*
+ConnectionPool is a pool of connections to a YugabyteDB cluster.
+It has for the following features:
+ 1. Re-use of connections. Connections are not closed after a query is executed.
+    They are returned to the pool, unless there is an error.
+ 2. Load balancing across multiple YugabyteDB nodes. Connections are created in a round-robin fashion.
+ 3. Prepared statements are cached per connection
+ 4. Dynamic pool size. The pool size can be increased or decreased
+*/
 type ConnectionPool struct {
 	sync.Mutex
 	params *ConnectionParams
