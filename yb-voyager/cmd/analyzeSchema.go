@@ -1328,7 +1328,6 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	}
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
-	// checkGist(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
