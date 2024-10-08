@@ -1,0 +1,20 @@
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+CREATE TEMP TABLE temp_table AS
+SELECT
+    queryid,
+    query,
+    calls,
+    total_exec_time,
+    mean_exec_time,
+    min_exec_time,
+    max_exec_time,
+    rows
+FROM
+    pg_stat_statements
+WHERE
+    dbid = (SELECT oid FROM pg_database WHERE datname = current_database());
+
+\copy temp_table to 'db_queries_summary.csv' WITH CSV HEADER;
+
+DROP TABLE temp_table;

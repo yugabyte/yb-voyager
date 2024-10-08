@@ -1117,6 +1117,13 @@ type AssessmentReport struct {
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
+	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs,omitempty"`
+}
+
+// ======================================================================
+type BulkAssessmentReport struct {
+	Details []AssessmentDetail `json:"Detail"`
+	Notes   []string           `json:"Notes"`
 }
 
 type AssessmentDetail struct {
@@ -1124,11 +1131,6 @@ type AssessmentDetail struct {
 	DatabaseIdentifier string `json:"DatabaseIdentifier"`
 	ReportPath         string `json:"ReportPath"`
 	Status             string `json:"Status"`
-}
-
-type BulkAssessmentReport struct {
-	Details []AssessmentDetail `json:"Detail"`
-	Notes   []string           `json:"Notes"`
 }
 
 type AssessMigrationDBConfig struct {
