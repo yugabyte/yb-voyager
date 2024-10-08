@@ -100,9 +100,7 @@ func getMaxCpuUsageInCluster(clusterMetrics map[string]map[string]string) (int, 
 		}
 
 		cpuUsagePct := int((cpuUsageUser + cpuUsageSystem) * 100)
-		if cpuUsagePct > maxCpuPct {
-			maxCpuPct = cpuUsagePct
-		}
+		maxCpuPct = max(maxCpuPct, cpuUsagePct)
 	}
 	return maxCpuPct, nil
 }

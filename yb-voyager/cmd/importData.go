@@ -493,7 +493,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			poolSize := tconf.Parallelism * 2
 			if tconf.EnableAdaptiveParallelism {
 				// in case of adaptive parallelism, we need to use maxParalllelism * 2
-				yb := tdb.(*tgtdb.TargetYugabyteDB)
+				yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+				if !ok {
+					utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
+				}
 				poolSize = yb.GetNumMaxConnectionsInPool() * 2
 			}
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
@@ -507,7 +510,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
 				// `parallelism` number of batches at a time.
 				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-				log.Info("created batch import pool of size: ", poolSize)
+				log.Infof("created batch import pool of size: %d", poolSize)
 
 				totalProgressAmount := getTotalProgressAmount(task)
 				progressReporter.ImportFileStarted(task, totalProgressAmount)
