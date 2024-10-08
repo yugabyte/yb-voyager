@@ -437,7 +437,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
-	if tconf.EnableAdaptiveParallelism {
+	if tconf.EnableYBAdaptiveParallelism {
 		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 		if !ok {
 			utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
@@ -491,7 +491,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
-			if tconf.EnableAdaptiveParallelism {
+			if tconf.EnableYBAdaptiveParallelism {
 				// in case of adaptive parallelism, we need to use maxParalllelism * 2
 				yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 				if !ok {

@@ -346,7 +346,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 			"number of cores N and use N/4 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
 			"Any value less than 1 reverts to the default calculation.")
-	BoolVar(cmd.Flags(), &tconf.EnableAdaptiveParallelism, "enable-adaptive-parallelism", false,
+	BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", false,
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster")
 	cmd.Flags().MarkHidden("enable-adaptive-parallelism") // not officially released
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
@@ -397,13 +397,13 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	if tconf.EnableAdaptiveParallelism {
+	if tconf.EnableYBAdaptiveParallelism {
 		if tconf.Parallelism > 0 {
 			utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism flag")
 		}
 	}
 	if tconf.MaxParallelism > 0 {
-		if !tconf.EnableAdaptiveParallelism {
+		if !tconf.EnableYBAdaptiveParallelism {
 			utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
 		}
 	}
