@@ -2,6 +2,7 @@ package queryparser
 
 import (
 	pg_query "github.com/pganalyze/pg_query_go/v5"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type QueryParser struct {
@@ -24,10 +25,15 @@ func (qp *QueryParser) Parse() error {
 	return nil
 }
 
-func (qp *QueryParser) CheckUnsupportedQueryConstruct() (string, bool, error) {
+func (qp *QueryParser) CheckUnsupportedQueryConstruct() ([]utils.UnsupportedQueryConstruct, error) {
+	var result []utils.UnsupportedQueryConstruct = nil
 	if qp.containsAdvisoryLocks() {
-		return ADVISORY_LOCKS, true, nil
+		result = append(result, utils.UnsupportedQueryConstruct{
+			ConstructType: ADVISORY_LOCKS,
+			Query:         qp.QueryString,
+		})
 	}
 	// TODO: Add checks for unsupported constructs - system columns, XML functions
-	return "", false, nil
+
+	return result, nil
 }
