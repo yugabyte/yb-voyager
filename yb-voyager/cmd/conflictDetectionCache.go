@@ -160,7 +160,7 @@ retry:
 				default:
 					// channel is full, so it's okay not to send FLUSH_BATCH_EVENT
 					// because MAX_EVENTS_PER_BATCH would likely be reached in the next batch.
-					log.Infof("channel %d is full, not sending FLUSH_BATCH_EVENT", i)
+					log.Infof("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", i, len(c.evChans[i]))
 				}
 			}
 			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
