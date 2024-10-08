@@ -43,15 +43,21 @@ type ConnectionParams struct {
 
 type ConnectionPool struct {
 	sync.Mutex
-	params                    *ConnectionParams
-	conns                     chan *pgx.Conn
+	params *ConnectionParams
+	conns  chan *pgx.Conn
+	// in adaptive parallelism, we may want to reduce the pool size, but
+	// we would not want to close the connection, as we might need to increase the pool
+	// size in the future. So, we move the connections to idleConns instead.
 	idleConns                 chan *pgx.Conn
 	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
 	nextUriIndex              int
 	disableThrottling         bool
 	size                      int // current size of the pool
-	pendingConnsToClose       int
-	pendingConnsToCloseLock   sync.Mutex
+	// in adaptive parallelism, we may want to reduce the pool size, but
+	// doing it synchronously may lead to contention. So, we increment the
+	// counter pendingConnsToClose, and close the connections asynchronously.
+	pendingConnsToClose     int
+	pendingConnsToCloseLock sync.Mutex
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {

@@ -1186,7 +1186,12 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, e
 	if err != nil {
 		return result, fmt.Errorf("querying yb_servers_metrics(): %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close the result set for query [%v]", query)
+		}
+	}()
+
 	for rows.Next() {
 		var uuid, metrics, status, errorStr string
 		if err := rows.Scan(&uuid, &metrics, &status, &errorStr); err != nil {
