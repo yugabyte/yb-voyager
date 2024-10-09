@@ -960,7 +960,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		}
 
 		// Check for unsupported constructs in the parsed query
-		unsupportedConstructs, err := queryParser.CheckUnsupportedQueryConstruct()
+		unsupportedConstructs, err := queryParser.GetUnsupportedQueryConstructs()
 		if err != nil {
 			log.Warnf("failed while trying to parse the query: %s", err.Error())
 		}

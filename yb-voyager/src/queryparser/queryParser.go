@@ -25,7 +25,7 @@ func (qp *QueryParser) Parse() error {
 	return nil
 }
 
-func (qp *QueryParser) CheckUnsupportedQueryConstruct() ([]utils.UnsupportedQueryConstruct, error) {
+func (qp *QueryParser) GetUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
 	var result []utils.UnsupportedQueryConstruct = nil
 	if qp.containsAdvisoryLocks() {
 		result = append(result, utils.UnsupportedQueryConstruct{
@@ -33,7 +33,18 @@ func (qp *QueryParser) CheckUnsupportedQueryConstruct() ([]utils.UnsupportedQuer
 			Query:         qp.QueryString,
 		})
 	}
-	// TODO: Add checks for unsupported constructs - system columns, XML functions
+	if qp.containsSystemColumns() {
+		result = append(result, utils.UnsupportedQueryConstruct{
+			ConstructType: SYSTEM_COLUMNS,
+			Query:         qp.QueryString,
+		})
+	}
+	if qp.containsXmlFunctions() {
+		result = append(result, utils.UnsupportedQueryConstruct{
+			ConstructType: XML_FUNCTIONS,
+			Query:         qp.QueryString,
+		})
+	}
 
 	return result, nil
 }
