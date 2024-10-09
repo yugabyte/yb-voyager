@@ -246,6 +246,7 @@ func exportData() bool {
 			fmt.Println()
 			utils.ErrExit("Please grant the required permissions to the user %s and try again.", source.User)
 		} else {
+			// TODO: Print this message on the console too once the code is stable
 			log.Info("All required permissions are present for the source database.")
 		}
 	}
