@@ -723,7 +723,7 @@ func generateAssessmentReport() (err error) {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 
-	if os.Getenv(REPORT_UNSUPPORTED_QUERY_CONSTRUCTS) == "true" {
+	if os.Getenv(REPORT_UNSUPPORTED_QUERY_CONSTRUCTS) == "true" && source.DBType == POSTGRESQL {
 		unsupportedQueries, err := fetchUnsupportedQueryConstructs()
 		if err != nil {
 			return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
@@ -940,6 +940,11 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			return nil, fmt.Errorf("error scanning rows: %w", err)
 		}
 		executedQueries = append(executedQueries, executedQuery)
+	}
+
+	if len(executedQueries) == 0 {
+		log.Infof("queries info not present in the assessment metadata for detecting unsupported query constructs")
+		return nil, nil
 	}
 
 	var result []utils.UnsupportedQueryConstruct
