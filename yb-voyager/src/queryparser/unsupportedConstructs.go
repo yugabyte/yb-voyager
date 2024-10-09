@@ -213,21 +213,7 @@ func containsSystemColumnsInTargetList(targetList []*pg_query.Node) bool {
 		}
 
 		columnRef := val.GetColumnRef()
-		if columnRef == nil {
-			continue
-		}
-
-		fields := columnRef.GetFields()
-		if len(fields) == 0 {
-			continue
-		}
-
-		lastField := fields[len(fields)-1]
-		if lastField == nil || lastField.GetString_() == nil {
-			continue
-		}
-
-		colName := lastField.GetString_().Sval
+		colName := getColumnName(columnRef)
 		if slices.Contains(unsupportedSysCols, colName) {
 			return true
 		}
@@ -275,38 +261,84 @@ func containsSystemColumnsInFromClause(fromClause []*pg_query.Node) bool {
 }
 
 /*
-Query: SELECT * FROM employees WHERE xmin = $1
-ParseTree: version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+Query1: SELECT * FROM employees WHERE xmin = $1
+ParseTree1: version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
 from_clause:{range_var:{relname:"employees"  inh:true  relpersistence:"p"  location:14}}
 where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"="}}
 lexpr:{column_ref:{fields:{string:{sval:"xmin"}}  location:30}}  rexpr:{param_ref:{number:1  location:37}}  location:35}}
 limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}
+
+Query2: SELECT * FROM employees WHERE xmin = $1 AND xmax = $2
+ParseTree2: version:160001 stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}} location:7}} location:7}}
+from_clause:{range_var:{relname:"employees" inh:true relpersistence:"p" location:14}}
+where_clause:{bool_expr:{boolop:AND_EXPR args:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}}
+lexpr:{column_ref:{fields:{string:{sval:"xmin"}} location:30}}
+rexpr:{param_ref:{number:1 location:37}} location:35}}
+args:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}} lexpr:{column_ref:{fields:{string:{sval:"xmax"}} location:44}} rexpr:{param_ref:{number:2 location:51}} location:49}} location:40}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}}}
 */
 func containsSystemColumnsInWhereClause(whereClause *pg_query.Node) bool {
 	if whereClause == nil {
 		return false
 	}
-	lexpr := whereClause.GetAExpr().GetLexpr()
-	columnRef := lexpr.GetColumnRef()
-	if columnRef == nil {
+
+	switch n := whereClause.Node.(type) {
+	// Check for BoolExpr (AND/OR expressions)
+	case *pg_query.Node_BoolExpr:
+		// Recursively check all the arguments (conditions) in the BoolExpr
+		for _, arg := range n.BoolExpr.Args {
+			if containsSystemColumnsInWhereClause(arg) {
+				return true
+			}
+		}
 		return false
+
+	// Handle the AExpr case (arithmetic/abstract expressions like comparisons)
+	case *pg_query.Node_AExpr:
+		arithExpr := whereClause.GetAExpr()
+		if arithExpr == nil {
+			return false
+		}
+
+		lexpr := arithExpr.GetLexpr()
+		rexpr := arithExpr.GetRexpr()
+		var leftColName, rightColName string
+		if lexpr != nil {
+			leftColName = getColumnName(lexpr.GetColumnRef())
+		}
+		if rexpr != nil {
+			rightColName = getColumnName(rexpr.GetColumnRef())
+		}
+
+		return slices.Contains(unsupportedSysCols, leftColName) || slices.Contains(unsupportedSysCols, rightColName)
 	}
 
-	fields := columnRef.GetFields()
-	if len(fields) == 0 {
-		return false
-	}
-
-	lastField := fields[len(fields)-1]
-	if lastField == nil || lastField.GetString_() == nil {
-		return false
-	}
-
-	colName := lastField.GetString_().Sval
-	return slices.Contains(unsupportedSysCols, colName)
+	return false
 }
 
 // TODO: Implement
 func (qp *QueryParser) containsXmlFunctions() bool {
 	return false
+}
+
+// ========= parse tree helper functions
+
+// getColumnName extracts the column name from a ColumnRef node.
+// It returns an empty string if no valid column name is found.
+func getColumnName(columnRef *pg_query.ColumnRef) string {
+	if columnRef == nil {
+		return ""
+	}
+
+	fields := columnRef.GetFields()
+	if len(fields) == 0 {
+		return ""
+	}
+
+	// Extract the last field as the column name
+	lastField := fields[len(fields)-1]
+	if lastField == nil || lastField.GetString_() == nil {
+		return ""
+	}
+
+	return lastField.GetString_().Sval
 }
