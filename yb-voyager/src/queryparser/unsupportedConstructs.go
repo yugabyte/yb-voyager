@@ -303,10 +303,7 @@ func containsSystemColumnsInWhereClause(whereClause *pg_query.Node) bool {
 	}
 
 	colName := lastField.GetString_().Sval
-	if slices.Contains(unsupportedSysCols, colName) {
-		return true
-	}
-	return false
+	return slices.Contains(unsupportedSysCols, colName)
 }
 
 // TODO: Implement
