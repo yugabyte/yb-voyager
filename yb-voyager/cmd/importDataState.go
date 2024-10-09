@@ -628,7 +628,7 @@ func (s *ImportDataState) GetImportedEventsStatsForTableList(tableNameTupList []
 		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var eventCounter tgtdb.EventCounter
 		var tableName string

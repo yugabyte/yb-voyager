@@ -36,6 +36,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -436,6 +437,13 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
 	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
+	if tconf.EnableYBAdaptiveParallelism {
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
+		}
+		go adaptiveparallelism.AdaptParallelism(yb)
+	}
 
 	targetDBVersion := tdb.GetVersion()
 	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
@@ -483,6 +491,14 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
+			if tconf.EnableYBAdaptiveParallelism {
+				// in case of adaptive parallelism, we need to use maxParalllelism * 2
+				yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+				if !ok {
+					utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
+				}
+				poolSize = yb.GetNumMaxConnectionsInPool() * 2
+			}
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
@@ -494,6 +510,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
 				// `parallelism` number of batches at a time.
 				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+				log.Infof("created batch import pool of size: %d", poolSize)
 
 				totalProgressAmount := getTotalProgressAmount(task)
 				progressReporter.ImportFileStarted(task, totalProgressAmount)

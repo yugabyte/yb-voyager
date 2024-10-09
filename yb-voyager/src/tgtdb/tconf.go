@@ -49,11 +49,13 @@ type TargetConf struct {
 	ExcludeImportObjects string        `json:"exclude_import_objects"`
 	DBVersion            string        `json:"db_version"`
 
-	TargetEndpoints            string        `json:"target_endpoints"`
-	UsePublicIP                utils.BoolStr `json:"use_public_ip"`
-	EnableUpsert               utils.BoolStr `json:"enable_upsert"`
-	DisableTransactionalWrites utils.BoolStr `json:"disable_transactional_writes"`
-	Parallelism                int           `json:"parallelism"`
+	TargetEndpoints             string        `json:"target_endpoints"`
+	UsePublicIP                 utils.BoolStr `json:"use_public_ip"`
+	EnableUpsert                utils.BoolStr `json:"enable_upsert"`
+	DisableTransactionalWrites  utils.BoolStr `json:"disable_transactional_writes"`
+	Parallelism                 int           `json:"parallelism"`
+	EnableYBAdaptiveParallelism utils.BoolStr `json:"enable_adaptive_parallelism"`
+	MaxParallelism              int           `json:"max_parallelism"` // in case adaptive parallelism is enabled.
 }
 
 func (t *TargetConf) Clone() *TargetConf {

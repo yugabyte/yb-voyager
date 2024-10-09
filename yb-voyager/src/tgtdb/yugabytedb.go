@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
@@ -219,12 +220,21 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
+	if yb.tconf.EnableYBAdaptiveParallelism {
+		if yb.tconf.MaxParallelism <= 0 {
+			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
+		}
+	} else {
+		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+	}
 	params := &ConnectionParams{
 		NumConnections:    yb.tconf.Parallelism,
+		NumMaxConnections: yb.tconf.MaxParallelism,
 		ConnUriList:       targetUriList,
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
+	log.Info("Initialized connection pool with settings: ", spew.Sdump(params))
 	return nil
 }
 
@@ -1161,6 +1171,55 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	defer rows.Close()
 
 	return rows.Next()
+}
+
+func (yb *TargetYugabyteDB) IsAdaptiveParallelismSupported() bool {
+	query := "SELECT * FROM pg_proc WHERE proname='yb_servers_metrics'"
+	return yb.isQueryResultNonEmpty(query)
+}
+
+func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, error) {
+	result := make(map[string]map[string]string)
+
+	query := "select uuid, metrics, status, error from yb_servers_metrics();"
+	rows, err := yb.Query(query)
+	if err != nil {
+		return result, fmt.Errorf("querying yb_servers_metrics(): %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close the result set for query [%v]", query)
+		}
+	}()
+
+	for rows.Next() {
+		var uuid, metrics, status, errorStr sql.NullString
+		if err := rows.Scan(&uuid, &metrics, &status, &errorStr); err != nil {
+			return result, fmt.Errorf("scanning row for yb_servers_metrics(): %w", err)
+		}
+		if !uuid.Valid || !status.Valid || !errorStr.Valid || !metrics.Valid {
+			return result, fmt.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
+				uuid, metrics, status, errorStr)
+		}
+		var metricsMap map[string]string
+		if err := json.Unmarshal([]byte(metrics.String), &metricsMap); err != nil {
+			return result, fmt.Errorf("unmarshalling metrics json string: %w", err)
+		}
+		result[uuid.String] = metricsMap
+	}
+	return result, nil
+}
+
+func (yb *TargetYugabyteDB) GetNumConnectionsInPool() int {
+	return yb.connPool.GetNumConnections()
+}
+
+func (yb *TargetYugabyteDB) GetNumMaxConnectionsInPool() int {
+	return yb.connPool.params.NumMaxConnections
+}
+
+func (yb *TargetYugabyteDB) UpdateNumConnectionsInPool(delta int) error {
+	return yb.connPool.UpdateNumConnections(delta)
 }
 
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {

@@ -230,6 +230,7 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 
 	params := &ConnectionParams{
 		NumConnections:    pg.tconf.Parallelism,
+		NumMaxConnections: pg.tconf.Parallelism,
 		ConnUriList:       targetUriList,
 		SessionInitScript: getYBSessionInitScript(pg.tconf),
 		// works fine as we check the support of any session variable before using it in the script.

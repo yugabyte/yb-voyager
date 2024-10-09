@@ -36,33 +36,111 @@ var defaultSessionVars = []string{
 
 type ConnectionParams struct {
 	NumConnections    int
+	NumMaxConnections int
 	ConnUriList       []string
 	SessionInitScript []string
 }
 
+/*
+ConnectionPool is a pool of connections to a YugabyteDB cluster.
+It has for the following features:
+ 1. Re-use of connections. Connections are not closed after a query is executed.
+    They are returned to the pool, unless there is an error.
+ 2. Load balancing across multiple YugabyteDB nodes. Connections are created in a round-robin fashion.
+ 3. Prepared statements are cached per connection
+ 4. Dynamic pool size. The pool size can be increased or decreased
+*/
 type ConnectionPool struct {
 	sync.Mutex
-	params                    *ConnectionParams
-	conns                     chan *pgx.Conn
+	params *ConnectionParams
+	conns  chan *pgx.Conn
+	// in adaptive parallelism, we may want to reduce the pool size, but
+	// we would not want to close the connection, as we might need to increase the pool
+	// size in the future. So, we move the connections to idleConns instead.
+	idleConns                 chan *pgx.Conn
 	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
 	nextUriIndex              int
 	disableThrottling         bool
+	size                      int // current size of the pool
+	// in adaptive parallelism, we may want to reduce the pool size, but
+	// doing it synchronously may lead to contention. So, we increment the
+	// counter pendingConnsToClose, and close the connections asynchronously.
+	pendingConnsToClose     int
+	pendingConnsToCloseLock sync.Mutex
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	pool := &ConnectionPool{
 		params:                    params,
-		conns:                     make(chan *pgx.Conn, params.NumConnections),
-		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumConnections),
+		conns:                     make(chan *pgx.Conn, params.NumMaxConnections),
+		idleConns:                 make(chan *pgx.Conn, params.NumMaxConnections),
+		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumMaxConnections),
 		disableThrottling:         false,
+		size:                      params.NumConnections,
+		pendingConnsToClose:       0,
+	}
+	for i := 0; i < params.NumMaxConnections; i++ {
+		pool.idleConns <- nil
 	}
 	for i := 0; i < params.NumConnections; i++ {
-		pool.conns <- nil
+		c := <-pool.idleConns
+		pool.conns <- c
 	}
 	if pool.params.SessionInitScript == nil {
 		pool.params.SessionInitScript = defaultSessionVars
 	}
 	return pool
+}
+
+func (pool *ConnectionPool) GetNumConnections() int {
+	return pool.size
+}
+
+func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
+	pool.pendingConnsToCloseLock.Lock()
+	defer pool.pendingConnsToCloseLock.Unlock()
+
+	newSize := pool.size + delta
+
+	if newSize < 1 || newSize > pool.params.NumMaxConnections {
+		return fmt.Errorf("invalid new pool size %d. "+
+			"Must be between 1 and %d", newSize, pool.params.NumMaxConnections)
+	}
+
+	if delta == 0 {
+		log.Infof("adaptive: No change in pool size. Current size is %d", pool.size)
+		return nil
+	}
+	if delta > 0 {
+		// for increases, process them synchronously.
+		// If there is non-zero pendingConnsToClose, then we reduce that count.
+		if pool.pendingConnsToClose >= 0 {
+			// since we are increasing, we can just reduce the pending close count
+			pendingConnsToNotClose := min(pool.pendingConnsToClose, delta)
+			log.Infof("adaptive: Decreasing pendingConnsToClose by %d", pendingConnsToNotClose)
+			pool.pendingConnsToClose -= pendingConnsToNotClose
+			delta -= pendingConnsToNotClose
+		}
+		// Additionally, pick conns from the idle pool, and add it to the main pool.
+		for i := 0; i < delta; i++ {
+			conn := <-pool.idleConns
+			pool.conns <- conn
+		}
+		log.Infof("adaptive: Added %d new connections. Pool size is now %d", delta, newSize)
+	} else {
+		// for decreases, process them asynchronously.
+		// The problem with processing them synchronously is that we may have to wait for the
+		// connections to be returned to the pool. Not only that, this goroutine that is trying to
+		// update the pool size by reading from the channel is also competing with multiple
+		// other goroutines that are trying to ingest data.
+		//  This might take significant time depending on the query execution time and the lock contention
+		//  So, instead, we just register the request to close the connections,
+		// and the connections are returned to the idle pool when the query execution is done.
+		pool.pendingConnsToClose += -delta
+		log.Infof("adaptive: registered request to close %d conns. Total pending conns to close=%d", -delta, pool.pendingConnsToClose)
+	}
+	pool.size = newSize
+	return nil
 }
 
 func (pool *ConnectionPool) DisableThrottling() {
@@ -102,9 +180,26 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			// assuming PID will still be available
 			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
 			pool.Unlock()
-			pool.conns <- nil
+
+			pool.pendingConnsToCloseLock.Lock()
+			if pool.pendingConnsToClose > 0 {
+				pool.idleConns <- nil
+				log.Infof("adaptive: Closed and moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
+				pool.pendingConnsToClose--
+			} else {
+				pool.conns <- nil
+			}
+			pool.pendingConnsToCloseLock.Unlock()
 		} else {
-			pool.conns <- conn
+			pool.pendingConnsToCloseLock.Lock()
+			if pool.pendingConnsToClose > 0 {
+				pool.idleConns <- conn
+				log.Infof("adaptive: Moved connection to idle pool because pendingConnsToClose = %d. main connection pool size=%d", pool.pendingConnsToClose, len(pool.conns))
+				pool.pendingConnsToClose--
+			} else {
+				pool.conns <- conn
+			}
+			pool.pendingConnsToCloseLock.Unlock()
 		}
 	}
 
