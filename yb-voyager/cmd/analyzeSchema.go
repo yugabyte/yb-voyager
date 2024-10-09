@@ -1840,8 +1840,7 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 				}
 			}
 		}
-		//I believe there is no point storing the suggestions as it is something we provide
-		//so we know what is the suggestion for a particular reason.
+		//no need to send this in callhome as we already have it documented.
 		issue.Suggestion = "XXX"
 		callhomeIssues = append(callhomeIssues, issue)
 	}
