@@ -66,7 +66,7 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 11,
-                "InvalidCount": 7,
+                "InvalidCount": 5,
                 "ObjectNames": "grect2ind2, grect2ind3, idx_1, hidx, gin_idx, title_idx, title_idx_lower, title_idx_nulls_low, title_idx_u1, title_idx_u2, title_idx_with_duplicates",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
@@ -195,35 +195,13 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
-            "ObjectName": "grect2ind2 ON am_examples.fast_emp4000",
-            "Reason": "Schema contains GIST index which is not supported.",
-            "SqlStatement": "CREATE INDEX grect2ind2 ON am_examples.fast_emp4000 USING gist2 (home_base);",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "INDEX",
-            "ObjectName": "grect2ind3 ON am_examples.fast_emp4000",
-            "Reason": "Schema contains GIST index which is not supported.",
-            "SqlStatement": "CREATE INDEX grect2ind3 ON am_examples.fast_emp4000 USING gist2 (home_base);",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "INDEX",
             "ObjectName": "hidx ON extension_example.testhstore",
             "Reason": "Schema contains GIST index which is not supported.",
             "SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
         },
         {
             "IssueType": "unsupported_features",
@@ -355,7 +333,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -366,7 +344,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -377,7 +355,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -388,7 +366,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -399,7 +377,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -410,7 +388,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -421,7 +399,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         },
         {
             "IssueType": "migration_caveats",
@@ -432,7 +410,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-the-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         },
         {
             "IssueType": "migration_caveats",

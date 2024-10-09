@@ -114,7 +114,15 @@
 					"SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-index-type-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
+		},
+		{
+			"FeatureName": "BRIN indexes",
+			"Objects": []
+		},
+		{
+			"FeatureName": "SPGIST indexes",
+			"Objects": []
 		},
 		{
 			"FeatureName": "Constraint triggers",

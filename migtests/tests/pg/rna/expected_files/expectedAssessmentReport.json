@@ -372,6 +372,14 @@
 			"Objects": []
 		},
 		{
+			"FeatureName": "BRIN indexes",
+			"Objects": []
+		},
+		{
+			"FeatureName": "SPGIST indexes",
+			"Objects": []
+		},
+		{
 			"FeatureName": "Constraint triggers",
 			"Objects": []
 		},

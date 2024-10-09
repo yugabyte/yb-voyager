@@ -135,7 +135,14 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 				objSqlStmts["SEQUENCE"].WriteString(stmts)
 			case "INDEX", "INDEX ATTACH":
 				objSqlStmts["INDEX"].WriteString(stmts)
-			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT", "CHECK CONSTRAINT", "ROW SECURITY":
+			case  "DEFAULT":
+				//In cases the DEFAULT stmt is for the FOREIGN TABLE, it should go in foreign_table.sql
+				if strings.HasPrefix(stmts, "ALTER FOREIGN TABLE") {
+					objSqlStmts["FOREIGN TABLE"].WriteString(stmts)
+				} else {
+					objSqlStmts["TABLE"].WriteString(stmts)
+				}
+			case "TABLE", "CONSTRAINT", "FK CONSTRAINT", "CHECK CONSTRAINT", "ROW SECURITY":
 				objSqlStmts["TABLE"].WriteString(stmts)
 			case "TABLE ATTACH":
 				alterAttachPartition.WriteString(stmts)

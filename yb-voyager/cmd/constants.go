@@ -143,7 +143,7 @@ const (
 	EXTENSION_DOC_LINK                           = "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/"
 	DEFERRABLE_CONSTRAINT_DOC_LINK               = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported"
 	XML_DATATYPE_DOC_LINK                        = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#data-ingestion-on-xml-data-type-is-not-supported"
-	GIST_INDEX_DOC_LINK                          = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gist-index-type-is-not-supported"
+	UNSUPPORTED_INDEX_METHODS_DOC_LINK           = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gist-brin-and-spgist-index-types-are-not-supported"
 	CONSTRAINT_TRIGGER_DOC_LINK                  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#constraint-trigger-is-not-supported"
 	INHERITANCE_DOC_LINK                         = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#table-inheritance-is-not-supported"
 	GIN_INDEX_MULTI_COLUMN_DOC_LINK              = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gin-indexes-on-multiple-columns-are-not-supported"
@@ -156,9 +156,9 @@ const (
 	DROP_TEMP_TABLE_DOC_LINK                     = DOCS_LINK_PREFIX + MYSQL_PREFIX + "#drop-temporary-table-statements-are-not-supported"
 	INDEX_ON_UNSUPPORTED_TYPE                    = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported"
 	UNLOGGED_TABLE_DOC_LINK                      = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unlogged-table-is-not-supported"
-	XID_DATATYPE_DOC_LINK                        = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-not-supported-yet"
-	UNSUPPORTED_DATATYPES_DOC_LINK               = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-the-yugabytedb"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-the-live-migration"
+	XID_DATATYPE_DOC_LINK                        = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported"
+	UNSUPPORTED_DATATYPES_DOC_LINK               = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
