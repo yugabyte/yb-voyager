@@ -789,7 +789,7 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 
 func (pg *TargetPostgreSQL) GetMissingImportDataPermissions() ([]string, error) {
 	// Check if db_user has SELECT, INSERT, UPDATE, DELETE permissions on schemas tables
-	missingPermissions, err := pg.checkWhichTablesHaveMissingSelectInsertUpdateDeletePermissions()
+	missingPermissions, err := pg.listTablesMissingSelectInsertUpdateDeletePermissions()
 	if err != nil {
 		return nil, err
 	}
@@ -805,12 +805,11 @@ func (pg *TargetPostgreSQL) GetMissingImportDataPermissions() ([]string, error) 
 	return missingPermissionsList, nil
 }
 
-func (pg *TargetPostgreSQL) checkWhichTablesHaveMissingSelectInsertUpdateDeletePermissions() (map[string][]string, error) {
+func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions() (map[string][]string, error) {
 	querySchemaList := pg.getSchemaList()
-	// querySchemaList := strings.Join(schemaList, "','") // a','b','c
-	fmt.Println("Schema list: ", querySchemaList)
 
-	query := fmt.Sprintf(`WITH table_privileges AS (
+	query := fmt.Sprintf(`
+	WITH table_privileges AS (
 		SELECT
 			quote_ident(schemaname) AS schema_name,
 			quote_ident(tablename) AS table_name,
