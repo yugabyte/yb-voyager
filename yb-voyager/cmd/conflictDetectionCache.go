@@ -152,7 +152,16 @@ retry:
 		if c.eventsConfict(cachedEvent, incomingEvent) {
 			// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
 			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
-				c.evChans[i] <- FLUSH_BATCH_EVENT
+				// non-blocking send because blocking send can cause deadlock
+				// between main goroutine acquiring lock and blocking on sending to channel
+				// and processEvents goroutine waiting to acquire lock in RemoveEvents.
+				select {
+				case c.evChans[i] <- FLUSH_BATCH_EVENT:
+				default:
+					// channel is full, so it's okay not to send FLUSH_BATCH_EVENT
+					// because MAX_EVENTS_PER_BATCH would likely be reached in the next batch.
+					log.Infof("channel %d is full with size %d, not sending FLUSH_BATCH_EVENT", i, len(c.evChans[i]))
+				}
 			}
 			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			// wait will release the lock and wait for a broadcast signal
