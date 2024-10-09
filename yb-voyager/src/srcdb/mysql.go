@@ -258,14 +258,14 @@ func (ms *MySQL) GetCharset() (string, error) {
 }
 
 func (ms *MySQL) GetDatabaseSize() (int64, error) {
-	var dbSize int64
+	var dbSize sql.NullInt64
 	query := fmt.Sprintf("SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema = '%s'", ms.source.DBName)
 	err := ms.db.QueryRow(query).Scan(&dbSize)
 	if err != nil {
 		return 0, fmt.Errorf("error in querying database encoding: %w", err)
 	}
-	log.Infof("Total Database size of MySQL sourceDB: %v", dbSize)
-	return dbSize, nil
+	log.Infof("Total Database size of MySQL sourceDB: %d", dbSize.Int64)
+	return dbSize.Int64, nil
 }
 
 func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
