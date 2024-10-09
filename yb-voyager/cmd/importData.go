@@ -135,10 +135,8 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		}
 		if len(missingPermissions) > 0 {
 			utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
-			// Iterate over the missing permissions and print them
-			for _, permission := range missingPermissions {
-				utils.PrintAndLog(permission)
-			}
+			output := strings.Join(missingPermissions, "\n")
+			utils.PrintAndLog(output)
 			utils.ErrExit("Please grant the required permissions and retry the import.")
 		} else {
 			log.Info("The target database has the required permissions for importing data.")
