@@ -116,15 +116,10 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 		// If there is non-zero pendingConnsToClose, then we reduce that count.
 		if pool.pendingConnsToClose >= 0 {
 			// since we are increasing, we can just reduce the pending close count
-			if pool.pendingConnsToClose > delta {
-				log.Infof("adaptive: Decreasing pendingConnsToClose by %d", delta)
-				pool.pendingConnsToClose -= delta
-				delta = 0
-			} else {
-				log.Infof("adaptive: Decreasing pendingConnsToClose to 0 by %d", pool.pendingConnsToClose)
-				delta -= pool.pendingConnsToClose
-				pool.pendingConnsToClose = 0
-			}
+			pendingConnsToNotClose := min(pool.pendingConnsToClose, delta)
+			log.Infof("adaptive: Decreasing pendingConnsToClose by %d", pendingConnsToNotClose)
+			pool.pendingConnsToClose -= pendingConnsToNotClose
+			delta -= pendingConnsToNotClose
 		}
 		// Additionally, pick conns from the idle pool, and add it to the main pool.
 		for i := 0; i < delta; i++ {
