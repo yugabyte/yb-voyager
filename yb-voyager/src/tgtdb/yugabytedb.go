@@ -1193,15 +1193,19 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, e
 	}()
 
 	for rows.Next() {
-		var uuid, metrics, status, errorStr string
+		var uuid, metrics, status, errorStr sql.NullString
 		if err := rows.Scan(&uuid, &metrics, &status, &errorStr); err != nil {
 			return result, fmt.Errorf("scanning row for yb_servers_metrics(): %w", err)
 		}
+		if !uuid.Valid || !status.Valid || !errorStr.Valid || !metrics.Valid {
+			return result, fmt.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
+				uuid, metrics, status, errorStr)
+		}
 		var metricsMap map[string]string
-		if err := json.Unmarshal([]byte(metrics), &metricsMap); err != nil {
+		if err := json.Unmarshal([]byte(metrics.String), &metricsMap); err != nil {
 			return result, fmt.Errorf("unmarshalling metrics json string: %w", err)
 		}
-		result[uuid] = metricsMap
+		result[uuid.String] = metricsMap
 	}
 	return result, nil
 }
