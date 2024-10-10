@@ -23,6 +23,19 @@ var unsupportedSysCols = []string{
 	"xmin", "xmax", "cmin", "cmax", "ctid",
 }
 
+var xmlFunctions = []string{
+	"cursor_to_xml", "cursor_to_xmlschema", // Cursor to XML
+	"database_to_xml", "database_to_xml_and_xmlschema", "database_to_xmlschema", // Database to XML
+	"query_to_xml", "query_to_xml_and_xmlschema", "query_to_xmlschema", // Query to XML
+	"schema_to_xml", "schema_to_xml_and_xmlschema", "schema_to_xmlschema", // Schema to XML
+	"table_to_xml", "table_to_xml_and_xmlschema", "table_to_xmlschema", // Table to XML
+	"xmlagg", "xmlcomment", "xmlconcat2", // XML Aggregation and Construction
+	"xmlexists", "xmlvalidate", // XML Existence and Validation
+	"xpath", "xpath_exists", // XPath Functions
+	"xml_in", "xml_out", "xml_recv", "xml_send", // System XML I/O
+	"xml", // Data Type Conversion
+}
+
 func (qp *QueryParser) containsAdvisoryLocks() bool {
 	if qp.ParseTree == nil {
 		log.Infof("parse tree not available for query-%s", qp.QueryString)
@@ -315,8 +328,123 @@ func containsSystemColumnsInWhereClause(whereClause *pg_query.Node) bool {
 	return false
 }
 
-// TODO: Implement
 func (qp *QueryParser) containsXmlFunctions() bool {
+	selectStmtNode, isSelectStmt := qp.ParseTree.Stmts[0].Stmt.Node.(*pg_query.Node_SelectStmt)
+	// Note: currently considering only SELECTs
+	if !isSelectStmt {
+		return false
+	}
+
+	if containsXmlFunctionsInTargetList(selectStmtNode.SelectStmt.TargetList) {
+		return true
+	}
+
+	if containsXmlFunctionsInFromClause(selectStmtNode.SelectStmt.FromClause) {
+		return true
+	}
+
+	if containsXmlFunctionsInWhereClause(selectStmtNode.SelectStmt.WhereClause) {
+		return true
+	}
+	return false
+}
+
+/*
+Query: SELECT id, xmlelement(name "employee", name) AS employee_data FROM employees
+ParseTree: version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"id"}}  location:7}}  location:7}}
+target_list:{res_target:{name:"employee_data"  val:{xml_expr:{op:IS_XMLELEMENT  name:"employee"  args:{column_ref:{fields:{string:{sval:"name"}}  location:39}}  xmloption:XMLOPTION_DOCUMENT  location:11}}  location:11}}
+from_clause:{range_var:{relname:"employees"  inh:true  relpersistence:"p"  location:67}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}
+*/
+func containsXmlFunctionsInTargetList(targetList []*pg_query.Node) bool {
+	for _, target := range targetList {
+		resTarget := target.GetResTarget()
+		if resTarget == nil {
+			return false
+		}
+
+		xmlExpr := resTarget.Val.GetXmlExpr()
+		if xmlExpr != nil {
+			return true
+		}
+
+		if funcCallNode, isFuncCall := resTarget.Val.Node.(*pg_query.Node_FuncCall); isFuncCall {
+			funcList := funcCallNode.FuncCall.Funcname
+			functionName := funcList[len(funcList)-1].GetString_().Sval
+			if slices.Contains(xmlFunctions, functionName) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+/*
+Query: SELECT * FROM xmltable(
+
+	$1
+	PASSING xmlparse(document $2)
+	COLUMNS name TEXT PATH $3
+
+) AS emp_data
+ParseTree: version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+from_clause:{range_table_func:{docexpr:{xml_expr:{op:IS_XMLPARSE  args:{param_ref:{number:2  location:61}}
+args:{a_const:{boolval:{}  location:-1}}  xmloption:XMLOPTION_DOCUMENT  location:43}}  rowexpr:{param_ref:{number:1  location:28}}
+columns:{range_table_func_col:{colname:"name"  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:82}  colexpr:{param_ref:{number:3  location:92}}  location:77}}  alias:{aliasname:"emp_data"}  location:14}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}
+*/
+func containsXmlFunctionsInFromClause(fromClause []*pg_query.Node) bool {
+	for _, fromItem := range fromClause {
+		// from clause is a subquery
+		if subselectNode, isSubselect := fromItem.Node.(*pg_query.Node_RangeSubselect); isSubselect {
+			subSelectStmt := subselectNode.RangeSubselect.Subquery.GetSelectStmt()
+			if subSelectStmt != nil {
+				// Recursively check for xml functions in the subquery's target list and FROM clause
+				if containsXmlFunctionsInTargetList(subSelectStmt.TargetList) {
+					return true
+				}
+				if containsXmlFunctionsInFromClause(subSelectStmt.FromClause) {
+					return true
+				}
+				if containsXmlFunctionsInWhereClause(subSelectStmt.WhereClause) {
+					return true
+				}
+			}
+		} else { // normal case
+			rangeTblFunc := fromItem.GetRangeTableFunc()
+			if rangeTblFunc == nil {
+				return false
+			}
+
+			xmlExpr := rangeTblFunc.Docexpr.GetXmlExpr()
+			if xmlExpr != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+/*
+Query: SELECT id, name FROM employees WHERE xmlexists($1 PASSING BY VALUE data)
+ParseTree: version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"id"}}  location:7}}  location:7}}
+target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"name"}}  location:11}}  location:11}}
+from_clause:{range_var:{relname:"employees"  inh:true  relpersistence:"p"  location:22}}
+where_clause:{func_call:{funcname:{string:{sval:"pg_catalog"}}  funcname:{string:{sval:"xmlexists"}}
+args:{param_ref:{number:1  location:49}}  args:{column_ref:{fields:{string:{sval:"data"}}  location:69}}
+funcformat:COERCE_SQL_SYNTAX  location:39}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}
+*/
+func containsXmlFunctionsInWhereClause(whereClause *pg_query.Node) bool {
+	if whereClause == nil {
+		return false
+	}
+
+	if funcCallNode := whereClause.GetFuncCall(); funcCallNode != nil {
+		funcList := funcCallNode.Funcname
+		functionName := funcList[len(funcList)-1].GetString_().Sval
+		if slices.Contains(xmlFunctions, functionName) {
+			return true
+		}
+	}
+
 	return false
 }
 
