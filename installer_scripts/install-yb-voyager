@@ -862,10 +862,14 @@ create_guardrail_scripts_dir() {
 	output "Installing the guardrails scripts"
 	if [ "${VERSION}" == "latest" ]
 	then
-		pg_permissions_grant_script_url="https://raw.githubusercontent.com/yugabyte/yb-voyager/refs/heads/main/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql"
-		sudo wget -nv -O $scripts_parent_dir/$scripts_dir_name/yb-voyager-pg-grant-migration-permissions.sql $pg_permissions_grant_script_url
+		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/${scripts_dir_name}.tar.gz"
+		sudo wget -nv -O /tmp/${scripts_dir_name}.tar.gz $TAR_URL
+		sudo tar -xzf /tmp/${scripts_dir_name}.tar.gz -C $scripts_parent_dir 1>&2
+		sudo rm /tmp/${scripts_dir_name}.tar.gz
 	else
-		sudo cp $REPO_ROOT/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql $scripts_parent_dir/$scripts_dir_name/
+		pushd $REPO_ROOT > /dev/null
+		sudo rsync -avc --delete $REPO_ROOT/$scripts_dir_name $scripts_parent_dir 1>&2
+		popd > /dev/null
 	fi
 }
 
