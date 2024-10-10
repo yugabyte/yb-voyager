@@ -57,6 +57,56 @@ func TestContainsAdvisoryLocks(t *testing.T) {
 	}
 }
 
+// Test function that uses real SQL input to check detection of System Columns
+func TestContainsSystemColumns(t *testing.T) {
+	testCases := []struct {
+		name     string
+		SQL      string
+		expected bool
+	}{
+		{
+			name:     "System Columns in Target List",
+			SQL:      `SELECT xmin, xmax FROM employees`,
+			expected: true,
+		},
+		{
+			name:     "System Columns in FROM clause 1",
+			SQL:      `SELECT * FROM (SELECT * FROM employees WHERE xmin = 100) AS version_info`,
+			expected: true,
+		},
+		{
+			name:     "System Columns in FROM clause 2",
+			SQL:      `SELECT * FROM (SELECT xmin, xmax FROM employees) AS version_info`,
+			expected: true,
+		},
+		{
+			name:     "System Columns in WHERE clause 1",
+			SQL:      `SELECT * FROM employees WHERE xmin = 200`,
+			expected: true,
+		},
+		{
+			name:     "System Columns in WHERE clause 2",
+			SQL:      `SELECT * FROM employees WHERE 1 = 1 AND xmax = 300`,
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fmt.Printf("assertion check for test %s\n", tc.name)
+			qp := New(tc.SQL)
+			err := qp.Parse()
+			if err != nil {
+				t.Fatalf("Failed to parse SQL: %v", err)
+			}
+
+			// Check for System Columns based on generated parse tree
+			result := qp.containsSystemColumns()
+			assert.Equal(t, tc.expected, result, "Expected result does not match actual result.")
+		})
+	}
+}
+
 // Test function that uses real SQL input to check detection of XML functions
 func TestContainsXmlFunctions(t *testing.T) {
 	testCases := []struct {
