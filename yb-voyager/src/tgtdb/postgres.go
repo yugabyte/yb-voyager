@@ -37,6 +37,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+const MISSING = "MISSING"
+const GRANTED = "GRANTED"
+const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
+
 type TargetPostgreSQL struct {
 	sync.Mutex
 	*AttributeNameRegistry
@@ -816,34 +820,34 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 			CASE
 				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
 					CASE
-						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'SELECT') THEN 'Granted'
-						ELSE 'Missing'
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'SELECT') THEN '%s'
+						ELSE '%s'
 					END
-				ELSE 'No USAGE privilege on schema'
+				ELSE '%s'
 			END AS select_status,
 			CASE
 				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
 					CASE
-						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'INSERT') THEN 'Granted'
-						ELSE 'Missing'
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'INSERT') THEN '%s'
+						ELSE '%s'
 					END
-				ELSE 'No USAGE privilege on schema'
+				ELSE '%s'
 			END AS insert_status,
 			CASE
 				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
 					CASE
-						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'UPDATE') THEN 'Granted'
-						ELSE 'Missing'
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'UPDATE') THEN '%s'
+						ELSE '%s'
 					END
-				ELSE 'No USAGE privilege on schema'
+				ELSE '%s'
 			END AS update_status,
 			CASE
 				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
 					CASE
-						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'DELETE') THEN 'Granted'
-						ELSE 'Missing'
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'DELETE') THEN '%s'
+						ELSE '%s'
 					END
-				ELSE 'No USAGE privilege on schema'
+				ELSE '%s'
 			END AS delete_status
 		FROM pg_tables
 		WHERE quote_ident(schemaname) = ANY(string_to_array('%s', ','))
@@ -856,7 +860,12 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 		update_status,
 		delete_status
 	FROM table_privileges;`,
-		pg.tconf.User, pg.tconf.User, pg.tconf.User, pg.tconf.User, pg.tconf.User, pg.tconf.User, pg.tconf.User, pg.tconf.User, querySchemaList)
+		pg.tconf.User, pg.tconf.User, GRANTED, MISSING, NO_USAGE_PERMISSION,
+		pg.tconf.User, pg.tconf.User, GRANTED, MISSING, NO_USAGE_PERMISSION,
+		pg.tconf.User, pg.tconf.User, GRANTED, MISSING, NO_USAGE_PERMISSION,
+		pg.tconf.User, pg.tconf.User, GRANTED, MISSING, NO_USAGE_PERMISSION,
+		querySchemaList)
+
 	rows, err := pg.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
