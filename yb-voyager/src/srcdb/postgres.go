@@ -1244,12 +1244,12 @@ func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull() ([]string, error) {
 	CASE 
 		WHEN c.relreplident <> 'f' 
 		THEN '%s' 
-		ELSE 'Correct' 
+		ELSE '%s' 
 	END AS status
 	FROM pg_class c
 	JOIN pg_namespace n ON c.relnamespace = n.oid
 	WHERE quote_ident(n.nspname) IN (%s)
-	AND c.relkind IN ('r', 'p');`, MISSING, querySchemaList)
+	AND c.relkind IN ('r', 'p');`, MISSING, GRANTED, querySchemaList)
 	rows, err := pg.db.Query(checkTableReplicaIdentityQuery)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
