@@ -366,6 +366,14 @@ func containsXmlFunctionsInTargetList(targetList []*pg_query.Node) bool {
 		if xmlExpr != nil {
 			return true
 		}
+
+		if funcCallNode, isFuncCall := resTarget.Val.Node.(*pg_query.Node_FuncCall); isFuncCall {
+			funcList := funcCallNode.FuncCall.Funcname
+			functionName := funcList[len(funcList)-1].GetString_().Sval
+			if slices.Contains(xmlFunctions, functionName) {
+				return true
+			}
+		}
 	}
 	return false
 }
