@@ -43,15 +43,10 @@ psql_import_file() {
 
 grant_user_permission_postgresql() {
 	db_name=$1
-	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
-	commands=(
-		"SELECT 'GRANT USAGE ON SCHEMA '"
-		"SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA '" 
-		"SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA '"
-		)
-	for command in "${commands[@]}"; do
-		echo "${command} || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "${conn_string}" 
-	done
+	db_schema=$2
+	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v is_live_migration=0 -v is_live_migration_fall_back=0 -f ../../../../guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+
 }
 
 run_pg_restore() {
@@ -159,27 +154,8 @@ EOF
 grant_permissions_for_live_migration_pg() {
 	db_name=$1
 	db_schema=$2
-	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
-	commands=(
-			"ALTER USER ybvoyager REPLICATION"
-			"CREATE ROLE replication_group;"
-			"GRANT replication_group TO postgres"
-			"GRANT replication_group TO ybvoyager;"
-			"DO \$CUSTOM\$
-			DECLARE
-			  cur_table text;
-			BEGIN
-			  EXECUTE 'SET search_path TO ${db_schema}';
-			  FOR cur_table IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${db_schema}')
-			  LOOP
-			    EXECUTE 'ALTER TABLE \"' || cur_table || '\" OWNER TO replication_group';
-			  END LOOP;
-			END \$CUSTOM\$;"
-			"GRANT CREATE ON DATABASE ${db_name} TO ybvoyager;"
-		)
-	for command in "${commands[@]}"; do
-		echo "${command}" | psql "${conn_string}" 
-	done
+	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v is_live_migration=1 -v is_live_migration_fall_back=0 -f ../../../../guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 }
 
 grant_permissions() {
@@ -188,7 +164,7 @@ grant_permissions() {
 	db_schema=$3
 	case ${db_type} in
 		postgresql)
-			grant_user_permission_postgresql ${db_name}
+			grant_user_permission_postgresql ${db_name} ${db_schema}
 			;;
 		mysql)
 			grant_user_permission_mysql ${db_name}
