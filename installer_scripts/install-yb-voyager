@@ -143,6 +143,7 @@ centos_main() {
 	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-${majorVersion}-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
 	$YUM postgresql16 1>&2
 	$YUM sqlite 1>&2
+	create_guardrail_scripts_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
 	install_golang linux
@@ -187,6 +188,7 @@ ubuntu_main() {
 	sudo apt-get -y install sqlite3 1>&2
 	install_golang linux
 	ubuntu_install_postgres
+	create_guardrail_scripts_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
 	if [ $ONLY_PG == "false" ] ; then
@@ -230,6 +232,7 @@ macos_main() {
 	fi
 
 	macos_install_pg_dump
+	create_guardrail_scripts_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
 	brew install wget
@@ -512,6 +515,7 @@ rebuild_debezium_server_voyager_plugin_local(){
 rebuild_voyager_local() {
 	VERSION="local"
 	install_yb_voyager
+	create_guardrail_scripts_dir
 	create_gather_assessment_metadata_dir
 	rebuild_debezium_server_voyager_plugin_local
 }
@@ -846,6 +850,28 @@ create_gather_assessment_metadata_dir() {
 		pushd $REPO_ROOT > /dev/null
 		# Synchronizes directory contents, deleting extraneous files and updating any that differ in checksum or timestamps.
 		sudo rsync -avc --delete $REPO_ROOT/$scripts_dir_path/$scripts_dir_name $scripts_parent_dir 1>&2
+		popd > /dev/null
+	fi
+}
+
+create_guardrail_scripts_dir() {
+	scripts_parent_dir="/opt/yb-voyager"
+	scripts_dir_name="guardrails-scripts"
+	sudo mkdir -p $scripts_parent_dir/$scripts_dir_name
+	YB_VOYAGER_GIT_HASH_TEMP="512c53a3cd3f111b7e2c35c5dbb0c36e0c3280d1"
+
+	output "Installing the guardrails scripts"
+	if [ "${VERSION}" == "latest" ]
+	then
+		TAR_URL="https://github.com/yugabyte/yb-voyager/archive/$YB_VOYAGER_GIT_HASH_TEMP.tar.gz"
+		sudo wget -nv -O /tmp/yb-voyager.tar.gz $TAR_URL
+		sudo tar -xzf /tmp/yb-voyager.tar.gz -C /tmp 1>&2
+		sudo cp -r /tmp/yb-voyager-$YB_VOYAGER_GIT_HASH_TEMP/guardrails-scripts/* $scripts_parent_dir/$scripts_dir_name 1>&2
+		sudo rm -rf /tmp/yb-voyager-$YB_VOYAGER_GIT_HASH_TEMP
+		sudo rm /tmp/yb-voyager.tar.gz
+	else
+		pushd $REPO_ROOT > /dev/null
+		sudo rsync -avc --delete $REPO_ROOT/$scripts_dir_name $scripts_parent_dir 1>&2
 		popd > /dev/null
 	fi
 }
