@@ -43,6 +43,9 @@ import (
 const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
 const MIN_SUPPORTED_PG_VERSION_LIVE = "10"
 const MAX_SUPPORTED_PG_VERSION = "16"
+const MISSING = "MISSING"
+const GRANTED = "GRANTED"
+const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
 
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
@@ -980,12 +983,14 @@ func (pg *PostgreSQL) CheckSourceDBVersion() error {
 	return nil
 }
 
-// GetMissingExportSchemaPermissions checks for missing permissions required for exporting schema in a PostgreSQL database.
-// It verifies if schemas have USAGE permission
-// and if tables in the provided schemas + pg_catalog + infomation_schema have SELECT permission.
-// Returns:
-//   - []string: A slice of strings describing the missing permissions, if any.
-//   - error: An error if any issues occur during the permission checks.
+/*
+GetMissingExportSchemaPermissions checks for missing permissions required for exporting schema in a PostgreSQL database.
+It verifies if schemas have USAGE permission
+and if tables in the provided schemas + pg_catalog + information_schema have SELECT permission.
+Returns:
+  - []string: A slice of strings describing the missing permissions, if any.
+  - error: An error if any issues occur during the permission checks.
+*/
 func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
 	var combinedResult []string
 
@@ -1016,29 +1021,31 @@ func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
 
 }
 
-// GetMissingExportDataPermissions checks for missing permissions required for exporting data from PostgreSQL.
-// It verifies various permissions based on the export type (offline or live migration).
-//
-// Parameters:
-//   - exportType: A string indicating the type of export. It can be one of the following:
-//   - utils.SNAPSHOT_ONLY: For offline migration.
-//   - utils.CHANGES_ONLY: For live migration with changes only.
-//   - utils.SNAPSHOT_AND_CHANGES: For live migration with snapshot and changes.
-//
-// Returns:
-//   - []string: A slice of strings describing the missing permissions or issues found.
-//   - error: An error object if any error occurs during the permission checks.
-//
-// The function performs the following checks:
-//   - For offline migration:
-//   - Checks if provided schemas + pg_catalog + information_schema have USAGE permission and if tables in the provided schemas + pg_catalog + information_schema have SELECT permission.
-//   - Checks if sequences have SELECT permission.
-//   - For live migration:
-//   - Checks if wal_level is set to logical.
-//   - Checks if tables have replica identity set to FULL.
-//   - Checks if the user has replication permission.
-//   - Checks if the user has create permission on the database.
-//   - Checks if the user has ownership over all tables.
+/*
+GetMissingExportDataPermissions checks for missing permissions required for exporting data from PostgreSQL.
+It verifies various permissions based on the export type (offline or live migration).
+
+Parameters:
+  - exportType: A string indicating the type of export. It can be one of the following:
+  - utils.SNAPSHOT_ONLY: For offline migration.
+  - utils.CHANGES_ONLY: For live migration with changes only.
+  - utils.SNAPSHOT_AND_CHANGES: For live migration with snapshot and changes.
+
+Returns:
+  - []string: A slice of strings describing the missing permissions or issues found.
+  - error: An error object if any error occurs during the permission checks.
+
+The function performs the following checks:
+  - For offline migration:
+  - Checks if provided schemas + pg_catalog + information_schema have USAGE permission and if tables in the provided schemas + pg_catalog + information_schema have SELECT permission.
+  - Checks if sequences have SELECT permission.
+  - For live migration:
+  - Checks if wal_level is set to logical.
+  - Checks if tables have replica identity set to FULL.
+  - Checks if the user has replication permission.
+  - Checks if the user has create permission on the database.
+  - Checks if the user has ownership over all tables.
+*/
 func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
 	var combinedResult []string
 
@@ -1234,11 +1241,15 @@ func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull() ([]string, error) {
 	n.nspname AS schema_name,
 	c.relname AS table_name,
 	c.relreplident AS replica_identity,
-	CASE WHEN c.relreplident <> 'f' THEN 'Missing FULL' ELSE 'Correct' END AS status
-FROM pg_class c
-JOIN pg_namespace n ON c.relnamespace = n.oid
-WHERE quote_ident(n.nspname) IN (%s)
-	AND c.relkind IN ('r', 'p');`, querySchemaList)
+	CASE 
+		WHEN c.relreplident <> 'f' 
+		THEN '%s' 
+		ELSE 'Correct' 
+	END AS status
+	FROM pg_class c
+	JOIN pg_namespace n ON c.relnamespace = n.oid
+	WHERE quote_ident(n.nspname) IN (%s)
+	AND c.relkind IN ('r', 'p');`, MISSING, querySchemaList)
 	rows, err := pg.db.Query(checkTableReplicaIdentityQuery)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
@@ -1258,7 +1269,7 @@ WHERE quote_ident(n.nspname) IN (%s)
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
-		if status == "Missing FULL" {
+		if status == MISSING {
 			missingTables = append(missingTables, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
 		}
 	}
@@ -1294,8 +1305,8 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 		SELECT
 			n.nspname AS schema_name,
 			CASE
-				WHEN has_schema_privilege('%s', quote_ident(n.nspname), 'USAGE') THEN 'Granted'
-				ELSE 'Missing'
+				WHEN has_schema_privilege('%s', quote_ident(n.nspname), 'USAGE') THEN '%s'
+				ELSE '%s'
 			END AS usage_status
 		FROM pg_namespace n
 		WHERE n.nspname IN (%s)
@@ -1305,12 +1316,12 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 			n.nspname AS schema_name,
 			c.relname AS sequence_name,
 			CASE
-				WHEN sp.usage_status = 'Granted' THEN
+				WHEN sp.usage_status = '%s' THEN
 					CASE
-						WHEN has_sequence_privilege('%s', quote_ident(n.nspname) || '.' || quote_ident(c.relname), 'SELECT') THEN 'Granted'
-						ELSE 'Missing'
+						WHEN has_sequence_privilege('%s', quote_ident(n.nspname) || '.' || quote_ident(c.relname), 'SELECT') THEN '%s'
+						ELSE '%s'
 					END
-				ELSE 'No Usage Permission On The Sequence Parent Schema'
+				ELSE '%s'
 			END AS select_status
 		FROM pg_class c
 		JOIN pg_namespace n ON c.relnamespace = n.oid
@@ -1323,7 +1334,7 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 		select_status
 	FROM sequence_permissions
 	ORDER BY schema_name, sequence_name;
-`, pg.source.User, querySchemaList, pg.source.User)
+`, pg.source.User, GRANTED, MISSING, querySchemaList, GRANTED, pg.source.User, GRANTED, MISSING, NO_USAGE_PERMISSION)
 	rows, err := pg.db.Query(checkSequenceSelectPermissionQuery)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error in querying(%q) source database for checking sequence select permission: %w", checkSequenceSelectPermissionQuery, err)
@@ -1341,9 +1352,9 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in scanning query rows for sequence names: %w", err)
 		}
-		if selectStatus == "Missing" {
+		if selectStatus == MISSING {
 			sequencesWithMissingPerm = append(sequencesWithMissingPerm, fmt.Sprintf("%s.%s", sequenceSchemaName, sequenceName))
-		} else if selectStatus == "No Usage Permission On The Table Parent Schema" {
+		} else if selectStatus == NO_USAGE_PERMISSION {
 			sequencesWithNoUsagePerm = append(sequencesWithNoUsagePerm, fmt.Sprintf("%s.%s", sequenceSchemaName, sequenceName))
 		}
 	}
@@ -1376,8 +1387,8 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm
 		t.tablename AS table_name,
 		CASE 
 			WHEN has_table_privilege('%s', quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT') 
-			THEN 'Granted' 
-			ELSE 'Missing' 
+			THEN '%s' 
+			ELSE '%s' 
 		END AS status
 	FROM pg_tables t
 	JOIN accessible_schemas a ON t.schemaname = a.schema_name
@@ -1385,14 +1396,14 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm
 	SELECT
 		t.schemaname AS schema_name,
 		t.tablename AS table_name,
-		'No Usage Permission On The Table Parent Schema' AS status
+		'%s' AS status
 	FROM pg_tables t
 	WHERE t.schemaname IN (SELECT schema_name FROM schema_list)
 	AND NOT EXISTS (
 		SELECT 1
 		FROM accessible_schemas a
 		WHERE t.schemaname = a.schema_name
-	);`, querySchemaList, pg.source.User, pg.source.User)
+	);`, querySchemaList, pg.source.User, pg.source.User, GRANTED, MISSING, NO_USAGE_PERMISSION)
 	rows, err := pg.db.Query(checkTableSelectPermissionQuery)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error in querying(%q) source database for checking table select permission: %w", checkTableSelectPermissionQuery, err)
@@ -1411,7 +1422,7 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
-		if status == "Missing" {
+		if status == MISSING {
 			if tableSchemaName == "pg_catalog" || tableSchemaName == "information_schema" {
 				// If table name is in pg_catalog_tables_required or information_schema_tables_required and missing SELECT permission, then add to tablesWithMissingPerm
 				if slices.Contains(pg_catalog_tables_required, tableName) || slices.Contains(information_schema_tables_required, tableName) {
@@ -1420,7 +1431,7 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm
 			} else {
 				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
 			}
-		} else if status == "No Usage Permission On The Table Parent Schema" {
+		} else if status == NO_USAGE_PERMISSION {
 			if tableSchemaName == "pg_catalog" || tableSchemaName == "information_schema" {
 				// If table name is in pg_catalog_tables_required or information_schema_tables_required and missing USAGE permission, then add to tablesWithNoUsagePerm
 				if slices.Contains(pg_catalog_tables_required, tableName) || slices.Contains(information_schema_tables_required, tableName) {
@@ -1450,14 +1461,14 @@ func (pg *PostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	SELECT 
 		quote_ident(nspname) AS schema_name,
 		CASE 
-			WHEN has_schema_privilege('%s', quote_ident(nspname), 'USAGE') THEN 'Granted' 
-			ELSE 'Missing' 
+			WHEN has_schema_privilege('%s', quote_ident(nspname), 'USAGE') THEN '%s' 
+			ELSE '%s' 
 		END AS usage_permission_status
 	FROM 
 		pg_namespace
 	WHERE 
 		quote_ident(nspname) IN (%s);
-	`, pg.source.User, querySchemaList)
+	`, pg.source.User, GRANTED, MISSING, querySchemaList)
 	// Currently we don't support case sensitive schema names but in the future we might and hence using quote_ident to handle that case
 
 	rows, err := pg.db.Query(chkSchemaUsagePermissionQuery)
@@ -1478,7 +1489,7 @@ func (pg *PostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for schema names: %w", err)
 		}
-		if usagePermissionStatus == "Missing" {
+		if usagePermissionStatus == MISSING {
 			schemasMissingUsagePermission = append(schemasMissingUsagePermission, schemaName)
 		}
 	}
