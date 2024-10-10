@@ -37,6 +37,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+const MISSING = "MISSING"
+const GRANTED = "GRANTED"
+const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
+
 type TargetPostgreSQL struct {
 	sync.Mutex
 	*AttributeNameRegistry
@@ -785,4 +789,122 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	}
 
 	return nil
+}
+
+func (pg *TargetPostgreSQL) GetMissingImportDataPermissions() ([]string, error) {
+	// Check if db_user has SELECT, INSERT, UPDATE, DELETE permissions on schemas tables
+	missingPermissions, err := pg.listTablesMissingSelectInsertUpdateDeletePermissions()
+	if err != nil {
+		return nil, err
+	}
+	var missingPermissionsList []string
+	for permission, tables := range missingPermissions {
+		if permission == "USAGE" {
+			missingPermissionsList = append(missingPermissionsList, fmt.Sprintf("Missing USAGE permissions on the schemas of tables: %v", tables))
+			continue
+		}
+		missingPermissionsList = append(missingPermissionsList, fmt.Sprintf("Missing %s permissions on tables: %v", permission, tables))
+	}
+
+	return missingPermissionsList, nil
+}
+
+func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions() (map[string][]string, error) {
+	querySchemaList := pg.getSchemaList()
+
+	query := fmt.Sprintf(`
+	WITH table_privileges AS (
+		SELECT
+			quote_ident(schemaname) AS schema_name,
+			quote_ident(tablename) AS table_name,
+			CASE
+				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
+					CASE
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'SELECT') THEN '%s'
+						ELSE '%s'
+					END
+				ELSE '%s'
+			END AS select_status,
+			CASE
+				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
+					CASE
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'INSERT') THEN '%s'
+						ELSE '%s'
+					END
+				ELSE '%s'
+			END AS insert_status,
+			CASE
+				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
+					CASE
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'UPDATE') THEN '%s'
+						ELSE '%s'
+					END
+				ELSE '%s'
+			END AS update_status,
+			CASE
+				WHEN has_schema_privilege('%s', quote_ident(schemaname), 'USAGE') THEN
+					CASE
+						WHEN has_table_privilege('%s', quote_ident(schemaname) || '.' || quote_ident(tablename), 'DELETE') THEN '%s'
+						ELSE '%s'
+					END
+				ELSE '%s'
+			END AS delete_status
+		FROM pg_tables
+		WHERE quote_ident(schemaname) = ANY(string_to_array('%s', ','))
+	)
+	SELECT
+		schema_name,
+		table_name,
+		select_status,
+		insert_status,
+		update_status,
+		delete_status
+	FROM table_privileges;`,
+		pg.tconf.User, pg.tconf.User, GRANTED, MISSING, NO_USAGE_PERMISSION,
+		pg.tconf.User, pg.tconf.User, GRANTED, MISSING, NO_USAGE_PERMISSION,
+		pg.tconf.User, pg.tconf.User, GRANTED, MISSING, NO_USAGE_PERMISSION,
+		pg.tconf.User, pg.tconf.User, GRANTED, MISSING, NO_USAGE_PERMISSION,
+		querySchemaList)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+	}
+	defer rows.Close()
+	missingPermissions := make(map[string][]string)
+	for rows.Next() {
+		var schemaName, tableName, selectStatus, insertStatus, updateStatus, deleteStatus string
+		err = rows.Scan(&schemaName, &tableName, &selectStatus, &insertStatus, &updateStatus, &deleteStatus)
+		if err != nil {
+			return nil, fmt.Errorf("scan row: %w", err)
+		}
+		// status is 'Missing' then add to key missingSelect etc
+		// status is 'No USAGE privilege on schema' then add to key missingUsage
+		if selectStatus == "Missing" {
+			missingPermissions["SELECT"] = append(missingPermissions["SELECT"], fmt.Sprintf("%s.%s", schemaName, tableName))
+		} else if selectStatus == "No USAGE privilege on schema" {
+			missingPermissions["USAGE"] = append(missingPermissions["USAGE"], fmt.Sprintf("%s.%s", schemaName, tableName))
+		}
+		if insertStatus == "Missing" {
+			missingPermissions["INSERT"] = append(missingPermissions["INSERT"], fmt.Sprintf("%s.%s", schemaName, tableName))
+		} else if insertStatus == "No USAGE privilege on schema" {
+			missingPermissions["USAGE"] = append(missingPermissions["USAGE"], fmt.Sprintf("%s.%s", schemaName, tableName))
+		}
+		if updateStatus == "Missing" {
+			missingPermissions["UPDATE"] = append(missingPermissions["UPDATE"], fmt.Sprintf("%s.%s", schemaName, tableName))
+		} else if updateStatus == "No USAGE privilege on schema" {
+			missingPermissions["USAGE"] = append(missingPermissions["USAGE"], fmt.Sprintf("%s.%s", schemaName, tableName))
+		}
+		if deleteStatus == "Missing" {
+			missingPermissions["DELETE"] = append(missingPermissions["DELETE"], fmt.Sprintf("%s.%s", schemaName, tableName))
+		} else if deleteStatus == "No USAGE privilege on schema" {
+			missingPermissions["USAGE"] = append(missingPermissions["USAGE"], fmt.Sprintf("%s.%s", schemaName, tableName))
+		}
+	}
+	return missingPermissions, nil
+}
+
+func (pg *TargetPostgreSQL) getSchemaList() []string {
+	schemas := strings.Split(pg.tconf.Schema, ",")
+	return schemas
 }

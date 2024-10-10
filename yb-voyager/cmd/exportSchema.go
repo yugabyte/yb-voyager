@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/color"
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -99,6 +100,14 @@ func exportSchema() error {
 	}
 	defer source.DB().Disconnect()
 
+	// Check source database version.
+	if source.RunGuardrailsChecks {
+		err = source.DB().CheckSourceDBVersion()
+		if err != nil {
+			return fmt.Errorf("source DB version check failed: %w", err)
+		}
+	}
+
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	sourceDBVersion := source.DB().GetVersion()
@@ -112,6 +121,20 @@ func exportSchema() error {
 	res := source.DB().CheckSchemaExists()
 	if !res {
 		return fmt.Errorf("schema %q does not exist", source.Schema)
+	}
+
+	// Check if the source database has the required permissions for exporting schema.
+	if source.RunGuardrailsChecks {
+		missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
+		if err != nil {
+			return fmt.Errorf("failed to get missing migration permissions: %w", err)
+		}
+		if len(missingPerms) > 0 {
+			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+			output := strings.Join(missingPerms, "\n")
+			utils.PrintAndLog("%s\n", output)
+			return fmt.Errorf("some permissions are missing for the source database on user %s", source.User)
+		}
 	}
 
 	err = retrieveMigrationUUID()

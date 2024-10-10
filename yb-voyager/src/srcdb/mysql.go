@@ -105,6 +105,18 @@ func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	return approxRowCount.Int64
 }
 
+func (ms *MySQL) CheckSourceDBVersion() error {
+	return nil
+}
+
+func (ms *MySQL) GetMissingExportSchemaPermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (ms *MySQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+	return nil, nil
+}
+
 func (ms *MySQL) GetVersion() string {
 	if ms.source.DBVersion != "" {
 		return ms.source.DBVersion

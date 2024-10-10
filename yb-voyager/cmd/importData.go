@@ -127,6 +127,23 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
+
+	// Check if target DB has the required permissions
+	if tconf.RunGuardrailsChecks {
+		missingPermissions, err := tdb.GetMissingImportDataPermissions()
+		if err != nil {
+			utils.ErrExit("Failed to get missing import data permissions: %s", err)
+		}
+		if len(missingPermissions) > 0 {
+			utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
+			output := strings.Join(missingPermissions, "\n")
+			utils.PrintAndLog(output)
+			utils.ErrExit("Please grant the required permissions and retry the import.")
+		} else {
+			log.Info("The target database has the required permissions for importing data.")
+		}
+	}
+
 	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 
 	// we don't want to re-register in case import data to source/source-replica

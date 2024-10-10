@@ -211,6 +211,13 @@ func exportData() bool {
 	}
 	defer source.DB().Disconnect()
 
+	if source.RunGuardrailsChecks {
+		err = source.DB().CheckSourceDBVersion()
+		if err != nil {
+			utils.ErrExit("Source DB version check failed: %s", err)
+		}
+	}
+
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
@@ -220,6 +227,23 @@ func exportData() bool {
 	res := source.DB().CheckSchemaExists()
 	if !res {
 		utils.ErrExit("schema %q does not exist", source.Schema)
+	}
+
+	// Check if source DB has required permissions for export data
+	if source.RunGuardrailsChecks {
+		missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
+		if err != nil {
+			utils.ErrExit("get missing export data permissions: %v", err)
+		}
+		if len(missingPermissions) > 0 {
+			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+			output := strings.Join(missingPermissions, "\n")
+			utils.PrintAndLog("%s\n", output)
+			utils.ErrExit("Please grant the required permissions to the user %s and try again.", source.User)
+		} else {
+			// TODO: Print this message on the console too once the code is stable
+			log.Info("All required permissions are present for the source database.")
+		}
 	}
 
 	clearMigrationStateIfRequired()

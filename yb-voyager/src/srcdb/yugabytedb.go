@@ -100,6 +100,18 @@ func (yb *YugabyteDB) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 	return approxRowCount.Int64
 }
 
+func (yb *YugabyteDB) CheckSourceDBVersion() error {
+	return nil
+}
+
+func (yb *YugabyteDB) GetMissingExportSchemaPermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+	return nil, nil
+}
+
 func (yb *YugabyteDB) GetVersion() string {
 	if yb.source.DBVersion != "" {
 		return yb.source.DBVersion

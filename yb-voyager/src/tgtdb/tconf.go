@@ -48,6 +48,7 @@ type TargetConf struct {
 	ImportObjects        string        `json:"import_objects"`
 	ExcludeImportObjects string        `json:"exclude_import_objects"`
 	DBVersion            string        `json:"db_version"`
+	RunGuardrailsChecks  utils.BoolStr `json:"run_guardrails_checks"`
 
 	TargetEndpoints             string        `json:"target_endpoints"`
 	UsePublicIP                 utils.BoolStr `json:"use_public_ip"`
