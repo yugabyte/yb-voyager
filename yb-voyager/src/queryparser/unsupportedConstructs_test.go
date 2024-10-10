@@ -120,8 +120,13 @@ func TestContainsXmlFunctions(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "With XML function in target list",
+			name:     "With XML function in target list as XMLExpr Node",
 			SQL:      `SELECT id, xmlelement(name "employee", name) AS employee_data FROM employees`,
+			expected: true,
+		},
+		{
+			name:     "With XML function in target list as Func Call Node",
+			SQL:      `SELECT id, xpath('/person/name/text()', data) AS name from xml_example;`,
 			expected: true,
 		},
 		{
