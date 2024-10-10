@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -13,13 +14,18 @@ const (
 )
 
 // NOTE: pg parser converts the func names in parse tree to lower case by default
-var advisoryLockFunctions = []string{
+var unsupportedAdvLockFuncs = []string{
 	"pg_advisory_lock", "pg_try_advisory_lock", "pg_advisory_xact_lock",
 	"pg_advisory_unlock", "pg_advisory_unlock_all", "pg_try_advisory_xact_lock",
 }
 
+var unsupportedSysCols = []string{
+	"xmin", "xmax", "cmin", "cmax", "ctid",
+}
+
 func (qp *QueryParser) containsAdvisoryLocks() bool {
 	if qp.ParseTree == nil {
+		log.Infof("parse tree not available for query-%s", qp.QueryString)
 		return false
 	}
 
@@ -61,7 +67,7 @@ func containsAdvisoryLocksInTargetList(targetList []*pg_query.Node) bool {
 			if funcCallNode, isFuncCall := resTarget.Val.Node.(*pg_query.Node_FuncCall); isFuncCall {
 				funcList := funcCallNode.FuncCall.Funcname
 				functionName := funcList[len(funcList)-1].GetString_().Sval
-				if slices.Contains(advisoryLockFunctions, functionName) {
+				if slices.Contains(unsupportedAdvLockFuncs, functionName) {
 					return true
 				}
 			}
@@ -115,7 +121,7 @@ func containsAdvisoryLocksInWhereClause(whereClause *pg_query.Node) bool {
 	if funcCallNode := whereClause.GetFuncCall(); funcCallNode != nil {
 		funcList := funcCallNode.Funcname
 		functionName := funcList[len(funcList)-1].GetString_().Sval
-		if slices.Contains(advisoryLockFunctions, functionName) {
+		if slices.Contains(unsupportedAdvLockFuncs, functionName) {
 			return true
 		}
 	}
@@ -159,4 +165,180 @@ func containsAdvisoryLocksInNodeList(nodes []*pg_query.Node) bool {
 		}
 	}
 	return false
+}
+
+func (qp *QueryParser) containsSystemColumns() bool {
+	if qp.ParseTree == nil {
+		log.Infof("parse tree not available for query-%s", qp.QueryString)
+		return false
+	}
+
+	selectStmtNode, isSelectStmt := qp.ParseTree.Stmts[0].Stmt.Node.(*pg_query.Node_SelectStmt)
+	// Note: currently considering only SELECTs but I/U/D dmls are also possible
+	if !isSelectStmt {
+		return false
+	}
+
+	if containsSystemColumnsInTargetList(selectStmtNode.SelectStmt.TargetList) {
+		return true
+	}
+
+	if containsSystemColumnsInFromClause(selectStmtNode.SelectStmt.FromClause) {
+		return true
+	}
+
+	if containsSystemColumnsInWhereClause(selectStmtNode.SelectStmt.WhereClause) {
+		return true
+	}
+
+	return false
+}
+
+/*
+Query: SELECT xmin, xmax FROM employees
+ParseTree:	version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"xmin"}}  location:7}}  location:7}}
+target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"xmax"}}  location:13}}  location:13}}
+from_clause:{range_var:{relname:"employees"  inh:true  relpersistence:"p"  location:23}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}
+*/
+func containsSystemColumnsInTargetList(targetList []*pg_query.Node) bool {
+	for _, target := range targetList {
+		targetRes := target.GetResTarget()
+		if targetRes == nil {
+			continue
+		}
+
+		val := targetRes.GetVal()
+		if val == nil {
+			continue
+		}
+
+		columnRef := val.GetColumnRef()
+		colName := getColumnName(columnRef)
+		if slices.Contains(unsupportedSysCols, colName) {
+			return true
+		}
+	}
+
+	return false
+}
+
+/*
+Detects subqueries within FROM clause
+
+Query1: SELECT * FROM (SELECT * FROM employees WHERE xmin = $1) AS version_info
+ParseTree: version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+from_clause:{range_subselect:{subquery:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:22}}  location:22}}
+from_clause:{range_var:{relname:"employees"  inh:true  relpersistence:"p"  location:29}}  where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"="}}
+lexpr:{column_ref:{fields:{string:{sval:"xmin"}}  location:45}}  rexpr:{param_ref:{number:1  location:52}}  location:50}}
+limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}  alias:{aliasname:"version_info"}}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}
+
+Query2: SELECT * FROM (SELECT xmin, xmax FROM employees) AS version_info
+ParseTree: version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+from_clause:{range_subselect:{subquery:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"xmin"}}  location:22}}  location:22}}
+target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"xmax"}}  location:28}}  location:28}}
+from_clause:{range_var:{relname:"employees"  inh:true  relpersistence:"p"  location:38}}
+limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}  alias:{aliasname:"version_info"}}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}
+*/
+func containsSystemColumnsInFromClause(fromClause []*pg_query.Node) bool {
+	for _, fromItem := range fromClause {
+		if subselectNode, isSubselect := fromItem.Node.(*pg_query.Node_RangeSubselect); isSubselect {
+			subSelectStmt := subselectNode.RangeSubselect.Subquery.GetSelectStmt()
+			if subSelectStmt != nil {
+				// Recursively check for advisory locks in the subquery's target list and FROM clause
+				if containsSystemColumnsInTargetList(subSelectStmt.TargetList) {
+					return true
+				}
+				if containsSystemColumnsInFromClause(subSelectStmt.FromClause) {
+					return true
+				}
+				if containsSystemColumnsInWhereClause(subSelectStmt.WhereClause) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+/*
+Query1: SELECT * FROM employees WHERE xmin = $1
+ParseTree1: version:160001  stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+from_clause:{range_var:{relname:"employees"  inh:true  relpersistence:"p"  location:14}}
+where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"="}}
+lexpr:{column_ref:{fields:{string:{sval:"xmin"}}  location:30}}  rexpr:{param_ref:{number:1  location:37}}  location:35}}
+limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}
+
+Query2: SELECT * FROM employees WHERE xmin = $1 AND xmax = $2
+ParseTree2: version:160001 stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}} location:7}} location:7}}
+from_clause:{range_var:{relname:"employees" inh:true relpersistence:"p" location:14}}
+where_clause:{bool_expr:{boolop:AND_EXPR args:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}}
+lexpr:{column_ref:{fields:{string:{sval:"xmin"}} location:30}}
+rexpr:{param_ref:{number:1 location:37}} location:35}}
+args:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}} lexpr:{column_ref:{fields:{string:{sval:"xmax"}} location:44}} rexpr:{param_ref:{number:2 location:51}} location:49}} location:40}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}}}
+*/
+func containsSystemColumnsInWhereClause(whereClause *pg_query.Node) bool {
+	if whereClause == nil {
+		return false
+	}
+
+	switch n := whereClause.Node.(type) {
+	// Check for BoolExpr (AND/OR expressions)
+	case *pg_query.Node_BoolExpr:
+		// Recursively check all the arguments (conditions) in the BoolExpr
+		for _, arg := range n.BoolExpr.Args {
+			if containsSystemColumnsInWhereClause(arg) {
+				return true
+			}
+		}
+		return false
+
+	// Handle the AExpr case (arithmetic/abstract expressions like comparisons)
+	case *pg_query.Node_AExpr:
+		arithExpr := whereClause.GetAExpr()
+		if arithExpr == nil {
+			return false
+		}
+
+		lexpr := arithExpr.GetLexpr()
+		rexpr := arithExpr.GetRexpr()
+		var leftColName, rightColName string
+		if lexpr != nil {
+			leftColName = getColumnName(lexpr.GetColumnRef())
+		}
+		if rexpr != nil {
+			rightColName = getColumnName(rexpr.GetColumnRef())
+		}
+
+		return slices.Contains(unsupportedSysCols, leftColName) || slices.Contains(unsupportedSysCols, rightColName)
+	}
+
+	return false
+}
+
+// TODO: Implement
+func (qp *QueryParser) containsXmlFunctions() bool {
+	return false
+}
+
+// ========= parse tree helper functions
+
+// getColumnName extracts the column name from a ColumnRef node.
+// It returns an empty string if no valid column name is found.
+func getColumnName(columnRef *pg_query.ColumnRef) string {
+	if columnRef == nil {
+		return ""
+	}
+
+	fields := columnRef.GetFields()
+	if len(fields) == 0 {
+		return ""
+	}
+
+	// Extract the last field as the column name
+	lastField := fields[len(fields)-1]
+	if lastField == nil || lastField.GetString_() == nil {
+		return ""
+	}
+
+	return lastField.GetString_().Sval
 }
