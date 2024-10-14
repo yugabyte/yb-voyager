@@ -51,6 +51,8 @@ jobs:
             yes | ./install-yb-voyager --install-from-local-source
             cat /tmp/install-yb-voyager.log
           fi
+        env:
+          ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
       - name: Archive the files
         run: |
