@@ -15,7 +15,7 @@ ONLY_PG="false"
 
 trap on_exit EXIT
 
-YUM="sudo yum install -y -q"
+YUM_INSTALL="sudo yum install -y -q"
 
 # commit hash in main branch after release 23.2
 # issues #489 #492 #247 in ora2pg were fixed after this change
@@ -133,24 +133,24 @@ centos_main() {
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
 	if [ "${VERSION}" == "latest" ]
 	then
-		$YUM jq 1>&2
+		$YUM_INSTALL jq 1>&2
 		fetch_latest_release_data
 	fi
 	
 	centos_check_base_repo_enabled
 	output "Installing RPM dependencies."
-	$YUM which wget git gcc make 1>&2
-	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-${majorVersion}-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
-	$YUM postgresql16 1>&2
-	$YUM sqlite 1>&2
+	$YUM_INSTALL which wget git gcc make 1>&2
+	$YUM_INSTALL https://download.postgresql.org/pub/repos/yum/reporpms/EL-${majorVersion}-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
+	$YUM_INSTALL postgresql16 1>&2
+	$YUM_INSTALL sqlite 1>&2
 	create_guardrail_scripts_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
 	install_golang linux
 	if [ $ONLY_PG == "false" ] ; then
-		$YUM perl perl-DBI perl-App-cpanminus 1>&2
+		$YUM_INSTALL perl perl-DBI perl-App-cpanminus 1>&2
 		centos_install_mysql_client $majorVersion
-		$YUM perl-ExtUtils-MakeMaker 1>&2
+		$YUM_INSTALL perl-ExtUtils-MakeMaker 1>&2
 		centos_install_oracle_instant_clients
 		update_yb_voyager_bashrc
 		install_ora2pg
@@ -884,7 +884,7 @@ centos_install_mysql_client() {
 	version=$1
 	# If version is greater than or equal to 8 then dont install from community repo
 	if [ "$version" -ge 8 ]; then
-		$YUM mysql-devel 1>&2
+		$YUM_INSTALL mysql-devel 1>&2
 		return
 	fi
 	link=https://dev.mysql.com/get/mysql84-community-release-el${version}-1.noarch.rpm
@@ -908,7 +908,7 @@ centos_check_base_repo_enabled() {
 centos_install_oracle_instant_clients() {
 	output "Installing Oracle instant clients."
 	OIC_URL="https://download.oracle.com/otn_software/linux/instantclient/215000"
-	$YUM \
+	$YUM_INSTALL \
 		${OIC_URL}/oracle-instantclient-tools-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm \
