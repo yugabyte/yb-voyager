@@ -133,7 +133,7 @@ centos_main() {
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
 	if [ "${VERSION}" == "latest" ]
 	then
-		$YUM install jq 1>&2
+		$YUM jq 1>&2
 		fetch_latest_release_data
 	fi
 	
