@@ -122,7 +122,7 @@ var (
 	analyzeSchemaReportFormat string
 	sourceObjList             []string
 	schemaAnalysisReport      utils.SchemaReport
-	tblPartitions             = make(map[string]bool)
+	partitionTablesMap        = make(map[string]bool)
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
@@ -162,7 +162,6 @@ var (
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
-	partitionColumnsRegex     = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
 	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
 	likeRegex                 = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
 	inheritRegex              = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
@@ -196,8 +195,6 @@ var (
 	alterTypeRegex                  = re("ALTER", "TYPE", capture(ident))
 	alterTblSpcRegex                = re("ALTER", "TABLESPACE", capture(ident), "SET")
 
-	// table partition. partitioned table is the key in tblParts map
-	addPrimaryRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "ADD CONSTRAINT", capture(ident), "PRIMARY KEY")
 	primRegex       = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "PRIMARY KEY")
 	foreignKeyRegex = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "REFERENCES", anything)
 
@@ -258,11 +255,6 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	}
 
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
-}
-
-func reportAddingPrimaryKey(fpath string, objType string, tbl string, line string) {
-	reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-		"https://github.com/yugabyte/yugabyte-db/issues/10074", "", objType, tbl, line, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
 }
 
 func reportBasedOnComment(comment int, fpath string, issue string, suggestion string, objName string, objType string, line string) {
@@ -374,6 +366,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
 
 		if objType == TABLE && isCreateTable {
+			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
@@ -382,6 +375,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
 		if isAlterTable {
+			reportAlterAddPKOnPartition(alterTableNode, sqlStmtInfo, fpath)
 			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
 			reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
@@ -417,6 +411,101 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			compositeTypes = append(compositeTypes, fullTypeName)
 		}
 	}
+}
+
+func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+	tableName := alterTableNode.AlterTableStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+
+	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
+	/*
+	 */
+	if !partitionTablesMap[fullyQualifiedName] {
+		return
+	}
+	constraint := alterCmd.GetDef().GetConstraint()
+	if constraint != nil && constraint.Contype == pg_query.ConstrType_CONSTR_PRIMARY {
+		reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+			"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
+	}
+
+}
+
+func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+
+	if createTableNode.CreateStmt.GetPartspec() == nil {
+		return
+	}
+
+	partitionTablesMap[fullyQualifiedName] = true // marking the partition tables in the map
+
+	var primaryKeyColumns, partitionColumns, uniqueKeyColumns []string
+
+	for _, column := range columns {
+		if column.GetColumnDef() != nil { //In case PRIMARY KEY constraint is added with column definition
+			constraints := column.GetColumnDef().Constraints
+			for _, constraint := range constraints {
+				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_PRIMARY {
+					primaryKeyColumns = []string{column.GetColumnDef().Colname}
+				}
+				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_UNIQUE {
+					uniqueKeyColumns = append(uniqueKeyColumns, column.GetColumnDef().Colname)
+				}
+			}
+		} else if column.GetConstraint() != nil {
+			//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
+			for _, key := range column.GetConstraint().GetKeys() {
+				if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_PRIMARY {
+					primaryKeyColumns = append(primaryKeyColumns, key.GetString_().Sval)
+				} else if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_UNIQUE {
+					uniqueKeyColumns = append(uniqueKeyColumns, key.GetString_().Sval)
+				}
+			}
+		}
+	}
+
+	partitionElements := createTableNode.CreateStmt.GetPartspec().GetPartParams()
+
+	for _, partElem := range partitionElements {
+		if partElem.GetPartitionElem().GetExpr() != nil {
+			//Expression partitions
+			fmt.Printf("expression par on %s, %v", fullyQualifiedName, primaryKeyColumns)
+			if len(primaryKeyColumns) > 0 || len(uniqueKeyColumns) > 0 {
+				summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
+				reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
+					"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXPRESSION_PARTIITON_DOC_LINK)
+				return
+			}
+		} else {
+			partitionColumns = append(partitionColumns, partElem.GetPartitionElem().GetName())
+		}
+	}
+
+	if len(partitionColumns) > 1 && createTableNode.CreateStmt.GetPartspec().GetStrategy() == pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST {
+		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
+		reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
+			"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, LIST_PARTIION_MULTI_COLUMN_DOC_LINK)
+		return
+	}
+
+	if len(primaryKeyColumns) == 0 { // no need to report in case of non-PK tables
+		return
+	}
+
+	for _, pc := range partitionColumns {
+		if !slices.Contains(primaryKeyColumns, pc) {
+			summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
+			reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+				"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, PARTITION_KEY_NOT_PK_DOC_LINK)
+			break
+		}
+	}
+
 }
 
 // Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)
@@ -1128,11 +1217,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE clause not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if tbl := addPrimaryRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			if _, ok := tblPartitions[tbl[3]]; ok {
-				reportAddingPrimaryKey(fpath, "TABLE", tbl[3], sqlInfo.formattedStmt)
-			}
-			primaryCons[tbl[2]] = fpath
 		} else if tbl := inheritRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, INHERITANCE_ISSUE_REASON,
@@ -1209,67 +1293,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportCase(fpath, "LANGUAGE C not supported yet.",
 				"https://github.com/yugabyte/yb-voyager/issues/1540", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 			summaryMap["FUNCTION"].invalidCount[sqlInfo.objName] = true
-		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id,country_code) ) PARTITION BY RANGE (country_code, record_type) ;
-			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ;
-			columnList := utils.CsvStringToSlice(strings.Trim(regMatch[3], " "))
-			// example1 - columnList: [id numeric NOT NULL country_code varchar(3) record_type varchar(5) PRIMARY KEY (id country_code)]
-			// example2 - columnList: [id numeric NOT NULL PRIMARY KEY country_code varchar(3) record_type varchar(5]
-			openBracketSplits := strings.Split(strings.Trim(regMatch[3], " "), "(")
-			// example1 -  openBracketSplits: [	id numeric NOT NULL, 	country_code varchar 3), 	record_type varchar 5), 	descriptions varchar 50), 	PRIMARY KEY  id,country_code)]
-			stringbeforeLastOpenBracket := ""
-			if len(openBracketSplits) > 1 {
-				stringbeforeLastOpenBracket = strings.Join(strings.Fields(openBracketSplits[len(openBracketSplits)-2]), " ") //without extra spaces to easily check suffix
-			}
-			// example1 - stringbeforeLastBracket: 50), PRIMARY KEY
-			// example2 - stringbeforeLastBracket: 5), descriptions varchar
-			var primaryKeyColumnsList []string
-			if strings.HasSuffix(strings.ToLower(stringbeforeLastOpenBracket), ", primary key") { //false for example2
-				primaryKeyColumns := strings.Trim(openBracketSplits[len(openBracketSplits)-1], ") ")
-				primaryKeyColumnsList = utils.CsvStringToSlice(primaryKeyColumns)
-			} else {
-				//this case can come by manual intervention
-				for _, columnDefinition := range columnList {
-					if strings.Contains(strings.ToLower(columnDefinition), "primary key") {
-						partsOfColumnDefinition := strings.Split(columnDefinition, " ")
-						columnName := partsOfColumnDefinition[0]
-						primaryKeyColumnsList = append(primaryKeyColumnsList, columnName)
-						break
-					}
-				}
-			}
-			partitionColumns := strings.Trim(regMatch[5], `()`)
-			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
-			if len(partitionColumnsList) == 1 {
-				expressionChk := partitionColumnsList[0]
-				if strings.ContainsAny(expressionChk, "()[]{}|/!@$#%^&*-+=") {
-					summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-					reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
-						"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, EXPRESSION_PARTIITON_DOC_LINK)
-					continue
-				}
-			}
-			if strings.ToLower(regMatch[4]) == "list" && len(partitionColumnsList) > 1 {
-				summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-				reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
-					"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, LIST_PARTIION_MULTI_COLUMN_DOC_LINK)
-				continue
-			}
-			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no need to report
-				tblPartitions[regMatch[2]] = true
-				if filename, ok := primaryCons[regMatch[2]]; ok {
-					reportAddingPrimaryKey(filename, "TABLE", tbl[2], sqlInfo.formattedStmt)
-				}
-				continue
-			}
-			for _, partitionColumn := range partitionColumnsList {
-				if !slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK
-					summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, PARTITION_KEY_NOT_PK_DOC_LINK)
-					break
-				}
-			}
 		} else if strings.Contains(strings.ToLower(sqlInfo.stmt), "drop temporary table") {
 			filePath := strings.Split(fpath, "/")
 			fileName := filePath[len(filePath)-1]
@@ -1815,7 +1838,6 @@ var reasonsIncludingSensitiveInformation = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
 	STORED_GENERATED_COLUMN_ISSUE_REASON,
 }
-
 
 func packAndSendAnalyzeSchemaPayload(status string) {
 	if !shouldSendCallhome() {
