@@ -55,7 +55,7 @@ jobs:
         run: |
           sudo apt install -y python3
           sudo apt install -y libpq-dev
-          sudo pip3 install psycopg2
+          sudo apt install python3-psycopg2
 
       - name: Run installer script to setup voyager
         run: |
