@@ -57,7 +57,7 @@ jobs:
           sudo apt install -y libpq-dev
           python3 -m venv .venv
           source .venv/bin/activate
-          sudo pip3 install psycopg2
+          pip3 install psycopg2
 
       - name: Run installer script to setup voyager
         run: |
