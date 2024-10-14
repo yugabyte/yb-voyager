@@ -14,7 +14,7 @@ jobs:
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     services:
       postgres:
         image: postgres:13
