@@ -61,14 +61,13 @@ var (
 	ws         = `[\s\n\t]+`
 	optionalWS = `[\s\n\t]*` //optional white spaces
 	//TODO: fix this ident regex for the proper PG identifiers syntax - refer: https://github.com/yugabyte/yb-voyager/pull/1547#discussion_r1629282309
-	ident                        = `[a-zA-Z0-9_."-]+`
-	ifExists                     = opt("IF", "EXISTS")
-	ifNotExists                  = opt("IF", "NOT", "EXISTS")
-	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
-	commaSeperatedTokens         = `[^,]+(?:,[^,]+){1,}`
-	unqualifiedIdent             = `[a-zA-Z0-9_]+`
-	commonClause                 = `[a-zA-Z]+`
-	supportedExtensionsOnYB      = []string{
+	ident                   = `[a-zA-Z0-9_."-]+`
+	ifExists                = opt("IF", "EXISTS")
+	ifNotExists             = opt("IF", "NOT", "EXISTS")
+	commaSeperatedTokens    = `[^,]+(?:,[^,]+){1,}`
+	unqualifiedIdent        = `[a-zA-Z0-9_]+`
+	commonClause            = `[a-zA-Z]+`
+	supportedExtensionsOnYB = []string{
 		"adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
 		"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
 		"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",
@@ -114,9 +113,10 @@ func re(tokens ...string) *regexp.Regexp {
 	return regexp.MustCompile(s)
 }
 
-func parenth(s string) string {
-	return `\(` + s + `\)`
-}
+//commenting it as currently not used.
+// func parenth(s string) string {
+// 	return `\(` + s + `\)`
+// }
 
 var (
 	analyzeSchemaReportFormat string
@@ -420,13 +420,13 @@ func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, s
 
 	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
 	/*
-	e.g.  
-	ALTER TABLE example2 
- 		ADD CONSTRAINT example2_pkey PRIMARY KEY (id);
-	tmts:{stmt:{alter_table_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:693}  
-	cmds:{alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_PRIMARY  conname:"example2_pkey"  
-	location:710  keys:{string:{sval:"id"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}  stmt_location:679  stmt_len:72}
-	
+			e.g.
+			ALTER TABLE example2
+		 		ADD CONSTRAINT example2_pkey PRIMARY KEY (id);
+			tmts:{stmt:{alter_table_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:693}
+			cmds:{alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_PRIMARY  conname:"example2_pkey"
+			location:710  keys:{string:{sval:"id"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}  stmt_location:679  stmt_len:72}
+
 	*/
 
 	constraint := alterCmd.GetDef().GetConstraint()
@@ -436,7 +436,7 @@ func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, s
 			reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
 				"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
 		} else {
-			primaryConsInAlter[fullyQualifiedName] = &sqlStmtInfo 
+			primaryConsInAlter[fullyQualifiedName] = &sqlStmtInfo
 		}
 	}
 }
@@ -448,24 +448,24 @@ func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sq
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 
 	/*
-	e.g. In case if PRIMARY KEY is included in column definition 
-	 CREATE TABLE example2 (
-	 	id numeric NOT NULL PRIMARY KEY,
-		country_code varchar(3),
-		record_type varchar(5)
-	) PARTITION BY RANGE (country_code, record_type) ;
-	stmts:{stmt:{create_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:193}  table_elts:{column_def:{colname:"id"  
-	type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  typemod:-1  location:208}  is_local:true  
-	constraints:{constraint:{contype:CONSTR_NOTNULL  location:216}}  constraints:{constraint:{contype:CONSTR_PRIMARY  location:225}}  
-	location:205}}  ...  partspec:{strategy:PARTITION_STRATEGY_RANGE  
-	part_params:{partition_elem:{name:"country_code"  location:310}}  part_params:{partition_elem:{name:"record_type"  location:324}}  
-	location:290}  oncommit:ONCOMMIT_NOOP}}  stmt_location:178  stmt_len:159}
-	
-	In case if PRIMARY KEY in column list CREATE TABLE example1 (..., PRIMARY KEY(id,country_code) ) PARTITION BY RANGE (country_code, record_type);
-	stmts:{stmt:{create_stmt:{relation:{relname:"example1"  inh:true  relpersistence:"p"  location:15}  table_elts:{column_def:{colname:"id"  
-	type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  ... table_elts:{constraint:{contype:CONSTR_PRIMARY  
-	location:98  keys:{string:{sval:"id"}} keys:{string:{sval:"country_code"}}}}  partspec:{strategy:PARTITION_STRATEGY_RANGE  
-	part_params:{partition_elem:{name:"country_code" location:150}}  part_params:{partition_elem:{name:"record_type"  ...
+		e.g. In case if PRIMARY KEY is included in column definition
+		 CREATE TABLE example2 (
+		 	id numeric NOT NULL PRIMARY KEY,
+			country_code varchar(3),
+			record_type varchar(5)
+		) PARTITION BY RANGE (country_code, record_type) ;
+		stmts:{stmt:{create_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:193}  table_elts:{column_def:{colname:"id"
+		type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  typemod:-1  location:208}  is_local:true
+		constraints:{constraint:{contype:CONSTR_NOTNULL  location:216}}  constraints:{constraint:{contype:CONSTR_PRIMARY  location:225}}
+		location:205}}  ...  partspec:{strategy:PARTITION_STRATEGY_RANGE
+		part_params:{partition_elem:{name:"country_code"  location:310}}  part_params:{partition_elem:{name:"record_type"  location:324}}
+		location:290}  oncommit:ONCOMMIT_NOOP}}  stmt_location:178  stmt_len:159}
+
+		In case if PRIMARY KEY in column list CREATE TABLE example1 (..., PRIMARY KEY(id,country_code) ) PARTITION BY RANGE (country_code, record_type);
+		stmts:{stmt:{create_stmt:{relation:{relname:"example1"  inh:true  relpersistence:"p"  location:15}  table_elts:{column_def:{colname:"id"
+		type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  ... table_elts:{constraint:{contype:CONSTR_PRIMARY
+		location:98  keys:{string:{sval:"id"}} keys:{string:{sval:"country_code"}}}}  partspec:{strategy:PARTITION_STRATEGY_RANGE
+		part_params:{partition_elem:{name:"country_code" location:150}}  part_params:{partition_elem:{name:"record_type"  ...
 	*/
 	if createTableNode.CreateStmt.GetPartspec() == nil {
 		//If not partition table then no need to proceed
@@ -473,7 +473,7 @@ func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sq
 	}
 
 	if primaryConsInAlter[fullyQualifiedName] != nil {
-		//reporting the ALTER TABLE ADD PK on partition table here in case the order is different if ALTER is before the CREATE 
+		//reporting the ALTER TABLE ADD PK on partition table here in case the order is different if ALTER is before the CREATE
 		alterTableSqlInfo := primaryConsInAlter[fullyQualifiedName]
 		reportCase(alterTableSqlInfo.fileName, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
 			"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, alterTableSqlInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
