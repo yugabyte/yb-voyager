@@ -244,7 +244,7 @@ main() {
 	if [ "${RUN_LARGE_IMPORT_DATA_FILE_TEST}" = true ] ; then
 
 		step "Run large sized import data file test"
-		import_data_file --data-dir "s3://yb-voyager-test-data" --delimiter "\t" --format "text" --file-table-map "accounts_350m_data.sql:accounts" --start-clean true --yes
+		import_data_file --data-dir "s3://yb-voyager-test-data" --delimiter "\t" --format "text" --file-table-map "accounts_350m_data.sql:accounts_large" --start-clean true --yes
 
 	fi
 
