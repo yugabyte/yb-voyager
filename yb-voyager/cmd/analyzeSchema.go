@@ -123,11 +123,11 @@ var (
 	sourceObjList             []string
 	schemaAnalysisReport      utils.SchemaReport
 	partitionTablesMap        = make(map[string]bool)
-	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
-	primaryCons      = make(map[string]string)
-	summaryMap       = make(map[string]*summaryInfo)
-	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
-	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
+	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
+	primaryConsInAlter = make(map[string]*sqlInfo)
+	summaryMap         = make(map[string]*summaryInfo)
+	multiRegex         = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
+	dollarQuoteRegex   = regexp.MustCompile(`(\$.*\$)`)
 	/*
 		this will contain the information in this format:
 		public.table1 -> {
@@ -420,16 +420,25 @@ func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, s
 
 	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
 	/*
-	 */
-	if !partitionTablesMap[fullyQualifiedName] {
-		return
-	}
-	constraint := alterCmd.GetDef().GetConstraint()
-	if constraint != nil && constraint.Contype == pg_query.ConstrType_CONSTR_PRIMARY {
-		reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-			"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
-	}
+	e.g.  
+	ALTER TABLE example2 
+ 		ADD CONSTRAINT example2_pkey PRIMARY KEY (id);
+	tmts:{stmt:{alter_table_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:693}  
+	cmds:{alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_PRIMARY  conname:"example2_pkey"  
+	location:710  keys:{string:{sval:"id"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}  stmt_location:679  stmt_len:72}
+	
+	*/
 
+	constraint := alterCmd.GetDef().GetConstraint()
+
+	if constraint != nil && constraint.Contype == pg_query.ConstrType_CONSTR_PRIMARY {
+		if partitionTablesMap[fullyQualifiedName] {
+			reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+				"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
+		} else {
+			primaryConsInAlter[fullyQualifiedName] = &sqlStmtInfo 
+		}
+	}
 }
 
 func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -438,8 +447,36 @@ func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sq
 	columns := createTableNode.CreateStmt.TableElts
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 
+	/*
+	e.g. In case if PRIMARY KEY is included in column definition 
+	 CREATE TABLE example2 (
+	 	id numeric NOT NULL PRIMARY KEY,
+		country_code varchar(3),
+		record_type varchar(5)
+	) PARTITION BY RANGE (country_code, record_type) ;
+	stmts:{stmt:{create_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:193}  table_elts:{column_def:{colname:"id"  
+	type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  typemod:-1  location:208}  is_local:true  
+	constraints:{constraint:{contype:CONSTR_NOTNULL  location:216}}  constraints:{constraint:{contype:CONSTR_PRIMARY  location:225}}  
+	location:205}}  ...  partspec:{strategy:PARTITION_STRATEGY_RANGE  
+	part_params:{partition_elem:{name:"country_code"  location:310}}  part_params:{partition_elem:{name:"record_type"  location:324}}  
+	location:290}  oncommit:ONCOMMIT_NOOP}}  stmt_location:178  stmt_len:159}
+	
+	In case if PRIMARY KEY in column list CREATE TABLE example1 (..., PRIMARY KEY(id,country_code) ) PARTITION BY RANGE (country_code, record_type);
+	stmts:{stmt:{create_stmt:{relation:{relname:"example1"  inh:true  relpersistence:"p"  location:15}  table_elts:{column_def:{colname:"id"  
+	type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  ... table_elts:{constraint:{contype:CONSTR_PRIMARY  
+	location:98  keys:{string:{sval:"id"}} keys:{string:{sval:"country_code"}}}}  partspec:{strategy:PARTITION_STRATEGY_RANGE  
+	part_params:{partition_elem:{name:"country_code" location:150}}  part_params:{partition_elem:{name:"record_type"  ...
+	*/
 	if createTableNode.CreateStmt.GetPartspec() == nil {
+		//If not partition table then no need to proceed
 		return
+	}
+
+	if primaryConsInAlter[fullyQualifiedName] != nil {
+		//reporting the ALTER TABLE ADD PK on partition table here in case the order is different if ALTER is before the CREATE 
+		alterTableSqlInfo := primaryConsInAlter[fullyQualifiedName]
+		reportCase(alterTableSqlInfo.fileName, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+			"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, alterTableSqlInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
 	}
 
 	partitionTablesMap[fullyQualifiedName] = true // marking the partition tables in the map
