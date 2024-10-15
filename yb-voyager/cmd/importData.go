@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -459,7 +460,14 @@ func importData(importFileTasks []*ImportFileTask) {
 		if !ok {
 			utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
 		}
-		go adaptiveparallelism.AdaptParallelism(yb)
+		go func() {
+			err := adaptiveparallelism.AdaptParallelism(yb)
+			if errors.Is(err, adaptiveparallelism.AdaptiveParallelismNotSupportedError) {
+				utils.PrintAndLog(color.YellowString("Disabling adaptive parallelism as it is not supported in this version of YugabyteDB"))
+			} else {
+				log.Errorf("adaptive parallelism error: %v", err)
+			}
+		}()
 	}
 
 	targetDBVersion := tdb.GetVersion()
