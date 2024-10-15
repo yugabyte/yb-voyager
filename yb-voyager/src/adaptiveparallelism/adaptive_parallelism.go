@@ -23,14 +23,21 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
-	CPU_USAGE_USER                 = "cpu_usage_user"
-	CPU_USAGE_SYSTEM               = "cpu_usage_system"
-	MAX_CPU_THRESHOLD              = 70
-	ADAPTIVE_PARALLELISM_FREQUENCY = 10 * time.Second
+	CPU_USAGE_USER   = "cpu_usage_user"
+	CPU_USAGE_SYSTEM = "cpu_usage_system"
 )
+
+var MAX_CPU_THRESHOLD int
+var ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS int
+
+func init() {
+	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", 70)
+	ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = utils.GetEnvAsInt("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", 10)
+}
 
 type TargetYugabyteDBWithConnectionPool interface {
 	IsAdaptiveParallelismSupported() bool
@@ -47,7 +54,7 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 		return ErrAdaptiveParallelismNotSupported
 	}
 	for {
-		time.Sleep(ADAPTIVE_PARALLELISM_FREQUENCY)
+		time.Sleep(time.Duration(ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS) * time.Second)
 		err := fetchClusterMetricsAndUpdateParallelism(yb)
 		if err != nil {
 			log.Warnf("adaptive: error updating parallelism: %v", err)
