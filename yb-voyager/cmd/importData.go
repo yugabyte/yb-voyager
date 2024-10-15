@@ -462,7 +462,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		go func() {
 			err := adaptiveparallelism.AdaptParallelism(yb)
-			if errors.Is(err, adaptiveparallelism.AdaptiveParallelismNotSupportedError) {
+			if errors.Is(err, adaptiveparallelism.ErrAdaptiveParallelismNotSupported) {
 				utils.PrintAndLog(color.YellowString("Disabling adaptive parallelism as it is not supported in this version of YugabyteDB"))
 			} else {
 				log.Errorf("adaptive parallelism error: %v", err)

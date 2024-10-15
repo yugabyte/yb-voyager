@@ -40,11 +40,11 @@ type TargetYugabyteDBWithConnectionPool interface {
 	UpdateNumConnectionsInPool(int) error // (delta)
 }
 
-var AdaptiveParallelismNotSupportedError = fmt.Errorf("adaptive parallelism not supported in target YB database")
+var ErrAdaptiveParallelismNotSupported = fmt.Errorf("adaptive parallelism not supported in target YB database")
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 	if !yb.IsAdaptiveParallelismSupported() {
-		return AdaptiveParallelismNotSupportedError
+		return ErrAdaptiveParallelismNotSupported
 	}
 	for {
 		time.Sleep(ADAPTIVE_PARALLELISM_FREQUENCY)
