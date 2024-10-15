@@ -1178,8 +1178,8 @@ func (yb *TargetYugabyteDB) IsAdaptiveParallelismSupported() bool {
 	return yb.isQueryResultNonEmpty(query)
 }
 
-func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, error) {
-	result := make(map[string]map[string]string)
+func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]NodeMetrics, error) {
+	result := make(map[string]NodeMetrics)
 
 	query := "select uuid, metrics, status, error from yb_servers_metrics();"
 	rows, err := yb.Query(query)
@@ -1201,11 +1201,16 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, e
 			return result, fmt.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
 				uuid, metrics, status, errorStr)
 		}
-		var metricsMap map[string]string
-		if err := json.Unmarshal([]byte(metrics.String), &metricsMap); err != nil {
+		nodeMetrics := NodeMetrics{
+			UUID:    uuid.String,
+			Metrics: make(map[string]string),
+			Status:  status.String,
+			Error:   errorStr.String,
+		}
+		if err := json.Unmarshal([]byte(metrics.String), &(nodeMetrics.Metrics)); err != nil {
 			return result, fmt.Errorf("unmarshalling metrics json string: %w", err)
 		}
-		result[uuid.String] = metricsMap
+		result[uuid.String] = nodeMetrics
 	}
 	return result, nil
 }
@@ -1277,4 +1282,11 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 
 func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
 	return nil, nil
+}
+
+type NodeMetrics struct {
+	UUID    string
+	Metrics map[string]string
+	Status  string
+	Error   string
 }

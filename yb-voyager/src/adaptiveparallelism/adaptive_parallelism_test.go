@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 type dummyTargetYugabyteDB struct {
@@ -35,14 +36,29 @@ func (d *dummyTargetYugabyteDB) IsAdaptiveParallelismSupported() bool {
 	return true
 }
 
-func (d *dummyTargetYugabyteDB) GetClusterMetrics() (map[string]map[string]string, error) {
-	result := make(map[string]map[string]string)
-	result["node1"] = make(map[string]string)
-	result["node1"]["cpu_usage_user"] = strconv.FormatFloat(d.cpuUsageUser1, 'f', -1, 64)
-	result["node1"]["cpu_usage_system"] = strconv.FormatFloat(d.cpuUsageSys1, 'f', -1, 64)
-	result["node2"] = make(map[string]string)
-	result["node2"]["cpu_usage_user"] = strconv.FormatFloat(d.cpuUsageUser2, 'f', -1, 64)
-	result["node2"]["cpu_usage_system"] = strconv.FormatFloat(d.cpuUsageSys2, 'f', -1, 64)
+func (d *dummyTargetYugabyteDB) GetClusterMetrics() (map[string]tgtdb.NodeMetrics, error) {
+	result := make(map[string]tgtdb.NodeMetrics)
+	metrics1 := make(map[string]string)
+	metrics1["cpu_usage_user"] = strconv.FormatFloat(d.cpuUsageUser1, 'f', -1, 64)
+	metrics1["cpu_usage_system"] = strconv.FormatFloat(d.cpuUsageSys1, 'f', -1, 64)
+
+	result["node1"] = tgtdb.NodeMetrics{
+		Metrics: metrics1,
+		UUID:    "node1",
+		Status:  "OK",
+		Error:   "",
+	}
+
+	metrics2 := make(map[string]string)
+	metrics2["cpu_usage_user"] = strconv.FormatFloat(d.cpuUsageUser2, 'f', -1, 64)
+	metrics2["cpu_usage_system"] = strconv.FormatFloat(d.cpuUsageSys2, 'f', -1, 64)
+
+	result["node2"] = tgtdb.NodeMetrics{
+		Metrics: metrics2,
+		UUID:    "node2",
+		Status:  "OK",
+		Error:   "",
+	}
 	return result, nil
 }
 

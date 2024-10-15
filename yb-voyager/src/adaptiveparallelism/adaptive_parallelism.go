@@ -22,6 +22,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 const (
@@ -33,7 +34,7 @@ const (
 
 type TargetYugabyteDBWithConnectionPool interface {
 	IsAdaptiveParallelismSupported() bool
-	GetClusterMetrics() (map[string]map[string]string, error) // node_uuid:metric_name:metric_value
+	GetClusterMetrics() (map[string]tgtdb.NodeMetrics, error) // node_uuid:metric_name:metric_value
 	GetNumConnectionsInPool() int
 	GetNumMaxConnectionsInPool() int
 	UpdateNumConnectionsInPool(int) error // (delta)
@@ -71,6 +72,9 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	if err != nil {
 		return fmt.Errorf("getting max cpu usage in cluster: %w", err)
 	}
+	if maxCpuUsage < 0 {
+		log.Warnf("adaptive: Ignoring update as max cpu usage in cluster is negative: %d", maxCpuUsage)
+	}
 	log.Infof("adaptive: max cpu usage in cluster = %d", maxCpuUsage)
 
 	if maxCpuUsage > MAX_CPU_THRESHOLD {
@@ -89,14 +93,17 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	return nil
 }
 
-func getMaxCpuUsageInCluster(clusterMetrics map[string]map[string]string) (int, error) {
-	var maxCpuPct int
+func getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, error) {
+	maxCpuPct := -1
 	for _, nodeMetrics := range clusterMetrics {
-		cpuUsageUser, err := strconv.ParseFloat(nodeMetrics[CPU_USAGE_USER], 64)
+		if nodeMetrics.Status != "OK" {
+			continue
+		}
+		cpuUsageUser, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER], 64)
 		if err != nil {
 			return -1, fmt.Errorf("parsing cpu usage user as float: %w", err)
 		}
-		cpuUsageSystem, err := strconv.ParseFloat(nodeMetrics[CPU_USAGE_SYSTEM], 64)
+		cpuUsageSystem, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM], 64)
 		if err != nil {
 			return -1, fmt.Errorf("parsing cpu usage system as float: %w", err)
 		}
