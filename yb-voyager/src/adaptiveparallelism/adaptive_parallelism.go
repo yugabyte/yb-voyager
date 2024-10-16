@@ -33,10 +33,12 @@ const (
 
 var MAX_CPU_THRESHOLD int
 var ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS int
+var MIN_AVAILABLE_MEMORY_THRESHOLD int
 
 func init() {
 	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", 70)
 	ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = utils.GetEnvAsInt("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", 10)
+	MIN_AVAILABLE_MEMORY_THRESHOLD = utils.GetEnvAsInt("MIN_AVAILABLE_MEMORY_THRESHOLD", 10)
 }
 
 type TargetYugabyteDBWithConnectionPool interface {
@@ -73,15 +75,21 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	if err != nil {
 		return fmt.Errorf("checking if cpu load is high: %w", err)
 	}
+	memLoadHigh, err := isMemoryLoadHigh(clusterMetrics)
+	if err != nil {
+		return fmt.Errorf("checking if memory load is high: %w", err)
+	}
 
-	if cpuLoadHigh {
-		log.Infof("adaptive: cpuLoadHigh=%t, reducing parallelism to %d", cpuLoadHigh, yb.GetNumConnectionsInPool()-1)
+	if cpuLoadHigh || memLoadHigh {
+		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, reducing parallelism to %d",
+			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()-1)
 		err = yb.UpdateNumConnectionsInPool(-1)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with -1: %w", err)
 		}
 	} else {
-		log.Infof("adaptive: cpuLoadHigh=%t, increasing parallelism to %d", cpuLoadHigh, yb.GetNumConnectionsInPool()+1)
+		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, increasing parallelism to %d",
+			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+1)
 		err := yb.UpdateNumConnectionsInPool(1)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with +1 : %w", err)
@@ -124,4 +132,46 @@ func getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, 
 		maxCpuPct = max(maxCpuPct, cpuUsagePct)
 	}
 	return maxCpuPct, nil
+}
+
+func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+	minMemoryAvailablePct := 100
+	isTserverRootMemorySoftLimitBreached := false
+	for _, nodeMetrics := range clusterMetrics {
+		if nodeMetrics.Status != "OK" {
+			continue
+		}
+		// check if tserver root memory soft limit is breached
+		tserverRootMemoryConsumption, err := strconv.ParseInt(nodeMetrics.Metrics["tserver_root_memory_consumption"], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("parsing tserver root memory consumption as int: %w", err)
+		}
+		tserverRootMemorySoftLimit, err := strconv.ParseInt(nodeMetrics.Metrics["tserver_root_memory_soft_limit"], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("parsing tserver root memory soft limit as int: %w", err)
+		}
+		if tserverRootMemoryConsumption > tserverRootMemorySoftLimit {
+			isTserverRootMemorySoftLimitBreached = true
+			break
+		}
+
+		// check if memory available is low
+		memoryAvailable, err := strconv.ParseInt(nodeMetrics.Metrics["memory_available"], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("parsing memory available as int: %w", err)
+		}
+		memoryTotal, err := strconv.ParseInt(nodeMetrics.Metrics["memory_total"], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("parsing memory total as int: %w", err)
+		}
+		if memoryAvailable == 0 || memoryTotal == 0 {
+			// invalid values
+			// on macos memory available is not available
+			continue
+		}
+		memoryAvailablePct := int((memoryAvailable * 100) / memoryTotal)
+		minMemoryAvailablePct = min(minMemoryAvailablePct, memoryAvailablePct)
+	}
+
+	return minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD || isTserverRootMemorySoftLimitBreached, nil
 }
