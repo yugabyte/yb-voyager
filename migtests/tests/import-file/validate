@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import yb
+import os
 
 def main():
 	yb.run_checks(file_import_done_checks)
