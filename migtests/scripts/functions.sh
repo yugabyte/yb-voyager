@@ -460,7 +460,6 @@ import_data_file() {
 		--target-db-name ${TARGET_DB_NAME} \
 		--disable-pb true \
 		--send-diagnostics=false \
-		--parallel-jobs 1 \
 		$* || {
 			cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 			exit 1
