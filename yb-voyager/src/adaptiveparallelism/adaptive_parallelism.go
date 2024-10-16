@@ -134,6 +134,11 @@ func getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, 
 	return maxCpuPct, nil
 }
 
+/*
+Memory load is considered to be high in the following scenarios
+- Available memory of any node is less than 10% (MIN_AVAILABLE_MEMORY_THRESHOLD) of it's total memory
+- tserver root memory consumption of any node has breached it's soft limit.
+*/
 func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	minMemoryAvailablePct := 100
 	isTserverRootMemorySoftLimitBreached := false
