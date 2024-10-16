@@ -807,6 +807,7 @@ normalize_json() {
     jq 'walk(
         if type == "object" then
             .ObjectNames? |= (if type == "string" then split(", ") | sort | join(", ") else . end) |
+            .VoyagerVersion? = "IGNORED" |
             .DbVersion? = "IGNORED" |
             .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
