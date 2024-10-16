@@ -730,7 +730,7 @@ func generateAssessmentReport() (err error) {
 		}
 		assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 	}
-
+	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
