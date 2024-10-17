@@ -635,11 +635,11 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
-	query := fmt.Sprintf(` SELECT p.relname AS parent_table
+	query := fmt.Sprintf(` SELECT i.inhparent::pg_catalog.regclass AS parent_table
 		FROM pg_catalog.pg_class c
 		JOIN pg_catalog.pg_inherits i ON c.oid = i.inhrelid
 		JOIN pg_catalog.pg_class p ON i.inhparent = p.oid
-		JOIN pg_catalog.pg_partitioned_table pt ON p.oid = pt.partrelid  -- This ensures it's a partitioned table
+		JOIN pg_catalog.pg_partitioned_table pt ON p.oid = pt.partrelid  -- this clause ensures it filters only partitioned table
 		WHERE c.oid = '%s'::regclass::oid;`, table.ForOutput())
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
