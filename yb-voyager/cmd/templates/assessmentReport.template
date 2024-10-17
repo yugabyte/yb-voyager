@@ -65,6 +65,7 @@
 <body>
     <div class="wrapper">
         <h1>Migration Assessment Report</h1>
+        <p><strong>Voyager Version:</strong> {{ .VoyagerVersion }}</p>
         <p><strong>Database Name:</strong> {{.SchemaSummary.DBName}}</p>
         {{ if .SchemaSummary.SchemaNames}}
             <p><strong>Schema Name:</strong>

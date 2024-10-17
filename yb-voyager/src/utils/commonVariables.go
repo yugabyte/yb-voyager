@@ -73,8 +73,9 @@ var WaitChannel = make(chan int)
 // ================== Schema Report ==============================
 
 type SchemaReport struct {
-	SchemaSummary SchemaSummary `json:"Summary"`
-	Issues        []Issue       `json:"Issues"`
+	VoyagerVersion string        `json:"VoyagerVersion"`
+	SchemaSummary  SchemaSummary `json:"Summary"`
+	Issues         []Issue       `json:"Issues"`
 }
 
 type SchemaSummary struct {

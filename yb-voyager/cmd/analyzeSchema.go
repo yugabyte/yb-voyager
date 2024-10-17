@@ -1682,6 +1682,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
+	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	return schemaAnalysisReport
 }
 
@@ -1815,7 +1816,6 @@ var reasonsIncludingSensitiveInformation = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
 	STORED_GENERATED_COLUMN_ISSUE_REASON,
 }
-
 
 func packAndSendAnalyzeSchemaPayload(status string) {
 	if !shouldSendCallhome() {

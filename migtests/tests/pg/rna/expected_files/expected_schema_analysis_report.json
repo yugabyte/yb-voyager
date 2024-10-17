@@ -1,4 +1,5 @@
 {
+    "VoyagerVersion": "IGNORED",
     "Summary": {
         "MigrationComplexity": "HIGH",
         "DbName": "test_rna",

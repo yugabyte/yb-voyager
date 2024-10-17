@@ -1107,6 +1107,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 // =====================================================================
 
 type AssessmentReport struct {
+	VoyagerVersion             string                                `json:"VoyagerVersion"`
 	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
 	SchemaSummaryDBObjectsDesc string                                `json:"SchemaSummaryDBObjectsDesc"` // TODO: ideally this should be in SchemaSummary
 	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`

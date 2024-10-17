@@ -1,4 +1,5 @@
 {
+	"VoyagerVersion": "IGNORED",
 	"SchemaSummary": {
 		"MigrationComplexity": "LOW",
 		"DbName": "test_pgtbrus",

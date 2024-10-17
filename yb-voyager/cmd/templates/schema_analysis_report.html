@@ -44,8 +44,9 @@
     <h1>Schema Analysis Report</h1>
 
     <div class="section">
-        <h3>Database Information</h3>
+        <h3>Migration Information</h3>
         <table>
+            <tr><th>Voyager Version</th><td>{{ .VoyagerVersion }}</td></tr>
             <tr><th>Database Name</th><td>{{ .SchemaSummary.DBName }}</td></tr>
             {{if .SchemaSummary.SchemaNames }}
                 <tr><th>Schema Name</th><td>{{ join .SchemaSummary.SchemaNames ", " }}</td></tr>
