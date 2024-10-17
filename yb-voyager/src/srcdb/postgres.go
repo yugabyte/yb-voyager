@@ -49,7 +49,7 @@ const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
 
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
-var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
+var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID" }
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
 
 var PG_COMMAND_VERSION = map[string]string{
@@ -635,9 +635,12 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
-	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
-	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
+	query := fmt.Sprintf(` SELECT c.relname, p.relname AS parent_table
+		FROM pg_catalog.pg_class c
+		JOIN pg_catalog.pg_inherits i ON c.oid = i.inhrelid
+		JOIN pg_catalog.pg_class p ON i.inhparent = p.oid
+		JOIN pg_catalog.pg_partitioned_table pt ON p.oid = pt.partrelid  -- This ensures it's a partitioned table
+		WHERE c.oid = '%s'::regclass::oid;`, table.ForOutput())
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
@@ -730,12 +733,14 @@ func (pg *PostgreSQL) GetPartitions(tableName sqlname.NameTuple) []string {
 	query := fmt.Sprintf(`SELECT
     nmsp_child.nspname  AS child_schema,
     child.relname       AS child
-FROM pg_inherits
-    JOIN pg_class parent            ON pg_inherits.inhparent = parent.oid
-    JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
-    JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
-    JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
-WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
+	FROM pg_inherits
+		JOIN pg_class parent            ON pg_inherits.inhparent = parent.oid
+		JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
+		JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
+		JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
+		JOIN pg_partitioned_table pt    ON parent.oid = pt.partrelid  -- this clause ensures it filters only partitioned table
+	WHERE parent.relname = '%s' 
+	AND nmsp_parent.nspname = '%s';`, tname, sname)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
