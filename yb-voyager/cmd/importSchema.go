@@ -98,7 +98,7 @@ func importSchema() error {
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
-		//Marking tdb as nil back to not allow others to use it as this is just dummy initialisation of tdb 
+		//Marking tdb as nil back to not allow others to use it as this is just dummy initialisation of tdb
 		//with public schema so Reintialise tdb if required with proper configs when it is available.
 		tdb = nil
 		tconf.Schema = tconfSchema
@@ -120,6 +120,38 @@ func importSchema() error {
 		return fmt.Errorf("get target db version: %s", err)
 	}
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
+
+	if tconf.RunGuardrailsChecks {
+		tconfSchema := tconf.Schema
+		// setting the tconf schema to public here for initalisation to handle cases where non-public target schema
+		// is not created as it will be created with `createTargetSchemas` func, so not a problem in using public as it will be
+		// available always and this is just for initialisation of tdb and marking it nil again back.
+		tconf.Schema = "public"
+		tdb = tgtdb.NewTargetDB(&tconf)
+		err := tdb.Init()
+		if err != nil {
+			utils.ErrExit("Failed to initialize the target DB: %s", err)
+		}
+
+		// Check import schema permissions
+		missingPermissions, err := tdb.GetMissingImportSchemaPermissions()
+		if err != nil {
+			utils.ErrExit("Failed to get missing import schema permissions: %s", err)
+		}
+		if len(missingPermissions) > 0 {
+			utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing schema:"))
+			output := strings.Join(missingPermissions, "\n")
+			utils.PrintAndLog(output)
+			utils.ErrExit("Please grant the required permissions and retry the import.")
+		} else {
+			log.Info("The target database has the required permissions for importing schema.")
+		}
+
+		//Marking tdb as nil back to not allow others to use it as this is just dummy initialisation of tdb
+		//with public schema so Reintialise tdb if required with proper configs when it is available.
+		tdb = nil
+		tconf.Schema = tconfSchema
+	}
 
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {

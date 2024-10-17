@@ -908,3 +908,7 @@ func (pg *TargetPostgreSQL) getSchemaList() []string {
 	schemas := strings.Split(pg.tconf.Schema, ",")
 	return schemas
 }
+
+func (pg *TargetPostgreSQL) GetMissingImportSchemaPermissions() ([]string, error) {
+	return nil, nil
+}

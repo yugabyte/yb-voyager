@@ -1319,7 +1319,31 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	return nil
 }
 
+func (yb *TargetYugabyteDB) GetMissingImportSchemaPermissions() ([]string, error) {
+	// check if the user is a superuser
+	isSuperUser, err := yb.checkIfCurrentUserIsSuperUser()
+	if err != nil {
+		return nil, fmt.Errorf("checking if user is superuser: %w", err)
+	}
+	if !isSuperUser {
+		errorMsg := fmt.Sprintf("User %s is not a superuser.", yb.tconf.User)
+		return []string{errorMsg}, nil
+	}
+
+	return nil, nil
+}
+
 func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
+	// check if the user is a superuser
+	isSuperUser, err := yb.checkIfCurrentUserIsSuperUser()
+	if err != nil {
+		return nil, fmt.Errorf("checking if user is superuser: %w", err)
+	}
+	if !isSuperUser {
+		errorMsg := fmt.Sprintf("User %s is not a superuser.", yb.tconf.User)
+		return []string{errorMsg}, nil
+	}
+
 	return nil, nil
 }
 
@@ -1328,4 +1352,23 @@ type NodeMetrics struct {
 	Metrics map[string]string
 	Status  string
 	Error   string
+}
+
+func (yb *TargetYugabyteDB) checkIfCurrentUserIsSuperUser() (bool, error) {
+	// SELECT rolname, rolsuper FROM pg_roles WHERE rolname='yugabyte';
+	query := "SELECT rolsuper FROM pg_roles WHERE rolname=current_user"
+	rows, err := yb.Query(query)
+	if err != nil {
+		return false, fmt.Errorf("querying if user is superuser: %w", err)
+	}
+	defer rows.Close()
+
+	var isSuperUser bool
+	if rows.Next() {
+		err = rows.Scan(&isSuperUser)
+		if err != nil {
+			return false, fmt.Errorf("scanning row for superuser: %w", err)
+		}
+	}
+	return isSuperUser, nil
 }
