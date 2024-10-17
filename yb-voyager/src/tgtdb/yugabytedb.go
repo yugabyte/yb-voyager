@@ -1178,6 +1178,45 @@ func (yb *TargetYugabyteDB) IsAdaptiveParallelismSupported() bool {
 	return yb.isQueryResultNonEmpty(query)
 }
 
+/*
+Sample output of yb_servers_metrics:
+yugabyte=# select uuid, jsonb_pretty(metrics), status, error from yb_servers_metrics();
+
+	uuid               |                    jsonb_pretty                     | status | error
+
+----------------------------------+-----------------------------------------------------+--------+-------
+
+	bf98c74dd7044b34943c5bff7bd3d0d1 | {                                                  +| OK     |
+	                                 |     "memory_free": "0",                            +|        |
+	                                 |     "memory_total": "17179869184",                 +|        |
+	                                 |     "cpu_usage_user": "0.135827",                  +|        |
+	                                 |     "cpu_usage_system": "0.118110",                +|        |
+	                                 |     "memory_available": "0",                       +|        |
+	                                 |     "tserver_root_memory_limit": "11166914969",    +|        |
+	                                 |     "tserver_root_memory_soft_limit": "9491877723",+|        |
+	                                 |     "tserver_root_memory_consumption": "52346880"  +|        |
+	                                 | }                                                   |        |
+	d105c3a6128640f5a25cc74435e48ae3 | {                                                  +| OK     |
+	                                 |     "memory_free": "0",                            +|        |
+	                                 |     "memory_total": "17179869184",                 +|        |
+	                                 |     "cpu_usage_user": "0.135189",                  +|        |
+	                                 |     "cpu_usage_system": "0.119284",                +|        |
+	                                 |     "memory_available": "0",                       +|        |
+	                                 |     "tserver_root_memory_limit": "11166914969",    +|        |
+	                                 |     "tserver_root_memory_soft_limit": "9491877723",+|        |
+	                                 |     "tserver_root_memory_consumption": "55074816"  +|        |
+	                                 | }                                                   |        |
+	a321e13e5bf24060a764b35894cd4070 | {                                                  +| OK     |
+	                                 |     "memory_free": "0",                            +|        |
+	                                 |     "memory_total": "17179869184",                 +|        |
+	                                 |     "cpu_usage_user": "0.135827",                  +|        |
+	                                 |     "cpu_usage_system": "0.118110",                +|        |
+	                                 |     "memory_available": "0",                       +|        |
+	                                 |     "tserver_root_memory_limit": "11166914969",    +|        |
+	                                 |     "tserver_root_memory_soft_limit": "9491877723",+|        |
+	                                 |     "tserver_root_memory_consumption": "62062592"  +|        |
+	                                 | }                                                   |        |
+*/
 func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]NodeMetrics, error) {
 	result := make(map[string]NodeMetrics)
 
