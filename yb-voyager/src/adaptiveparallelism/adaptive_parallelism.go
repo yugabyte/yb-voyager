@@ -27,8 +27,12 @@ import (
 )
 
 const (
-	CPU_USAGE_USER   = "cpu_usage_user"
-	CPU_USAGE_SYSTEM = "cpu_usage_system"
+	CPU_USAGE_USER_METRIC                  = "cpu_usage_user"
+	CPU_USAGE_SYSTEM_METRIC                = "cpu_usage_system"
+	TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC = "tserver_root_memory_consumption"
+	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC  = "tserver_root_memory_soft_limit"
+	MEMORY_TOTAL_METRIC                    = "memory_total"
+	MEMORY_AVAILABLE_METRIC                = "memory_available"
 )
 
 var MAX_CPU_THRESHOLD int
@@ -119,11 +123,11 @@ func getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, 
 		if nodeMetrics.Status != "OK" {
 			continue
 		}
-		cpuUsageUser, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER], 64)
+		cpuUsageUser, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER_METRIC], 64)
 		if err != nil {
 			return -1, fmt.Errorf("parsing cpu usage user as float: %w", err)
 		}
-		cpuUsageSystem, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM], 64)
+		cpuUsageSystem, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM_METRIC], 64)
 		if err != nil {
 			return -1, fmt.Errorf("parsing cpu usage system as float: %w", err)
 		}
@@ -147,11 +151,11 @@ func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error)
 			continue
 		}
 		// check if tserver root memory soft limit is breached
-		tserverRootMemoryConsumption, err := strconv.ParseInt(nodeMetrics.Metrics["tserver_root_memory_consumption"], 10, 64)
+		tserverRootMemoryConsumption, err := strconv.ParseInt(nodeMetrics.Metrics[TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC], 10, 64)
 		if err != nil {
 			return false, fmt.Errorf("parsing tserver root memory consumption as int: %w", err)
 		}
-		tserverRootMemorySoftLimit, err := strconv.ParseInt(nodeMetrics.Metrics["tserver_root_memory_soft_limit"], 10, 64)
+		tserverRootMemorySoftLimit, err := strconv.ParseInt(nodeMetrics.Metrics[TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC], 10, 64)
 		if err != nil {
 			return false, fmt.Errorf("parsing tserver root memory soft limit as int: %w", err)
 		}
@@ -161,11 +165,11 @@ func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error)
 		}
 
 		// check if memory available is low
-		memoryAvailable, err := strconv.ParseInt(nodeMetrics.Metrics["memory_available"], 10, 64)
+		memoryAvailable, err := strconv.ParseInt(nodeMetrics.Metrics[MEMORY_AVAILABLE_METRIC], 10, 64)
 		if err != nil {
 			return false, fmt.Errorf("parsing memory available as int: %w", err)
 		}
-		memoryTotal, err := strconv.ParseInt(nodeMetrics.Metrics["memory_total"], 10, 64)
+		memoryTotal, err := strconv.ParseInt(nodeMetrics.Metrics[MEMORY_TOTAL_METRIC], 10, 64)
 		if err != nil {
 			return false, fmt.Errorf("parsing memory total as int: %w", err)
 		}
