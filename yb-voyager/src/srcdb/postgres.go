@@ -644,7 +644,13 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
-		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
+		if strings.Contains(err.Error(), "does not exist") {
+			//pg_partitioned_table table is available from PG 10 and consist info of partitioned tables
+			return ""
+		} else {
+			log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", table, query, err)
+			utils.ErrExit("failed to find the partitions for table %s:", table, err)
+		}
 	}
 
 	return parentTable
@@ -744,8 +750,13 @@ func (pg *PostgreSQL) GetPartitions(tableName sqlname.NameTuple) []string {
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
-		utils.ErrExit("failed to find the partitions for table %s:", tableName, err)
+		if strings.Contains(err.Error(), "does not exist") {
+			//pg_partitioned_table table is available from PG 10 and consist info of partitioned tables
+			return partitions
+		} else {
+			log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
+			utils.ErrExit("failed to find the partitions for table %s:", tableName, err)
+		}
 	}
 	defer func() {
 		closeErr := rows.Close()
