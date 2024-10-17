@@ -422,6 +422,11 @@ import_data() {
 			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
 		fi
 
+		# Check if RUN_USING_ADAPTIVE_PARALLELISM is true
+    	if [ "${RUN_USING_ADAPTIVE_PARALLELISM}" = "true" ]; then
+    	    args="${args} --enable-adaptive-parallelism true"
+    	fi
+
 		yb-voyager import data ${args} $*
 }
 
