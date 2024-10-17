@@ -176,6 +176,9 @@ func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error)
 		}
 		memoryAvailablePct := int((memoryAvailable * 100) / memoryTotal)
 		minMemoryAvailablePct = min(minMemoryAvailablePct, memoryAvailablePct)
+		if minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD {
+			break
+		}
 	}
 
 	return minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD || isTserverRootMemorySoftLimitBreached, nil
