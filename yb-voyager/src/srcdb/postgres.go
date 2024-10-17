@@ -635,7 +635,7 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
-	query := fmt.Sprintf(` SELECT c.relname, p.relname AS parent_table
+	query := fmt.Sprintf(` SELECT p.relname AS parent_table
 		FROM pg_catalog.pg_class c
 		JOIN pg_catalog.pg_inherits i ON c.oid = i.inhrelid
 		JOIN pg_catalog.pg_class p ON i.inhparent = p.oid
@@ -738,7 +738,7 @@ func (pg *PostgreSQL) GetPartitions(tableName sqlname.NameTuple) []string {
 	sname, tname := tableName.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT
     nmsp_child.nspname  AS child_schema,
-    child.relname       AS child
+    child.relname       AS child_table
 	FROM pg_inherits
 		JOIN pg_class parent            ON pg_inherits.inhparent = parent.oid
 		JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
