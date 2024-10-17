@@ -1816,7 +1816,6 @@ var reasonsIncludingSensitiveInformation = []string{
 	STORED_GENERATED_COLUMN_ISSUE_REASON,
 }
 
-
 func packAndSendAnalyzeSchemaPayload(status string) {
 	if !shouldSendCallhome() {
 		return

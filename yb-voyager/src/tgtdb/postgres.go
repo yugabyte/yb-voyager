@@ -912,3 +912,7 @@ func (pg *TargetPostgreSQL) getSchemaList() []string {
 func (pg *TargetPostgreSQL) GetMissingImportSchemaPermissions() ([]string, error) {
 	return nil, nil
 }
+
+func (pg *TargetPostgreSQL) CheckTargetDBVersion() error {
+	return nil
+}

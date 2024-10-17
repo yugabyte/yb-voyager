@@ -1372,3 +1372,7 @@ func (yb *TargetYugabyteDB) checkIfCurrentUserIsSuperUser() (bool, error) {
 	}
 	return isSuperUser, nil
 }
+
+func (yb *TargetYugabyteDB) CheckTargetDBVersion() error {
+	return nil
+}

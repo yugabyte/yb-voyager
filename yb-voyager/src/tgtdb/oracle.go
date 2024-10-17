@@ -721,3 +721,7 @@ func (tdb *TargetOracleDB) GetMissingImportDataPermissions() ([]string, error) {
 func (tdb *TargetOracleDB) GetMissingImportSchemaPermissions() ([]string, error) {
 	return nil, nil
 }
+
+func (tdb *TargetOracleDB) CheckTargetDBVersion() error {
+	return nil
+}

@@ -112,6 +112,10 @@ func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string) ([]stri
 	return nil, nil
 }
 
+func (yb *YugabyteDB) CheckDependencies() error {
+	return nil
+}
+
 func (yb *YugabyteDB) GetVersion() string {
 	if yb.source.DBVersion != "" {
 		return yb.source.DBVersion

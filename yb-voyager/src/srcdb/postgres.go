@@ -18,6 +18,7 @@ package srcdb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os/exec"
@@ -391,7 +392,7 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
 // the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
-func GetAbsPathOfPGCommand(cmd string) (string, error) {
+func GetAbsPathAndCheckVersionOfPGCommand(cmd string, sourceDBVersion string) (string, error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
 		err = fmt.Errorf("error in finding executables: %w", err)
@@ -415,6 +416,12 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 		currVersion := strings.Fields(string(stdout))[2]
 
 		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 {
+			// Check if the version of the command is less than the source DB version
+			if version.CompareSimple(currVersion, sourceDBVersion) < 0 {
+				err = fmt.Errorf("version of %v (%v) is less than the source DB version (%v)", cmd, currVersion, sourceDBVersion)
+				return "", err
+			}
+
 			return path, nil
 		}
 	}
@@ -1501,4 +1508,27 @@ func (pg *PostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	}
 
 	return schemasMissingUsagePermission, nil
+}
+
+func (pg *PostgreSQL) CheckDependencies() error {
+	var errs []string
+
+	// List of pg binaries to check
+	binaries := []string{"pg_dump", "pg_restore"}
+	sourceDBVersion := pg.GetVersion()
+
+	for _, binary := range binaries {
+		_, err := GetAbsPathAndCheckVersionOfPGCommand(binary, sourceDBVersion)
+		if err != nil {
+			errs = append(errs, err.Error())
+		} else {
+			log.Infof("%s is compatible", binary)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "\n"))
+	}
+
+	return nil
 }
