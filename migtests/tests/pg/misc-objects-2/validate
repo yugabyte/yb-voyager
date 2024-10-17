@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import yb
 
 def main():
@@ -55,6 +56,8 @@ EXPECTED_TEXT_LENGTHS = {
     34: 24,
 }
 
+if os.environ.get("BETA_FAST_DATA_EXPORT") == '1':
+	EXPECTED_ROW_COUNT["cities"] = 14
 
 def YB_specific_checks(tgt):
 	yb.verify_colocation(tgt, "postgresql")
