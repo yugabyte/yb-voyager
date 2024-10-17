@@ -32,7 +32,7 @@ import (
 )
 
 func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
-	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
+	pgDumpPath, err := GetAbsPathAndCheckVersionOfPGCommand("pg_dump", source.DBVersion)
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
@@ -135,7 +135,7 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 				objSqlStmts["SEQUENCE"].WriteString(stmts)
 			case "INDEX", "INDEX ATTACH":
 				objSqlStmts["INDEX"].WriteString(stmts)
-			case  "DEFAULT":
+			case "DEFAULT":
 				//In cases the DEFAULT stmt is for the FOREIGN TABLE, it should go in foreign_table.sql
 				if strings.HasPrefix(stmts, "ALTER FOREIGN TABLE") {
 					objSqlStmts["FOREIGN TABLE"].WriteString(stmts)

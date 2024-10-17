@@ -216,6 +216,11 @@ func exportData() bool {
 		if err != nil {
 			utils.ErrExit("Source DB version check failed: %s", err)
 		}
+
+		err = source.DB().CheckDependencies()
+		if err != nil {
+			utils.ErrExit("Source DB dependencies check failed: %s", err)
+		}
 	}
 
 	source.DBVersion = source.DB().GetVersion()
