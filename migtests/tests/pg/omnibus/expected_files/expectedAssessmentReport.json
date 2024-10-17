@@ -1,4 +1,5 @@
 {
+	"VoyagerVersion": "IGNORED",
 	"SchemaSummary": {
 		"MigrationComplexity": "MEDIUM",
 		"DbName": "test_omnibus",
