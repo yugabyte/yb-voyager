@@ -239,6 +239,14 @@ main() {
 	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '|' \
 			--file-table-map "t1_quote_escape_char1.csv:gcs_quote_escape_char1" --quote-char="'" --escape-char="'"
+	
+	
+	if [ "${RUN_LARGE_IMPORT_DATA_FILE_TEST}" = true ] ; then
+
+		step "Run large sized import data file test"
+		import_data_file --data-dir "s3://yb-voyager-test-data" --delimiter "\t" --format "text" --file-table-map "accounts_350m_data.sql:accounts_large" --start-clean true --yes
+
+	fi
 
 	step "Run validations."
 	"${TEST_DIR}/validate"

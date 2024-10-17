@@ -422,6 +422,11 @@ import_data() {
 			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
 		fi
 
+		# Check if RUN_USING_ADAPTIVE_PARALLELISM is true
+    	if [ "${RUN_USING_ADAPTIVE_PARALLELISM}" = "true" ]; then
+    	    args="${args} --enable-adaptive-parallelism true"
+    	fi
+
 		yb-voyager import data ${args} $*
 }
 
@@ -451,21 +456,26 @@ import_data_to_source_replica() {
 }
 
 import_data_file() {
-	yb-voyager import data file --export-dir ${EXPORT_DIR} \
-		--target-db-host ${TARGET_DB_HOST} \
-		--target-db-port ${TARGET_DB_PORT} \
-		--target-db-user ${TARGET_DB_USER} \
-		--target-db-password ${TARGET_DB_PASSWORD:-''} \
-		--target-db-schema ${TARGET_DB_SCHEMA:-''} \
-		--target-db-name ${TARGET_DB_NAME} \
-		--disable-pb true \
-		--send-diagnostics=false \
-		--parallel-jobs 3 \
-		$* || {
-			cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
-			exit 1
-		}
+    args="
+    --export-dir ${EXPORT_DIR}
+    --target-db-host ${TARGET_DB_HOST}
+    --target-db-port ${TARGET_DB_PORT}
+    --target-db-user ${TARGET_DB_USER}
+    --target-db-password ${TARGET_DB_PASSWORD:-''}
+    --target-db-schema ${TARGET_DB_SCHEMA:-''}
+    --target-db-name ${TARGET_DB_NAME}
+    --disable-pb true
+    --send-diagnostics=false
+    "
+
+    # Check if RUN_USING_ADAPTIVE_PARALLELISM is true
+    if [ "${RUN_USING_ADAPTIVE_PARALLELISM}" = "true" ]; then
+        args="${args} --enable-adaptive-parallelism true"
+    fi
+
+    yb-voyager import data file ${args} $*
 }
+
 
 archive_changes() {
 	ENABLE=$(shuf -i 0-1 -n 1)
