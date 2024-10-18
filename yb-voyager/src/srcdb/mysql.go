@@ -117,6 +117,10 @@ func (ms *MySQL) GetMissingExportDataPermissions(exportType string) ([]string, e
 	return nil, nil
 }
 
+func (ms *MySQL) CheckDependencies() error {
+	return nil
+}
+
 func (ms *MySQL) GetVersion() string {
 	if ms.source.DBVersion != "" {
 		return ms.source.DBVersion
