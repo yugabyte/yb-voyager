@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"text/template"
@@ -950,21 +951,12 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	var result []utils.UnsupportedQueryConstruct
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
-
-		// Check if the query starts with CREATE, INSERT, UPDATE, or DELETE
-		upperQuery := strings.ToUpper(strings.TrimSpace(query))
-		if strings.HasPrefix(upperQuery, "CREATE") || strings.HasPrefix(upperQuery, "INSERT") ||
-			strings.HasPrefix(upperQuery, "UPDATE") || strings.HasPrefix(upperQuery, "DELETE") {
-			continue
-		}
-
 		queryParser := queryparser.New(query)
 		err := queryParser.Parse()
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse query-%s: %w", query, err)
 		}
 
-		// Check for unsupported constructs in the parsed query
 		unsupportedConstructs, err := queryParser.GetUnsupportedQueryConstructs()
 		if err != nil {
 			log.Warnf("failed while trying to parse the query: %s", err.Error())
@@ -974,7 +966,10 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		}
 	}
 
-	// TODO: sort the slice for better readability
+	// sort the slice to group same constructType in html and json reports
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ConstructType <= result[j].ConstructType
+	})
 	return result, nil
 }
 
