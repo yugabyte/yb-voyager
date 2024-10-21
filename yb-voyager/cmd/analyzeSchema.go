@@ -1777,7 +1777,6 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("analyze schema : load migration status record: %s", err)
 	}
-	source = *msr.SourceDBConf
 	analyzeSchemaInternal(msr.SourceDBConf)
 
 	if analyzeSchemaReportFormat != "" {
