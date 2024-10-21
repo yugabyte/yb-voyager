@@ -220,22 +220,23 @@ const (
 	CONSTRAINT_TRIGGER_ISSUE_REASON             = "CONSTRAINT TRIGGER not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
-	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
-	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB by default."
-	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
-	ALTER_TABLE_DISABLE_RULE_ISSUE       = "ALTER TABLE name DISABLE RULE not supported yet"
-	STORAGE_PARAMETERS_DDL_STMT_ISSUE    = "Storage parameters are not supported yet."
-	ALTER_TABLE_SET_ATTRUBUTE_ISSUE      = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
-	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables require manual intervention."
-	ALTER_TABLE_CLUSTER_ON_ISSUE         = "ALTER TABLE CLUSTER not supported yet."
-	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
-	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
-	VIEW_CHECK_OPTION_ISSUE              = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
-	ISSUE_INDEX_WITH_COMPLEX_DATATYPES   = `INDEX on column '%s' not yet supported`
-	ISSUE_UNLOGGED_TABLE                 = "UNLOGGED tables are not supported yet."
-	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION  = "Unsupported datatype for Live migration"
-	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
+	STORED_GENERATED_COLUMN_ISSUE_REASON           = "Stored generated columns are not supported."
+	UNSUPPORTED_EXTENSION_ISSUE                    = "This extension is not supported in YugabyteDB by default."
+	EXCLUSION_CONSTRAINT_ISSUE                     = "Exclusion constraint is not supported yet"
+	ALTER_TABLE_DISABLE_RULE_ISSUE                 = "ALTER TABLE name DISABLE RULE not supported yet"
+	STORAGE_PARAMETERS_DDL_STMT_ISSUE              = "Storage parameters are not supported yet."
+	ALTER_TABLE_SET_ATTRUBUTE_ISSUE                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
+	FOREIGN_TABLE_ISSUE_REASON                     = "Foreign tables require manual intervention."
+	ALTER_TABLE_CLUSTER_ON_ISSUE                   = "ALTER TABLE CLUSTER not supported yet."
+	DEFERRABLE_CONSTRAINT_ISSUE                    = "DEFERRABLE constraints not supported yet"
+	POLICY_ROLE_ISSUE                              = "Policy require roles to be created."
+	VIEW_CHECK_OPTION_ISSUE                        = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
+	ISSUE_INDEX_WITH_COMPLEX_DATATYPES             = `INDEX on column '%s' not yet supported`
+	ISSUE_UNLOGGED_TABLE                           = "UNLOGGED tables are not supported yet."
+	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "Unsupported datatype for Live migration with fall-forward/fallback"
+	UNSUPPORTED_PG_SYNTAX                          = "Unsupported PG syntax"
 
 	INDEX_METHOD_ISSUE_REASON                      = "Schema contains %s index which is not supported."
 	GIN_INDEX_DETAILS                              = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -750,6 +751,7 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 			}
 			colName := column.GetColumnDef().GetColname()
 			liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
+			liveMigrationWithFallForwardUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.YugabyteUnsupportedDataTypesForDbzm)
 			if utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName) {
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
@@ -764,7 +766,7 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/15638"
 					suggestion = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
 					docLink = XID_DATATYPE_DOC_LINK
-				case "geometry", "geography":
+				case "geometry", "geography", "box2d", "box3d", "topogeometry":
 					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/11323"
 					suggestion = ""
 					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
@@ -777,6 +779,12 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
 			} else if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
+				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
+					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
+			} else if utils.ContainsAnyStringFromSlice(liveMigrationWithFallForwardUnsupportedDataTypes, typeName) || slices.Contains(compositeTypes, typeName) {
+				//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT columns as unsupported with live migration with ff/fb
+				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB, typeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
 					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
@@ -1813,9 +1821,9 @@ var reasonsIncludingSensitiveInformation = []string{
 	POLICY_ROLE_ISSUE,
 	UNSUPPORTED_DATATYPE,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 	STORED_GENERATED_COLUMN_ISSUE_REASON,
 }
-
 
 func packAndSendAnalyzeSchemaPayload(status string) {
 	if !shouldSendCallhome() {
