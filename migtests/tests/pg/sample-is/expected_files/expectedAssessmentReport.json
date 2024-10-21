@@ -30,13 +30,13 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 2,
-				"ObjectNames": "reports_attrs_idx, reports_report_idx",
+				"ObjectNames": "reports_attrs_idx ON public.reports, reports_report_idx ON public.reports",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 1,
-				"ObjectNames": "report_tsv_update"
+				"ObjectNames": "report_tsv_update ON public.reports"
 			}
 		]
 	},

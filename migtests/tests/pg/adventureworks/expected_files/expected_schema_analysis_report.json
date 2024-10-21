@@ -46,7 +46,7 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 2,
-                "ObjectNames": "ix_vstateprovincecountryregion, ix_vproductanddescription"
+                "ObjectNames": "ix_vstateprovincecountryregion ON person.vstateprovincecountryregion, ix_vproductanddescription ON production.vproductanddescription"
             },
             {
                 "ObjectType": "VIEW",
