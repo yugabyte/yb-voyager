@@ -917,6 +917,11 @@ func clearMigrationStateIfRequired() {
 	exportSnapshotStatusFile := jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
+		if dataIsExported() {
+			if !utils.AskPrompt("Data is already exported. Are you sure you want to clean the data directory and start fresh?") {
+				utils.ErrExit("Export aborted.")
+			}
+		}
 		utils.CleanDir(exportDataDir)
 		utils.CleanDir(sslDir)
 		clearDataIsExported()
