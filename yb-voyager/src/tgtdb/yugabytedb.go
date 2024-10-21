@@ -623,9 +623,26 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		for i := 0; i < len(batch.Events); i++ {
 			res, err := br.Exec()
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
+				// When using pgx SendBatch, there can be two types of errors thrown:
+				// 1. Error while preparing the statement - this is preprocessing (parsing, preparinng statements, etc)
+				//	that pgx will do before sending the batch. Examples - syntax error.
+				//  No matter which statement in the batch has an issue, the error will be thrown on calling br.Exec() for the first time.
+				// 2. Error while executing the statement - this is the actual execution of the statement, and the error comes from the DB.
+				// 	Examples - constraint violation, etc.
+				//  In this case, we get the error on the appropriate br.Exec() call associated with the statement that failed.
+				// Therefore, if error is thrown on the first br.Exec() call, it could be either of the above cases.
+				// Reference - https://github.com/jackc/pgx/issues/872
+				// This ideally needs to be fixed in pgx library.
+				errorMsg := ""
+				if i == 0 {
+					errorMsg = fmt.Sprintf("error preparing statements for events in batch (%s) or when executing event with vsn(%d)", batch.ID(), batch.Events[i].Vsn)
+					log.Errorf("Event VSNs in batch(%s): %v", batch.ID(), batch.GetAllVsns())
+				} else {
+					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
+				}
+				log.Errorf("%s : %v", errorMsg, err)
 				closeBatch()
-				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+				return false, fmt.Errorf("%s: %w", errorMsg, err)
 			}
 			switch true {
 			case res.Insert():
