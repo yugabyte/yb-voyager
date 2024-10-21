@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -640,6 +641,15 @@ func (pg *TargetPostgreSQL) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 }
 
 func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
+	// if MAX_BATCH_SIZE is set in env then use that value
+	if maxBatchSize := os.Getenv("MAX_BATCH_SIZE"); maxBatchSize != "" {
+		maxBatchSizeInBytes, err := strconv.ParseInt(maxBatchSize, 10, 64)
+		if err != nil {
+			utils.ErrExit("error parsing MAX_BATCH_SIZE: %v", err)
+		}
+		return maxBatchSizeInBytes
+	}
+	// default value
 	return 200 * 1024 * 1024 // 200 MB //TODO
 }
 

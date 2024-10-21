@@ -1066,6 +1066,15 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 }
 
 func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
+	// If MAX_BATCH_SIZE is set in env then use that value
+	if maxBatchSize := os.Getenv("MAX_BATCH_SIZE"); maxBatchSize != "" {
+		maxBatchSizeInt, err := strconv.ParseInt(maxBatchSize, 10, 64)
+		if err != nil {
+			utils.ErrExit("error in parsing MAX_BATCH_SIZE: %v", err)
+		}
+		return maxBatchSizeInt
+	}
+
 	return 200 * 1024 * 1024 // 200 MB
 }
 
