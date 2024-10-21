@@ -423,14 +423,6 @@ func (eb *EventBatch) ID() string {
 	return fmt.Sprintf("%d:%d", eb.Events[0].Vsn, eb.GetLastVsn())
 }
 
-func (eb *EventBatch) GetAllVsns() []int64 {
-	vsns := make([]int64, len(eb.Events))
-	for i, event := range eb.Events {
-		vsns[i] = event.Vsn
-	}
-	return vsns
-}
-
 func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) string {
 	queryTemplate := `UPDATE %s 
 	SET 
