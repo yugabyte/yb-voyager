@@ -859,9 +859,8 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			return nt.ForOutput()
 		})
 		utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
-		utils.PrintAndLog("The above list of tables on target DB are not empty; " +
-			"partial data may have been imported in a previous run. Are you sure you want to start-clean? \n" +
-			"If you wish to truncate the tables, please manually truncate them on the target DB.")
+		utils.PrintAndLog("The above list of tables on target DB are not empty. Are you sure you want to start-clean? \n" +
+			"Please manually truncate them on the target DB, before continuing.")
 		yes := utils.AskPrompt("Do you want to continue")
 		if !yes {
 			utils.ErrExit("Aborting import.")
