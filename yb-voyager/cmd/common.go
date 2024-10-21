@@ -125,7 +125,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 		time.Sleep(time.Second * 1)
 	}
 
-	pgRestorePath, err := srcdb.GetAbsPathAndCheckVersionOfPGCommand("pg_restore", source.DBVersion)
+	pgRestorePath, err := srcdb.GetAbsPathOfPGCommandAboveVersion("pg_restore", source.DBVersion)
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_restore command: %s", err)
 	}

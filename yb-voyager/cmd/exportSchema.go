@@ -108,9 +108,9 @@ func exportSchema() error {
 		}
 
 		// Check if required binaries are installed.
-		err = source.DB().CheckDependencies()
+		err = checkDependenciesForExport()
 		if err != nil {
-			return fmt.Errorf("source DB dependencies check failed: %w", err)
+			return fmt.Errorf("source DB dependencies check failed: \n%w", err)
 		}
 	}
 

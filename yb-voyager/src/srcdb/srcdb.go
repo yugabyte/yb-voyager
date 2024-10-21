@@ -59,7 +59,6 @@ type SourceDB interface {
 	CheckSourceDBVersion() error
 	GetMissingExportSchemaPermissions() ([]string, error)
 	GetMissingExportDataPermissions(exportType string) ([]string, error)
-	CheckDependencies() error
 }
 
 func newSourceDB(source *Source) SourceDB {

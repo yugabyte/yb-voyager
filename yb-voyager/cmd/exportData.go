@@ -217,9 +217,11 @@ func exportData() bool {
 			utils.ErrExit("Source DB version check failed: %s", err)
 		}
 
-		err = source.DB().CheckDependencies()
+		err = checkDependenciesForExport()
 		if err != nil {
-			utils.ErrExit("Source DB dependencies check failed: %s", err)
+			color.Red("\nSome dependencies required for export data are missing: ")
+			utils.PrintAndLog("%s", err.Error())
+			utils.ErrExit("Please install the required dependencies and try again.")
 		}
 	}
 

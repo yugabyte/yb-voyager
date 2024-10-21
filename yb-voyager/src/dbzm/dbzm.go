@@ -42,7 +42,7 @@ type Debezium struct {
 	done bool
 }
 
-func findDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) error {
+func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
@@ -75,7 +75,7 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
-	err := findDebeziumDistribution(d.Config.SourceDBType, d.Config.UseYBgRPCConnector)
+	err := FindDebeziumDistribution(d.Config.SourceDBType, d.Config.UseYBgRPCConnector)
 	if err != nil {
 		return err
 	}

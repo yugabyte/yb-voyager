@@ -37,7 +37,7 @@ import (
 func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, snapshotName string) {
 	defer utils.WaitGroup.Done()
 
-	pgDumpPath, err := GetAbsPathAndCheckVersionOfPGCommand("pg_dump", source.DBVersion)
+	pgDumpPath, err := GetAbsPathOfPGCommandAboveVersion("pg_dump", source.DBVersion)
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}

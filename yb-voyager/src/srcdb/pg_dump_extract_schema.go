@@ -32,7 +32,7 @@ import (
 )
 
 func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
-	pgDumpPath, err := GetAbsPathAndCheckVersionOfPGCommand("pg_dump", source.DBVersion)
+	pgDumpPath, err := GetAbsPathOfPGCommandAboveVersion("pg_dump", source.DBVersion)
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}

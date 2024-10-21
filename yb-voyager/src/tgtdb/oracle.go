@@ -717,11 +717,3 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 func (tdb *TargetOracleDB) GetMissingImportDataPermissions() ([]string, error) {
 	return nil, nil
 }
-
-func (tdb *TargetOracleDB) GetMissingImportSchemaPermissions() ([]string, error) {
-	return nil, nil
-}
-
-func (tdb *TargetOracleDB) CheckTargetDBVersion() error {
-	return nil
-}

@@ -722,7 +722,3 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 	}
 	return nonPKTables, nil
 }
-
-func (ora *Oracle) CheckDependencies() error {
-	return nil
-}
