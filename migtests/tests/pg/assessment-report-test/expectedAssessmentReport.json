@@ -42,7 +42,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 24,
-				"ObjectNames": "idx1, idx2, idx3, idx4, idx5, idx6, idx7, idx_array, idx_box_data, idx_citext, idx_citext1, idx_citext2, idx_inet, idx_inet1, idx_json, idx_json2, idx_point_data, idx_valid, tsquery_idx, tsvector_idx, idx_box_data, idx_point_data, idx_box_data_brin, idx_box_data_spgist"
+				"ObjectNames": "idx1 ON public.combined_tbl, idx2 ON public.combined_tbl, idx3 ON public.combined_tbl, idx4 ON public.combined_tbl, idx5 ON public.combined_tbl, idx6 ON public.combined_tbl, idx7 ON public.combined_tbl, idx_array ON public.documents, idx_box_data ON public.mixed_data_types_table1, idx_box_data_brin ON public.mixed_data_types_table1, idx_citext ON public.citext_type, idx_citext1 ON public.citext_type, idx_citext2 ON public.citext_type, idx_inet ON public.inet_type, idx_inet1 ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_point_data ON public.mixed_data_types_table1, idx_valid ON public.test_jsonb, tsquery_idx ON public.ts_query_table, tsvector_idx ON public.documents, idx_box_data ON schema2.mixed_data_types_table1, idx_box_data_spgist ON schema2.mixed_data_types_table1, idx_point_data ON schema2.mixed_data_types_table1"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -67,7 +67,7 @@
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 2,
-				"ObjectNames": "audit_trigger, audit_trigger"
+				"ObjectNames": "audit_trigger ON public.tt, audit_trigger ON schema2.tt"
 			},
 			{
 				"ObjectType": "MVIEW",
@@ -82,7 +82,7 @@
 			{
 				"ObjectType": "POLICY",
 				"TotalCount": 4,
-				"ObjectNames": "policy_test_fine, policy_test_fine_2, policy_test_report, policy_test_report"
+				"ObjectNames": "policy_test_fine ON public.test_exclude_basic, policy_test_fine_2 ON public.employees2, policy_test_report ON public.test_xml_type, policy_test_report ON schema2.test_xml_type"
 			}
 		]
 	},
