@@ -97,7 +97,7 @@ func TestPGDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a case-sensitive name with mixed cases.
-	tableName := NewObjectName(POSTGRESQL, "public", "public", "table1")
+	tableName := NewObjectName(POSTGRESQL, "public", "public", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "public",
