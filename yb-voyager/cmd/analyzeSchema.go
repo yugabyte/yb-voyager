@@ -238,9 +238,10 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "Unsupported datatype for Live migration with fall-forward/fallback"
 	UNSUPPORTED_PG_SYNTAX                          = "Unsupported PG syntax"
 
-	INDEX_METHOD_ISSUE_REASON                      = "Schema contains %s index which is not supported."
-	GIN_INDEX_DETAILS                              = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+	INDEX_METHOD_ISSUE_REASON                                 = "Schema contains %s index which is not supported."
+	GIN_INDEX_DETAILS                                         = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back of data. These columns will be excluded when exporting and importing data in live migration workflows."
 )
 
 // Reports one case in JSON
