@@ -858,7 +858,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
 			return nt.ForOutput()
 		})
-		utils.PrintAndLog("Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
+		utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
 		utils.PrintAndLog("The above list of tables on target DB are not empty; " +
 			"partial data may have been imported in a previous run. Are you sure you want to start-clean? \n" +
 			"If you wish to truncate the tables, please manually truncate them on the target DB.")
