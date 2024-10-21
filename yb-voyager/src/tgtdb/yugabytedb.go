@@ -636,6 +636,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				errorMsg := ""
 				if i == 0 {
 					errorMsg = fmt.Sprintf("error preparing statements for events in batch (%s) or when executing event with vsn(%d)", batch.ID(), batch.Events[i].Vsn)
+					log.Errorf("Event VSNs in batch(%s): %v", batch.ID(), batch.GetAllVsns())
 				} else {
 					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
 				}
