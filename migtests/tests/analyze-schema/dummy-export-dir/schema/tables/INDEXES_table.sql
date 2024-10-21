@@ -88,4 +88,4 @@ CREATE INDEX idx_udt1 on test_udt(home_address1);
 
 CREATE INDEX idx_enum on test_udt(some_field);
 
-CREATE INDEX idx_enum2 on test_udt((some_field::non_public.enum_test));
+CREATE INDEX "idx&_enum2" on test_udt((some_field::non_public.enum_test));
