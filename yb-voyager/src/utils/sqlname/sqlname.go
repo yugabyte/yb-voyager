@@ -18,6 +18,7 @@ package sqlname
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"golang.org/x/exp/slices"
 )
@@ -239,7 +240,11 @@ func IsAllUppercase(s string) bool {
 
 func IsAllLowercase(s string) bool {
 	for _, c := range s {
-		if c >= 'A' && c <= 'Z' {
+		if c == '_' {
+			continue
+		}
+		if (c >= 'A' && c <= 'Z') ||
+			!(unicode.IsLetter(rune(c)) || unicode.IsDigit(rune(c))) { // check for special chars
 			return false
 		}
 	}

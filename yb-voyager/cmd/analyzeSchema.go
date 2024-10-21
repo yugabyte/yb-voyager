@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type summaryInfo struct {
@@ -62,6 +63,7 @@ var (
 	optionalWS = `[\s\n\t]*` //optional white spaces
 	//TODO: fix this ident regex for the proper PG identifiers syntax - refer: https://github.com/yugabyte/yb-voyager/pull/1547#discussion_r1629282309
 	ident                        = `[a-zA-Z0-9_."-]+`
+	operatorIdent                = `[a-zA-Z0-9_."-+*/<>=~!@#%^&|` + "`" + `]+` // refer https://www.postgresql.org/docs/current/sql-createoperator.html
 	ifExists                     = opt("IF", "EXISTS")
 	ifNotExists                  = opt("IF", "NOT", "EXISTS")
 	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
@@ -1098,6 +1100,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
+			summaryMap["TRIGGER"].invalidCount[fmt.Sprintf("%s ON %s", trig[1], trig[3])] = true
 			reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", fmt.Sprintf("%s ON %s", trig[1], trig[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, CONSTRAINT_TRIGGER_DOC_LINK)
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {
@@ -1387,7 +1390,7 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	} else if objType == "OPERATOR" {
 		// to include all three types of OPERATOR DDL
 		// CREATE OPERATOR / CREATE OPERATOR FAMILY / CREATE OPERATOR CLASS
-		createObjRegex = re("CREATE", opt("OR REPLACE"), "OPERATOR", opt("FAMILY"), opt("CLASS"), ifNotExists, capture(ident))
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "OPERATOR", opt("FAMILY"), opt("CLASS"), ifNotExists, capture(operatorIdent))
 		objNameIndex = 5
 	} else { //TODO: check syntaxes for other objects and add more cases if required
 		createObjRegex = re("CREATE", opt("OR REPLACE"), objType, ifNotExists, capture(ident))
@@ -1404,7 +1407,14 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 	//update about sqlStmt in the summary variable for the report generation part
 	createObjStmt := createObjRegex.FindStringSubmatch(formattedStmt)
 	if createObjStmt != nil {
-		objName = createObjStmt[objNameIndex]
+		if slices.Contains([]string{"INDEX", "POLICY", "TRIGGER"}, objType) {
+			//For the cases where index, trigger and policy names can be same as they are uniquely
+			//identified by table name so adding that in object name
+			// using parser for this case as the regex is complicated to handle all the cases for TRIGGER syntax
+			objName = getObjectNameWithTable(stmt, createObjStmt[objNameIndex])
+		} else {
+			objName = createObjStmt[objNameIndex]
+		}
 
 		if objType == "PARTITION" || objType == "TABLE" {
 			if summaryMap != nil && summaryMap["TABLE"] != nil {
@@ -1446,6 +1456,41 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 		fileName:      fpath,
 	}
 	return sqlInfo
+}
+
+func getObjectNameWithTable(stmt string, regexObjName string) string {
+	parsedTree, err := pg_query.Parse(stmt)
+	if err != nil {
+		// in case it is not able to parse stmt as its not in PG syntax so returning the regex name
+		return regexObjName
+	}
+	var objectName *sqlname.ObjectName
+	var relName *pg_query.RangeVar
+	createTriggerNode, isCreateTrigger := parsedTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTrigStmt)
+	createIndexNode, isCreateIndex := parsedTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
+	createPolicyNode, isCreatePolicy := parsedTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
+	if isCreateTrigger {
+		relName = createTriggerNode.CreateTrigStmt.Relation
+		trigName := createTriggerNode.CreateTrigStmt.Trigname
+		objectName = sqlname.NewObjectName(POSTGRESQL, "", relName.Schemaname, trigName)
+	} else if isCreateIndex {
+		relName = createIndexNode.IndexStmt.Relation
+		indexName := createIndexNode.IndexStmt.Idxname
+		objectName = sqlname.NewObjectName(POSTGRESQL, "", relName.Schemaname, indexName)
+	} else if isCreatePolicy {
+		relName = createPolicyNode.CreatePolicyStmt.GetTable()
+		policyName := createPolicyNode.CreatePolicyStmt.PolicyName
+		objectName = sqlname.NewObjectName(POSTGRESQL, "", relName.Schemaname, policyName)
+	}
+
+	if isCreateIndex || isCreatePolicy || isCreateTrigger {
+		schemaName := relName.Schemaname
+		tableName := relName.Relname
+		tableObjectName := sqlname.NewObjectName(POSTGRESQL, "", schemaName, tableName)
+		return fmt.Sprintf(`%s ON %s`, objectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+	}
+	return regexObjName
+
 }
 
 func parseSqlFileForObjectType(path string, objType string) []sqlInfo {
@@ -1732,6 +1777,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("analyze schema : load migration status record: %s", err)
 	}
+	source = *msr.SourceDBConf
 	analyzeSchemaInternal(msr.SourceDBConf)
 
 	if analyzeSchemaReportFormat != "" {
@@ -1815,7 +1861,6 @@ var reasonsIncludingSensitiveInformation = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
 	STORED_GENERATED_COLUMN_ISSUE_REASON,
 }
-
 
 func packAndSendAnalyzeSchemaPayload(status string) {
 	if !shouldSendCallhome() {
