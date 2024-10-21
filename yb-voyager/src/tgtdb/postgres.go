@@ -535,9 +535,9 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		for i := 0; i < len(batch.Events); i++ {
 			res, err := br.Exec()
 			if err != nil {
-				log.Errorf("error executing stmt for event in batch(%s): %v. Event VSNs in batch:%v", batch.ID(), err, batch.GetAllVsns())
+				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
 				closeBatch()
-				return false, fmt.Errorf("error executing stmt for event in batch(%s): %v", batch.ID(), err)
+				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
 			}
 			switch true {
 			case res.Insert():
