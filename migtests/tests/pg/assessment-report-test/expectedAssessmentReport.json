@@ -1837,6 +1837,10 @@
 			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
 			"Objects": [
 				{
+					"ObjectName": "public.combined_tbl.address (public.address_type)",
+					"SqlStatement": ""
+				},
+				{
 					"ObjectName": "public.documents.content_tsvector (tsvector)",
 					"SqlStatement": ""
 				},
@@ -1845,7 +1849,23 @@
 					"SqlStatement": ""
 				},
 				{
+					"ObjectName": "public.orders.item (public.item_details)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.products.item (public.item_details)",
+					"SqlStatement": ""
+				},
+				{
 					"ObjectName": "public.ts_query_table.query (tsquery)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.orders.item (schema2.item_details)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.products.item (schema2.item_details)",
 					"SqlStatement": ""
 				}
 			],
