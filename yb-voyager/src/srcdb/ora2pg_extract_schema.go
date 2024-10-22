@@ -28,9 +28,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string, logLevel string) {
+func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
-	populateOra2pgConfigFile(configFilePath, getDefaultOra2pgConfig(source, logLevel))
+	populateOra2pgConfigFile(configFilePath, getDefaultOra2pgConfig(source))
 
 	for _, exportObject := range source.ExportObjectTypeList {
 		if exportObject == "INDEX" {

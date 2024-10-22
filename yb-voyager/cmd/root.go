@@ -32,6 +32,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
@@ -51,7 +52,6 @@ var (
 	controlPlane                       cp.ControlPlane
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
-	logLevel                           string
 )
 
 var rootCmd = &cobra.Command{
@@ -68,12 +68,16 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 		if isBulkAssessmentCommand(cmd) {
 			validateBulkAssessmentDirFlag()
+			err := config.ValidateLogLevel()
+			if err != nil {
+				utils.ErrExit("%v", err)
+			}
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 				lockFile = lockfile.NewLockfile(lockFPath)
 				lockFile.Lock()
 			}
-			err := InitLogging(bulkAssessmentDir, logLevel, cmd.Use == "status", GetCommandID(cmd))
+			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
 				utils.ErrExit("Failed to initialize logging: %v", err)
 			}
@@ -88,13 +92,17 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			setControlPlane("")
 		} else {
 			validateExportDirFlag()
+			err := config.ValidateLogLevel()
+			if err != nil {
+				utils.ErrExit("%v", err)
+			}
 			schemaDir = filepath.Join(exportDir, "schema")
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(exportDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 				lockFile = lockfile.NewLockfile(lockFPath)
 				lockFile.Lock()
 			}
-			err := InitLogging(exportDir, logLevel, cmd.Use == "status", GetCommandID(cmd))
+			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
 				utils.ErrExit("Failed to initialize logging: %v", err)
 			}
@@ -214,7 +222,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 
 	registerExportDirFlag(cmd)
 
-	cmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info",
+	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,

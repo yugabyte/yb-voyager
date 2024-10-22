@@ -26,13 +26,13 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string, logLevel string) {
+func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
 	pgDumpPath, err := GetAbsPathOfPGCommandAboveVersion("pg_dump", source.DBVersion)
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
@@ -44,7 +44,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 	pgDumpArgs.ExtensionPattern = `"*"`
 
 	args := getPgDumpArgsFromFile("schema")
-	if lo.Contains([]string{"debug", "trace"}, strings.ToLower(logLevel)) {
+	if config.IsLogLevelDebugOrBelow() {
 		args = fmt.Sprintf("%s --verbose", args)
 	}
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)

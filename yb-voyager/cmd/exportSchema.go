@@ -152,7 +152,7 @@ func exportSchema() error {
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
-	source.DB().ExportSchema(exportDir, schemaDir, logLevel)
+	source.DB().ExportSchema(exportDir, schemaDir)
 
 	err = updateIndexesInfoInMetaDB()
 	if err != nil {

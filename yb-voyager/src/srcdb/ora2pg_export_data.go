@@ -33,7 +33,7 @@ import (
 )
 
 func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []sqlname.NameTuple,
-	tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, logLevel string) {
+	tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
@@ -42,7 +42,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 		_, tname := tableName.ForCatalogQuery()
 		tableList = append(tableList, tname)
 	}
-	conf := getDefaultOra2pgConfig(source, logLevel)
+	conf := getDefaultOra2pgConfig(source)
 	conf.DisablePartition = "1"
 	conf.Allow = fmt.Sprintf("TABLE%v", tableList)
 	tablesColumnList.IterKV(func(tableName sqlname.NameTuple, columnList []string) (bool, error) {

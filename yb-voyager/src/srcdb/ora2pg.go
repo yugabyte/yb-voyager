@@ -22,11 +22,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"text/template"
 
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -54,7 +53,7 @@ const ORACLE_DATA_TYPE_MAPPING = "VARCHAR2:varchar,NVARCHAR2:varchar,DATE:timest
 
 const MYSQL_DATA_TYPE_MAPPING = "VARCHAR2:varchar,NVARCHAR2:varchar,DATE:date,LONG:text,LONG RAW:bytea,CLOB:text,NCLOB:text,BLOB:bytea,BFILE:bytea,RAW(16):uuid,RAW(32):uuid,RAW:bytea,UROWID:oid,ROWID:oid,FLOAT:double precision,DEC:decimal,DECIMAL:decimal,DOUBLE PRECISION:double precision,INT:integer,INTEGER:integer,REAL:real,SMALLINT:smallint,BINARY_FLOAT:double precision,BINARY_DOUBLE:double precision,TIMESTAMP:timestamp,XMLTYPE:xml,BINARY_INTEGER:integer,PLS_INTEGER:integer,TIMESTAMP WITH TIME ZONE:timestamp with time zone,TIMESTAMP WITH LOCAL TIME ZONE:timestamp with time zone"
 
-func getDefaultOra2pgConfig(source *Source, logLevel string) *Ora2pgConfig {
+func getDefaultOra2pgConfig(source *Source) *Ora2pgConfig {
 	conf := &Ora2pgConfig{}
 	conf.OracleDSN = getSourceDSN(source)
 	conf.OracleUser = source.User
@@ -83,7 +82,7 @@ func getDefaultOra2pgConfig(source *Source, logLevel string) *Ora2pgConfig {
 	} else if source.DBType == "mysql" {
 		conf.DataTypeMapping = MYSQL_DATA_TYPE_MAPPING
 	}
-	if lo.Contains([]string{"debug", "trace"}, strings.ToLower(logLevel)) {
+	if config.IsLogLevelDebugOrBelow() {
 		conf.Debug = "1"
 	} else {
 		conf.Debug = "0"
