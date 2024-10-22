@@ -540,7 +540,7 @@ func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sq
 	}
 
 	partitionColumnsNotInPK, _ := lo.Difference(partitionColumns, primaryKeyColumns)
-	if len(primaryKeyColumns) > 0 && len(partitionColumnsNotInPK) > 0 {
+	if len(partitionColumnsNotInPK) > 0 {
 		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 		reportCase(fpath, fmt.Sprintf("%s - (%s)", INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION, strings.Join(partitionColumnsNotInPK, ", ")),
 			"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, PARTITION_KEY_NOT_PK_DOC_LINK)
