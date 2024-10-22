@@ -951,6 +951,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	var result []utils.UnsupportedQueryConstruct
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
+		log.Debugf("fetched unsupported query constructs for query-%s", query)
 		queryParser := queryparser.New(query)
 		err := queryParser.Parse()
 		if err != nil {
@@ -967,6 +968,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	}
 
 	// sort the slice to group same constructType in html and json reports
+	log.Infof("sorting the result slice based on construct type")
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].ConstructType <= result[j].ConstructType
 	})

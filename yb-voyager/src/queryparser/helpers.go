@@ -1,6 +1,8 @@
 package queryparser
 
-import "google.golang.org/protobuf/reflect/protoreflect"
+import (
+	"google.golang.org/protobuf/reflect/protoreflect"
+)
 
 var unsupportedAdvLockFuncs = []string{
 	"pg_advisory_lock", "pg_try_advisory_lock", "pg_advisory_xact_lock",

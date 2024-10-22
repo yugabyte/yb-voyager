@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -83,7 +82,7 @@ func TraverseParseTree(msg protoreflect.Message, visited map[protoreflect.Messag
 	log.Debugf("Traversing NodeType: %s\n", nodeType)
 	// applying the processor to the current node
 	if err := processor(msg); err != nil {
-		utils.PrintAndLog("error processing node %s: %v", nodeType, err)
+		log.Debugf("error processing node %s: %v", nodeType, err)
 		return fmt.Errorf("error processing node %s: %w", nodeType, err)
 	}
 
@@ -115,6 +114,7 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 
 		// check if the field is set or not (for example: fields with DEFAULT values(set) won't be NULL)
 		if !msg.Has(fieldDesc) {
+			log.Debugf("field %q is not a part of the message ", fieldDesc.FullName())
 			continue
 		}
 
@@ -137,6 +137,7 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 				if fieldDesc.Kind() == protoreflect.MessageKind {
 					err := TraverseParseTree(elem.Message(), visited, processor)
 					if err != nil {
+						log.Debugf("error traversing field %s: %w", fieldDesc.Name(), err)
 						return fmt.Errorf("error traversing field %s: %w", fieldDesc.Name(), err)
 					}
 				}
@@ -145,13 +146,14 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 		case fieldDesc.Kind() == protoreflect.MessageKind:
 			err := TraverseParseTree(value.Message(), visited, processor)
 			if err != nil {
+				log.Debugf("error traversing field %s: %w", fieldDesc.Name(), err)
 				return fmt.Errorf("error traversing field %s: %w", fieldDesc.Name(), err)
 			}
-	
+
 		case IsScalarKind(fieldDesc.Kind()):
-			log.Debugf("Scalar field of type %s with value: %v\n", fieldDesc.Kind(), value.Interface())
+			log.Debugf("Scalar field of Type: %s, value: %v\n", fieldDesc.Kind(), value.Interface())
 		default:
-			panic(fmt.Sprintf("Field type case not covered: %s\n", fieldDesc.Kind()))
+			log.Infof("field kind case not covered: %s\n", fieldDesc.Kind())
 		}
 	}
 
