@@ -221,7 +221,7 @@ func exportData() bool {
 		if err != nil {
 			color.Red("\nSome dependencies required for export data are missing: ")
 			utils.PrintAndLog("%s", err.Error())
-			utils.ErrExit("Please install the required dependencies and try again.")
+			utils.ErrExit("Please install or add the required dependencies to PATH and try again.")
 		}
 	}
 

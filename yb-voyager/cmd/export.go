@@ -40,7 +40,7 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
-var pgExportDependencies = []string{"pg_dump", "pg_restore"}
+var pgExportDependencies = []string{"pg_dump", "pg_restore", "psql"}
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -395,9 +395,9 @@ func checkDependenciesForExport() error {
 		for _, binary := range pgExportDependencies {
 			_, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
-				errs = append(errs, err.Error())
+				// Capitalize the first letter of error message
+				errs = append(errs, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 			} else {
-				fmt.Printf("%s is compatible with %s\n", binary, sourceDBVersion)
 				log.Infof("%s is compatible", binary)
 			}
 		}
@@ -407,7 +407,7 @@ func checkDependenciesForExport() error {
 		// Check for debezium
 		err := dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 		}
 	}
 

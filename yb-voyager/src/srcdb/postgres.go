@@ -394,11 +394,11 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (string, error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
-		err = fmt.Errorf("error in finding executables: %w", err)
+		err = fmt.Errorf("error in finding executables in PATH for %v: %w", cmd, err)
 		return "", err
 	}
 	if len(paths) == 0 {
-		err = fmt.Errorf("the command %v is not installed", cmd)
+		err = fmt.Errorf("could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
 		return "", err
 	}
 
@@ -406,7 +406,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (stri
 		checkVersiomCmd := exec.Command(path, "--version")
 		stdout, err := checkVersiomCmd.Output()
 		if err != nil {
-			err = fmt.Errorf("error in finding version of %v from path %v: %w", checkVersiomCmd, path, err)
+			err = fmt.Errorf("error in fetching version of %v from path %v: %w", cmd, path, err)
 			return "", err
 		}
 
@@ -415,12 +415,16 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (stri
 		currVersion := strings.Fields(string(stdout))[2]
 
 		// Check if the version of the command is greater or equalt to the source DB version and greater than the min required version
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 && version.CompareSimple(currVersion, sourceDBVersion) >= 0 {
+		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 {
+			// In case of psql we dont need the version to be greater than the sourceDBVersion
+			if version.CompareSimple(currVersion, sourceDBVersion) < 0 && cmd != "psql" {
+				continue
+			}
 			return path, nil
 		}
 	}
 
-	err = fmt.Errorf("could not find %v with version greater than or equal to %v", cmd, PG_COMMAND_VERSION)
+	err = fmt.Errorf("could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
 	return "", err
 }
 
