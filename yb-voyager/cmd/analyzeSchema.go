@@ -142,9 +142,13 @@ var (
 	*/
 	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
 	/*
-		list of composite types in the exported schema
+		list of composite types with fully qualified typename in the exported schema
 	*/
 	compositeTypes = make([]string, 0)
+	/*
+		list of enum types with fully qualified typename in the exported schema
+	*/
+	enumTypes = make([]string, 0)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
@@ -374,6 +378,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
 		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
+		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
@@ -417,6 +422,28 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			typeSchemaName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetSchemaname()
 			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 			compositeTypes = append(compositeTypes, fullTypeName)
+		}
+		if isCreateEnumType {
+			//Adding the composite types (UDTs) in the list
+			/*
+				e.g. CREATE TYPE decline_reason AS ENUM (
+						'duplicate_payment_method',
+						'server_failure'
+					);
+
+				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
+			*/
+			typeNames := createEnumTypeNode.CreateEnumStmt.GetTypeName()
+			typeSchemaName := ""
+			typeName := ""
+			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
+				typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+			}
+			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+			}
+			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
+			enumTypes = append(enumTypes, fullTypeName)
 		}
 	}
 }
@@ -746,13 +773,20 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 		*/
 		if column.GetColumnDef() != nil {
 			typeName := ""
+			typeSchemaName := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
 			if len(typeNames) > 0 {
 				typeName = column.GetColumnDef().GetTypeName().GetNames()[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 			}
+			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+			}
+			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
+			isArrayType := len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0
 			colName := column.GetColumnDef().GetColname()
 			liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
-			liveMigrationWithFallForwardUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.YugabyteUnsupportedDataTypesForDbzm)
+			unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(srcdb.YugabyteUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
+			liveMigrationWithFallForwardUnsupportedDataTypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, liveMigrationUnsupportedDataTypes)
 			if utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName) {
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
@@ -783,9 +817,14 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
 					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
-			} else if utils.ContainsAnyStringFromSlice(liveMigrationWithFallForwardUnsupportedDataTypes, typeName) || slices.Contains(compositeTypes, typeName) {
+			} else if utils.ContainsAnyStringFromSlice(liveMigrationWithFallForwardUnsupportedDataTypes, typeName) || slices.Contains(compositeTypes, fullTypeName) ||
+				(slices.Contains(enumTypes, fullTypeName) && isArrayType) {
+				reportTypeName := fullTypeName
+				if isArrayType { // For Array cases to make it clear in issue
+					reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
+				}
 				//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT columns as unsupported with live migration with ff/fb
-				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB, typeName, colName)
+				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB, reportTypeName, colName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
 					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)

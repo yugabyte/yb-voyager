@@ -37,7 +37,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var yugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
+// Apart from these we also skip UDT columns and error out for array of enums as unsupported tables.
+var YugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
 
 type YugabyteDB struct {
 	source *Source
@@ -633,7 +634,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}
 		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableName)
-		yugabyteUnsupportedDataTypesForDbzm = append(yugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
+		YugabyteUnsupportedDataTypesForDbzm = append(YugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
 		for i, column := range columns {
@@ -641,7 +642,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
 				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 				//of these types there are other columns available for these information so we just do string match of types with our list
-				if utils.ContainsAnyStringFromSlice(yugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
+				if utils.ContainsAnyStringFromSlice(YugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)
