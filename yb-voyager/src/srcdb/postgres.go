@@ -308,7 +308,7 @@ func (pg *PostgreSQL) GetConnectionUriWithoutPassword() string {
 	return sourceUrl.String()
 }
 
-func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
+func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string, logLevel string) {
 	if utils.FileOrFolderExists(filepath.Join(schemaDir, "schema.sql")) {
 		// case for assess-migration cmd workflow
 		log.Infof("directly parsing the '%s/schema.sql' file", schemaDir)
@@ -318,7 +318,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 
 		fmt.Printf("exporting the schema %10s", "")
 		go utils.Wait("done\n", "")
-		pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir)
+		pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir, logLevel)
 
 		//Parsing the single file to generate multiple database object files
 		returnCode := parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList)
@@ -333,8 +333,8 @@ func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string, logLevel string) {
+	pgdumpExportDataOffline(ctx, pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName, logLevel)
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

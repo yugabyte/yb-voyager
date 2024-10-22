@@ -271,7 +271,7 @@ func (yb *YugabyteDB) GetConnectionUriWithoutPassword() string {
 	return source.Uri
 }
 
-func (yb *YugabyteDB) ExportSchema(exportDir string, schemaDir string) {
+func (yb *YugabyteDB) ExportSchema(exportDir string, schemaDir string, logLevel string) {
 	panic("not implemented")
 }
 
@@ -283,8 +283,8 @@ func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) {
-	pgdumpExportDataOffline(ctx, yb.source, yb.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "")
+func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string, logLevel string) {
+	pgdumpExportDataOffline(ctx, yb.source, yb.GetConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, "", logLevel)
 }
 
 func (yb *YugabyteDB) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

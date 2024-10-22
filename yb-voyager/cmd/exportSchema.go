@@ -146,7 +146,7 @@ func exportSchema() error {
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
-	source.DB().ExportSchema(exportDir, schemaDir)
+	source.DB().ExportSchema(exportDir, schemaDir, logLevel)
 
 	err = updateIndexesInfoInMetaDB()
 	if err != nil {
@@ -405,7 +405,7 @@ applyShardingRecommendationIfMatching uses pg_query module to parse the given SQ
 In case of any errors or unexpected behaviour it return the original DDL
 so in worse case, only recommendation of that table won't be followed.
 
-It can handle cases like multiple options in WITH clause
+# It can handle cases like multiple options in WITH clause
 
 returns:
 modifiedSqlStmt: original stmt if not sharded else modified stmt with colocation clause

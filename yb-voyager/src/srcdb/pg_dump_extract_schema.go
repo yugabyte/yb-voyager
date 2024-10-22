@@ -26,12 +26,13 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
+func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string, logLevel string) {
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
@@ -43,6 +44,9 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 	pgDumpArgs.ExtensionPattern = `"*"`
 
 	args := getPgDumpArgsFromFile("schema")
+	if lo.Contains([]string{"debug", "trace"}, strings.ToLower(logLevel)) {
+		args = fmt.Sprintf("%s --verbose", args)
+	}
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)
 
@@ -135,7 +139,7 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 				objSqlStmts["SEQUENCE"].WriteString(stmts)
 			case "INDEX", "INDEX ATTACH":
 				objSqlStmts["INDEX"].WriteString(stmts)
-			case  "DEFAULT":
+			case "DEFAULT":
 				//In cases the DEFAULT stmt is for the FOREIGN TABLE, it should go in foreign_table.sql
 				if strings.HasPrefix(stmts, "ALTER FOREIGN TABLE") {
 					objSqlStmts["FOREIGN TABLE"].WriteString(stmts)

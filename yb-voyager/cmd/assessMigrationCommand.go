@@ -661,7 +661,7 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	source.DB().ExportSchema(exportDir, schemaDir)
+	source.DB().ExportSchema(exportDir, schemaDir, logLevel)
 }
 
 func populateMetadataCSVIntoAssessmentDB() error {

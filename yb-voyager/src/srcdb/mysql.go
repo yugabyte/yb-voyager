@@ -233,7 +233,7 @@ func (ms *MySQL) GetConnectionUriWithoutPassword() string {
 	return sourceUriWithoutPassword
 }
 
-func (ms *MySQL) ExportSchema(exportDir string, schemaDir string) {
+func (ms *MySQL) ExportSchema(exportDir string, schemaDir string, logLevel string) {
 	ora2pgExtractSchema(ms.source, exportDir, schemaDir)
 }
 
@@ -241,7 +241,7 @@ func (ms *MySQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string, logLevel string) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
