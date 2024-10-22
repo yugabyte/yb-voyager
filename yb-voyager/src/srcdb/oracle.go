@@ -231,7 +231,7 @@ func GetOracleConnectionString(host string, port int, dbname string, dbsid strin
 }
 
 func (ora *Oracle) ExportSchema(exportDir string, schemaDir string, logLevel string) {
-	ora2pgExtractSchema(ora.source, exportDir, schemaDir)
+	ora2pgExtractSchema(ora.source, exportDir, schemaDir, logLevel)
 }
 
 // return list of jsons having index info like index name, index type, table name, column name
@@ -283,7 +283,7 @@ func (ora *Oracle) GetIndexesInfo() []utils.IndexInfo {
 }
 
 func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string, logLevel string) {
-	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
+	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan, logLevel)
 }
 
 func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
