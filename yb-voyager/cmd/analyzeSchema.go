@@ -235,6 +235,7 @@ const (
 	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
 
 	INDEX_METHOD_ISSUE_REASON                      = "Schema contains %s index which is not supported."
+	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION       = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
 	GIN_INDEX_DETAILS                              = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
 )
@@ -441,6 +442,13 @@ func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, s
 	}
 }
 
+/*
+This functions reports multiple issues -
+1. Adding PK to Partitioned  Table (in cases where ALTER is before create)
+2. Expression partitions are not allowed if PK/UNIQUE columns are there is table
+3. List partition strategy is not allowed with multi-column partitions.
+4. Partition columns should all be included in Primary key set if any on table.
+*/
 func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
 	schemaName := createTableNode.CreateStmt.Relation.Schemaname
 	tableName := createTableNode.CreateStmt.Relation.Relname
@@ -511,12 +519,10 @@ func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sq
 	for _, partElem := range partitionElements {
 		if partElem.GetPartitionElem().GetExpr() != nil {
 			//Expression partitions
-			fmt.Printf("expression par on %s, %v", fullyQualifiedName, primaryKeyColumns)
 			if len(primaryKeyColumns) > 0 || len(uniqueKeyColumns) > 0 {
 				summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 				reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
 					"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXPRESSION_PARTIITON_DOC_LINK)
-				return
 			}
 		} else {
 			partitionColumns = append(partitionColumns, partElem.GetPartitionElem().GetName())
@@ -527,20 +533,17 @@ func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sq
 		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 		reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
 			"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, LIST_PARTIION_MULTI_COLUMN_DOC_LINK)
-		return
 	}
 
 	if len(primaryKeyColumns) == 0 { // no need to report in case of non-PK tables
 		return
 	}
 
-	for _, pc := range partitionColumns {
-		if !slices.Contains(primaryKeyColumns, pc) {
-			summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-			reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-				"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, PARTITION_KEY_NOT_PK_DOC_LINK)
-			break
-		}
+	partitionColumnsNotInPK, _ := lo.Difference(partitionColumns, primaryKeyColumns)
+	if len(primaryKeyColumns) > 0 && len(partitionColumnsNotInPK) > 0 {
+		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
+		reportCase(fpath, fmt.Sprintf("%s - (%s)", INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION, strings.Join(partitionColumnsNotInPK, ", ")),
+			"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, PARTITION_KEY_NOT_PK_DOC_LINK)
 	}
 
 }
@@ -1874,6 +1877,7 @@ var reasonsIncludingSensitiveInformation = []string{
 	UNSUPPORTED_DATATYPE,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
 	STORED_GENERATED_COLUMN_ISSUE_REASON,
+	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION,
 }
 
 func packAndSendAnalyzeSchemaPayload(status string) {
