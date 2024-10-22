@@ -36,6 +36,7 @@ const (
 )
 
 type Config struct {
+	LogLevel           string
 	MigrationUUID      uuid.UUID
 	RunId              string
 	SourceDBType       string
@@ -81,7 +82,7 @@ var baseConfigTemplate = `
 debezium.format.value=connect
 debezium.format.key=connect
 quarkus.log.console.json=false
-quarkus.log.level=info
+quarkus.log.level=%s
 `
 
 var baseSrcConfigTemplate = `
@@ -298,6 +299,7 @@ func (c *Config) String() string {
 	switch c.SourceDBType {
 	case "postgresql":
 		conf = fmt.Sprintf(postgresConfigTemplate,
+			c.LogLevel,
 			c.Username,
 			c.SnapshotMode,
 			offsetFile,
@@ -330,6 +332,7 @@ func (c *Config) String() string {
 	case "yugabytedb":
 		if !c.UseYBgRPCConnector {
 			conf = fmt.Sprintf(yugabyteLogicalReplicationConfigTemplate,
+				c.LogLevel,
 				c.Username,
 				"never",
 				offsetFile,
@@ -356,6 +359,7 @@ func (c *Config) String() string {
 			}
 		} else {
 			conf = fmt.Sprintf(yugabyteConfigTemplate,
+				c.LogLevel,
 				c.Username,
 				"never",
 				offsetFile,
@@ -387,6 +391,7 @@ func (c *Config) String() string {
 		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
+			c.LogLevel,
 			c.Username,
 			c.SnapshotMode,
 			offsetFile,
@@ -417,6 +422,7 @@ func (c *Config) String() string {
 
 	case "mysql":
 		conf = fmt.Sprintf(mysqlConfigTemplate,
+			c.LogLevel,
 			c.Username,
 			c.SnapshotMode,
 			offsetFile,

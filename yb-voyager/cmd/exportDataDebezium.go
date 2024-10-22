@@ -113,7 +113,13 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
 	}
 
+	dbzmLogLevel := logLevel
+	if lo.Contains([]string{"fatal", "panic"}, strings.ToLower(dbzmLogLevel)) {
+		// dbzm does not support fatal/panic log levels
+		dbzmLogLevel = "error"
+	}
 	config := &dbzm.Config{
+		LogLevel:           dbzmLogLevel,
 		MigrationUUID:      migrationUUID,
 		RunId:              runId,
 		SourceDBType:       source.DBType,

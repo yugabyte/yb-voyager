@@ -1088,13 +1088,13 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 		}
 
 		// Check Replication permission for user
-		hasReplicationPermission, err := pg.checkReplicationPermission()
-		if err != nil {
-			return nil, fmt.Errorf("error in checking replication permission: %w", err)
-		}
-		if !hasReplicationPermission {
-			combinedResult = append(combinedResult, "User does not have replication permission")
-		}
+		// hasReplicationPermission, err := pg.checkReplicationPermission()
+		// if err != nil {
+		// 	return nil, fmt.Errorf("error in checking replication permission: %w", err)
+		// }
+		// if !hasReplicationPermission {
+		// 	combinedResult = append(combinedResult, "User does not have replication permission")
+		// }
 
 		// Check user has create permission on db
 		hasCreatePermission, err := pg.checkCreatePermissionOnDB()
