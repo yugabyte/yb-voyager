@@ -1,4 +1,5 @@
 {
+	"VoyagerVersion": "IGNORED",
 	"SchemaSummary": {
 		"MigrationComplexity": "HIGH",
 		"DbName": "test_rna",

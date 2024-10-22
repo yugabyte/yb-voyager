@@ -78,8 +78,7 @@ func containsAdvisoryLocksInTargetList(targetList []*pg_query.Node) bool {
 	for _, target := range targetList {
 		if resTarget := target.GetResTarget(); resTarget != nil {
 			if funcCallNode, isFuncCall := resTarget.Val.Node.(*pg_query.Node_FuncCall); isFuncCall {
-				funcList := funcCallNode.FuncCall.Funcname
-				functionName := funcList[len(funcList)-1].GetString_().Sval
+				functionName := getFunctionName(funcCallNode)
 				if slices.Contains(unsupportedAdvLockFuncs, functionName) {
 					return true
 				}
@@ -111,6 +110,43 @@ func containsAdvisoryLocksInFromClause(fromClause []*pg_query.Node) bool {
 					return true
 				}
 			}
+		} else {
+			/*
+				Case where FROM clause have the function name, nested inside WHERE clause
+
+				Query: SELECT id, first_name FROM employees WHERE salary > 400 AND EXISTS (SELECT 1 FROM pg_advisory_lock(500))
+				ParseTree: whereClause: bool_expr:{boolop:AND_EXPR  args:{a_expr:{kind:AEXPR_OP  name:{string:{sval:">"}}
+				lexpr:{column_ref:{fields:{string:{sval:"salary"}}  location:43}}  rexpr:{a_const:{ival:{ival:400}  location:52}}  location:50}}
+				args:{sub_link:{sub_link_type:EXISTS_SUBLINK  subselect:{select_stmt:{target_list:{res_target:{val:{a_const:{ival:{ival:1}  location:75}}  location:75}}
+				from_clause:{range_function:{functions:{list:{items:{func_call:{funcname:{string:{sval:"pg_advisory_lock"}}
+				args:{a_const:{ival:{ival:500}  location:99}}  funcformat:COERCE_EXPLICIT_CALL  location:82}}  items:{}}}}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}  location:60}}  location:56}
+			*/
+			rangeFuncNode := fromItem.GetRangeFunction()
+			if rangeFuncNode == nil {
+				return false
+			}
+
+			functions := rangeFuncNode.Functions
+			if functions == nil {
+				return false
+			}
+
+			for _, function := range functions {
+				functionList := function.GetList()
+				if functionList == nil {
+					return false
+				}
+
+				for _, item := range functionList.Items {
+					if funcCallNode, isFuncCall := item.Node.(*pg_query.Node_FuncCall); isFuncCall {
+						funcName := getFunctionName(funcCallNode)
+						if slices.Contains(unsupportedAdvLockFuncs, funcName) {
+							return true
+						}
+					}
+				}
+			}
+
 		}
 	}
 	return false
@@ -130,7 +166,6 @@ func containsAdvisoryLocksInWhereClause(whereClause *pg_query.Node) bool {
 	if whereClause == nil {
 		return false
 	}
-
 	if funcCallNode := whereClause.GetFuncCall(); funcCallNode != nil {
 		funcList := funcCallNode.Funcname
 		functionName := funcList[len(funcList)-1].GetString_().Sval
@@ -469,4 +504,18 @@ func getColumnName(columnRef *pg_query.ColumnRef) string {
 	}
 
 	return lastField.GetString_().Sval
+}
+
+func getFunctionName(funcCallNode *pg_query.Node_FuncCall) string {
+	if funcCallNode == nil {
+		return ""
+	}
+
+	funcList := funcCallNode.FuncCall.Funcname
+	if funcList == nil {
+		return ""
+	}
+
+	functionName := funcList[len(funcList)-1].GetString_().Sval
+	return functionName
 }

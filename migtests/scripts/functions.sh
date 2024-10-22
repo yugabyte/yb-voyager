@@ -422,6 +422,11 @@ import_data() {
 			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
 		fi
 
+		# Check if RUN_USING_ADAPTIVE_PARALLELISM is true
+    	if [ "${RUN_USING_ADAPTIVE_PARALLELISM}" = "true" ]; then
+    	    args="${args} --enable-adaptive-parallelism true"
+    	fi
+
 		yb-voyager import data ${args} $*
 }
 
@@ -451,21 +456,26 @@ import_data_to_source_replica() {
 }
 
 import_data_file() {
-	yb-voyager import data file --export-dir ${EXPORT_DIR} \
-		--target-db-host ${TARGET_DB_HOST} \
-		--target-db-port ${TARGET_DB_PORT} \
-		--target-db-user ${TARGET_DB_USER} \
-		--target-db-password ${TARGET_DB_PASSWORD:-''} \
-		--target-db-schema ${TARGET_DB_SCHEMA:-''} \
-		--target-db-name ${TARGET_DB_NAME} \
-		--disable-pb true \
-		--send-diagnostics=false \
-		--parallel-jobs 3 \
-		$* || {
-			cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
-			exit 1
-		}
+    args="
+    --export-dir ${EXPORT_DIR}
+    --target-db-host ${TARGET_DB_HOST}
+    --target-db-port ${TARGET_DB_PORT}
+    --target-db-user ${TARGET_DB_USER}
+    --target-db-password ${TARGET_DB_PASSWORD:-''}
+    --target-db-schema ${TARGET_DB_SCHEMA:-''}
+    --target-db-name ${TARGET_DB_NAME}
+    --disable-pb true
+    --send-diagnostics=false
+    "
+
+    # Check if RUN_USING_ADAPTIVE_PARALLELISM is true
+    if [ "${RUN_USING_ADAPTIVE_PARALLELISM}" = "true" ]; then
+        args="${args} --enable-adaptive-parallelism true"
+    fi
+
+    yb-voyager import data file ${args} $*
 }
+
 
 archive_changes() {
 	ENABLE=$(shuf -i 0-1 -n 1)
@@ -666,8 +676,8 @@ grant_permissions_for_live_migration() {
 
 setup_fallback_environment() {
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
-		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
-		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
+		run_sqlplus_as_sys ${SOURCE_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
+		run_sqlplus_as_sys ${SOURCE_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
 	elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		cat > alter_user_superuser.sql <<EOF
     	ALTER ROLE ybvoyager WITH SUPERUSER;
@@ -807,6 +817,7 @@ normalize_json() {
     jq 'walk(
         if type == "object" then
             .ObjectNames? |= (if type == "string" then split(", ") | sort | join(", ") else . end) |
+            .VoyagerVersion? = "IGNORED" |
             .DbVersion? = "IGNORED" |
             .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |

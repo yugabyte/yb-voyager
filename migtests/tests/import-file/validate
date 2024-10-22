@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import yb
+import os
 
 def main():
 	yb.run_checks(file_import_done_checks)
@@ -51,7 +52,12 @@ EXPECTED = {
 	"gcs_csv_with_header": 3,
 	"gcs_volume": 1000000,
 	"gcs_quote_escape_char1": 3,
+	"accounts_large": 0
 }
+
+if os.getenv("RUN_LARGE_IMPORT_DATA_FILE_TEST") == "true":
+    EXPECTED["accounts_large"] = 350000000
+
 EXPECTED_NON_PUBLIC = {
 	"smsa": 60,
 }

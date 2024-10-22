@@ -1,4 +1,5 @@
 {
+    "VoyagerVersion": "IGNORED",
     "Summary": {
         "MigrationComplexity": "LOW",
         "DbName": "test_osm",
