@@ -403,7 +403,7 @@ func checkDependenciesForExport() error {
 		}
 	}
 
-	if exportType == SNAPSHOT_AND_CHANGES || exportType == CHANGES_ONLY {
+	if changeStreamingIsEnabled(exportType) || useDebezium {
 		// Check for debezium
 		err := dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
