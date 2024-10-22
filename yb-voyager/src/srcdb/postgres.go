@@ -391,15 +391,15 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
 // the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
-func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path string, problem string, err error) {
+func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path string, binaryCheckIssue string, err error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
 		err = fmt.Errorf("error in finding executables in PATH for %v: %w", cmd, err)
 		return "", "", err
 	}
 	if len(paths) == 0 {
-		problem = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
-		return "", problem, nil
+		binaryCheckIssue = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+		return "", binaryCheckIssue, nil
 	}
 
 	for _, path := range paths {
@@ -424,8 +424,8 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		}
 	}
 
-	problem = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
-	return "", problem, nil
+	binaryCheckIssue = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+	return "", binaryCheckIssue, nil
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list

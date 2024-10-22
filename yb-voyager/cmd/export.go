@@ -387,15 +387,15 @@ func saveExportTypeInMSR() {
 	}
 }
 
-func checkDependenciesForExport() (problems []string, err error) {
+func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 	if source.DBType == POSTGRESQL {
 		sourceDBVersion := source.DB().GetVersion()
 		for _, binary := range pgExportDependencies {
-			_, problem, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
+			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
 				return nil, err
-			} else if problem != "" {
-				problems = append(problems, problem)
+			} else if binaryCheckIssue != "" {
+				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
 		}
 	}
@@ -406,9 +406,9 @@ func checkDependenciesForExport() (problems []string, err error) {
 		// So its error mesage will be added to problems
 		err := dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
-			problems = append(problems, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
+			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 		}
 	}
 
-	return problems, nil
+	return binaryCheckIssues, nil
 }
