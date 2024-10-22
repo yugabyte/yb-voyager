@@ -1336,13 +1336,52 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	return nil
 }
 
-func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
-	return nil, nil
-}
-
 type NodeMetrics struct {
 	UUID    string
 	Metrics map[string]string
 	Status  string
 	Error   string
+}
+
+// =============================== Guardrails =================================
+
+func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
+	// check if the user is a superuser
+	isSuperUser, err := IsCurrentUserSuperUser(yb.tconf)
+	if err != nil {
+		return nil, fmt.Errorf("checking if user is superuser: %w", err)
+	}
+	if !isSuperUser {
+		errorMsg := fmt.Sprintf("User %s is not a superuser.", yb.tconf.User)
+		return []string{errorMsg}, nil
+	}
+
+	return nil, nil
+}
+
+func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
+	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
+	if err != nil {
+		return false, fmt.Errorf("unable to connect to target database: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	query := "SELECT rolsuper FROM pg_roles WHERE rolname=current_user"
+	rows, err := conn.Query(context.Background(), query)
+	if err != nil {
+		return false, fmt.Errorf("querying if user is superuser: %w", err)
+	}
+	defer rows.Close()
+
+	var isSuperUser bool
+	if rows.Next() {
+		err = rows.Scan(&isSuperUser)
+		if err != nil {
+			return false, fmt.Errorf("scanning row for superuser: %w", err)
+		}
+	} else {
+		return false, fmt.Errorf("no current user found in pg_roles")
+	}
+
+	return isSuperUser, nil
 }

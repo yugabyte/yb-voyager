@@ -100,11 +100,17 @@ func exportSchema() error {
 	}
 	defer source.DB().Disconnect()
 
-	// Check source database version.
 	if source.RunGuardrailsChecks {
+		// Check source database version.
 		err = source.DB().CheckSourceDBVersion()
 		if err != nil {
 			return fmt.Errorf("source DB version check failed: %w", err)
+		}
+
+		// Check if required binaries are installed.
+		err = checkDependenciesForExport()
+		if err != nil {
+			return fmt.Errorf("source DB dependencies check failed: \n%w", err)
 		}
 	}
 
@@ -405,7 +411,7 @@ applyShardingRecommendationIfMatching uses pg_query module to parse the given SQ
 In case of any errors or unexpected behaviour it return the original DDL
 so in worse case, only recommendation of that table won't be followed.
 
-It can handle cases like multiple options in WITH clause
+# It can handle cases like multiple options in WITH clause
 
 returns:
 modifiedSqlStmt: original stmt if not sharded else modified stmt with colocation clause
