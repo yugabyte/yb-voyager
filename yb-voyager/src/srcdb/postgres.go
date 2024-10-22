@@ -398,7 +398,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		return "", "", err
 	}
 	if len(paths) == 0 {
-		binaryCheckIssue = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+		binaryCheckIssue = fmt.Sprintf("%v: version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
 		return "", binaryCheckIssue, nil
 	}
 
@@ -424,7 +424,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		}
 	}
 
-	binaryCheckIssue = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+	binaryCheckIssue = fmt.Sprintf("%v: version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
 	return "", binaryCheckIssue, nil
 }
 

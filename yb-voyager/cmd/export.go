@@ -387,13 +387,14 @@ func saveExportTypeInMSR() {
 	}
 }
 
-func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
+func checkDependenciesForExport() (binaryCheckIssues []string, unableToFindDbzm bool, err error) {
+	unableToFindDbzm = false
 	if source.DBType == POSTGRESQL {
 		sourceDBVersion := source.DB().GetVersion()
 		for _, binary := range pgExportDependencies {
 			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
-				return nil, err
+				return nil, unableToFindDbzm, err
 			} else if binaryCheckIssue != "" {
 				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
@@ -406,9 +407,10 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		// So its error mesage will be added to problems
 		err := dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
+			unableToFindDbzm = true
 			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 		}
 	}
 
-	return binaryCheckIssues, nil
+	return binaryCheckIssues, unableToFindDbzm, nil
 }

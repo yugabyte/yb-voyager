@@ -58,7 +58,7 @@ func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) erro
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {
-			err := fmt.Errorf("could not find debezium-server directory in any of %v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", possiblePaths)
+			err := fmt.Errorf("Debezium: debezium-server directory not found in paths %v", possiblePaths)
 			return err
 		}
 	}
@@ -77,7 +77,8 @@ func NewDebezium(config *Config) *Debezium {
 func (d *Debezium) Start() error {
 	err := FindDebeziumDistribution(d.Config.SourceDBType, d.Config.UseYBgRPCConnector)
 	if err != nil {
-		return err
+		// Addding suggestion to install debezium-server if it is not found
+		return fmt.Errorf("%v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
 	}
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err = d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)

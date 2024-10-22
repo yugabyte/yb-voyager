@@ -218,13 +218,17 @@ func exportData() bool {
 			utils.ErrExit("Source DB version check failed: %s", err)
 		}
 
-		binaryCheckIssues, err := checkDependenciesForExport()
+		binaryCheckIssues, unableToFindDbzm, err := checkDependenciesForExport()
 		if err != nil {
 			utils.ErrExit("check dependencies for export: %v", err)
 		} else if len(binaryCheckIssues) > 0 {
-			color.Red("\nSome dependencies required for export data are missing: ")
+			color.Red("\nMissing dependencies for export data:")
 			utils.PrintAndLog("%s", strings.Join(binaryCheckIssues, "\n"))
-			utils.ErrExit("Please install or add the required dependencies to PATH and try again.")
+			exitMsg := "Install or add the required dependencies to PATH and try again. "
+			if unableToFindDbzm {
+				exitMsg += "For debezium-server, install or provide its path in the DEBEZIUM_DIST_DIR env variable."
+			}
+			utils.ErrExit("\n%s", exitMsg)
 		}
 	}
 

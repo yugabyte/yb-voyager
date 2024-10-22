@@ -37,7 +37,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	} else if binaryCheckIssue != "" {
-		utils.ErrExit("could not get absolute path of pg_dump command: %s", binaryCheckIssue)
+		utils.ErrExit("missing dependency: %s", binaryCheckIssue)
 	}
 
 	pgDumpArgs.Schema = source.Schema
