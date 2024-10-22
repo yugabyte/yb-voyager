@@ -391,23 +391,23 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
 // the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
-func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (string, error) {
+func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path string, binaryCheckIssue string, err error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
-		err = fmt.Errorf("error in finding executables: %w", err)
-		return "", err
+		err = fmt.Errorf("error in finding executables in PATH for %v: %w", cmd, err)
+		return "", "", err
 	}
 	if len(paths) == 0 {
-		err = fmt.Errorf("the command %v is not installed", cmd)
-		return "", err
+		binaryCheckIssue = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+		return "", binaryCheckIssue, nil
 	}
 
 	for _, path := range paths {
 		checkVersiomCmd := exec.Command(path, "--version")
 		stdout, err := checkVersiomCmd.Output()
 		if err != nil {
-			err = fmt.Errorf("error in finding version of %v from path %v: %w", checkVersiomCmd, path, err)
-			return "", err
+			err = fmt.Errorf("error in fetching version of %v from path %v: %w", cmd, path, err)
+			return "", "", err
 		}
 
 		// example output centos: pg_restore (PostgreSQL) 14.5
@@ -415,13 +415,17 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (stri
 		currVersion := strings.Fields(string(stdout))[2]
 
 		// Check if the version of the command is greater or equalt to the source DB version and greater than the min required version
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 && version.CompareSimple(currVersion, sourceDBVersion) >= 0 {
-			return path, nil
+		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 {
+			// In case of psql we dont need the version to be greater than the sourceDBVersion
+			if version.CompareSimple(currVersion, sourceDBVersion) < 0 && cmd != "psql" {
+				continue
+			}
+			return path, "", nil
 		}
 	}
 
-	err = fmt.Errorf("could not find %v with version greater than or equal to %v", cmd, PG_COMMAND_VERSION)
-	return "", err
+	binaryCheckIssue = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+	return "", binaryCheckIssue, nil
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
