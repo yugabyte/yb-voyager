@@ -40,7 +40,7 @@ var (
 func ValidateLogLevel() error {
 	LogLevel = strings.ToLower(LogLevel)
 	if !lo.Contains(validLogLevels, LogLevel) {
-		return fmt.Errorf("Invalid log level: %s. Valid log levels = %v", LogLevel, validLogLevels)
+		return fmt.Errorf("invalid log level: %s. Valid log levels = %v", LogLevel, validLogLevels)
 	}
 	return nil
 }
