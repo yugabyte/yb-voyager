@@ -1019,7 +1019,6 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	default:
 		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 	}
-	fmt.Printf("%v", liveMigrationWithFForFBUnsupportedDatatypes)
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
@@ -1031,7 +1030,6 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
 			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
 		}
-		fmt.Printf("%v", allColumnsDataTypes[i])
 		if utils.ContainsAnyStringFromSlice(liveMigrationWithFForFBUnsupportedDatatypes, allColumnsDataTypes[i].DataType) ||
 			utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType) || // if type is UDT
 			(strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]") && //if type is array and is ENUM in the list
