@@ -272,8 +272,14 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		} else {
 			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
 		}
-		keys := lo.Keys(exportedRowCount)
-		sort.Strings(keys)
+		keys := make([]string, 0, len(exportedRowCount))
+		for key := range exportedRowCount {
+			keys = append(keys, key)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			return exportedRowCount[keys[i]] > exportedRowCount[keys[j]]
+		})
+
 		for _, key := range keys {
 			table, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
@@ -394,13 +400,23 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 			utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 		}
 	}
+	keys := make([]sqlname.NameTuple, 0, len(snapshotRowCount.Keys()))
+	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v int64) (bool, error) {
+		keys = append(keys, k)
+		return true, nil
+	})
 
-	for i, tableName := range tableList {
+	sort.Slice(keys, func(i, j int) bool {
+		val1, _ := snapshotRowCount.Get(keys[i])
+		val2, _ := snapshotRowCount.Get(keys[j])
+		return val1 > val2
+	})
+
+	for i, tableName := range keys {
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
 		s, t := tableName.ForCatalogQuery()
-
 		rowCount, _ := snapshotRowCount.Get(tableName)
 		uitable.AddRow(s, t, rowCount)
 	}
