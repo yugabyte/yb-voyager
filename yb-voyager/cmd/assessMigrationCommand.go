@@ -724,13 +724,12 @@ func generateAssessmentReport() (err error) {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 
-	if os.Getenv(REPORT_UNSUPPORTED_QUERY_CONSTRUCTS) == "true" && source.DBType == POSTGRESQL {
-		unsupportedQueries, err := fetchUnsupportedQueryConstructs()
-		if err != nil {
-			return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
-		}
-		assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
+	unsupportedQueries, err := fetchUnsupportedQueryConstructs()
+	if err != nil {
+		return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
 	}
+	assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
+
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
@@ -921,6 +920,9 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 }
 
 func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
+	if source.DBType != POSTGRESQL {
+		return nil, nil
+	}
 	query := fmt.Sprintf("SELECT DISTINCT query from %s", migassessment.DB_QUERIES_SUMMARY)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
