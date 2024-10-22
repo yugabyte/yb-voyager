@@ -20,7 +20,6 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -40,7 +39,7 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
-var pgExportDependencies = []string{"pg_dump", "pg_restore"}
+var pgExportDependencies = []string{"pg_dump", "pg_restore", "psql"}
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -388,32 +387,28 @@ func saveExportTypeInMSR() {
 	}
 }
 
-func checkDependenciesForExport() error {
-	var errs []string
+func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 	if source.DBType == POSTGRESQL {
 		sourceDBVersion := source.DB().GetVersion()
 		for _, binary := range pgExportDependencies {
-			_, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
+			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
-				errs = append(errs, err.Error())
-			} else {
-				fmt.Printf("%s is compatible with %s\n", binary, sourceDBVersion)
-				log.Infof("%s is compatible", binary)
+				return nil, err
+			} else if binaryCheckIssue != "" {
+				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
 		}
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		// Check for debezium
+		// FindDebeziumDistribution returns an error only if the debezium distribution is not found
+		// So its error mesage will be added to problems
 		err := dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
-			errs = append(errs, err.Error())
+			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 		}
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, "\n"))
-	}
-
-	return nil
+	return binaryCheckIssues, nil
 }
