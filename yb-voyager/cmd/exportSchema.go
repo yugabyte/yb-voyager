@@ -102,6 +102,7 @@ func exportSchema() error {
 
 	if source.RunGuardrailsChecks {
 		// Check source database version.
+		log.Info("checking source DB version")
 		err = source.DB().CheckSourceDBVersion()
 		if err != nil {
 			return fmt.Errorf("source DB version check failed: %w", err)

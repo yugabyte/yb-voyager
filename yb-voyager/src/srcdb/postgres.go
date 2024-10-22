@@ -972,18 +972,18 @@ func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.Na
 // =============================== Guardrails ===============================
 
 func (pg *PostgreSQL) CheckSourceDBVersion() error {
-	utils.PrintAndLog("checking postgres version")
 	pgVersion := pg.GetVersion()
 	if pgVersion == "" {
 		return fmt.Errorf("failed to get source database version")
 	}
-	supportedVersionRange := fmt.Sprintf("from %s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
+	supportedVersionRange := fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
 
 	if version.CompareSimple(pgVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
-		return fmt.Errorf("source database version %s is not supported. Supported versions are %s", pgVersion, supportedVersionRange)
+		return fmt.Errorf("unsupported source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
 	}
 	if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
-		utils.PrintAndLog(color.RedString("Warning: Source database version %s is not supported for live migration. Supported versions are %s", pgVersion, supportedVersionRange))
+		supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
+		utils.PrintAndLog(color.RedString("Warning: Unsupported source db version for live migration: %s. Supported versions: %s", pgVersion, supportedVersionRange))
 	}
 
 	return nil
