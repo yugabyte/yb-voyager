@@ -70,7 +70,9 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			validateBulkAssessmentDirFlag()
 			err := config.ValidateLogLevel()
 			if err != nil {
-				utils.ErrExit("%v", err)
+				// not using utils.ErrExit as logging is not initialized yet
+				fmt.Printf("ERROR: %v\n", err)
+				atexit.Exit(1)
 			}
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
@@ -94,7 +96,9 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			validateExportDirFlag()
 			err := config.ValidateLogLevel()
 			if err != nil {
-				utils.ErrExit("%v", err)
+				// not using utils.ErrExit as logging is not initialized yet
+				fmt.Printf("ERROR: %v\n", err)
+				atexit.Exit(1)
 			}
 			schemaDir = filepath.Join(exportDir, "schema")
 			if shouldLock(cmd) {
