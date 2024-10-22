@@ -274,10 +274,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		} else {
 			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
 		}
-		keys := make([]string, 0, len(exportedRowCount))
-		for key := range exportedRowCount {
-			keys = append(keys, key)
-		}
+		keys := lo.Keys(exportedRowCount)
 		sort.Slice(keys, func(i, j int) bool {
 			return exportedRowCount[keys[i]] > exportedRowCount[keys[j]]
 		})
