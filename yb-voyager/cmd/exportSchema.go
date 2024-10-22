@@ -100,11 +100,17 @@ func exportSchema() error {
 	}
 	defer source.DB().Disconnect()
 
-	// Check source database version.
 	if source.RunGuardrailsChecks {
+		// Check source database version.
 		err = source.DB().CheckSourceDBVersion()
 		if err != nil {
 			return fmt.Errorf("source DB version check failed: %w", err)
+		}
+
+		// Check if required binaries are installed.
+		err = checkDependenciesForExport()
+		if err != nil {
+			return fmt.Errorf("source DB dependencies check failed: \n%w", err)
 		}
 	}
 

@@ -391,7 +391,7 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
 // the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
-func GetAbsPathOfPGCommand(cmd string) (string, error) {
+func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (string, error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
 		err = fmt.Errorf("error in finding executables: %w", err)
@@ -414,7 +414,8 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
 		currVersion := strings.Fields(string(stdout))[2]
 
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 {
+		// Check if the version of the command is greater or equalt to the source DB version and greater than the min required version
+		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 && version.CompareSimple(currVersion, sourceDBVersion) >= 0 {
 			return path, nil
 		}
 	}

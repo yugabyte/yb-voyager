@@ -20,9 +20,11 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -38,6 +40,7 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
+var pgExportDependencies = []string{"pg_dump", "pg_restore"}
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -383,4 +386,34 @@ func saveExportTypeInMSR() {
 	if err != nil {
 		utils.ErrExit("error while updating export type in meta db: %v", err)
 	}
+}
+
+func checkDependenciesForExport() error {
+	var errs []string
+	if source.DBType == POSTGRESQL {
+		sourceDBVersion := source.DB().GetVersion()
+		for _, binary := range pgExportDependencies {
+			_, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
+			if err != nil {
+				errs = append(errs, err.Error())
+			} else {
+				fmt.Printf("%s is compatible with %s\n", binary, sourceDBVersion)
+				log.Infof("%s is compatible", binary)
+			}
+		}
+	}
+
+	if changeStreamingIsEnabled(exportType) || useDebezium {
+		// Check for debezium
+		err := dbzm.FindDebeziumDistribution(source.DBType, false)
+		if err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "\n"))
+	}
+
+	return nil
 }
