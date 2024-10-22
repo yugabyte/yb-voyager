@@ -26563,5 +26563,6 @@
 		}
 	],
 	"Notes": null,
-	"MigrationCaveats": null
+	"MigrationCaveats": null,
+	"UnsupportedQueryConstructs": null
 }
