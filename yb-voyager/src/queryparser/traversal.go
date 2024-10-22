@@ -137,7 +137,7 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 				if fieldDesc.Kind() == protoreflect.MessageKind {
 					err := TraverseParseTree(elem.Message(), visited, processor)
 					if err != nil {
-						log.Debugf("error traversing field %s: %w", fieldDesc.Name(), err)
+						log.Debugf("error traversing field %s: %v", fieldDesc.Name(), err)
 						return fmt.Errorf("error traversing field %s: %w", fieldDesc.Name(), err)
 					}
 				}
@@ -146,7 +146,7 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 		case fieldDesc.Kind() == protoreflect.MessageKind:
 			err := TraverseParseTree(value.Message(), visited, processor)
 			if err != nil {
-				log.Debugf("error traversing field %s: %w", fieldDesc.Name(), err)
+				log.Debugf("error traversing field %s: %v", fieldDesc.Name(), err)
 				return fmt.Errorf("error traversing field %s: %w", fieldDesc.Name(), err)
 			}
 
