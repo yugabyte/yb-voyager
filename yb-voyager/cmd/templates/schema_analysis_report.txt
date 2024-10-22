@@ -2,9 +2,10 @@
 |               Database Migration Report         |
 +-------------------------------------------------+
 
-Database Information
+Migration Information
 ---------------------
 
+Voyager Version               : {{ .VoyagerVersion }}
 Database Name                 : {{ .SchemaSummary.DBName }}
 Schema Name(s)                : {{ join .SchemaSummary.SchemaNames ", " }}
 DB Version                    : {{ .SchemaSummary.DBVersion }}

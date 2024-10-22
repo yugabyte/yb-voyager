@@ -358,8 +358,18 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
+            "ObjectName": "test_2",
+            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE - (country_code, record_type)",
+            "SqlStatement": "CREATE TABLE test_2 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "Suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
             "ObjectName": "test_5",
-            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE - (country_code, record_type)",
             "SqlStatement": "CREATE TABLE test_5 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY RANGE (country_code, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
@@ -369,7 +379,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "test_6",
-            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE - (record_type)",
             "SqlStatement": "CREATE TABLE test_6 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (country_code, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
@@ -379,7 +389,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "test_7",
-            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE - (descriptions, record_type)",
             "SqlStatement": "CREATE TABLE test_7 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (descriptions, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
@@ -389,7 +399,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "test_8",
-            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE - (promotion_id, order_date)",
             "SqlStatement": "CREATE TABLE test_8 (\n\torder_id bigint NOT NULL,\n\torder_date timestamp,\n\torder_mode varchar(8),\n\tcustomer_id integer,\n\torder_mode smallint,\n\torder_total double precision,\n\tsales_rep_id integer,\n\tpromotion_id integer,\n\tPRIMARY KEY (order_id,order_mode,customer_id,order_total,sales_rep_id)\n) PARTITION BY RANGE (promotion_id, order_date, sales_rep_id) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
@@ -404,6 +414,16 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "test_non_pk_multi_column_list",
+            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE - (country_code, record_type)",
+            "SqlStatement": "CREATE TABLE test_non_pk_multi_column_list (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "Suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns"
         },
         {
             "IssueType": "unsupported_features",
@@ -1097,8 +1117,18 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
+            "ObjectName": "test_1",
+            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE - (country_code, record_type)",
+            "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "Suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
             "ObjectName": "sales_data",
-            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "Reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE - (sales_date)",
             "SqlStatement": "CREATE TABLE sales_data (\n        sales_id numeric NOT NULL,\n        sales_date timestamp,\n        sales_amount numeric,\n        PRIMARY KEY (sales_id)\n) PARTITION BY RANGE (sales_date) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",

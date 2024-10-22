@@ -33,7 +33,6 @@ fi
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 then
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh
-	source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 else
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi

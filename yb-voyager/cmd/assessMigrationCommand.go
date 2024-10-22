@@ -730,7 +730,7 @@ func generateAssessmentReport() (err error) {
 		}
 		assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 	}
-
+	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
@@ -1019,7 +1019,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	default:
 		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 	}
-fmt.Printf("%v",liveMigrationWithFForFBUnsupportedDatatypes)
+	fmt.Printf("%v", liveMigrationWithFForFBUnsupportedDatatypes)
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only

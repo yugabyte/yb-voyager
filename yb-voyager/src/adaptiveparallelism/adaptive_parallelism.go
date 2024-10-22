@@ -22,29 +22,45 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
-	CPU_USAGE_USER                 = "cpu_usage_user"
-	CPU_USAGE_SYSTEM               = "cpu_usage_system"
-	MAX_CPU_THRESHOLD              = 70
-	ADAPTIVE_PARALLELISM_FREQUENCY = 10 * time.Second
+	CPU_USAGE_USER_METRIC                  = "cpu_usage_user"
+	CPU_USAGE_SYSTEM_METRIC                = "cpu_usage_system"
+	TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC = "tserver_root_memory_consumption"
+	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC  = "tserver_root_memory_soft_limit"
+	MEMORY_TOTAL_METRIC                    = "memory_total"
+	MEMORY_AVAILABLE_METRIC                = "memory_available"
 )
+
+var MAX_CPU_THRESHOLD int
+var ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS int
+var MIN_AVAILABLE_MEMORY_THRESHOLD int
+
+func init() {
+	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", 70)
+	ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = utils.GetEnvAsInt("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", 10)
+	MIN_AVAILABLE_MEMORY_THRESHOLD = utils.GetEnvAsInt("MIN_AVAILABLE_MEMORY_THRESHOLD", 10)
+}
 
 type TargetYugabyteDBWithConnectionPool interface {
 	IsAdaptiveParallelismSupported() bool
-	GetClusterMetrics() (map[string]map[string]string, error) // node_uuid:metric_name:metric_value
+	GetClusterMetrics() (map[string]tgtdb.NodeMetrics, error) // node_uuid:metric_name:metric_value
 	GetNumConnectionsInPool() int
 	GetNumMaxConnectionsInPool() int
 	UpdateNumConnectionsInPool(int) error // (delta)
 }
 
+var ErrAdaptiveParallelismNotSupported = fmt.Errorf("adaptive parallelism not supported in target YB database")
+
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 	if !yb.IsAdaptiveParallelismSupported() {
-		return fmt.Errorf("adaptive parallelism not supported in target YB database")
+		return ErrAdaptiveParallelismNotSupported
 	}
 	for {
-		time.Sleep(ADAPTIVE_PARALLELISM_FREQUENCY)
+		time.Sleep(time.Duration(ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS) * time.Second)
 		err := fetchClusterMetricsAndUpdateParallelism(yb)
 		if err != nil {
 			log.Warnf("adaptive: error updating parallelism: %v", err)
@@ -59,26 +75,25 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 		return fmt.Errorf("getting cluster metrics: %w", err)
 	}
 
-	// get max CPU
-	// Note that right now, voyager ingests data into the target in parallel,
-	// but one table at a time. Therefore, in cases where there is a single tablet for a table,
-	// either due to pre-split or colocated table, it is possible that the load on the cluster
-	// will be uneven. Nevertheless, we still want to ensure that the cluster is not overloaded,
-	// therefore we use the max CPU usage across all nodes in the cluster.
-	maxCpuUsage, err := getMaxCpuUsageInCluster(clusterMetrics)
+	cpuLoadHigh, err := isCpuLoadHigh(clusterMetrics)
 	if err != nil {
-		return fmt.Errorf("getting max cpu usage in cluster: %w", err)
+		return fmt.Errorf("checking if cpu load is high: %w", err)
 	}
-	log.Infof("adaptive: max cpu usage in cluster = %d", maxCpuUsage)
+	memLoadHigh, err := isMemoryLoadHigh(clusterMetrics)
+	if err != nil {
+		return fmt.Errorf("checking if memory load is high: %w", err)
+	}
 
-	if maxCpuUsage > MAX_CPU_THRESHOLD {
-		log.Infof("adaptive: found CPU usage = %d > %d, reducing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()-1)
+	if cpuLoadHigh || memLoadHigh {
+		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, reducing parallelism to %d",
+			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()-1)
 		err = yb.UpdateNumConnectionsInPool(-1)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with -1: %w", err)
 		}
 	} else {
-		log.Infof("adaptive: found CPU usage = %d <= %d, increasing parallelism to %d", maxCpuUsage, MAX_CPU_THRESHOLD, yb.GetNumConnectionsInPool()+1)
+		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, increasing parallelism to %d",
+			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+1)
 		err := yb.UpdateNumConnectionsInPool(1)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with +1 : %w", err)
@@ -87,14 +102,32 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	return nil
 }
 
-func getMaxCpuUsageInCluster(clusterMetrics map[string]map[string]string) (int, error) {
-	var maxCpuPct int
+func isCpuLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+	// get max CPU
+	// Note that right now, voyager ingests data into the target in parallel,
+	// but one table at a time. Therefore, in cases where there is a single tablet for a table,
+	// either due to pre-split or colocated table, it is possible that the load on the cluster
+	// will be uneven. Nevertheless, we still want to ensure that the cluster is not overloaded,
+	// therefore we use the max CPU usage across all nodes in the cluster.
+	maxCpuUsagePct, err := getMaxCpuUsageInCluster(clusterMetrics)
+	if err != nil {
+		return false, fmt.Errorf("getting max cpu usage in cluster: %w", err)
+	}
+	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu threhsold = %d", maxCpuUsagePct, MAX_CPU_THRESHOLD)
+	return maxCpuUsagePct > MAX_CPU_THRESHOLD, nil
+}
+
+func getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, error) {
+	maxCpuPct := -1
 	for _, nodeMetrics := range clusterMetrics {
-		cpuUsageUser, err := strconv.ParseFloat(nodeMetrics[CPU_USAGE_USER], 64)
+		if nodeMetrics.Status != "OK" {
+			continue
+		}
+		cpuUsageUser, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER_METRIC], 64)
 		if err != nil {
 			return -1, fmt.Errorf("parsing cpu usage user as float: %w", err)
 		}
-		cpuUsageSystem, err := strconv.ParseFloat(nodeMetrics[CPU_USAGE_SYSTEM], 64)
+		cpuUsageSystem, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM_METRIC], 64)
 		if err != nil {
 			return -1, fmt.Errorf("parsing cpu usage system as float: %w", err)
 		}
@@ -103,4 +136,54 @@ func getMaxCpuUsageInCluster(clusterMetrics map[string]map[string]string) (int, 
 		maxCpuPct = max(maxCpuPct, cpuUsagePct)
 	}
 	return maxCpuPct, nil
+}
+
+/*
+Memory load is considered to be high in the following scenarios
+- Available memory of any node is less than 10% (MIN_AVAILABLE_MEMORY_THRESHOLD) of it's total memory
+- tserver root memory consumption of any node has breached it's soft limit.
+*/
+func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+	minMemoryAvailablePct := 100
+	isTserverRootMemorySoftLimitBreached := false
+	for _, nodeMetrics := range clusterMetrics {
+		if nodeMetrics.Status != "OK" {
+			continue
+		}
+		// check if tserver root memory soft limit is breached
+		tserverRootMemoryConsumption, err := strconv.ParseInt(nodeMetrics.Metrics[TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("parsing tserver root memory consumption as int: %w", err)
+		}
+		tserverRootMemorySoftLimit, err := strconv.ParseInt(nodeMetrics.Metrics[TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("parsing tserver root memory soft limit as int: %w", err)
+		}
+		if tserverRootMemoryConsumption > tserverRootMemorySoftLimit {
+			isTserverRootMemorySoftLimitBreached = true
+			break
+		}
+
+		// check if memory available is low
+		memoryAvailable, err := strconv.ParseInt(nodeMetrics.Metrics[MEMORY_AVAILABLE_METRIC], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("parsing memory available as int: %w", err)
+		}
+		memoryTotal, err := strconv.ParseInt(nodeMetrics.Metrics[MEMORY_TOTAL_METRIC], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("parsing memory total as int: %w", err)
+		}
+		if memoryAvailable == 0 || memoryTotal == 0 {
+			// invalid values
+			// on macos memory available is not available
+			continue
+		}
+		memoryAvailablePct := int((memoryAvailable * 100) / memoryTotal)
+		minMemoryAvailablePct = min(minMemoryAvailablePct, memoryAvailablePct)
+		if minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD {
+			break
+		}
+	}
+
+	return minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD || isTserverRootMemorySoftLimitBreached, nil
 }

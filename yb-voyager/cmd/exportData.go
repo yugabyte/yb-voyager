@@ -216,6 +216,13 @@ func exportData() bool {
 		if err != nil {
 			utils.ErrExit("Source DB version check failed: %s", err)
 		}
+
+		err = checkDependenciesForExport()
+		if err != nil {
+			color.Red("\nSome dependencies required for export data are missing: ")
+			utils.PrintAndLog("%s", err.Error())
+			utils.ErrExit("Please install the required dependencies and try again.")
+		}
 	}
 
 	source.DBVersion = source.DB().GetVersion()
@@ -917,6 +924,11 @@ func clearMigrationStateIfRequired() {
 	exportSnapshotStatusFile := jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
+		if dataIsExported() {
+			if !utils.AskPrompt("Data is already exported. Are you sure you want to clean the data directory and start afresh") {
+				utils.ErrExit("Export aborted.")
+			}
+		}
 		utils.CleanDir(exportDataDir)
 		utils.CleanDir(sslDir)
 		clearDataIsExported()

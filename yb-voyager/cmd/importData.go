@@ -459,7 +459,20 @@ func importData(importFileTasks []*ImportFileTask) {
 		if !ok {
 			utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
 		}
-		go adaptiveparallelism.AdaptParallelism(yb)
+		if !yb.IsAdaptiveParallelismSupported() {
+			if !utils.AskPrompt("Adaptive parallelism is not supported in this version of YugabyteDB. Do you want to continue without adaptive parallelism?") {
+				utils.ErrExit("adaptive parallelism not supported by this version of YugabyteDB. Exiting...")
+			}
+			log.Infof("Continuing without adaptive parallelism as it is not supported in this version of YugabyteDB")
+		} else {
+			go func() {
+				err := adaptiveparallelism.AdaptParallelism(yb)
+				if err != nil {
+					log.Errorf("adaptive parallelism error: %v", err)
+				}
+			}()
+		}
+
 	}
 
 	targetDBVersion := tdb.GetVersion()
@@ -845,12 +858,11 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
 			return nt.ForOutput()
 		})
-		utils.PrintAndLog("Following tables are not empty. "+
-			"TRUNCATE them before importing data with --start-clean.\n%s",
-			strings.Join(nonEmptyTableNames, ", "))
-		yes := utils.AskPrompt("Do you want to continue without truncating these tables?")
+		utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
+		utils.PrintAndLog("The above list of tables on target DB are not empty. ")
+		yes := utils.AskPrompt("Are you sure you want to start afresh without truncating tables")
 		if !yes {
-			utils.ErrExit("Aborting import.")
+			utils.ErrExit("Aborting import. Manually truncate the tables on target DB before continuing.")
 		}
 	}
 

@@ -18,7 +18,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-22.04, macos-latest]
 
     steps:
       - uses: actions/checkout@v3
@@ -37,7 +37,7 @@ jobs:
       - name: Build Binary
         run: |
           cd yb-voyager
-          if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
+          if [ ${{ matrix.os }} == "ubuntu-22.04" ]; then
             GOOS=linux GOARCH=amd64 go build -o yb-voyager-linux-amd64
           elif [ ${{ matrix.os }} == "macos-latest" ]; then
             CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o yb-voyager-darwin-amd64
@@ -46,7 +46,7 @@ jobs:
 
       - name: Build Debezium
         run: |
-          if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
+          if [ ${{ matrix.os }} == "ubuntu-22.04" ]; then
             cd installer_scripts
             yes | ./install-yb-voyager --install-from-local-source
             cat /tmp/install-yb-voyager.log
@@ -55,7 +55,7 @@ jobs:
       - name: Archive the files
         run: |
           cd yb-voyager
-          if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
+          if [ ${{ matrix.os }} == "ubuntu-22.04" ]; then
             mkdir voyager-linux-amd64
             mv yb-voyager-linux-amd64 voyager-linux-amd64/yb-voyager
             cp ./src/srcdb/data/sample-ora2pg.conf voyager-linux-amd64/base-ora2pg.conf
