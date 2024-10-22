@@ -20,7 +20,6 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -388,32 +387,28 @@ func saveExportTypeInMSR() {
 	}
 }
 
-func checkDependenciesForExport() error {
-	var errs []string
+func checkDependenciesForExport() (problems []string, err error) {
 	if source.DBType == POSTGRESQL {
 		sourceDBVersion := source.DB().GetVersion()
 		for _, binary := range pgExportDependencies {
-			_, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
+			_, problem, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
-				// Capitalize the first letter of error message
-				errs = append(errs, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
-			} else {
-				log.Infof("%s is compatible", binary)
+				return nil, err
+			} else if problem != "" {
+				problems = append(problems, problem)
 			}
 		}
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		// Check for debezium
+		// FindDebeziumDistribution returns an error only if the debezium distribution is not found
+		// So its error mesage will be added to problems
 		err := dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
-			errs = append(errs, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
+			problems = append(problems, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 		}
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, "\n"))
-	}
-
-	return nil
+	return problems, nil
 }

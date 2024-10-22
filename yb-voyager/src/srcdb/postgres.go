@@ -391,15 +391,15 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
 // the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
-func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (string, error) {
+func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path string, problem string, err error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
 		err = fmt.Errorf("error in finding executables in PATH for %v: %w", cmd, err)
-		return "", err
+		return "", "", err
 	}
 	if len(paths) == 0 {
-		err = fmt.Errorf("could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
-		return "", err
+		problem = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+		return "", problem, nil
 	}
 
 	for _, path := range paths {
@@ -407,7 +407,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (stri
 		stdout, err := checkVersiomCmd.Output()
 		if err != nil {
 			err = fmt.Errorf("error in fetching version of %v from path %v: %w", cmd, path, err)
-			return "", err
+			return "", "", err
 		}
 
 		// example output centos: pg_restore (PostgreSQL) 14.5
@@ -420,12 +420,12 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (stri
 			if version.CompareSimple(currVersion, sourceDBVersion) < 0 && cmd != "psql" {
 				continue
 			}
-			return path, nil
+			return path, "", nil
 		}
 	}
 
-	err = fmt.Errorf("could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
-	return "", err
+	problem = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+	return "", problem, nil
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
