@@ -48,11 +48,11 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
-func InitLogging(logDir string, disableLogging bool, cmdName string) {
+func InitLogging(logDir string, logLevel string, disableLogging bool, cmdName string) error {
 	// Redirect log messages to ${logDir}/yb-voyager.log if not a status command.
 	if disableLogging {
 		log.SetOutput(io.Discard)
-		return
+		return nil
 	}
 	logFileName := filepath.Join(logDir, "logs", fmt.Sprintf("yb-voyager-%s.log", cmdName))
 
@@ -63,6 +63,11 @@ func InitLogging(logDir string, disableLogging bool, cmdName string) {
 		MaxBackups: 10,  // Allow upto 10 logs at once before deleting oldest logs.
 	}
 	log.SetOutput(logRotator)
+	level, err := log.ParseLevel(logLevel)
+	if err != nil {
+		return fmt.Errorf("invalid log level %s: %w", logLevel, err)
+	}
+	log.SetLevel(level)
 
 	log.SetReportCaller(true)
 	log.SetFormatter(&MyFormatter{})
@@ -70,6 +75,7 @@ func InitLogging(logDir string, disableLogging bool, cmdName string) {
 	redactPasswordFromArgs()
 	log.Infof("Args: %v", os.Args)
 	log.Infof("\n%s", getVersionInfo())
+	return nil
 }
 
 func redactPasswordFromArgs() {

@@ -51,6 +51,7 @@ var (
 	controlPlane                       cp.ControlPlane
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
+	logLevel                           string
 )
 
 var rootCmd = &cobra.Command{
@@ -72,7 +73,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				lockFile = lockfile.NewLockfile(lockFPath)
 				lockFile.Lock()
 			}
-			InitLogging(bulkAssessmentDir, cmd.Use == "status", GetCommandID(cmd))
+			err := InitLogging(bulkAssessmentDir, logLevel, cmd.Use == "status", GetCommandID(cmd))
+			if err != nil {
+				utils.ErrExit("Failed to initialize logging: %v", err)
+			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
 
@@ -90,7 +94,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				lockFile = lockfile.NewLockfile(lockFPath)
 				lockFile.Lock()
 			}
-			InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
+			err := InitLogging(exportDir, logLevel, cmd.Use == "status", GetCommandID(cmd))
+			if err != nil {
+				utils.ErrExit("Failed to initialize logging: %v", err)
+			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
 
@@ -206,6 +213,9 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("profile")
 
 	registerExportDirFlag(cmd)
+
+	cmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info",
+		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
