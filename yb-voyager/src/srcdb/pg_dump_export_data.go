@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -37,9 +38,11 @@ import (
 func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []sqlname.NameTuple, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, snapshotName string) {
 	defer utils.WaitGroup.Done()
 
-	pgDumpPath, err := GetAbsPathOfPGCommandAboveVersion("pg_dump", source.DBVersion)
+	pgDumpPath, binaryCheckIssue, err := GetAbsPathOfPGCommandAboveVersion("pg_dump", source.DBVersion)
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
+	} else if binaryCheckIssue != "" {
+		utils.ErrExit("could not get absolute path of pg_dump command: %s", binaryCheckIssue)
 	}
 
 	pgDumpArgs.DataDirPath = filepath.Join(exportDir, "data")
@@ -50,6 +53,9 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	args := getPgDumpArgsFromFile("data")
 	if snapshotName != "" {
 		args = fmt.Sprintf("%s --snapshot=%s", args, snapshotName)
+	}
+	if config.IsLogLevelDebugOrBelow() {
+		args = fmt.Sprintf("%s --verbose", args)
 	}
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)

@@ -31,8 +31,8 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 35,
-                "InvalidCount": 31,
-                "ObjectNames": "idx_enum2, idx_enum, idx_udt1, idx_udt, idx1, idx2, idx3, idx4, idx5, idx6, idx7, idx8, idx9, idx10, idx11, idx12, idx13, idx14, idx15, idx_fileinfo_name_splitted, idx_array, tsvector_idx, tsquery_idx, idx_citext, idx_inet, idx_json, idx_json2, idx_valid, film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3, abc, abc",
+                "InvalidCount": 30,
+                "ObjectNames": "film_fulltext_idx ON public.film, idx_actor_last_name ON public.actor, idx_name1 ON table_name, idx_name2 ON table_name, idx_name3 ON schema_name.table_name, idx_fileinfo_name_splitted ON public.fileinfo, abc ON public.example, abc ON schema2.example, tsvector_idx ON public.documents, tsquery_idx ON public.ts_query_table, idx_citext ON public.citext_type, idx_inet ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_valid ON public.test_jsonb, idx_array ON public.documents, idx1 ON combined_tbl, idx2 ON combined_tbl, idx3 ON combined_tbl, idx4 ON combined_tbl, idx5 ON combined_tbl, idx6 ON combined_tbl, idx7 ON combined_tbl, idx8 ON combined_tbl, idx9 ON combined_tbl, idx10 ON combined_tbl, idx11 ON combined_tbl, idx12 ON combined_tbl, idx13 ON combined_tbl, idx14 ON combined_tbl, idx15 ON combined_tbl, idx_udt ON test_udt, idx_udt1 ON test_udt, idx_enum ON test_udt, \"idx\u0026_enum2\" ON test_udt",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
             {
@@ -51,7 +51,7 @@
                 "ObjectType": "TRIGGER",
                 "TotalCount": 3,
                 "InvalidCount": 3,
-                "ObjectNames": "transfer_insert, emp_trig, test"
+                "ObjectNames": "transfer_insert ON transfer, emp_trig, test"
             },
             {
                 "ObjectType": "MVIEW",
@@ -75,7 +75,12 @@
                 "ObjectType": "POLICY",
                 "TotalCount": 6,
                 "InvalidCount": 2, 
-                "ObjectNames": "r1_2, p3_2, p3_2, P, p2, p1"
+                "ObjectNames": "p ON tbl1, p2 ON t2, p1 ON z1, r1_2 ON public.rec1, p3_2 ON z1, p3_2 ON schema2.z1"
+            },
+            {
+                "ObjectType": "OPERATOR",
+                "TotalCount": 1,
+                "ObjectNames": "\u003c%"
             }
         ]
 }

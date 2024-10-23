@@ -36,7 +36,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 29,
-				"ObjectNames": "film_fulltext_idx, idx_actor_last_name, idx_fk_address_id, idx_fk_city_id, idx_fk_country_id, idx_fk_customer_id, idx_fk_film_id, idx_fk_inventory_id, idx_fk_language_id, idx_fk_original_language_id, idx_fk_payment_p2007_01_customer_id, idx_fk_payment_p2007_01_staff_id, idx_fk_payment_p2007_02_customer_id, idx_fk_payment_p2007_02_staff_id, idx_fk_payment_p2007_03_customer_id, idx_fk_payment_p2007_03_staff_id, idx_fk_payment_p2007_04_customer_id, idx_fk_payment_p2007_04_staff_id, idx_fk_payment_p2007_05_customer_id, idx_fk_payment_p2007_05_staff_id, idx_fk_payment_p2007_06_customer_id, idx_fk_payment_p2007_06_staff_id, idx_fk_staff_id, idx_fk_store_id, idx_last_name, idx_store_id_film_id, idx_title, idx_unq_manager_staff_id, idx_unq_rental_rental_date_inventory_id_customer_id"
+				"ObjectNames": "film_fulltext_idx ON public.film, idx_actor_last_name ON public.actor, idx_fk_address_id ON public.customer, idx_fk_city_id ON public.address, idx_fk_country_id ON public.city, idx_fk_customer_id ON public.payment, idx_fk_film_id ON public.film_actor, idx_fk_inventory_id ON public.rental, idx_fk_language_id ON public.film, idx_fk_original_language_id ON public.film, idx_fk_payment_p2007_01_customer_id ON public.payment_p2007_01, idx_fk_payment_p2007_01_staff_id ON public.payment_p2007_01, idx_fk_payment_p2007_02_customer_id ON public.payment_p2007_02, idx_fk_payment_p2007_02_staff_id ON public.payment_p2007_02, idx_fk_payment_p2007_03_customer_id ON public.payment_p2007_03, idx_fk_payment_p2007_03_staff_id ON public.payment_p2007_03, idx_fk_payment_p2007_04_customer_id ON public.payment_p2007_04, idx_fk_payment_p2007_04_staff_id ON public.payment_p2007_04, idx_fk_payment_p2007_05_customer_id ON public.payment_p2007_05, idx_fk_payment_p2007_05_staff_id ON public.payment_p2007_05, idx_fk_payment_p2007_06_customer_id ON public.payment_p2007_06, idx_fk_payment_p2007_06_staff_id ON public.payment_p2007_06, idx_fk_staff_id ON public.payment, idx_fk_store_id ON public.customer, idx_last_name ON public.customer, idx_store_id_film_id ON public.inventory, idx_title ON public.film, idx_unq_manager_staff_id ON public.store, idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -56,7 +56,7 @@
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 15,
-				"ObjectNames": "film_fulltext_trigger, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated, last_updated"
+				"ObjectNames": "film_fulltext_trigger ON public.film, last_updated ON public.actor, last_updated ON public.address, last_updated ON public.category, last_updated ON public.city, last_updated ON public.country, last_updated ON public.customer, last_updated ON public.film, last_updated ON public.film_actor, last_updated ON public.film_category, last_updated ON public.inventory, last_updated ON public.language, last_updated ON public.rental, last_updated ON public.staff, last_updated ON public.store"
 			},
 			{
 				"ObjectType": "RULE",

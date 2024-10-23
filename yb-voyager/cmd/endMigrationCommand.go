@@ -16,6 +16,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -282,7 +283,7 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 
-	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s --log-level %s", exportDir, config.LogLevel)
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
 	saveCommandOutput(liveMigrationReportCmd, "data migration report", "", dataMigrationReportPath)
