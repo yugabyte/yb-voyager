@@ -1018,7 +1018,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			numLinesTaken += 1
 		}
 		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, dataFile.GetBytesRead(), currentBytesRead)
-		if currentBytesRead > tdb.MaxBatchSizeInBytes() {
+		if currentBytesRead >= tdb.MaxBatchSizeInBytes() {
 			//If a row is itself larger than MaxBatchSizeInBytes erroring out
 			utils.ErrExit("record num=%d for table %q in file %s is larger than %d bytes batch size", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes())
 		}
