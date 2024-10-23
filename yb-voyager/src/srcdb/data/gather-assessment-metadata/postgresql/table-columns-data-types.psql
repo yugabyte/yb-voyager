@@ -5,7 +5,7 @@ SELECT
     c.table_name,
     c.column_name,
     CASE
-        WHEN c.data_type = 'ARRAY' THEN c.udt_schema || '.' || SUBSTRING(c.udt_name FROM 2) || '[]' -- for Arrays the type have leading _ to identify array types so removing it and adding [] 
+        WHEN c.data_type = 'ARRAY' THEN c.udt_schema || '.' || SUBSTRING(c.udt_name FROM 2) || '[]'  -- Removes leading _ for array types and appends []
         WHEN c.data_type = 'USER-DEFINED' THEN c.udt_schema || '.' || c.udt_name
         ELSE c.data_type
     END AS data_type

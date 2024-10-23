@@ -5590,6 +5590,85 @@
 			],
 			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 			"FeatureDescription": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+		},
+		{
+			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
+			"Objects": [
+				{
+					"ObjectName": "composite_type_examples.ordinary_table.basic_ (composite_type_examples.basic_comp_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.ordinary_table._basic (composite_type_examples.basic_comp_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.ordinary_table.nested (composite_type_examples.nested)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.ordinary_table._nested (composite_type_examples.nested)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.inherited_table.basic_ (composite_type_examples.basic_comp_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.inherited_table._basic (composite_type_examples.basic_comp_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.inherited_table.nested (composite_type_examples.nested)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.inherited_table._nested (composite_type_examples.nested)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "enum_example.bugs.info (enum_example.bug_info)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "enum_example.bugs_clone.info (enum_example.bug_info)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "foreign_db_example.technically_doesnt_exist.uses_type (foreign_db_example.example_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "foreign_db_example.technically_doesnt_exist._uses_type (foreign_db_example.example_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.foreign_db_example.uses_type (foreign_db_example.example_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.foreign_db_example._uses_type (foreign_db_example.example_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.basic_view.basic_ (composite_type_examples.basic_comp_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.basic_view._basic (composite_type_examples.basic_comp_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.basic_view.nested (composite_type_examples.nested)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "composite_type_examples.basic_view._nested (composite_type_examples.nested)",
+					"SqlStatement": ""
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back of data. These columns will be excluded when exporting and importing data in live migration workflows."
 		}
 	]
 }

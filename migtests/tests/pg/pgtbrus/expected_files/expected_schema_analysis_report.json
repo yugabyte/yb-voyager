@@ -31,6 +31,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 2,
+                "InvalidCount": 1,
                 "ObjectNames": "public.c, public.t"
             },
             {
@@ -73,6 +74,17 @@
             "Suggestion": "SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.t",
+            "Reason": "Unsupported datatype for Live migration with fall-forward/fallback - public.mycomposit on column - c",
+            "SqlStatement": "CREATE TABLE public.t (\n    i integer NOT NULL,\n    ts timestamp(0) with time zone DEFAULT now(),\n    j json,\n    t text,\n    e public.myenum,\n    c public.mycomposit\n);",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         }
     ]
 }
