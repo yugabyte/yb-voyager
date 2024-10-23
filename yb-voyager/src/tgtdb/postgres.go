@@ -884,7 +884,7 @@ func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error
 	FROM 
 		pg_namespace
 	WHERE 
-		quote_ident(nspname) IN (%s);
+		quote_ident(nspname) = ANY(string_to_array('%s', ','));
 	`, pg.tconf.User, GRANTED, MISSING, querySchemaList)
 	// Currently we don't support case sensitive schema names but in the future we might and hence using quote_ident to handle that case
 
