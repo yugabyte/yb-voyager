@@ -27,22 +27,34 @@ import (
 )
 
 const (
-	CPU_USAGE_USER_METRIC                  = "cpu_usage_user"
-	CPU_USAGE_SYSTEM_METRIC                = "cpu_usage_system"
-	TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC = "tserver_root_memory_consumption"
-	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC  = "tserver_root_memory_soft_limit"
-	MEMORY_TOTAL_METRIC                    = "memory_total"
-	MEMORY_AVAILABLE_METRIC                = "memory_available"
+	CPU_USAGE_USER_METRIC                          = "cpu_usage_user"
+	CPU_USAGE_SYSTEM_METRIC                        = "cpu_usage_system"
+	TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC         = "tserver_root_memory_consumption"
+	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC          = "tserver_root_memory_soft_limit"
+	MEMORY_TOTAL_METRIC                            = "memory_total"
+	MEMORY_AVAILABLE_METRIC                        = "memory_available"
+	DEFAULT_MAX_CPU_THRESHOLD                      = 70
+	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
+	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
 )
 
 var MAX_CPU_THRESHOLD int
 var ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS int
 var MIN_AVAILABLE_MEMORY_THRESHOLD int
 
-func init() {
-	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", 70)
-	ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = utils.GetEnvAsInt("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", 10)
-	MIN_AVAILABLE_MEMORY_THRESHOLD = utils.GetEnvAsInt("MIN_AVAILABLE_MEMORY_THRESHOLD", 10)
+func readConfig() {
+	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", DEFAULT_MAX_CPU_THRESHOLD)
+	if MAX_CPU_THRESHOLD != DEFAULT_MAX_CPU_THRESHOLD {
+		utils.PrintAndLog("Using MAX_CPU_THRESHOLD: %d", MAX_CPU_THRESHOLD)
+	}
+	ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = utils.GetEnvAsInt("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS)
+	if ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS != DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS {
+		utils.PrintAndLog("Using ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS: %d", ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS)
+	}
+	MIN_AVAILABLE_MEMORY_THRESHOLD = utils.GetEnvAsInt("MIN_AVAILABLE_MEMORY_THRESHOLD", DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD)
+	if MIN_AVAILABLE_MEMORY_THRESHOLD != DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD {
+		utils.PrintAndLog("Using MIN_AVAILABLE_MEMORY_THRESHOLD: %d", MIN_AVAILABLE_MEMORY_THRESHOLD)
+	}
 }
 
 type TargetYugabyteDBWithConnectionPool interface {
@@ -59,6 +71,7 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 	if !yb.IsAdaptiveParallelismSupported() {
 		return ErrAdaptiveParallelismNotSupported
 	}
+	readConfig()
 	for {
 		time.Sleep(time.Duration(ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS) * time.Second)
 		err := fetchClusterMetricsAndUpdateParallelism(yb)
