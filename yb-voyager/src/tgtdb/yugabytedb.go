@@ -1346,7 +1346,7 @@ type NodeMetrics struct {
 
 // =============================== Guardrails =================================
 
-func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
+func (yb *TargetYugabyteDB) GetMissingImportDataPermissions(isFallForwardEnaled bool) ([]string, error) {
 	// check if the user is a superuser
 	isSuperUser, err := IsCurrentUserSuperUser(yb.tconf)
 	if err != nil {

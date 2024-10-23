@@ -129,16 +129,22 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 
+	record, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
+
 	// Check if target DB has the required permissions
 	if tconf.RunGuardrailsChecks {
-		missingPermissions, err := tdb.GetMissingImportDataPermissions()
+		missingPermissions, err := tdb.GetMissingImportDataPermissions(record.FallbackEnabled)
 		if err != nil {
 			utils.ErrExit("Failed to get missing import data permissions: %s", err)
 		}
 		if len(missingPermissions) > 0 {
 			// Not printing the target db is missing permissions message for YB
-			// In YB we only check whether he user is a superuser and hence we don't need to print the message
-			if source.DBType == YUGABYTEDB {
+			// In YB we only check whether he user is a superuser and hence print only in the case where target db is not YB
+			// In case of fall forward too we only run superuser checks and hence print only in the case where fallback is enabled
+			if tconf.TargetDBType != YUGABYTEDB && !record.FallForwardEnabled {
 				utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
 			}
 			output := strings.Join(missingPermissions, "\n")
@@ -166,10 +172,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
-	record, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
-	}
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 
 		importType = record.ExportType
