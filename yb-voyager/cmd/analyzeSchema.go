@@ -1524,6 +1524,7 @@ func getObjectNameWithTable(stmt string, regexObjName string) string {
 	parsedTree, err := pg_query.Parse(stmt)
 	if err != nil {
 		// in case it is not able to parse stmt as its not in PG syntax so returning the regex name
+		log.Errorf("Erroring parsing the the stmt %s - %v", stmt, err)
 		return regexObjName
 	}
 	var objectName *sqlname.ObjectName
