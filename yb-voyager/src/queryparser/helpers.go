@@ -29,7 +29,7 @@ var xmlFunctions = []string{
 
 // Sample example: {func_call:{funcname:{string:{sval:"pg_advisory_lock"}}
 func getFuncNameFromFuncCall(funcCallNode protoreflect.Message) string {
-	if getMsgFullName(funcCallNode) != PG_QUERY_NODE_NODE {
+	if getMsgFullName(funcCallNode) != PG_QUERY_FUNCCALL_NODE {
 		return ""
 	}
 
