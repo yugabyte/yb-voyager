@@ -1020,14 +1020,14 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, dataFile.GetBytesRead(), currentBytesRead)
 		if currentBytesRead > tdb.MaxBatchSizeInBytes() {
 			//If a row is itself larger than MaxBatchSizeInBytes erroring out
-			utils.ErrExit("record num=%d for table %q in file %s is larger than %d bytes batch size", batchWriter.NumRecordsWritten+1, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes())
+			utils.ErrExit("record num=%d for table %q in file %s is larger than %d bytes batch size", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes())
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			columnNames, _ := TableToColumnNames.Get(t)
 			line, err = valueConverter.ConvertRow(t, columnNames, line)
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t.ForOutput(), filePath, err)
+				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", numLinesTaken, t.ForOutput(), filePath, err)
 			}
 
 			// Check if adding this record exceeds the max batch size
