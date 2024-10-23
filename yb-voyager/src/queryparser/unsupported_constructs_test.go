@@ -1,9 +1,13 @@
 package queryparser
 
 import (
+	"fmt"
+	"sort"
 	"testing"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
+	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -59,24 +63,22 @@ func TestFuncCallDetector(t *testing.T) {
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
-		constructs := []string{}
+		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
-			detected, err := detector.Detect(msg)
+			constructs, err := detector.Detect(msg)
 			if err != nil {
 				return err
 			}
-			constructs = append(constructs, detected...)
+			unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
 
-		for _, stmt := range parseResult.Stmts {
-			parseTreeMsg := stmt.Stmt.ProtoReflect()
-			err = TraverseParseTree(parseTreeMsg, visited, processor)
-			assert.NoError(t, err, "Error during traversal for SQL: %s", sql)
-		}
+		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
+		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
 		// The detector should detect Advisory Locks in these queries
-		assert.Contains(t, constructs, ADVISORY_LOCKS, "Advisory Locks not detected in SQL: %s", sql)
+		assert.Contains(t, unsupportedConstructs, ADVISORY_LOCKS, "Advisory Locks not detected in SQL: %s", sql)
 	}
 }
 
@@ -123,24 +125,22 @@ func TestColumnRefDetector(t *testing.T) {
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
-		constructs := []string{}
+		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
-			detected, err := detector.Detect(msg)
+			constructs, err := detector.Detect(msg)
 			if err != nil {
 				return err
 			}
-			constructs = append(constructs, detected...)
+			unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
 
-		for _, stmt := range parseResult.Stmts {
-			parseTreeMsg := stmt.Stmt.ProtoReflect()
-			err = TraverseParseTree(parseTreeMsg, visited, processor)
-			assert.NoError(t, err)
-		}
+		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
+		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
 		// The detector should detect System Columns in these queries
-		assert.Contains(t, constructs, SYSTEM_COLUMNS, "System Columns not detected in SQL: %s", sql)
+		assert.Contains(t, unsupportedConstructs, SYSTEM_COLUMNS, "System Columns not detected in SQL: %s", sql)
 	}
 }
 
@@ -202,30 +202,99 @@ func TestXmlExprDetectorAndFuncCallDetector(t *testing.T) {
 		NewXmlExprDetector(),
 		NewFuncCallDetector(),
 	}
-	compositeDetector := &CompositeDetector{detectors: detectors}
 
 	for _, sql := range xmlFunctionSqls {
 		parseResult, err := pg_query.Parse(sql)
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
-		constructs := []string{}
+		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
-			detected, err := compositeDetector.Detect(msg)
-			if err != nil {
-				return err
+			for _, detector := range detectors {
+				log.Debugf("running detector %T", detector)
+				constructs, err := detector.Detect(msg)
+				if err != nil {
+					log.Debugf("error in detector %T: %v", detector, err)
+					return fmt.Errorf("error in detectors %T: %w", detector, err)
+				}
+				unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 			}
-			constructs = append(constructs, detected...)
 			return nil
 		}
 
-		for _, stmt := range parseResult.Stmts {
-			parseTreeMsg := stmt.Stmt.ProtoReflect()
-			err = TraverseParseTree(parseTreeMsg, visited, processor)
-			assert.NoError(t, err)
-		}
+		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
+		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
 		// The detector should detect XML Functions in these queries
-		assert.Contains(t, constructs, XML_FUNCTIONS, "XML Functions not detected in SQL: %s", sql)
+		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS, "XML Functions not detected in SQL: %s", sql)
+	}
+}
+
+// Combination of: FuncCallDetector, ColumnRefDetector, XmlExprDetector
+func TestCombinationOfDetectors1(t *testing.T) {
+	combinationSqls := []string{
+		`WITH LockedEmployees AS (
+    SELECT *, pg_advisory_lock(xmin) AS lock_acquired
+    FROM employees
+    WHERE pg_try_advisory_lock(xmin) IS TRUE
+)
+SELECT xmlelement(name "EmployeeData", xmlagg(
+    xmlelement(name "Employee", xmlattributes(id AS "ID"),
+    xmlforest(name AS "Name", xmin AS "TransactionID", xmax AS "ModifiedID"))))
+FROM LockedEmployees
+WHERE xmax IS NOT NULL;`,
+		`WITH Data AS (
+    SELECT id, name, xmin, xmax,
+           pg_try_advisory_lock(id) AS lock_status,
+           xmlelement(name "info", xmlforest(name as "name", xmin as "transaction_start", xmax as "transaction_end")) as xml_info
+    FROM projects
+    WHERE xmin > 100 AND xmax < 500
+)
+SELECT x.id, x.xml_info
+FROM Data x
+WHERE x.lock_status IS TRUE;`,
+		`UPDATE employees
+SET salary = salary * 1.1
+WHERE pg_try_advisory_xact_lock(ctid) IS TRUE AND department = 'Engineering'
+RETURNING id,
+          xmlelement(name "UpdatedEmployee",
+                     xmlattributes(id AS "ID"),
+                     xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
+	}
+	expectedConstructs := []string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}
+
+	detectors := []UnsupportedConstructDetector{
+		NewFuncCallDetector(),
+		NewColumnRefDetector(),
+		NewXmlExprDetector(),
+	}
+	for _, sql := range combinationSqls {
+		parseResult, err := pg_query.Parse(sql)
+		assert.NoError(t, err)
+
+		visited := make(map[protoreflect.Message]bool)
+		unsupportedConstructs := []string{}
+
+		processor := func(msg protoreflect.Message) error {
+			for _, detector := range detectors {
+				log.Debugf("running detector %T", detector)
+				constructs, err := detector.Detect(msg)
+				if err != nil {
+					log.Debugf("error in detector %T: %v", detector, err)
+					return fmt.Errorf("error in detectors %T: %w", detector, err)
+				}
+				unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
+			}
+			return nil
+		}
+
+		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
+		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+
+		sort.Strings(unsupportedConstructs)
+		sort.Strings(expectedConstructs)
+		assert.Equal(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs")
 	}
 }
