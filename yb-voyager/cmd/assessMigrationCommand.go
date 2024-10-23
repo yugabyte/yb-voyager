@@ -724,11 +724,13 @@ func generateAssessmentReport() (err error) {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 
-	unsupportedQueries, err := fetchUnsupportedQueryConstructs()
-	if err != nil {
-		return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
+	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS", true) {
+		unsupportedQueries, err := fetchUnsupportedQueryConstructs()
+		if err != nil {
+			return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
+		}
+		assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 	}
-	assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, err := fetchColumnsWithUnsupportedDataTypes()
