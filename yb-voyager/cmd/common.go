@@ -129,7 +129,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_restore command: %s", err)
 	} else if binaryCheckIssue != "" {
-		utils.ErrExit("missing dependency: %s", binaryCheckIssue)
+		utils.ErrExit("could not get absolute path of pg_restore command: %s", binaryCheckIssue)
 	}
 	pgRestoreCmd := exec.Command(pgRestorePath, "-l", dataDirPath)
 	stdOut, err := pgRestoreCmd.Output()
