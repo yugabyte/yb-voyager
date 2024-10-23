@@ -314,17 +314,17 @@ func assessMigration() (err error) {
 		if source.RunGuardrailsChecks {
 			missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
 			if err != nil {
-				return fmt.Errorf("failed to get missing migration permissions: %w", err)
+				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
 			}
 			if len(missingPerms) > 0 {
-				color.Red("\nPermissions missing in the source database for export schema:\n")
+				color.Red("\nPermissions missing in the source database for assess migration:\n")
 				output := strings.Join(missingPerms, "\n")
 				fmt.Printf("%s\n\n", output)
 
 				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
 				fmt.Println("You can view the steps to prepare the source database for migration in the documentation:", color.BlueString(link))
 
-				reply := utils.AskPrompt("\nDo you want to continue with the export schema even with missing permissions")
+				reply := utils.AskPrompt("\nDo you want to continue with the assess migration even with missing permissions")
 				if !reply {
 					return fmt.Errorf("grant the required permissions and try again")
 				}

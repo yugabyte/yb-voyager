@@ -146,7 +146,7 @@ func exportSchema() error {
 			link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
 			fmt.Println("You can view the steps to prepare the source database for migration in the documentation:", color.BlueString(link))
 
-			reply := utils.AskPrompt("Do you want to continue with the export schema even with missing permissions")
+			reply := utils.AskPrompt("\nDo you want to continue with the export schema even with missing permissions")
 			if !reply {
 				return fmt.Errorf("grant the required permissions and try again")
 			}

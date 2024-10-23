@@ -1241,6 +1241,7 @@ func (pg *PostgreSQL) listTablesMissingOwnerPermission() ([]string, error) {
 			return nil, fmt.Errorf("error scanning query rows for table names: %w", err)
 		}
 		if !hasOwnership {
+			// quote table name if case sensitive or reserved word
 			missingTables = append(missingTables, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
 		}
 	}
