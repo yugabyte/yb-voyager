@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -46,10 +47,13 @@ func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) erro
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		possiblePaths := []string{
-			fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
-			fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
-			"/opt/yb-voyager/debezium-server"}
+		// depending on OS add the paths to check
+		currentOS := runtime.GOOS
+		possiblePaths := []string{"/opt/yb-voyager/debezium-server"}
+		if currentOS == "darwin" {
+			possiblePaths = append(possiblePaths, fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
+				fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION))
+		}
 
 		for _, path := range possiblePaths {
 			if utils.FileOrFolderExists(path) {
@@ -58,7 +62,7 @@ func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) erro
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {
-			err := fmt.Errorf("Debezium: debezium-server directory not found in paths %v", possiblePaths)
+			err := fmt.Errorf("Debezium: not found in paths %v", possiblePaths)
 			return err
 		}
 	}

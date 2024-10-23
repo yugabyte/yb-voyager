@@ -109,11 +109,11 @@ func exportSchema() error {
 		}
 
 		// Check if required binaries are installed.
-		binaryCheckIssues, _, err := checkDependenciesForExport()
+		binaryCheckIssues, err := checkDependenciesForExport()
 		if err != nil {
 			return fmt.Errorf("failed to check dependencies for export schema: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
-			return fmt.Errorf("\n%s\n%s\n\nInstall or add the required dependencies to PATH and try again", color.RedString("\nMissing dependencies for export schema:"), strings.Join(binaryCheckIssues, "\n"))
+			return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for export schema:"), strings.Join(binaryCheckIssues, "\n"))
 		}
 	}
 

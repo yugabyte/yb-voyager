@@ -387,18 +387,23 @@ func saveExportTypeInMSR() {
 	}
 }
 
-func checkDependenciesForExport() (binaryCheckIssues []string, unableToFindDbzm bool, err error) {
-	unableToFindDbzm = false
+func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
+	pgBinaryCheckFailed := false
 	if source.DBType == POSTGRESQL {
 		sourceDBVersion := source.DB().GetVersion()
 		for _, binary := range pgExportDependencies {
 			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
-				return nil, unableToFindDbzm, err
+				return nil, err
 			} else if binaryCheckIssue != "" {
+				pgBinaryCheckFailed = true
 				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
 		}
+	}
+
+	if pgBinaryCheckFailed {
+		binaryCheckIssues = append(binaryCheckIssues, "\nInstall or add the required dependencies to PATH and try again\n")
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
@@ -407,10 +412,10 @@ func checkDependenciesForExport() (binaryCheckIssues []string, unableToFindDbzm 
 		// So its error mesage will be added to problems
 		err := dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
-			unableToFindDbzm = true
 			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
+			binaryCheckIssues = append(binaryCheckIssues, "\nPlease check your voyager installation and try again")
 		}
 	}
 
-	return binaryCheckIssues, unableToFindDbzm, nil
+	return binaryCheckIssues, nil
 }
