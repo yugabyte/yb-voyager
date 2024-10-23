@@ -139,10 +139,13 @@ func exportSchema() error {
 			return fmt.Errorf("failed to get missing migration permissions: %w", err)
 		}
 		if len(missingPerms) > 0 {
-			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+			color.Red("\nPermissions missing in the source database for export schema:\n")
 			output := strings.Join(missingPerms, "\n")
-			utils.PrintAndLog("%s\n", output)
-			return fmt.Errorf("some permissions are missing for the source database on user %s", source.User)
+			utils.PrintAndLog("%s\n\n", output)
+			reply := utils.AskPrompt("Do you want to continue with the export schema even with missing permissions")
+			if !reply {
+				return fmt.Errorf("grant the required permissions and try again")
+			}
 		}
 	}
 

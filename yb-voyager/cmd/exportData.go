@@ -250,10 +250,14 @@ func exportData() bool {
 			utils.ErrExit("get missing export data permissions: %v", err)
 		}
 		if len(missingPermissions) > 0 {
-			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+			color.Red("\nPermissions and configurations missing in the source database for export data:\n")
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog("%s\n", output)
-			utils.ErrExit("Please grant the required permissions to the user %s and try again.", source.User)
+			// Make a prompt to the user to continue even with missing permissions
+			reply := utils.AskPrompt("\nDo you want to continue with the export data even with missing permissions")
+			if !reply {
+				utils.ErrExit("Grant the required permissions and make the changes in configurations and try again.")
+			}
 		} else {
 			// TODO: Print this message on the console too once the code is stable
 			log.Info("All required permissions are present for the source database.")

@@ -979,11 +979,11 @@ func (pg *PostgreSQL) CheckSourceDBVersion() error {
 	supportedVersionRange := fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
 
 	if version.CompareSimple(pgVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
-		return fmt.Errorf("unsupported source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
+		return fmt.Errorf("current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
 	}
 	if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
 		supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
-		utils.PrintAndLog(color.RedString("Warning: Unsupported source db version for live migration: %s. Supported versions: %s", pgVersion, supportedVersionRange))
+		utils.PrintAndLog(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
 	}
 
 	return nil
@@ -1006,7 +1006,7 @@ func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
 		return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
 	}
 	if len(missingSchemas) > 0 {
-		combinedResult = append(combinedResult, fmt.Sprintf("Schemas missing USAGE permission: %s", missingSchemas))
+		combinedResult = append(combinedResult, fmt.Sprintf("\nMissing %s permission for user %s on Schemas: [%s]", color.RedString("USAGE"), pg.source.User, color.RedString(strings.Join(missingSchemas, ", "))))
 	}
 
 	// Check if tables have SELECT permission
@@ -1015,12 +1015,11 @@ func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
 		return nil, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 || len(tablesWithNoUsagePerm) > 0 {
-		combinedResult = append(combinedResult, fmt.Sprintf("Tables missing SELECT permission: %v", append(missingTables, tablesWithNoUsagePerm...)))
+		combinedResult = append(combinedResult, fmt.Sprintf("\nMissing %s permission for user %s on Tables: [%v]", color.RedString("SELECT"), pg.source.User, color.RedString(strings.Join(append(missingTables, tablesWithNoUsagePerm...), ", "))))
 	}
 
 	// Return combined result of checks if any issues, else return nothing (empty string and nil)
 	return combinedResult, nil
-
 }
 
 /*
@@ -1065,7 +1064,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error in checking replication permission: %w", err)
 		}
 		if !hasReplicationPermission {
-			combinedResult = append(combinedResult, "User does not have replication permission")
+			combinedResult = append(combinedResult, fmt.Sprintf("\nMissing permission for user %s: %s", pg.source.User, color.RedString("REPLICATION")))
 		}
 
 		// Check user has create permission on db
@@ -1074,7 +1073,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error in checking create permission: %w", err)
 		}
 		if !hasCreatePermission {
-			combinedResult = append(combinedResult, "User does not have create permission on database")
+			combinedResult = append(combinedResult, fmt.Sprintf("\nMissing permission for user %s: %s", pg.source.User, color.RedString("CREATE on database")))
 		}
 
 		// Check if schemas have USAGE permission
@@ -1083,7 +1082,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
 		}
 		if len(missingSchemas) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("Schemas missing USAGE permission: %s", missingSchemas))
+			combinedResult = append(combinedResult, fmt.Sprintf("\nMissing %s permission for user %s on Schemas: [%s]", color.RedString("USAGE"), pg.source.User, color.RedString(strings.Join(missingSchemas, ", "))))
 		}
 
 		// Check replica identity of tables
@@ -1092,7 +1091,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error in checking table replica identity: %w", err)
 		}
 		if len(missingTables) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("Tables missing replica identity full: %v", missingTables))
+			combinedResult = append(combinedResult, fmt.Sprintf("\nTables missing %s: [%v]", color.RedString("replica identity full"), color.RedString(strings.Join(missingTables, ", "))))
 		}
 
 		// Check if user has ownership over all tables
@@ -1101,7 +1100,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error in checking table owner permissions: %w", err)
 		}
 		if len(missingTables) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("Tables over which user does not have ownership: %v", missingTables))
+			combinedResult = append(combinedResult, fmt.Sprintf("\nLive Migration: Missing %s for user %s on Tables: [%v]", color.RedString("ownership"), pg.source.User, color.RedString(strings.Join(missingTables, ", "))))
 		}
 
 		// Check if sequences have SELECT permission
@@ -1110,7 +1109,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error in checking sequence select permissions: %w", err)
 		}
 		if len(sequencesWithMissingPerm) > 0 || len(sequencesWithNoUsagePerm) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("Sequences missing SELECT permission: %v", append(sequencesWithMissingPerm, sequencesWithNoUsagePerm...)))
+			combinedResult = append(combinedResult, fmt.Sprintf("\nSequences missing %s permission: [%v]", color.RedString("SELECT"), color.RedString(strings.Join(append(sequencesWithMissingPerm, sequencesWithNoUsagePerm...), ", "))))
 		}
 	} else {
 		// For offline migration
@@ -1127,7 +1126,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error in checking sequence select permissions: %w", err)
 		}
 		if len(sequencesWithMissingPerm) > 0 || len(sequencesWithNoUsagePerm) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("Sequences missing SELECT permission: %v", append(sequencesWithMissingPerm, sequencesWithNoUsagePerm...)))
+			combinedResult = append(combinedResult, fmt.Sprintf("\nSequences missing %s permission: [%v]", color.RedString("SELECT"), color.RedString(strings.Join(append(sequencesWithMissingPerm, sequencesWithNoUsagePerm...), ","))))
 		}
 	}
 
