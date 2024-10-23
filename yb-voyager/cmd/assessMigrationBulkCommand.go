@@ -91,7 +91,6 @@ func init() {
 	rootCmd.AddCommand(assessMigrationBulkCmd)
 
 	// register common global flags
-	// TODO: refactor this to a common function
 	BoolVar(assessMigrationBulkCmd.Flags(), &perfProfile, "profile", false,
 		"profile yb-voyager for performance analysis")
 	assessMigrationBulkCmd.Flags().MarkHidden("profile")

@@ -219,6 +219,7 @@ func init() {
 	callhome.ReadEnvSendDiagnostics()
 }
 
+// Note: assess-migration-bulk and get data-migration-report commands do not call this function.
 func registerCommonGlobalFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &perfProfile, "profile", false,
 		"profile yb-voyager for performance analysis")
