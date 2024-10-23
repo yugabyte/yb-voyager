@@ -81,6 +81,8 @@ CREATE TABLE public.accounts_large (
     PRIMARY KEY (block, address)
 );
 
+CREATE TABLE large_rows_test (id int, val text);
+
 create table t1_quote_char (i int, j timestamp, k bigint, l varchar(30));
 
 create table t1_quote_escape_char1 (i int, j timestamp, k bigint, l varchar(30));

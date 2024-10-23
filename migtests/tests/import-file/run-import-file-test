@@ -70,6 +70,28 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
 			--file-table-map "accounts_data.csv:accounts" --has-header=true --batch-size 10000 --null-string "\N"
 
+	#Test for Large rows and non-default batch size bytes (i.e. 17MB for row sizes of 15MB,11MB,5KB,12MB,9.9MB)
+	step "Import data file: large_rows_test.txt -> large_rows_test" 
+	export MAX_BATCH_SIZE_BYTES=17000000
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
+			--file-table-map "large_rows_test.txt:large_rows_test"
+	
+	# import data state metainfo directory for large_rows_test table
+	IMPORT_DATA_STATE_DIR_LARGE_ROWS="$TEST_DIR/export-dir/metainfo/import_data_state/import_file/table::public.\"large_rows_test\"/file::large_rows_test.txt::11a250b2"
+
+	# Expected batch file names without the symlink for large_rows_test.txt file
+	expected_batch_files_large_rows=(
+		"batch::0.5.1.9900003.D"
+		"batch::1.1.1.15000003.D"
+		"batch::2.3.2.11005006.D"
+		"batch::3.4.1.12131223.D"
+	)
+
+	validate_import_data_state_batch_files $IMPORT_DATA_STATE_DIR_LARGE_ROWS ${expected_batch_files_large_rows[@]}
+
+	#unsetting the batch size bytes
+	unset MAX_BATCH_SIZE_BYTES
+
 	# Next 4 tests are right now supported with a special csv format i.e. without new line
 	# for complete support of csv with newline, track this issue - https://github.com/yugabyte/yb-voyager/issues/748
 	#Test for fileOpts Flags having quote_char as single quote
