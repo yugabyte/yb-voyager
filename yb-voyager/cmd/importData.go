@@ -136,10 +136,17 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 			utils.ErrExit("Failed to get missing import data permissions: %s", err)
 		}
 		if len(missingPermissions) > 0 {
-			utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
+			// Not printing the target db is missing permissions message for YB
+			// In YB we only check whether he user is a superuser and hence we don't need to print the message
+			if source.DBType == YUGABYTEDB {
+				utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
+			}
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog(output)
-			utils.ErrExit("Please grant the required permissions and retry the import.")
+			// Prompt user to continue if missing permissions
+			if !utils.AskPrompt("Do you want to continue without the required permissions") {
+				utils.ErrExit("Please grant the required permissions and retry the import.")
+			}
 		} else {
 			log.Info("The target database has the required permissions for importing data.")
 		}
