@@ -579,16 +579,8 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 }
 
 func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
-	// if MAX_BATCH_SIZE is set in env then use that value
-	if maxBatchSize := os.Getenv("MAX_BATCH_SIZE"); maxBatchSize != "" {
-		maxBatchSizeInBytes, err := strconv.ParseInt(maxBatchSize, 10, 64)
-		if err != nil {
-			utils.ErrExit("error parsing MAX_BATCH_SIZE: %v", err)
-		}
-		return maxBatchSizeInBytes
-	}
-	// default value
-	return 2 * 1024 * 1024 * 1024 // 2GB
+	// if MAX_BATCH_SIZE is set in env then return that value
+	return int64(utils.GetEnvAsInt("MAX_BATCH_SIZE_BYTES", 2 * 1024 * 1024 * 1024)) //default: 2 * 1024 * 1024 * 1024 2GB
 }
 
 func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
