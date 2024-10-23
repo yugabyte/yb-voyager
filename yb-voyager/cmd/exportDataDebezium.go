@@ -33,6 +33,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -113,7 +114,13 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
 	}
 
+	dbzmLogLevel := config.LogLevel
+	if config.IsLogLevelErrorOrAbove() {
+		// dbzm does not support fatal/panic log levels
+		dbzmLogLevel = config.ERROR
+	}
 	config := &dbzm.Config{
+		LogLevel:           dbzmLogLevel,
 		MigrationUUID:      migrationUUID,
 		RunId:              runId,
 		SourceDBType:       source.DBType,

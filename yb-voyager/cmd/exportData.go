@@ -37,6 +37,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -1077,6 +1078,7 @@ func startFallBackSetupIfRequired() {
 	cmd := []string{"yb-voyager", "import", "data", "to", "source",
 		"--export-dir", exportDir,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
+		"--log-level", config.LogLevel,
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")

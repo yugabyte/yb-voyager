@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -52,6 +53,9 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	args := getPgDumpArgsFromFile("data")
 	if snapshotName != "" {
 		args = fmt.Sprintf("%s --snapshot=%s", args, snapshotName)
+	}
+	if config.IsLogLevelDebugOrBelow() {
+		args = fmt.Sprintf("%s --verbose", args)
 	}
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)

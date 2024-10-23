@@ -28,6 +28,7 @@ import (
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -45,6 +46,9 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 	pgDumpArgs.ExtensionPattern = `"*"`
 
 	args := getPgDumpArgsFromFile("schema")
+	if config.IsLogLevelDebugOrBelow() {
+		args = fmt.Sprintf("%s --verbose", args)
+	}
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)
 
