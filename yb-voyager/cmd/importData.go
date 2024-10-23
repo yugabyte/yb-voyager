@@ -968,6 +968,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 
 	var readLineErr error = nil
 	var line string
+	var currentBytesRead int64
 	var batchWriter *BatchWriter
 	header := ""
 	if dataFileDescriptor.HasHeader {
@@ -991,13 +992,12 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 	}
 
 	// Function to finalize and submit the current batch
-	finalizeBatch := func(isLastBatch bool, offsetEnd int64) {
-		batch, err := batchWriter.Done(isLastBatch, offsetEnd, dataFile.GetBytesRead())
+	finalizeBatch := func(isLastBatch bool, offsetEnd int64, bytesInBatch int64) {
+		batch, err := batchWriter.Done(isLastBatch, offsetEnd, bytesInBatch)
 		if err != nil {
 			utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 		}
 		batchWriter = nil
-		dataFile.ResetBytesRead()
 		submitBatch(batch, updateProgressFn, importBatchArgsProto)
 
 		// Increment batchNum only if this is not the last batch
@@ -1012,11 +1012,12 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			initBatchWriter() // Create a new batchWriter 
 		}
 
-		line, readLineErr = dataFile.NextLine()
+		line, currentBytesRead, readLineErr = dataFile.NextLine()
 		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
 		}
+		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, dataFile.GetBytesRead(), currentBytesRead)
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			columnNames, _ := TableToColumnNames.Get(t)
@@ -1026,11 +1027,14 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			}
 
 			// Check if adding this record exceeds the max batch size
-			if batchWriter.NumRecordsWritten+1 == batchSize ||
-				dataFile.GetBytesRead()+int64(len([]byte(line))) >= tdb.MaxBatchSizeInBytes() {
+			if batchWriter.NumRecordsWritten == batchSize || 
+				dataFile.GetBytesRead() >= tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead 
 
 				// Finalize the current batch without adding the record
-				finalizeBatch(false, numLinesTaken-1)
+				finalizeBatch(false, numLinesTaken-1, dataFile.GetBytesRead() - currentBytesRead)
+
+				//carry forward the bytes to next batch
+				dataFile.ResetBytesRead(currentBytesRead)
 
 				// Start a new batch by calling the initBatchWriter function
 				initBatchWriter()
@@ -1043,9 +1047,10 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			}
 		}
 
-		// Finalize the batch if it's the last line or the end of the file
+		// Finalize the batch if it's the last line or the end of the file and reset the bytes read to 0
 		if readLineErr == io.EOF {
-			finalizeBatch(true, numLinesTaken)
+			finalizeBatch(true, numLinesTaken, dataFile.GetBytesRead())
+			dataFile.ResetBytesRead(0)
 		} else if readLineErr != nil {
 			utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
 		}

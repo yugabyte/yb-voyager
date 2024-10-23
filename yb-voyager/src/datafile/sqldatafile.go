@@ -33,27 +33,29 @@ type SqlDataFile struct {
 
 func (df *SqlDataFile) SkipLines(numLines int64) error {
 	for i := int64(1); i <= numLines; i++ {
-		_, err := df.NextLine()
+		_, _, err := df.NextLine()
 		if err != nil {
 			return err
 		}
 	}
-	df.ResetBytesRead()
+	df.ResetBytesRead(0)
 	return nil
 }
 
-func (df *SqlDataFile) NextLine() (string, error) {
+func (df *SqlDataFile) NextLine() (string, int64, error) {
 	var line string
 	var err error
+	var currentBytesRead int64
 	for {
 		line, err = df.reader.ReadString('\n')
-		df.bytesRead += int64(len(line))
+		currentBytesRead += int64(len(line))
 		if df.isDataLine(line) || err != nil {
 			break
 		}
 	}
+	df.bytesRead += currentBytesRead
 	line = strings.Trim(line, "\n") // to get the raw row
-	return line, err
+	return line, currentBytesRead,  err
 }
 
 func (df *SqlDataFile) Close() {
@@ -64,8 +66,8 @@ func (df *SqlDataFile) GetBytesRead() int64 {
 	return df.bytesRead
 }
 
-func (df *SqlDataFile) ResetBytesRead() {
-	df.bytesRead = 0
+func (df *SqlDataFile) ResetBytesRead(bytes int64) {
+	df.bytesRead = bytes
 }
 
 func (df *SqlDataFile) isDataLine(line string) bool {
