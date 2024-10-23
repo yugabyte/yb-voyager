@@ -1010,7 +1010,7 @@ func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
 	}
 
 	// Check if tables have SELECT permission
-	missingTables,  err := pg.listTablesMissingSelectPermission()
+	missingTables, err := pg.listTablesMissingSelectPermission()
 	if err != nil {
 		return nil, fmt.Errorf("error checking table select permissions: %w", err)
 	}
@@ -1058,13 +1058,20 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			combinedResult = append(combinedResult, msg)
 		}
 
-		// Check user has replication permission
-		hasReplicationPermission, err := pg.checkReplicationPermission()
+		isMigrationUserASuperUser, err := pg.isMigrationUserASuperUser()
 		if err != nil {
-			return nil, fmt.Errorf("error in checking replication permission: %w", err)
+			return nil, fmt.Errorf("error in checking if migration user is a superuser: %w", err)
 		}
-		if !hasReplicationPermission {
-			combinedResult = append(combinedResult, fmt.Sprintf("\n%sREPLICATION", color.RedString("Missing role for user "+pg.source.User+": ")))
+
+		// Check user has replication permission
+		if !isMigrationUserASuperUser {
+			hasReplicationPermission, err := pg.checkReplicationPermission()
+			if err != nil {
+				return nil, fmt.Errorf("error in checking replication permission: %w", err)
+			}
+			if !hasReplicationPermission {
+				combinedResult = append(combinedResult, fmt.Sprintf("\n%sREPLICATION", color.RedString("Missing role for user "+pg.source.User+": ")))
+			}
 		}
 
 		// Check user has create permission on db
@@ -1131,6 +1138,31 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 	}
 
 	return combinedResult, nil
+}
+
+func (pg *PostgreSQL) isMigrationUserASuperUser() (bool, error) {
+	query := `
+	SELECT
+		CASE
+			WHEN EXISTS (SELECT 1 FROM pg_settings WHERE name = 'rds.extensions') THEN
+				EXISTS (
+					SELECT 1
+					FROM pg_roles r
+					JOIN pg_auth_members am ON r.oid = am.roleid
+					JOIN pg_roles m ON am.member = m.oid
+					WHERE r.rolname = 'rds_superuser'
+					AND m.rolname = $1
+				)
+			ELSE
+				(SELECT rolsuper FROM pg_roles WHERE rolname = $1)
+		END AS is_superuser;`
+
+	var isSuperUser bool
+	err := pg.db.QueryRow(query, pg.source.User).Scan(&isSuperUser)
+	if err != nil {
+		return false, fmt.Errorf("error in checking if migration user is a superuser: %w", err)
+	}
+	return isSuperUser, nil
 }
 
 func (pg *PostgreSQL) listTablesMissingOwnerPermission() ([]string, error) {
