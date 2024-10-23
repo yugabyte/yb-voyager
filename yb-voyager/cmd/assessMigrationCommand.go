@@ -289,7 +289,7 @@ func assessMigration() (err error) {
 	}
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
-		err = source.DB().Connect()
+		err := source.DB().Connect()
 		if err != nil {
 			utils.ErrExit("error connecting source db: %v", err)
 		}
