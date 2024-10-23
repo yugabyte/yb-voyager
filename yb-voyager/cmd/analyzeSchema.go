@@ -355,7 +355,7 @@ func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
 				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt, MIGRATION_CAVEATS, FOREIGN_TABLE_DOC_LINK)
-			reportUnsupportedDatatypes(relation, baseStmt.TableElts, sqlStmtInfo, fpath)
+			reportUnsupportedDatatypes(relation, baseStmt.TableElts, sqlStmtInfo, fpath, "FOREIGN TABLE")
 		}
 	}
 }
@@ -383,7 +383,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath)
+			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
@@ -888,7 +888,7 @@ func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePoli
 	}
 }
 
-func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query.Node, sqlStmtInfo sqlInfo, fpath string) {
+func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query.Node, sqlStmtInfo sqlInfo, fpath string, objectType string) {
 	schemaName := relation.Schemaname
 	tableName := relation.Relname
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
@@ -922,7 +922,7 @@ func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query
 			liveMigrationWithFallForwardUnsupportedDataTypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, liveMigrationUnsupportedDataTypes)
 			if utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName) {
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
 				var ghIssue, suggestion, docLink string
 
 				switch typeName {
@@ -944,23 +944,25 @@ func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query
 					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
 				}
 				reportCase(fpath, reason, ghIssue, suggestion,
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
-			} else if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
+					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
+			} else if objectType == TABLE && utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
+				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
-			} else if utils.ContainsAnyStringFromSlice(liveMigrationWithFallForwardUnsupportedDataTypes, typeName) || slices.Contains(compositeTypes, fullTypeName) ||
-				(slices.Contains(enumTypes, fullTypeName) && isArrayType) {
+					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
+			} else if objectType == TABLE && (utils.ContainsAnyStringFromSlice(liveMigrationWithFallForwardUnsupportedDataTypes, typeName) ||
+				slices.Contains(compositeTypes, fullTypeName) || (slices.Contains(enumTypes, fullTypeName) && isArrayType)) {
+				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 				reportTypeName := fullTypeName
 				if isArrayType { // For Array cases to make it clear in issue
 					reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
 				}
 				//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT columns as unsupported with live migration with ff/fb
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB, reportTypeName, colName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
+					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
 			}
 		}
 	}
