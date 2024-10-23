@@ -348,13 +348,11 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 			"number of cores N and use N/4 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
 			"Any value less than 1 reverts to the default calculation.")
-	BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", false,
-		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster")
-	cmd.Flags().MarkHidden("enable-adaptive-parallelism") // not officially released
+	BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", true,
+		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled."+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs. ")
-	cmd.Flags().MarkHidden("adaptive-parallelism-max") // not officially released
 }
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {
@@ -399,14 +397,19 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	if tconf.EnableYBAdaptiveParallelism {
-		if tconf.Parallelism > 0 {
-			utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism flag")
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		if tconf.EnableYBAdaptiveParallelism {
+			if tconf.Parallelism > 0 {
+				utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism flag")
+			}
 		}
-	}
-	if tconf.MaxParallelism > 0 {
-		if !tconf.EnableYBAdaptiveParallelism {
-			utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+		if tconf.MaxParallelism > 0 {
+			if !tconf.EnableYBAdaptiveParallelism {
+				utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+			}
 		}
+	} else {
+		// not relevant for source-replica and source
+		tconf.EnableYBAdaptiveParallelism = false
 	}
 }
