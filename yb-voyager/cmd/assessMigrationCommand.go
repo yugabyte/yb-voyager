@@ -25,11 +25,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"syscall"
 	"text/template"
 
+	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -258,6 +260,8 @@ func init() {
 
 	assessMigrationCmd.Flags().Int64Var(&intervalForCapturingIOPS, "iops-capture-interval", 120,
 		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). (only valid for PostgreSQL)")
+
+	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
 }
 
 func assessMigration() (err error) {
@@ -286,15 +290,55 @@ func assessMigration() (err error) {
 	}
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
-		err := source.DB().Connect()
+		err = source.DB().Connect()
 		if err != nil {
 			utils.ErrExit("error connecting source db: %v", err)
+		}
+
+		// We will require source db connection for the below checks
+		// Check if required binaries are installed.
+		if source.RunGuardrailsChecks {
+			binaryCheckIssues, err := checkDependenciesForExport()
+			if err != nil {
+				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
+			} else if len(binaryCheckIssues) > 0 {
+				return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
+			}
 		}
 
 		res := source.DB().CheckSchemaExists()
 		if !res {
 			return fmt.Errorf("schema %q does not exist", source.Schema)
 		}
+
+		// Check if source db has permissions to assess migration
+		if source.RunGuardrailsChecks {
+			missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
+			if err != nil {
+				return fmt.Errorf("failed to get missing migration permissions: %w", err)
+			}
+			if len(missingPerms) > 0 {
+				color.Red("\nPermissions missing in the source database for export schema:\n")
+				output := strings.Join(missingPerms, "\n")
+				fmt.Printf("%s\n\n", output)
+
+				grantScriptPathArr := []string{"/opt/yb-voyager/guardrails-scripts/"}
+				grantScriptMsg := "You can grant the required permissions using the script yb-voyager-pg-grant-migration-permissions.sql present at"
+				currentOS := runtime.GOOS
+				if currentOS == "darwin" {
+					grantScriptPathArr = append(grantScriptPathArr, fmt.Sprintf("/opt/homebrew/Cellar/yb-voyager@%s/%s/opt/yb-voyager/guardrails-scripts/", utils.YB_VOYAGER_VERSION, utils.YB_VOYAGER_VERSION),
+						fmt.Sprintf("/usr/local/Cellar/yb-voyager@%s/%s/opt/yb-voyager/guardrails-scripts/", utils.YB_VOYAGER_VERSION, utils.YB_VOYAGER_VERSION))
+					grantScriptMsg = "You can grant the required permissions using the script yb-voyager-pg-grant-migration-permissions.sql present at one of the following paths depending on your installation"
+				}
+				fmt.Printf("%s: %s\n\n", grantScriptMsg, grantScriptPathArr)
+
+				reply := utils.AskPrompt("Do you want to continue with the export schema even with missing permissions")
+				if !reply {
+					return fmt.Errorf("grant the required permissions and try again")
+				}
+			}
+		}
+
 		fetchSourceInfo()
 
 		source.DB().Disconnect()

@@ -1140,6 +1140,30 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 	return combinedResult, nil
 }
 
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+	var combinedResult []string
+
+	// Check if schemas have USAGE permission
+	missingSchemas, err := pg.listSchemasMissingUsagePermission()
+	if err != nil {
+		return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
+	}
+	if len(missingSchemas) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing USAGE permission for user %s on Schemas: ", pg.source.User), strings.Join(missingSchemas, ", ")))
+	}
+
+	// Check if tables have SELECT permission
+	missingTables, err := pg.listTablesMissingSelectPermission()
+	if err != nil {
+		return nil, fmt.Errorf("error checking table select permissions: %w", err)
+	}
+	if len(missingTables) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
+	}
+
+	return combinedResult, nil
+}
+
 func (pg *PostgreSQL) isMigrationUserASuperUser() (bool, error) {
 	query := `
 	SELECT

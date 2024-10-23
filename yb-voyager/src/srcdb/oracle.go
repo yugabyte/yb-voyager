@@ -124,6 +124,10 @@ func (ora *Oracle) GetMissingExportDataPermissions(exportType string) ([]string,
 	return nil, nil
 }
 
+func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, error) {
+	return nil, nil
+}
+
 func (ora *Oracle) GetVersion() string {
 	if ora.source.DBVersion != "" {
 		return ora.source.DBVersion
