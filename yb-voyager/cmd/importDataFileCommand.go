@@ -66,7 +66,7 @@ var importDataFileCmd = &cobra.Command{
 		}
 		importerRole = IMPORT_FILE_ROLE
 		reportProgressInBytes = true
-		validateBatchSizeFlag(batchSize)
+		validateBatchSizeFlag(batchSizeInNumRows)
 		checkImportDataFileFlags(cmd)
 
 		sourceDBType = POSTGRESQL // dummy value - this command is not affected by it

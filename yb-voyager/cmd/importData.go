@@ -50,7 +50,7 @@ import (
 )
 
 var metaInfoDirName = META_INFO_DIR_NAME
-var batchSize = int64(0)
+var batchSizeInNumRows = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
@@ -1009,7 +1009,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 	for readLineErr == nil {
 
 		if batchWriter == nil {
-			initBatchWriter() // Create a new batchWriter 
+			initBatchWriter() // Create a new batchWriter
 		}
 
 		line, currentBytesRead, readLineErr = dataFile.NextLine()
@@ -1031,11 +1031,11 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			}
 
 			// Check if adding this record exceeds the max batch size
-			if batchWriter.NumRecordsWritten == batchSize || 
-				dataFile.GetBytesRead() >= tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead 
+			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
+				dataFile.GetBytesRead() >= tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead
 
 				// Finalize the current batch without adding the record
-				finalizeBatch(false, numLinesTaken-1, dataFile.GetBytesRead() - currentBytesRead)
+				finalizeBatch(false, numLinesTaken-1, dataFile.GetBytesRead()-currentBytesRead)
 
 				//carry forward the bytes to next batch
 				dataFile.ResetBytesRead(currentBytesRead)

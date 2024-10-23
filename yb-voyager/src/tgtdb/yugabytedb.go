@@ -1067,7 +1067,7 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 
 func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 	// if MAX_BATCH_SIZE is set in env then return that value
-	return int64(utils.GetEnvAsInt("MAX_BATCH_SIZE_BYTES", 200 * 1024 * 1024)) //default: 200 * 1024 * 1024 MB
+	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200 * 1024 * 1024) //default: 200 * 1024 * 1024 MB
 }
 
 func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
