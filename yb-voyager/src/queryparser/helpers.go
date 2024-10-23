@@ -29,6 +29,10 @@ var xmlFunctions = []string{
 
 // Sample example: {func_call:{funcname:{string:{sval:"pg_advisory_lock"}}
 func getFuncNameFromFuncCall(funcCallNode protoreflect.Message) string {
+	if getMsgFullName(funcCallNode) != PG_QUERY_NODE_NODE {
+		return ""
+	}
+
 	funcnameField := funcCallNode.Get(funcCallNode.Descriptor().Fields().ByName("funcname"))
 	funcnameList := funcnameField.List()
 	var names []string
@@ -49,6 +53,10 @@ func getFuncNameFromFuncCall(funcCallNode protoreflect.Message) string {
 
 // Sample example:: {column_ref:{fields:{string:{sval:"xmax"}}
 func getColNameFromColumnRef(columnRefNode protoreflect.Message) string {
+	if getMsgFullName(columnRefNode) != PG_QUERY_COLUMNREF_NODE {
+		return ""
+	}
+
 	fields := columnRefNode.Get(columnRefNode.Descriptor().Fields().ByName("fields"))
 	fieldsList := fields.List()
 	var names []string
