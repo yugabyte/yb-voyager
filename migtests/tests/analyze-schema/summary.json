@@ -67,9 +67,9 @@
             },
             {
                 "ObjectType": "FOREIGN TABLE",
-                "TotalCount": 1,
-                "InvalidCount": 1,
-                "ObjectNames": "tbl_p"
+                "TotalCount": 2,
+                "InvalidCount": 2,
+                "ObjectNames": "tbl_p, public.locations"
             },
             {
                 "ObjectType": "POLICY",

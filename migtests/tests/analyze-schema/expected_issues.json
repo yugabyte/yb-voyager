@@ -927,7 +927,7 @@
         },
         {
             "IssueType": "unsupported_datatypes",
-            "ObjectType": "TABLE",
+            "ObjectType": "FOREIGN TABLE",
             "ObjectName": "public.locations",
             "Reason": "Unsupported datatype - geometry on column - geom",
             "SqlStatement": "CREATE FOREIGN TABLE public.locations (\n    id integer NOT NULL,\n    name character varying(100),\n    geom geometry(Point,4326)\n ) SERVER remote_server\nOPTIONS (\n    schema_name 'public',\n    table_name 'remote_locations'\n);",
