@@ -953,7 +953,7 @@ validate_import_data_state_batch_files() {
 	DIR="$1"
 	shift # Shift to access array elements (after directory)
 	expected_files=("$@")
-	for file in "$DIR"/*
+	for file in "$DIR"/**/*
 	do
 		# Check if the current file is a symlink, skip if true
 		if [ -L "$file" ]; then

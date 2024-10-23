@@ -77,7 +77,7 @@ main() {
 			--file-table-map "large_rows_test.txt:large_rows_test"
 	
 	# import data state metainfo directory for large_rows_test table
-	IMPORT_DATA_STATE_DIR_LARGE_ROWS="$TEST_DIR/export-dir/metainfo/import_data_state/import_file/table::public.\"large_rows_test\"/file::large_rows_test.txt::11a250b2"
+	IMPORT_DATA_STATE_DIR_LARGE_ROWS="$TEST_DIR/export-dir/metainfo/import_data_state/import_file/table::public.\"large_rows_test\"/"
 
 	# Expected batch file names without the symlink for large_rows_test.txt file
 	expected_batch_files_large_rows=(
