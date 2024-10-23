@@ -62,7 +62,7 @@ func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) erro
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {
-			err := fmt.Errorf("Debezium: not found in paths %v", possiblePaths)
+			err := fmt.Errorf("Debezium: not found in path(s) %v", possiblePaths)
 			return err
 		}
 	}

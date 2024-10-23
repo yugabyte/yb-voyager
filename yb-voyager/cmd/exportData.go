@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -249,6 +250,17 @@ func exportData() bool {
 			color.Red("\nPermissions and configurations missing in the source database for export data:\n")
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog("%s\n", output)
+
+			grantScriptPathArr := []string{"/opt/yb-voyager/guardrails-scripts/"}
+			grantScriptMsg := "You can grant the required permissions using the script yb-voyager-pg-grant-migration-permissions.sql present at"
+			currentOS := runtime.GOOS
+			if currentOS == "darwin" {
+				grantScriptPathArr = append(grantScriptPathArr, fmt.Sprintf("/opt/homebrew/Cellar/yb-voyager@%s/%s/opt/yb-voyager/guardrails-scripts/", utils.YB_VOYAGER_VERSION, utils.YB_VOYAGER_VERSION),
+					fmt.Sprintf("/usr/local/Cellar/yb-voyager@%s/%s/opt/yb-voyager/guardrails-scripts/", utils.YB_VOYAGER_VERSION, utils.YB_VOYAGER_VERSION))
+				grantScriptMsg = "You can grant the required permissions using the script yb-voyager-pg-grant-migration-permissions.sql present at one of the following paths depending on your installation"
+			}
+			fmt.Printf("\n%s: %s\n", grantScriptMsg, grantScriptPathArr)
+
 			// Make a prompt to the user to continue even with missing permissions
 			reply := utils.AskPrompt("\nDo you want to continue with the export data even with missing permissions")
 			if !reply {

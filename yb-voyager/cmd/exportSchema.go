@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/fatih/color"
@@ -141,7 +142,18 @@ func exportSchema() error {
 		if len(missingPerms) > 0 {
 			color.Red("\nPermissions missing in the source database for export schema:\n")
 			output := strings.Join(missingPerms, "\n")
-			utils.PrintAndLog("%s\n\n", output)
+			fmt.Printf("%s\n\n", output)
+
+			grantScriptPathArr := []string{"/opt/yb-voyager/guardrails-scripts/"}
+			grantScriptMsg := "You can grant the required permissions using the script yb-voyager-pg-grant-migration-permissions.sql present at"
+			currentOS := runtime.GOOS
+			if currentOS == "darwin" {
+				grantScriptPathArr = append(grantScriptPathArr, fmt.Sprintf("/opt/homebrew/Cellar/yb-voyager@%s/%s/opt/yb-voyager/guardrails-scripts/", utils.YB_VOYAGER_VERSION, utils.YB_VOYAGER_VERSION),
+					fmt.Sprintf("/usr/local/Cellar/yb-voyager@%s/%s/opt/yb-voyager/guardrails-scripts/", utils.YB_VOYAGER_VERSION, utils.YB_VOYAGER_VERSION))
+				grantScriptMsg = "You can grant the required permissions using the script yb-voyager-pg-grant-migration-permissions.sql present at one of the following paths depending on your installation"
+			}
+			fmt.Printf("%s: %s\n\n", grantScriptMsg, grantScriptPathArr)
+
 			reply := utils.AskPrompt("Do you want to continue with the export schema even with missing permissions")
 			if !reply {
 				return fmt.Errorf("grant the required permissions and try again")
