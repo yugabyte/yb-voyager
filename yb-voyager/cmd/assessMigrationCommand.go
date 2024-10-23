@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"syscall"
@@ -322,17 +321,10 @@ func assessMigration() (err error) {
 				output := strings.Join(missingPerms, "\n")
 				fmt.Printf("%s\n\n", output)
 
-				grantScriptPathArr := []string{"/opt/yb-voyager/guardrails-scripts/"}
-				grantScriptMsg := "You can grant the required permissions using the script yb-voyager-pg-grant-migration-permissions.sql present at"
-				currentOS := runtime.GOOS
-				if currentOS == "darwin" {
-					grantScriptPathArr = append(grantScriptPathArr, fmt.Sprintf("/opt/homebrew/Cellar/yb-voyager@%s/%s/opt/yb-voyager/guardrails-scripts/", utils.YB_VOYAGER_VERSION, utils.YB_VOYAGER_VERSION),
-						fmt.Sprintf("/usr/local/Cellar/yb-voyager@%s/%s/opt/yb-voyager/guardrails-scripts/", utils.YB_VOYAGER_VERSION, utils.YB_VOYAGER_VERSION))
-					grantScriptMsg = "You can grant the required permissions using the script yb-voyager-pg-grant-migration-permissions.sql present at one of the following paths depending on your installation"
-				}
-				fmt.Printf("%s: %s\n\n", grantScriptMsg, grantScriptPathArr)
+				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+				fmt.Println("You can view the steps to prepare the source database for migration in the documentation:", color.BlueString(link))
 
-				reply := utils.AskPrompt("Do you want to continue with the export schema even with missing permissions")
+				reply := utils.AskPrompt("\nDo you want to continue with the export schema even with missing permissions")
 				if !reply {
 					return fmt.Errorf("grant the required permissions and try again")
 				}
