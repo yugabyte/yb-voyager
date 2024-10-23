@@ -32,6 +32,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -222,6 +223,7 @@ func buildCommandArguments(dbConfig AssessMigrationDBConfig, exportDirPath strin
 		"--source-db-type", dbConfig.DbType,
 		"--source-db-schema", dbConfig.Schema,
 		"--export-dir", exportDirPath,
+		"--log-level", config.LogLevel,
 	}
 
 	if dbConfig.User != "" {

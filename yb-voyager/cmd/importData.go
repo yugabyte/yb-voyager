@@ -38,6 +38,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
@@ -222,6 +223,7 @@ func startExportDataFromTargetIfRequired() {
 		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 		"--target-ssl-mode", tconf.SSLMode,
+		"--log-level", config.LogLevel,
 	}
 	if tconf.SSLRootCert != "" {
 		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
