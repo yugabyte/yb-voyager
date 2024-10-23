@@ -63,7 +63,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 11,
-				"ObjectNames": "grect2ind2, grect2ind3, idx_1, hidx, gin_idx, title_idx, title_idx_lower, title_idx_nulls_low, title_idx_u1, title_idx_u2, title_idx_with_duplicates",
+				"ObjectNames": "grect2ind2 ON am_examples.fast_emp4000, grect2ind3 ON am_examples.fast_emp4000, idx_1 ON composite_type_examples.ordinary_table, hidx ON extension_example.testhstore, gin_idx ON idx_ex.films, title_idx ON idx_ex.films, title_idx_lower ON idx_ex.films, title_idx_nulls_low ON idx_ex.films, title_idx_u1 ON idx_ex.films, title_idx_u2 ON idx_ex.films, title_idx_with_duplicates ON idx_ex.films",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
 			{
@@ -89,7 +89,7 @@
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 5,
-				"ObjectNames": "check_balance_update, check_update, check_update_when_difft_balance, log_update, view_insert"
+				"ObjectNames": "check_balance_update ON trigger_test.accounts, check_update ON trigger_test.accounts, check_update_when_difft_balance ON trigger_test.accounts, log_update ON trigger_test.accounts, view_insert ON trigger_test.accounts_view"
 			},
 			{
 				"ObjectType": "MVIEW",
@@ -109,12 +109,12 @@
 			{
 				"ObjectType": "POLICY",
 				"TotalCount": 69,
-				"ObjectNames": "d1, p, p, p0, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1_2, p1_2, p1_2, p1_2, p1_3, p1_3, p1_4, p1_4, p1r, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2_2, p2_3, p2_4, p2r, p3, p3, p3, p3, p3, p3_2, p3_3, p3_4, p3_with_all, p3_with_default, p4, p4, p4_4, pp1, pp1r, r1, r1_2, r1_3, r1_4, r2, r2_2, r2_3"
+				"ObjectNames": "d1 ON regress_rls_schema.dependent, p ON regress_rls_schema.t, p ON regress_rls_schema.tbl1, p0 ON regress_rls_schema.x1, p1 ON regress_rls_schema.b1, p1 ON regress_rls_schema.dob_t1, p1 ON regress_rls_schema.dob_t2, p1 ON regress_rls_schema.document, p1 ON regress_rls_schema.r1, p1 ON regress_rls_schema.r1_2, p1 ON regress_rls_schema.r1_3, p1 ON regress_rls_schema.r2, p1 ON regress_rls_schema.r2_3, p1 ON regress_rls_schema.r2_4, p1 ON regress_rls_schema.r2_5, p1 ON regress_rls_schema.rls_tbl, p1 ON regress_rls_schema.rls_tbl_3, p1 ON regress_rls_schema.s1, p1 ON regress_rls_schema.t1, p1 ON regress_rls_schema.t1_2, p1 ON regress_rls_schema.t1_3, p1 ON regress_rls_schema.x1, p1 ON regress_rls_schema.y1, p1 ON regress_rls_schema.y2, p1 ON regress_rls_schema.z1, p1_2 ON regress_rls_schema.dob_t1, p1_2 ON regress_rls_schema.s1, p1_2 ON regress_rls_schema.t1_3, p1_2 ON regress_rls_schema.y1, p1_3 ON regress_rls_schema.dob_t1, p1_3 ON regress_rls_schema.document, p1_4 ON regress_rls_schema.dob_t1, p1_4 ON regress_rls_schema.document, p1r ON regress_rls_schema.document, p2 ON regress_rls_schema.r2, p2 ON regress_rls_schema.s2, p2 ON regress_rls_schema.t1_2, p2 ON regress_rls_schema.t2, p2 ON regress_rls_schema.t2_3, p2 ON regress_rls_schema.x1, p2 ON regress_rls_schema.y1, p2 ON regress_rls_schema.y2, p2 ON regress_rls_schema.z1, p2_2 ON regress_rls_schema.s2, p2_3 ON regress_rls_schema.document, p2_4 ON regress_rls_schema.document, p2r ON regress_rls_schema.document, p3 ON regress_rls_schema.r2, p3 ON regress_rls_schema.s1, p3 ON regress_rls_schema.x1, p3 ON regress_rls_schema.y2, p3 ON regress_rls_schema.z1, p3_2 ON regress_rls_schema.z1, p3_3 ON regress_rls_schema.document, p3_4 ON regress_rls_schema.document, p3_with_all ON regress_rls_schema.document, p3_with_default ON regress_rls_schema.document, p4 ON regress_rls_schema.r2, p4 ON regress_rls_schema.x1, p4_4 ON regress_rls_schema.document, pp1 ON regress_rls_schema.part_document, pp1r ON regress_rls_schema.part_document, r1 ON regress_rls_schema.rec1, r1_2 ON regress_rls_schema.rec1, r1_3 ON regress_rls_schema.rec1, r1_4 ON regress_rls_schema.rec1, r2 ON regress_rls_schema.rec2, r2_2 ON regress_rls_schema.rec2, r2_3 ON regress_rls_schema.rec2"
 			},
 			{
 				"ObjectType": "OPERATOR",
 				"TotalCount": 5,
-				"ObjectNames": "public., regress_rls_schema., am_examples.box_ops, am_examples.box_ops, am_examples.gist2_fam"
+				"ObjectNames": "public.\u003c%, regress_rls_schema.\u003c\u003c\u003c, am_examples.box_ops, am_examples.box_ops, am_examples.gist2_fam"
 			}
 		]
 	},

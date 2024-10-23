@@ -9,10 +9,11 @@ CREATE CONSTRAINT TRIGGER some_trig
    DEFERRABLE INITIALLY DEFERRED
    FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();
 
+-- these two are not PG compatible so we won't be reporting full name (trigger_name ON table_name) 
 CREATE TRIGGER emp_trig
 	COMPOUND INSERT ON emp FOR EACH ROW
 	EXECUTE PROCEDURE trigger_fct_emp_trig();
 
 CREATE TRIGGER test
-    INSERT on test for each ROW
+    INSTEAD OF INSERT on test for each ROW
     EXECUTE PROCEDURE JSON_ARRAYAGG(trunc(b, 2) order by t desc);
