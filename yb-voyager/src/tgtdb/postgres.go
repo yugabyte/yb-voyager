@@ -841,6 +841,8 @@ func (pg *TargetPostgreSQL) GetMissingImportDataPermissions(isFallForwardEnaled 
 		}
 		if !isSuperUser {
 			return []string{fmt.Sprintf("\n%s", color.RedString("User %s is not a superuser", pg.tconf.User))}, nil
+		} else {
+			fmt.Println(color.GreenString("User %s is a superuser", pg.tconf.User))
 		}
 		return nil, nil
 	}
@@ -857,14 +859,14 @@ func (pg *TargetPostgreSQL) isUserSuperUser() (bool, error) {
 					JOIN pg_auth_members am ON r.oid = am.roleid
 					JOIN pg_roles m ON am.member = m.oid
 					WHERE r.rolname = 'rds_superuser'
-					AND m.rolname = $1
+					AND m.rolname = current_user
 				)
 			ELSE
-				(SELECT rolsuper FROM pg_roles WHERE rolname = $1)
+				(SELECT rolsuper FROM pg_roles WHERE rolname = current_user)
 		END AS is_superuser;`
 
 	var isSuperUser bool
-	err := pg.db.QueryRow(query, pg.tconf.User).Scan(&isSuperUser)
+	err := pg.QueryRow(query).Scan(&isSuperUser)
 	if err != nil {
 		return false, fmt.Errorf("error in checking if migration user is a superuser: %w", err)
 	}
