@@ -346,13 +346,16 @@ func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 		}
 		createForeignTableNode, isForeignTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
 		if isForeignTable {
-			schemaName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Schemaname
-			tableName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Relname
+			baseStmt := createForeignTableNode.CreateForeignTableStmt.BaseStmt
+			relation := baseStmt.Relation
+			schemaName := relation.Schemaname
+			tableName := relation.Relname
 			serverName := createForeignTableNode.CreateForeignTableStmt.Servername
 			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
 			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
 				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt, MIGRATION_CAVEATS, FOREIGN_TABLE_DOC_LINK)
+			reportUnsupportedDatatypes(relation, baseStmt.TableElts, sqlStmtInfo, fpath)
 		}
 	}
 }
@@ -380,7 +383,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			reportUnsupportedDatatypes(createTableNode, sqlStmtInfo, fpath)
+			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
@@ -885,10 +888,9 @@ func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePoli
 	}
 }
 
-func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
+func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query.Node, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := relation.Schemaname
+	tableName := relation.Relname
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 	for _, column := range columns {
 		/*

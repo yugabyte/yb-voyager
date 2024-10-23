@@ -917,6 +917,26 @@
         },
         {
             "IssueType": "migration_caveats",
+            "ObjectType": "FOREIGN TABLE",
+            "ObjectName": "public.locations",
+            "Reason": "Foreign tables require manual intervention.",
+            "SqlStatement": "CREATE FOREIGN TABLE public.locations (     id integer NOT NULL,     name character varying(100),     geom geometry(Point,4326)  ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_locations' ); ",
+            "Suggestion": "SERVER 'remote_server', and USER MAPPING should be created manually on the target to create and use the foreign table",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.locations",
+            "Reason": "Unsupported datatype - geometry on column - geom",
+            "SqlStatement": "CREATE FOREIGN TABLE public.locations (\n    id integer NOT NULL,\n    name character varying(100),\n    geom geometry(Point,4326)\n ) SERVER remote_server\nOPTIONS (\n    schema_name 'public',\n    table_name 'remote_locations'\n);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/11323",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb"
+        },
+        {
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype for Live migration - circle on column - ci",
