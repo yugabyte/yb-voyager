@@ -973,20 +973,43 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 	if dataFileDescriptor.HasHeader {
 		header = dataFile.GetHeader()
 	}
+
+	// Helper function to initialize a new batchWriter
+	initBatchWriter := func() {
+		batchWriter = state.NewBatchWriter(filePath, t, batchNum)
+		err := batchWriter.Init()
+		if err != nil {
+			utils.ErrExit("initializing batch writer for table %q: %s", t, err)
+		}
+		// Write the header if necessary
+		if header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
+			err = batchWriter.WriteHeader(header)
+			if err != nil {
+				utils.ErrExit("writing header for table %q: %s", t, err)
+			}
+		}
+	}
+
+	// Function to finalize and submit the current batch
+	finalizeBatch := func(isLastBatch bool, offsetEnd int64) {
+		batch, err := batchWriter.Done(isLastBatch, offsetEnd, dataFile.GetBytesRead())
+		if err != nil {
+			utils.ErrExit("finalizing batch %d: %s", batchNum, err)
+		}
+		batchWriter = nil
+		dataFile.ResetBytesRead()
+		submitBatch(batch, updateProgressFn, importBatchArgsProto)
+
+		// Increment batchNum only if this is not the last batch
+		if !isLastBatch {
+			batchNum++
+		}
+	}
+
 	for readLineErr == nil {
 
 		if batchWriter == nil {
-			batchWriter = state.NewBatchWriter(filePath, t, batchNum)
-			err := batchWriter.Init()
-			if err != nil {
-				utils.ErrExit("initializing batch writer for table %q: %s", t, err)
-			}
-			if header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
-				err = batchWriter.WriteHeader(header)
-				if err != nil {
-					utils.ErrExit("writing header for table %q: %s", t, err)
-				}
-			}
+			initBatchWriter() // Create a new batchWriter 
 		}
 
 		line, readLineErr = dataFile.NextLine()
@@ -1001,36 +1024,33 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			if err != nil {
 				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
-		}
-		err = batchWriter.WriteRecord(line)
-		if err != nil {
-			utils.ErrExit("Write to batch %d: %s", batchNum, err)
-		}
-		if batchWriter.NumRecordsWritten == batchSize ||
-			dataFile.GetBytesRead() >= tdb.MaxBatchSizeInBytes() ||
-			readLineErr != nil {
 
-			isLastBatch := false
-			if readLineErr == io.EOF {
-				isLastBatch = true
-			} else if readLineErr != nil {
-				utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
+			// Check if adding this record exceeds the max batch size
+			if batchWriter.NumRecordsWritten+1 == batchSize ||
+				dataFile.GetBytesRead()+int64(len([]byte(line))) >= tdb.MaxBatchSizeInBytes() {
+
+				// Finalize the current batch without adding the record
+				finalizeBatch(false, numLinesTaken-1)
+
+				// Start a new batch by calling the initBatchWriter function
+				initBatchWriter()
 			}
 
-			offsetEnd := numLinesTaken
-			batch, err := batchWriter.Done(isLastBatch, offsetEnd, dataFile.GetBytesRead())
+			// Write the record to the new or current batch
+			err = batchWriter.WriteRecord(line)
 			if err != nil {
-				utils.ErrExit("finalizing batch %d: %s", batchNum, err)
+				utils.ErrExit("Write to batch %d: %s", batchNum, err)
 			}
-			batchWriter = nil
-			dataFile.ResetBytesRead()
-			submitBatch(batch, updateProgressFn, importBatchArgsProto)
+		}
 
-			if !isLastBatch {
-				batchNum += 1
-			}
+		// Finalize the batch if it's the last line or the end of the file
+		if readLineErr == io.EOF {
+			finalizeBatch(true, numLinesTaken)
+		} else if readLineErr != nil {
+			utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
 		}
 	}
+
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
