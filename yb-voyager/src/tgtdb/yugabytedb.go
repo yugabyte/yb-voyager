@@ -110,7 +110,7 @@ func (yb *TargetYugabyteDB) Init() error {
 	}
 
 	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
+		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname = '%s';",
 		yb.tconf.Schema)
 	var cntSchemaName int
 	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {

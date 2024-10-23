@@ -109,7 +109,7 @@ func (pg *TargetPostgreSQL) Init() error {
 	schemas := strings.Split(pg.tconf.Schema, ",")
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('%s')",
+		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
@@ -819,7 +819,7 @@ func (pg *TargetPostgreSQL) GetMissingImportDataPermissions(isFallForwardEnaled 
 			return nil, err
 		}
 		if len(missingUsagePermissions) > 0 {
-			missingPermissionsList = append(missingPermissionsList, fmt.Sprintf("\n%s %s", color.RedString("Missing USAGE permission for user %s on Schemas:", pg.tconf.User), strings.Join(missingUsagePermissions, ", ")))
+			missingPermissionsList = append(missingPermissionsList, fmt.Sprintf("\n%s [%s]", color.RedString("Missing USAGE permission for user %s on Schemas:", pg.tconf.User), strings.Join(missingUsagePermissions, ", ")))
 		}
 
 		// Check if db_user has SELECT, INSERT, UPDATE, DELETE permissions on schemas tables
@@ -829,9 +829,8 @@ func (pg *TargetPostgreSQL) GetMissingImportDataPermissions(isFallForwardEnaled 
 		}
 
 		for permission, tables := range missingPermissions {
-			missingPermissionsList = append(missingPermissionsList, fmt.Sprintf("\n%s %s", color.RedString("Missing %s permission for user %s on Tables: ", permission, pg.tconf.User), strings.Join(tables, ", ")))
+			missingPermissionsList = append(missingPermissionsList, fmt.Sprintf("\n%s [%s]", color.RedString("Missing %s permission for user %s on Tables: ", permission, pg.tconf.User), strings.Join(tables, ", ")))
 		}
-
 		return missingPermissionsList, nil
 	} else {
 		// In case of fall forward we need to check if user is a superuser
@@ -875,7 +874,8 @@ func (pg *TargetPostgreSQL) isUserSuperUser() (bool, error) {
 
 func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	// Users need usage permissions on the schemas they want to export and the pg_catalog and information_schema schemas
-	querySchemaList := pg.getSchemaList()
+	querySchemaArray := pg.getSchemaList()
+	querySchemaList := strings.Join(querySchemaArray, ",")
 	chkSchemaUsagePermissionQuery := fmt.Sprintf(`
 	SELECT 
 		quote_ident(nspname) AS schema_name,
@@ -886,7 +886,7 @@ func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error
 	FROM 
 		pg_namespace
 	WHERE 
-		quote_ident(nspname) = ANY(string_to_array('%s', ','));
+		quote_ident(nspname) = ANY(string_to_array('%s', ','))
 	`, pg.tconf.User, GRANTED, MISSING, querySchemaList)
 	// Currently we don't support case sensitive schema names but in the future we might and hence using quote_ident to handle that case
 
@@ -922,7 +922,8 @@ func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error
 }
 
 func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions() (map[string][]string, error) {
-	querySchemaList := pg.getSchemaList()
+	querySchemaArray := pg.getSchemaList()
+	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	query := fmt.Sprintf(`
 	WITH table_privileges AS (
@@ -992,24 +993,24 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 		}
 		// status is 'Missing' then add to key missingSelect etc
 		// status is 'No USAGE privilege on schema' then add to key missingUsage
-		if selectStatus == "Missing" {
+		if selectStatus == MISSING {
 			missingPermissions["SELECT"] = append(missingPermissions["SELECT"], fmt.Sprintf("%s.%s", schemaName, tableName))
-		} else if selectStatus == "No USAGE privilege on schema" {
+		} else if selectStatus == NO_USAGE_PERMISSION {
 			missingPermissions["USAGE"] = append(missingPermissions["USAGE"], fmt.Sprintf("%s.%s", schemaName, tableName))
 		}
-		if insertStatus == "Missing" {
+		if insertStatus == MISSING {
 			missingPermissions["INSERT"] = append(missingPermissions["INSERT"], fmt.Sprintf("%s.%s", schemaName, tableName))
-		} else if insertStatus == "No USAGE privilege on schema" {
+		} else if insertStatus == NO_USAGE_PERMISSION {
 			missingPermissions["USAGE"] = append(missingPermissions["USAGE"], fmt.Sprintf("%s.%s", schemaName, tableName))
 		}
-		if updateStatus == "Missing" {
+		if updateStatus == MISSING {
 			missingPermissions["UPDATE"] = append(missingPermissions["UPDATE"], fmt.Sprintf("%s.%s", schemaName, tableName))
-		} else if updateStatus == "No USAGE privilege on schema" {
+		} else if updateStatus == NO_USAGE_PERMISSION {
 			missingPermissions["USAGE"] = append(missingPermissions["USAGE"], fmt.Sprintf("%s.%s", schemaName, tableName))
 		}
-		if deleteStatus == "Missing" {
+		if deleteStatus == MISSING {
 			missingPermissions["DELETE"] = append(missingPermissions["DELETE"], fmt.Sprintf("%s.%s", schemaName, tableName))
-		} else if deleteStatus == "No USAGE privilege on schema" {
+		} else if deleteStatus == NO_USAGE_PERMISSION {
 			missingPermissions["USAGE"] = append(missingPermissions["USAGE"], fmt.Sprintf("%s.%s", schemaName, tableName))
 		}
 	}
