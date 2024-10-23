@@ -113,7 +113,7 @@ func importSchema() error {
 		}
 		if len(missingPermissions) > 0 {
 			// Not printing the target db is missing permissions message for YB
-			// In YB we only check whether he user is a superuser and hence we don't need to print the message
+			// In YB (the only db allowed in import schema) we only check whether the user is a superuser and hence we don't need to print the message
 			if source.DBType == YUGABYTEDB {
 				utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing schema:"))
 			}
