@@ -117,7 +117,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	dbzmLogLevel := config.LogLevel
 	if config.IsLogLevelErrorOrAbove() {
 		// dbzm does not support fatal/panic log levels
-		dbzmLogLevel = "error"
+		dbzmLogLevel = config.ERROR
 	}
 	config := &dbzm.Config{
 		LogLevel:           dbzmLogLevel,
