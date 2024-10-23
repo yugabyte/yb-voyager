@@ -209,6 +209,10 @@
 				{
 					"ObjectName": "public.t.c (public.mycomposit)",
 					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.f_t.c (public.mycomposit)",
+					"SqlStatement": ""
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",

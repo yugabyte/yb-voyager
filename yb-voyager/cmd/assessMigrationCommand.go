@@ -1024,13 +1024,19 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
 		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 		//of these types there are other columns available for these information so we just do string match of types with our list
-		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		splits := strings.Split(allColumnsDataTypes[i].DataType, ".")
+		typeName := splits[0] //using typename only for the cases we are checking it from the static list of type names
+		if len(splits) > 1 {
+			//only type without schema in case of udt and ARRAY
+			typeName = strings.TrimSuffix(splits[1], "[]")
+		}
+		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, typeName) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
-		if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
 			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
 		}
-		if utils.ContainsAnyStringFromSlice(liveMigrationWithFForFBUnsupportedDatatypes, allColumnsDataTypes[i].DataType) ||
+		if utils.ContainsAnyStringFromSlice(liveMigrationWithFForFBUnsupportedDatatypes, typeName) ||
 			utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType) || // if type is UDT
 			(strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]") && //if type is array and is ENUM in the list
 				utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]"))) {
