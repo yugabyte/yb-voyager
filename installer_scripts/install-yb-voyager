@@ -191,7 +191,6 @@ ubuntu_main() {
 	create_guardrail_scripts_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
-	exit 0
 	if [ $ONLY_PG == "false" ] ; then
 		sudo apt-get -y install perl  1>&2
 		sudo apt-get -y install libdbi-perl 1>&2
