@@ -1229,7 +1229,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			summaryMap["TRIGGER"].invalidCount[fmt.Sprintf("%s ON %s", trig[1], trig[3])] = true
 			reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
 				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", fmt.Sprintf("%s ON %s", trig[1], trig[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, CONSTRAINT_TRIGGER_DOC_LINK)
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {

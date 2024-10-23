@@ -243,8 +243,10 @@ func IsAllLowercase(s string) bool {
 		if c == '_' {
 			continue
 		}
-		if (c >= 'A' && c <= 'Z') ||
-			!(unicode.IsLetter(rune(c)) || unicode.IsDigit(rune(c))) { // check for special chars
+		if !(unicode.IsLetter(rune(c)) || unicode.IsDigit(rune(c))) { // check for special chars
+			return false
+		}
+		if unicode.IsUpper(rune(c)) { 
 			return false
 		}
 	}
