@@ -1,8 +1,6 @@
 package queryparser
 
 import (
-	"fmt"
-
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -24,18 +22,17 @@ type FuncCallDetector struct {
 }
 
 func NewFuncCallDetector() *FuncCallDetector {
-	fcd := &FuncCallDetector{
-		unsupportedFuncs: make(map[string]string),
-	}
-
+	unsupportedFuncs := make(map[string]string)
 	for _, fname := range unsupportedAdvLockFuncs {
-		fcd.unsupportedFuncs[fname] = ADVISORY_LOCKS
+		unsupportedFuncs[fname] = ADVISORY_LOCKS
 	}
 	for _, fname := range xmlFunctions {
-		fcd.unsupportedFuncs[fname] = XML_FUNCTIONS
+		unsupportedFuncs[fname] = XML_FUNCTIONS
 	}
-	log.Debug("initialized FuncCallDetector with unsupported functions")
-	return fcd
+
+	return &FuncCallDetector{
+		unsupportedFuncs: unsupportedFuncs,
+	}
 }
 
 // Detect checks if a FuncCall node uses an unsupported function.
@@ -46,8 +43,8 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) ([]string, error) {
 
 	funcName := getFuncNameFromFuncCall(msg)
 	log.Debugf("fetched function name from %s node: %q", PG_QUERY_FUNCCALL_NODE, funcName)
-	if constructType, ok := d.unsupportedFuncs[funcName]; ok {
-		log.Debugf("detected unsupported function: %s", funcName)
+	if constructType, isUnsupported := d.unsupportedFuncs[funcName]; isUnsupported {
+		log.Debugf("detected unsupported function %q in msg - %+v", funcName, msg)
 		return []string{constructType}, nil
 	}
 	return nil, nil
@@ -58,15 +55,14 @@ type ColumnRefDetector struct {
 }
 
 func NewColumnRefDetector() *ColumnRefDetector {
-	crd := &ColumnRefDetector{
-		unsupportedColumns: make(map[string]string),
+	unsupportedColumns := make(map[string]string)
+	for _, colName := range unsupportedSysCols {
+		unsupportedColumns[colName] = SYSTEM_COLUMNS
 	}
 
-	for _, colName := range unsupportedSysCols {
-		crd.unsupportedColumns[colName] = SYSTEM_COLUMNS
+	return &ColumnRefDetector{
+		unsupportedColumns: unsupportedColumns,
 	}
-	log.Debug("initialized ColumnRefDetector with unsupported columns")
-	return crd
 }
 
 // Detect checks if a ColumnRef node uses an unsupported system column
@@ -77,8 +73,8 @@ func (d *ColumnRefDetector) Detect(msg protoreflect.Message) ([]string, error) {
 
 	colName := getColNameFromColumnRef(msg)
 	log.Debugf("fetched column name from %s node: %q", PG_QUERY_COLUMNREF_NODE, colName)
-	if constructType, ok := d.unsupportedColumns[colName]; ok {
-		log.Debugf("detected unsupported system column: %s", colName)
+	if constructType, isUnsupported := d.unsupportedColumns[colName]; isUnsupported {
+		log.Debugf("detected unsupported system column %q in msg - %+v", colName, msg)
 		return []string{constructType}, nil
 	}
 	return nil, nil
@@ -87,7 +83,6 @@ func (d *ColumnRefDetector) Detect(msg protoreflect.Message) ([]string, error) {
 type XmlExprDetector struct{}
 
 func NewXmlExprDetector() *XmlExprDetector {
-	log.Debug("initialized XmlExprDetector")
 	return &XmlExprDetector{}
 }
 
@@ -98,24 +93,4 @@ func (d *XmlExprDetector) Detect(msg protoreflect.Message) ([]string, error) {
 		return []string{XML_FUNCTIONS}, nil
 	}
 	return nil, nil
-}
-
-// CompositeDetector combines multiple detectors into one.
-type CompositeDetector struct {
-	detectors []UnsupportedConstructDetector
-}
-
-// Detect applies all detectors to the given node and aggregates the results.
-func (cd *CompositeDetector) Detect(msg protoreflect.Message) ([]string, error) {
-	var result []string
-	for _, detector := range cd.detectors {
-		log.Debugf("running detector %T", detector)
-		constructs, err := detector.Detect(msg)
-		if err != nil {
-			log.Debugf("error in detector %T: %v", detector, err)
-			return nil, fmt.Errorf("error in detectors %T: %w", detector, err)
-		}
-		result = append(result, constructs...)
-	}
-	return result, nil
 }

@@ -955,16 +955,17 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	var result []utils.UnsupportedQueryConstruct
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
-		log.Debugf("fetched unsupported query constructs for query-%s", query)
+		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
 		queryParser := queryparser.New(query)
 		err := queryParser.Parse()
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse query-%s: %w", query, err)
+			log.Errorf("failed to parse query - [%s]: %w", query, err)
 		}
 
 		unsupportedConstructs, err := queryParser.GetUnsupportedQueryConstructs()
 		if err != nil {
-			log.Warnf("failed while trying to parse the query: %s", err.Error())
+			log.Errorf("failed while trying to fetch unsupported constructs from parse tree of query - [%s]: %s",
+			query, err.Error())
 		}
 		if unsupportedConstructs != nil {
 			result = append(result, unsupportedConstructs...)

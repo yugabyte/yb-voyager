@@ -104,7 +104,7 @@ func TraverseParseTree(msg protoreflect.Message, visited map[protoreflect.Messag
 }
 
 func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Message]bool, processor NodeProcessor) error {
-	fields := msg.Descriptor().Fields()
+	fields := msg.Descriptor().Fields() // returns declared fields, not populated ones
 	if fields == nil || fields.Len() == 0 {
 		return nil
 	}
@@ -112,7 +112,14 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 	for i := 0; i < fields.Len(); i++ {
 		fieldDesc := fields.Get(i)
 
-		// check if the field is set or not (for example: fields with DEFAULT values(set) won't be NULL)
+		/*
+			Checks if current field is set or not.
+			As per documentation,
+			// Fields is a list of nested field declarations.
+			Fields() FieldDescriptors
+			// Oneofs is a list of nested oneof declarations.
+			Oneofs() OneofDescriptors
+		*/
 		if !msg.Has(fieldDesc) {
 			log.Debugf("field %q is not a part of the message ", fieldDesc.FullName())
 			continue
@@ -129,17 +136,15 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 		log.Debugf("Field: %s, Type: %s\n", fieldDesc.Name(), fieldDesc.Kind())
 		value := msg.Get(fieldDesc)
 		switch {
-		case fieldDesc.IsList():
+		case fieldDesc.IsList() && fieldDesc.Kind() == protoreflect.MessageKind:
 			list := value.List()
 			for j := 0; j < list.Len(); j++ {
+				// every elem in the list have same Kind as that of field
 				elem := list.Get(j)
-				// every elem in the list have same Kind
-				if fieldDesc.Kind() == protoreflect.MessageKind {
-					err := TraverseParseTree(elem.Message(), visited, processor)
-					if err != nil {
-						log.Debugf("error traversing field %s: %v", fieldDesc.Name(), err)
-						return fmt.Errorf("error traversing field %s: %w", fieldDesc.Name(), err)
-					}
+				err := TraverseParseTree(elem.Message(), visited, processor)
+				if err != nil {
+					log.Debugf("error traversing field %s: %v", fieldDesc.Name(), err)
+					return fmt.Errorf("error traversing field %s: %w", fieldDesc.Name(), err)
 				}
 			}
 
@@ -153,7 +158,7 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 		case IsScalarKind(fieldDesc.Kind()):
 			log.Debugf("Scalar field of Type: %s, value: %v\n", fieldDesc.Kind(), value.Interface())
 		default:
-			log.Infof("field kind case not covered: %s\n", fieldDesc.Kind())
+			log.Debugf("field kind case not covered: %s\n", fieldDesc.Kind())
 		}
 	}
 

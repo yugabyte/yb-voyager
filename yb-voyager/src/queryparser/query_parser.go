@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -42,7 +43,7 @@ func (qp *QueryParser) Parse() error {
 func (qp *QueryParser) GetUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
 	var result []utils.UnsupportedQueryConstruct = nil
 	visited := make(map[protoreflect.Message]bool)
-	unsupportedConstructs := make(map[string]bool) // set for storing unique constructs
+	var unsupportedConstructs []string
 
 	log.Debugf("Query: %s\n", qp.QueryString)
 	log.Debugf("ParseTree: %+v\n", qp.ParseTree)
@@ -52,15 +53,15 @@ func (qp *QueryParser) GetUnsupportedQueryConstructs() ([]utils.UnsupportedQuery
 		NewXmlExprDetector(),
 	}
 
-	compositeDetector := &CompositeDetector{detectors: detectors}
 	processor := func(msg protoreflect.Message) error {
-		log.Debugf("running detector %T", compositeDetector)
-		constructs, err := compositeDetector.Detect(msg)
-		if err != nil {
-			return err
-		}
-		for _, c := range constructs {
-			unsupportedConstructs[c] = true
+		for _, detector := range detectors {
+			log.Debugf("running detector %T", detector)
+			constructs, err := detector.Detect(msg)
+			if err != nil {
+				log.Debugf("error in detector %T: %v", detector, err)
+				return fmt.Errorf("error in detectors %T: %w", detector, err)
+			}
+			unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 		}
 		return nil
 	}
@@ -76,10 +77,7 @@ func (qp *QueryParser) GetUnsupportedQueryConstructs() ([]utils.UnsupportedQuery
 		It is possible in the same query, the constructs is used multiple times and hence reported duplicates
 	*/
 	log.Debugf("detected unsupported constructs: %+v", unsupportedConstructs)
-	for unsupportedConstruct, ok := range unsupportedConstructs {
-		if !ok {
-			continue
-		}
+	for _, unsupportedConstruct := range unsupportedConstructs {
 		result = append(result, utils.UnsupportedQueryConstruct{
 			ConstructType: unsupportedConstruct,
 			Query:         qp.QueryString,

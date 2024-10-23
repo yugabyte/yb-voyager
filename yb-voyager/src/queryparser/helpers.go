@@ -32,6 +32,8 @@ func getFuncNameFromFuncCall(funcCallNode protoreflect.Message) string {
 	funcnameField := funcCallNode.Get(funcCallNode.Descriptor().Fields().ByName("funcname"))
 	funcnameList := funcnameField.List()
 	var names []string
+
+	// TODO: simplification to directly access last item of funcnameList
 	for i := 0; i < funcnameList.Len(); i++ {
 		item := funcnameList.Get(i)
 		name := getStringValueFromNode(item.Message())
@@ -50,6 +52,8 @@ func getColNameFromColumnRef(columnRefNode protoreflect.Message) string {
 	fields := columnRefNode.Get(columnRefNode.Descriptor().Fields().ByName("fields"))
 	fieldsList := fields.List()
 	var names []string
+
+	// TODO: simplification to directly access last item of fieldsList
 	for i := 0; i < fieldsList.Len(); i++ {
 		item := fieldsList.Get(i)
 		name := getStringValueFromNode(item.Message())
