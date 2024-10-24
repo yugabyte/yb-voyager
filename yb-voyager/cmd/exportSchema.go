@@ -144,7 +144,7 @@ func exportSchema() error {
 			fmt.Printf("%s\n\n", output)
 
 			link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-			fmt.Println("You can view the steps to prepare the source database for migration in the documentation:", color.BlueString(link))
+			fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
 
 			reply := utils.AskPrompt("\nDo you want to continue anyway")
 			if !reply {

@@ -119,6 +119,10 @@ func importSchema() error {
 			}
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog(output)
+
+			link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-target-database"
+			fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
+
 			// Prompt user to continue if missing permissions
 			if !utils.AskPrompt("Do you want to continue anyway") {
 				utils.ErrExit("Grant the required permissions and try again.")

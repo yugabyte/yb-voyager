@@ -256,7 +256,7 @@ func exportData() bool {
 			} else {
 				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
 			}
-			fmt.Println("\nYou can view the steps to prepare the source database for migration in the documentation:", color.BlueString(link))
+			fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
 
 			// Make a prompt to the user to continue even with missing permissions
 			reply := utils.AskPrompt("\nDo you want to continue anyway")

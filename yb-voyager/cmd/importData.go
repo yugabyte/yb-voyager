@@ -150,6 +150,20 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog(output)
 
+			var link string
+			if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/#prepare-source-replica-database"
+			} else if importerRole == SOURCE_DB_IMPORTER_ROLE {
+				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#prepare-the-source-database"
+			} else {
+				if changeStreamingIsEnabled(importType) {
+					link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-target-database"
+				} else {
+					link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-target-database"
+				}
+			}
+			fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
+
 			// Prompt user to continue if missing permissions
 			if !utils.AskPrompt("\nDo you want to continue anyway") {
 				utils.ErrExit("Please grant the required permissions and retry the import.")

@@ -829,6 +829,9 @@ func (pg *TargetPostgreSQL) GetMissingImportDataPermissions(isFallForwardEnabled
 		}
 
 		for permission, tables := range missingPermissions {
+			if permission == "USAGE" {
+				continue
+			}
 			missingPermissionsList = append(missingPermissionsList, fmt.Sprintf("\n%s [%s]", color.RedString("Missing %s permission for user %s on Tables: ", permission, pg.tconf.User), strings.Join(tables, ", ")))
 		}
 		return missingPermissionsList, nil
