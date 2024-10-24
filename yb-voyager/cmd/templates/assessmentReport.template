@@ -263,10 +263,6 @@
             </table>
         {{end}}
 
-        {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
-            <p>No unsupported features were present among the ones assessed.</p>
-        {{end}}
-
         {{ if .MigrationCaveats}}
         {{ $hasMigrationCaveats := false }}
         <h2>Migration caveats</h2>
