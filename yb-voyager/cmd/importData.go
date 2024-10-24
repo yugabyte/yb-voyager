@@ -1020,7 +1020,11 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, dataFile.GetBytesRead(), currentBytesRead)
 		if currentBytesRead >= tdb.MaxBatchSizeInBytes() {
 			//If a row is itself larger than MaxBatchSizeInBytes erroring out
-			utils.ErrExit("record num=%d for table %q in file %s is larger than %d bytes batch size", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes())
+			ybSpecificMsg := ""
+			if tconf.TargetDBType == YUGABYTEDB {
+				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default ~267MB)"
+			}
+			utils.ErrExit("record num=%d for table %q in file %s is larger than the max batch size %d bytes Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
