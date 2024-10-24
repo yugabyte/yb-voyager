@@ -37,31 +37,33 @@ type CsvDataFile struct {
 
 func (df *CsvDataFile) SkipLines(numLines int64) error {
 	for i := int64(1); i <= numLines; i++ {
-		_, err := df.NextLine()
+		_, _, err := df.NextLine()
 		if err != nil {
 			return err
 		}
 	}
-	df.ResetBytesRead()
+	df.ResetBytesRead(0)
 	return nil
 }
 
-func (df *CsvDataFile) NextLine() (string, error) {
+func (df *CsvDataFile) NextLine() (string, int64, error) {
 	var line string
 	var err error
 	var skippedByteCount int
+	var currentBytesRead int64
 	for {
 		line, skippedByteCount, err = df.reader.Read()
-		df.bytesRead += int64(len(line)) + int64(skippedByteCount)
+		currentBytesRead += int64(len(line)) + int64(skippedByteCount)
 		if err != nil {
-			return "", err
+			return "", -1,  err
 		}
 		if df.isDataLine(line) {
 			break
 		}
 	}
+	df.bytesRead += currentBytesRead
 	line = strings.Trim(line, "\n") // to get the raw row
-	return line, err
+	return line, currentBytesRead, err
 }
 
 func (df *CsvDataFile) Close() {
@@ -72,8 +74,8 @@ func (df *CsvDataFile) GetBytesRead() int64 {
 	return df.bytesRead
 }
 
-func (df *CsvDataFile) ResetBytesRead() {
-	df.bytesRead = 0
+func (df *CsvDataFile) ResetBytesRead(bytes int64) {
+	df.bytesRead = bytes
 }
 
 func (df *CsvDataFile) isDataLine(line string) bool {
@@ -89,7 +91,7 @@ func (df *CsvDataFile) GetHeader() string {
 		return df.Header
 	}
 
-	line, err := df.NextLine()
+	line, _, err := df.NextLine()
 	if err != nil {
 		utils.ErrExit("finding header for csvdata file: %v", err)
 	}

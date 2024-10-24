@@ -12,7 +12,7 @@ run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
 
-unzip sql.zip
+unzip -o sql.zip
 
 psql_import_file ${SOURCE_DB_NAME} sql/create-schema.sql
 

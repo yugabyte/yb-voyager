@@ -948,6 +948,30 @@ compare_and_validate_reports() {
     fi
 }
 
+validate_import_data_state_batch_files() {
+	# Iterate over files in the directory
+	DIR="$1"
+	shift # Shift to access array elements (after directory)
+	expected_files=("$@")
+	for file in "$DIR"/**/*
+	do
+		# Check if the current file is a symlink, skip if true
+		if [ -L "$file" ]; then
+			continue
+		fi
+		# Get just the file name from the full path
+		filename=$(basename "$file")
+
+		# Check if the filename is in the expected list
+		if [[ " ${expected_files[@]} " =~ " ${filename} " ]]; then
+		    echo "Batch file matches"
+		else
+			echo "Batch file doesn't match ${filename} with expected ${expected_files[@]}"  
+			exit 1
+		fi
+	done
+}
+
 cutover_to_target() {
 	args="
 	--export-dir ${EXPORT_DIR} --yes

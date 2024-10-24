@@ -29,9 +29,9 @@ const (
 
 type DataFile interface {
 	SkipLines(numLines int64) error
-	NextLine() (string, error)
+	NextLine() (string, int64, error) // line, bytes read for the line, error
 	GetBytesRead() int64
-	ResetBytesRead()
+	ResetBytesRead(int64) //bytes to be set 
 	GetHeader() string
 	Close()
 }

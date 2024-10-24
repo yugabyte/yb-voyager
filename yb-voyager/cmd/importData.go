@@ -51,7 +51,7 @@ import (
 )
 
 var metaInfoDirName = META_INFO_DIR_NAME
-var batchSize = int64(0)
+var batchSizeInNumRows = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
@@ -980,69 +980,102 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 
 	var readLineErr error = nil
 	var line string
+	var currentBytesRead int64
 	var batchWriter *BatchWriter
 	header := ""
 	if dataFileDescriptor.HasHeader {
 		header = dataFile.GetHeader()
 	}
+
+	// Helper function to initialize a new batchWriter
+	initBatchWriter := func() {
+		batchWriter = state.NewBatchWriter(filePath, t, batchNum)
+		err := batchWriter.Init()
+		if err != nil {
+			utils.ErrExit("initializing batch writer for table %q: %s", t, err)
+		}
+		// Write the header if necessary
+		if header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
+			err = batchWriter.WriteHeader(header)
+			if err != nil {
+				utils.ErrExit("writing header for table %q: %s", t, err)
+			}
+		}
+	}
+
+	// Function to finalize and submit the current batch
+	finalizeBatch := func(isLastBatch bool, offsetEnd int64, bytesInBatch int64) {
+		batch, err := batchWriter.Done(isLastBatch, offsetEnd, bytesInBatch)
+		if err != nil {
+			utils.ErrExit("finalizing batch %d: %s", batchNum, err)
+		}
+		batchWriter = nil
+		submitBatch(batch, updateProgressFn, importBatchArgsProto)
+
+		// Increment batchNum only if this is not the last batch
+		if !isLastBatch {
+			batchNum++
+		}
+	}
+
 	for readLineErr == nil {
 
 		if batchWriter == nil {
-			batchWriter = state.NewBatchWriter(filePath, t, batchNum)
-			err := batchWriter.Init()
-			if err != nil {
-				utils.ErrExit("initializing batch writer for table %q: %s", t, err)
-			}
-			if header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
-				err = batchWriter.WriteHeader(header)
-				if err != nil {
-					utils.ErrExit("writing header for table %q: %s", t, err)
-				}
-			}
+			initBatchWriter() // Create a new batchWriter
 		}
 
-		line, readLineErr = dataFile.NextLine()
+		line, currentBytesRead, readLineErr = dataFile.NextLine()
 		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
+		}
+		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, dataFile.GetBytesRead(), currentBytesRead)
+		if currentBytesRead > tdb.MaxBatchSizeInBytes() {
+			//If a row is itself larger than MaxBatchSizeInBytes erroring out
+			ybSpecificMsg := ""
+			if tconf.TargetDBType == YUGABYTEDB {
+				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
+			}
+			utils.ErrExit("record num=%d for table %q in file %s is larger than the max batch size %d bytes Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			columnNames, _ := TableToColumnNames.Get(t)
 			line, err = valueConverter.ConvertRow(t, columnNames, line)
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
-			}
-		}
-		err = batchWriter.WriteRecord(line)
-		if err != nil {
-			utils.ErrExit("Write to batch %d: %s", batchNum, err)
-		}
-		if batchWriter.NumRecordsWritten == batchSize ||
-			dataFile.GetBytesRead() >= tdb.MaxBatchSizeInBytes() ||
-			readLineErr != nil {
-
-			isLastBatch := false
-			if readLineErr == io.EOF {
-				isLastBatch = true
-			} else if readLineErr != nil {
-				utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
+				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", numLinesTaken, t.ForOutput(), filePath, err)
 			}
 
-			offsetEnd := numLinesTaken
-			batch, err := batchWriter.Done(isLastBatch, offsetEnd, dataFile.GetBytesRead())
+			// Check if adding this record exceeds the max batch size
+			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
+				dataFile.GetBytesRead() > tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead
+
+				// Finalize the current batch without adding the record
+				finalizeBatch(false, numLinesTaken-1, dataFile.GetBytesRead()-currentBytesRead)
+
+				//carry forward the bytes to next batch
+				dataFile.ResetBytesRead(currentBytesRead)
+
+				// Start a new batch by calling the initBatchWriter function
+				initBatchWriter()
+			}
+
+			// Write the record to the new or current batch
+			err = batchWriter.WriteRecord(line)
 			if err != nil {
-				utils.ErrExit("finalizing batch %d: %s", batchNum, err)
+				utils.ErrExit("Write to batch %d: %s", batchNum, err)
 			}
-			batchWriter = nil
-			dataFile.ResetBytesRead()
-			submitBatch(batch, updateProgressFn, importBatchArgsProto)
+		}
 
-			if !isLastBatch {
-				batchNum += 1
-			}
+		// Finalize the batch if it's the last line or the end of the file and reset the bytes read to 0
+		if readLineErr == io.EOF {
+			finalizeBatch(true, numLinesTaken, dataFile.GetBytesRead())
+			dataFile.ResetBytesRead(0)
+		} else if readLineErr != nil {
+			utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
 		}
 	}
+
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
