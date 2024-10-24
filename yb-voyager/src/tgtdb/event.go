@@ -183,6 +183,25 @@ func (e *Event) GetParams() []interface{} {
 	}
 }
 
+func (e *Event) GetParamsString() string {
+	params := e.GetParams()
+	paramsStr := ""
+	for _, p := range params {
+		pstr, ok := p.(*string)
+		if !ok {
+			// just as a safety check, this should never happen
+			paramsStr += "?, "
+			continue
+		}
+		if pstr != nil {
+			paramsStr += fmt.Sprintf("%s, ", *pstr)
+		} else {
+			paramsStr += "NULL, "
+		}
+	}
+	return paramsStr
+}
+
 func (event *Event) GetPreparedStmtName() string {
 	var ps strings.Builder
 	ps.WriteString(event.TableNameTup.ForUserQuery())
