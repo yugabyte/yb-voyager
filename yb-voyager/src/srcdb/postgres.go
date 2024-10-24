@@ -1241,8 +1241,8 @@ func (pg *PostgreSQL) listTablesMissingOwnerPermission() ([]string, error) {
 			return nil, fmt.Errorf("error scanning query rows for table names: %w", err)
 		}
 		if !hasOwnership {
-			// quote table name if case sensitive or reserved word
-			missingTables = append(missingTables, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+			// quote table name as it can be case sensitive
+			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
 		}
 	}
 
@@ -1343,7 +1343,8 @@ func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull() ([]string, error) {
 			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
 		if status == MISSING {
-			missingTables = append(missingTables, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+			// quote table name as it can be case sensitive
+			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
 		}
 	}
 
@@ -1428,7 +1429,8 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 			return nil, fmt.Errorf("error in scanning query rows for sequence names: %w", err)
 		}
 		if selectStatus == MISSING {
-			sequencesWithMissingPerm = append(sequencesWithMissingPerm, fmt.Sprintf("%s.%s", sequenceSchemaName, sequenceName))
+			// quote sequence name as it can be case sensitive
+			sequencesWithMissingPerm = append(sequencesWithMissingPerm, fmt.Sprintf(`%s."%s"`, sequenceSchemaName, sequenceName))
 		}
 	}
 
@@ -1499,10 +1501,11 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm
 			if tableSchemaName == "pg_catalog" || tableSchemaName == "information_schema" {
 				// If table name is in pg_catalog_tables_required or information_schema_tables_required and missing SELECT permission, then add to tablesWithMissingPerm
 				if slices.Contains(pg_catalog_tables_required, tableName) || slices.Contains(information_schema_tables_required, tableName) {
-					tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+					// quote table name as it can be case sensitive
+					tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
 				}
 			} else {
-				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
 			}
 		}
 	}
