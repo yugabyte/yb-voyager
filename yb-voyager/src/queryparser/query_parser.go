@@ -42,8 +42,7 @@ func (qp *QueryParser) Parse() error {
 
 func (qp *QueryParser) GetUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
 	if qp.ParseTree == nil {
-		log.Infof("parse tree of the query is null for some reason, skipping unsupported construct check")
-		return nil, nil
+		return nil, fmt.Errorf("query's parse tree is null for some reason, skipping unsupported construct check")
 	}
 
 	var result []utils.UnsupportedQueryConstruct = nil
