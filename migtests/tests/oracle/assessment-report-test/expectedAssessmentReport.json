@@ -21,7 +21,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 3,
-				"ObjectNames": "sales_bitmap_idx_table_product_id, func_based_table_data, orders_customer_id",
+				"ObjectNames": "sales_bitmap_idx_table_product_id ON sales_bitmap_idx_table, func_based_table_data ON func_based_table, orders_customer_id ON orders",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
 			{
