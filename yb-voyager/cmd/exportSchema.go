@@ -102,7 +102,8 @@ func exportSchema() error {
 
 	if source.RunGuardrailsChecks {
 		// Check source database version.
-		err = source.DB().CheckSourceDBVersion()
+		log.Info("checking source DB version")
+		err = source.DB().CheckSourceDBVersion(exportType)
 		if err != nil {
 			return fmt.Errorf("source DB version check failed: %w", err)
 		}
@@ -112,7 +113,7 @@ func exportSchema() error {
 		if err != nil {
 			return fmt.Errorf("failed to check dependencies for export schema: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
-			return fmt.Errorf("%s\n%s\nPlease install or add the required dependencies to PATH and try again", color.RedString("\nSome dependencies required for export schema are missing:"), strings.Join(binaryCheckIssues, "\n"))
+			return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for export schema:"), strings.Join(binaryCheckIssues, "\n"))
 		}
 	}
 
@@ -138,10 +139,17 @@ func exportSchema() error {
 			return fmt.Errorf("failed to get missing migration permissions: %w", err)
 		}
 		if len(missingPerms) > 0 {
-			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+			color.Red("\nPermissions missing in the source database for export schema:\n")
 			output := strings.Join(missingPerms, "\n")
-			utils.PrintAndLog("%s\n", output)
-			return fmt.Errorf("some permissions are missing for the source database on user %s", source.User)
+			fmt.Printf("%s\n\n", output)
+
+			link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+			fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
+
+			reply := utils.AskPrompt("\nDo you want to continue anyway")
+			if !reply {
+				return fmt.Errorf("grant the required permissions and try again")
+			}
 		}
 	}
 

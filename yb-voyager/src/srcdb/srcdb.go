@@ -56,9 +56,10 @@ type SourceDB interface {
 	GetNonPKTables() ([]string, error)
 	ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error
 	GetDatabaseSize() (int64, error)
-	CheckSourceDBVersion() error
+	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions() ([]string, error)
 	GetMissingExportDataPermissions(exportType string) ([]string, error)
+	GetMissingAssessMigrationPermissions() ([]string, error)
 }
 
 func newSourceDB(source *Source) SourceDB {

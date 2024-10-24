@@ -398,7 +398,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		return "", "", err
 	}
 	if len(paths) == 0 {
-		binaryCheckIssue = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+		binaryCheckIssue = fmt.Sprintf("%v: required version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
 		return "", binaryCheckIssue, nil
 	}
 
@@ -424,7 +424,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		}
 	}
 
-	binaryCheckIssue = fmt.Sprintf("Could not find %v with version greater than or equal to %v in the PATH", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+	binaryCheckIssue = fmt.Sprintf("%v: version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
 	return "", binaryCheckIssue, nil
 }
 
@@ -971,19 +971,22 @@ func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.Na
 
 // =============================== Guardrails ===============================
 
-func (pg *PostgreSQL) CheckSourceDBVersion() error {
-	utils.PrintAndLog("checking postgres version")
+func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	pgVersion := pg.GetVersion()
 	if pgVersion == "" {
 		return fmt.Errorf("failed to get source database version")
 	}
-	supportedVersionRange := fmt.Sprintf("from %s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
+	supportedVersionRange := fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
 
 	if version.CompareSimple(pgVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
-		return fmt.Errorf("source database version %s is not supported. Supported versions are %s", pgVersion, supportedVersionRange)
+		return fmt.Errorf("current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
 	}
-	if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
-		utils.PrintAndLog(color.RedString("Warning: Source database version %s is not supported for live migration. Supported versions are %s", pgVersion, supportedVersionRange))
+	// for live migration
+	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
+		if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
+			supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
+			utils.PrintAndLog(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
+		}
 	}
 
 	return nil
@@ -1006,25 +1009,20 @@ func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
 		return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
 	}
 	if len(missingSchemas) > 0 {
-		combinedResult = append(combinedResult, fmt.Sprintf("Schemas missing USAGE permission: %s", missingSchemas))
+		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing USAGE permission for user %s on Schemas: ", pg.source.User), strings.Join(missingSchemas, ", ")))
 	}
 
 	// Check if tables have SELECT permission
-	missingTables, tablesWithNoUsagePerm, err := pg.listTablesMissingSelectPermission()
+	missingTables, err := pg.listTablesMissingSelectPermission()
 	if err != nil {
 		return nil, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 {
-		combinedResult = append(combinedResult, fmt.Sprintf("Tables missing SELECT permission: %v", missingTables))
-	}
-	if len(tablesWithNoUsagePerm) > 0 {
-		// Print that some tables could not be checked for SELECT permission as the parent schema does not have USAGE permission
-		combinedResult = append(combinedResult, fmt.Sprintf("Following tables could not be checked for SELECT permission as the parent schema does not have USAGE permission: %v", tablesWithNoUsagePerm))
+		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
 	}
 
 	// Return combined result of checks if any issues, else return nothing (empty string and nil)
 	return combinedResult, nil
-
 }
 
 /*
@@ -1055,50 +1053,28 @@ The function performs the following checks:
 func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
 	var combinedResult []string
 
-	// For offline migration
-	// Check if schemas have USAGE permission and check if tables in the provided schemas have SELECT permission
-	res, err := pg.GetMissingExportSchemaPermissions()
-	if err != nil {
-		return nil, fmt.Errorf("error in getting missing export data permissions: %w", err)
-	}
-	combinedResult = append(combinedResult, res...)
-
-	// Check if sequences have SELECT permission
-	sequencesWithMissingPerm, sequencesWithNoUsagePerm, err := pg.listSequencesMissingSelectPermission()
-	if err != nil {
-		return nil, fmt.Errorf("error in checking sequence select permissions: %w", err)
-	}
-	if len(sequencesWithMissingPerm) > 0 {
-		combinedResult = append(combinedResult, fmt.Sprintf("Sequences missing SELECT permission: %v", sequencesWithMissingPerm))
-	}
-	if len(sequencesWithNoUsagePerm) > 0 {
-		combinedResult = append(combinedResult, fmt.Sprintf("Following sequences could not be checked for SELECT permission as the parent schema does not have USAGE permission: %v", sequencesWithNoUsagePerm))
-	}
-
 	// For live migration
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
 		// Check wal_level is set to logical
-		correctlySet := pg.checkWalLevel()
-		if !correctlySet {
-			combinedResult = append(combinedResult, "wal_level is not set to logical")
+		msg := pg.checkWalLevel()
+		if msg != "" {
+			combinedResult = append(combinedResult, msg)
 		}
 
-		// Check replica identity of tables
-		missingTables, err := pg.listTablesMissingReplicaIdentityFull()
+		isMigrationUserASuperUser, err := pg.isMigrationUserASuperUser()
 		if err != nil {
-			return nil, fmt.Errorf("error in checking table replica identity: %w", err)
-		}
-		if len(missingTables) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("Tables missing replica identity: %v", missingTables))
+			return nil, fmt.Errorf("error in checking if migration user is a superuser: %w", err)
 		}
 
-		// Check Replication permission for user
-		hasReplicationPermission, err := pg.checkReplicationPermission()
-		if err != nil {
-			return nil, fmt.Errorf("error in checking replication permission: %w", err)
-		}
-		if !hasReplicationPermission {
-			combinedResult = append(combinedResult, "User does not have replication permission")
+		// Check user has replication permission
+		if !isMigrationUserASuperUser {
+			hasReplicationPermission, err := pg.checkReplicationPermission()
+			if err != nil {
+				return nil, fmt.Errorf("error in checking replication permission: %w", err)
+			}
+			if !hasReplicationPermission {
+				combinedResult = append(combinedResult, fmt.Sprintf("\n%sREPLICATION", color.RedString("Missing role for user "+pg.source.User+": ")))
+			}
 		}
 
 		// Check user has create permission on db
@@ -1107,7 +1083,25 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error in checking create permission: %w", err)
 		}
 		if !hasCreatePermission {
-			combinedResult = append(combinedResult, "User does not have create permission on database")
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%sCREATE on database %s", color.RedString("Missing permission for user "+pg.source.User+": "), pg.source.DBName))
+		}
+
+		// Check if schemas have USAGE permission
+		missingSchemas, err := pg.listSchemasMissingUsagePermission()
+		if err != nil {
+			return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
+		}
+		if len(missingSchemas) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", pg.source.User)), strings.Join(missingSchemas, ", ")))
+		}
+
+		// Check replica identity of tables
+		missingTables, err := pg.listTablesMissingReplicaIdentityFull()
+		if err != nil {
+			return nil, fmt.Errorf("error in checking table replica identity: %w", err)
+		}
+		if len(missingTables) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables missing replica identity full: "), strings.Join(missingTables, ", ")))
 		}
 
 		// Check if user has ownership over all tables
@@ -1116,11 +1110,86 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			return nil, fmt.Errorf("error in checking table owner permissions: %w", err)
 		}
 		if len(missingTables) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("Tables over which user does not have ownership: %v", missingTables))
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing ownership for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
+		}
+
+		// Check if sequences have SELECT permission
+		sequencesWithMissingPerm, err := pg.listSequencesMissingSelectPermission()
+		if err != nil {
+			return nil, fmt.Errorf("error in checking sequence select permissions: %w", err)
+		}
+		if len(sequencesWithMissingPerm) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Sequences: ", pg.source.User), strings.Join(sequencesWithMissingPerm, ", ")))
+		}
+	} else {
+		// For offline migration
+		// Check if schemas have USAGE permission and check if tables in the provided schemas have SELECT permission
+		res, err := pg.GetMissingExportSchemaPermissions()
+		if err != nil {
+			return nil, fmt.Errorf("error in getting missing export data permissions: %w", err)
+		}
+		combinedResult = append(combinedResult, res...)
+
+		// Check if sequences have SELECT permission
+		sequencesWithMissingPerm, err := pg.listSequencesMissingSelectPermission()
+		if err != nil {
+			return nil, fmt.Errorf("error in checking sequence select permissions: %w", err)
+		}
+		if len(sequencesWithMissingPerm) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Sequences: ", pg.source.User), strings.Join(sequencesWithMissingPerm, ", ")))
 		}
 	}
 
 	return combinedResult, nil
+}
+
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+	var combinedResult []string
+
+	// Check if schemas have USAGE permission
+	missingSchemas, err := pg.listSchemasMissingUsagePermission()
+	if err != nil {
+		return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
+	}
+	if len(missingSchemas) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing USAGE permission for user %s on Schemas: ", pg.source.User), strings.Join(missingSchemas, ", ")))
+	}
+
+	// Check if tables have SELECT permission
+	missingTables, err := pg.listTablesMissingSelectPermission()
+	if err != nil {
+		return nil, fmt.Errorf("error checking table select permissions: %w", err)
+	}
+	if len(missingTables) > 0 {
+		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
+	}
+
+	return combinedResult, nil
+}
+
+func (pg *PostgreSQL) isMigrationUserASuperUser() (bool, error) {
+	query := `
+	SELECT
+		CASE
+			WHEN EXISTS (SELECT 1 FROM pg_settings WHERE name = 'rds.extensions') THEN
+				EXISTS (
+					SELECT 1
+					FROM pg_roles r
+					JOIN pg_auth_members am ON r.oid = am.roleid
+					JOIN pg_roles m ON am.member = m.oid
+					WHERE r.rolname = 'rds_superuser'
+					AND m.rolname = $1
+				)
+			ELSE
+				(SELECT rolsuper FROM pg_roles WHERE rolname = $1)
+		END AS is_superuser;`
+
+	var isSuperUser bool
+	err := pg.db.QueryRow(query, pg.source.User).Scan(&isSuperUser)
+	if err != nil {
+		return false, fmt.Errorf("error in checking if migration user is a superuser: %w", err)
+	}
+	return isSuperUser, nil
 }
 
 func (pg *PostgreSQL) listTablesMissingOwnerPermission() ([]string, error) {
@@ -1175,7 +1244,8 @@ func (pg *PostgreSQL) listTablesMissingOwnerPermission() ([]string, error) {
 			return nil, fmt.Errorf("error scanning query rows for table names: %w", err)
 		}
 		if !hasOwnership {
-			missingTables = append(missingTables, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+			// quote table name as it can be case sensitive
+			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
 		}
 	}
 
@@ -1276,7 +1346,8 @@ func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull() ([]string, error) {
 			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
 		if status == MISSING {
-			missingTables = append(missingTables, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+			// quote table name as it can be case sensitive
+			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
 		}
 	}
 
@@ -1288,21 +1359,23 @@ func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull() ([]string, error) {
 	return missingTables, nil
 }
 
-func (pg *PostgreSQL) checkWalLevel() bool {
-	query := `SELECT
-	CASE WHEN current_setting('wal_level') = 'logical'
-		THEN true
-		ELSE false
-	END AS wal_level_status_correct;`
-	var walLevelStatusCorrect bool
-	err := pg.db.QueryRow(query).Scan(&walLevelStatusCorrect)
+func (pg *PostgreSQL) checkWalLevel() (msg string) {
+	query := `SELECT current_setting('wal_level') AS wal_level;`
+
+	var walLevel string
+	err := pg.db.QueryRow(query).Scan(&walLevel)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for checking wal_level: %v\n", query, err)
+		utils.ErrExit("error in querying(%q) source database for wal_level: %v\n", query, err)
 	}
-	return walLevelStatusCorrect
+	if walLevel != "logical" {
+		msg = fmt.Sprintf("%s Current wal_level: %s Required wal_level: logical", color.RedString("ERROR"), walLevel)
+	} else {
+		log.Infof("Current wal_level: %s", walLevel)
+	}
+	return msg
 }
 
-func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissingPerm []string, sequencesWithNoUsagePerm []string, err error) {
+func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissingPerm []string, err error) {
 	trimmedSchemaList := pg.getTrimmedSchemaList()
 	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
 
@@ -1343,7 +1416,7 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 `, pg.source.User, GRANTED, MISSING, querySchemaList, GRANTED, pg.source.User, GRANTED, MISSING, NO_USAGE_PERMISSION)
 	rows, err := pg.db.Query(checkSequenceSelectPermissionQuery)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error in querying(%q) source database for checking sequence select permission: %w", checkSequenceSelectPermissionQuery, err)
+		return nil, fmt.Errorf("error in querying(%q) source database for checking sequence select permission: %w", checkSequenceSelectPermissionQuery, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -1356,24 +1429,23 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 	for rows.Next() {
 		err = rows.Scan(&sequenceSchemaName, &sequenceName, &selectStatus)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error in scanning query rows for sequence names: %w", err)
+			return nil, fmt.Errorf("error in scanning query rows for sequence names: %w", err)
 		}
 		if selectStatus == MISSING {
-			sequencesWithMissingPerm = append(sequencesWithMissingPerm, fmt.Sprintf("%s.%s", sequenceSchemaName, sequenceName))
-		} else if selectStatus == NO_USAGE_PERMISSION {
-			sequencesWithNoUsagePerm = append(sequencesWithNoUsagePerm, fmt.Sprintf("%s.%s", sequenceSchemaName, sequenceName))
+			// quote sequence name as it can be case sensitive
+			sequencesWithMissingPerm = append(sequencesWithMissingPerm, fmt.Sprintf(`%s."%s"`, sequenceSchemaName, sequenceName))
 		}
 	}
 
 	// Check for errors during row iteration
 	if err = rows.Err(); err != nil {
-		return nil, nil, fmt.Errorf("error iterating over query rows: %w", err)
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
 	}
 
-	return sequencesWithMissingPerm, sequencesWithNoUsagePerm, nil
+	return sequencesWithMissingPerm, nil
 }
 
-func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm []string, tablesWithNoUsagePerm []string, err error) {
+func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm []string, err error) {
 	// Users only need SELECT permissions on the tables of the schema they want to export for export schema
 	trimmedSchemaList := pg.getTrimmedSchemaList()
 	trimmedSchemaList = append(trimmedSchemaList, "pg_catalog", "information_schema")
@@ -1412,7 +1484,7 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm
 	);`, querySchemaList, pg.source.User, pg.source.User, GRANTED, MISSING, NO_USAGE_PERMISSION)
 	rows, err := pg.db.Query(checkTableSelectPermissionQuery)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error in querying(%q) source database for checking table select permission: %w", checkTableSelectPermissionQuery, err)
+		return nil, fmt.Errorf("error in querying(%q) source database for checking table select permission: %w", checkTableSelectPermissionQuery, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -1426,36 +1498,27 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm
 	for rows.Next() {
 		err = rows.Scan(&tableSchemaName, &tableName, &status)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
 		if status == MISSING {
 			if tableSchemaName == "pg_catalog" || tableSchemaName == "information_schema" {
 				// If table name is in pg_catalog_tables_required or information_schema_tables_required and missing SELECT permission, then add to tablesWithMissingPerm
 				if slices.Contains(pg_catalog_tables_required, tableName) || slices.Contains(information_schema_tables_required, tableName) {
-					tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+					// quote table name as it can be case sensitive
+					tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
 				}
 			} else {
-				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
-			}
-		} else if status == NO_USAGE_PERMISSION {
-			if tableSchemaName == "pg_catalog" || tableSchemaName == "information_schema" {
-				// If table name is in pg_catalog_tables_required or information_schema_tables_required and missing USAGE permission, then add to tablesWithNoUsagePerm
-				if slices.Contains(pg_catalog_tables_required, tableName) || slices.Contains(information_schema_tables_required, tableName) {
-					tablesWithNoUsagePerm = append(tablesWithNoUsagePerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
-				}
-			} else {
-				// If table name is not in pg_catalog_tables_required or information_schema_tables_required and missing USAGE permission, then add to tablesWithMissingPerm
-				tablesWithNoUsagePerm = append(tablesWithNoUsagePerm, fmt.Sprintf("%s.%s", tableSchemaName, tableName))
+				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
 			}
 		}
 	}
 
 	// Check for errors during row iteration
 	if err = rows.Err(); err != nil {
-		return nil, nil, fmt.Errorf("error iterating over query rows: %w", err)
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
 	}
 
-	return tablesWithMissingPerm, tablesWithNoUsagePerm, nil
+	return tablesWithMissingPerm, nil
 }
 
 func (pg *PostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {

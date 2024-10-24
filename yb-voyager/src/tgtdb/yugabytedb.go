@@ -110,7 +110,7 @@ func (yb *TargetYugabyteDB) Init() error {
 	}
 
 	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
+		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname = '%s';",
 		yb.tconf.Schema)
 	var cntSchemaName int
 	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
@@ -1348,7 +1348,7 @@ type NodeMetrics struct {
 
 // =============================== Guardrails =================================
 
-func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
+func (yb *TargetYugabyteDB) GetMissingImportDataPermissions(isFallForwardEnabled bool) ([]string, error) {
 	// check if the user is a superuser
 	isSuperUser, err := IsCurrentUserSuperUser(yb.tconf)
 	if err != nil {

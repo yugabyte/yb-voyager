@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"text/template"
 
+	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -258,6 +259,8 @@ func init() {
 
 	assessMigrationCmd.Flags().Int64Var(&intervalForCapturingIOPS, "iops-capture-interval", 120,
 		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). (only valid for PostgreSQL)")
+
+	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", false, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
 }
 
 func assessMigration() (err error) {
@@ -291,10 +294,43 @@ func assessMigration() (err error) {
 			utils.ErrExit("error connecting source db: %v", err)
 		}
 
+		// We will require source db connection for the below checks
+		// Check if required binaries are installed.
+		if source.RunGuardrailsChecks {
+			binaryCheckIssues, err := checkDependenciesForExport()
+			if err != nil {
+				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
+			} else if len(binaryCheckIssues) > 0 {
+				return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
+			}
+		}
+
 		res := source.DB().CheckSchemaExists()
 		if !res {
 			return fmt.Errorf("schema %q does not exist", source.Schema)
 		}
+
+		// Check if source db has permissions to assess migration
+		if source.RunGuardrailsChecks {
+			missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
+			if err != nil {
+				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+			}
+			if len(missingPerms) > 0 {
+				color.Red("\nPermissions missing in the source database for assess migration:\n")
+				output := strings.Join(missingPerms, "\n")
+				utils.PrintAndLog("%s\n\n", output)
+
+				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+				fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
+
+				reply := utils.AskPrompt("\nDo you want to continue anyway")
+				if !reply {
+					return fmt.Errorf("grant the required permissions and try again")
+				}
+			}
+		}
+
 		fetchSourceInfo()
 
 		source.DB().Disconnect()

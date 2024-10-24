@@ -213,7 +213,7 @@ func exportData() bool {
 	defer source.DB().Disconnect()
 
 	if source.RunGuardrailsChecks {
-		err = source.DB().CheckSourceDBVersion()
+		err = source.DB().CheckSourceDBVersion(exportType)
 		if err != nil {
 			utils.ErrExit("Source DB version check failed: %s", err)
 		}
@@ -222,9 +222,9 @@ func exportData() bool {
 		if err != nil {
 			utils.ErrExit("check dependencies for export: %v", err)
 		} else if len(binaryCheckIssues) > 0 {
-			color.Red("\nSome dependencies required for export data are missing: ")
-			utils.PrintAndLog("%s", strings.Join(binaryCheckIssues, "\n"))
-			utils.ErrExit("Please install or add the required dependencies to PATH and try again.")
+			color.Red("\nMissing dependencies for export data:")
+			utils.PrintAndLog("\n%s", strings.Join(binaryCheckIssues, "\n"))
+			utils.ErrExit("")
 		}
 	}
 
@@ -246,10 +246,23 @@ func exportData() bool {
 			utils.ErrExit("get missing export data permissions: %v", err)
 		}
 		if len(missingPermissions) > 0 {
-			color.Red("\nSome permissions are missing for the source database on user %s:\n", source.User)
+			color.Red("\nPermissions and configurations missing in the source database for export data:\n")
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog("%s\n", output)
-			utils.ErrExit("Please grant the required permissions to the user %s and try again.", source.User)
+
+			var link string
+			if changeStreamingIsEnabled(exportType) {
+				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
+			} else {
+				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+			}
+			fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
+
+			// Make a prompt to the user to continue even with missing permissions
+			reply := utils.AskPrompt("\nDo you want to continue anyway")
+			if !reply {
+				utils.ErrExit("Grant the required permissions and make the changes in configurations and try again.")
+			}
 		} else {
 			// TODO: Print this message on the console too once the code is stable
 			log.Info("All required permissions are present for the source database.")

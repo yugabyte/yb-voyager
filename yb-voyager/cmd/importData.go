@@ -129,17 +129,45 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 
+	record, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
+
 	// Check if target DB has the required permissions
 	if tconf.RunGuardrailsChecks {
-		missingPermissions, err := tdb.GetMissingImportDataPermissions()
+		missingPermissions, err := tdb.GetMissingImportDataPermissions(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE)
 		if err != nil {
 			utils.ErrExit("Failed to get missing import data permissions: %s", err)
 		}
 		if len(missingPermissions) > 0 {
-			utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
+			// Not printing the target db is missing permissions message for YB
+			// In YB we only check whether he user is a superuser and hence print only in the case where target db is not YB
+			// In case of fall forward too we only run superuser checks and hence print only in the case where fallback is enabled
+			if tconf.TargetDBType != YUGABYTEDB && !(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE) {
+				utils.PrintAndLog(color.RedString("\nThe target database is missing the following permissions required for importing data:"))
+			}
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog(output)
-			utils.ErrExit("Please grant the required permissions and retry the import.")
+
+			var link string
+			if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/#prepare-source-replica-database"
+			} else if importerRole == SOURCE_DB_IMPORTER_ROLE {
+				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#prepare-the-source-database"
+			} else {
+				if changeStreamingIsEnabled(importType) {
+					link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-target-database"
+				} else {
+					link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-target-database"
+				}
+			}
+			fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
+
+			// Prompt user to continue if missing permissions
+			if !utils.AskPrompt("\nDo you want to continue anyway") {
+				utils.ErrExit("Please grant the required permissions and retry the import.")
+			}
 		} else {
 			log.Info("The target database has the required permissions for importing data.")
 		}
@@ -159,10 +187,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
-	record, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
-	}
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 
 		importType = record.ExportType

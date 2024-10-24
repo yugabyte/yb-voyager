@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -46,10 +47,13 @@ func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) erro
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		possiblePaths := []string{
-			fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
-			fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
-			"/opt/yb-voyager/debezium-server"}
+		// depending on OS add the paths to check
+		currentOS := runtime.GOOS
+		possiblePaths := []string{"/opt/yb-voyager/debezium-server"}
+		if currentOS == "darwin" {
+			possiblePaths = append(possiblePaths, fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
+				fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION))
+		}
 
 		for _, path := range possiblePaths {
 			if utils.FileOrFolderExists(path) {
@@ -58,7 +62,7 @@ func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) erro
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {
-			err := fmt.Errorf("could not find debezium-server directory in any of %v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", possiblePaths)
+			err := fmt.Errorf("Debezium: not found in path(s) %v", possiblePaths)
 			return err
 		}
 	}
@@ -77,7 +81,8 @@ func NewDebezium(config *Config) *Debezium {
 func (d *Debezium) Start() error {
 	err := FindDebeziumDistribution(d.Config.SourceDBType, d.Config.UseYBgRPCConnector)
 	if err != nil {
-		return err
+		// Addding suggestion to install debezium-server if it is not found
+		return fmt.Errorf("%v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
 	}
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err = d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)

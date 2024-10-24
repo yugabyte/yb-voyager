@@ -54,7 +54,8 @@ func NewYugabyteDBCDCClient(exportDir, ybServers, sslRootCert, dbName, tableName
 func (ybc *YugabyteDBCDCClient) Init() error {
 	err := FindDebeziumDistribution("yugabytedb", true)
 	if err != nil {
-		return fmt.Errorf("error in finding debezium distribution: %s", err)
+		// Adding suggestion to install debezium-server if it is not found
+		return fmt.Errorf("finding debezium distribution: %s. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
 	}
 	ybc.ybCdcClientJarPath = fmt.Sprintf("%s/yb-client-cdc-stream-wrapper.jar", DEBEZIUM_DIST_DIR)
 	return nil

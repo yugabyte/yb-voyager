@@ -56,7 +56,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
-	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before exporting data")
+	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", false, "run guardrails checks before export. (only valid for PostgreSQL)")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -395,8 +395,12 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 			if err != nil {
 				return nil, err
 			} else if binaryCheckIssue != "" {
+
 				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
+		}
+		if len(binaryCheckIssues) > 0 {
+			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
 		}
 	}
 
@@ -407,6 +411,7 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		err := dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
 			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
+			binaryCheckIssues = append(binaryCheckIssues, "Please check your Voyager installation and try again")
 		}
 	}
 

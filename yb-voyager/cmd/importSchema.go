@@ -112,12 +112,15 @@ func importSchema() error {
 			utils.ErrExit("Failed to get missing import schema permissions: %s", err)
 		}
 		if len(missingPermissions) > 0 {
-			utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing schema:"))
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog(output)
+
+			link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-target-database"
+			fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
+
 			// Prompt user to continue if missing permissions
-			if !utils.AskPrompt("Do you want to continue without the required permissions?") {
-				utils.ErrExit("Exiting...")
+			if !utils.AskPrompt("Do you want to continue anyway") {
+				utils.ErrExit("Grant the required permissions and try again.")
 			}
 		} else {
 			log.Info("The target database has the required permissions for importing schema.")

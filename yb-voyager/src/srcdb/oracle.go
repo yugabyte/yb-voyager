@@ -112,7 +112,7 @@ func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	return approxRowCount.Int64
 }
 
-func (ora *Oracle) CheckSourceDBVersion() error {
+func (ora *Oracle) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 
@@ -121,6 +121,10 @@ func (ora *Oracle) GetMissingExportSchemaPermissions() ([]string, error) {
 }
 
 func (ora *Oracle) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+	return nil, nil
+}
+
+func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, error) {
 	return nil, nil
 }
 
