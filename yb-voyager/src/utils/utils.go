@@ -523,6 +523,24 @@ func GetEnvAsInt(key string, fallback int) int {
 	return int(valueInt)
 }
 
+func GetEnvAsBool(key string, fallback bool) bool {
+	valueStr, exists := os.LookupEnv(key)
+	if !exists {
+		return fallback
+	}
+
+	var valueBool bool
+	switch strings.ToLower(valueStr) {
+	case "true", "1", "yes":
+		valueBool = true
+	case "false", "0", "no":
+		valueBool = false
+	default:
+		valueBool = fallback
+	}
+	return valueBool
+}
+
 func GetMapKeysSorted(m map[string]*string) []string {
 	keys := lo.Keys(m)
 	sort.Strings(keys)

@@ -23,6 +23,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
+func init() {
+	readConfig()
+}
+
 type dummyTargetYugabyteDB struct {
 	size          int
 	maxSize       int

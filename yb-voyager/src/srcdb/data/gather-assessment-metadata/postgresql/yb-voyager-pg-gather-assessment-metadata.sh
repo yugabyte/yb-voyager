@@ -146,6 +146,9 @@ main() {
         fi
     fi
 
+    # checking before quoting connection_string
+    pg_stat_available=$(psql -A -t -q $pg_connection_string -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'")
+
     # quote the required shell variables
     pg_connection_string=$(quote_string "$pg_connection_string")
     schema_list=$(quote_string "$schema_list")
@@ -173,6 +176,10 @@ main() {
             run_command "$psql_command"
             mv table-index-iops.csv table-index-iops-final.csv
         else
+            if [ "$script_name" == "db-queries-summary" ] && [ "$pg_stat_available" != "1" ]; then
+                print_and_log "INFO" "Skipping collection of db queries summary: pg_stat_statements is unavailable."
+                continue
+            fi
             psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
             log "INFO" "Executing script: $psql_command"
             run_command "$psql_command"
