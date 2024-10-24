@@ -245,7 +245,7 @@ const (
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION                  = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
 	GIN_INDEX_DETAILS                                         = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back of data. These columns will be excluded when exporting and importing data in live migration workflows."
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
 )
 
 // Reports one case in JSON
@@ -430,6 +430,8 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 						'duplicate_payment_method',
 						'server_failure'
 					);
+				stmt:{create_enum_stmt:{type_name:{string:{sval:"decline_reason"}} vals:{string:{sval:"duplicate_payment_method"}} vals:{string:{sval:"server_failure"}}}}
+				stmt_len:101}
 
 				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
 			*/
