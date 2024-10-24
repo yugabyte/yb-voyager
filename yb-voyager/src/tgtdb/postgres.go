@@ -656,7 +656,8 @@ func (pg *TargetPostgreSQL) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 }
 
 func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
-	return 200 * 1024 * 1024 // 200 MB //TODO
+	// if MAX_BATCH_SIZE is set in env then return that value
+	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200 * 1024 * 1024) // default: 200 * 1024 * 1024 MB
 }
 
 func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {

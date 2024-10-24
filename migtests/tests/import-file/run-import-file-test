@@ -50,9 +50,13 @@ main() {
 	mkdir -p ${EXPORT_DIR}
 	export TARGET_DB_SCHEMA='public'
 
+	#Default BATCH_SIZE_BYTES
 	step "Import data file: OneMRows.text -> one_m_rows"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
 		--file-table-map "OneMRows.text:one_m_rows" --start-clean true 
+
+	
+	export MAX_BATCH_SIZE_BYTES=345643 #~300KB 
 
 	export CSV_READER_MAX_BUFFER_SIZE_BYTES=300
 	step "Import data file: FY2021_Survey.csv -> survey"
@@ -69,6 +73,27 @@ main() {
 	step "Import data file: accounts_data.csv -> accounts"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
 			--file-table-map "accounts_data.csv:accounts" --has-header=true --batch-size 10000 --null-string "\N"
+
+	#Test for Large rows and non-default batch size bytes (i.e. 17MB for row sizes of 15MB,11MB,5KB,12MB,9.9MB)
+	step "Import data file: large_rows_test.txt -> large_rows_test" 
+	export MAX_BATCH_SIZE_BYTES=17000000
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
+			--file-table-map "large_rows_test.txt:large_rows_test"
+	
+	# import data state metainfo directory for large_rows_test table
+	IMPORT_DATA_STATE_DIR_LARGE_ROWS="$TEST_DIR/export-dir/metainfo/import_data_state/import_file/table::public.\"large_rows_test\"/"
+
+	# Expected batch file names without the symlink for large_rows_test.txt file
+	expected_batch_files_large_rows=(
+		"batch::0.5.1.9900003.D"
+		"batch::1.1.1.15000003.D"
+		"batch::2.3.2.11005006.D"
+		"batch::3.4.1.12131223.D"
+	)
+
+	validate_import_data_state_batch_files $IMPORT_DATA_STATE_DIR_LARGE_ROWS ${expected_batch_files_large_rows[@]}
+	
+	export MAX_BATCH_SIZE_BYTES=3032 #these are smaller files so its better to have smaller here 
 
 	# Next 4 tests are right now supported with a special csv format i.e. without new line
 	# for complete support of csv with newline, track this issue - https://github.com/yugabyte/yb-voyager/issues/748
@@ -173,10 +198,13 @@ main() {
 	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
 			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header y
 
+	export MAX_BATCH_SIZE_BYTES=343245
 	# Test larger import from s3
 	step "Import large data file from S3: volume.text-> s3_volume"
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
 			--file-table-map "volume_test:s3_volume"
+
+	export MAX_BATCH_SIZE_BYTES=3450 #these are smaller files so its better to have smaller here 
 
 	# Test import csv file with null_string as NIL
 	step "Import data file: t1_null_string_csv.csv -> t1_null_string_csv"
@@ -230,10 +258,14 @@ main() {
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
 			--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header true
 
+	export MAX_BATCH_SIZE_BYTES=343245
+
 	# Test larger import from GCS buckets
 	step "Import large data file from GCS: volume1.csv-> gcs_volume"
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
 			--file-table-map "volume1.csv:gcs_volume" --has-header yes --batch-size 10000 --null-string "\N"
+
+	unset MAX_BATCH_SIZE_BYTES #unsetting it here as large import file test should run with defaults
 
 	# Test import from GCS buckets with escape/quote characters
 	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"

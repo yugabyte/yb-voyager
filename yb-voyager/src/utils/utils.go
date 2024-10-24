@@ -515,12 +515,26 @@ func GetEnvAsInt(key string, fallback int) int {
 	if !exists {
 		return fallback
 	}
-	valueInt, err := strconv.ParseInt(valueStr, 10, 64)
+	valueInt, err := strconv.ParseInt(valueStr, 10, 32)
 	if err != nil {
 		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return int(valueInt)
+}
+
+func GetEnvAsInt64(key string, fallback int64) int64 {
+	valueStr, exists := os.LookupEnv(key)
+	if !exists {
+		return fallback
+	}
+
+	valueInt, err := strconv.ParseInt(valueStr, 10, 64)
+	if err != nil {
+		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		return fallback
+	}
+	return valueInt
 }
 
 func GetEnvAsBool(key string, fallback bool) bool {

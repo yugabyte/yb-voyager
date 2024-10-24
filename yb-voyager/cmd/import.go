@@ -80,7 +80,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	if tconf.DisableTransactionalWrites {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
-	validateBatchSizeFlag(batchSize)
+	validateBatchSizeFlag(batchSizeInNumRows)
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
 		getTargetPassword(cmd)
@@ -341,7 +341,7 @@ func checkOrSetDefaultTargetSSLMode() {
 }
 
 func registerFlagsForTarget(cmd *cobra.Command) {
-	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
+	cmd.Flags().Int64Var(&batchSizeInNumRows, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default(%d)", DEFAULT_BATCH_SIZE_YUGABYTEDB))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. By default, voyager will try if it can determine the total "+
@@ -356,7 +356,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 }
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {
-	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
+	cmd.Flags().Int64Var(&batchSizeInNumRows, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(%d), POSTGRESQL(%d)", DEFAULT_BATCH_SIZE_ORACLE, DEFAULT_BATCH_SIZE_POSTGRESQL))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. default: For PostgreSQL(voyager will try if it can determine the total "+
@@ -365,13 +365,13 @@ func registerFlagsForSourceReplica(cmd *cobra.Command) {
 }
 
 func validateBatchSizeFlag(numLinesInASplit int64) {
-	if batchSize <= 0 {
+	if batchSizeInNumRows <= 0 {
 		if tconf.TargetDBType == ORACLE {
-			batchSize = DEFAULT_BATCH_SIZE_ORACLE
+			batchSizeInNumRows = DEFAULT_BATCH_SIZE_ORACLE
 		} else if tconf.TargetDBType == POSTGRESQL {
-			batchSize = DEFAULT_BATCH_SIZE_POSTGRESQL
+			batchSizeInNumRows = DEFAULT_BATCH_SIZE_POSTGRESQL
 		} else {
-			batchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
+			batchSizeInNumRows = DEFAULT_BATCH_SIZE_YUGABYTEDB
 		}
 		return
 	}
