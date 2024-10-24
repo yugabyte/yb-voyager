@@ -52,6 +52,19 @@ var information_schema_tables_required = []string{"schemata", "tables", "columns
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
 
+
+func GetPGLiveMigrationUnsupportedDatatypes() []string {
+	liveMigrationUnsupportedDataTypes, _ := lo.Difference(PostgresUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
+
+	return liveMigrationUnsupportedDataTypes
+}
+
+func GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes() []string {
+	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(YugabyteUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
+	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, GetPGLiveMigrationUnsupportedDatatypes())
+	return liveMigrationWithFForFBUnsupportedDatatypes
+}
+
 var PG_COMMAND_VERSION = map[string]string{
 	"pg_dump":    "14.0",
 	"pg_restore": "14.0",
