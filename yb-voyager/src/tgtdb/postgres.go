@@ -809,8 +809,8 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	return nil
 }
 
-func (pg *TargetPostgreSQL) GetMissingImportDataPermissions(isFallForwardEnaled bool) ([]string, error) {
-	if !isFallForwardEnaled {
+func (pg *TargetPostgreSQL) GetMissingImportDataPermissions(isFallForwardEnabled bool) ([]string, error) {
+	if !isFallForwardEnabled {
 		// In case of fall back we need to check usage permission on schemas and select, insert, delete, update permissions on tables
 		var missingPermissionsList []string
 		// Check if db_user has USAGE permission on schemas

@@ -715,6 +715,6 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 	return nil
 }
 
-func (tdb *TargetOracleDB) GetMissingImportDataPermissions(isFallForwardEnaled bool) ([]string, error) {
+func (tdb *TargetOracleDB) GetMissingImportDataPermissions(isFallForwardEnabled bool) ([]string, error) {
 	return nil, nil
 }

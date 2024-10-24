@@ -136,7 +136,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	// Check if target DB has the required permissions
 	if tconf.RunGuardrailsChecks {
-		missingPermissions, err := tdb.GetMissingImportDataPermissions(record.FallForwardEnabled)
+		missingPermissions, err := tdb.GetMissingImportDataPermissions(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE)
 		if err != nil {
 			utils.ErrExit("Failed to get missing import data permissions: %s", err)
 		}
