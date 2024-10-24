@@ -455,26 +455,18 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
-	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
-	if tconf.EnableYBAdaptiveParallelism {
-		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-		if !ok {
-			utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
-		}
-		if !yb.IsAdaptiveParallelismSupported() {
-			if !utils.AskPrompt("Adaptive parallelism is not supported in this version of YugabyteDB. Do you want to continue without adaptive parallelism?") {
-				utils.ErrExit("adaptive parallelism not supported by this version of YugabyteDB. Exiting...")
-			}
-			log.Infof("Continuing without adaptive parallelism as it is not supported in this version of YugabyteDB")
-		} else {
-			go func() {
-				err := adaptiveparallelism.AdaptParallelism(yb)
-				if err != nil {
-					log.Errorf("adaptive parallelism error: %v", err)
-				}
-			}()
-		}
 
+	var adaptiveParallelismStarted bool
+	if tconf.EnableYBAdaptiveParallelism {
+		adaptiveParallelismStarted, err = startAdaptiveParallelism()
+		if err != nil {
+			utils.ErrExit("Failed to start adaptive parallelism: %s", err)
+		}
+	}
+	if adaptiveParallelismStarted {
+		utils.PrintAndLog("Using 1-%d parallel jobs (adaptive)", tconf.MaxParallelism)
+	} else {
+		utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
 	}
 
 	targetDBVersion := tdb.GetVersion()
@@ -652,6 +644,25 @@ func importData(importFileTasks []*ImportFileTask) {
 		packAndSendImportDataToSourcePayload(COMPLETE)
 	}
 
+}
+
+func startAdaptiveParallelism() (bool, error) {
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return false, fmt.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
+	}
+	if !yb.IsAdaptiveParallelismSupported() {
+		utils.PrintAndLog(color.YellowString("Note: Continuing without adaptive parallelism as it is not supported in this version of YugabyteDB."))
+		return false, nil
+	}
+
+	go func() {
+		err := adaptiveparallelism.AdaptParallelism(yb)
+		if err != nil {
+			log.Errorf("adaptive parallelism error: %v", err)
+		}
+	}()
+	return true, nil
 }
 
 func waitForDebeziumStartIfRequired() error {
