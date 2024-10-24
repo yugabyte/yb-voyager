@@ -27,7 +27,7 @@
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 1,
-				"ObjectNames": "trg_simple_insert ON simple_table"
+				"ObjectNames": "trg_simple_insert"
 			},
 			{
 				"ObjectType": "FUNCTION",
