@@ -464,6 +464,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				event.Op = "c" // reverting state
 			}
+			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 			var res sql.Result
 			res, err = tx.Exec(stmt)
 			if err != nil {
