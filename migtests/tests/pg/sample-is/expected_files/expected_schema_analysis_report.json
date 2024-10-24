@@ -26,7 +26,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 9,
-                "InvalidCount": 1,
+                "InvalidCount": 2,
                 "ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
             },
             {
@@ -53,6 +53,17 @@
             "Suggestion": "Refer docs link for details on possible workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.reports",
+            "Reason": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector on column - report_tsv",
+            "SqlStatement": "CREATE TABLE public.reports (\n    agent_uuid uuid,\n    \"time\" timestamp with time zone,\n    attrs public.hstore DEFAULT ''::public.hstore,\n    report text,\n    report_tsv tsvector\n);",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
         }
     ]
 }

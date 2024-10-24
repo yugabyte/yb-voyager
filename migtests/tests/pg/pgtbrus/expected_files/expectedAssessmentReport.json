@@ -202,6 +202,21 @@
 			"FeatureName": "Policies",
 			"Objects": [],
 			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema."
+		},
+		{
+			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
+			"Objects": [
+				{
+					"ObjectName": "public.t.c (public.mycomposit)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.f_t.c (public.mycomposit)",
+					"SqlStatement": ""
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
 		}
 	],
 	"UnsupportedQueryConstructs": null

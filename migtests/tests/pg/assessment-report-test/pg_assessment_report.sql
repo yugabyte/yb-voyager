@@ -182,7 +182,8 @@ create table public.combined_tbl (
 	lsn pg_lsn, 
 	bitt bit (13),
 	bittv bit varying(15),
-    address address_type
+    address address_type,
+    arr_enum enum_kind[]
 );
 
 CREATE index idx1 on public.combined_tbl (c);

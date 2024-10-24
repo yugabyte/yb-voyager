@@ -144,9 +144,13 @@ var (
 	*/
 	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
 	/*
-		list of composite types in the exported schema
+		list of composite types with fully qualified typename in the exported schema
 	*/
 	compositeTypes = make([]string, 0)
+	/*
+		list of enum types with fully qualified typename in the exported schema
+	*/
+	enumTypes = make([]string, 0)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
@@ -219,27 +223,29 @@ const (
 	CONSTRAINT_TRIGGER_ISSUE_REASON             = "CONSTRAINT TRIGGER not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
 
-	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
-	UNSUPPORTED_EXTENSION_ISSUE          = "This extension is not supported in YugabyteDB by default."
-	EXCLUSION_CONSTRAINT_ISSUE           = "Exclusion constraint is not supported yet"
-	ALTER_TABLE_DISABLE_RULE_ISSUE       = "ALTER TABLE name DISABLE RULE not supported yet"
-	STORAGE_PARAMETERS_DDL_STMT_ISSUE    = "Storage parameters are not supported yet."
-	ALTER_TABLE_SET_ATTRUBUTE_ISSUE      = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
-	FOREIGN_TABLE_ISSUE_REASON           = "Foreign tables require manual intervention."
-	ALTER_TABLE_CLUSTER_ON_ISSUE         = "ALTER TABLE CLUSTER not supported yet."
-	DEFERRABLE_CONSTRAINT_ISSUE          = "DEFERRABLE constraints not supported yet"
-	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
-	VIEW_CHECK_OPTION_ISSUE              = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
-	ISSUE_INDEX_WITH_COMPLEX_DATATYPES   = `INDEX on column '%s' not yet supported`
-	ISSUE_UNLOGGED_TABLE                 = "UNLOGGED tables are not supported yet."
-	UNSUPPORTED_DATATYPE                 = "Unsupported datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION  = "Unsupported datatype for Live migration"
-	UNSUPPORTED_PG_SYNTAX                = "Unsupported PG syntax"
+	STORED_GENERATED_COLUMN_ISSUE_REASON           = "Stored generated columns are not supported."
+	UNSUPPORTED_EXTENSION_ISSUE                    = "This extension is not supported in YugabyteDB by default."
+	EXCLUSION_CONSTRAINT_ISSUE                     = "Exclusion constraint is not supported yet"
+	ALTER_TABLE_DISABLE_RULE_ISSUE                 = "ALTER TABLE name DISABLE RULE not supported yet"
+	STORAGE_PARAMETERS_DDL_STMT_ISSUE              = "Storage parameters are not supported yet."
+	ALTER_TABLE_SET_ATTRUBUTE_ISSUE                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
+	FOREIGN_TABLE_ISSUE_REASON                     = "Foreign tables require manual intervention."
+	ALTER_TABLE_CLUSTER_ON_ISSUE                   = "ALTER TABLE CLUSTER not supported yet."
+	DEFERRABLE_CONSTRAINT_ISSUE                    = "DEFERRABLE constraints not supported yet"
+	POLICY_ROLE_ISSUE                              = "Policy require roles to be created."
+	VIEW_CHECK_OPTION_ISSUE                        = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
+	ISSUE_INDEX_WITH_COMPLEX_DATATYPES             = `INDEX on column '%s' not yet supported`
+	ISSUE_UNLOGGED_TABLE                           = "UNLOGGED tables are not supported yet."
+	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "Unsupported datatype for Live migration with fall-forward/fallback"
+	UNSUPPORTED_PG_SYNTAX                          = "Unsupported PG syntax"
 
-	INDEX_METHOD_ISSUE_REASON                      = "Schema contains %s index which is not supported."
-	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION       = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
-	GIN_INDEX_DETAILS                              = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+	INDEX_METHOD_ISSUE_REASON                                 = "Schema contains %s index which is not supported."
+	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION                  = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
+	GIN_INDEX_DETAILS                                         = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
 )
 
 // Reports one case in JSON
@@ -340,13 +346,16 @@ func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 		}
 		createForeignTableNode, isForeignTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
 		if isForeignTable {
-			schemaName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Schemaname
-			tableName := createForeignTableNode.CreateForeignTableStmt.BaseStmt.Relation.Relname
+			baseStmt := createForeignTableNode.CreateForeignTableStmt.BaseStmt
+			relation := baseStmt.Relation
+			schemaName := relation.Schemaname
+			tableName := relation.Relname
 			serverName := createForeignTableNode.CreateForeignTableStmt.Servername
 			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
 			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
 				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt, MIGRATION_CAVEATS, FOREIGN_TABLE_DOC_LINK)
+			reportUnsupportedDatatypes(relation, baseStmt.TableElts, sqlStmtInfo, fpath, "FOREIGN TABLE")
 		}
 	}
 }
@@ -367,13 +376,14 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
 		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
+		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
 			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			reportUnsupportedDatatypes(createTableNode, sqlStmtInfo, fpath)
+			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
@@ -412,6 +422,30 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			typeSchemaName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetSchemaname()
 			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 			compositeTypes = append(compositeTypes, fullTypeName)
+		}
+		if isCreateEnumType {
+			//Adding the composite types (UDTs) in the list
+			/*
+				e.g. CREATE TYPE decline_reason AS ENUM (
+						'duplicate_payment_method',
+						'server_failure'
+					);
+				stmt:{create_enum_stmt:{type_name:{string:{sval:"decline_reason"}} vals:{string:{sval:"duplicate_payment_method"}} vals:{string:{sval:"server_failure"}}}}
+				stmt_len:101}
+
+				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
+			*/
+			typeNames := createEnumTypeNode.CreateEnumStmt.GetTypeName()
+			typeSchemaName := ""
+			typeName := ""
+			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
+				typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+			}
+			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+			}
+			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
+			enumTypes = append(enumTypes, fullTypeName)
 		}
 	}
 }
@@ -856,10 +890,9 @@ func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePoli
 	}
 }
 
-func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
+func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query.Node, sqlStmtInfo sqlInfo, fpath string, objectType string) {
+	schemaName := relation.Schemaname
+	tableName := relation.Relname
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 	for _, column := range columns {
 		/*
@@ -875,15 +908,23 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 		*/
 		if column.GetColumnDef() != nil {
 			typeName := ""
+			typeSchemaName := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
 			if len(typeNames) > 0 {
 				typeName = column.GetColumnDef().GetTypeName().GetNames()[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
 			}
+			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+			}
+			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
+			isArrayType := len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0
 			colName := column.GetColumnDef().GetColname()
 			liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
+			unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(srcdb.YugabyteUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
+			liveMigrationWithFfOrFbUnsupportedDataTypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, liveMigrationUnsupportedDataTypes)
 			if utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName) {
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
 				var ghIssue, suggestion, docLink string
 
 				switch typeName {
@@ -895,7 +936,7 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/15638"
 					suggestion = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
 					docLink = XID_DATATYPE_DOC_LINK
-				case "geometry", "geography":
+				case "geometry", "geography", "box2d", "box3d", "topogeometry":
 					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/11323"
 					suggestion = ""
 					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
@@ -905,12 +946,25 @@ func reportUnsupportedDatatypes(createTableNode *pg_query.Node_CreateStmt, sqlSt
 					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
 				}
 				reportCase(fpath, reason, ghIssue, suggestion,
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
-			} else if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
+					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
+			} else if objectType == TABLE && utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
+				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
+					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
+			} else if objectType == TABLE && (utils.ContainsAnyStringFromSlice(liveMigrationWithFfOrFbUnsupportedDataTypes, typeName) ||
+				slices.Contains(compositeTypes, fullTypeName) || (slices.Contains(enumTypes, fullTypeName) && isArrayType)) {
+				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
+				reportTypeName := fullTypeName
+				if isArrayType { // For Array cases to make it clear in issue
+					reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
+				}
+				//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT columns as unsupported with live migration with ff/fb
+				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB, reportTypeName, colName)
+				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
+				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
+					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
 			}
 		}
 	}
@@ -1922,6 +1976,7 @@ var reasonsIncludingSensitiveInformation = []string{
 	POLICY_ROLE_ISSUE,
 	UNSUPPORTED_DATATYPE,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 	STORED_GENERATED_COLUMN_ISSUE_REASON,
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION,
 }

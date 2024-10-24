@@ -576,7 +576,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 8,
+			"ColumnCount": 9,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1832,6 +1832,49 @@
 			],
 			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 			"FeatureDescription": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+		},
+		{
+			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
+			"Objects": [
+				{
+					"ObjectName": "public.combined_tbl.address (public.address_type)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.documents.content_tsvector (tsvector)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.documents.title_tsvector (tsvector)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.combined_tbl.arr_enum (public.enum_kind[])",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.orders.item (public.item_details)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.products.item (public.item_details)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.ts_query_table.query (tsquery)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.orders.item (schema2.item_details)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "schema2.products.item (schema2.item_details)",
+					"SqlStatement": ""
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
 		}
 	],
 	"UnsupportedQueryConstructs": null

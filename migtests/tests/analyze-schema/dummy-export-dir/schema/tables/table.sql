@@ -342,6 +342,12 @@ CREATE TABLE test_udt (
 	home_address1 non_public.address_type1
 );
 
+CREATE TABLE test_arr_enum (
+	id int,
+	arr text[],
+	arr_enum enum_test[]
+);
+
 CREATE TABLE public.locations (
     id integer NOT NULL,
     name character varying(100),

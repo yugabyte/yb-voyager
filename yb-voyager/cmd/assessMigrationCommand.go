@@ -769,7 +769,7 @@ func generateAssessmentReport() (err error) {
 	}
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
-	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, err := fetchColumnsWithUnsupportedDataTypes()
+	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
@@ -783,7 +783,7 @@ func generateAssessmentReport() (err error) {
 	}
 
 	addNotesToAssessmentReport()
-	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration)
+	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
@@ -1016,15 +1016,14 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	return result, nil
 }
 
-func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, error) {
-	var unsupportedDataTypes []utils.TableColumnsDataTypes
-	var unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes
+func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, error) {
+	var unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB []utils.TableColumnsDataTypes
 
 	query := fmt.Sprintf(`SELECT schema_name, table_name, column_name, data_type FROM %s`,
 		migassessment.TABLE_COLUMNS_DATA_TYPES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error querying-%s on assessmentDB: %w", query, err)
+		return nil, nil, nil, fmt.Errorf("error querying-%s on assessmentDB: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -1039,38 +1038,59 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		err := rows.Scan(&columnDataTypes.SchemaName, &columnDataTypes.TableName,
 			&columnDataTypes.ColumnName, &columnDataTypes.DataType)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error scanning rows: %w", err)
+			return nil, nil, nil, fmt.Errorf("error scanning rows: %w", err)
 		}
 
 		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
-	var sourceUnsupportedDataTypes []string
-	var liveMigrationUnsupportedDataTypes []string
+	var sourceUnsupportedDataTypes, liveMigrationUnsupportedDataTypes, liveMigrationWithFForFBUnsupportedDatatypes []string
+
 	switch source.DBType {
 	case POSTGRESQL:
 		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypes
 		liveMigrationUnsupportedDataTypes, _ = lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
+		unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(srcdb.YugabyteUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
+		liveMigrationWithFForFBUnsupportedDatatypes, _ = lo.Difference(unsupportedDataTypesForDbzmYBOnly, liveMigrationUnsupportedDataTypes)
 	case ORACLE:
 		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
 	default:
 		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 	}
-
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
 		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 		//of these types there are other columns available for these information so we just do string match of types with our list
-		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		splits := strings.Split(allColumnsDataTypes[i].DataType, ".")
+		typeName := splits[len(splits)-1] //using typename only for the cases we are checking it from the static list of type names
+		typeName = strings.TrimSuffix(typeName, "[]")
+		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, typeName) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
-		if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, allColumnsDataTypes[i].DataType) {
+		if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
 			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
 		}
+		if utils.ContainsAnyStringFromSlice(liveMigrationWithFForFBUnsupportedDatatypes, typeName) ||
+			utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType) || // if type is UDT
+			(strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]") && //if type is array and is ENUM in the list
+				utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]"))) {
+
+			/*
+			TODO test this for Oracle case if there is any special handling required
+			For Live mgiration with FF or FB, It is meant to be for the datatypes that are going to be in YB after migration 
+			so it makes sense to use the analyzeSchema `compositeTypes` or `enumTypes` and check from there but some information 
+			we are still using from Source which might need a better way in case of Oracle as for PG it doesn't really makes a difference in
+			source or analyzeSchema's results.
+			*/
+			//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT and array on ENUMs columns as unsupported with live migration with ff/fb
+			unsupportedDataTypesForLiveMigrationWithFForFB = append(unsupportedDataTypesForLiveMigrationWithFForFB, allColumnsDataTypes[i])
+
+		}
+
 	}
 
-	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, nil
+	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
 }
 
 const (
@@ -1113,7 +1133,7 @@ func addNotesToAssessmentReport() {
 	}
 }
 
-func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes) {
+func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes, unsupportedDataTypesForLiveMigrationWithFForFB []utils.TableColumnsDataTypes) {
 	switch source.DBType {
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
@@ -1131,6 +1151,13 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
 			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration", columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
+		}
+		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
+			columns := make([]ObjectInfo, 0)
+			for _, col := range unsupportedDataTypesForLiveMigrationWithFForFB {
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
+			}
+			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration with Fall-forward/Fallback", columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE})
 		}
 		for _, caveat := range migrationCaveats {
 			if len(caveat.Objects) > 0 {
