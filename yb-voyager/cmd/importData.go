@@ -1019,7 +1019,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			numLinesTaken += 1
 		}
 		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, dataFile.GetBytesRead(), currentBytesRead)
-		if currentBytesRead >= tdb.MaxBatchSizeInBytes() {
+		if currentBytesRead > tdb.MaxBatchSizeInBytes() {
 			//If a row is itself larger than MaxBatchSizeInBytes erroring out
 			ybSpecificMsg := ""
 			if tconf.TargetDBType == YUGABYTEDB {
@@ -1037,7 +1037,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 
 			// Check if adding this record exceeds the max batch size
 			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
-				dataFile.GetBytesRead() >= tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead
+				dataFile.GetBytesRead() > tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead
 
 				// Finalize the current batch without adding the record
 				finalizeBatch(false, numLinesTaken-1, dataFile.GetBytesRead()-currentBytesRead)

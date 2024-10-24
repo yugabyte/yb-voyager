@@ -97,7 +97,7 @@ main() {
 	#unsetting the batch size bytes
 	unset MAX_BATCH_SIZE_BYTES
 	
-	export MAX_BATCH_SIZE_BYTES=30 #these are smaller files so its better to have smaller here 
+	export MAX_BATCH_SIZE_BYTES=3032 #these are smaller files so its better to have smaller here 
 
 	# Next 4 tests are right now supported with a special csv format i.e. without new line
 	# for complete support of csv with newline, track this issue - https://github.com/yugabyte/yb-voyager/issues/748
@@ -212,7 +212,7 @@ main() {
 
 	unset MAX_BATCH_SIZE_BYTES
 
-	export MAX_BATCH_SIZE_BYTES=30 #these are smaller files so its better to have smaller here 
+	export MAX_BATCH_SIZE_BYTES=3450 #these are smaller files so its better to have smaller here 
 
 	# Test import csv file with null_string as NIL
 	step "Import data file: t1_null_string_csv.csv -> t1_null_string_csv"
