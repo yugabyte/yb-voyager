@@ -1023,7 +1023,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			//If a row is itself larger than MaxBatchSizeInBytes erroring out
 			ybSpecificMsg := ""
 			if tconf.TargetDBType == YUGABYTEDB {
-				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default ~267MB)"
+				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
 			utils.ErrExit("record num=%d for table %q in file %s is larger than the max batch size %d bytes Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 		}
