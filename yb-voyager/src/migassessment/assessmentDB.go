@@ -141,8 +141,7 @@ func InitAssessmentDB() error {
 			mean_exec_time REAL,
 			min_exec_time REAL,
 			max_exec_time REAL,
-			rows		BIGINT,
-			PRIMARY KEY(queryid));`, DB_QUERIES_SUMMARY),
+			rows		BIGINT);`, DB_QUERIES_SUMMARY),
 	}
 
 	for _, cmd := range cmds {
