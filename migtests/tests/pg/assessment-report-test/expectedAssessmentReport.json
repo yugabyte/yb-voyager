@@ -576,7 +576,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 8,
+			"ColumnCount": 9,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -1846,6 +1846,10 @@
 				},
 				{
 					"ObjectName": "public.documents.title_tsvector (tsvector)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.combined_tbl.arr_enum (public.enum_kind[])",
 					"SqlStatement": ""
 				},
 				{

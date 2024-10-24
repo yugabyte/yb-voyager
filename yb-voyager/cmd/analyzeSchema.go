@@ -919,7 +919,7 @@ func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query
 			colName := column.GetColumnDef().GetColname()
 			liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
 			unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(srcdb.YugabyteUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
-			liveMigrationWithFallForwardUnsupportedDataTypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, liveMigrationUnsupportedDataTypes)
+			liveMigrationWithFfOrFbUnsupportedDataTypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, liveMigrationUnsupportedDataTypes)
 			if utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName) {
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
 				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
@@ -951,7 +951,7 @@ func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query
 				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
 					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
-			} else if objectType == TABLE && (utils.ContainsAnyStringFromSlice(liveMigrationWithFallForwardUnsupportedDataTypes, typeName) ||
+			} else if objectType == TABLE && (utils.ContainsAnyStringFromSlice(liveMigrationWithFfOrFbUnsupportedDataTypes, typeName) ||
 				slices.Contains(compositeTypes, fullTypeName) || (slices.Contains(enumTypes, fullTypeName) && isArrayType)) {
 				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 				reportTypeName := fullTypeName

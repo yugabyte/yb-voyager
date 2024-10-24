@@ -1025,11 +1025,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 		//of these types there are other columns available for these information so we just do string match of types with our list
 		splits := strings.Split(allColumnsDataTypes[i].DataType, ".")
-		typeName := splits[0] //using typename only for the cases we are checking it from the static list of type names
-		if len(splits) > 1 {
-			//only type without schema in case of udt and ARRAY
-			typeName = strings.TrimSuffix(splits[1], "[]")
-		}
+		typeName := splits[len(splits)-1] //using typename only for the cases we are checking it from the static list of type names
+		typeName = strings.TrimSuffix(typeName, "[]")
 		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, typeName) {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
 		}
@@ -1040,6 +1037,14 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 			utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType) || // if type is UDT
 			(strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]") && //if type is array and is ENUM in the list
 				utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]"))) {
+
+			/*
+			TODO test this for Oracle case if there is any special handling required
+			For Live mgiration with FF or FB, It is meant to be for the datatypes that are going to be in YB after migration 
+			so it makes sense to use the analyzeSchema `compositeTypes` or `enumTypes` and check from there but some information 
+			we are still using from Source which might need a better way in case of Oracle as for PG it doesn't really makes a difference in
+			source or analyzeSchema's results.
+			*/
 			//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT and array on ENUMs columns as unsupported with live migration with ff/fb
 			unsupportedDataTypesForLiveMigrationWithFForFB = append(unsupportedDataTypesForLiveMigrationWithFForFB, allColumnsDataTypes[i])
 
