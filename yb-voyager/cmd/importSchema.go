@@ -120,7 +120,7 @@ func importSchema() error {
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog(output)
 			// Prompt user to continue if missing permissions
-			if !utils.AskPrompt("Do you want to continue without the required permissions") {
+			if !utils.AskPrompt("Do you want to continue anyway") {
 				utils.ErrExit("Please grant the required permissions and retry the import.")
 			}
 		} else {

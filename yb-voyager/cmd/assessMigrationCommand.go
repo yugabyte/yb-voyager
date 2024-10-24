@@ -319,12 +319,12 @@ func assessMigration() (err error) {
 			if len(missingPerms) > 0 {
 				color.Red("\nPermissions missing in the source database for assess migration:\n")
 				output := strings.Join(missingPerms, "\n")
-				fmt.Printf("%s\n\n", output)
+				utils.PrintAndLog("%s\n\n", output)
 
 				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
 				fmt.Println("You can view the steps to prepare the source database for migration in the documentation:", color.BlueString(link))
 
-				reply := utils.AskPrompt("\nDo you want to continue with the assess migration even with missing permissions")
+				reply := utils.AskPrompt("\nDo you want to continue anyway")
 				if !reply {
 					return fmt.Errorf("grant the required permissions and try again")
 				}

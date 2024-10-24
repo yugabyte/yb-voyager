@@ -151,7 +151,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 			utils.PrintAndLog(output)
 
 			// Prompt user to continue if missing permissions
-			if !utils.AskPrompt("\nDo you want to continue without the required permissions") {
+			if !utils.AskPrompt("\nDo you want to continue anyway") {
 				utils.ErrExit("Please grant the required permissions and retry the import.")
 			}
 		} else {

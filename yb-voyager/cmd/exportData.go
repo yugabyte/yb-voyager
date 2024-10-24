@@ -259,7 +259,7 @@ func exportData() bool {
 			fmt.Println("\nYou can view the steps to prepare the source database for migration in the documentation:", color.BlueString(link))
 
 			// Make a prompt to the user to continue even with missing permissions
-			reply := utils.AskPrompt("\nDo you want to continue with the export data even with missing permissions")
+			reply := utils.AskPrompt("\nDo you want to continue anyway")
 			if !reply {
 				utils.ErrExit("Grant the required permissions and make the changes in configurations and try again.")
 			}

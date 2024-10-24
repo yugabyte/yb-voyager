@@ -388,7 +388,6 @@ func saveExportTypeInMSR() {
 }
 
 func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
-	pgBinaryCheckFailed := false
 	if source.DBType == POSTGRESQL {
 		sourceDBVersion := source.DB().GetVersion()
 		for _, binary := range pgExportDependencies {
@@ -396,14 +395,13 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 			if err != nil {
 				return nil, err
 			} else if binaryCheckIssue != "" {
-				pgBinaryCheckFailed = true
+
 				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
 		}
-	}
-
-	if pgBinaryCheckFailed {
-		binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
+		if len(binaryCheckIssues) > 0 {
+			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
+		}
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
