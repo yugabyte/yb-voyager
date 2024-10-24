@@ -144,8 +144,8 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 			// Not printing the target db is missing permissions message for YB
 			// In YB we only check whether he user is a superuser and hence print only in the case where target db is not YB
 			// In case of fall forward too we only run superuser checks and hence print only in the case where fallback is enabled
-			if tconf.TargetDBType != YUGABYTEDB && !record.FallForwardEnabled {
-				utils.PrintAndLog(color.RedString("The target database is missing the following permissions required for importing data:"))
+			if tconf.TargetDBType != YUGABYTEDB && !(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE) {
+				utils.PrintAndLog(color.RedString("\nThe target database is missing the following permissions required for importing data:"))
 			}
 			output := strings.Join(missingPermissions, "\n")
 			utils.PrintAndLog(output)

@@ -121,7 +121,7 @@ func importSchema() error {
 			utils.PrintAndLog(output)
 			// Prompt user to continue if missing permissions
 			if !utils.AskPrompt("Do you want to continue anyway") {
-				utils.ErrExit("Please grant the required permissions and retry the import.")
+				utils.ErrExit("Grant the required permissions and try again.")
 			}
 		} else {
 			log.Info("The target database has the required permissions for importing schema.")
