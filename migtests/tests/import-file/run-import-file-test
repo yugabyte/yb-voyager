@@ -74,7 +74,6 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
 			--file-table-map "accounts_data.csv:accounts" --has-header=true --batch-size 10000 --null-string "\N"
 
-	unset MAX_BATCH_SIZE_BYTES
 	#Test for Large rows and non-default batch size bytes (i.e. 17MB for row sizes of 15MB,11MB,5KB,12MB,9.9MB)
 	step "Import data file: large_rows_test.txt -> large_rows_test" 
 	export MAX_BATCH_SIZE_BYTES=17000000
@@ -93,9 +92,6 @@ main() {
 	)
 
 	validate_import_data_state_batch_files $IMPORT_DATA_STATE_DIR_LARGE_ROWS ${expected_batch_files_large_rows[@]}
-
-	#unsetting the batch size bytes
-	unset MAX_BATCH_SIZE_BYTES
 	
 	export MAX_BATCH_SIZE_BYTES=3032 #these are smaller files so its better to have smaller here 
 
@@ -202,15 +198,11 @@ main() {
 	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
 			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header y
 
-	unset MAX_BATCH_SIZE_BYTES
-
 	export MAX_BATCH_SIZE_BYTES=343245
 	# Test larger import from s3
 	step "Import large data file from S3: volume.text-> s3_volume"
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
 			--file-table-map "volume_test:s3_volume"
-
-	unset MAX_BATCH_SIZE_BYTES
 
 	export MAX_BATCH_SIZE_BYTES=3450 #these are smaller files so its better to have smaller here 
 
@@ -266,8 +258,6 @@ main() {
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
 			--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header true
 
-	unset MAX_BATCH_SIZE_BYTES
-
 	export MAX_BATCH_SIZE_BYTES=343245
 
 	# Test larger import from GCS buckets
@@ -275,7 +265,7 @@ main() {
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
 			--file-table-map "volume1.csv:gcs_volume" --has-header yes --batch-size 10000 --null-string "\N"
 
-	unset MAX_BATCH_SIZE_BYTES
+	unset MAX_BATCH_SIZE_BYTES #unsetting it here as large import file test should run with defaults
 
 	# Test import from GCS buckets with escape/quote characters
 	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"
