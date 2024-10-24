@@ -398,7 +398,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		return "", "", err
 	}
 	if len(paths) == 0 {
-		binaryCheckIssue = fmt.Sprintf("%v: version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+		binaryCheckIssue = fmt.Sprintf("%v: required version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
 		return "", binaryCheckIssue, nil
 	}
 
@@ -971,7 +971,7 @@ func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.Na
 
 // =============================== Guardrails ===============================
 
-func (pg *PostgreSQL) CheckSourceDBVersion() error {
+func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	pgVersion := pg.GetVersion()
 	if pgVersion == "" {
 		return fmt.Errorf("failed to get source database version")
@@ -981,9 +981,12 @@ func (pg *PostgreSQL) CheckSourceDBVersion() error {
 	if version.CompareSimple(pgVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
 		return fmt.Errorf("current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
 	}
-	if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
-		supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
-		utils.PrintAndLog(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
+	// for live migration
+	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
+		if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
+			supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
+			utils.PrintAndLog(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
+		}
 	}
 
 	return nil

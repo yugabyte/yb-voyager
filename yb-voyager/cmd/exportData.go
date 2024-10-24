@@ -213,7 +213,7 @@ func exportData() bool {
 	defer source.DB().Disconnect()
 
 	if source.RunGuardrailsChecks {
-		err = source.DB().CheckSourceDBVersion()
+		err = source.DB().CheckSourceDBVersion(exportType)
 		if err != nil {
 			utils.ErrExit("Source DB version check failed: %s", err)
 		}

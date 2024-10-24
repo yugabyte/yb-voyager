@@ -100,7 +100,7 @@ func (yb *YugabyteDB) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 	return approxRowCount.Int64
 }
 
-func (yb *YugabyteDB) CheckSourceDBVersion() error {
+func (yb *YugabyteDB) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 

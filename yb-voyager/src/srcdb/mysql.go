@@ -105,7 +105,7 @@ func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	return approxRowCount.Int64
 }
 
-func (ms *MySQL) CheckSourceDBVersion() error {
+func (ms *MySQL) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 
