@@ -185,21 +185,21 @@ func (e *Event) GetParams() []interface{} {
 
 func (e *Event) GetParamsString() string {
 	params := e.GetParams()
-	paramsStr := ""
+	var paramsStr strings.Builder
 	for _, p := range params {
 		pstr, ok := p.(*string)
 		if !ok {
 			// just as a safety check, this should never happen
-			paramsStr += "?, "
+			paramsStr.WriteString("?, ")
 			continue
 		}
 		if pstr != nil {
-			paramsStr += fmt.Sprintf("%s, ", *pstr)
+			paramsStr.WriteString(fmt.Sprintf("%s, ", *pstr))
 		} else {
-			paramsStr += "NULL, "
+			paramsStr.WriteString("NULL, ")
 		}
 	}
-	return paramsStr
+	return paramsStr.String()
 }
 
 func (event *Event) GetPreparedStmtName() string {
