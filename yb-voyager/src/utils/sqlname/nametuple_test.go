@@ -151,6 +151,35 @@ func TestPGNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert.Equal(tableName.MinQualified, tableName.Qualified)
 }
 
+func TestPGNonDefaultSchemaTableNameWithSpecialChars(t *testing.T) {
+	assert := assert.New(t)
+	// Test NewTableName() with PostgreSQL and default schema "public" and
+	// a case-sensitive name with mixed cases.
+	tableName := NewObjectName(POSTGRESQL, "public", "schema1", "table$1")
+	assert.NotNil(tableName)
+	expectedTableName := &ObjectName{
+		SchemaName:        "schema1",
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `schema1."table$1"`,
+			Unquoted:  `schema1.table$1`,
+			MinQuoted: `schema1."table$1"`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table$1"`,
+			Unquoted:  `table$1`,
+			MinQuoted: `"table$1"`,
+		},
+		MinQualified: identifier{
+			Quoted:    `schema1."table$1"`,
+			Unquoted:  `schema1.table$1`,
+			MinQuoted: `schema1."table$1"`,
+		},
+	}
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+}
+
 //=====================================================
 
 func TestOracleDefaultSchemaCaseInsensitiveTableName(t *testing.T) {

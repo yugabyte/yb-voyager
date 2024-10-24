@@ -528,12 +528,31 @@ func GetEnvAsInt64(key string, fallback int64) int64 {
 	if !exists {
 		return fallback
 	}
+
 	valueInt, err := strconv.ParseInt(valueStr, 10, 64)
 	if err != nil {
 		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return valueInt
+}
+
+func GetEnvAsBool(key string, fallback bool) bool {
+	valueStr, exists := os.LookupEnv(key)
+	if !exists {
+		return fallback
+	}
+
+	var valueBool bool
+	switch strings.ToLower(valueStr) {
+	case "true", "1", "yes":
+		valueBool = true
+	case "false", "0", "no":
+		valueBool = false
+	default:
+		valueBool = fallback
+	}
+	return valueBool
 }
 
 func GetMapKeysSorted(m map[string]*string) []string {

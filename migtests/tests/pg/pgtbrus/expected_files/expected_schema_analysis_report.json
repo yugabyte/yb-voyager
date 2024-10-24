@@ -41,7 +41,7 @@
             {
                 "ObjectType": "TRIGGER",
                 "TotalCount": 6,
-                "ObjectNames": "tgd, tgd, tgi, tgi, tgu, tgu"
+                "ObjectNames": "tgd ON public.t, tgd ON public.c, tgi ON public.t, tgi ON public.c, tgu ON public.t, tgu ON public.c"
             },
             {
                 "ObjectType": "FOREIGN TABLE",

@@ -52,7 +52,7 @@ func NewYugabyteDBCDCClient(exportDir, ybServers, sslRootCert, dbName, tableName
 }
 
 func (ybc *YugabyteDBCDCClient) Init() error {
-	err := findDebeziumDistribution("yugabytedb", true)
+	err := FindDebeziumDistribution("yugabytedb", true)
 	if err != nil {
 		return fmt.Errorf("error in finding debezium distribution: %s", err)
 	}

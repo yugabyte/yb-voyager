@@ -37,6 +37,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -215,6 +216,15 @@ func exportData() bool {
 		err = source.DB().CheckSourceDBVersion()
 		if err != nil {
 			utils.ErrExit("Source DB version check failed: %s", err)
+		}
+
+		binaryCheckIssues, err := checkDependenciesForExport()
+		if err != nil {
+			utils.ErrExit("check dependencies for export: %v", err)
+		} else if len(binaryCheckIssues) > 0 {
+			color.Red("\nSome dependencies required for export data are missing: ")
+			utils.PrintAndLog("%s", strings.Join(binaryCheckIssues, "\n"))
+			utils.ErrExit("Please install or add the required dependencies to PATH and try again.")
 		}
 	}
 
@@ -917,6 +927,11 @@ func clearMigrationStateIfRequired() {
 	exportSnapshotStatusFile := jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
+		if dataIsExported() {
+			if !utils.AskPrompt("Data is already exported. Are you sure you want to clean the data directory and start afresh") {
+				utils.ErrExit("Export aborted.")
+			}
+		}
 		utils.CleanDir(exportDataDir)
 		utils.CleanDir(sslDir)
 		clearDataIsExported()
@@ -1063,6 +1078,7 @@ func startFallBackSetupIfRequired() {
 	cmd := []string{"yb-voyager", "import", "data", "to", "source",
 		"--export-dir", exportDir,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
+		"--log-level", config.LogLevel,
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")

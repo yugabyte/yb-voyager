@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"text/template"
@@ -723,13 +724,14 @@ func generateAssessmentReport() (err error) {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 
-	if os.Getenv(REPORT_UNSUPPORTED_QUERY_CONSTRUCTS) == "true" && source.DBType == POSTGRESQL {
+	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS", true) {
 		unsupportedQueries, err := fetchUnsupportedQueryConstructs()
 		if err != nil {
 			return fmt.Errorf("failed to fetch unsupported queries on YugabyteDB: %w", err)
 		}
 		assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 	}
+
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
@@ -920,6 +922,9 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 }
 
 func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
+	if source.DBType != POSTGRESQL {
+		return nil, nil
+	}
 	query := fmt.Sprintf("SELECT DISTINCT query from %s", migassessment.DB_QUERIES_SUMMARY)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
@@ -950,31 +955,28 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	var result []utils.UnsupportedQueryConstruct
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
-
-		// Check if the query starts with CREATE, INSERT, UPDATE, or DELETE
-		upperQuery := strings.ToUpper(strings.TrimSpace(query))
-		if strings.HasPrefix(upperQuery, "CREATE") || strings.HasPrefix(upperQuery, "INSERT") ||
-			strings.HasPrefix(upperQuery, "UPDATE") || strings.HasPrefix(upperQuery, "DELETE") {
-			continue
-		}
-
+		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
 		queryParser := queryparser.New(query)
 		err := queryParser.Parse()
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse query-%s: %w", query, err)
+			log.Errorf("failed to parse query - [%s]: %v", query, err)
 		}
 
-		// Check for unsupported constructs in the parsed query
 		unsupportedConstructs, err := queryParser.GetUnsupportedQueryConstructs()
 		if err != nil {
-			log.Warnf("failed while trying to parse the query: %s", err.Error())
+			log.Errorf("failed while trying to fetch unsupported constructs from parse tree of query - [%s]: %s",
+				query, err.Error())
 		}
 		if unsupportedConstructs != nil {
 			result = append(result, unsupportedConstructs...)
 		}
 	}
 
-	// TODO: sort the slice for better readability
+	// sort the slice to group same constructType in html and json reports
+	log.Infof("sorting the result slice based on construct type")
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ConstructType <= result[j].ConstructType
+	})
 	return result, nil
 }
 

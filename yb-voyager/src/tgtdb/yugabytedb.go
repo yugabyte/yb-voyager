@@ -623,9 +623,26 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		for i := 0; i < len(batch.Events); i++ {
 			res, err := br.Exec()
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
+				// When using pgx SendBatch, there can be two types of errors thrown:
+				// 1. Error while preparing the statement - this is preprocessing (parsing, preparinng statements, etc)
+				//	that pgx will do before sending the batch. Examples - syntax error.
+				//  No matter which statement in the batch has an issue, the error will be thrown on calling br.Exec() for the first time.
+				// 2. Error while executing the statement - this is the actual execution of the statement, and the error comes from the DB.
+				// 	Examples - constraint violation, etc.
+				//  In this case, we get the error on the appropriate br.Exec() call associated with the statement that failed.
+				// Therefore, if error is thrown on the first br.Exec() call, it could be either of the above cases.
+				// Reference - https://github.com/jackc/pgx/issues/872
+				// This ideally needs to be fixed in pgx library.
+				errorMsg := ""
+				if i == 0 {
+					errorMsg = fmt.Sprintf("error preparing statements for events in batch (%s) or when executing event with vsn(%d)", batch.ID(), batch.Events[i].Vsn)
+					log.Errorf("Event VSNs in batch(%s): %v", batch.ID(), batch.GetAllVsns())
+				} else {
+					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
+				}
+				log.Errorf("%s : %v", errorMsg, err)
 				closeBatch()
-				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+				return false, fmt.Errorf("%s: %w", errorMsg, err)
 			}
 			switch true {
 			case res.Insert():
@@ -1320,13 +1337,52 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	return nil
 }
 
-func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
-	return nil, nil
-}
-
 type NodeMetrics struct {
 	UUID    string
 	Metrics map[string]string
 	Status  string
 	Error   string
+}
+
+// =============================== Guardrails =================================
+
+func (yb *TargetYugabyteDB) GetMissingImportDataPermissions() ([]string, error) {
+	// check if the user is a superuser
+	isSuperUser, err := IsCurrentUserSuperUser(yb.tconf)
+	if err != nil {
+		return nil, fmt.Errorf("checking if user is superuser: %w", err)
+	}
+	if !isSuperUser {
+		errorMsg := fmt.Sprintf("User %s is not a superuser.", yb.tconf.User)
+		return []string{errorMsg}, nil
+	}
+
+	return nil, nil
+}
+
+func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
+	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
+	if err != nil {
+		return false, fmt.Errorf("unable to connect to target database: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	query := "SELECT rolsuper FROM pg_roles WHERE rolname=current_user"
+	rows, err := conn.Query(context.Background(), query)
+	if err != nil {
+		return false, fmt.Errorf("querying if user is superuser: %w", err)
+	}
+	defer rows.Close()
+
+	var isSuperUser bool
+	if rows.Next() {
+		err = rows.Scan(&isSuperUser)
+		if err != nil {
+			return false, fmt.Errorf("scanning row for superuser: %w", err)
+		}
+	} else {
+		return false, fmt.Errorf("no current user found in pg_roles")
+	}
+
+	return isSuperUser, nil
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -38,6 +39,7 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
+var pgExportDependencies = []string{"pg_dump", "pg_restore", "psql"}
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -383,4 +385,30 @@ func saveExportTypeInMSR() {
 	if err != nil {
 		utils.ErrExit("error while updating export type in meta db: %v", err)
 	}
+}
+
+func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
+	if source.DBType == POSTGRESQL {
+		sourceDBVersion := source.DB().GetVersion()
+		for _, binary := range pgExportDependencies {
+			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
+			if err != nil {
+				return nil, err
+			} else if binaryCheckIssue != "" {
+				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
+			}
+		}
+	}
+
+	if changeStreamingIsEnabled(exportType) || useDebezium {
+		// Check for debezium
+		// FindDebeziumDistribution returns an error only if the debezium distribution is not found
+		// So its error mesage will be added to problems
+		err := dbzm.FindDebeziumDistribution(source.DBType, false)
+		if err != nil {
+			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
+		}
+	}
+
+	return binaryCheckIssues, nil
 }

@@ -38,6 +38,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
@@ -222,6 +223,7 @@ func startExportDataFromTargetIfRequired() {
 		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 		"--target-ssl-mode", tconf.SSLMode,
+		"--log-level", config.LogLevel,
 	}
 	if tconf.SSLRootCert != "" {
 		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
@@ -858,12 +860,11 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
 			return nt.ForOutput()
 		})
-		utils.PrintAndLog("Following tables are not empty. "+
-			"TRUNCATE them before importing data with --start-clean.\n%s",
-			strings.Join(nonEmptyTableNames, ", "))
-		yes := utils.AskPrompt("Do you want to continue without truncating these tables?")
+		utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
+		utils.PrintAndLog("The above list of tables on target DB are not empty. ")
+		yes := utils.AskPrompt("Are you sure you want to start afresh without truncating tables")
 		if !yes {
-			utils.ErrExit("Aborting import.")
+			utils.ErrExit("Aborting import. Manually truncate the tables on target DB before continuing.")
 		}
 	}
 
