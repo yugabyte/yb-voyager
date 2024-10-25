@@ -1,13 +1,7 @@
 CREATE TEMP TABLE temp_table AS
 SELECT
     queryid,
-    query,
-    calls,
-    total_exec_time,
-    mean_exec_time,
-    min_exec_time,
-    max_exec_time,
-    rows
+    query
 FROM
     pg_stat_statements
 WHERE
