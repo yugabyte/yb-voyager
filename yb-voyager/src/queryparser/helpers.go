@@ -4,27 +4,42 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+// Refer: https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
 var unsupportedAdvLockFuncs = []string{
-	"pg_advisory_lock", "pg_try_advisory_lock", "pg_advisory_xact_lock",
-	"pg_advisory_unlock", "pg_advisory_unlock_all", "pg_try_advisory_xact_lock",
+	"pg_advisory_lock", "pg_advisory_lock_shared",
+	"pg_advisory_unlock", "pg_advisory_unlock_all", "pg_advisory_unlock_shared",
+	"pg_advisory_xact_lock", "pg_advisory_xact_lock_shared",
+	"pg_try_advisory_lock", "pg_try_advisory_lock_shared",
+	"pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared",
 }
 
 var unsupportedSysCols = []string{
 	"xmin", "xmax", "cmin", "cmax", "ctid",
 }
 
-// TODO: verify the list (any missing, or extra/invalid)
-var xmlFunctions = []string{
-	"cursor_to_xml", "cursor_to_xmlschema", // Cursor to XML
-	"database_to_xml", "database_to_xml_and_xmlschema", "database_to_xmlschema", // Database to XML
-	"query_to_xml", "query_to_xml_and_xmlschema", "query_to_xmlschema", // Query to XML
-	"schema_to_xml", "schema_to_xml_and_xmlschema", "schema_to_xmlschema", // Schema to XML
-	"table_to_xml", "table_to_xml_and_xmlschema", "table_to_xmlschema", // Table to XML
-	"xmlagg", "xmlcomment", "xmlconcat2", // XML Aggregation and Construction
-	"xmlexists", "xmlvalidate", // XML Existence and Validation
-	"xpath", "xpath_exists", // XPath Functions
-	"xml_in", "xml_out", "xml_recv", "xml_send", // System XML I/O
-	"xml", // Data Type Conversion
+// Refer: https://www.postgresql.org/docs/17/functions-xml.html#FUNCTIONS-XML-PROCESSING
+var unsupportedXmlFunctions = []string{
+	// 1. Producing XML content
+	"xmltext", "xmlcomment", "xmlconcat", "xmlelement", "xmlforest",
+	"xmlpi", "xmlroot", "xmlagg",
+	// 2. XML predicates
+	"xml", "xmlexists", "xml_is_well_formed", "xml_is_well_formed_document",
+	"xml_is_well_formed_content",
+	// 3. Processing XML
+	"xpath", "xpath_exists", "xmltable",
+	// 4. Mapping Table to XML
+	"table_to_xml", "table_to_xmlschema", "table_to_xml_and_xmlschema",
+	"cursor_to_xmlschema", "cursor_to_xml",
+	"query_to_xmlschema", "query_to_xml", "query_to_xml_and_xmlschema",
+	"schema_to_xml", "schema_to_xmlschema", "schema_to_xml_and_xmlschema",
+	"database_to_xml", "database_to_xmlschema", "database_to_xml_and_xmlschema",
+
+	/*
+		5. extras - not in ref doc but exists
+		SELECT proname FROM pg_proc
+		WHERE prorettype = 'xml'::regtype;
+	*/
+	"xmlconcat2", "xmlvalidate", "xml_in", "xml_out", "xml_recv", "xml_send", // System XML I/O
 }
 
 // Sample example: {func_call:{funcname:{string:{sval:"pg_advisory_lock"}}

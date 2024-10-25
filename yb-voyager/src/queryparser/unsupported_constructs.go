@@ -26,7 +26,7 @@ func NewFuncCallDetector() *FuncCallDetector {
 	for _, fname := range unsupportedAdvLockFuncs {
 		unsupportedFuncs[fname] = ADVISORY_LOCKS
 	}
-	for _, fname := range xmlFunctions {
+	for _, fname := range unsupportedXmlFunctions {
 		unsupportedFuncs[fname] = XML_FUNCTIONS
 	}
 
