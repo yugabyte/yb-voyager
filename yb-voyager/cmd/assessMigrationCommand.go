@@ -1077,11 +1077,11 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 				utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]"))) {
 
 			/*
-			TODO test this for Oracle case if there is any special handling required
-			For Live mgiration with FF or FB, It is meant to be for the datatypes that are going to be in YB after migration 
-			so it makes sense to use the analyzeSchema `compositeTypes` or `enumTypes` and check from there but some information 
-			we are still using from Source which might need a better way in case of Oracle as for PG it doesn't really makes a difference in
-			source or analyzeSchema's results.
+				TODO test this for Oracle case if there is any special handling required
+				For Live mgiration with FF or FB, It is meant to be for the datatypes that are going to be in YB after migration
+				so it makes sense to use the analyzeSchema `compositeTypes` or `enumTypes` and check from there but some information
+				we are still using from Source which might need a better way in case of Oracle as for PG it doesn't really makes a difference in
+				source or analyzeSchema's results.
 			*/
 			//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT and array on ENUMs columns as unsupported with live migration with ff/fb
 			unsupportedDataTypesForLiveMigrationWithFForFB = append(unsupportedDataTypesForLiveMigrationWithFForFB, allColumnsDataTypes[i])
