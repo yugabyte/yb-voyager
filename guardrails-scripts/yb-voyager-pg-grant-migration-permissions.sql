@@ -112,6 +112,12 @@ SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ' || :'
 FROM information_schema.schemata
 \gexec
 
+-- Grant READ on the pg_stat_statments for Assessing the source 
+\echo ''
+\echo '--- Granting READ Permission on the pg_stat_statments for Assessing the source database'
+GRANT pg_read_all_stats to :voyager_user;
+
+
 -- Change the replica identity of all tables to FULL
 \if :is_live_migration
     \echo ''
