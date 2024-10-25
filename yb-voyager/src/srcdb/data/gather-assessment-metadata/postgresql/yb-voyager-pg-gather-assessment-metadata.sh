@@ -156,10 +156,16 @@ main() {
     print_and_log "INFO" "Assessment metadata collection started for '$schema_list' schemas"
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
-        if [[ "$script_name" == "db_queries_summary" && ( -z "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" || "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ) ]]; then
-            continue
-        fi
         script_action=$(basename "$script" .psql | sed 's/-/ /g')
+        if [[ "$script_name" == "db-queries-summary" ]]; then
+            if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ]]; then
+                continue
+            fi
+            if [[ "$pg_stat_available" != "1" ]]; then
+                print_and_log "INFO" "Skipping $script_action: pg_stat_statements is unavailable."
+                continue
+            fi
+        fi
         print_and_log "INFO" "Collecting $script_action..."
         if [ $script_name == "table-index-iops" ]; then
             psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
@@ -176,10 +182,6 @@ main() {
             run_command "$psql_command"
             mv table-index-iops.csv table-index-iops-final.csv
         else
-            if [ "$script_name" == "db-queries-summary" ] && [ "$pg_stat_available" != "1" ]; then
-                print_and_log "INFO" "Skipping collection of db queries summary: pg_stat_statements is unavailable."
-                continue
-            fi
             psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
             log "INFO" "Executing script: $psql_command"
             run_command "$psql_command"
