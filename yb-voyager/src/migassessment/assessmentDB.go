@@ -135,13 +135,7 @@ func InitAssessmentDB() error {
 			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			queryid			BIGINT,
-			query		TEXT,
-			calls		BIGINT,
-			total_exec_time REAL,
-			mean_exec_time REAL,
-			min_exec_time REAL,
-			max_exec_time REAL,
-			rows		BIGINT);`, DB_QUERIES_SUMMARY),
+			query		TEXT);`, DB_QUERIES_SUMMARY),
 	}
 
 	for _, cmd := range cmds {
