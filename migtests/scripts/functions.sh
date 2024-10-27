@@ -422,9 +422,9 @@ import_data() {
 			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
 		fi
 
-		# Check if RUN_USING_ADAPTIVE_PARALLELISM is true
-    	if [ "${RUN_USING_ADAPTIVE_PARALLELISM}" = "true" ]; then
-    	    args="${args} --enable-adaptive-parallelism true"
+		# Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
+    	if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
+    	    args="${args} --enable-adaptive-parallelism false"
     	fi
 
 		yb-voyager import data ${args} $*
@@ -468,9 +468,9 @@ import_data_file() {
     --send-diagnostics=false
     "
 
-    # Check if RUN_USING_ADAPTIVE_PARALLELISM is true
-    if [ "${RUN_USING_ADAPTIVE_PARALLELISM}" = "true" ]; then
-        args="${args} --enable-adaptive-parallelism true"
+    # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
+    if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
+        args="${args} --enable-adaptive-parallelism false"
     fi
 
     yb-voyager import data file ${args} $*
