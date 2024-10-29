@@ -112,22 +112,6 @@ func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	return approxRowCount.Int64
 }
 
-func (ora *Oracle) CheckSourceDBVersion(exportType string) error {
-	return nil
-}
-
-func (ora *Oracle) GetMissingExportSchemaPermissions() ([]string, error) {
-	return nil, nil
-}
-
-func (ora *Oracle) GetMissingExportDataPermissions(exportType string) ([]string, error) {
-	return nil, nil
-}
-
-func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, error) {
-	return nil, nil
-}
-
 func (ora *Oracle) GetVersion() string {
 	if ora.source.DBVersion != "" {
 		return ora.source.DBVersion
@@ -725,4 +709,26 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		}
 	}
 	return nonPKTables, nil
+}
+
+// ------------------------------- Guardrails -------------------------------
+
+func (ora *Oracle) CheckSourceDBVersion(exportType string) error {
+	return nil
+}
+
+func (ora *Oracle) GetMissingExportSchemaPermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (ora *Oracle) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+	return nil, nil
+}
+
+func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (ora *Oracle) CheckReplicationSlots() (string, error) {
+	return "", nil
 }

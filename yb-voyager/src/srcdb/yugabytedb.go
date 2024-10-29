@@ -101,22 +101,6 @@ func (yb *YugabyteDB) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 	return approxRowCount.Int64
 }
 
-func (yb *YugabyteDB) CheckSourceDBVersion(exportType string) error {
-	return nil
-}
-
-func (yb *YugabyteDB) GetMissingExportSchemaPermissions() ([]string, error) {
-	return nil, nil
-}
-
-func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string) ([]string, error) {
-	return nil, nil
-}
-
-func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, error) {
-	return nil, nil
-}
-
 func (yb *YugabyteDB) GetVersion() string {
 	if yb.source.DBVersion != "" {
 		return yb.source.DBVersion
@@ -1041,4 +1025,26 @@ func (yb *YugabyteDB) CheckIfReplicationSlotExists(replicationSlotName string) (
 	}
 
 	return exists, nil
+}
+
+// ---------------------- Guardrails ----------------------
+
+func (yb *YugabyteDB) CheckSourceDBVersion(exportType string) error {
+	return nil
+}
+
+func (yb *YugabyteDB) GetMissingExportSchemaPermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+	return nil, nil
+}
+
+func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (yb *YugabyteDB) CheckReplicationSlots() (string, error) {
+	return checkReplicationSlotsForPGAndYB(yb.db)
 }

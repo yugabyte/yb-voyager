@@ -105,22 +105,6 @@ func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	return approxRowCount.Int64
 }
 
-func (ms *MySQL) CheckSourceDBVersion(exportType string) error {
-	return nil
-}
-
-func (ms *MySQL) GetMissingExportSchemaPermissions() ([]string, error) {
-	return nil, nil
-}
-
-func (ms *MySQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
-	return nil, nil
-}
-
-func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, error) {
-	return nil, nil
-}
-
 func (ms *MySQL) GetVersion() string {
 	if ms.source.DBVersion != "" {
 		return ms.source.DBVersion
@@ -542,4 +526,26 @@ func (ms *MySQL) GetNonPKTables() ([]string, error) {
 		}
 	}
 	return nonPKTables, nil
+}
+
+// --------------------------- Guardrails ---------------------------
+
+func (ms *MySQL) CheckSourceDBVersion(exportType string) error {
+	return nil
+}
+
+func (ms *MySQL) GetMissingExportSchemaPermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (ms *MySQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+	return nil, nil
+}
+
+func (ms *MySQL) CheckReplicationSlots() (string, error) {
+	return "", nil
+}
+
+func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+	return nil, nil
 }

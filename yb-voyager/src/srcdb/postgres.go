@@ -1570,3 +1570,7 @@ func (pg *PostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 
 	return schemasMissingUsagePermission, nil
 }
+
+func (pg *PostgreSQL) CheckReplicationSlots() (string, error) {
+	return checkReplicationSlotsForPGAndYB(pg.db)
+}

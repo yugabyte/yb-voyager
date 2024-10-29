@@ -241,6 +241,23 @@ func exportData() bool {
 
 	// Check if source DB has required permissions for export data
 	if source.RunGuardrailsChecks {
+		// If source is PostgreSQL or YB, check if the number of existing replicaton slots is less than the max allowed
+		if (source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType)) ||
+			(source.DBType == YUGABYTEDB && !bool(useYBgRPCConnector)) {
+			// The queries used to check replication slots on YB don't throw an error even if logical replication is not supported
+			// in that YB version. They are inbuilt PG queries and will return the default values i.e. max allowed slots = 10 and
+			// current slots = 0
+			// Hence it is safe to check this in YB irrespective of the version.
+			result, err := source.DB().CheckReplicationSlots()
+			if err != nil {
+				utils.ErrExit("check replication slots: %v", err)
+			}
+			if result != "" {
+				fmt.Println(result)
+				utils.ErrExit("")
+			}
+		}
+
 		missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
 		if err != nil {
 			utils.ErrExit("get missing export data permissions: %v", err)
