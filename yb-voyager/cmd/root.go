@@ -227,7 +227,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 
 	registerExportDirFlag(cmd)
 
-	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "debug",
+	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
