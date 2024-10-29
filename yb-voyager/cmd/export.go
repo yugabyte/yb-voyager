@@ -56,7 +56,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
-	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", false, "run guardrails checks before export. (only valid for PostgreSQL)")
+	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before export. (only valid for PostgreSQL)")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
