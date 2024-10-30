@@ -34,6 +34,12 @@
         .section {
             margin-bottom: 20px;
         }
+        .scrollable-div {
+            max-height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
         .summary-footer {
             font-weight: bold;
             background-color: #f9f9f9;
@@ -71,7 +77,13 @@
                 <td style='text-align: center;'>{{ .TotalCount }}</td>
                 <td style='text-align: center;'>{{ sub .TotalCount .InvalidCount }}</td>
                 <td style='text-align: center;'>{{ .InvalidCount }}</td>
-                <td width='40%'>{{ .ObjectNames }}</td>
+                <td>
+                    <div class="scrollable-div">
+                        {{range split .ObjectNames ","}}
+                            {{.}}<br>
+                        {{end}}
+                    </div>
+                </td>
                 <td width='30%'>{{ .Details }}</td>
             </tr>
             {{ end }}
