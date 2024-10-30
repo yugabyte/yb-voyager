@@ -1089,11 +1089,7 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() ([]string, error) {
 		contype = 'f'          -- Only foreign key constraints
 		AND convalidated = true     -- Only those that are VALID (enabled)
 		AND nspname = ANY (string_to_array('%s', ','))  -- Replace with your schema list
-		AND NOT EXISTS (
-			SELECT 1
-			FROM pg_inherits
-			WHERE inhrelid = pg_constraint.conrelid
-		);`, querySchemaList)
+		;`, querySchemaList)
 
 	rows, err = pg.Query(query)
 	if err != nil {
