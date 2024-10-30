@@ -2,7 +2,7 @@ name: "Misc: Migration Tests"
 
 on:
   push:
-    branches: ['main', '*.*-dev', '*.*.*-dev', 'sanyam/enable-gh']
+    branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
     branches: ['main']
 
