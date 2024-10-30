@@ -392,13 +392,20 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
 // the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
 func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path string, binaryCheckIssue string, err error) {
+	// In case of pg_dump and pg_restore min required version is the max of min supported version of the cmd and sourceDBVersion
+	// In case psql min required version is the min supported version of psql
+	minRequiredVersion := max(PG_COMMAND_VERSION[cmd], sourceDBVersion)
+	if cmd == "psql" {
+		minRequiredVersion = PG_COMMAND_VERSION[cmd]
+	}
+
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
 		err = fmt.Errorf("error in finding executables in PATH for %v: %w", cmd, err)
 		return "", "", err
 	}
 	if len(paths) == 0 {
-		binaryCheckIssue = fmt.Sprintf("%v: required version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+		binaryCheckIssue = fmt.Sprintf("%v: required version >= %v", cmd, minRequiredVersion)
 		return "", binaryCheckIssue, nil
 	}
 
@@ -424,7 +431,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		}
 	}
 
-	binaryCheckIssue = fmt.Sprintf("%v: version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+	binaryCheckIssue = fmt.Sprintf("%v: version >= %v", cmd, minRequiredVersion)
 	return "", binaryCheckIssue, nil
 }
 
