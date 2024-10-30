@@ -581,7 +581,7 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 
 func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 	// if MAX_BATCH_SIZE is set in env then return that value
-	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", int64(2) * 1024 * 1024 * 1024) //default: 2 * 1024 * 1024 * 1024 2GB
+	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", int64(2)*1024*1024*1024) //default: 2 * 1024 * 1024 * 1024 2GB
 }
 
 func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
@@ -717,5 +717,10 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 }
 
 func (tdb *TargetOracleDB) GetMissingImportDataPermissions(isFallForwardEnabled bool) ([]string, error) {
+	return nil, nil
+}
+
+func (tdb *TargetOracleDB) GetEnabledTriggersAndFks() ([]string, error) {
+	// TODO: implement this function for oracle guardrails
 	return nil, nil
 }
