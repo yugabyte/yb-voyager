@@ -408,7 +408,7 @@ func generateBulkAssessmentJsonReport() error {
 	return nil
 }
 
-//go:embed templates/bulkAssessmentReport.template
+//go:embed templates/bulk_assessment_report.template
 var bulkAssessmentHtmlTmpl string
 
 func generateBulkAssessmentHtmlReport() error {

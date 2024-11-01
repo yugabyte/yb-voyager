@@ -743,7 +743,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 	return nil
 }
 
-//go:embed templates/assessmentReport.template
+//go:embed templates/migration_assessment_report.template
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
