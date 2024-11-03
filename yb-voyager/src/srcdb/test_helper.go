@@ -18,22 +18,23 @@ package srcdb
 import (
 	"context"
 	"fmt"
-	"path/filepath"
+	"io"
+	"sort"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TestDB struct {
 	Container testcontainers.Container
 	Source    *Source
 }
-
-var testDB *TestDB
 
 func (tdb *TestDB) GetContainerHostPort(ctx context.Context) (string, int) {
 	host, err := tdb.Container.Host(ctx)
@@ -70,6 +71,18 @@ func StartTestDB(ctx context.Context, source *Source) (*TestDB, error) {
 	}
 
 	if err != nil {
+		reader, err := testDB.Container.Logs(ctx)
+		if err != nil {
+			fmt.Printf("failed to get container logs: %v", err)
+		} else {
+			fmt.Println("=== Container Logs ===")
+			data, err := io.ReadAll(reader)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("%s\n", string(data))
+			fmt.Println("=== End of Logs ===")
+		}
 		return nil, fmt.Errorf("failed to start '%s' test container: %w", source.DBType, err)
 	}
 
@@ -91,24 +104,19 @@ func StopTestDB(ctx context.Context, testDB *TestDB) {
 }
 
 func startPostgresContainer(ctx context.Context, source *Source) (testcontainers.Container, error) {
-	schemaFileName := fmt.Sprintf("%s_schema.sql", source.DBType)
-	schemaFilePath := filepath.Join(".", "test_schemas", schemaFileName)
-	mountPath := filepath.Join("docker-entrypoint-initdb.d", schemaFileName)
-
-	// TODO: verify the docker images being used are the correct ones
+	// TODO: verify the docker images being used are the correct certified ones
 	req := testcontainers.ContainerRequest{
 		Image:        fmt.Sprintf("postgres:%s", source.DBVersion),
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_USER":     source.User,
 			"POSTGRES_PASSWORD": source.Password,
-			"POSTGRES_DB":       source.DBName,
 		},
 		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
 		Files: []testcontainers.ContainerFile{
 			{
-				HostFilePath:      schemaFilePath,
-				ContainerFilePath: mountPath,
+				HostFilePath:      "./test_schemas/postgresql_schema.sql",
+				ContainerFilePath: "docker-entrypoint-initdb.d/postgresql_schema.sql",
 				FileMode:          0755,
 			},
 		},
@@ -125,11 +133,19 @@ func startMysqlContainer(ctx context.Context, source *Source) (testcontainers.Co
 		Image:        fmt.Sprintf("mysql:%s", source.DBVersion),
 		ExposedPorts: []string{"3306/tcp"},
 		Env: map[string]string{
-			"MYSQL_USER":     source.User,
-			"MYSQL_PASSWORD": source.Password,
-			"MYSQL_DATABASE": source.DBName,
+			"MYSQL_ROOT_PASSWORD": source.Password,
+			"MYSQL_USER":          source.User,
+			"MYSQL_PASSWORD":      source.Password,
+			"MYSQL_DATABASE":      source.DBName,
 		},
 		WaitingFor: wait.ForListeningPort("3306/tcp").WithStartupTimeout(60 * time.Second),
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      "./test_schemas/mysql_schema.sql",
+				ContainerFilePath: "docker-entrypoint-initdb.d/mysql_schema.sql",
+				FileMode:          0755,
+			},
+		},
 	}
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -138,9 +154,58 @@ func startMysqlContainer(ctx context.Context, source *Source) (testcontainers.Co
 }
 
 func startOracleContainer(ctx context.Context, source *Source) (testcontainers.Container, error) {
-	return nil, nil
+	// refer: https://hub.docker.com/r/gvenzl/oracle-xe
+	req := testcontainers.ContainerRequest{
+		Image:        fmt.Sprintf("gvenzl/oracle-xe:%s", source.DBVersion),
+		ExposedPorts: []string{"1521/tcp"},
+		Env: map[string]string{
+			"ORACLE_PASSWORD":   source.Password, // for SYS user
+			"ORACLE_DATABASE":   source.DBName,
+			"APP_USER":          source.User,
+			"APP_USER_PASSWORD": source.Password,
+		},
+		WaitingFor: wait.ForLog("DATABASE IS READY TO USE!").WithStartupTimeout(60 * time.Second),
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      "./test_schemas/oracle_schema.sql",
+				ContainerFilePath: "docker-entrypoint-initdb.d/oracle_schema.sql",
+				FileMode:          0755,
+			},
+		},
+	}
+
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
 }
 
 func startYugabyteDBContainer(ctx context.Context, source *Source) (testcontainers.Container, error) {
 	return nil, nil
+}
+
+
+
+// === assertion helper functions
+
+func sortSourceNames(tables []*sqlname.SourceName) {
+	sort.Slice(tables, func(i, j int) bool {
+		return tables[i].Qualified.MinQuoted < tables[j].Qualified.MinQuoted
+	})
+}
+
+func assertEqualStringSlices(t *testing.T, expected, actual []string) error {
+	t.Helper()
+	if len(expected) != len(actual) {
+		return fmt.Errorf("Mismatch in slice length. Expected: %v, Actual: %v", expected, actual)
+	}
+
+	sort.Strings(expected)
+	sort.Strings(actual)
+	for i, _ := range expected {
+		if expected[i] != actual[i] {
+			return fmt.Errorf("Expected: %q, Actual: %q", expected, actual)
+		}
+	}
+	return nil
 }

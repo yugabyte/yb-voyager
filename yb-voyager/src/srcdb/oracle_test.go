@@ -22,17 +22,17 @@ import (
 	"gotest.tools/assert"
 )
 
-func TestPostgresGetAllTableNames(t *testing.T) {
-	sqlname.SourceDBType = "postgresql"
+func TestOracleGetAllTableNames(t *testing.T) {
+	sqlname.SourceDBType = "oracle"
 
 	// Test GetAllTableNames
-	actualTables := postgresTestDB.Source.DB().GetAllTableNames()
+	actualTables := oracleTestDB.Source.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
-		sqlname.NewSourceName("public", "foo"),
-		sqlname.NewSourceName("public", "bar"),
-		sqlname.NewSourceName("public", "table1"),
-		sqlname.NewSourceName("public", "table2"),
-		sqlname.NewSourceName("public", "unique_table"),
+		sqlname.NewSourceName("YBVOYAGER", "foo"),
+		sqlname.NewSourceName("YBVOYAGER", "bar"),
+		sqlname.NewSourceName("YBVOYAGER", "table1"),
+		sqlname.NewSourceName("YBVOYAGER", "table2"),
+		sqlname.NewSourceName("YBVOYAGER", "unique_table"),
 	}
 	assert.Equal(t, len(expectedTables), len(actualTables), "Expected number of tables to match")
 
@@ -40,24 +40,24 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	sortSourceNames(expectedTables)
 	sortSourceNames(actualTables)
 	for i, expectedTable := range expectedTables {
-		assert.Equal(t, expectedTable.String(), actualTables[i].String(), "Expected table names to match")
+		assert.Equal(t, expectedTable.Qualified.MinQuoted, actualTables[i].Qualified.MinQuoted, "Expected table names to match")
 	}
 }
 
-func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
-	objectName := sqlname.NewObjectName("postgresql", "public", "public", "unique_table")
+func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
+	objectName := sqlname.NewObjectName("oracle", "YBVOYAGER", "YBVOYAGER", "UNIQUE_TABLE")
 
 	// Test GetTableToUniqueKeyColumnsMap
 	tableList := []sqlname.NameTuple{
 		{CurrentName: objectName},
 	}
-	uniqueKeys, err := postgresTestDB.Source.DB().GetTableToUniqueKeyColumnsMap(tableList)
+	uniqueKeys, err := oracleTestDB.Source.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
 
 	expectedKeys := map[string][]string{
-		"unique_table": {"email", "phone", "address"},
+		"UNIQUE_TABLE": {"EMAIL", "PHONE", "ADDRESS"},
 	}
 
 	// Compare the maps by iterating over each table and asserting the columns list
