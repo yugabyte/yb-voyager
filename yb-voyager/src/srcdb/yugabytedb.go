@@ -204,6 +204,7 @@ func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	query := fmt.Sprintf(`
 	SELECT 
+		n.nspname AS table_schema,
 		c.relname AS table_name
 	FROM 
 		pg_catalog.pg_class c
