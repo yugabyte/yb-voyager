@@ -16,7 +16,9 @@ import (
 func TestFuncCallDetector(t *testing.T) {
 	advisoryLockSqls := []string{
 		`SELECT pg_advisory_lock(100), COUNT(*) FROM cars;`,
-		`SELECT * FROM (SELECT pg_advisory_lock(200)) AS lock_acquired;`,
+		`SELECT pg_advisory_lock_shared(100), COUNT(*) FROM cars;`,
+		`SELECT * FROM (SELECT pg_advisory_xact_lock(200)) AS lock_acquired;`,
+		`SELECT * FROM (SELECT pg_advisory_xact_lock_shared(200)) AS lock_acquired;`,
 		`SELECT id, first_name FROM employees WHERE pg_try_advisory_lock(300) IS TRUE;`,
 		`SELECT id, first_name FROM employees WHERE salary > 400 AND EXISTS (SELECT 1 FROM pg_advisory_lock(500));`,
 		`SELECT id, first_name FROM employees WHERE pg_try_advisory_lock(600) IS TRUE AND salary > 700;`,
@@ -33,7 +35,7 @@ func TestFuncCallDetector(t *testing.T) {
             SELECT 1
             FROM projects p
             WHERE p.manager_id = e.id
-            AND pg_try_advisory_lock(p.project_id)
+            AND pg_try_advisory_lock_shared(p.project_id)
         );`,
 		`SELECT e.id,
             CASE
@@ -57,7 +59,6 @@ func TestFuncCallDetector(t *testing.T) {
 	}
 
 	detector := NewFuncCallDetector()
-
 	for _, sql := range advisoryLockSqls {
 		parseResult, err := pg_query.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
@@ -196,6 +197,41 @@ func TestXmlExprDetectorAndFuncCallDetector(t *testing.T) {
                 e.department
             ) AS employee_xml
         FROM employees e;`,
+		`SELECT  xmltext('<inventory><item>Widget</item></inventory>') AS inventory_text
+FROM inventory
+WHERE id = 5;`,
+		`SELECT xmlforest(name, department) AS employee_info
+FROM employees
+WHERE id = 4;`,
+		// TODO: future -
+		// 		`SELECT xmltable.*
+		// FROM xmldata,
+		//     XMLTABLE('//ROWS/ROW'
+		//             PASSING data
+		//             COLUMNS id int PATH '@id',
+		//                 ordinality FOR ORDINALITY,
+		//                 "COUNTRY_NAME" text,
+		//                 country_id text PATH 'COUNTRY_ID',
+		//                 size_sq_km float PATH 'SIZE[@unit = "sq_km"]',
+		//                 size_other text PATH
+		//                 'concat(SIZE[@unit!="sq_km"], " ", SIZE[@unit!="sq_km"]/@unit)',
+		//                  premier_name text PATH 'PREMIER_NAME' DEFAULT 'not specified');`,
+		// 		`SELECT xmltable.*
+		// FROM XMLTABLE(XMLNAMESPACES('http://example.com/myns' AS x,
+		//                             'http://example.com/b' AS "B"),
+		//              '/x:example/x:item'
+		//                 PASSING (SELECT data FROM xmldata)
+		//                 COLUMNS foo int PATH '@foo',
+		//                   bar int PATH '@B:bar');`,
+		`SELECT xml_is_well_formed_content('<project>Alpha</project>') AS is_well_formed_content
+FROM projects
+WHERE project_id = 10;`,
+		`SELECT xml_is_well_formed_document(xmlforest(name, department)) AS is_well_formed_document
+FROM employees
+WHERE id = 2;`,
+		`SELECT xml_is_well_formed(xmltext('<employee><name>Jane Doe</name></employee>')) AS is_well_formed
+FROM employees
+WHERE id = 1;`,
 	}
 
 	detectors := []UnsupportedConstructDetector{

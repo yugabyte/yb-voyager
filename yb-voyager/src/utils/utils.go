@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"net/url"
@@ -388,16 +389,23 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 	defer file.Close()
 
 	for {
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.Contains(line, message) {
+		reader := bufio.NewReader(file)
+		for {
+			line, err := reader.ReadString('\n')
+
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("error reading line from file %s: %v", filePath, err)
+			}
+
+			if strings.Contains(string(line), message) {
 				return nil
 			}
-		}
-
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("error scanning file %s: %v", filePath, err)
+			// checking for EOF after checking line because as per docs:
+			// If ReadString encounters an error before finding a delimiter,
+			// it returns the data read before the error and the error itself (often io.EOF).
+			if err == io.EOF {
+				break
+			}
 		}
 
 		select {

@@ -418,6 +418,7 @@ func init() {
 	registerExportDirFlag(getDataMigrationReportCmd)
 	getDataMigrationReportCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
+	getDataMigrationReportCmd.PersistentFlags().MarkHidden("log-level")
 	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json)")
 	getDataMigrationReportCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not

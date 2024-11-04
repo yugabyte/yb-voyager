@@ -1797,6 +1797,7 @@ var funcMap = template.FuncMap{
 		}
 		return total
 	},
+	"split": split,
 }
 
 // add info to the 'reportStruct' variable and return
