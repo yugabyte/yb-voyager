@@ -172,7 +172,7 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 	WHERE 
 		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
-		AND n.nspname IN (%s);  
+		AND n.nspname '%s';  
 	`, schemaName)
 
 	rows, err := yb.db.Query(query)
