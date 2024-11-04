@@ -276,7 +276,7 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 	WHERE 
 		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
-		AND n.nspname IN ('%s');  
+		AND n.nspname IN (%s);  
 	`, querySchemaList)
 
 	rows, err := pg.db.Query(query)
