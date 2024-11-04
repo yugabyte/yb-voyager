@@ -97,6 +97,7 @@ type UnsupportedFeature struct {
 }
 
 type AssessMigrationPhasePayload struct {
+	MigrationComplexity  string `json:"migration_complexity"`
 	UnsupportedFeatures  string `json:"unsupported_features"`
 	UnsupportedDatatypes string `json:"unsupported_datatypes"`
 	Error                string `json:"error,omitempty"` // Removed it for now, TODO

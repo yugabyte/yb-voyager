@@ -1,7 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"MigrationComplexity": "HIGH",
 	"SchemaSummary": {
-		"MigrationComplexity": "HIGH",
 		"DbName": "pg_assessment_report",
 		"SchemaNames": [
 			"public",

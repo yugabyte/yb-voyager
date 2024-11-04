@@ -73,18 +73,18 @@ var WaitChannel = make(chan int)
 // ================== Schema Report ==============================
 
 type SchemaReport struct {
-	VoyagerVersion string        `json:"VoyagerVersion"`
-	SchemaSummary  SchemaSummary `json:"Summary"`
-	Issues         []Issue       `json:"Issues"`
+	VoyagerVersion      string        `json:"VoyagerVersion"`
+	MigrationComplexity string        `json:"MigrationComplexity"`
+	SchemaSummary       SchemaSummary `json:"Summary"`
+	Issues              []Issue       `json:"Issues"`
 }
 
 type SchemaSummary struct {
-	MigrationComplexity string     `json:"MigrationComplexity"`
-	DBName              string     `json:"DbName,omitempty"`
-	SchemaNames         []string   `json:"SchemaNames,omitempty"`
-	DBVersion           string     `json:"DbVersion,omitempty"`
-	Notes               []string   `json:"Notes,omitempty"`
-	DBObjects           []DBObject `json:"DatabaseObjects"`
+	DBName      string     `json:"DbName,omitempty"`
+	SchemaNames []string   `json:"SchemaNames,omitempty"`
+	DBVersion   string     `json:"DbVersion,omitempty"`
+	Notes       []string   `json:"Notes,omitempty"`
+	DBObjects   []DBObject `json:"DatabaseObjects"`
 }
 
 type DBObject struct {

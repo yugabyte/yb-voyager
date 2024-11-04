@@ -1,7 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"MigrationComplexity": "MEDIUM",
 	"SchemaSummary": {
-		"MigrationComplexity": "MEDIUM",
 		"DbName": "test_mgd",
 		"SchemaNames": [
 			"mgd"

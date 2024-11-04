@@ -78,10 +78,10 @@
         <p><strong>Database Version:</strong> {{.}}</p>
         {{end}}
 
-        {{if eq .SchemaSummary.MigrationComplexity "NOT AVAILABLE"}} 
+        {{if eq .MigrationComplexity "NOT AVAILABLE"}}
         <!-- Do nothing -->
         {{else}} 
-        <p><strong>Migration Complexity:</strong> {{ .SchemaSummary.MigrationComplexity }}</p>
+        <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
         {{end}}
 
         <h2>Database Objects</h2>

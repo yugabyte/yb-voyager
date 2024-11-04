@@ -1,7 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"MigrationComplexity": "LOW",
 	"SchemaSummary": {
-		"MigrationComplexity": "LOW",
 		"DbName": "test_pgtbrus",
 		"SchemaNames": [
 			"public"

@@ -1,7 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"MigrationComplexity": "MEDIUM",
 	"SchemaSummary": {
-		"MigrationComplexity": "MEDIUM",
 		"SchemaNames": [
 			"TEST_SCHEMA2"
 		],

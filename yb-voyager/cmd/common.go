@@ -1023,6 +1023,10 @@ func readEnvForAppOrSchemaCounts() {
 
 // Migration complexity calculation from the conversion issues
 func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysisReport utils.SchemaReport) string {
+	if analysisReport.MigrationComplexity != "" {
+		return analysisReport.MigrationComplexity
+	}
+
 	if sourceDBType == ORACLE {
 		mc, err := getMigrationComplexityForOracle(schemaDirectory)
 		if err != nil {
@@ -1030,13 +1034,10 @@ func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysi
 			return "NOT AVAILABLE"
 		}
 		return mc
-	}
-	if sourceDBType != POSTGRESQL {
+	} else if sourceDBType != POSTGRESQL {
 		return "NOT AVAILABLE"
 	}
-	if analysisReport.SchemaSummary.MigrationComplexity != "" {
-		return analysisReport.SchemaSummary.MigrationComplexity
-	}
+
 	log.Infof("Calculating migration complexity..")
 	readEnvForAppOrSchemaCounts()
 	appChangesCount := 0
@@ -1123,6 +1124,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 
 type AssessmentReport struct {
 	VoyagerVersion             string                                `json:"VoyagerVersion"`
+	MigrationComplexity        string                                `json:"MigrationComplexity"`
 	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
 	SchemaSummaryDBObjectsDesc string                                `json:"SchemaSummaryDBObjectsDesc"` // TODO: ideally this should be in SchemaSummary
 	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`

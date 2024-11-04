@@ -305,12 +305,13 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
 		schemaSummary.DBObjects = append(schemaSummary.DBObjects, dbObject)
 	}
+
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		schemaSummary.Notes = append(schemaAnalysisReport.SchemaSummary.Notes, note)
 	}
-	schemaSummary.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
+
 	return schemaSummary
 }
 
@@ -1846,6 +1847,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
+	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaAnalysisReport
 }
 

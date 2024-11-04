@@ -1,7 +1,7 @@
 {
     "VoyagerVersion": "IGNORED",
+    "MigrationComplexity": "LOW",
     "Summary": {
-        "MigrationComplexity": "LOW",
         "DbName": "test_osm",
         "SchemaNames": [
             "public"

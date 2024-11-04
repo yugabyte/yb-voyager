@@ -1,7 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"MigrationComplexity": "LOW",
 	"SchemaSummary": {
-		"MigrationComplexity": "LOW",
 		"DbName": "ORCLPDB1",
 		"SchemaNames": [
 			"TEST_SCHEMA"
