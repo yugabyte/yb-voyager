@@ -995,6 +995,7 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 		*/
 		if column.GetColumnDef() != nil {
 			constraints := column.GetColumnDef().GetConstraints()
+			colName := column.GetColumnDef().GetColname()
 			if constraints != nil {
 				isForeignConstraint := false
 				isDeferrable := false
@@ -1009,7 +1010,7 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 						"Remove these constraints from the exported schema and make the necessary changes to the application before pointing it to target",
-						"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
+						"TABLE", fmt.Sprintf("%s, column: (%s)", fullyQualifiedName, colName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
 				}
 			}
 		} else if column.GetConstraint() != nil {
@@ -1022,14 +1023,23 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 				here checking the case where this constraint is at the at the end as a constraint only, so checking deferrable field in constraint
 				in case of its not a FK.
 			*/
+			colNames := getColumnNames(column.GetConstraint().GetKeys())
 			if column.GetConstraint().Deferrable && column.GetConstraint().Contype != pg_query.ConstrType_CONSTR_FOREIGN {
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 					"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
+					"TABLE", fmt.Sprintf("%s, columns: (%s)", fullyQualifiedName, strings.Join(colNames, ", ")), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
 			}
 		}
 	}
+}
+
+func getColumnNames(keys []*pg_query.Node) []string {
+	var res []string
+	for _, k := range keys {
+		res = append(res, k.GetString_().Sval)
+	}
+	return res
 }
 
 func reportDeferrableConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -1048,10 +1058,11 @@ func reportDeferrableConstraintAlterTable(alterTableNode *pg_query.Node_AlterTab
 	*/
 	constraint := alterCmd.GetDef().GetConstraint()
 	if constraint != nil && constraint.Deferrable && constraint.Contype != pg_query.ConstrType_CONSTR_FOREIGN {
+		colNames := getColumnNames(alterCmd.GetDef().GetConstraint().GetKeys())
 		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 		reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 			"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-			"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
+			"TABLE", fmt.Sprintf("%s, columns: (%s)", fullyQualifiedName, strings.Join(colNames, ", ")), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
 	}
 }
 
@@ -1065,14 +1076,19 @@ func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateS
 		e.g. CREATE TABLE "Test"(
 				id int,
 				room_id int,
-				time_range trange,
-				EXCLUDE USING gist (room_id WITH =, time_range WITH &&)
+				time_range tsrange,
+				room_id1 int,
+				time_range1 tsrange
+				EXCLUDE USING gist (room_id WITH =, time_range WITH &&),
+				EXCLUDE USING gist (room_id1 WITH =, time_range1 WITH &&)
 			);
-		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:{column_def:
-		... table_elts:{column_def:{colname:"time_range" type_name:{names:{string:{sval:"trange"}}
-		typemod:-1 location:59} is_local:true location:48}} table_elts:{constraint:{contype:CONSTR_EXCLUSION
-		location:69 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT ...
-
+		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:...table_elts:{constraint:{contype:CONSTR_EXCLUSION
+		location:226 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		items:{list:{items:{string:{sval:"="}}}}}} exclusions:{list:{items:{index_elem:{name:"time_range" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		items:{list:{items:{string:{sval:"&&"}}}}}} access_method:"gist"}} table_elts:{constraint:{contype:CONSTR_EXCLUSION location:282 exclusions:{list:
+		{items:{index_elem:{name:"room_id1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"="}}}}}}
+		exclusions:{list:{items:{index_elem:{name:"time_range1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"&&"}}}}}}
+		access_method:"gist"}} oncommit:ONCOMMIT_NOOP}} stmt_len:365}
 		here we are iterating over all the table_elts - table elements and which are comma separated column info in
 		the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def
 		is nil.
@@ -1082,12 +1098,23 @@ func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateS
 		//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
 		if column.GetColumnDef() == nil && column.GetConstraint() != nil {
 			if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+				colNames := getColumnNamesFromExclusions(column.GetConstraint().GetExclusions())
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-					"Refer docs link for details on possible workaround", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
+					"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, columns: (%s)", fullyQualifiedName, strings.Join(colNames, ", ")), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
 			}
 		}
 	}
+}
+
+func getColumnNamesFromExclusions(keys []*pg_query.Node) []string {
+	var res []string
+	for _, k := range keys {
+		//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		//items:{list:{items:{string:{sval:"="}}}}}}
+		res = append(res, k.GetList().GetItems()[0].GetIndexElem().Name) // every first element of items in exclusions will be col name
+	}
+	return res
 }
 
 func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -1180,9 +1207,10 @@ func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTabl
 	*/
 	constraint := alterCmd.GetDef().GetConstraint()
 	if alterCmd.Subtype == pg_query.AlterTableType_AT_AddConstraint && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+		colNames := getColumnNamesFromExclusions(alterCmd.GetDef().GetConstraint().GetExclusions())
 		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 		reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-			"Refer docs link for details on possible workaround", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
+			"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, columns: (%s)", fullyQualifiedName, strings.Join(colNames, ", ")), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
 	}
 }
 
