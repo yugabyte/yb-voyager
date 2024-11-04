@@ -1044,15 +1044,15 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
-	var sourceUnsupportedDataTypes, liveMigrationUnsupportedDataTypes, liveMigrationWithFForFBUnsupportedDatatypes []string
+	var sourceUnsupportedDatatypes, liveUnsupportedDatatypes, liveWithFForFBUnsupportedDatatypes []string
 
 	switch source.DBType {
 	case POSTGRESQL:
-		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypes
-		liveMigrationUnsupportedDataTypes = srcdb.GetPGLiveMigrationUnsupportedDatatypes()
-		liveMigrationWithFForFBUnsupportedDatatypes = srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
+		sourceUnsupportedDatatypes = srcdb.PostgresUnsupportedDataTypes
+		liveUnsupportedDatatypes = srcdb.GetPGLiveMigrationUnsupportedDatatypes()
+		liveWithFForFBUnsupportedDatatypes = srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	case ORACLE:
-		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
+		sourceUnsupportedDatatypes = srcdb.OracleUnsupportedDataTypes
 	default:
 		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 	}
@@ -1065,10 +1065,10 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		typeName := splits[len(splits)-1] //using typename only for the cases we are checking it from the static list of type names
 		typeName = strings.TrimSuffix(typeName, "[]")
 
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, typeName)
-		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName)
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(sourceUnsupportedDatatypes, typeName)
+		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
 
-		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveMigrationWithFForFBUnsupportedDatatypes, typeName)
+		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFForFBUnsupportedDatatypes, typeName)
 		isUDTDatatype := utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType)
 		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                              //if type is array
 		isEnumDatatype := utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type

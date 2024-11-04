@@ -890,13 +890,13 @@ func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query
 			isArrayType := len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0
 			colName := column.GetColumnDef().GetColname()
 
-			liveMigrationUnsupportedDataTypes := srcdb.GetPGLiveMigrationUnsupportedDatatypes()
-			liveMigrationWithFfOrFbUnsupportedDataTypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
+			liveUnsupportedDatatypes := srcdb.GetPGLiveMigrationUnsupportedDatatypes()
+			liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 
 			isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName)
-			isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName)
+			isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
 
-			isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveMigrationWithFfOrFbUnsupportedDataTypes, typeName)
+			isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, typeName)
 			isUDTDatatype := utils.ContainsAnyStringFromSlice(compositeTypes, fullTypeName) //if type is array
 			isEnumDatatype := utils.ContainsAnyStringFromSlice(enumTypes, fullTypeName)     //is ENUM type
 			isArrayOfEnumsDatatype := isArrayType && isEnumDatatype
