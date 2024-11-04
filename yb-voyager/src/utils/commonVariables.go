@@ -80,6 +80,7 @@ type SchemaReport struct {
 }
 
 type SchemaSummary struct {
+	Description string     `json:"Description,omitempty"`
 	DBName      string     `json:"DbName,omitempty"`
 	SchemaNames []string   `json:"SchemaNames,omitempty"`
 	DBVersion   string     `json:"DbVersion,omitempty"`

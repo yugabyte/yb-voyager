@@ -2,6 +2,7 @@
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "HIGH",
 	"SchemaSummary": {
+		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",
 		"SchemaNames": [
 			"public",
@@ -87,7 +88,6 @@
 			}
 		]
 	},
-	"SchemaSummaryDBObjectsDesc": "Objects that will be created on the target YugabyteDB.",
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [

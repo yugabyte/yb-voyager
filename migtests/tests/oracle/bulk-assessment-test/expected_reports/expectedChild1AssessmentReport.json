@@ -2,6 +2,7 @@
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "LOW",
 	"SchemaSummary": {
+		"Description": "Objects that will be created on the target YugabyteDB. Some of the index and sequence names might be different from those in the source database.",
 		"DbName": "ORCLPDB1",
 		"SchemaNames": [
 			"TEST_SCHEMA"
@@ -31,7 +32,6 @@
 			}
 		]
 	},
-	"SchemaSummaryDBObjectsDesc": "Objects that will be created on the target YugabyteDB. Some of the index and sequence names might be different from those in the source database.",
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [

@@ -1126,7 +1126,6 @@ type AssessmentReport struct {
 	VoyagerVersion             string                                `json:"VoyagerVersion"`
 	MigrationComplexity        string                                `json:"MigrationComplexity"`
 	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
-	SchemaSummaryDBObjectsDesc string                                `json:"SchemaSummaryDBObjectsDesc"` // TODO: ideally this should be in SchemaSummary
 	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
 	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`

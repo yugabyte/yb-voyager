@@ -85,7 +85,7 @@
         {{end}}
 
         <h2>Database Objects</h2>
-        <p>{{.SchemaSummaryDBObjectsDesc}}</p>
+        <p>{{.SchemaSummary.Description}}</p>
         <table>
             <tr>
                 <th>Object Type</th>

@@ -2,6 +2,7 @@
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "LOW",
 	"SchemaSummary": {
+		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_pgtbrus",
 		"SchemaNames": [
 			"public"
@@ -50,7 +51,6 @@
 			}
 		]
 	},
-	"SchemaSummaryDBObjectsDesc": "Objects that will be created on the target YugabyteDB.",
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
