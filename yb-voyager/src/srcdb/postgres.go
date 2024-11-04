@@ -225,10 +225,18 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 }
 
 func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
-	query := fmt.Sprintf(`SELECT table_name
-			  FROM information_schema.tables
-			  WHERE table_type = 'BASE TABLE' AND
-			        table_schema = '%s';`, schemaName)
+	query := fmt.Sprintf(`
+	SELECT 
+		n.nspname AS table_schema,
+		c.relname AS table_name
+	FROM 
+		pg_catalog.pg_class c
+	JOIN 
+		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE 
+		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
+		AND n.nspname IN (%s); 
+	`, schemaName)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -258,10 +266,18 @@ func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	query := fmt.Sprintf(`SELECT table_schema, table_name
-			  FROM information_schema.tables
-			  WHERE table_type = 'BASE TABLE' AND
-			        table_schema IN (%s);`, querySchemaList)
+	query := fmt.Sprintf(`
+	SELECT 
+		n.nspname AS table_schema,
+		c.relname AS table_name
+	FROM 
+		pg_catalog.pg_class c
+	JOIN 
+		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE 
+		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
+		AND n.nspname IN (%s);  
+	`, querySchemaList)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -654,10 +670,19 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 
 func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
+
 	// For this query in case of case sensitive tables, minquoting is required
-	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
-	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
+	query := fmt.Sprintf(`SELECT
+	inhparent::pg_catalog.regclass AS parent_table
+	FROM
+	pg_catalog.pg_inherits
+	JOIN
+	pg_catalog.pg_class AS child ON pg_inherits.inhrelid = child.oid
+	JOIN
+	pg_catalog.pg_namespace AS nsp_child ON child.relnamespace = nsp_child.oid
+	WHERE
+	child.relname = '%s'
+	AND nsp_child.nspname = '%s';`, table.CurrentName.Unqualified.MinQuoted, table.CurrentName.SchemaName)
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {

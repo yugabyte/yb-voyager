@@ -1027,7 +1027,6 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		return result
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-	var unqualifiedTables []string
 	var unknownTableNames []string
 	for _, pattern := range tableList {
 		tables := findPatternMatchingTables(pattern)
@@ -1035,9 +1034,6 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 			unknownTableNames = append(unknownTableNames, pattern)
 		}
 		result = append(result, tables...)
-	}
-	if len(unqualifiedTables) > 0 {
-		utils.ErrExit("Qualify following table names %v in the %s list with schema name", unqualifiedTables, listName)
 	}
 	if len(unknownTableNames) > 0 {
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
