@@ -32,6 +32,7 @@ var (
 	postgresTestDB *TestDB
 	oracleTestDB   *TestDB
 	mysqlTestDB    *TestDB
+	yugabyteTestDB *TestDB
 )
 
 func TestMain(m *testing.M) {
@@ -58,15 +59,23 @@ func TestMain(m *testing.M) {
 		DBName:    "DMS",
 		Schema:    "YBVOYAGER",
 	}
-
 	mysqlSource := &Source{
 		DBType:    "mysql",
 		DBVersion: "8.4",
 		User:      "ybvoyager",
 		Password:  "password",
 		Port:      3306,
-		DBName:    "DMS",
+		DBName:    "dms",
 		SSLMode:   "disable",
+	}
+	ybSource := &Source{
+		DBType:    "yugabytedb",
+		DBVersion: "2.20.7.1-b10",
+		User:      "yugabyte",
+		Password:  "password",
+		SSLMode:   "disable",
+		Port:      5433,
+		Schema:    "public",
 	}
 
 	postgresTestDB, err = StartTestDB(ctx, pgSource)
@@ -86,6 +95,12 @@ func TestMain(m *testing.M) {
 		utils.ErrExit("Failed to start testDB: %v", err)
 	}
 	defer StopTestDB(ctx, mysqlTestDB)
+
+	yugabyteTestDB, err = StartTestDB(ctx, ybSource)
+	if err != nil {
+		utils.ErrExit("Failed to start testDB: %v", err)
+	}
+	defer StopTestDB(ctx, yugabyteTestDB)
 
 	// disable logs before running tests
 	log.SetOutput(io.Discard)

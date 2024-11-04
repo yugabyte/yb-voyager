@@ -33,15 +33,12 @@ func TestOracleGetAllTableNames(t *testing.T) {
 		sqlname.NewSourceName("YBVOYAGER", "table1"),
 		sqlname.NewSourceName("YBVOYAGER", "table2"),
 		sqlname.NewSourceName("YBVOYAGER", "unique_table"),
+		sqlname.NewSourceName("YBVOYAGER", "non_pk1"),
+		sqlname.NewSourceName("YBVOYAGER", "non_pk2"),
 	}
 	assert.Equal(t, len(expectedTables), len(actualTables), "Expected number of tables to match")
 
-	// Sort and compare tables
-	sortSourceNames(expectedTables)
-	sortSourceNames(actualTables)
-	for i, expectedTable := range expectedTables {
-		assert.Equal(t, expectedTable.Qualified.MinQuoted, actualTables[i].Qualified.MinQuoted, "Expected table names to match")
-	}
+	assertEqualSourceNameSlices(t, expectedTables, actualTables)
 }
 
 func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
@@ -67,7 +64,14 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 			t.Errorf("Expected table %s not found in uniqueKeys", table)
 		}
 
-		err := assertEqualStringSlices(t, expectedColumns, actualColumns)
-		assert.NilError(t, err, "Expected no error for matching unique key columns for table %q", table)
+		assertEqualStringSlices(t, expectedColumns, actualColumns)
 	}
+}
+
+func TestOracleGetNonPKTables(t *testing.T) {
+	actualTables, err := oracleTestDB.Source.DB().GetNonPKTables()
+	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
+
+	expectedTables := []string{`YBVOYAGER."NON_PK1"`, `YBVOYAGER."NON_PK2"`}
+	assertEqualStringSlices(t, expectedTables, actualTables)
 }

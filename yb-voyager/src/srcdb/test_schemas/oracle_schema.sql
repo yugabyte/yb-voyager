@@ -34,3 +34,14 @@ CREATE TABLE YBVOYAGER.table2 (
     id NUMBER PRIMARY KEY,
     email VARCHAR2(100)
 );
+
+
+CREATE TABLE YBVOYAGER.non_pk1 (
+    id NUMBER,
+    name VARCHAR2(10)
+);
+
+CREATE TABLE YBVOYAGER.non_pk2 (
+    id NUMBER,
+    name VARCHAR2(10)
+);

@@ -25,15 +25,17 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
+	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"gotest.tools/assert"
 )
 
 type TestDB struct {
 	Container testcontainers.Container
-	Source    *Source
+	*Source
 }
 
 func (tdb *TestDB) GetContainerHostPort(ctx context.Context) (string, int) {
@@ -59,7 +61,7 @@ func StartTestDB(ctx context.Context, source *Source) (*TestDB, error) {
 	var err error
 	switch source.DBType {
 	case "postgresql":
-		testDB.Container, err = startPostgresContainer(ctx, source)
+		testDB.Container, err = startPostgreSQLContainer(ctx, source)
 	case "oracle":
 		testDB.Container, err = startOracleContainer(ctx, source)
 	case "mysql":
@@ -87,6 +89,7 @@ func StartTestDB(ctx context.Context, source *Source) (*TestDB, error) {
 	}
 
 	source.Host, source.Port = testDB.GetContainerHostPort(ctx)
+	log.Infof("fetched container host=%s, port=%d", source.Host, source.Port)
 	err = source.DB().Connect()
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
@@ -103,7 +106,7 @@ func StopTestDB(ctx context.Context, testDB *TestDB) {
 	}
 }
 
-func startPostgresContainer(ctx context.Context, source *Source) (testcontainers.Container, error) {
+func startPostgreSQLContainer(ctx context.Context, source *Source) (testcontainers.Container, error) {
 	// TODO: verify the docker images being used are the correct certified ones
 	req := testcontainers.ContainerRequest{
 		Image:        fmt.Sprintf("postgres:%s", source.DBVersion),
@@ -112,7 +115,7 @@ func startPostgresContainer(ctx context.Context, source *Source) (testcontainers
 			"POSTGRES_USER":     source.User,
 			"POSTGRES_PASSWORD": source.Password,
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
+		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(1 * time.Minute),
 		Files: []testcontainers.ContainerFile{
 			{
 				HostFilePath:      "./test_schemas/postgresql_schema.sql",
@@ -138,7 +141,7 @@ func startMysqlContainer(ctx context.Context, source *Source) (testcontainers.Co
 			"MYSQL_PASSWORD":      source.Password,
 			"MYSQL_DATABASE":      source.DBName,
 		},
-		WaitingFor: wait.ForListeningPort("3306/tcp").WithStartupTimeout(60 * time.Second),
+		WaitingFor: wait.ForListeningPort("3306/tcp").WithStartupTimeout(1 * time.Minute).WithPollInterval(1 * time.Second),
 		Files: []testcontainers.ContainerFile{
 			{
 				HostFilePath:      "./test_schemas/mysql_schema.sql",
@@ -164,7 +167,7 @@ func startOracleContainer(ctx context.Context, source *Source) (testcontainers.C
 			"APP_USER":          source.User,
 			"APP_USER_PASSWORD": source.Password,
 		},
-		WaitingFor: wait.ForLog("DATABASE IS READY TO USE!").WithStartupTimeout(60 * time.Second),
+		WaitingFor: wait.ForLog("DATABASE IS READY TO USE").WithStartupTimeout(2 * time.Minute).WithPollInterval(5 * time.Second),
 		Files: []testcontainers.ContainerFile{
 			{
 				HostFilePath:      "./test_schemas/oracle_schema.sql",
@@ -180,32 +183,58 @@ func startOracleContainer(ctx context.Context, source *Source) (testcontainers.C
 	})
 }
 
+// this will create a 1 Node RF-1 cluster
 func startYugabyteDBContainer(ctx context.Context, source *Source) (testcontainers.Container, error) {
-	return nil, nil
+	req := testcontainers.ContainerRequest{
+		Image:        fmt.Sprintf("yugabytedb/yugabyte:%s", source.DBVersion),
+		ExposedPorts: []string{"5433/tcp", "15433/tcp", "7000/tcp", "9000/tcp", "9042/tcp"},
+		Cmd: []string{
+			"bin/yugabyted",
+			"start",
+			"--daemon=false",
+			"--ui=false",
+			"--initial_scripts_dir=/home/yugabyte/initial-scripts",
+		},
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort("5433/tcp").WithStartupTimeout(2*time.Minute).WithPollInterval(1*time.Second),
+			wait.ForLog("Data placement constraint successfully verified").WithStartupTimeout(3*time.Minute).WithPollInterval(1*time.Second),
+		),
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      "./test_schemas/yugabytedb_schema.sql",
+				ContainerFilePath: "/home/yugabyte/initial-scripts/yugabytedb_schema.sql",
+				FileMode:          0755,
+			},
+		},
+	}
+
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
 }
 
-
-
 // === assertion helper functions
+
+func assertEqualStringSlices(t *testing.T, expected, actual []string) {
+	t.Helper()
+	if len(expected) != len(actual) {
+		t.Errorf("Mismatch in slice length. Expected: %v, Actual: %v", expected, actual)
+	}
+
+	sort.Strings(expected)
+	sort.Strings(actual)
+	assert.DeepEqual(t, expected, actual)
+}
+
+func assertEqualSourceNameSlices(t *testing.T, expected, actual []*sqlname.SourceName) {
+	sortSourceNames(expected)
+	sortSourceNames(actual)
+	assert.DeepEqual(t, expected, actual)
+}
 
 func sortSourceNames(tables []*sqlname.SourceName) {
 	sort.Slice(tables, func(i, j int) bool {
 		return tables[i].Qualified.MinQuoted < tables[j].Qualified.MinQuoted
 	})
-}
-
-func assertEqualStringSlices(t *testing.T, expected, actual []string) error {
-	t.Helper()
-	if len(expected) != len(actual) {
-		return fmt.Errorf("Mismatch in slice length. Expected: %v, Actual: %v", expected, actual)
-	}
-
-	sort.Strings(expected)
-	sort.Strings(actual)
-	for i, _ := range expected {
-		if expected[i] != actual[i] {
-			return fmt.Errorf("Expected: %q, Actual: %q", expected, actual)
-		}
-	}
-	return nil
 }

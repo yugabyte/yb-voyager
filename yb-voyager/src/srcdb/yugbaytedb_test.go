@@ -22,11 +22,11 @@ import (
 	"gotest.tools/assert"
 )
 
-func TestPostgresGetAllTableNames(t *testing.T) {
-	sqlname.SourceDBType = "postgresql"
+func TestYugabyteGetAllTableNames(t *testing.T) {
+	sqlname.SourceDBType = "yugabytedb"
 
 	// Test GetAllTableNames
-	actualTables := postgresTestDB.Source.DB().GetAllTableNames()
+	actualTables := yugabyteTestDB.Source.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("public", "foo"),
 		sqlname.NewSourceName("public", "bar"),
@@ -41,14 +41,14 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	assertEqualSourceNameSlices(t, expectedTables, actualTables)
 }
 
-func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
-	objectName := sqlname.NewObjectName("postgresql", "public", "public", "unique_table")
+func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
+	objectName := sqlname.NewObjectName("yugabytedb", "public", "public", "unique_table")
 
 	// Test GetTableToUniqueKeyColumnsMap
 	tableList := []sqlname.NameTuple{
 		{CurrentName: objectName},
 	}
-	uniqueKeys, err := postgresTestDB.Source.DB().GetTableToUniqueKeyColumnsMap(tableList)
+	uniqueKeys, err := yugabyteTestDB.Source.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
@@ -56,7 +56,6 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	expectedKeys := map[string][]string{
 		"unique_table": {"email", "phone", "address"},
 	}
-
 	// Compare the maps by iterating over each table and asserting the columns list
 	for table, expectedColumns := range expectedKeys {
 		actualColumns, exists := uniqueKeys[table]
@@ -68,8 +67,8 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	}
 }
 
-func TestPostgresGetNonPKTables(t *testing.T) {
-	actualTables, err := postgresTestDB.Source.DB().GetNonPKTables()
+func TestYugabyteGetNonPKTables(t *testing.T) {
+	actualTables, err := yugabyteTestDB.Source.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
 	expectedTables := []string{`public."non_pk2"`, `public."non_pk1"`} // func returns table.Qualified.Quoted
