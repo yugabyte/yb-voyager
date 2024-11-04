@@ -766,6 +766,13 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 			}
 		})
 	}
+	var partitionsToRootTableMap map[string]string
+	isTableListSet := source.TableList != ""
+	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList, isTableListSet)
+	if err != nil {
+		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
+	}
+
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
@@ -785,13 +792,6 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
 			return table.ForMinOutput()
 		}))
-	}
-
-	var partitionsToRootTableMap map[string]string
-	isTableListSet := source.TableList != ""
-	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList, isTableListSet)
-	if err != nil {
-		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
 	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
