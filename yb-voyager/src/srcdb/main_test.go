@@ -17,7 +17,6 @@ package srcdb
 
 import (
 	"context"
-	"io"
 	"os"
 	"testing"
 
@@ -102,8 +101,9 @@ func TestMain(m *testing.M) {
 	}
 	defer StopTestDB(ctx, yugabyteTestDB)
 
-	// disable logs before running tests
-	log.SetOutput(io.Discard)
+	// to avoid info level logs flooding the test output
+	log.SetLevel(log.WarnLevel)
+
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
