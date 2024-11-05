@@ -257,7 +257,11 @@ func exportData() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var partitionsToRootTableMap map[string]string
-	partitionsToRootTableMap, finalTableList, tablesColumnList := getFinalTableColumnList()
+	// get initial table list
+	partitionsToRootTableMap, finalTableList, isTableListSet := getInitialTableList()
+
+	// finalize table list and column list
+	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList, isTableListSet)
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
@@ -713,10 +717,10 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	}
 }
 
-func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+func getInitialTableList() (map[string]string, []sqlname.NameTuple, bool) {
 	var tableList []sqlname.NameTuple
 	// store table list after filtering unsupported or unnecessary tables
-	var finalTableList, skippedTableList []sqlname.NameTuple
+	var finalTableList []sqlname.NameTuple
 	tableListFromDB := source.DB().GetAllTableNames()
 	var err error
 	var fullTableList []sqlname.NameTuple
@@ -773,11 +777,16 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
+	return partitionsToRootTableMap, finalTableList, isTableListSet
+}
+
+func finalizeTableColumnList(finalTableList []sqlname.NameTuple, isTableListSet bool) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
-	log.Infof("initial all tables table list for data export: %v", tableList)
+	log.Infof("initial all tables table list for data export: %v", finalTableList)
 
+	var skippedTableList []sqlname.NameTuple
 	if !changeStreamingIsEnabled(exportType) {
 		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
@@ -823,7 +832,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	return partitionsToRootTableMap, finalTableList, tablesColumnList
+	return finalTableList, tablesColumnList
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
