@@ -87,6 +87,14 @@
 			"Objects": []
 		},
 		{
+			"FeatureName": "REFERENCING clause for triggers",
+			"Objects": []
+		},
+		{
+			"FeatureName": "BEFORE / FOR EACH ROW triggers on Partitioned tables",
+			"Objects": []
+		},
+		{
 			"FeatureName": "Constraint triggers",
 			"Objects": []
 		},
