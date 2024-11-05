@@ -333,7 +333,7 @@
 			"FeatureName": "Exclusion constraints",
 			"Objects": [
 				{
-					"ObjectName": "public.test_exclude_basic, columns: (name, address)",
+					"ObjectName": "public.test_exclude_basic, constraint: (no_same_name_address)",
 					"SqlStatement": "ALTER TABLE ONLY public.test_exclude_basic\n    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);"
 				}
 			],
@@ -343,11 +343,11 @@
 			"FeatureName": "Deferrable constraints",
 			"Objects": [
 				{
-					"ObjectName": "public.orders2, columns: (order_number)",
+					"ObjectName": "public.orders2, constraint: (orders2_order_number_key)",
 					"SqlStatement": "ALTER TABLE ONLY public.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
 				},
 				{
-					"ObjectName": "schema2.orders2, columns: (order_number)",
+					"ObjectName": "schema2.orders2, constraint: (orders2_order_number_key)",
 					"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
 				}
 			],
