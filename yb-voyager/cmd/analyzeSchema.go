@@ -163,8 +163,6 @@ var (
 	dropSeqRegex              = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedTokens))
 	dropForeignRegex          = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
 	dropIdxConcurRegex        = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
-	trigRefRegex              = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
-	constrTrgRegex            = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident), "AFTER", capture(commonClause), "ON", capture(ident))
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
@@ -377,6 +375,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
 		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
 		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
+		createTriggerNode, isCreateTrigger := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTrigStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
@@ -402,6 +401,10 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if isCreatePolicy {
 			reportPolicyRequireRolesOrGrants(createPolicyNode, sqlStmtInfo, fpath)
+		}
+
+		if isCreateTrigger {
+			reportUnsupportedTriggers(createTriggerNode, sqlStmtInfo, fpath)
 		}
 
 		if isCreateCompositeType {
@@ -448,6 +451,78 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			enumTypes = append(enumTypes, fullTypeName)
 		}
 	}
+}
+
+func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTriggerNode.CreateTrigStmt.Relation.Schemaname
+	tableName := createTriggerNode.CreateTrigStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	trigName := createTriggerNode.CreateTrigStmt.Trigname
+	displayObjectName := fmt.Sprintf("%s ON %s", trigName, fullyQualifiedName)
+
+	/*
+		e.g.CREATE CONSTRAINT TRIGGER some_trig
+			AFTER DELETE ON xyz_schema.abc
+			DEFERRABLE INITIALLY DEFERRED
+			FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();
+		create_trig_stmt:{isconstraint:true trigname:"some_trig" relation:{schemaname:"xyz_schema" relname:"abc" inh:true relpersistence:"p"
+		location:56} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} row:true events:8 deferrable:true initdeferred:true}}
+		stmt_len:160}
+	*/
+	if createTriggerNode.CreateTrigStmt.Isconstraint {
+		reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
+			"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", displayObjectName,
+			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, CONSTRAINT_TRIGGER_DOC_LINK)
+	}
+
+	/*
+		e.g. CREATE TRIGGER projects_loose_fk_trigger
+			AFTER DELETE ON public.projects
+			REFERENCING OLD TABLE AS old_table
+			FOR EACH STATEMENT EXECUTE FUNCTION xyz_schema.some_trig();
+		stmt:{create_trig_stmt:{trigname:"projects_loose_fk_trigger" relation:{schemaname:"public" relname:"projects" inh:true
+		relpersistence:"p" location:58} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} events:8
+		transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len:167}
+	*/
+	if createTriggerNode.CreateTrigStmt.GetTransitionRels() != nil {
+		summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
+		reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
+			"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+	}
+
+	/*
+		e.g.CREATE TRIGGER after_insert_or_delete_trigger
+			BEFORE INSERT OR DELETE ON main_table
+			FOR EACH ROW
+			EXECUTE FUNCTION handle_insert_or_delete();
+		stmt:{create_trig_stmt:{trigname:"after_insert_or_delete_trigger" relation:{relname:"main_table" inh:true relpersistence:"p"
+		location:111} funcname:{string:{sval:"handle_insert_or_delete"}} row:true timing:2 events:12}} stmt_len:177}
+
+		here,
+		timing - bits of BEFORE/AFTER/INSTEAD
+		events - bits of "OR" INSERT/UPDATE/DELETE/TRUNCATE
+		row - FOR EACH ROW (true), FOR EACH STATEMENT (false)
+		refer - https://github.com/pganalyze/pg_query_go/blob/c3a818d346a927c18469460bb18acb397f4f4301/parser/include/postgres/catalog/pg_trigger_d.h#L49
+			TRIGGER_TYPE_BEFORE				(1 << 1)
+			TRIGGER_TYPE_INSERT				(1 << 2)
+			TRIGGER_TYPE_DELETE				(1 << 3)
+			TRIGGER_TYPE_UPDATE				(1 << 4)
+			TRIGGER_TYPE_TRUNCATE			(1 << 5)
+			TRIGGER_TYPE_INSTEAD			(1 << 6)
+	*/
+
+	timing := createTriggerNode.CreateTrigStmt.Timing
+	isSecondBitSet := timing & (1 << 1) != 0
+	if isSecondBitSet || createTriggerNode.CreateTrigStmt.Row {
+		// BEFORE clause will have the bits in timing as 1<<1
+		// BEFORE / FOR EACH ROW on partitioned table is not supported in PG<=12
+		if partitionTablesMap[fullyQualifiedName] {
+			summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
+			reportCase(fpath, "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1668", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+		}
+	}
+
 }
 
 func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -1278,13 +1353,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 		} else if idx := dropIdxConcurRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			reportCase(fpath, "DROP INDEX CONCURRENTLY not supported yet",
 				"https://github.com/yugabyte/yugabyte-db/issues/22717", "", "INDEX", idx[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if trig := trigRefRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
-				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", fmt.Sprintf("%s ON %s", trig[1], trig[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, CONSTRAINT_TRIGGER_DOC_LINK)
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 		} else if bulkCollectRegex.MatchString(sqlInfo.stmt) {
