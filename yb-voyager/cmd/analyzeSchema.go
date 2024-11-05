@@ -983,7 +983,7 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 
 	getConstraintSuffix := func(conType pg_query.ConstrType) string {
-		//Deferrable is only applicable to following constraint 
+		//Deferrable is only applicable to following constraint
 		//https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Currently%2C%20only%20UNIQUE%2C%20PRIMARY%20KEY%2C%20EXCLUDE%2C%20and%20REFERENCES
 		switch conType {
 		case pg_query.ConstrType_CONSTR_UNIQUE:
@@ -1022,7 +1022,9 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 						isForeignConstraint = true
 					} else if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
 						//Getting the constraint's suffix before the DEFERRABLE clause as the clause is applicable to that constraint
-						constraintSuffix = getConstraintSuffix(constraints[idx-1].GetConstraint().Contype)
+						if idx > 0 {
+							constraintSuffix = getConstraintSuffix(constraints[idx-1].GetConstraint().Contype)
+						}
 						isDeferrable = true
 					}
 				}
