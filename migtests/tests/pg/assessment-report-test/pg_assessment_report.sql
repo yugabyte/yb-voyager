@@ -201,3 +201,40 @@ CREATE INDEX idx6 on public.combined_tbl (bittv);
 CREATE INDEX idx7 on public.combined_tbl (address);
 
 CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
+
+-- Unsupported Query Constructs 
+
+create extension pg_stat_statements;
+
+SELECT pg_stat_statements_reset();
+
+SELECT * FROM pg_stat_statements;
+
+-- System Columns 
+
+SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM employees2;
+
+-- XML Functions
+
+SELECT xpath('/employee/name', xmlparse(DOCUMENT '<employee><name>John</name></employee>'));
+
+SELECT xmlserialize(CONTENT xmlelement(NAME "employee") AS TEXT);
+
+-- Not Reported Currently
+
+-- SELECT *
+-- FROM xmltable(
+--     '/employees/employee'
+--     PASSING '<employees><employee><name>John</name></employee></employees>'
+--     COLUMNS 
+--         name TEXT PATH 'name'
+-- );
+
+-- Advisory Locks
+
+SELECT pg_advisory_lock(1,2); 
+SELECT pg_advisory_unlock(1,2); 
+SELECT pg_advisory_xact_lock(1,2); 
+SELECT pg_advisory_unlock_all();
+
