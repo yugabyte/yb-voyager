@@ -1,7 +1,7 @@
 {
     "VoyagerVersion": "IGNORED",
+    "MigrationComplexity": "HIGH",
     "Summary": {
-        "MigrationComplexity": "HIGH",
         "DbName": "test_rna",
         "SchemaNames": [
             "rnacen"

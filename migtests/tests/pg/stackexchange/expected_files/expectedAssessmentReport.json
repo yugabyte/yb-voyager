@@ -1,7 +1,8 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"MigrationComplexity": "MEDIUM",
 	"SchemaSummary": {
-		"MigrationComplexity": "MEDIUM",
+		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_stackex",
 		"SchemaNames": [
 			"public"
@@ -35,7 +36,6 @@
 			}
 		]
 	},
-	"SchemaSummaryDBObjectsDesc": "Objects that will be created on the target YugabyteDB.",
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [

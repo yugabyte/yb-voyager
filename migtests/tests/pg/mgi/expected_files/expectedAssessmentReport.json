@@ -1,7 +1,8 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"MigrationComplexity": "MEDIUM",
 	"SchemaSummary": {
-		"MigrationComplexity": "MEDIUM",
+		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_mgd",
 		"SchemaNames": [
 			"mgd"
@@ -45,7 +46,6 @@
 			}
 		]
 	},
-	"SchemaSummaryDBObjectsDesc": "Objects that will be created on the target YugabyteDB.",
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [

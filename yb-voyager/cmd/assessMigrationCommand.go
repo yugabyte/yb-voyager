@@ -144,7 +144,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}
 	}
 	schemaSummaryCopy := utils.SchemaSummary{
-		MigrationComplexity: assessmentReport.SchemaSummary.MigrationComplexity,
 		Notes:               assessmentReport.SchemaSummary.Notes,
 		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
@@ -157,6 +156,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	})
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
+		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			return callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
@@ -439,7 +439,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalColocatedSize: sizeDetails.TotalColocatedSize,
 			TotalShardedSize:   sizeDetails.TotalShardedSize,
 		},
-		MigrationComplexity: assessmentReport.SchemaSummary.MigrationComplexity,
+		MigrationComplexity: assessmentReport.MigrationComplexity,
 		ConversionIssues:    schemaAnalysisReport.Issues,
 	}
 
@@ -801,10 +801,11 @@ func generateAssessmentReport() (err error) {
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
+	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
-	assessmentReport.SchemaSummaryDBObjectsDesc = "Objects that will be created on the target YugabyteDB."
+	assessmentReport.SchemaSummary.Description = "Objects that will be created on the target YugabyteDB."
 	if source.DBType == ORACLE {
-		assessmentReport.SchemaSummaryDBObjectsDesc += " Some of the index and sequence names might be different from those in the source database."
+		assessmentReport.SchemaSummary.Description += " Some of the index and sequence names might be different from those in the source database."
 	}
 
 	// set invalidCount to zero so that it doesn't show up in the report
