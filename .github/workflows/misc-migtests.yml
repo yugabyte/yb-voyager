@@ -43,6 +43,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries"
+        run: |
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
+          docker restart ${{ job.services.postgres.id }}
+          sleep 10
+
       - name: Install python3 and psycopg2
         run: |
           sudo apt install -y python3
