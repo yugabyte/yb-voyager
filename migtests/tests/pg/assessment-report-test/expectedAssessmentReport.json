@@ -47,8 +47,8 @@
 			},
 			{
 				"ObjectType": "FUNCTION",
-				"TotalCount": 6,
-				"ObjectNames": "public.auditlogfunc, public.prevent_update_shipped_without_date, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.total"
+				"TotalCount": 7,
+				"ObjectNames": "public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.total"
 			},
 			{
 				"ObjectType": "AGGREGATE",
@@ -67,8 +67,8 @@
 			},
 			{
 				"ObjectType": "TRIGGER",
-				"TotalCount": 2,
-				"ObjectNames": "audit_trigger ON public.tt, audit_trigger ON schema2.tt"
+				"TotalCount": 3,
+				"ObjectNames": "audit_trigger ON public.tt, before_sales_region_insert_update ON public.sales_region, audit_trigger ON schema2.tt"
 			},
 			{
 				"ObjectType": "MVIEW",
@@ -316,6 +316,19 @@
 		{
 			"FeatureName": "Disabling rule on table",
 			"Objects": []
+		},
+		{
+			"FeatureName": "REFERENCING clause for triggers",
+			"Objects": []
+		},
+		{
+			"FeatureName": "BEFORE / FOR EACH ROW triggers on Partitioned tables",
+			"Objects": [
+				{
+					"ObjectName": "before_sales_region_insert_update ON public.sales_region",
+					"SqlStatement": "CREATE TRIGGER before_sales_region_insert_update BEFORE INSERT OR UPDATE ON public.sales_region FOR EACH ROW EXECUTE FUNCTION public.check_sales_region();"
+				}
+			]
 		},
 		{
 			"FeatureName": "Clustering table on index",
