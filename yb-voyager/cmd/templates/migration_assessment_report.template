@@ -264,10 +264,11 @@
         {{end}}
 
         {{ if .MigrationCaveats}}
+            {{ $hasMigrationCaveats := false }}
             <h2>Migration caveats</h2>
-            <p></p>
             {{range .MigrationCaveats}}
                 {{if .Objects}} <!-- Check if Objects is not empty -->
+                    {{ $hasMigrationCaveats = true }}
                     {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
                         <h4>{{.FeatureName}}</h4>
                         <p>{{.FeatureDescription}}</p>
@@ -294,7 +295,11 @@
                     {{end}} 
                 {{end}}
             {{end}}
+            {{if not $hasMigrationCaveats}} <!-- Check if no migration caveats were found -->
+                <p>No migration caveats were found in the schema.</p>
+            {{end}}
         {{end}}
+
     </div>
 </body>
 </html>

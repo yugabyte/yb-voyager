@@ -161,6 +161,50 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration"
 )
 
+/*
+List of all the features we are reporting as part of Unsupported features and Migration caveats 
+*/
+const (
+	//Unsupported Features
+
+	//Oracle
+	UNSUPPORTED_INDEXES_FEATURE              = "Unsupported Indexes"
+	VIRTUAL_COLUMNS_FEATURE                  = "Virtual Columns"
+	INHERITED_TYPES_FEATURE                  = "Inherited Types"
+	UNSUPPORTED_PARTITIONING_METHODS_FEATURE = "Unsupported Partitioning Methods"
+	COMPOUND_TRIGGER_FEATURE                 = "Compound Triggers"
+
+	//POSTGRESQL
+	CONSTRAINT_TRIGGERS_FEATURE     = "Constraint triggers"
+	INHERITED_TABLES_FEATURE        = "Inherited tables"
+	GENERATED_COLUMNS_FEATURE       = "Tables with stored generated columns"
+	CONVERSIONS_OBJECTS_FEATURE     = "Conversion objects"
+	MULTI_COLUMN_GIN_INDEX_FEATURE  = "Gin indexes on multi-columns"
+	ALTER_SETTING_ATTRIBUTE_FEATURE = "Setting attribute=value on column"
+	DISABLING_TABLE_RULE_FEATURE    = "Disabling rule on table"
+	CLUSTER_ON_FEATURE              = "Clustering table on index"
+	STORAGE_PARAMETERS_FEATURE      = "Storage parameters in DDLs"
+	EXTENSION_FEATURE               = "Extensions"
+	EXCLUSION_CONSTRAINT_FEATURE    = "Exclusion constraints"
+	DEFERRABLE_CONSTRAINT_FEATURE   = "Deferrable constraints"
+	VIEW_CHECK_FEATURE              = "View with check option"
+	UNLOGGED_TABLE_FEATURE          = "Unlogged tables"
+
+	// Migration caveats
+
+	//POSTGRESQL
+	ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE                     = "Alter partitioned tables to add Primary Key"
+	FOREIGN_TABLE_CAVEAT_FEATURE                              = "Foreign tables"
+	POLICIES_CAVEAT_FEATURE                                   = "Policies"
+	UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE                 = "Unsupported Data Types for Live Migration"
+	UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE      = "Unsupported Data Types for Live Migration with Fall-forward/Fallback"
+	DESCRIPTION_ADD_PK_TO_PARTITION_TABLE                     = `After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.`
+	DESCRIPTION_FOREIGN_TABLES                                = `During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.`
+	DESCRIPTION_POLICY_ROLE_ISSUE                             = `There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.`
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
+)
+
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
 var validExportTypes = []string{SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES}
 
