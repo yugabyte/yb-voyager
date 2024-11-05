@@ -1028,7 +1028,9 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 				}
 				if !isForeignConstraint && isDeferrable {
 					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-					conName := fmt.Sprintf("%s_%s%s", tableName, colName, constraintSuffix)
+					generatedConName := fmt.Sprintf("%s_%s%s", tableName, colName, constraintSuffix)
+					specifiedConstraintName := column.GetConstraint().GetConname()
+					conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 						"Remove these constraints from the exported schema and make the necessary changes to the application before pointing it to target",
 						"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
@@ -1047,7 +1049,9 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 			colNames := getColumnNames(column.GetConstraint().GetKeys())
 			if column.GetConstraint().Deferrable && column.GetConstraint().Contype != pg_query.ConstrType_CONSTR_FOREIGN {
 				constraintSuffix := getConstraintSuffix(column.GetConstraint().Contype)
-				conName := fmt.Sprintf("%s_%s%s", tableName, strings.Join(colNames, "_"), constraintSuffix)
+				generatedConName := fmt.Sprintf("%s_%s%s", tableName, strings.Join(colNames, "_"), constraintSuffix)
+				specifiedConstraintName := column.GetConstraint().GetConname()
+				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 					"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
@@ -1122,7 +1126,9 @@ func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateS
 		if column.GetColumnDef() == nil && column.GetConstraint() != nil {
 			if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
 				colNames := getColumnNamesFromExclusions(column.GetConstraint().GetExclusions())
-				conName := fmt.Sprintf("%s_%s_excl", tableName, strings.Join(colNames, "_"))
+				generatedConName := fmt.Sprintf("%s_%s_excl", tableName, strings.Join(colNames, "_"))
+				specifiedConstraintName := column.GetConstraint().GetConname()
+				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
 					"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)

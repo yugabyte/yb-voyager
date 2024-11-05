@@ -235,8 +235,11 @@ Alter table only party_profile_part of parent_tbl add constraint party_profile_p
 CREATE TABLE "Test"(
 	id int, 
 	room_id int, 
-	time_range trange, 
-	EXCLUDE USING gist (room_id WITH =, time_range WITH &&)
+	time_range trange,
+	roomid int,
+	timerange tsrange, 
+	EXCLUDE USING gist (room_id WITH =, time_range WITH &&),
+	CONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH &&)
 );
 
 CREATE TABLE public.meeting (

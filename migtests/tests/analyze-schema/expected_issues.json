@@ -1018,9 +1018,19 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
+            "ObjectName": "Test, constraint: (no_time_overlap_constr)",
+            "Reason": "Exclusion constraint is not supported yet",
+            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
+            "Suggestion": "Refer docs link for details on possible workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
             "ObjectName": "Test, constraint: (Test_room_id_time_range_excl)",
             "Reason": "Exclusion constraint is not supported yet",
-            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026)\n);",
+            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
             "Suggestion": "Refer docs link for details on possible workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
