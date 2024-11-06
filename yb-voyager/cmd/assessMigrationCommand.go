@@ -459,7 +459,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	}
 
 	ev.Report = string(payloadBytes)
-	log.Infof("assess migration payload sent to yugabyted: %s", ev.Report)
+	log.Infof("assess migration payload send to yugabyted: %s", ev.Report)
 	return ev
 }
 
@@ -834,6 +834,12 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	assessmentReport.SchemaSummary.Description = "Objects that will be created on the target YugabyteDB."
 	if source.DBType == ORACLE {
 		assessmentReport.SchemaSummary.Description += " Some of the index and sequence names might be different from those in the source database."
+	}
+
+	// Ques: yugabyted do need this, currently it is using Issues as invalid count (TODO don't reset to zero)
+	// set invalidCount to zero so that it doesn't show up in the report
+	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
+		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
 	}
 
 	// fetching unsupportedFeaturing with the help of Issues report in SchemaReport
