@@ -478,7 +478,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 		issues = append(issues, AssessmentIssue{
 			Type:         DATATYPE,
 			Name:         unsupportedDataType.DataType,
-			Description:  ar.UnsupportedDataTypesDesc,
+			Description:  DATATYPE_ISSUE_TYPE_DESCRIPTION,
 			ObjectName:   fmt.Sprintf("%s.%s.%s", unsupportedDataType.SchemaName, unsupportedDataType.TableName, unsupportedDataType.ColumnName),
 			SqlStatement: "",
 			DocsLink:     docsLink,
@@ -501,9 +501,10 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 	for _, migrationCaveat := range ar.MigrationCaveats {
 		for _, object := range migrationCaveat.Objects {
 			issues = append(issues, AssessmentIssue{
-				Type:         MIGRATION_CAVEATS,
-				Name:         migrationCaveat.FeatureName,
-				Description:  "",
+				Type:        MIGRATION_CAVEATS,
+				Name:        migrationCaveat.FeatureName,
+				Description: "", // TODO: Need general description: MIGRATION_CAVEATS_ISSUE_TYPE_DESCRIPTION
+				// Q: migrationCaveat.Description is more like a workaround than description. do we need to store that in our AssessmentIssue struct
 				ObjectName:   object.ObjectName,
 				SqlStatement: object.SqlStatement,
 				DocsLink:     migrationCaveat.DocsLink,
