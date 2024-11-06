@@ -1203,6 +1203,7 @@ type AssessMigrationDBConfig struct {
 // =============== for yugabyted controlplane ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 type AssessMigrationPayload struct {
+	PayloadVersion        string
 	VoyagerVersion        string
 	MigrationComplexity   string
 	SchemaSummary         utils.SchemaSummary
@@ -1211,7 +1212,7 @@ type AssessMigrationPayload struct {
 	TargetRecommendations TargetSizingRecommendations
 	ConversionIssues      []utils.Issue
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
-	AssessmentJsonReport  AssessmentReport
+	AssessmentJsonReport AssessmentReport
 }
 
 type SourceDBSizeDetails struct {
@@ -1225,6 +1226,8 @@ type TargetSizingRecommendations struct {
 	TotalColocatedSize int64
 	TotalShardedSize   int64
 }
+
+var ASSESS_MIGRATION_PAYLOAD_VERSION = "1.0"
 
 //====== AssesmentReport struct methods ======//
 

@@ -435,6 +435,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	assessmentIssues := flattenAssessmentReportToAssessmentIssues(assessmentReport)
 
 	payload := AssessMigrationPayload{
+		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
 		VoyagerVersion:      assessmentReport.VoyagerVersion,
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		SchemaSummary:       assessmentReport.SchemaSummary,
