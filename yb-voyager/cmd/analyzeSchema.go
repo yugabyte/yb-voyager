@@ -998,23 +998,20 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 			constraints := column.GetColumnDef().GetConstraints()
 			colName := column.GetColumnDef().GetColname()
 			if constraints != nil {
-				isForeignConstraint := false
 				isDeferrable := false
-				var constraintType pg_query.ConstrType
+				var deferrableConstraintType pg_query.ConstrType
 				for idx, constraint := range constraints {
-					if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_FOREIGN {
-						isForeignConstraint = true
-					} else if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
+					if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
 						//Getting the constraint type before the DEFERRABLE clause as the clause is applicable to that constraint
 						if idx > 0 {
-							constraintType = constraints[idx-1].GetConstraint().Contype
+							deferrableConstraintType = constraints[idx-1].GetConstraint().Contype
 						}
 						isDeferrable = true
 					}
 				}
-				if !isForeignConstraint && isDeferrable {
+				if isDeferrable && deferrableConstraintType != pg_query.ConstrType_CONSTR_FOREIGN {
 					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-					generatedConName := generateConstraintName(constraintType, tableName, []string{colName})
+					generatedConName := generateConstraintName(deferrableConstraintType, tableName, []string{colName})
 					specifiedConstraintName := column.GetConstraint().GetConname()
 					conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
