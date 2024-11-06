@@ -982,22 +982,6 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 	columns := createTableNode.CreateStmt.TableElts
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 
-	getConstraintSuffix := func(conType pg_query.ConstrType) string {
-		//Deferrable is only applicable to following constraint
-		//https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Currently%2C%20only%20UNIQUE%2C%20PRIMARY%20KEY%2C%20EXCLUDE%2C%20and%20REFERENCES
-		switch conType {
-		case pg_query.ConstrType_CONSTR_UNIQUE:
-			return "_key"
-		case pg_query.ConstrType_CONSTR_PRIMARY:
-			return "_pkey"
-		case pg_query.ConstrType_CONSTR_EXCLUSION:
-			return "_excl"
-		case pg_query.ConstrType_CONSTR_FOREIGN:
-			return "_fkey"
-		}
-		return ""
-	}
-
 	for _, column := range columns {
 		/*
 			e.g. create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
@@ -1016,21 +1000,21 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 			if constraints != nil {
 				isForeignConstraint := false
 				isDeferrable := false
-				constraintSuffix := ""
+				var constraintType pg_query.ConstrType
 				for idx, constraint := range constraints {
 					if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_FOREIGN {
 						isForeignConstraint = true
 					} else if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
 						//Getting the constraint's suffix before the DEFERRABLE clause as the clause is applicable to that constraint
 						if idx > 0 {
-							constraintSuffix = getConstraintSuffix(constraints[idx-1].GetConstraint().Contype)
+							constraintType = constraints[idx-1].GetConstraint().Contype
 						}
 						isDeferrable = true
 					}
 				}
 				if !isForeignConstraint && isDeferrable {
 					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-					generatedConName := fmt.Sprintf("%s_%s%s", tableName, colName, constraintSuffix)
+					generatedConName := generateConstraintName(constraintType, tableName, []string{colName})
 					specifiedConstraintName := column.GetConstraint().GetConname()
 					conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
@@ -1050,8 +1034,7 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 			*/
 			colNames := getColumnNames(column.GetConstraint().GetKeys())
 			if column.GetConstraint().Deferrable && column.GetConstraint().Contype != pg_query.ConstrType_CONSTR_FOREIGN {
-				constraintSuffix := getConstraintSuffix(column.GetConstraint().Contype)
-				generatedConName := fmt.Sprintf("%s_%s%s", tableName, strings.Join(colNames, "_"), constraintSuffix)
+				generatedConName := generateConstraintName(column.GetConstraint().Contype, tableName, colNames)
 				specifiedConstraintName := column.GetConstraint().GetConname()
 				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
@@ -1061,6 +1044,24 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 			}
 		}
 	}
+}
+
+func generateConstraintName(conType pg_query.ConstrType, tableName string, columns []string) string {
+	suffix := ""
+	//Deferrable is only applicable to following constraint
+	//https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Currently%2C%20only%20UNIQUE%2C%20PRIMARY%20KEY%2C%20EXCLUDE%2C%20and%20REFERENCES
+	switch conType {
+	case pg_query.ConstrType_CONSTR_UNIQUE:
+		suffix = "_key"
+	case pg_query.ConstrType_CONSTR_PRIMARY:
+		suffix = "_pkey"
+	case pg_query.ConstrType_CONSTR_EXCLUSION:
+		suffix = "_excl"
+	case pg_query.ConstrType_CONSTR_FOREIGN:
+		suffix = "_fkey"
+	}
+
+	return fmt.Sprintf("%s_%s%s", tableName, strings.Join(columns, "_"), suffix)
 }
 
 func getColumnNames(keys []*pg_query.Node) []string {
@@ -1128,7 +1129,7 @@ func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateS
 		if column.GetColumnDef() == nil && column.GetConstraint() != nil {
 			if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
 				colNames := getColumnNamesFromExclusions(column.GetConstraint().GetExclusions())
-				generatedConName := fmt.Sprintf("%s_%s_excl", tableName, strings.Join(colNames, "_"))
+				generatedConName := generateConstraintName(column.GetConstraint().Contype, tableName, colNames)
 				specifiedConstraintName := column.GetConstraint().GetConname()
 				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
