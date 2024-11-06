@@ -162,7 +162,7 @@ const (
 )
 
 /*
-List of all the features we are reporting as part of Unsupported features and Migration caveats 
+List of all the features we are reporting as part of Unsupported features and Migration caveats
 */
 const (
 	//Unsupported Features
@@ -175,20 +175,22 @@ const (
 	COMPOUND_TRIGGER_FEATURE                 = "Compound Triggers"
 
 	//POSTGRESQL
-	CONSTRAINT_TRIGGERS_FEATURE     = "Constraint triggers"
-	INHERITED_TABLES_FEATURE        = "Inherited tables"
-	GENERATED_COLUMNS_FEATURE       = "Tables with stored generated columns"
-	CONVERSIONS_OBJECTS_FEATURE     = "Conversion objects"
-	MULTI_COLUMN_GIN_INDEX_FEATURE  = "Gin indexes on multi-columns"
-	ALTER_SETTING_ATTRIBUTE_FEATURE = "Setting attribute=value on column"
-	DISABLING_TABLE_RULE_FEATURE    = "Disabling rule on table"
-	CLUSTER_ON_FEATURE              = "Clustering table on index"
-	STORAGE_PARAMETERS_FEATURE      = "Storage parameters in DDLs"
-	EXTENSION_FEATURE               = "Extensions"
-	EXCLUSION_CONSTRAINT_FEATURE    = "Exclusion constraints"
-	DEFERRABLE_CONSTRAINT_FEATURE   = "Deferrable constraints"
-	VIEW_CHECK_FEATURE              = "View with check option"
-	UNLOGGED_TABLE_FEATURE          = "Unlogged tables"
+	CONSTRAINT_TRIGGERS_FEATURE                               = "Constraint triggers"
+	INHERITED_TABLES_FEATURE                                  = "Inherited tables"
+	GENERATED_COLUMNS_FEATURE                                 = "Tables with stored generated columns"
+	CONVERSIONS_OBJECTS_FEATURE                               = "Conversion objects"
+	MULTI_COLUMN_GIN_INDEX_FEATURE                            = "Gin indexes on multi-columns"
+	ALTER_SETTING_ATTRIBUTE_FEATURE                           = "Setting attribute=value on column"
+	DISABLING_TABLE_RULE_FEATURE                              = "Disabling rule on table"
+	CLUSTER_ON_FEATURE                                        = "Clustering table on index"
+	STORAGE_PARAMETERS_FEATURE                                = "Storage parameters in DDLs"
+	EXTENSION_FEATURE                                         = "Extensions"
+	EXCLUSION_CONSTRAINT_FEATURE                              = "Exclusion constraints"
+	DEFERRABLE_CONSTRAINT_FEATURE                             = "Deferrable constraints"
+	VIEW_CHECK_FEATURE                                        = "View with check option"
+	UNLOGGED_TABLE_FEATURE                                    = "Unlogged tables"
+	REFERENCING_TRIGGER_FEATURE                               = "REFERENCING clause for triggers"
+	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE = "BEFORE / FOR EACH ROW triggers on Partitioned tables"
 
 	// Migration caveats
 
