@@ -1,3 +1,18 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package tgtdb
 
 import (
@@ -9,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/testcontainers"
 )
 
@@ -79,4 +95,25 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 			testutils.CheckTableStructurePG(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
 		})
 	}
+}
+
+func TestGetNonEmptyTables(t *testing.T) {
+	tables := []sqlname.NameTuple{
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "foo")},
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "bar")},
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "unique_table")},
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "table1")},
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "table2")},
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "non_pk1")},
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "non_pk2")},
+	}
+
+	expectedTables := []sqlname.NameTuple{
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "foo")},
+		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "bar")},
+	}
+
+	actualTables := yugabyteTestDB.GetNonEmptyTables(tables)
+	fmt.Printf("non empty tables: %+v\n", actualTables)
+	assertEqualNameTuplesSlice(t, expectedTables, actualTables)
 }
