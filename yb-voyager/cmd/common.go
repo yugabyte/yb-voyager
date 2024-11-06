@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1124,6 +1125,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 
 // =====================================================================
 
+// TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
 type AssessmentReport struct {
 	VoyagerVersion             string                                `json:"VoyagerVersion"`
 	MigrationComplexity        string                                `json:"MigrationComplexity"`
@@ -1133,11 +1135,45 @@ type AssessmentReport struct {
 	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
 	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
-	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-	Notes                      []string                              `json:"Notes"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
+	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                      []string                              `json:"Notes"`
 }
+
+type UnsupportedFeature struct {
+	FeatureName        string       `json:"FeatureName"`
+	Objects            []ObjectInfo `json:"Objects"`
+	DisplayDDL         bool         `json:"-"` // just used by html format to display the DDL for some feature and object names for other
+	DocsLink           string       `json:"DocsLink,omitempty"`
+	FeatureDescription string       `json:"FeatureDescription,omitempty"`
+}
+
+type ObjectInfo struct {
+	ObjectName   string
+	SqlStatement string
+}
+
+type AssessmentIssue struct {
+	Type         string `json:"Type"`         // Feature, DataType, MigrationCaveat, UQC
+	Name         string `json:"Name"`         // GIN Indexes, Advisory Locks etc
+	Description  string `json:"Description"`  // Based on AssessmentIssue type
+	ObjectName   string `json:"ObjectName"`   // Fully qualified object name(empty if NA, eg UQC)
+	SqlStatement string `json:"SqlStatement"` // DDL or DML(UQC)
+	DocsLink     string `json:"DocsLink"`
+
+	// Store Type-specific details - extensible, can refer any struct
+	Details json.RawMessage `json:"Details,omitempty"`
+}
+
+/*
+	Sample of extensibility
+
+	type QueryConstuctDetails struct {
+		FunctionNames	[]string
+		ColumnNames		[]string
+	}
+*/
 
 // ======================================================================
 type BulkAssessmentReport struct {
@@ -1210,11 +1246,16 @@ func (dbConfig *AssessMigrationDBConfig) GetAssessmentLogFilePath() string {
 // =============== for yugabyted controlplane ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 type AssessMigrationPayload struct {
-	AssessmentJsonReport  AssessmentReport
+	VoyagerVersion        string
 	MigrationComplexity   string
+	SchemaSummary         utils.SchemaSummary
+	AssessmentIssues      []AssessmentIssue
+	
 	SourceSizeDetails     SourceDBSizeDetails
 	TargetRecommendations TargetSizingRecommendations
 	ConversionIssues      []utils.Issue
+	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
+	AssessmentJsonReport AssessmentReport
 }
 
 type SourceDBSizeDetails struct {

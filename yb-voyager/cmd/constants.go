@@ -102,7 +102,6 @@ const (
 	UNSUPPORTED_FEATURES                = "unsupported_features"
 	UNSUPPORTED_DATATYPES               = "unsupported_datatypes"
 	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
-	MIGRATION_CAVEATS                   = "migration_caveats"
 
 	HTML = "html"
 	JSON = "json"
@@ -161,12 +160,24 @@ const (
 	XID_DATATYPE_DOC_LINK                         = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported"
 	UNSUPPORTED_DATATYPES_DOC_LINK                = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration"
+	// temporary, till unsupported datatype documentation is shifted to known issues for Oracle
+	UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE = "https://docs.yugabyte.com/preview/yugabyte-voyager/reference/datatype-mapping-oracle"
 )
 
 /*
 List of all the features we are reporting as part of Unsupported features and Migration caveats
 */
 const (
+	// Types for AssessmentIssue
+	FEATURE           = "feature"
+	DATATYPE          = "datatype"
+	QUERY_CONSTRUCT   = "query_construct" // confused: in json for some values we are using space separated and for some snake_case
+	MIGRATION_CAVEATS = "migration_caveats"
+
+	// Description
+	FEATURE_ISSUE_TYPE_DESCRIPTION  = "Features of the source database that are not supported on the target YugabyteDB."
+	DATATYPE_ISSUE_TYPE_DESCRIPTION = "Data types of the source database that are not supported on the target YugabyteDB."
+
 	//Unsupported Features
 
 	//Oracle
