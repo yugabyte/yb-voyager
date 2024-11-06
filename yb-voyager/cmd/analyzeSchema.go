@@ -214,12 +214,14 @@ var (
 )
 
 const (
-	CONVERSION_ISSUE_REASON                     = "CREATE CONVERSION is not supported yet"
-	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON         = "Schema contains gin index on multi column which is not supported."
-	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not supported yet."
-	INHERITANCE_ISSUE_REASON                    = "TABLE INHERITANCE not supported in YugabyteDB"
-	CONSTRAINT_TRIGGER_ISSUE_REASON             = "CONSTRAINT TRIGGER not supported yet."
-	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
+	CONVERSION_ISSUE_REASON                           = "CREATE CONVERSION is not supported yet"
+	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON               = "Schema contains gin index on multi column which is not supported."
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON       = "Adding primary key to a partitioned table is not supported yet."
+	INHERITANCE_ISSUE_REASON                          = "TABLE INHERITANCE not supported in YugabyteDB"
+	CONSTRAINT_TRIGGER_ISSUE_REASON                   = "CONSTRAINT TRIGGER not supported yet."
+	REFERENCING_CLAUSE_FOR_TRIGGERS                   = "REFERENCING clause (transition tables) not supported yet."
+	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE = "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers."
+	COMPOUND_TRIGGER_ISSUE_REASON                     = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON           = "Stored generated columns are not supported."
 	UNSUPPORTED_EXTENSION_ISSUE                    = "This extension is not supported in YugabyteDB by default."
@@ -486,7 +488,7 @@ func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, 
 	*/
 	if createTriggerNode.CreateTrigStmt.GetTransitionRels() != nil {
 		summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
-		reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
+		reportCase(fpath, REFERENCING_CLAUSE_FOR_TRIGGERS,
 			"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 	}
 
@@ -512,13 +514,13 @@ func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, 
 	*/
 
 	timing := createTriggerNode.CreateTrigStmt.Timing
-	isSecondBitSet := timing & (1 << 1) != 0
+	isSecondBitSet := timing&(1<<1) != 0
 	if isSecondBitSet || createTriggerNode.CreateTrigStmt.Row {
 		// BEFORE clause will have the bits in timing as 1<<1
 		// BEFORE / FOR EACH ROW on partitioned table is not supported in PG<=12
 		if partitionTablesMap[fullyQualifiedName] {
 			summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
-			reportCase(fpath, "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
+			reportCase(fpath, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE,
 				"https://github.com/YugaByte/yugabyte-db/issues/1668", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 		}
 	}
