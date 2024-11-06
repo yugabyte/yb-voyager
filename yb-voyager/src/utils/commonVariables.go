@@ -91,7 +91,7 @@ type SchemaSummary struct {
 type DBObject struct {
 	ObjectType   string `json:"ObjectType"`
 	TotalCount   int    `json:"TotalCount"`
-	InvalidCount int    `json:"InvalidCount,omitempty"`
+	InvalidCount int    `json:"InvalidCount"`
 	ObjectNames  string `json:"ObjectNames,omitempty"`
 	Details      string `json:"Details,omitempty"`
 }
