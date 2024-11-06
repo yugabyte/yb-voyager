@@ -172,10 +172,16 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		})),
 		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
 		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
-		TableSizingStats:           callhome.MarshalledJsonString(tableSizingStats),
-		IndexSizingStats:           callhome.MarshalledJsonString(indexSizingStats),
-		SchemaSummary:              callhome.MarshalledJsonString(schemaSummaryCopy),
-		IopsInterval:               intervalForCapturingIOPS,
+		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+			return callhome.UnsupportedFeature{
+				FeatureName: feature.FeatureName,
+				ObjectCount: len(feature.Objects),
+			}
+		})),
+		TableSizingStats: callhome.MarshalledJsonString(tableSizingStats),
+		IndexSizingStats: callhome.MarshalledJsonString(indexSizingStats),
+		SchemaSummary:    callhome.MarshalledJsonString(schemaSummaryCopy),
+		IopsInterval:     intervalForCapturingIOPS,
 	}
 	if status == ERROR {
 		assessPayload.Error = "ERROR" // removing error for now, TODO to see if we want to keep it
@@ -193,7 +199,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
 	payload.Status = status
-	utils.PrintAndLog("sending payload for callhome assess: %s\n", payload.PhasePayload)
 	err := callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true

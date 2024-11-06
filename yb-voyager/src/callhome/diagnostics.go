@@ -101,6 +101,7 @@ type AssessMigrationPhasePayload struct {
 	UnsupportedFeatures        string `json:"unsupported_features"`
 	UnsupportedDatatypes       string `json:"unsupported_datatypes"`
 	UnsupportedQueryConstructs string `json:"unsupported_query_constructs"`
+	MigrationCaveats           string `json:"migration_caveats"`
 	Error                      string `json:"error,omitempty"` // Removed it for now, TODO
 	TableSizingStats           string `json:"table_sizing_stats"`
 	IndexSizingStats           string `json:"index_sizing_stats"`
