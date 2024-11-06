@@ -144,7 +144,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}
 	}
 	schemaSummaryCopy := utils.SchemaSummary{
-		Notes:               assessmentReport.SchemaSummary.Notes,
+		Notes: assessmentReport.SchemaSummary.Notes,
 		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
 			return dbObject
@@ -155,6 +155,13 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		return datatype.DataType
 	})
 
+	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
+		return q.ConstructType
+	})
+	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
+		return len(constructs)
+	})
+
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
@@ -163,11 +170,12 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 				ObjectCount: len(feature.Objects),
 			}
 		})),
-		UnsupportedDatatypes: callhome.MarshalledJsonString(unsupportedDatatypesList),
-		TableSizingStats:     callhome.MarshalledJsonString(tableSizingStats),
-		IndexSizingStats:     callhome.MarshalledJsonString(indexSizingStats),
-		SchemaSummary:        callhome.MarshalledJsonString(schemaSummaryCopy),
-		IopsInterval:         intervalForCapturingIOPS,
+		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
+		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
+		TableSizingStats:           callhome.MarshalledJsonString(tableSizingStats),
+		IndexSizingStats:           callhome.MarshalledJsonString(indexSizingStats),
+		SchemaSummary:              callhome.MarshalledJsonString(schemaSummaryCopy),
+		IopsInterval:               intervalForCapturingIOPS,
 	}
 	if status == ERROR {
 		assessPayload.Error = "ERROR" // removing error for now, TODO to see if we want to keep it
@@ -185,7 +193,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
 	payload.Status = status
-
+	utils.PrintAndLog("sending payload for callhome assess: %s\n", payload.PhasePayload)
 	err := callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
