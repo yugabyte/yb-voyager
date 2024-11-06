@@ -78,14 +78,14 @@
         <p><strong>Database Version:</strong> {{.}}</p>
         {{end}}
 
-        {{if eq .SchemaSummary.MigrationComplexity "NOT AVAILABLE"}} 
+        {{if eq .MigrationComplexity "NOT AVAILABLE"}}
         <!-- Do nothing -->
         {{else}} 
-        <p><strong>Migration Complexity:</strong> {{ .SchemaSummary.MigrationComplexity }}</p>
+        <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
         {{end}}
 
         <h2>Database Objects</h2>
-        <p>{{.SchemaSummaryDBObjectsDesc}}</p>
+        <p>{{.SchemaSummary.Description}}</p>
         <table>
             <tr>
                 <th>Object Type</th>
@@ -264,10 +264,11 @@
         {{end}}
 
         {{ if .MigrationCaveats}}
+            {{ $hasMigrationCaveats := false }}
             <h2>Migration caveats</h2>
-            <p></p>
             {{range .MigrationCaveats}}
                 {{if .Objects}} <!-- Check if Objects is not empty -->
+                    {{ $hasMigrationCaveats = true }}
                     {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
                         <h4>{{.FeatureName}}</h4>
                         <p>{{.FeatureDescription}}</p>
@@ -294,7 +295,11 @@
                     {{end}} 
                 {{end}}
             {{end}}
+            {{if not $hasMigrationCaveats}} <!-- Check if no migration caveats were found -->
+                <p>No migration caveats were found in the schema.</p>
+            {{end}}
         {{end}}
+
     </div>
 </body>
 </html>

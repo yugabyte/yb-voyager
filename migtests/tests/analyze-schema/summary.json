@@ -1,6 +1,5 @@
 {
         "DbName": "dummy_db_name",
-        "MigrationComplexity": "HIGH",
         "SchemaNames": [
             "public"
         ],
