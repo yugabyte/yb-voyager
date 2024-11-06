@@ -1050,7 +1050,7 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string
 		pg_namespace n ON pg_class.relnamespace = n.oid
 	WHERE
 		n.nspname = ANY(string_to_array('%s', ','))  -- schema list
-		AND tgenabled IN ('O', 'R', 'A')  -- enabled triggers
+		AND tgenabled NOT IN ('D')  -- exclude disabled triggers
 		AND tgname NOT LIKE 'RI_%%'  -- exclude RI_ (system-generated) triggers
 	ORDER BY
 		table_name, trigger_name;`, querySchemaList)
