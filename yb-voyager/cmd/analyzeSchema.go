@@ -241,11 +241,9 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "Unsupported datatype for Live migration with fall-forward/fallback"
 	UNSUPPORTED_PG_SYNTAX                          = "Unsupported PG syntax"
 
-	INDEX_METHOD_ISSUE_REASON                                 = "Schema contains %s index which is not supported."
-	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION                  = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
-	GIN_INDEX_DETAILS                                         = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
+	INDEX_METHOD_ISSUE_REASON                = "Schema contains %s index which is not supported."
+	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
+	GIN_INDEX_DETAILS                        = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 )
 
 // Reports one case in JSON
@@ -305,12 +303,13 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
 		schemaSummary.DBObjects = append(schemaSummary.DBObjects, dbObject)
 	}
+
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		schemaSummary.Notes = append(schemaAnalysisReport.SchemaSummary.Notes, note)
 	}
-	schemaSummary.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
+
 	return schemaSummary
 }
 
@@ -436,14 +435,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
 			*/
 			typeNames := createEnumTypeNode.CreateEnumStmt.GetTypeName()
-			typeSchemaName := ""
-			typeName := ""
-			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
-				typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-			}
-			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-			}
+			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
 			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 			enumTypes = append(enumTypes, fullTypeName)
 		}
@@ -656,15 +648,8 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 
 		*/
 		if column.GetColumnDef() != nil {
-			typeName := ""
-			typeSchemaName := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
-			if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
-				typeName = typeNames[len(typeNames)-1].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-			}
-			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-			}
+			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
 			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 			colName := column.GetColumnDef().GetColname()
 			if len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0 {
@@ -733,16 +718,9 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			return
 		}
 		//For the expression index case to report in case casting to unsupported types #3
-		castTypeName := ""
-		typeSchemaName := ""
 		typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
-		if len(typeNames) >= 1 { // Names list will have all the parts of qualified type name
-			castTypeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-		}
-		if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-			typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-		}
-		fullCastTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+castTypeName, castTypeName)
+		castTypeName, castTypeSchemaName := getTypeNameAndSchema(typeNames)
+		fullCastTypeName := lo.Ternary(castTypeSchemaName != "", castTypeSchemaName+"."+castTypeName, castTypeName)
 		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
 			//In case casting is happening for an array type
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
@@ -907,22 +885,25 @@ func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query
 			info about pg_catalog. so checking the 0th only in case XML/XID to determine the type and report
 		*/
 		if column.GetColumnDef() != nil {
-			typeName := ""
-			typeSchemaName := ""
 			typeNames := column.GetColumnDef().GetTypeName().GetNames()
-			if len(typeNames) > 0 {
-				typeName = column.GetColumnDef().GetTypeName().GetNames()[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-			}
-			if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-				typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-			}
+			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
 			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 			isArrayType := len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0
 			colName := column.GetColumnDef().GetColname()
-			liveMigrationUnsupportedDataTypes, _ := lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
-			unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(srcdb.YugabyteUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
-			liveMigrationWithFfOrFbUnsupportedDataTypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, liveMigrationUnsupportedDataTypes)
-			if utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName) {
+
+			liveUnsupportedDatatypes := srcdb.GetPGLiveMigrationUnsupportedDatatypes()
+			liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
+
+			isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName)
+			isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
+
+			isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, typeName)
+			isUDTDatatype := utils.ContainsAnyStringFromSlice(compositeTypes, fullTypeName) //if type is array
+			isEnumDatatype := utils.ContainsAnyStringFromSlice(enumTypes, fullTypeName)     //is ENUM type
+			isArrayOfEnumsDatatype := isArrayType && isEnumDatatype
+			isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
+
+			if isUnsupportedDatatype {
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
 				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
 				var ghIssue, suggestion, docLink string
@@ -947,14 +928,13 @@ func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query
 				}
 				reportCase(fpath, reason, ghIssue, suggestion,
 					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
-			} else if objectType == TABLE && utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
+			} else if objectType == TABLE && isUnsupportedDatatypeInLive {
 				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
 				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
 					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
-			} else if objectType == TABLE && (utils.ContainsAnyStringFromSlice(liveMigrationWithFfOrFbUnsupportedDataTypes, typeName) ||
-				slices.Contains(compositeTypes, fullTypeName) || (slices.Contains(enumTypes, fullTypeName) && isArrayType)) {
+			} else if objectType == TABLE && isUnsupportedDatatypeInLiveWithFFOrFB {
 				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 				reportTypeName := fullTypeName
 				if isArrayType { // For Array cases to make it clear in issue
@@ -968,6 +948,18 @@ func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query
 			}
 		}
 	}
+}
+func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
+	typeName := ""
+	typeSchemaName := ""
+	if len(typeNames) > 0 {
+		typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+	}
+	if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+		typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+	}
+
+	return typeName, typeSchemaName
 }
 
 var deferrableConstraintsList = []pg_query.ConstrType{
@@ -1846,6 +1838,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
+	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaAnalysisReport
 }
 

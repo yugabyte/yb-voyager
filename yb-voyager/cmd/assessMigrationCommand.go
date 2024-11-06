@@ -144,7 +144,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}
 	}
 	schemaSummaryCopy := utils.SchemaSummary{
-		MigrationComplexity: assessmentReport.SchemaSummary.MigrationComplexity,
 		Notes:               assessmentReport.SchemaSummary.Notes,
 		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
@@ -157,6 +156,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	})
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
+		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			return callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
@@ -439,7 +439,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalColocatedSize: sizeDetails.TotalColocatedSize,
 			TotalShardedSize:   sizeDetails.TotalShardedSize,
 		},
-		MigrationComplexity: assessmentReport.SchemaSummary.MigrationComplexity,
+		MigrationComplexity: assessmentReport.MigrationComplexity,
 		ConversionIssues:    schemaAnalysisReport.Issues,
 	}
 
@@ -801,10 +801,11 @@ func generateAssessmentReport() (err error) {
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
+	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
-	assessmentReport.SchemaSummaryDBObjectsDesc = "Objects that will be created on the target YugabyteDB."
+	assessmentReport.SchemaSummary.Description = "Objects that will be created on the target YugabyteDB."
 	if source.DBType == ORACLE {
-		assessmentReport.SchemaSummaryDBObjectsDesc += " Some of the index and sequence names might be different from those in the source database."
+		assessmentReport.SchemaSummary.Description += " Some of the index and sequence names might be different from those in the source database."
 	}
 
 	// set invalidCount to zero so that it doesn't show up in the report
@@ -859,21 +860,21 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 		reason := fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, displayIndexMethod)
 		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(feature, reason, schemaAnalysisReport, false, ""))
 	}
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Constraint triggers", CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Inherited tables", INHERITANCE_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Tables with stored generated columns", STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Conversion objects", CONVERSION_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Gin indexes on multi-columns", GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Setting attribute=value on column", ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, true, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Disabling rule on table", ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, true, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Clustering table on index", ALTER_TABLE_CLUSTER_ON_ISSUE, schemaAnalysisReport, true, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Storage parameters in DDLs", STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, true, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Extensions", UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Exclusion constraints", EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Deferrable constraints", DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("View with check option", VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONSTRAINT_TRIGGERS_FEATURE, CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(INHERITED_TABLES_FEATURE, INHERITANCE_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(GENERATED_COLUMNS_FEATURE, STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONVERSIONS_OBJECTS_FEATURE, CONVERSION_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(MULTI_COLUMN_GIN_INDEX_FEATURE, GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(ALTER_SETTING_ATTRIBUTE_FEATURE, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DISABLING_TABLE_RULE_FEATURE, ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CLUSTER_ON_FEATURE, ALTER_TABLE_CLUSTER_ON_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(STORAGE_PARAMETERS_FEATURE, STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXTENSION_FEATURE, UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXCLUSION_CONSTRAINT_FEATURE, EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, UnsupportedIndexDatatypes))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Unlogged tables", ISSUE_UNLOGGED_TABLE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, ISSUE_UNLOGGED_TABLE, schemaAnalysisReport, false, ""))
 
 	return unsupportedFeatures, nil
 }
@@ -904,7 +905,7 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Compound Triggers", COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(COMPOUND_TRIGGER_FEATURE, COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
 	return unsupportedFeatures, nil
 }
 
@@ -950,10 +951,10 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	}
 
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Indexes", unsupportedIndexes, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Virtual Columns", virtualColumns, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Inherited Types", inheritedTypes, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{"Unsupported Partitioning Methods", unsupportedPartitionTypes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_INDEXES_FEATURE, unsupportedIndexes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{VIRTUAL_COLUMNS_FEATURE, virtualColumns, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{INHERITED_TYPES_FEATURE, inheritedTypes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_PARTITIONING_METHODS_FEATURE, unsupportedPartitionTypes, false, "", ""})
 	return unsupportedFeatures, nil
 }
 
@@ -1044,16 +1045,15 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
-	var sourceUnsupportedDataTypes, liveMigrationUnsupportedDataTypes, liveMigrationWithFForFBUnsupportedDatatypes []string
+	var sourceUnsupportedDatatypes, liveUnsupportedDatatypes, liveWithFForFBUnsupportedDatatypes []string
 
 	switch source.DBType {
 	case POSTGRESQL:
-		sourceUnsupportedDataTypes = srcdb.PostgresUnsupportedDataTypes
-		liveMigrationUnsupportedDataTypes, _ = lo.Difference(srcdb.PostgresUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
-		unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(srcdb.YugabyteUnsupportedDataTypesForDbzm, srcdb.PostgresUnsupportedDataTypes)
-		liveMigrationWithFForFBUnsupportedDatatypes, _ = lo.Difference(unsupportedDataTypesForDbzmYBOnly, liveMigrationUnsupportedDataTypes)
+		sourceUnsupportedDatatypes = srcdb.PostgresUnsupportedDataTypes
+		liveUnsupportedDatatypes = srcdb.GetPGLiveMigrationUnsupportedDatatypes()
+		liveWithFForFBUnsupportedDatatypes = srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	case ORACLE:
-		sourceUnsupportedDataTypes = srcdb.OracleUnsupportedDataTypes
+		sourceUnsupportedDatatypes = srcdb.OracleUnsupportedDataTypes
 	default:
 		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 	}
@@ -1065,17 +1065,23 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		splits := strings.Split(allColumnsDataTypes[i].DataType, ".")
 		typeName := splits[len(splits)-1] //using typename only for the cases we are checking it from the static list of type names
 		typeName = strings.TrimSuffix(typeName, "[]")
-		if utils.ContainsAnyStringFromSlice(sourceUnsupportedDataTypes, typeName) {
-			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
-		}
-		if utils.ContainsAnyStringFromSlice(liveMigrationUnsupportedDataTypes, typeName) {
-			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
-		}
-		if utils.ContainsAnyStringFromSlice(liveMigrationWithFForFBUnsupportedDatatypes, typeName) ||
-			utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType) || // if type is UDT
-			(strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]") && //if type is array and is ENUM in the list
-				utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]"))) {
 
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(sourceUnsupportedDatatypes, typeName)
+		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
+
+		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFForFBUnsupportedDatatypes, typeName)
+		isUDTDatatype := utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType)
+		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                              //if type is array
+		isEnumDatatype := utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
+		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
+		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
+
+		switch true {
+		case isUnsupportedDatatype:
+			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
+		case isUnsupportedDatatypeInLive:
+			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
+		case isUnsupportedDatatypeInLiveWithFFOrFB:
 			/*
 				TODO test this for Oracle case if there is any special handling required
 				For Live mgiration with FF or FB, It is meant to be for the datatypes that are going to be in YB after migration
@@ -1087,7 +1093,6 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 			unsupportedDataTypesForLiveMigrationWithFForFB = append(unsupportedDataTypesForLiveMigrationWithFForFB, allColumnsDataTypes[i])
 
 		}
-
 	}
 
 	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
@@ -1100,10 +1105,6 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
 	GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
-
-	DESCRIPTION_ADD_PK_TO_PARTITION_TABLE = `After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.`
-	DESCRIPTION_FOREIGN_TABLES            = `During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.`
-	DESCRIPTION_POLICY_ROLE_ISSUE         = `There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.`
 )
 
 const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
@@ -1138,11 +1139,11 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
 		migrationCaveats := make([]UnsupportedFeature, 0)
-		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Alter partitioned tables to add Primary Key", ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
 			schemaAnalysisReport, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE))
-		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Foreign tables", FOREIGN_TABLE_ISSUE_REASON,
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(FOREIGN_TABLE_CAVEAT_FEATURE, FOREIGN_TABLE_ISSUE_REASON,
 			schemaAnalysisReport, false, DESCRIPTION_FOREIGN_TABLES))
-		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport("Policies", POLICY_ROLE_ISSUE,
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(POLICIES_CAVEAT_FEATURE, POLICY_ROLE_ISSUE,
 			schemaAnalysisReport, false, DESCRIPTION_POLICY_ROLE_ISSUE))
 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
@@ -1150,23 +1151,16 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			for _, col := range unsupportedDataTypesForLiveMigration {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration", columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
+			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
 		}
 		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, col := range unsupportedDataTypesForLiveMigrationWithFForFB {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{"Unsupported Data Types for Live Migration with Fall-forward/Fallback", columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE})
+			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE})
 		}
-		for _, caveat := range migrationCaveats {
-			if len(caveat.Objects) > 0 {
-				//Not populating the MigrationCaveats section in case there are no caveats at all
-				//TODO: fix it with proper solution in template for all sections
-				assessmentReport.MigrationCaveats = migrationCaveats
-				break
-			}
-		}
+		assessmentReport.MigrationCaveats = migrationCaveats
 	}
 }
 

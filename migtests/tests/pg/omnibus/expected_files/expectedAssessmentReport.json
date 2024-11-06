@@ -1,7 +1,8 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"MigrationComplexity": "MEDIUM",
 	"SchemaSummary": {
-		"MigrationComplexity": "MEDIUM",
+		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_omnibus",
 		"SchemaNames": [
 			"agg_ex",
@@ -118,7 +119,6 @@
 			}
 		]
 	},
-	"SchemaSummaryDBObjectsDesc": "Objects that will be created on the target YugabyteDB.",
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
