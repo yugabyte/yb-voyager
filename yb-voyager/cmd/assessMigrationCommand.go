@@ -422,9 +422,14 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
-	sizeDetails, err := assessmentReport.CalculateSizeDetails(source.DBType)
+	totalColocatedSize, err := assessmentReport.GetTotalColocatedSize(source.DBType)
 	if err != nil {
-		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
+		utils.PrintAndLog("failed to calculate the total colocated table size from tableIndexStats: %v", err)
+	}
+
+	totalShardedSize, err := assessmentReport.GetTotalShardedSize(source.DBType)
+	if err != nil {
+		utils.PrintAndLog("failed to calculate the total sharded table size from tableIndexStats: %v", err)
 	}
 
 	assessmentIssues := flattenAssessmentReportToAssessmentIssues(assessmentReport)
@@ -435,14 +440,14 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		SchemaSummary:       assessmentReport.SchemaSummary,
 		AssessmentIssues:    assessmentIssues,
 		SourceSizeDetails: SourceDBSizeDetails{
-			TotalIndexSize:     sizeDetails.TotalIndexSize,
-			TotalTableSize:     sizeDetails.TotalTableSize,
-			TotalTableRowCount: sizeDetails.TotalTableRowCount,
+			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),
+			TotalTableSize:     assessmentReport.GetTotalTableSize(),
+			TotalTableRowCount: assessmentReport.GetTotalTableRowCount(),
 			TotalDBSize:        source.DBSize,
 		},
 		TargetRecommendations: TargetSizingRecommendations{
-			TotalColocatedSize: sizeDetails.TotalColocatedSize,
-			TotalShardedSize:   sizeDetails.TotalShardedSize,
+			TotalColocatedSize: totalColocatedSize,
+			TotalShardedSize:   totalShardedSize,
 		},
 		ConversionIssues:     schemaAnalysisReport.Issues,
 		AssessmentJsonReport: assessmentReport,
@@ -515,48 +520,6 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 	}
 
 	return issues
-}
-
-type SizeDetails struct {
-	TotalIndexSize     int64
-	TotalTableSize     int64
-	TotalTableRowCount int64
-	TotalColocatedSize int64
-	TotalShardedSize   int64
-}
-
-func (ar *AssessmentReport) CalculateSizeDetails(dbType string) (SizeDetails, error) {
-	var details SizeDetails
-	colocatedTables, err := ar.GetColocatedTablesRecommendation()
-	if err != nil {
-		return details, fmt.Errorf("failed to get the colocated tables recommendation: %v", err)
-	}
-
-	if ar.TableIndexStats != nil {
-		for _, stat := range *ar.TableIndexStats {
-			if stat.IsIndex {
-				details.TotalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-			} else {
-				var tableName string
-				switch dbType {
-				case ORACLE:
-					tableName = stat.ObjectName // in case of oracle, colocatedTables have unqualified table names
-				case POSTGRESQL:
-					tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
-				default:
-					return details, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
-				}
-				details.TotalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-				details.TotalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
-				if slices.Contains(colocatedTables, tableName) {
-					details.TotalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-				} else {
-					details.TotalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-				}
-			}
-		}
-	}
-	return details, nil
 }
 
 func runAssessment() error {
