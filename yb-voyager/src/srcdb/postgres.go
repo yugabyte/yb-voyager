@@ -1371,7 +1371,7 @@ func (pg *PostgreSQL) checkWalLevel() (msg string) {
 		utils.ErrExit("error in querying(%q) source database for wal_level: %v\n", query, err)
 	}
 	if walLevel != "logical" {
-		msg = fmt.Sprintf("%s Current wal_level: %s Required wal_level: logical", color.RedString("ERROR"), walLevel)
+		msg = fmt.Sprintf("\n%s Current wal_level: %s; Required wal_level: logical", color.RedString("ERROR"), walLevel)
 	} else {
 		log.Infof("Current wal_level: %s", walLevel)
 	}

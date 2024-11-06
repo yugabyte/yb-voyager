@@ -450,7 +450,7 @@ func checkExportDataPermissions() {
 			utils.ErrExit("check replication slots: %v", err)
 		}
 		if !isAvailable {
-			utils.PrintAndLog("\n%s Current replication slots: %d, Max allowed replication slots: %d\n", color.RedString("ERROR:"), usedCount, maxCount)
+			utils.PrintAndLog("\n%s Current replication slots: %d; Max allowed replication slots: %d\n", color.RedString("ERROR:"), usedCount, maxCount)
 			utils.ErrExit("")
 		}
 	}
