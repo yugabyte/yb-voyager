@@ -1389,6 +1389,6 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
 	return isSuperUser, nil
 }
 
-func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() ([]string, error) {
-	return nil, nil
+func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
+	return nil, nil, nil
 }

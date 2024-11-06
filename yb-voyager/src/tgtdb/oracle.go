@@ -720,7 +720,7 @@ func (tdb *TargetOracleDB) GetMissingImportDataPermissions(isFallForwardEnabled 
 	return nil, nil
 }
 
-func (tdb *TargetOracleDB) GetEnabledTriggersAndFks() ([]string, error) {
+func (tdb *TargetOracleDB) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
 	// TODO: implement this function for oracle guardrails
-	return nil, nil
+	return nil, nil, nil
 }

@@ -136,61 +136,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	// Check if target DB has the required permissions
 	if tconf.RunGuardrailsChecks {
-		// If import to source on PG, check if triggers and FKs are disabled
-		fkAndTriggersCheckFailed := false
-		if importerRole == SOURCE_DB_IMPORTER_ROLE {
-			enabledTriggersAndFks, err := tdb.GetEnabledTriggersAndFks()
-			if err != nil {
-				utils.ErrExit("Failed to check if triggers and FKs are enabled: %s", err)
-			}
-			if len(enabledTriggersAndFks) > 0 {
-				output := strings.Join(enabledTriggersAndFks, "\n")
-				fmt.Println(output)
-				fmt.Printf("\n%s", color.RedString("Disable the above triggers and FKs before importing data.\n"))
-				fkAndTriggersCheckFailed = true
-				fmt.Println("\nCheck the documentation to disable triggers and FKs:", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#cutover-to-the-target"))
-			}
-		}
-
-		missingPermissions, err := tdb.GetMissingImportDataPermissions(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE)
-		if err != nil {
-			utils.ErrExit("Failed to get missing import data permissions: %s", err)
-		}
-		if len(missingPermissions) > 0 {
-			// Not printing the target db is missing permissions message for YB
-			// In YB we only check whether he user is a superuser and hence print only in the case where target db is not YB
-			// In case of fall forward too we only run superuser checks and hence print only in the case where fallback is enabled
-			if tconf.TargetDBType != YUGABYTEDB && !(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE) {
-				utils.PrintAndLog(color.RedString("\nPermissions and configurations missing in the target database for importing data:"))
-			}
-			output := strings.Join(missingPermissions, "\n")
-			utils.PrintAndLog(output)
-
-			var link string
-			if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
-				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/#prepare-source-replica-database"
-			} else if importerRole == SOURCE_DB_IMPORTER_ROLE {
-				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#prepare-the-source-database"
-			} else {
-				if changeStreamingIsEnabled(importType) {
-					link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-target-database"
-				} else {
-					link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-target-database"
-				}
-			}
-			fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
-
-			// Prompt user to continue if missing permissions only if fk and triggers check did not fail
-			if !fkAndTriggersCheckFailed {
-				if !utils.AskPrompt("\nDo you want to continue anyway") {
-					utils.ErrExit("Please grant the required permissions and retry the import.")
-				}
-			} else {
-				utils.ErrExit("Please grant the required permissions and retry the import.")
-			}
-		} else {
-			log.Info("The target database has the required permissions for importing data.")
-		}
+		checkImportDataPermissions()
 	}
 
 	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
@@ -231,6 +177,68 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	tdb.Finalize()
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
+	}
+}
+
+func checkImportDataPermissions() {
+	// If import to source on PG, check if triggers and FKs are disabled
+	fkAndTriggersCheckFailed := false
+	if importerRole == SOURCE_DB_IMPORTER_ROLE {
+		enabledTriggers, enabledFks, err := tdb.GetEnabledTriggersAndFks()
+		if err != nil {
+			utils.ErrExit("Failed to check if triggers and FKs are enabled: %s", err)
+		}
+		if len(enabledTriggers) > 0 || len(enabledFks) > 0 {
+			if len(enabledTriggers) > 0 {
+				utils.PrintAndLog("%s [%s]", color.RedString("\nEnabled Triggers:"), strings.Join(enabledTriggers, ", "))
+			}
+			if len(enabledFks) > 0 {
+				utils.PrintAndLog("%s [%s]", color.RedString("\nEnabled Foreign Keys:"), strings.Join(enabledFks, ", "))
+			}
+			fmt.Printf("\n%s", color.RedString("Disable the above triggers and FKs before importing data.\n"))
+			fkAndTriggersCheckFailed = true
+			fmt.Println("\nCheck the documentation to disable triggers and FKs:", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#cutover-to-the-target"))
+		}
+	}
+
+	missingPermissions, err := tdb.GetMissingImportDataPermissions(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE)
+	if err != nil {
+		utils.ErrExit("Failed to get missing import data permissions: %s", err)
+	}
+	if len(missingPermissions) > 0 {
+		// Not printing the target db is missing permissions message for YB
+		// In YB we only check whether he user is a superuser and hence print only in the case where target db is not YB
+		// In case of fall forward too we only run superuser checks and hence print only in the case where fallback is enabled
+		if tconf.TargetDBType != YUGABYTEDB && !(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE) {
+			utils.PrintAndLog(color.RedString("\nPermissions and configurations missing in the target database for importing data:"))
+		}
+		output := strings.Join(missingPermissions, "\n")
+		utils.PrintAndLog(output)
+
+		var link string
+		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/#prepare-source-replica-database"
+		} else if importerRole == SOURCE_DB_IMPORTER_ROLE {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#prepare-the-source-database"
+		} else {
+			if changeStreamingIsEnabled(importType) {
+				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-target-database"
+			} else {
+				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-target-database"
+			}
+		}
+		fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
+
+		// Prompt user to continue if missing permissions only if fk and triggers check did not fail
+		if !fkAndTriggersCheckFailed {
+			if !utils.AskPrompt("\nDo you want to continue anyway") {
+				utils.ErrExit("Please grant the required permissions and retry the import.")
+			}
+		} else {
+			utils.ErrExit("Please grant the required permissions and retry the import.")
+		}
+	} else {
+		log.Info("The target database has the required permissions for importing data.")
 	}
 }
 

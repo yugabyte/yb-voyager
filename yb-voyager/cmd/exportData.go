@@ -241,49 +241,7 @@ func exportData() bool {
 
 	// Check if source DB has required permissions for export data
 	if source.RunGuardrailsChecks {
-		// If source is PostgreSQL or YB, check if the number of existing replicaton slots is less than the max allowed
-		if (source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType)) ||
-			(source.DBType == YUGABYTEDB && !bool(useYBgRPCConnector)) {
-			// The queries used to check replication slots on YB don't throw an error even if logical replication is not supported
-			// in that YB version. They are inbuilt PG queries and will return the default values i.e. max allowed slots = 10 and
-			// current slots = 0
-			// Hence it is safe to check this in YB irrespective of the version.
-			result, err := source.DB().CheckReplicationSlots()
-			if err != nil {
-				utils.ErrExit("check replication slots: %v", err)
-			}
-			if result != "" {
-				fmt.Println(result)
-				utils.ErrExit("")
-			}
-		}
-
-		missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
-		if err != nil {
-			utils.ErrExit("get missing export data permissions: %v", err)
-		}
-		if len(missingPermissions) > 0 {
-			color.Red("\nPermissions and configurations missing in the source database for export data:\n")
-			output := strings.Join(missingPermissions, "\n")
-			utils.PrintAndLog("%s\n", output)
-
-			var link string
-			if changeStreamingIsEnabled(exportType) {
-				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
-			} else {
-				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-			}
-			fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
-
-			// Make a prompt to the user to continue even with missing permissions
-			reply := utils.AskPrompt("\nDo you want to continue anyway")
-			if !reply {
-				utils.ErrExit("Grant the required permissions and make the changes in configurations and try again.")
-			}
-		} else {
-			// TODO: Print this message on the console too once the code is stable
-			log.Info("All required permissions are present for the source database.")
-		}
+		checkExportDataPermissions()
 	}
 
 	clearMigrationStateIfRequired()
@@ -476,6 +434,52 @@ func exportData() bool {
 			return false
 		}
 		return true
+	}
+}
+
+func checkExportDataPermissions() {
+	// If source is PostgreSQL or YB, check if the number of existing replicaton slots is less than the max allowed
+	if (source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType)) ||
+		(source.DBType == YUGABYTEDB && !bool(useYBgRPCConnector)) {
+		// The queries used to check replication slots on YB don't throw an error even if logical replication is not supported
+		// in that YB version. They are inbuilt PG queries and will return the default values i.e. max allowed slots = 10 and
+		// current slots = 0
+		// Hence it is safe to check this in YB irrespective of the version.
+		isAvailable, usedCount, maxCount, err := source.DB().CheckIfReplicationSlotsAreAvailable()
+		if err != nil {
+			utils.ErrExit("check replication slots: %v", err)
+		}
+		if !isAvailable {
+			utils.PrintAndLog("\n%s Current replication slots: %d, Max allowed replication slots: %d\n", color.RedString("ERROR:"), usedCount, maxCount)
+			utils.ErrExit("")
+		}
+	}
+
+	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
+	if err != nil {
+		utils.ErrExit("get missing export data permissions: %v", err)
+	}
+	if len(missingPermissions) > 0 {
+		color.Red("\nPermissions and configurations missing in the source database for export data:\n")
+		output := strings.Join(missingPermissions, "\n")
+		utils.PrintAndLog("%s\n", output)
+
+		var link string
+		if changeStreamingIsEnabled(exportType) {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
+		} else {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+		}
+		fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
+
+		// Make a prompt to the user to continue even with missing permissions
+		reply := utils.AskPrompt("\nDo you want to continue anyway")
+		if !reply {
+			utils.ErrExit("Grant the required permissions and make the changes in configurations and try again.")
+		}
+	} else {
+		// TODO: Print this message on the console too once the code is stable
+		log.Info("All required permissions are present for the source database.")
 	}
 }
 

@@ -729,6 +729,6 @@ func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, error) {
 	return nil, nil
 }
 
-func (ora *Oracle) CheckReplicationSlots() (string, error) {
-	return "", nil
+func (ora *Oracle) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
+	return false, 0, 0, nil
 }

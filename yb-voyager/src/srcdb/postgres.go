@@ -421,12 +421,8 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
 		currVersion := strings.Fields(string(stdout))[2]
 
-		// Check if the version of the command is greater or equalt to the source DB version and greater than the min required version
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 {
-			// In case of psql we dont need the version to be greater than the sourceDBVersion
-			if version.CompareSimple(currVersion, sourceDBVersion) < 0 && cmd != "psql" {
-				continue
-			}
+		// Check if the version of the command is greater or equal to the min required version
+		if version.CompareSimple(currVersion, minRequiredVersion) >= 0 {
 			return path, "", nil
 		}
 	}
@@ -1578,6 +1574,6 @@ func (pg *PostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	return schemasMissingUsagePermission, nil
 }
 
-func (pg *PostgreSQL) CheckReplicationSlots() (string, error) {
+func (pg *PostgreSQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
 	return checkReplicationSlotsForPGAndYB(pg.db)
 }

@@ -542,8 +542,8 @@ func (ms *MySQL) GetMissingExportDataPermissions(exportType string) ([]string, e
 	return nil, nil
 }
 
-func (ms *MySQL) CheckReplicationSlots() (string, error) {
-	return "", nil
+func (ms *MySQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
+	return false, 0, 0, nil
 }
 
 func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, error) {

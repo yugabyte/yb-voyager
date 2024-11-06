@@ -1027,16 +1027,16 @@ func (pg *TargetPostgreSQL) getSchemaList() []string {
 	return schemas
 }
 
-func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() ([]string, error) {
-	var result []string
+func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
 	querySchemaArray := pg.getSchemaList()
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	// Check the trigger status using the tgenabled column, which can have three possible values:
 	// 'O' indicates that the trigger is enabled and will fire on the specified events (fully active).
 	// 'D' indicates that the trigger is disabled and will not fire (inactive).
-	// 'R' indicates that the trigger is enabled but will not fire due to certain conditions (e.g., associated with a view).
-	// This query returns only the triggers that are enabled (either 'O' or 'R').
+	// 'R' (replica) status on a trigger means it is enabled but will only fire during replication events, not during regular operations.
+	// 'A' (always) status on a trigger in PostgreSQL means that the trigger is enabled and will fire for all operations, regardless of any session replication role settings.
+	// This query returns only the triggers that are enabled (either 'O' or 'R' or 'A').
 	query := fmt.Sprintf(`
 	SELECT
 		tgname AS trigger_name,
@@ -1050,29 +1050,24 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() ([]string, error) {
 		pg_namespace n ON pg_class.relnamespace = n.oid
 	WHERE
 		n.nspname = ANY(string_to_array('%s', ','))  -- schema list
-		AND tgenabled IN ('O', 'R')  -- only enabled triggers
+		AND tgenabled IN ('O', 'R', 'A')  -- enabled triggers
 		AND tgname NOT LIKE 'RI_%%'  -- exclude RI_ (system-generated) triggers
 	ORDER BY
 		table_name, trigger_name;`, querySchemaList)
 
 	rows, err := pg.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+		return nil, nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
 	}
 	defer rows.Close()
 
-	var enabledTriggers []string
 	for rows.Next() {
 		var triggerName, tableName, schemaName string
 		err = rows.Scan(&triggerName, &tableName, &schemaName)
 		if err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
+			return nil, nil, fmt.Errorf("scan row: %w", err)
 		}
 		enabledTriggers = append(enabledTriggers, fmt.Sprintf("%s on %s", triggerName, tableName))
-	}
-
-	if len(enabledTriggers) > 0 {
-		result = append(result, fmt.Sprintf("%s [%s]", color.RedString("\nEnabled Triggers:"), strings.Join(enabledTriggers, ", ")))
 	}
 
 	query = fmt.Sprintf(`
@@ -1093,23 +1088,18 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() ([]string, error) {
 
 	rows, err = pg.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+		return nil, nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
 	}
 	defer rows.Close()
 
-	var enabledFks []string
 	for rows.Next() {
 		var fkName, tableName, referencedTable, isValid, schemaName string
 		err = rows.Scan(&fkName, &tableName, &referencedTable, &isValid, &schemaName)
 		if err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
+			return nil, nil, fmt.Errorf("scan row: %w", err)
 		}
 		enabledFks = append(enabledFks, fmt.Sprintf("%s on %s", fkName, tableName))
 	}
 
-	if len(enabledFks) > 0 {
-		result = append(result, fmt.Sprintf("%s [%s]", color.RedString("\nEnabled Foreign Keys:"), strings.Join(enabledFks, ", ")))
-	}
-
-	return result, nil
+	return enabledTriggers, enabledFks, nil
 }

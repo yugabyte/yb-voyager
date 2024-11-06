@@ -20,7 +20,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/google/uuid"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -61,7 +60,7 @@ type SourceDB interface {
 	GetMissingExportSchemaPermissions() ([]string, error)
 	GetMissingExportDataPermissions(exportType string) ([]string, error)
 	GetMissingAssessMigrationPermissions() ([]string, error)
-	CheckReplicationSlots() (string, error)
+	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 }
 
 func newSourceDB(source *Source) SourceDB {
@@ -91,24 +90,22 @@ func IsTableEmpty(db *sql.DB, query string) bool {
 	return false
 }
 
-func checkReplicationSlotsForPGAndYB(db *sql.DB) (string, error) {
+func checkReplicationSlotsForPGAndYB(db *sql.DB) (isAvailable bool, usedCount int, maxCount int, err error) {
 	query := "SHOW max_replication_slots;"
-	var maxReplicationSlots int
-	err := db.QueryRow(query).Scan(&maxReplicationSlots)
+	err = db.QueryRow(query).Scan(&maxCount)
 	if err != nil {
-		return "", fmt.Errorf("failed to query max replication slots: %w", err)
+		return false, 0, 0, fmt.Errorf("failed to query max replication slots: %w", err)
 	}
 
 	query = "SELECT COUNT(*) AS current_replication_slots FROM pg_replication_slots;"
-	var currentReplicationSlots int
-	err = db.QueryRow(query).Scan(&currentReplicationSlots)
+	err = db.QueryRow(query).Scan(&usedCount)
 	if err != nil {
-		return "", fmt.Errorf("failed to query current replication slots: %w", err)
+		return false, 0, 0, fmt.Errorf("failed to query current replication slots: %w", err)
 	}
 
-	if currentReplicationSlots >= maxReplicationSlots {
-		return fmt.Sprintf("\n%s Current replication slots: %d, Max allowed replication slots: %d", color.RedString("ERROR:"), currentReplicationSlots, maxReplicationSlots), nil
+	if usedCount >= maxCount {
+		return false, usedCount, maxCount, nil
 	}
 
-	return "", nil
+	return true, usedCount, maxCount, nil
 }

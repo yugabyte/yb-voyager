@@ -1045,6 +1045,6 @@ func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, error) {
 	return nil, nil
 }
 
-func (yb *YugabyteDB) CheckReplicationSlots() (string, error) {
+func (yb *YugabyteDB) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
 	return checkReplicationSlotsForPGAndYB(yb.db)
 }

@@ -45,7 +45,7 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v is_live_migration=0 -v is_live_migration_fall_back=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v is_live_migration=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 
 }
 

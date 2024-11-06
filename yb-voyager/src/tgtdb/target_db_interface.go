@@ -58,7 +58,7 @@ type TargetDB interface {
 	Exec(query string) (int64, error)
 	WithTx(fn func(tx *sql.Tx) error) error
 	GetMissingImportDataPermissions(isFallForwardEnabled bool) ([]string, error)
-	GetEnabledTriggersAndFks() ([]string, error)
+	GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error)
 }
 
 //=============================================================
