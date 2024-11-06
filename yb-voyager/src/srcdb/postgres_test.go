@@ -26,7 +26,7 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	sqlname.SourceDBType = "postgresql"
 
 	// Test GetAllTableNames
-	actualTables := postgresTestDB.Source.DB().GetAllTableNames()
+	actualTables := postgresTestDB.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("public", "foo"),
 		sqlname.NewSourceName("public", "bar"),
@@ -48,7 +48,7 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	tableList := []sqlname.NameTuple{
 		{CurrentName: objectName},
 	}
-	uniqueKeys, err := postgresTestDB.Source.DB().GetTableToUniqueKeyColumnsMap(tableList)
+	uniqueKeys, err := postgresTestDB.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 }
 
 func TestPostgresGetNonPKTables(t *testing.T) {
-	actualTables, err := postgresTestDB.Source.DB().GetNonPKTables()
+	actualTables, err := postgresTestDB.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
 	expectedTables := []string{`public."non_pk2"`, `public."non_pk1"`} // func returns table.Qualified.Quoted

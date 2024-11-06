@@ -26,7 +26,7 @@ func TestYugabyteGetAllTableNames(t *testing.T) {
 	sqlname.SourceDBType = "yugabytedb"
 
 	// Test GetAllTableNames
-	actualTables := yugabyteTestDB.Source.DB().GetAllTableNames()
+	actualTables := yugabyteTestDB.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("public", "foo"),
 		sqlname.NewSourceName("public", "bar"),
@@ -48,7 +48,7 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	tableList := []sqlname.NameTuple{
 		{CurrentName: objectName},
 	}
-	uniqueKeys, err := yugabyteTestDB.Source.DB().GetTableToUniqueKeyColumnsMap(tableList)
+	uniqueKeys, err := yugabyteTestDB.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 }
 
 func TestYugabyteGetNonPKTables(t *testing.T) {
-	actualTables, err := yugabyteTestDB.Source.DB().GetNonPKTables()
+	actualTables, err := yugabyteTestDB.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
 	expectedTables := []string{`public."non_pk2"`, `public."non_pk1"`} // func returns table.Qualified.Quoted

@@ -26,7 +26,7 @@ func TestMysqlGetAllTableNames(t *testing.T) {
 	sqlname.SourceDBType = "mysql"
 
 	// Test GetAllTableNames
-	actualTables := mysqlTestDB.Source.DB().GetAllTableNames()
+	actualTables := mysqlTestDB.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("dms", "foo"),
 		sqlname.NewSourceName("dms", "bar"),
