@@ -1005,7 +1005,7 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 					if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_FOREIGN {
 						isForeignConstraint = true
 					} else if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
-						//Getting the constraint's suffix before the DEFERRABLE clause as the clause is applicable to that constraint
+						//Getting the constraint type before the DEFERRABLE clause as the clause is applicable to that constraint
 						if idx > 0 {
 							constraintType = constraints[idx-1].GetConstraint().Contype
 						}
