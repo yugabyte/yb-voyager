@@ -172,7 +172,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		})),
 		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
 		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
-		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.MigrationCaveats, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			return callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
 				ObjectCount: len(feature.Objects),
