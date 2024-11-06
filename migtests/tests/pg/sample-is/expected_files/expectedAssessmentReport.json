@@ -134,7 +134,7 @@
 			"FeatureName": "Exclusion constraints",
 			"Objects": [
 				{
-					"ObjectName": "public.secret_missions",
+					"ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
 					"SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);"
 				}
 			],
