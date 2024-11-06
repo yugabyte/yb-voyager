@@ -841,11 +841,6 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 		assessmentReport.SchemaSummary.Description += " Some of the index and sequence names might be different from those in the source database."
 	}
 
-	// set invalidCount to zero so that it doesn't show up in the report
-	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
-		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
-	}
-
 	// fetching unsupportedFeaturing with the help of Issues report in SchemaReport
 	var unsupportedFeatures []UnsupportedFeature
 	var err error
