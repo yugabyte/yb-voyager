@@ -230,7 +230,6 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
 
-	cmd.PersistentFlags().MarkHidden("log-level")
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 
