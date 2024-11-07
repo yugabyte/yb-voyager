@@ -283,6 +283,10 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 	var schemaSummary utils.SchemaSummary
 
+	schemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION
+	if sourceDBConf.DBType == ORACLE {
+		schemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION_ORACLE
+	}
 	if !tconf.ImportMode && sourceDBConf != nil { // this info is available only if we are exporting from source
 		schemaSummary.DBName = sourceDBConf.DBName
 		schemaSummary.SchemaNames = strings.Split(sourceDBConf.Schema, "|")
