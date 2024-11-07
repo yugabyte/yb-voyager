@@ -1278,7 +1278,7 @@ func (ar *AssessmentReport) GetTotalTableRowCount() int64 {
 	}
 
 	var totalTableRowCount int64
-	for _, stat := range *ar.TableIndexStats {
+	for _, stat := range ar.getTableStats() {
 		totalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
 	}
 	return totalTableRowCount
@@ -1290,7 +1290,7 @@ func (ar *AssessmentReport) GetTotalTableSize() int64 {
 	}
 
 	var totalTableSize int64
-	for _, stat := range *ar.TableIndexStats {
+	for _, stat := range ar.getTableStats() {
 		totalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 	}
 	return totalTableSize
@@ -1302,10 +1302,8 @@ func (ar *AssessmentReport) GetTotalIndexSize() int64 {
 	}
 
 	var totalIndexSize int64
-	for _, stat := range *ar.TableIndexStats {
-		if stat.IsIndex {
-			totalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-		}
+	for _, stat := range ar.getIndexStats() {
+		totalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
 	}
 	return totalIndexSize
 }
@@ -1321,7 +1319,7 @@ func (ar *AssessmentReport) GetTotalColocatedSize(dbType string) (int64, error) 
 	}
 
 	var totalColocatedSize int64
-	for _, stat := range *ar.TableIndexStats {
+	for _, stat := range ar.getTableStats() {
 		var tableName string
 		switch dbType {
 		case ORACLE:
@@ -1351,7 +1349,7 @@ func (ar *AssessmentReport) GetTotalShardedSize(dbType string) (int64, error) {
 	}
 
 	var totalShardedSize int64
-	for _, stat := range *ar.TableIndexStats {
+	for _, stat := range ar.getTableStats() {
 		var tableName string
 		switch dbType {
 		case ORACLE:
@@ -1368,6 +1366,26 @@ func (ar *AssessmentReport) GetTotalShardedSize(dbType string) (int64, error) {
 	}
 
 	return totalShardedSize, nil
+}
+
+func (ar *AssessmentReport) getTableStats() []*migassessment.TableIndexStats {
+	var res []*migassessment.TableIndexStats
+	for _, stat := range *ar.TableIndexStats {
+		if !stat.IsIndex {
+			res = append(res, &stat)
+		}
+	}
+	return res
+}
+
+func (ar *AssessmentReport) getIndexStats() []*migassessment.TableIndexStats {
+	var res []*migassessment.TableIndexStats
+	for _, stat := range *ar.TableIndexStats {
+		if stat.IsIndex {
+			res = append(res, &stat)
+		}
+	}
+	return res
 }
 
 // ===== AssessMigrationDBConfig struct methods =====

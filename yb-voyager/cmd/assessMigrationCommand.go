@@ -492,7 +492,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 				Type:               FEATURE,
 				TypeDescription:    FEATURE_ISSUE_TYPE_DESCRIPTION,
 				Subtype:            unsupportedFeature.FeatureName,
-				SubtypeDescription: "", // TODO
+				SubtypeDescription: unsupportedFeature.FeatureDescription, // TODO: test payload once we add desc for unsupported features
 				ObjectName:         object.ObjectName,
 				SqlStatement:       object.SqlStatement,
 				DocsLink:           unsupportedFeature.DocsLink,
@@ -839,7 +839,6 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 		assessmentReport.SchemaSummary.Description += " Some of the index and sequence names might be different from those in the source database."
 	}
 
-	// Ques: yugabyted do need this, currently it is using Issues as invalid count (TODO don't reset to zero)
 	// set invalidCount to zero so that it doesn't show up in the report
 	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
 		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
