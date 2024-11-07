@@ -60,6 +60,7 @@ type SourceDB interface {
 	GetMissingExportSchemaPermissions() ([]string, error)
 	GetMissingExportDataPermissions(exportType string) ([]string, error)
 	GetMissingAssessMigrationPermissions() ([]string, error)
+	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 }
 
 func newSourceDB(source *Source) SourceDB {
@@ -87,4 +88,24 @@ func IsTableEmpty(db *sql.DB, query string) bool {
 		utils.ErrExit("Failed to query %q to check table is empty: %s", query, err)
 	}
 	return false
+}
+
+func checkReplicationSlotsForPGAndYB(db *sql.DB) (isAvailable bool, usedCount int, maxCount int, err error) {
+	query := "SHOW max_replication_slots;"
+	err = db.QueryRow(query).Scan(&maxCount)
+	if err != nil {
+		return false, 0, 0, fmt.Errorf("failed to query max replication slots: %w", err)
+	}
+
+	query = "SELECT COUNT(*) AS current_replication_slots FROM pg_replication_slots;"
+	err = db.QueryRow(query).Scan(&usedCount)
+	if err != nil {
+		return false, 0, 0, fmt.Errorf("failed to query current replication slots: %w", err)
+	}
+
+	if usedCount >= maxCount {
+		return false, usedCount, maxCount, nil
+	}
+
+	return true, usedCount, maxCount, nil
 }

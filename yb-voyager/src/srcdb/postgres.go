@@ -405,13 +405,20 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
 // the executable file having version >= `PG_COMMAND_VERSION[cmd]`.
 func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path string, binaryCheckIssue string, err error) {
+	// In case of pg_dump and pg_restore min required version is the max of min supported version of the cmd and sourceDBVersion
+	// In case psql min required version is the min supported version of psql
+	minRequiredVersion := max(PG_COMMAND_VERSION[cmd], sourceDBVersion)
+	if cmd == "psql" {
+		minRequiredVersion = PG_COMMAND_VERSION[cmd]
+	}
+
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
 		err = fmt.Errorf("error in finding executables in PATH for %v: %w", cmd, err)
 		return "", "", err
 	}
 	if len(paths) == 0 {
-		binaryCheckIssue = fmt.Sprintf("%v: required version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+		binaryCheckIssue = fmt.Sprintf("%v: required version >= %v", cmd, minRequiredVersion)
 		return "", binaryCheckIssue, nil
 	}
 
@@ -427,17 +434,13 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
 		currVersion := strings.Fields(string(stdout))[2]
 
-		// Check if the version of the command is greater or equalt to the source DB version and greater than the min required version
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION[cmd]) >= 0 {
-			// In case of psql we dont need the version to be greater than the sourceDBVersion
-			if version.CompareSimple(currVersion, sourceDBVersion) < 0 && cmd != "psql" {
-				continue
-			}
+		// Check if the version of the command is greater or equal to the min required version
+		if version.CompareSimple(currVersion, minRequiredVersion) >= 0 {
 			return path, "", nil
 		}
 	}
 
-	binaryCheckIssue = fmt.Sprintf("%v: version >= %v", cmd, max(PG_COMMAND_VERSION[cmd], sourceDBVersion))
+	binaryCheckIssue = fmt.Sprintf("%v: version >= %v", cmd, minRequiredVersion)
 	return "", binaryCheckIssue, nil
 }
 
@@ -1381,7 +1384,7 @@ func (pg *PostgreSQL) checkWalLevel() (msg string) {
 		utils.ErrExit("error in querying(%q) source database for wal_level: %v\n", query, err)
 	}
 	if walLevel != "logical" {
-		msg = fmt.Sprintf("%s Current wal_level: %s Required wal_level: logical", color.RedString("ERROR"), walLevel)
+		msg = fmt.Sprintf("\n%s Current wal_level: %s; Required wal_level: logical", color.RedString("ERROR"), walLevel)
 	} else {
 		log.Infof("Current wal_level: %s", walLevel)
 	}
@@ -1582,4 +1585,8 @@ func (pg *PostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	}
 
 	return schemasMissingUsagePermission, nil
+}
+
+func (pg *PostgreSQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
+	return checkReplicationSlotsForPGAndYB(pg.db)
 }

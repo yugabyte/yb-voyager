@@ -1,80 +1,83 @@
 --- How to use the script:
 -- Run the script with psql command line tool, passing the necessary parameters:
---- psql -h <host> -d <database> -U <username> -v voyager_user='<voyager_user>' -v schema_list='<schema_list>' -v replication_group='<replication_group>' -v original_owner_of_tables='<original_owner_of_tables>' -v is_live_migration=<is_live_migration> -v is_live_migration_fall_back=<is_live_migration_fall_back> -f <path_to_script> 
+--- psql -h <host> -d <database> -U <username> -v voyager_user='<voyager_user>' -v schema_list='<schema_list>' -v is_live_migration=<is_live_migration> -v is_live_migration_fall_back=<is_live_migration_fall_back> -v replication_group='<replication_group>' -v original_owner_of_tables='<original_owner_of_tables>' -f <path_to_script> 
 --- Example:
---- psql -h <host> -d <database> -U <username> -v voyager_user='ybvoyager' -v schema_list='schema1,public,schema2' -v replication_group='replication_group' -v original_owner_of_tables='postgres' -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /home/ubuntu/yb-voyager-pg-grant-migration-permissions.sql
+--- psql -h <host> -d <database> -U <username> -v voyager_user='ybvoyager' -v schema_list='schema1,public,schema2' -v is_live_migration=1 -v is_live_migration_fall_back=0 -v replication_group='replication_group' -v original_owner_of_tables='postgres' -f /home/ubuntu/yb-voyager-pg-grant-migration-permissions.sql
 --- Parameters:
 --- <host>: The hostname of the PostgreSQL server.
 --- <database>: The name of the database to connect to.
 --- <username>: The username to connect with.
 --- <voyager_user>: The database user for which permissions are being granted.
 --- <schema_list>: A comma-separated list of schemas to grant permissions on. Example 'schema1,public,schema2'.
+--- <is_live_migration>: A flag indicating if this is a live migration (1 for true, 0 for false). If set to 0 then the script will check for permissions for an offline migration.
+--- <is_live_migration_fall_back>: A flag indicating if this is a live migration with fallback (1 for true, 0 for false). If set to 0 then the script will detect permissions for live migration with fall-forward. Should only be set to 1 when is_live_migration is also set to 1. Does not need to be provided unless is_live_migration is set to 1.
 --- <replication_group>: The name of the replication group to be created. Not needed for offline migration.
 --- <original_owner_of_tables>: The original owner of the tables to be added to the replication group. Not needed for offline migration.
---- <is_live_migration>: A flag indicating if this is a live migration (1 for true, 0 for false). If set to 0 then the script will check for permissions for an offline migration.
---- <is_live_migration_fall_back>: A flag indicating if this is a live migration with fallback (1 for true, 0 for false). If set to 0 then the script will detect permissions for live migration with fall-forward. Should only be set to 1 when is_live_migration is also set to 1.
+
 \echo ''
 \echo '--- Checking Variables ---'
 
 -- Check if voyager_user is provided
 \if :{?voyager_user}
-    \echo 'Database user (voyager_user) is provided: ':voyager_user
+    \echo 'Voyager user is provided: ':voyager_user
 \else
-    \echo 'Error: Database user (voyager_user) is not provided!'
+    \echo 'Error: voyager_user flag is not provided!'
     \q
 \endif
 
 -- Check if schema_list is provided
 \if :{?schema_list}
-    \echo 'Schema list (schema_list) is provided: ':schema_list
+    \echo 'Schema list is provided: ':schema_list
 \else
-    \echo 'Error: Schema list (schema_list) is not provided!'
+    \echo 'Error: schema_list flag is not provided!'
     \q
 \endif
 
 -- Check if is_live_migration is provided
 \if :{?is_live_migration}
-    \echo 'Live migration flag (is_live_migration) is provided: ':is_live_migration
+    \echo 'Live migration flag is provided: ':is_live_migration
 \else
-    \echo 'Error: Live migration flag (is_live_migration) is not provided!'
+    \echo 'Error: is_live_migration flag is not provided!'
     \q
 \endif
 
--- Check if is_live_migration_fall_back is provided
-\if :{?is_live_migration_fall_back}
-    \echo 'Live migration fallback flag (is_live_migration_fall_back) is provided: ':is_live_migration_fall_back
-\else
-    \echo 'Error: Live migration fallback flag (is_live_migration_fall_back) is not provided!'
-    \q
-\endif
+-- If live migration is enabled, then is_live_migration_fall_back, replication_group and original_owner_of_tables should be provided
+\if :is_live_migration
 
--- If live_migration_fall_back is enabled, then is_live_migration should be enabled
-\if :is_live_migration_fall_back
-    \if :is_live_migration
-        \echo 'Live migration flag (is_live_migration) is enabled: ':is_live_migration
-        \echo 'Live migration fallback flag (is_live_migration_fall_back) is enabled: ':is_live_migration_fall_back
+    -- Check if is_live_migration_fall_back is provided
+    \if :{?is_live_migration_fall_back}
+        \echo 'Live migration fallback flag is provided: ':is_live_migration_fall_back
     \else
-        \echo 'Error: Live migration flag (is_live_migration) is not enabled and live migration fallback flag (is_live_migration_fall_back) is enabled!'
+        \echo 'Error: is_live_migration_fall_back flag is not provided!'
         \q
     \endif
-\endif
 
--- If live migration is enabled, then replication_group and original_owner_of_tables should be provided
-\if :is_live_migration
     -- Check if replication_group is provided
     \if :{?replication_group}
-        \echo 'Replication group (replication_group) is provided: ':replication_group
+        \echo 'Replication group is provided: ':replication_group
     \else
-        \echo 'Error: Replication group (replication_group) is not provided!'
+        \echo 'Error: replication_group flag is not provided!'
         \q
     \endif
 
     -- Check if original_owner_of_tables is provided
     \if :{?original_owner_of_tables}
-        \echo 'Original owner of tables (original_owner_of_tables) is provided: ':original_owner_of_tables
+        \echo 'Original owner of tables is provided: ':original_owner_of_tables
     \else
-        \echo 'Error: Original owner of tables (original_owner_of_tables) is not provided!'
+        \echo 'Error: original_owner_of_tables flag is not provided!'
         \q
+    \endif
+\endif
+
+-- If live migration fallback is provided and enabled, then is_live_migration should be enabled
+\if :{?is_live_migration_fall_back}
+    \if :is_live_migration_fall_back
+        \if :is_live_migration
+            \echo 'Live migration and fallback flags are both enabled'
+        \else
+            \echo 'Error: is_live_migration_fall_back is not enabled and live migration fallback flag is enabled!'
+            \q
+        \endif
     \endif
 \endif
 
@@ -88,6 +91,8 @@ SET myvars.schema_list = :'schema_list';
 SET myvars.voyager_user = :'voyager_user';
 \o
 
+\echo ''
+\echo 'Current database: ' :DBNAME
 \echo ''
 \echo 'Note that on RDS, you may get "Permission Denied" errors for pg_catalog tables (such as pg_statistic). These errors do not affect the migration and can be ignored.'
 \echo ''
