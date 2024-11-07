@@ -93,7 +93,7 @@ type DBObject struct {
 	TotalCount   int    `json:"TotalCount"`
 	InvalidCount int    `json:"InvalidCount"`
 	ObjectNames  string `json:"ObjectNames"`
-	Details      string `json:"Details"`
+	Details      string `json:"Details,omitempty"`
 }
 
 type Issue struct {
