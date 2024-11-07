@@ -184,6 +184,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	log.Infof("Parsed DataFileDescriptor: %v", spew.Sdump(dataFileDescriptor))
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()

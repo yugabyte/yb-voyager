@@ -32,6 +32,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
@@ -334,6 +335,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 
 func renameDatafileDescriptor(exportDir string) {
 	datafileDescriptor := datafile.OpenDescriptor(exportDir)
+	log.Infof("Parsed DataFileDescriptor: %v", spew.Sdump(datafileDescriptor))
 	for _, fileEntry := range datafileDescriptor.DataFileList {
 		renamedTable, isRenamed := renameTableIfRequired(fileEntry.TableName)
 		if isRenamed {
