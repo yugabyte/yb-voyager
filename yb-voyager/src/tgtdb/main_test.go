@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 	pgTargetConf := &TargetConf{
 		TargetDBType: "postgresql",
 		DBVersion:    "11",
-		User:         "ybvoyager",
+		User:         "postgres",
 		Password:     "postgres",
 		SSLMode:      "disable",
 		Port:         5432,
