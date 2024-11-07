@@ -37,12 +37,13 @@ ubuntu_apt_package_requirements=(
   "oracle-instantclient-sqlplus|exact|21.5.0.0.0"
 )
 
+# Array with format "Module::Name|requirement_type|required_version|tarball_name"
 cpan_modules_requirements=(
-  "DBD::mysql|min|5.005"
-  "Test::NoWarnings|min|1.06"
-  "DBD::Oracle|min|1.83"
-  "String::Random|min|0"
-  "IO::Compress::Base|min|0"
+  "DBD::mysql|min|5.005|DBD-mysql-5.005.tar.gz"
+  "Test::NoWarnings|min|1.06|Test-NoWarnings-1.06.tar.gz"
+  "DBD::Oracle|min|1.83|DBD-Oracle-1.83.tar.gz"
+  "String::Random|min|0|String-Random-0.32.tar.gz"
+  "IO::Compress::Base|min|0|IO-Compress-2.213.tar.gz"
 )
 
 ubuntu_missing_apt_packages=()
@@ -132,57 +133,74 @@ output() {
 	set -x
 }
 
-check_cpan_module() {
-  local module=$1
-  local version_type=$2
-  local required_version=$3
-  local installed_version=$(perl -M"$module" -e 'print $'"$module"'::VERSION' 2>/dev/null)
-
-  if [ -z "$installed_version" ]; then
-    case "$version_type" in
-      min)
-        if [ "$required_version" != "0" ]; then
-          missing_cpan_modules+=("$module with minimum version $required_version is not installed.")
-        else
-          missing_cpan_modules+=("$module is not installed.")
-        fi
-        ;;
-      exact)
-        missing_cpan_modules+=("$module with exact version $required_version is not installed.")
-        ;;
-    esac
-  else
-    case "$version_type" in
-      min)
-        if [ "$required_version" != "0" ] && [ "$(printf '%s\n' "$required_version" "$installed_version" | sort -V | head -n1)" != "$required_version" ]; then
-          missing_cpan_modules+=("$module version is less than $required_version. Found version: $installed_version")
-        fi
-        ;;
-      exact)
-        if [ "$installed_version" != "$required_version" ]; then
-          missing_cpan_modules+=("$module version is not $required_version. Found version: $installed_version")
-        fi
-        ;;
-    esac
-  fi
-}
-
-check_cpan_dependencies() {
-    for module in "${cpan_modules_requirements[@]}"; do
-        IFS='|' read -r cpan_module version_type required_version <<< "$module"
-        check_cpan_module "$cpan_module" "$version_type" "$required_version"
-    done
-
-    if [ ${#missing_cpan_modules[@]} -ne 0 ]; then
-        echo ""
-        echo -e "\e[31mERROR: the following CPAN modules are missing or do not meet the version requirements:\e[0m"
-        for missing in "${missing_cpan_modules[@]}"; do
-            echo "$missing"
-        done
+# Function to install a Perl module from a tar.gz package
+install_perl_module() {
+    local module_name="$1"
+    local requirement_type="$2"
+    local required_version="$3"
+    local package="$4"
+    
+    echo "Installing $package for module $module_name..."
+    
+    # Extract the package
+    tar -xzvf "$package"
+    
+    # Get the extracted directory name (remove the .tar.gz extension)
+    local dir_name="${package%.tar.gz}"
+    
+    # Navigate to the extracted directory
+    cd "$dir_name" || { echo "Failed to enter directory $dir_name"; exit 1; }
+    
+    # Check if Makefile.PL or Build.PL exists and run the appropriate commands
+    if [[ -f Makefile.PL ]]; then
+        echo "Installing $dir_name using Makefile.PL..."
+        perl Makefile.PL
+        make
+        make test
+        sudo make install
+    elif [[ -f Build.PL ]]; then
+        echo "Installing $dir_name using Build.PL..."
+        perl Build.PL
+        ./Build
+        ./Build test
+        sudo ./Build install
     else
-        echo ""
-        echo "All cpan dependencies are installed and meet the version requirements."
+        echo "Error: No Makefile.PL or Build.PL found in $dir_name, installation failed."
+        exit 1
     fi
+
+    # Return to the original directory
+    cd ..
+    
+    # Verification and version check
+    echo "Verifying installation of $module_name..."
+    installed_version=$(perl -M"$module_name" -e 'print $'"$module_name"'::VERSION' 2>/dev/null)
+    
+    if [[ -z "$installed_version" ]]; then
+        echo "Error: $module_name could not be loaded or found."
+        exit 1
+    fi
+
+    # Version comparison based on requirement type
+    if [[ "$requirement_type" == "min" ]]; then
+        # Check if installed version is at least the required version
+        if [[ $(echo -e "$installed_version\n$required_version" | sort -V | head -n1) != "$required_version" ]]; then
+            echo "Error: Installed version of $module_name ($installed_version) does not meet the minimum required version ($required_version)."
+            exit 1
+        fi
+    elif [[ "$requirement_type" == "exact" ]]; then
+        # Check if installed version matches the required version exactly
+        if [[ "$installed_version" != "$required_version" ]]; then
+            echo "Error: Installed version of $module_name ($installed_version) does not match the exact required version ($required_version)."
+            exit 1
+        fi
+    else
+        echo "Error: Unknown requirement type '$requirement_type' for $module_name."
+        exit 1
+    fi
+    
+    echo "$module_name version $installed_version installed successfully."
+    echo ""
 }
 
 check_binutils_version() {
@@ -415,7 +433,6 @@ centos_main() {
         check_java
         check_pg_dump_and_pg_restore_version
         check_yum_dependencies
-        check_cpan_dependencies
         # If either of the yum or cpan dependencies are missing or binutils wrong version, exit with error.
         if { [ ${#centos_missing_yum_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then 
             echo ""
@@ -436,7 +453,7 @@ centos_main() {
     # Prompt the user for permission to install the packages
     while true; do
         echo ""
-	    echo -n "Do you want to proceed with the installation of packages (ora2pg, debezium, yb-voyager)? (y/n):"
+	    echo -n "Do you want to proceed with the installation of packages (cpan modules, ora2pg, debezium, yb-voyager)? (y/n):"
 	    read yn
 	    case $yn in
 		[Yy]* )
@@ -447,6 +464,16 @@ centos_main() {
 		* ) ;;
 	    esac
 	done
+
+    echo ""
+    echo "Installing cpan modules..."
+    for module_info in "${cpan_modules_requirements[@]}"; do
+        # Split each entry by '|' to get module details
+        IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
+    
+        # Call the install function with module details
+        install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
+    done
 
     echo ""
     echo "Installing ora2pg..."
@@ -587,7 +614,6 @@ ubuntu_main() {
         check_java
         check_pg_dump_and_pg_restore_version
         check_apt_dependencies
-        check_cpan_dependencies
 
         # If either of the apt or cpan dependencies are missing or binutils wrong version, exit with error.
         if { [ ${#ubuntu_missing_apt_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then
@@ -609,7 +635,7 @@ ubuntu_main() {
     # Prompt the user for permission to install the packages
     while true; do
         echo ""
-	    echo -n "Do you want to proceed with the installation of packages (ora2pg, debezium, yb-voyager)? (y/n):"
+	    echo -n "Do you want to proceed with the installation of packages (cpan modules, ora2pg, debezium, yb-voyager)? (y/n):"
 	    read yn
 	    case $yn in
 		[Yy]* )
@@ -620,6 +646,16 @@ ubuntu_main() {
 		* ) ;;
 	    esac
 	done
+
+    echo ""
+    echo "Installing cpan modules..."
+    for module_info in "${cpan_modules_requirements[@]}"; do
+        # Split each entry by '|' to get module details
+        IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
+    
+        # Call the install function with module details
+        install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
+    done
 
     echo ""
     echo "Installing ora2pg..."
