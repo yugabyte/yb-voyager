@@ -68,19 +68,6 @@ var sourceConnectionFlags = []string{
 	"source-ssl-root-cert",
 }
 
-type UnsupportedFeature struct {
-	FeatureName        string       `json:"FeatureName"`
-	Objects            []ObjectInfo `json:"Objects"`
-	DisplayDDL         bool         `json:"-"` // just used by html format to display the DDL for some feature and object names for other
-	DocsLink           string       `json:"DocsLink,omitempty"`
-	FeatureDescription string       `json:"FeatureDescription,omitempty"`
-}
-
-type ObjectInfo struct {
-	ObjectName   string
-	SqlStatement string
-}
-
 var assessMigrationCmd = &cobra.Command{
 	Use:   "assess-migration",
 	Short: fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
@@ -435,76 +422,109 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
-	sizeDetails, err := assessmentReport.CalculateSizeDetails(source.DBType)
+	totalColocatedSize, err := assessmentReport.GetTotalColocatedSize(source.DBType)
 	if err != nil {
-		utils.PrintAndLog("Failed to calculate the size details of the tableIndexStats: %v", err)
+		utils.PrintAndLog("failed to calculate the total colocated table size from tableIndexStats: %v", err)
 	}
 
-	finalReport := AssessMigrationPayload{
-		AssessmentJsonReport: assessmentReport,
+	totalShardedSize, err := assessmentReport.GetTotalShardedSize(source.DBType)
+	if err != nil {
+		utils.PrintAndLog("failed to calculate the total sharded table size from tableIndexStats: %v", err)
+	}
+
+	assessmentIssues := flattenAssessmentReportToAssessmentIssues(assessmentReport)
+
+	payload := AssessMigrationPayload{
+		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
+		VoyagerVersion:      assessmentReport.VoyagerVersion,
+		MigrationComplexity: assessmentReport.MigrationComplexity,
+		SchemaSummary:       assessmentReport.SchemaSummary,
+		AssessmentIssues:    assessmentIssues,
 		SourceSizeDetails: SourceDBSizeDetails{
-			TotalIndexSize:     sizeDetails.TotalIndexSize,
-			TotalTableSize:     sizeDetails.TotalTableSize,
-			TotalTableRowCount: sizeDetails.TotalTableRowCount,
+			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),
+			TotalTableSize:     assessmentReport.GetTotalTableSize(),
+			TotalTableRowCount: assessmentReport.GetTotalTableRowCount(),
 			TotalDBSize:        source.DBSize,
 		},
 		TargetRecommendations: TargetSizingRecommendations{
-			TotalColocatedSize: sizeDetails.TotalColocatedSize,
-			TotalShardedSize:   sizeDetails.TotalShardedSize,
+			TotalColocatedSize: totalColocatedSize,
+			TotalShardedSize:   totalShardedSize,
 		},
-		MigrationComplexity: assessmentReport.MigrationComplexity,
-		ConversionIssues:    schemaAnalysisReport.Issues,
+		ConversionIssues:     schemaAnalysisReport.Issues,
+		AssessmentJsonReport: assessmentReport,
 	}
 
-	finalReportBytes, err := json.Marshal(finalReport)
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		utils.PrintAndLog("Failed to serialise the final report to json (ERR IGNORED): %s", err)
 	}
 
-	ev.Report = string(finalReportBytes)
+	ev.Report = string(payloadBytes)
+	log.Infof("assess migration payload send to yugabyted: %s", ev.Report)
 	return ev
 }
 
-type SizeDetails struct {
-	TotalIndexSize     int64
-	TotalTableSize     int64
-	TotalTableRowCount int64
-	TotalColocatedSize int64
-	TotalShardedSize   int64
-}
+// flatten UnsupportedDataTypes, UnsupportedFeatures, MigrationCaveats
+func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []AssessmentIssuePayload {
+	var issues []AssessmentIssuePayload
 
-func (ar *AssessmentReport) CalculateSizeDetails(dbType string) (SizeDetails, error) {
-	var details SizeDetails
-	colocatedTables, err := ar.GetColocatedTablesRecommendation()
-	if err != nil {
-		return details, fmt.Errorf("failed to get the colocated tables recommendation: %v", err)
+	var dataTypesDocsLink string
+	switch source.DBType {
+	case POSTGRESQL:
+		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK
+	case ORACLE:
+		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE
+	}
+	for _, unsupportedDataType := range ar.UnsupportedDataTypes {
+		issues = append(issues, AssessmentIssuePayload{
+			Type:            DATATYPE,
+			TypeDescription: DATATYPE_ISSUE_TYPE_DESCRIPTION,
+			Subtype:         unsupportedDataType.DataType,
+			ObjectName:      fmt.Sprintf("%s.%s.%s", unsupportedDataType.SchemaName, unsupportedDataType.TableName, unsupportedDataType.ColumnName),
+			SqlStatement:    "",
+			DocsLink:        dataTypesDocsLink,
+		})
 	}
 
-	if ar.TableIndexStats != nil {
-		for _, stat := range *ar.TableIndexStats {
-			if stat.IsIndex {
-				details.TotalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-			} else {
-				var tableName string
-				switch dbType {
-				case ORACLE:
-					tableName = stat.ObjectName // in case of oracle, colocatedTables have unqualified table names
-				case POSTGRESQL:
-					tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
-				default:
-					return details, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
-				}
-				details.TotalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-				details.TotalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
-				if slices.Contains(colocatedTables, tableName) {
-					details.TotalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-				} else {
-					details.TotalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
-				}
-			}
+	for _, unsupportedFeature := range ar.UnsupportedFeatures {
+		for _, object := range unsupportedFeature.Objects {
+			issues = append(issues, AssessmentIssuePayload{
+				Type:               FEATURE,
+				TypeDescription:    FEATURE_ISSUE_TYPE_DESCRIPTION,
+				Subtype:            unsupportedFeature.FeatureName,
+				SubtypeDescription: unsupportedFeature.FeatureDescription, // TODO: test payload once we add desc for unsupported features
+				ObjectName:         object.ObjectName,
+				SqlStatement:       object.SqlStatement,
+				DocsLink:           unsupportedFeature.DocsLink,
+			})
 		}
 	}
-	return details, nil
+
+	for _, migrationCaveat := range ar.MigrationCaveats {
+		for _, object := range migrationCaveat.Objects {
+			issues = append(issues, AssessmentIssuePayload{
+				Type:               MIGRATION_CAVEATS,
+				TypeDescription:    MIGRATION_CAVEATS_TYPE_DESCRIPTION,
+				Subtype:            migrationCaveat.FeatureName,
+				SubtypeDescription: migrationCaveat.FeatureDescription,
+				ObjectName:         object.ObjectName,
+				SqlStatement:       object.SqlStatement,
+				DocsLink:           migrationCaveat.DocsLink,
+			})
+		}
+	}
+
+	for _, uqc := range ar.UnsupportedQueryConstructs {
+		issues = append(issues, AssessmentIssuePayload{
+			Type:            QUERY_CONSTRUCT,
+			TypeDescription: UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
+			Subtype:         uqc.ConstructType,
+			SqlStatement:    uqc.Query,
+			DocsLink:        uqc.DocsLink,
+		})
+	}
+
+	return issues
 }
 
 func runAssessment() error {
@@ -787,7 +807,7 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
 	assessmentReport.UnsupportedDataTypes = unsupportedDataTypes
-	assessmentReport.UnsupportedDataTypesDesc = "Data types of the source database that are not supported on the target YugabyteDB."
+	assessmentReport.UnsupportedDataTypesDesc = DATATYPE_ISSUE_TYPE_DESCRIPTION
 
 	assessmentReport.Sizing = migassessment.SizingReport
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
@@ -841,7 +861,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 		return fmt.Errorf("failed to fetch %s unsupported features: %w", source.DBType, err)
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
-	assessmentReport.UnsupportedFeaturesDesc = "Features of the source database that are not supported on the target YugabyteDB."
+	assessmentReport.UnsupportedFeaturesDesc = FEATURE_ISSUE_TYPE_DESCRIPTION
 	return nil
 }
 
@@ -855,9 +875,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 				ObjectName:   issue.ObjectName,
 				SqlStatement: issue.SqlStatement,
 			}
-			if source.DBType == POSTGRESQL {
-				link = issue.DocsLink
-			}
+			link = issue.DocsLink
 			objects = append(objects, objectInfo)
 		}
 	}
@@ -878,7 +896,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(GENERATED_COLUMNS_FEATURE, STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONVERSIONS_OBJECTS_FEATURE, CONVERSION_ISSUE_REASON, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(MULTI_COLUMN_GIN_INDEX_FEATURE, GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(ALTER_SETTING_ATTRIBUTE_FEATURE, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, schemaAnalysisReport, true, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(ALTER_SETTING_ATTRIBUTE_FEATURE, ALTER_TABLE_SET_ATTRIBUTE_ISSUE, schemaAnalysisReport, true, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DISABLING_TABLE_RULE_FEATURE, ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, true, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CLUSTER_ON_FEATURE, ALTER_TABLE_CLUSTER_ON_ISSUE, schemaAnalysisReport, true, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(STORAGE_PARAMETERS_FEATURE, STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, true, ""))
