@@ -234,7 +234,7 @@
                 <tr>
                     <th>Construct Type</th>
                     <th>Queries</th>
-                    <th>Documentation</th>
+                    <th>Details</th>
                 </tr>
                 {{ $currentType := "" }}
                 {{ $docsLink := "" }}
@@ -246,7 +246,7 @@
                         </td>
                         <td>
                             {{ if $docsLink }}
-                                <a href="{{ $docsLink }}" target="_blank">Learn More</a>
+                                <a href="{{ $docsLink }}" target="_blank">Link</a>
                             {{ else }}
                                 N/A
                             {{ end }}
@@ -270,7 +270,7 @@
                 </td>
                 <td>
                     {{ if $docsLink }}
-                        <a href="{{ $docsLink }}" target="_blank">Learn More</a>
+                        <a href="{{ $docsLink }}" target="_blank">Link</a>
                     {{ else }}
                         Not Available
                     {{ end }}
