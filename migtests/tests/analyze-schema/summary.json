@@ -49,7 +49,7 @@
             {
                 "ObjectType": "TRIGGER",
                 "TotalCount": 7,
-                "InvalidCount": 6,
+                "InvalidCount": 5,
                 "ObjectNames": "transfer_insert ON transfer, emp_trig, test, before_insert_or_delete_trigger ON public.range_columns_partition_test, after_insert_or_delete_trigger ON public.range_columns_partition_test, before_insert_or_delete_row_trigger ON public.range_columns_partition_test, before_insert_or_delete_row_trigger ON public.test_non_partition_before"
             },
             {

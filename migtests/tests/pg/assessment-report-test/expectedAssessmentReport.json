@@ -322,7 +322,7 @@
 			"Objects": []
 		},
 		{
-			"FeatureName": "BEFORE / FOR EACH ROW triggers on Partitioned tables",
+			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
 			"Objects": [
 				{
 					"ObjectName": "before_sales_region_insert_update ON public.sales_region",

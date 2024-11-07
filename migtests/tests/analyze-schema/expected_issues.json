@@ -543,24 +543,6 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TRIGGER",
-            "ObjectName": "before_insert_or_delete_trigger ON public.range_columns_partition_test",
-            "Reason": "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
-            "SqlStatement": "CREATE TRIGGER before_insert_or_delete_trigger\nBEFORE INSERT OR DELETE ON public.range_columns_partition_test\nFOR EACH STATEMENT\nEXECUTE FUNCTION handle_insert_or_delete();",
-            "Suggestion": "Create the triggers on individual partitions.",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668"
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TRIGGER",
-            "ObjectName": "after_insert_or_delete_trigger ON public.range_columns_partition_test",
-            "Reason": "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
-            "SqlStatement": "CREATE TRIGGER after_insert_or_delete_trigger\nAFTER INSERT OR DELETE ON public.range_columns_partition_test\nFOR EACH ROW\nEXECUTE FUNCTION handle_insert_or_delete();",
-            "Suggestion": "Create the triggers on individual partitions.",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668"
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TRIGGER",
             "ObjectName": "before_insert_or_delete_row_trigger ON public.range_columns_partition_test",
             "Reason": "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
             "SqlStatement": "CREATE TRIGGER before_insert_or_delete_row_trigger\nBEFORE INSERT OR DELETE ON public.range_columns_partition_test\nFOR EACH ROW\nEXECUTE FUNCTION handle_insert_or_delete();",
