@@ -1154,27 +1154,6 @@ type ObjectInfo struct {
 	SqlStatement string
 }
 
-type AssessmentIssue struct {
-	Type         string `json:"Type"`         // Feature, DataType, MigrationCaveat, UQC
-	Name         string `json:"Name"`         // GIN Indexes, Advisory Locks etc
-	Description  string `json:"Description"`  // Based on AssessmentIssue type
-	ObjectName   string `json:"ObjectName"`   // Fully qualified object name(empty if NA, eg UQC)
-	SqlStatement string `json:"SqlStatement"` // DDL or DML(UQC)
-	DocsLink     string `json:"DocsLink"`
-
-	// Store Type-specific details - extensible, can refer any struct
-	Details json.RawMessage `json:"Details,omitempty"`
-}
-
-/*
-	Sample of extensibility
-
-	type QueryConstuctDetails struct {
-		FunctionNames	[]string
-		ColumnNames		[]string
-	}
-*/
-
 // ======================================================================
 type BulkAssessmentReport struct {
 	Details []AssessmentDetail `json:"Detail"`
@@ -1207,13 +1186,35 @@ type AssessMigrationPayload struct {
 	VoyagerVersion        string
 	MigrationComplexity   string
 	SchemaSummary         utils.SchemaSummary
-	AssessmentIssues      []AssessmentIssue
+	AssessmentIssues      []AssessmentIssuePayload
 	SourceSizeDetails     SourceDBSizeDetails
 	TargetRecommendations TargetSizingRecommendations
 	ConversionIssues      []utils.Issue
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
 	AssessmentJsonReport AssessmentReport
 }
+
+type AssessmentIssuePayload struct {
+	Type               string `json:"Type"`               // Feature, DataType, MigrationCaveat, UQC
+	TypeDescription    string `json:"TypeDescription"`    // Based on AssessmentIssue type
+	Subtype            string `json:"Subtype"`            // GIN Indexes, Advisory Locks etc
+	SubtypeDescription string `json:"SubtypeDescription"` // description based on subtype
+	ObjectName         string `json:"ObjectName"`         // Fully qualified object name(empty if NA, eg UQC)
+	SqlStatement       string `json:"SqlStatement"`       // DDL or DML(UQC)
+	DocsLink           string `json:"DocsLink"`           // docs link based on the subtype
+
+	// Store Type-specific details - extensible, can refer any struct
+	Details json.RawMessage `json:"Details,omitempty"`
+}
+
+/*
+	Sample of extensibility
+
+	type QueryConstuctDetails struct {
+		FunctionNames	[]string
+		ColumnNames		[]string
+	}
+*/
 
 type SourceDBSizeDetails struct {
 	TotalDBSize        int64

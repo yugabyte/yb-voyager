@@ -465,8 +465,8 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 }
 
 // flatten UnsupportedDataTypes, UnsupportedFeatures, MigrationCaveats
-func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []AssessmentIssue {
-	var issues []AssessmentIssue
+func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []AssessmentIssuePayload {
+	var issues []AssessmentIssuePayload
 
 	var docsLink string
 	switch source.DBType {
@@ -476,47 +476,48 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 		docsLink = UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE
 	}
 	for _, unsupportedDataType := range ar.UnsupportedDataTypes {
-		issues = append(issues, AssessmentIssue{
-			Type:         DATATYPE,
-			Name:         unsupportedDataType.DataType,
-			Description:  DATATYPE_ISSUE_TYPE_DESCRIPTION,
-			ObjectName:   fmt.Sprintf("%s.%s.%s", unsupportedDataType.SchemaName, unsupportedDataType.TableName, unsupportedDataType.ColumnName),
-			SqlStatement: "",
-			DocsLink:     docsLink,
+		issues = append(issues, AssessmentIssuePayload{
+			Type:            DATATYPE,
+			TypeDescription: DATATYPE_ISSUE_TYPE_DESCRIPTION,
+			Subtype:         unsupportedDataType.DataType,
+			ObjectName:      fmt.Sprintf("%s.%s.%s", unsupportedDataType.SchemaName, unsupportedDataType.TableName, unsupportedDataType.ColumnName),
+			SqlStatement:    "",
+			DocsLink:        docsLink,
 		})
 	}
 
 	for _, unsupportedFeature := range ar.UnsupportedFeatures {
 		for _, object := range unsupportedFeature.Objects {
-			issues = append(issues, AssessmentIssue{
-				Type:         FEATURE,
-				Name:         unsupportedFeature.FeatureName,
-				Description:  FEATURE_ISSUE_TYPE_DESCRIPTION,
-				ObjectName:   object.ObjectName,
-				SqlStatement: object.SqlStatement,
-				DocsLink:     unsupportedFeature.DocsLink,
+			issues = append(issues, AssessmentIssuePayload{
+				Type:               FEATURE,
+				TypeDescription:    FEATURE_ISSUE_TYPE_DESCRIPTION,
+				Subtype:            unsupportedFeature.FeatureName,
+				SubtypeDescription: "", // TODO
+				ObjectName:         object.ObjectName,
+				SqlStatement:       object.SqlStatement,
+				DocsLink:           unsupportedFeature.DocsLink,
 			})
 		}
 	}
 
 	for _, migrationCaveat := range ar.MigrationCaveats {
 		for _, object := range migrationCaveat.Objects {
-			issues = append(issues, AssessmentIssue{
-				Type:        MIGRATION_CAVEATS,
-				Name:        migrationCaveat.FeatureName,
-				Description: "", // TODO: Need general description: MIGRATION_CAVEATS_ISSUE_TYPE_DESCRIPTION
-				// Q: migrationCaveat.Description is more like a workaround than description. do we need to store that in our AssessmentIssue struct
-				ObjectName:   object.ObjectName,
-				SqlStatement: object.SqlStatement,
-				DocsLink:     migrationCaveat.DocsLink,
+			issues = append(issues, AssessmentIssuePayload{
+				Type:               MIGRATION_CAVEATS,
+				TypeDescription:    MIGRATION_CAVEATS_TYPE_DESCRIPTION,
+				Subtype:            migrationCaveat.FeatureName,
+				SubtypeDescription: migrationCaveat.FeatureDescription,
+				ObjectName:         object.ObjectName,
+				SqlStatement:       object.SqlStatement,
+				DocsLink:           migrationCaveat.DocsLink,
 			})
 		}
 	}
 
 	for _, uqc := range ar.UnsupportedQueryConstructs {
-		issues = append(issues, AssessmentIssue{
+		issues = append(issues, AssessmentIssuePayload{
 			Type:         QUERY_CONSTRUCT,
-			Name:         uqc.ConstructType,
+			Subtype:      uqc.ConstructType,
 			SqlStatement: uqc.Query,
 		})
 	}
