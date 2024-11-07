@@ -481,7 +481,8 @@ func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, 
 	if createTriggerNode.CreateTrigStmt.GetTransitionRels() != nil {
 		summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
 		reportCase(fpath, REFERENCING_CLAUSE_FOR_TRIGGERS,
-			"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
+			UNSUPPORTED_FEATURES, REFERENCING_CLAUSE_TRIGGER_DOC_LINK)
 	}
 
 	/*
@@ -507,13 +508,14 @@ func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, 
 
 	timing := createTriggerNode.CreateTrigStmt.Timing
 	isSecondBitSet := timing&(1<<1) != 0
-	if isSecondBitSet || createTriggerNode.CreateTrigStmt.Row {
+	if isSecondBitSet && createTriggerNode.CreateTrigStmt.Row {
 		// BEFORE clause will have the bits in timing as 1<<1
-		// BEFORE / FOR EACH ROW on partitioned table is not supported in PG<=12
+		// BEFORE and FOR EACH ROW on partitioned table is not supported in PG<=12
 		if partitionTablesMap[fullyQualifiedName] {
 			summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
 			reportCase(fpath, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE,
-				"https://github.com/YugaByte/yugabyte-db/issues/1668", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+				"https://github.com/YugaByte/yugabyte-db/issues/1668", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, BEFORE_ROW_TRIGGER_PARTITIONED_TABLE_DOC_LINK)
 		}
 	}
 
