@@ -1747,7 +1747,7 @@ func parseSqlFileForObjectType(path string, objType string) []sqlInfo {
 
 	lines := strings.Split(string(file), "\n")
 	for i := 0; i < len(lines); i++ {
-		currLine := lines[i]
+		currLine := strings.TrimRight(lines[i], " ")
 		if len(currLine) == 0 {
 			continue
 		}
