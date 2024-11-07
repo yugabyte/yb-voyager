@@ -15,6 +15,7 @@ centos_yum_package_requirements=(
   "perl-App-cpanminus|min|0"
   "perl-ExtUtils-MakeMaker|min|0"
   "mysql-devel|min|0"
+  "libaio|min|0"
   "oracle-instantclient-tools|exact|21.5.0.0.0"
   "oracle-instantclient-basic|exact|21.5.0.0.0"
   "oracle-instantclient-devel|exact|21.5.0.0.0"
