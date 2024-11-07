@@ -30,12 +30,12 @@ CREATE TABLE public.table2 (
         email VARCHAR(100)
 );
 
-CREATE TABLE non_pk1(
+CREATE TABLE public.non_pk1(
     id INT,
     name VARCHAR(255)
 );
 
-CREATE TABLE non_pk2(
+CREATE TABLE public.non_pk2(
     id INT,
     name VARCHAR(255)
 );

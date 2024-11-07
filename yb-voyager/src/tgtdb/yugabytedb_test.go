@@ -97,20 +97,20 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 	}
 }
 
-func TestGetNonEmptyTables(t *testing.T) {
+func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	tables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "foo")},
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "bar")},
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "unique_table")},
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "table1")},
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "table2")},
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "non_pk1")},
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "non_pk2")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "foo")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "bar")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "unique_table")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "table1")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "table2")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "non_pk1")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "non_pk2")},
 	}
 
 	expectedTables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "foo")},
-		{CurrentName: sqlname.NewObjectName("yugabytedb", "public", "public", "bar")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "foo")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "bar")},
 	}
 
 	actualTables := yugabyteTestDB.GetNonEmptyTables(tables)

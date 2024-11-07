@@ -1,14 +1,16 @@
 -- TODO: create user as per User creation steps in docs and use that in tests
 
-CREATE TABLE foo (
+CREATE TABLE public.foo (
         id INT PRIMARY KEY,
         name VARCHAR
 );
+INSERT into public.foo values (1, 'abc'), (2, 'xyz');
 
-CREATE TABLE bar (
+CREATE TABLE public.bar (
         id INT PRIMARY KEY,
         name VARCHAR
 );
+INSERT into public.bar values (1, 'abc'), (2, 'xyz');
 
 CREATE TABLE public.unique_table (
         id SERIAL PRIMARY KEY,
@@ -18,7 +20,7 @@ CREATE TABLE public.unique_table (
         UNIQUE (email, phone)  -- Unique constraint on combination of columns
 );
 
-CREATE UNIQUE INDEX unique_address_idx ON public.unique_table (address);  -- Unique Index
+CREATE UNIQUE INDEX unique_address_idx ON public.unique_table (address);
 
 CREATE TABLE public.table1 (
         id SERIAL PRIMARY KEY,
