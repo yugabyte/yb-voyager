@@ -39,6 +39,13 @@ ubuntu_apt_package_requirements=(
 
 # Array with format "Module::Name|requirement_type|required_version|tarball_name"
 cpan_modules_requirements=(
+  "Compress::Raw::Bzip2|min|2.213|Compress-Raw-Bzip2-2.213.tar.gz"
+  "Compress::Raw::Zlib|min|2.213|Compress-Raw-Zlib-2.213.tar.gz"
+  "Test::Deep|min|0|Test-Deep-1.204.tar.gz"
+  "DBI::DBD|min|0|DBI-1.645.tgz"
+  "Capture::Tiny|min|0|Capture-Tiny-0.48.tar.gz"
+  "Mock::Config|min|0.02|Mock-Config-0.03.tar.gz"
+  "Devel::CheckLib|min|1.16|Devel-CheckLib-1.16.tar.gz"
   "DBD::mysql|min|5.005|DBD-mysql-5.005.tar.gz"
   "Test::NoWarnings|min|1.06|Test-NoWarnings-1.06.tar.gz"
   "DBD::Oracle|min|1.83|DBD-Oracle-1.83.tar.gz"
@@ -142,28 +149,30 @@ install_perl_module() {
     
     echo "Installing $package for module $module_name..."
     
-    # Extract the package
-    tar -xzvf "$package"
+        # Extract the package
+    tar -xzvf "$package" || { echo "Error: Failed to extract $package"; exit 1; }
     
     # Get the extracted directory name (remove the .tar.gz extension)
     local dir_name="${package%.tar.gz}"
+    # If tar zip is like .tgz then remove .tgz extension. Add a condition for that
+    dir_name="${dir_name%.tgz}"
     
     # Navigate to the extracted directory
-    cd "$dir_name" || { echo "Failed to enter directory $dir_name"; exit 1; }
+    cd "$dir_name" || { echo "Error: Failed to enter directory $dir_name"; exit 1; }
     
     # Check if Makefile.PL or Build.PL exists and run the appropriate commands
     if [[ -f Makefile.PL ]]; then
         echo "Installing $dir_name using Makefile.PL..."
-        perl Makefile.PL
-        make
-        make test
-        sudo make install
+        perl Makefile.PL || { echo "Error: perl Makefile.PL failed for $module_name"; exit 1; }
+        make || { echo "Error: make command failed for $module_name"; exit 1; }
+        make test || { echo "Error: make test failed for $module_name"; exit 1; }
+        sudo make install || { echo "Error: sudo make install failed for $module_name"; exit 1; }
     elif [[ -f Build.PL ]]; then
         echo "Installing $dir_name using Build.PL..."
-        perl Build.PL
-        ./Build
-        ./Build test
-        sudo ./Build install
+        perl Build.PL || { echo "Error: perl Build.PL failed for $module_name"; exit 1; }
+        ./Build || { echo "Error: ./Build command failed for $module_name"; exit 1; }
+        ./Build test || { echo "Error: ./Build test failed for $module_name"; exit 1; }
+        sudo ./Build install || { echo "Error: sudo ./Build install failed for $module_name"; exit 1; }
     else
         echo "Error: No Makefile.PL or Build.PL found in $dir_name, installation failed."
         exit 1
