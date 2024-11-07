@@ -547,7 +547,8 @@
             "Reason": "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
             "SqlStatement": "CREATE TRIGGER before_insert_or_delete_row_trigger\nBEFORE INSERT OR DELETE ON public.range_columns_partition_test\nFOR EACH ROW\nEXECUTE FUNCTION handle_insert_or_delete();",
             "Suggestion": "Create the triggers on individual partitions.",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/24830",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables"
         },
         {
             "IssueType": "unsupported_features",
@@ -556,7 +557,8 @@
             "Reason": "REFERENCING clause (transition tables) not supported yet.",
             "SqlStatement": "CREATE TRIGGER transfer_insert\n    AFTER INSERT ON transfer\n    REFERENCING NEW TABLE AS inserted\n    FOR EACH STATEMENT\n    EXECUTE FUNCTION check_transfer_balances_to_zero();",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668",
+            "DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers"
         },
         {
             "IssueType": "unsupported_features",

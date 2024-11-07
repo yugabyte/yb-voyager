@@ -514,7 +514,7 @@ func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, 
 		if partitionTablesMap[fullyQualifiedName] {
 			summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
 			reportCase(fpath, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE,
-				"https://github.com/YugaByte/yugabyte-db/issues/1668", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
+				"https://github.com/yugabyte/yugabyte-db/issues/24830", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, BEFORE_ROW_TRIGGER_PARTITIONED_TABLE_DOC_LINK)
 		}
 	}
