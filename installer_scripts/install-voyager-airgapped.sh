@@ -147,10 +147,10 @@ install_perl_module() {
     local required_version="$3"
     local package="$4"
     
-    echo "Installing $package for module $module_name..."
+    echo "Installing module $module_name..."
     
-        # Extract the package
-    tar -xzvf "$package" || { echo "Error: Failed to extract $package"; exit 1; }
+    # Extract the package
+    tar -xzvf "$package" 1>&2 || { echo "Error: Failed to extract $package"; exit 1; }
     
     # Get the extracted directory name (remove the .tar.gz extension)
     local dir_name="${package%.tar.gz}"
@@ -162,17 +162,15 @@ install_perl_module() {
     
     # Check if Makefile.PL or Build.PL exists and run the appropriate commands
     if [[ -f Makefile.PL ]]; then
-        echo "Installing $dir_name using Makefile.PL..."
-        perl Makefile.PL || { echo "Error: perl Makefile.PL failed for $module_name"; exit 1; }
-        make || { echo "Error: make command failed for $module_name"; exit 1; }
-        make test || { echo "Error: make test failed for $module_name"; exit 1; }
-        sudo make install || { echo "Error: sudo make install failed for $module_name"; exit 1; }
+        perl Makefile.PL 1>&2 || { echo "Error: perl Makefile.PL failed for $module_name"; exit 1; }
+        make 1>&2 || { echo "Error: make command failed for $module_name"; exit 1; }
+        make test 1>&2 || { echo "Error: make test failed for $module_name"; exit 1; }
+        sudo make install 1>&2 || { echo "Error: sudo make install failed for $module_name"; exit 1; }
     elif [[ -f Build.PL ]]; then
-        echo "Installing $dir_name using Build.PL..."
-        perl Build.PL || { echo "Error: perl Build.PL failed for $module_name"; exit 1; }
-        ./Build || { echo "Error: ./Build command failed for $module_name"; exit 1; }
-        ./Build test || { echo "Error: ./Build test failed for $module_name"; exit 1; }
-        sudo ./Build install || { echo "Error: sudo ./Build install failed for $module_name"; exit 1; }
+        perl Build.PL 1>&2 || { echo "Error: perl Build.PL failed for $module_name"; exit 1; }
+        ./Build 1>&2 || { echo "Error: ./Build command failed for $module_name"; exit 1; }
+        ./Build test 1>&2 || { echo "Error: ./Build test failed for $module_name"; exit 1; }
+        sudo ./Build install 1>&2 || { echo "Error: sudo ./Build install failed for $module_name"; exit 1; }
     else
         echo "Error: No Makefile.PL or Build.PL found in $dir_name, installation failed."
         exit 1
@@ -182,8 +180,7 @@ install_perl_module() {
     cd ..
     
     # Verification and version check
-    echo "Verifying installation of $module_name..."
-    installed_version=$(perl -M"$module_name" -e 'print $'"$module_name"'::VERSION' 2>/dev/null)
+    installed_version=$(perl -M"$module_name" -e 'print $'"$module_name"'::VERSION' 2> /dev/null)
     
     if [[ -z "$installed_version" ]]; then
         echo "Error: $module_name could not be loaded or found."
@@ -208,7 +205,6 @@ install_perl_module() {
         exit 1
     fi
     
-    echo "$module_name version $installed_version installed successfully."
     echo ""
 }
 
@@ -476,6 +472,7 @@ centos_main() {
 
     echo ""
     echo "Installing cpan modules..."
+    echo ""
     for module_info in "${cpan_modules_requirements[@]}"; do
         # Split each entry by '|' to get module details
         IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
@@ -484,7 +481,6 @@ centos_main() {
         install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
     done
 
-    echo ""
     echo "Installing ora2pg..."
     sudo yum install -y -q ora2pg*.noarch.rpm 1>&2 
     if [ $? -ne 0 ]; then
@@ -658,6 +654,7 @@ ubuntu_main() {
 
     echo ""
     echo "Installing cpan modules..."
+    echo ""
     for module_info in "${cpan_modules_requirements[@]}"; do
         # Split each entry by '|' to get module details
         IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
@@ -666,7 +663,6 @@ ubuntu_main() {
         install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
     done
 
-    echo ""
     echo "Installing ora2pg..."
     sudo apt install -y -q ./ora2pg*all.deb 1>&2
     if [ $? -ne 0 ]; then
