@@ -2,6 +2,7 @@
     "VoyagerVersion": "IGNORED",
     "MigrationComplexity": "MEDIUM",
     "Summary": {
+        "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "test_omnibus",
         "SchemaNames": [
             "agg_ex",
@@ -31,31 +32,37 @@
             {
                 "ObjectType": "SCHEMA",
                 "TotalCount": 18,
+                "InvalidCount": 0,
                 "ObjectNames": "agg_ex, am_examples, base_type_examples, collation_ex, composite_type_examples, conversion_example, create_cast, domain_examples, enum_example, extension_example, fn_examples, foreign_db_example, idx_ex, ordinary_tables, public, range_type_example, regress_rls_schema, trigger_test"
             },
             {
                 "ObjectType": "COLLATION",
                 "TotalCount": 3,
+                "InvalidCount": 0,
                 "ObjectNames": "collation_ex.bad_us, collation_ex.german_phonebook, collation_ex.us"
             },
             {
                 "ObjectType": "EXTENSION",
                 "TotalCount": 2,
+                "InvalidCount": 0,
                 "ObjectNames": "hstore, postgres_fdw"
             },
             {
                 "ObjectType": "TYPE",
                 "TotalCount": 16,
+                "InvalidCount": 0,
                 "ObjectNames": "agg_ex.avg_state, base_type_examples.base_type, base_type_examples.int42, base_type_examples.text_w_default, base_type_examples.default_test_row, base_type_examples.myvarchar, base_type_examples.shell, composite_type_examples.basic_comp_type, composite_type_examples.enum_abc, composite_type_examples.nested, create_cast.abc, enum_example.bug_severity, enum_example.bug_status, enum_example.bug_info, foreign_db_example.example_type, range_type_example.float8_range"
             },
             {
                 "ObjectType": "DOMAIN",
                 "TotalCount": 5,
+                "InvalidCount": 0,
                 "ObjectNames": "base_type_examples.myvarchardom, domain_examples.positive_number, domain_examples.positive_even_number, domain_examples.us_postal_code, foreign_db_example.positive_number"
             },
             {
                 "ObjectType": "SEQUENCE",
                 "TotalCount": 5,
+                "InvalidCount": 0,
                 "ObjectNames": "domain_examples.us_snail_addy_address_id_seq, enum_example.bugs_id_seq, ordinary_tables.numeric_type_examples_a_bigserial_seq, ordinary_tables.numeric_type_examples_a_smallserial_seq, ordinary_tables.numeric_type_examples_id_seq"
             },
             {
@@ -74,16 +81,19 @@
             {
                 "ObjectType": "FUNCTION",
                 "TotalCount": 40,
+                "InvalidCount": 0,
                 "ObjectNames": "base_type_examples.base_fn_in, base_type_examples.base_fn_out, base_type_examples.int42_in, base_type_examples.int42_out, base_type_examples.text_w_default_in, base_type_examples.text_w_default_out, base_type_examples.myvarcharin, base_type_examples.myvarcharout, base_type_examples.myvarcharrecv, base_type_examples.myvarcharsend, domain_examples.is_positive, domain_examples.is_even, foreign_db_example.is_positive, range_type_example.my_float8mi, create_cast.transmogrify, agg_ex.avg_finalfn, agg_ex.avg_transfn, agg_ex.sum_finalfn, base_type_examples.fake_op, base_type_examples.get_default_test, composite_type_examples.get_basic, enum_example.make_bug_info, enum_example.should_raise_alarm, extension_example._hstore, fn_examples.depends_on_table_column, fn_examples.depends_on_table_column_type, fn_examples.depends_on_table_rowtype, fn_examples.depends_on_view_column, fn_examples.depends_on_view_column_type, fn_examples.is_even, fn_examples.is_odd, fn_examples.polyf, public.log_table_alteration, range_type_example.arg_depends_on_range_type, range_type_example.return_depends_on_range_type, regress_rls_schema.f_leak, regress_rls_schema.op_leak, trigger_test.check_account_update, trigger_test.log_account_update, trigger_test.view_insert_row"
             },
             {
                 "ObjectType": "AGGREGATE",
                 "TotalCount": 2,
+                "InvalidCount": 0,
                 "ObjectNames": "agg_ex.my_avg, agg_ex.my_sum"
             },
             {
                 "ObjectType": "PROCEDURE",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "fn_examples.insert_to_table"
             },
             {
@@ -95,16 +105,19 @@
             {
                 "ObjectType": "TRIGGER",
                 "TotalCount": 5,
+                "InvalidCount": 0,
 				"ObjectNames": "check_balance_update ON trigger_test.accounts, check_update ON trigger_test.accounts, check_update_when_difft_balance ON trigger_test.accounts, log_update ON trigger_test.accounts, view_insert ON trigger_test.accounts_view"
             },
             {
                 "ObjectType": "MVIEW",
                 "TotalCount": 2,
+                "InvalidCount": 0,
                 "ObjectNames": "am_examples.heapmv, am_examples.tableam_tblmv_heapx"
             },
             {
                 "ObjectType": "CONVERSION",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "conversion_example.myconv"
             },
             {
@@ -122,6 +135,7 @@
             {
                 "ObjectType": "OPERATOR",
                 "TotalCount": 5,
+                "InvalidCount": 0,
                 "ObjectNames": "public.\u003c%, regress_rls_schema.\u003c\u003c\u003c, am_examples.box_ops, am_examples.box_ops, am_examples.gist2_fam"
             }
         ]
