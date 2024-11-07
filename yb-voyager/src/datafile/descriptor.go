@@ -87,7 +87,7 @@ func OpenDescriptor(exportDir string) *Descriptor {
 			fileEntry.FilePath = path.Join(exportDir, "data", fileEntry.FilePath)
 		}
 	}
-	log.Infof("Parsed DataFileDescriptor: %v", spew.Sdump(dfd))
+	log.Debugf("Parsed DataFileDescriptor: %v", spew.Sdump(dfd))
 	return dfd
 }
 
