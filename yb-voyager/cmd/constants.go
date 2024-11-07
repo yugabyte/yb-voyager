@@ -175,9 +175,10 @@ const (
 	MIGRATION_CAVEATS = "migration_caveats"
 
 	// Description
-	FEATURE_ISSUE_TYPE_DESCRIPTION     = "Features of the source database that are not supported on the target YugabyteDB."
-	DATATYPE_ISSUE_TYPE_DESCRIPTION    = "Data types of the source database that are not supported on the target YugabyteDB."
-	MIGRATION_CAVEATS_TYPE_DESCRIPTION = "Migration Caveats highlights the current limitations with the migration workflow."
+	FEATURE_ISSUE_TYPE_DESCRIPTION          = "Features of the source database that are not supported on the target YugabyteDB."
+	DATATYPE_ISSUE_TYPE_DESCRIPTION         = "Data types of the source database that are not supported on the target YugabyteDB."
+	MIGRATION_CAVEATS_TYPE_DESCRIPTION      = "Migration Caveats highlights the current limitations with the migration workflow."
+	UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION = "Source database queries not supported in YugabyteDB, identified by scanning system tables."
 
 	//Unsupported Features
 

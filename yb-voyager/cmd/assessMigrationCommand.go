@@ -516,9 +516,11 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 
 	for _, uqc := range ar.UnsupportedQueryConstructs {
 		issues = append(issues, AssessmentIssuePayload{
-			Type:         QUERY_CONSTRUCT,
-			Subtype:      uqc.ConstructType,
-			SqlStatement: uqc.Query,
+			Type:            QUERY_CONSTRUCT,
+			TypeDescription: UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
+			Subtype:         uqc.ConstructType,
+			SqlStatement:    uqc.Query,
+			DocsLink:        uqc.DocsLink,
 		})
 	}
 
