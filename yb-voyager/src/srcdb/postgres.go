@@ -52,7 +52,6 @@ var information_schema_tables_required = []string{"schemata", "tables", "columns
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
 
-
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
 	liveMigrationUnsupportedDataTypes, _ := lo.Difference(PostgresUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
 
@@ -1112,16 +1111,16 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 		}
 
 		// Check replica identity of tables
-		missingTables, err := pg.listTablesMissingReplicaIdentityFull()
-		if err != nil {
-			return nil, fmt.Errorf("error in checking table replica identity: %w", err)
-		}
-		if len(missingTables) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables missing replica identity full: "), strings.Join(missingTables, ", ")))
-		}
+		// missingTables, err := pg.listTablesMissingReplicaIdentityFull()
+		// if err != nil {
+		// 	return nil, fmt.Errorf("error in checking table replica identity: %w", err)
+		// }
+		// if len(missingTables) > 0 {
+		// 	combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables missing replica identity full: "), strings.Join(missingTables, ", ")))
+		// }
 
 		// Check if user has ownership over all tables
-		missingTables, err = pg.listTablesMissingOwnerPermission()
+		missingTables, err := pg.listTablesMissingOwnerPermission()
 		if err != nil {
 			return nil, fmt.Errorf("error in checking table owner permissions: %w", err)
 		}
@@ -1326,54 +1325,54 @@ func (pg *PostgreSQL) checkReplicationPermission() (bool, error) {
 	return hasPermission, nil
 }
 
-func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull() ([]string, error) {
-	trimmedSchemaList := pg.getTrimmedSchemaList()
-	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
-	checkTableReplicaIdentityQuery := fmt.Sprintf(`SELECT
-	n.nspname AS schema_name,
-	c.relname AS table_name,
-	c.relreplident AS replica_identity,
-	CASE 
-		WHEN c.relreplident <> 'f' 
-		THEN '%s' 
-		ELSE '%s' 
-	END AS status
-	FROM pg_class c
-	JOIN pg_namespace n ON c.relnamespace = n.oid
-	WHERE quote_ident(n.nspname) IN (%s)
-	AND c.relkind IN ('r', 'p');`, MISSING, GRANTED, querySchemaList)
-	rows, err := pg.db.Query(checkTableReplicaIdentityQuery)
-	if err != nil {
-		return nil, fmt.Errorf("error in querying(%q) source database for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
-		}
-	}()
+// func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull() ([]string, error) {
+// 	trimmedSchemaList := pg.getTrimmedSchemaList()
+// 	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+// 	checkTableReplicaIdentityQuery := fmt.Sprintf(`SELECT
+// 	n.nspname AS schema_name,
+// 	c.relname AS table_name,
+// 	c.relreplident AS replica_identity,
+// 	CASE
+// 		WHEN c.relreplident <> 'f'
+// 		THEN '%s'
+// 		ELSE '%s'
+// 	END AS status
+// 	FROM pg_class c
+// 	JOIN pg_namespace n ON c.relnamespace = n.oid
+// 	WHERE quote_ident(n.nspname) IN (%s)
+// 	AND c.relkind IN ('r', 'p');`, MISSING, GRANTED, querySchemaList)
+// 	rows, err := pg.db.Query(checkTableReplicaIdentityQuery)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error in querying(%q) source database for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
+// 	}
+// 	defer func() {
+// 		closeErr := rows.Close()
+// 		if closeErr != nil {
+// 			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
+// 		}
+// 	}()
 
-	var missingTables []string
-	var tableSchemaName, tableName, replicaIdentity, status string
+// 	var missingTables []string
+// 	var tableSchemaName, tableName, replicaIdentity, status string
 
-	for rows.Next() {
-		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
-		if err != nil {
-			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
-		}
-		if status == MISSING {
-			// quote table name as it can be case sensitive
-			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
-		}
-	}
+// 	for rows.Next() {
+// 		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+// 		}
+// 		if status == MISSING {
+// 			// quote table name as it can be case sensitive
+// 			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
+// 		}
+// 	}
 
-	// Check for errors during row iteration
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over query rows: %w", err)
-	}
+// 	// Check for errors during row iteration
+// 	if err = rows.Err(); err != nil {
+// 		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+// 	}
 
-	return missingTables, nil
-}
+// 	return missingTables, nil
+// }
 
 func (pg *PostgreSQL) checkWalLevel() (msg string) {
 	query := `SELECT current_setting('wal_level') AS wal_level;`
