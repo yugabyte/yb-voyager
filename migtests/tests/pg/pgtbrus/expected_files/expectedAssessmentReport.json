@@ -12,41 +12,49 @@
 			{
 				"ObjectType": "SCHEMA",
 				"TotalCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "public"
 			},
 			{
 				"ObjectType": "EXTENSION",
 				"TotalCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "postgres_fdw"
 			},
 			{
 				"ObjectType": "TYPE",
 				"TotalCount": 2,
+				"InvalidCount": 0,
 				"ObjectNames": "public.mycomposit, public.myenum"
 			},
 			{
 				"ObjectType": "SEQUENCE",
 				"TotalCount": 4,
+				"InvalidCount": 0,
 				"ObjectNames": "public.c_i_seq, public.f_c_i_seq, public.f_t_i_seq, public.t_i_seq"
 			},
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 2,
+				"InvalidCount": 1,
 				"ObjectNames": "public.c, public.t"
 			},
 			{
 				"ObjectType": "FUNCTION",
 				"TotalCount": 4,
+				"InvalidCount": 0,
 				"ObjectNames": "public.pk, public.tgf_d, public.tgf_i, public.tgf_u"
 			},
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 6,
-                "ObjectNames": "tgd ON public.t, tgd ON public.c, tgi ON public.t, tgi ON public.c, tgu ON public.t, tgu ON public.c"
+				"InvalidCount": 0,
+				"ObjectNames": "tgd ON public.c, tgd ON public.t, tgi ON public.c, tgi ON public.t, tgu ON public.c, tgu ON public.t"
 			},
 			{
 				"ObjectType": "FOREIGN TABLE",
 				"TotalCount": 2,
+				"InvalidCount": 2,
 				"ObjectNames": "public.f_c, public.f_t"
 			}
 		]
