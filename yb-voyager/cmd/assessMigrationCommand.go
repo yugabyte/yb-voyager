@@ -468,12 +468,12 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []AssessmentIssuePayload {
 	var issues []AssessmentIssuePayload
 
-	var docsLink string
+	var dataTypesDocsLink string
 	switch source.DBType {
 	case POSTGRESQL:
-		docsLink = UNSUPPORTED_DATATYPES_DOC_LINK
+		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK
 	case ORACLE:
-		docsLink = UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE
+		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE
 	}
 	for _, unsupportedDataType := range ar.UnsupportedDataTypes {
 		issues = append(issues, AssessmentIssuePayload{
@@ -482,7 +482,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 			Subtype:         unsupportedDataType.DataType,
 			ObjectName:      fmt.Sprintf("%s.%s.%s", unsupportedDataType.SchemaName, unsupportedDataType.TableName, unsupportedDataType.ColumnName),
 			SqlStatement:    "",
-			DocsLink:        docsLink,
+			DocsLink:        dataTypesDocsLink,
 		})
 	}
 
