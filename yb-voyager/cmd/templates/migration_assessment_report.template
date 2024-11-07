@@ -205,7 +205,7 @@
                         </ul>
                     </div>
                 {{end}}
-                 {{if .DocsLink}}
+                {{if .DocsLink}}
                     <p id="refer-p"><a href="{{.DocsLink}}" target="_blank">Details</a></p>
                 {{end}} 
             {{end}}
@@ -258,7 +258,12 @@
                             </ul>
                         </div>
                     </td>
-                    </tr>
+                    {{ if .DocsLink }}
+                    <td><a href="{{.DocsLink}}" target="_blank">Learn More</a></td>
+                    {{ else }}
+                    <td>N/A</td>
+                    {{ end }}
+                </tr>
                 {{ end }}
             </table>
         {{end}}
