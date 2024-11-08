@@ -23,7 +23,7 @@ SELECT xmlforest(first_name AS element1, last_name AS element2) FROM employees2;
 
 SELECT xmlelement(name root, xmlelement(name child, 'value'));
 
-SELECT xpath('/wrapper/root/child', '<wrapper><root><child>value</child></root></wrapper>'::xml);
+SELECT xml_is_well_formed('<root><child>value</child></root>');
 
 -- Not Reported Currently
 
