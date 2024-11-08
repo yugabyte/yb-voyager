@@ -48,8 +48,8 @@
 			},
 			{
 				"ObjectType": "FUNCTION",
-				"TotalCount": 6,
-				"ObjectNames": "public.auditlogfunc, public.prevent_update_shipped_without_date, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.total"
+				"TotalCount": 7,
+				"ObjectNames": "public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.total"
 			},
 			{
 				"ObjectType": "AGGREGATE",
@@ -68,8 +68,8 @@
 			},
 			{
 				"ObjectType": "TRIGGER",
-				"TotalCount": 2,
-				"ObjectNames": "audit_trigger ON public.tt, audit_trigger ON schema2.tt"
+				"TotalCount": 3,
+				"ObjectNames": "audit_trigger ON public.tt, before_sales_region_insert_update ON public.sales_region, audit_trigger ON schema2.tt"
 			},
 			{
 				"ObjectType": "MVIEW",
@@ -318,6 +318,20 @@
 			"Objects": []
 		},
 		{
+			"FeatureName": "REFERENCING clause for triggers",
+			"Objects": []
+		},
+		{
+			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
+			"Objects": [
+				{
+					"ObjectName": "before_sales_region_insert_update ON public.sales_region",
+					"SqlStatement": "CREATE TRIGGER before_sales_region_insert_update BEFORE INSERT OR UPDATE ON public.sales_region FOR EACH ROW EXECUTE FUNCTION public.check_sales_region();"
+				}
+			],
+			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables"
+		},
+		{
 			"FeatureName": "Clustering table on index",
 			"Objects": []
 		},
@@ -333,7 +347,7 @@
 			"FeatureName": "Exclusion constraints",
 			"Objects": [
 				{
-					"ObjectName": "public.test_exclude_basic",
+					"ObjectName": "public.test_exclude_basic, constraint: (no_same_name_address)",
 					"SqlStatement": "ALTER TABLE ONLY public.test_exclude_basic\n    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);"
 				}
 			],
@@ -343,11 +357,11 @@
 			"FeatureName": "Deferrable constraints",
 			"Objects": [
 				{
-					"ObjectName": "public.orders2",
+					"ObjectName": "public.orders2, constraint: (orders2_order_number_key)",
 					"SqlStatement": "ALTER TABLE ONLY public.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
 				},
 				{
-					"ObjectName": "schema2.orders2",
+					"ObjectName": "schema2.orders2, constraint: (orders2_order_number_key)",
 					"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
 				}
 			],

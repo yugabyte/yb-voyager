@@ -4,6 +4,14 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+const (
+	DOCS_LINK_PREFIX        = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"
+	POSTGRESQL_PREFIX       = "postgresql/"
+	ADVISORY_LOCKS_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#advisory-locks"
+	SYSTEM_COLUMNS_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#system-columns"
+	XML_FUNCTIONS_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xml-functions"
+)
+
 // Refer: https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
 var unsupportedAdvLockFuncs = []string{
 	"pg_advisory_lock", "pg_advisory_lock_shared",

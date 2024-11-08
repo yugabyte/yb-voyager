@@ -97,19 +97,21 @@ type UnsupportedFeature struct {
 }
 
 type AssessMigrationPhasePayload struct {
-	MigrationComplexity  string `json:"migration_complexity"`
-	UnsupportedFeatures  string `json:"unsupported_features"`
-	UnsupportedDatatypes string `json:"unsupported_datatypes"`
-	Error                string `json:"error,omitempty"` // Removed it for now, TODO
-	TableSizingStats     string `json:"table_sizing_stats"`
-	IndexSizingStats     string `json:"index_sizing_stats"`
-	SchemaSummary        string `json:"schema_summary"`
-	SourceConnectivity   bool   `json:"source_connectivity"`
-	IopsInterval         int64  `json:"iops_interval"`
+	MigrationComplexity        string `json:"migration_complexity"`
+	UnsupportedFeatures        string `json:"unsupported_features"`
+	UnsupportedDatatypes       string `json:"unsupported_datatypes"`
+	UnsupportedQueryConstructs string `json:"unsupported_query_constructs"`
+	MigrationCaveats           string `json:"migration_caveats"`
+	Error                      string `json:"error,omitempty"` // Removed it for now, TODO
+	TableSizingStats           string `json:"table_sizing_stats"`
+	IndexSizingStats           string `json:"index_sizing_stats"`
+	SchemaSummary              string `json:"schema_summary"`
+	SourceConnectivity         bool   `json:"source_connectivity"`
+	IopsInterval               int64  `json:"iops_interval"`
 }
 
 type AssessMigrationBulkPhasePayload struct {
-	FleetConfigCount int `json:"fleet_config_count"` // Not storing any source infor just the count of db configs passed to bulk cmd
+	FleetConfigCount int `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
 }
 
 type ObjectSizingStats struct {

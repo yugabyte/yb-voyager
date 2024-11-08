@@ -163,8 +163,6 @@ var (
 	dropSeqRegex              = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedTokens))
 	dropForeignRegex          = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
 	dropIdxConcurRegex        = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
-	trigRefRegex              = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
-	constrTrgRegex            = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident), "AFTER", capture(commonClause), "ON", capture(ident))
 	currentOfRegex            = re("WHERE", "CURRENT", "OF")
 	amRegex                   = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
@@ -216,19 +214,21 @@ var (
 )
 
 const (
-	CONVERSION_ISSUE_REASON                     = "CREATE CONVERSION is not supported yet"
-	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON         = "Schema contains gin index on multi column which is not supported."
-	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not supported yet."
-	INHERITANCE_ISSUE_REASON                    = "TABLE INHERITANCE not supported in YugabyteDB"
-	CONSTRAINT_TRIGGER_ISSUE_REASON             = "CONSTRAINT TRIGGER not supported yet."
-	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
+	CONVERSION_ISSUE_REASON                           = "CREATE CONVERSION is not supported yet"
+	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON               = "Schema contains gin index on multi column which is not supported."
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON       = "Adding primary key to a partitioned table is not supported yet."
+	INHERITANCE_ISSUE_REASON                          = "TABLE INHERITANCE not supported in YugabyteDB"
+	CONSTRAINT_TRIGGER_ISSUE_REASON                   = "CONSTRAINT TRIGGER not supported yet."
+	REFERENCING_CLAUSE_FOR_TRIGGERS                   = "REFERENCING clause (transition tables) not supported yet."
+	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE = "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers."
+	COMPOUND_TRIGGER_ISSUE_REASON                     = "COMPOUND TRIGGER not supported in YugabyteDB."
 
 	STORED_GENERATED_COLUMN_ISSUE_REASON           = "Stored generated columns are not supported."
 	UNSUPPORTED_EXTENSION_ISSUE                    = "This extension is not supported in YugabyteDB by default."
 	EXCLUSION_CONSTRAINT_ISSUE                     = "Exclusion constraint is not supported yet"
 	ALTER_TABLE_DISABLE_RULE_ISSUE                 = "ALTER TABLE name DISABLE RULE not supported yet"
 	STORAGE_PARAMETERS_DDL_STMT_ISSUE              = "Storage parameters are not supported yet."
-	ALTER_TABLE_SET_ATTRUBUTE_ISSUE                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
+	ALTER_TABLE_SET_ATTRIBUTE_ISSUE                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
 	FOREIGN_TABLE_ISSUE_REASON                     = "Foreign tables require manual intervention."
 	ALTER_TABLE_CLUSTER_ON_ISSUE                   = "ALTER TABLE CLUSTER not supported yet."
 	DEFERRABLE_CONSTRAINT_ISSUE                    = "DEFERRABLE constraints not supported yet"
@@ -376,6 +376,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
 		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
 		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
+		createTriggerNode, isCreateTrigger := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTrigStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
@@ -401,6 +402,10 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if isCreatePolicy {
 			reportPolicyRequireRolesOrGrants(createPolicyNode, sqlStmtInfo, fpath)
+		}
+
+		if isCreateTrigger {
+			reportUnsupportedTriggers(createTriggerNode, sqlStmtInfo, fpath)
 		}
 
 		if isCreateCompositeType {
@@ -440,6 +445,80 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			enumTypes = append(enumTypes, fullTypeName)
 		}
 	}
+}
+
+func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTriggerNode.CreateTrigStmt.Relation.Schemaname
+	tableName := createTriggerNode.CreateTrigStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	trigName := createTriggerNode.CreateTrigStmt.Trigname
+	displayObjectName := fmt.Sprintf("%s ON %s", trigName, fullyQualifiedName)
+
+	/*
+		e.g.CREATE CONSTRAINT TRIGGER some_trig
+			AFTER DELETE ON xyz_schema.abc
+			DEFERRABLE INITIALLY DEFERRED
+			FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();
+		create_trig_stmt:{isconstraint:true trigname:"some_trig" relation:{schemaname:"xyz_schema" relname:"abc" inh:true relpersistence:"p"
+		location:56} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} row:true events:8 deferrable:true initdeferred:true}}
+		stmt_len:160}
+	*/
+	if createTriggerNode.CreateTrigStmt.Isconstraint {
+		reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
+			"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", displayObjectName,
+			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, CONSTRAINT_TRIGGER_DOC_LINK)
+	}
+
+	/*
+		e.g. CREATE TRIGGER projects_loose_fk_trigger
+			AFTER DELETE ON public.projects
+			REFERENCING OLD TABLE AS old_table
+			FOR EACH STATEMENT EXECUTE FUNCTION xyz_schema.some_trig();
+		stmt:{create_trig_stmt:{trigname:"projects_loose_fk_trigger" relation:{schemaname:"public" relname:"projects" inh:true
+		relpersistence:"p" location:58} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} events:8
+		transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len:167}
+	*/
+	if createTriggerNode.CreateTrigStmt.GetTransitionRels() != nil {
+		summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
+		reportCase(fpath, REFERENCING_CLAUSE_FOR_TRIGGERS,
+			"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
+			UNSUPPORTED_FEATURES, REFERENCING_CLAUSE_TRIGGER_DOC_LINK)
+	}
+
+	/*
+		e.g.CREATE TRIGGER after_insert_or_delete_trigger
+			BEFORE INSERT OR DELETE ON main_table
+			FOR EACH ROW
+			EXECUTE FUNCTION handle_insert_or_delete();
+		stmt:{create_trig_stmt:{trigname:"after_insert_or_delete_trigger" relation:{relname:"main_table" inh:true relpersistence:"p"
+		location:111} funcname:{string:{sval:"handle_insert_or_delete"}} row:true timing:2 events:12}} stmt_len:177}
+
+		here,
+		timing - bits of BEFORE/AFTER/INSTEAD
+		events - bits of "OR" INSERT/UPDATE/DELETE/TRUNCATE
+		row - FOR EACH ROW (true), FOR EACH STATEMENT (false)
+		refer - https://github.com/pganalyze/pg_query_go/blob/c3a818d346a927c18469460bb18acb397f4f4301/parser/include/postgres/catalog/pg_trigger_d.h#L49
+			TRIGGER_TYPE_BEFORE				(1 << 1)
+			TRIGGER_TYPE_INSERT				(1 << 2)
+			TRIGGER_TYPE_DELETE				(1 << 3)
+			TRIGGER_TYPE_UPDATE				(1 << 4)
+			TRIGGER_TYPE_TRUNCATE			(1 << 5)
+			TRIGGER_TYPE_INSTEAD			(1 << 6)
+	*/
+
+	timing := createTriggerNode.CreateTrigStmt.Timing
+	isSecondBitSet := timing&(1<<1) != 0
+	if isSecondBitSet && createTriggerNode.CreateTrigStmt.Row {
+		// BEFORE clause will have the bits in timing as 1<<1
+		// BEFORE and FOR EACH ROW on partitioned table is not supported in PG<=12
+		if partitionTablesMap[fullyQualifiedName] {
+			summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
+			reportCase(fpath, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE,
+				"https://github.com/yugabyte/yugabyte-db/issues/24830", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, BEFORE_ROW_TRIGGER_PARTITIONED_TABLE_DOC_LINK)
+		}
+	}
+
 }
 
 func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -973,6 +1052,7 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 	tableName := createTableNode.CreateStmt.Relation.Relname
 	columns := createTableNode.CreateStmt.TableElts
 	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+
 	for _, column := range columns {
 		/*
 			e.g. create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
@@ -987,21 +1067,27 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 		*/
 		if column.GetColumnDef() != nil {
 			constraints := column.GetColumnDef().GetConstraints()
+			colName := column.GetColumnDef().GetColname()
 			if constraints != nil {
-				isForeignConstraint := false
 				isDeferrable := false
-				for _, constraint := range constraints {
-					if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_FOREIGN {
-						isForeignConstraint = true
-					} else if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
+				var deferrableConstraintType pg_query.ConstrType
+				for idx, constraint := range constraints {
+					if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
+						//Getting the constraint type before the DEFERRABLE clause as the clause is applicable to that constraint
+						if idx > 0 {
+							deferrableConstraintType = constraints[idx-1].GetConstraint().Contype
+						}
 						isDeferrable = true
 					}
 				}
-				if !isForeignConstraint && isDeferrable {
+				if isDeferrable && deferrableConstraintType != pg_query.ConstrType_CONSTR_FOREIGN {
 					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
+					generatedConName := generateConstraintName(deferrableConstraintType, tableName, []string{colName})
+					specifiedConstraintName := column.GetConstraint().GetConname()
+					conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 						"Remove these constraints from the exported schema and make the necessary changes to the application before pointing it to target",
-						"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
+						"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
 				}
 			}
 		} else if column.GetConstraint() != nil {
@@ -1014,14 +1100,44 @@ func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_Create
 				here checking the case where this constraint is at the at the end as a constraint only, so checking deferrable field in constraint
 				in case of its not a FK.
 			*/
+			colNames := getColumnNames(column.GetConstraint().GetKeys())
 			if column.GetConstraint().Deferrable && column.GetConstraint().Contype != pg_query.ConstrType_CONSTR_FOREIGN {
+				generatedConName := generateConstraintName(column.GetConstraint().Contype, tableName, colNames)
+				specifiedConstraintName := column.GetConstraint().GetConname()
+				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 					"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-					"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
+					"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
 			}
 		}
 	}
+}
+
+func generateConstraintName(conType pg_query.ConstrType, tableName string, columns []string) string {
+	suffix := ""
+	//Deferrable is only applicable to following constraint
+	//https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Currently%2C%20only%20UNIQUE%2C%20PRIMARY%20KEY%2C%20EXCLUDE%2C%20and%20REFERENCES
+	switch conType {
+	case pg_query.ConstrType_CONSTR_UNIQUE:
+		suffix = "_key"
+	case pg_query.ConstrType_CONSTR_PRIMARY:
+		suffix = "_pkey"
+	case pg_query.ConstrType_CONSTR_EXCLUSION:
+		suffix = "_excl"
+	case pg_query.ConstrType_CONSTR_FOREIGN:
+		suffix = "_fkey"
+	}
+
+	return fmt.Sprintf("%s_%s%s", tableName, strings.Join(columns, "_"), suffix)
+}
+
+func getColumnNames(keys []*pg_query.Node) []string {
+	var res []string
+	for _, k := range keys {
+		res = append(res, k.GetString_().Sval)
+	}
+	return res
 }
 
 func reportDeferrableConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -1040,10 +1156,11 @@ func reportDeferrableConstraintAlterTable(alterTableNode *pg_query.Node_AlterTab
 	*/
 	constraint := alterCmd.GetDef().GetConstraint()
 	if constraint != nil && constraint.Deferrable && constraint.Contype != pg_query.ConstrType_CONSTR_FOREIGN {
+		conName := constraint.Conname
 		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 		reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
 			"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-			"TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
+			"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
 	}
 }
 
@@ -1057,14 +1174,19 @@ func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateS
 		e.g. CREATE TABLE "Test"(
 				id int,
 				room_id int,
-				time_range trange,
-				EXCLUDE USING gist (room_id WITH =, time_range WITH &&)
+				time_range tsrange,
+				room_id1 int,
+				time_range1 tsrange
+				EXCLUDE USING gist (room_id WITH =, time_range WITH &&),
+				EXCLUDE USING gist (room_id1 WITH =, time_range1 WITH &&)
 			);
-		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:{column_def:
-		... table_elts:{column_def:{colname:"time_range" type_name:{names:{string:{sval:"trange"}}
-		typemod:-1 location:59} is_local:true location:48}} table_elts:{constraint:{contype:CONSTR_EXCLUSION
-		location:69 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT ...
-
+		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:...table_elts:{constraint:{contype:CONSTR_EXCLUSION
+		location:226 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		items:{list:{items:{string:{sval:"="}}}}}} exclusions:{list:{items:{index_elem:{name:"time_range" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		items:{list:{items:{string:{sval:"&&"}}}}}} access_method:"gist"}} table_elts:{constraint:{contype:CONSTR_EXCLUSION location:282 exclusions:{list:
+		{items:{index_elem:{name:"room_id1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"="}}}}}}
+		exclusions:{list:{items:{index_elem:{name:"time_range1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"&&"}}}}}}
+		access_method:"gist"}} oncommit:ONCOMMIT_NOOP}} stmt_len:365}
 		here we are iterating over all the table_elts - table elements and which are comma separated column info in
 		the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def
 		is nil.
@@ -1074,12 +1196,26 @@ func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateS
 		//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
 		if column.GetColumnDef() == nil && column.GetConstraint() != nil {
 			if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+				colNames := getColumnNamesFromExclusions(column.GetConstraint().GetExclusions())
+				generatedConName := generateConstraintName(column.GetConstraint().Contype, tableName, colNames)
+				specifiedConstraintName := column.GetConstraint().GetConname()
+				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
 				reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-					"Refer docs link for details on possible workaround", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
+					"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
 			}
 		}
 	}
+}
+
+func getColumnNamesFromExclusions(keys []*pg_query.Node) []string {
+	var res []string
+	for _, k := range keys {
+		//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+		//items:{list:{items:{string:{sval:"="}}}}}}
+		res = append(res, k.GetList().GetItems()[0].GetIndexElem().Name) // every first element of items in exclusions will be col name
+	}
+	return res
 }
 
 func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -1118,7 +1254,7 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 	*/
 	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_SetOptions &&
 		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList().GetItems()) > 0 {
-		reportCase(fpath, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
+		reportCase(fpath, ALTER_TABLE_SET_ATTRIBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
 			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
 	}
 
@@ -1172,9 +1308,11 @@ func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTabl
 	*/
 	constraint := alterCmd.GetDef().GetConstraint()
 	if alterCmd.Subtype == pg_query.AlterTableType_AT_AddConstraint && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
+		// colNames := getColumnNamesFromExclusions(alterCmd.GetDef().GetConstraint().GetExclusions())
+		conName := constraint.Conname
 		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 		reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-			"Refer docs link for details on possible workaround", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
+			"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
 	}
 }
 
@@ -1270,13 +1408,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 		} else if idx := dropIdxConcurRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			reportCase(fpath, "DROP INDEX CONCURRENTLY not supported yet",
 				"https://github.com/yugabyte/yugabyte-db/issues/22717", "", "INDEX", idx[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if trig := trigRefRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if trig := constrTrgRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
-				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", fmt.Sprintf("%s ON %s", trig[1], trig[3]), sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, CONSTRAINT_TRIGGER_DOC_LINK)
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 		} else if bulkCollectRegex.MatchString(sqlInfo.stmt) {
@@ -1616,7 +1747,7 @@ func parseSqlFileForObjectType(path string, objType string) []sqlInfo {
 
 	lines := strings.Split(string(file), "\n")
 	for i := 0; i < len(lines); i++ {
-		currLine := lines[i]
+		currLine := strings.TrimRight(lines[i], " ")
 		if len(currLine) == 0 {
 			continue
 		}

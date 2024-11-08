@@ -204,6 +204,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             Object objKey = event.key();
             Object objVal = event.value();
 
+            LOGGER.debug("Processing record {} => {}", objKey, objVal);
+
             // PARSE
             var r = parser.parseRecord(objKey, objVal);
             if (!checkIfEventNeedsToBeWritten(r)) {
@@ -211,8 +213,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                 continue;
             }
 
-            // LOGGER.info("Processing record {} => {}", r.getTableIdentifier(),
-            // r.getValueFieldValues());
             checkIfSnapshotAlreadyComplete(r);
             recordTransformer.transformRecord(r);
             sequenceObjectUpdater.processRecord(r);

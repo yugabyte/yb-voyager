@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -32,6 +33,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
@@ -334,6 +336,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 
 func renameDatafileDescriptor(exportDir string) {
 	datafileDescriptor := datafile.OpenDescriptor(exportDir)
+	log.Infof("Parsed DataFileDescriptor: %v", spew.Sdump(datafileDescriptor))
 	for _, fileEntry := range datafileDescriptor.DataFileList {
 		renamedTable, isRenamed := renameTableIfRequired(fileEntry.TableName)
 		if isRenamed {
@@ -1122,6 +1125,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 
 // =====================================================================
 
+// TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
 type AssessmentReport struct {
 	VoyagerVersion             string                                `json:"VoyagerVersion"`
 	MigrationComplexity        string                                `json:"MigrationComplexity"`
@@ -1135,6 +1139,19 @@ type AssessmentReport struct {
 	Notes                      []string                              `json:"Notes"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
+}
+
+type UnsupportedFeature struct {
+	FeatureName        string       `json:"FeatureName"`
+	Objects            []ObjectInfo `json:"Objects"`
+	DisplayDDL         bool         `json:"-"` // just used by html format to display the DDL for some feature and object names for other
+	DocsLink           string       `json:"DocsLink,omitempty"`
+	FeatureDescription string       `json:"FeatureDescription,omitempty"`
+}
+
+type ObjectInfo struct {
+	ObjectName   string
+	SqlStatement string
 }
 
 // ======================================================================
@@ -1162,6 +1179,216 @@ type AssessMigrationDBConfig struct {
 	Schema   string
 }
 
+// =============== for yugabyted controlplane ==============//
+// TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
+type AssessMigrationPayload struct {
+	PayloadVersion        string
+	VoyagerVersion        string
+	MigrationComplexity   string
+	SchemaSummary         utils.SchemaSummary
+	AssessmentIssues      []AssessmentIssuePayload
+	SourceSizeDetails     SourceDBSizeDetails
+	TargetRecommendations TargetSizingRecommendations
+	ConversionIssues      []utils.Issue
+	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
+	AssessmentJsonReport AssessmentReport
+}
+
+type AssessmentIssuePayload struct {
+	Type               string `json:"Type"`               // Feature, DataType, MigrationCaveat, UQC
+	TypeDescription    string `json:"TypeDescription"`    // Based on AssessmentIssue type
+	Subtype            string `json:"Subtype"`            // GIN Indexes, Advisory Locks etc
+	SubtypeDescription string `json:"SubtypeDescription"` // description based on subtype
+	ObjectName         string `json:"ObjectName"`         // Fully qualified object name(empty if NA, eg UQC)
+	SqlStatement       string `json:"SqlStatement"`       // DDL or DML(UQC)
+	DocsLink           string `json:"DocsLink"`           // docs link based on the subtype
+
+	// Store Type-specific details - extensible, can refer any struct
+	Details json.RawMessage `json:"Details,omitempty"`
+}
+
+/*
+	Sample of extensibility
+
+	type QueryConstuctDetails struct {
+		FunctionNames	[]string
+		ColumnNames		[]string
+	}
+*/
+
+type SourceDBSizeDetails struct {
+	TotalDBSize        int64
+	TotalTableSize     int64
+	TotalIndexSize     int64
+	TotalTableRowCount int64
+}
+
+type TargetSizingRecommendations struct {
+	TotalColocatedSize int64
+	TotalShardedSize   int64
+}
+
+var ASSESS_MIGRATION_PAYLOAD_VERSION = "1.0"
+
+//====== AssesmentReport struct methods ======//
+
+func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
+	var report AssessmentReport
+	err := jsonfile.NewJsonFile[AssessmentReport](reportPath).Load(&report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse json report file %q: %w", reportPath, err)
+	}
+
+	return &report, nil
+}
+
+func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
+	if ar.Sizing == nil {
+		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
+	}
+
+	return ar.Sizing.SizingRecommendation.ShardedTables, nil
+}
+
+func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error) {
+	if ar.Sizing == nil {
+		return nil, fmt.Errorf("sizing report is null, can't fetch colocated tables")
+	}
+
+	return ar.Sizing.SizingRecommendation.ColocatedTables, nil
+}
+
+func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
+	if ar.Sizing == nil {
+		return ""
+	}
+
+	if ar.Sizing.FailureReasoning != "" {
+		return ar.Sizing.FailureReasoning
+	}
+
+	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes",
+		ar.Sizing.SizingRecommendation.NumNodes, ar.Sizing.SizingRecommendation.VCPUsPerInstance,
+		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport)
+}
+
+func (ar *AssessmentReport) GetTotalTableRowCount() int64 {
+	if ar.TableIndexStats == nil {
+		return -1
+	}
+
+	var totalTableRowCount int64
+	for _, stat := range ar.getTableStats() {
+		totalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
+	}
+	return totalTableRowCount
+}
+
+func (ar *AssessmentReport) GetTotalTableSize() int64 {
+	if ar.TableIndexStats == nil {
+		return -1
+	}
+
+	var totalTableSize int64
+	for _, stat := range ar.getTableStats() {
+		totalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+	}
+	return totalTableSize
+}
+
+func (ar *AssessmentReport) GetTotalIndexSize() int64 {
+	if ar.TableIndexStats == nil {
+		return -1
+	}
+
+	var totalIndexSize int64
+	for _, stat := range ar.getIndexStats() {
+		totalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+	}
+	return totalIndexSize
+}
+
+func (ar *AssessmentReport) GetTotalColocatedSize(dbType string) (int64, error) {
+	if ar.TableIndexStats == nil {
+		return -1, nil
+	}
+
+	colocatedTables, err := ar.GetColocatedTablesRecommendation()
+	if err != nil {
+		return -1, fmt.Errorf("failed to get the colocated tables recommendation: %w", err)
+	}
+
+	var totalColocatedSize int64
+	for _, stat := range ar.getTableStats() {
+		var tableName string
+		switch dbType {
+		case ORACLE:
+			tableName = stat.ObjectName // in case of oracle, colocatedTables have unqualified table names
+		case POSTGRESQL:
+			tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
+		default:
+			return -1, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
+		}
+
+		if slices.Contains(colocatedTables, tableName) {
+			totalColocatedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+		}
+	}
+
+	return totalColocatedSize, nil
+}
+
+func (ar *AssessmentReport) GetTotalShardedSize(dbType string) (int64, error) {
+	if ar.TableIndexStats == nil {
+		return -1, nil
+	}
+
+	shardedTables, err := ar.GetShardedTablesRecommendation()
+	if err != nil {
+		return -1, fmt.Errorf("failed to get the sharded tables recommendation: %w", err)
+	}
+
+	var totalShardedSize int64
+	for _, stat := range ar.getTableStats() {
+		var tableName string
+		switch dbType {
+		case ORACLE:
+			tableName = stat.ObjectName // in case of oracle, shardedTables have unqualified table names
+		case POSTGRESQL:
+			tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
+		default:
+			return -1, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
+		}
+
+		if slices.Contains(shardedTables, tableName) {
+			totalShardedSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+		}
+	}
+
+	return totalShardedSize, nil
+}
+
+func (ar *AssessmentReport) getTableStats() []*migassessment.TableIndexStats {
+	var res []*migassessment.TableIndexStats
+	for _, stat := range *ar.TableIndexStats {
+		if !stat.IsIndex {
+			res = append(res, &stat)
+		}
+	}
+	return res
+}
+
+func (ar *AssessmentReport) getIndexStats() []*migassessment.TableIndexStats {
+	var res []*migassessment.TableIndexStats
+	for _, stat := range *ar.TableIndexStats {
+		if stat.IsIndex {
+			res = append(res, &stat)
+		}
+	}
+	return res
+}
+
+// ===== AssessMigrationDBConfig struct methods =====
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	switch {
 	case dbConfig.TnsAlias != "":
@@ -1203,70 +1430,6 @@ func (dbConfig *AssessMigrationDBConfig) GetAssessmentReportBasePath() string {
 
 func (dbConfig *AssessMigrationDBConfig) GetAssessmentLogFilePath() string {
 	return fmt.Sprintf("%s/logs/yb-voyager-assess-migration.log", dbConfig.GetAssessmentExportDirPath())
-}
-
-// =============== for yugabyted controlplane ==============//
-// TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
-type AssessMigrationPayload struct {
-	AssessmentJsonReport  AssessmentReport
-	MigrationComplexity   string
-	SourceSizeDetails     SourceDBSizeDetails
-	TargetRecommendations TargetSizingRecommendations
-	ConversionIssues      []utils.Issue
-}
-
-type SourceDBSizeDetails struct {
-	TotalDBSize        int64
-	TotalTableSize     int64
-	TotalIndexSize     int64
-	TotalTableRowCount int64
-}
-
-type TargetSizingRecommendations struct {
-	TotalColocatedSize int64
-	TotalShardedSize   int64
-}
-
-//==========================================//
-
-func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
-	var report AssessmentReport
-	err := jsonfile.NewJsonFile[AssessmentReport](reportPath).Load(&report)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse json report file %q: %w", reportPath, err)
-	}
-
-	return &report, nil
-}
-
-func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
-	if ar.Sizing == nil {
-		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
-	}
-
-	return ar.Sizing.SizingRecommendation.ShardedTables, nil
-}
-
-func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error) {
-	if ar.Sizing == nil {
-		return nil, fmt.Errorf("sizing report is null, can't fetch colocated tables")
-	}
-
-	return ar.Sizing.SizingRecommendation.ColocatedTables, nil
-}
-
-func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
-	if ar.Sizing == nil {
-		return ""
-	}
-
-	if ar.Sizing.FailureReasoning != "" {
-		return ar.Sizing.FailureReasoning
-	}
-
-	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes",
-		ar.Sizing.SizingRecommendation.NumNodes, ar.Sizing.SizingRecommendation.VCPUsPerInstance,
-		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport)
 }
 
 // ==========================================================================

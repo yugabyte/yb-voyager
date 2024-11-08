@@ -543,11 +543,22 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TRIGGER",
-            "ObjectName": "transfer_insert",
+            "ObjectName": "before_insert_or_delete_row_trigger ON public.range_columns_partition_test",
+            "Reason": "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
+            "SqlStatement": "CREATE TRIGGER before_insert_or_delete_row_trigger\nBEFORE INSERT OR DELETE ON public.range_columns_partition_test\nFOR EACH ROW\nEXECUTE FUNCTION handle_insert_or_delete();",
+            "Suggestion": "Create the triggers on individual partitions.",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/24830",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TRIGGER",
+            "ObjectName": "transfer_insert ON transfer",
             "Reason": "REFERENCING clause (transition tables) not supported yet.",
             "SqlStatement": "CREATE TRIGGER transfer_insert\n    AFTER INSERT ON transfer\n    REFERENCING NEW TABLE AS inserted\n    FOR EACH STATEMENT\n    EXECUTE FUNCTION check_transfer_balances_to_zero();",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668",
+            "DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers"
         },
         {
             "IssueType": "unsupported_features",
@@ -828,7 +839,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "abc",
+            "ObjectName": "abc, constraint: (cnstr_id)",
             "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "ALTER TABLE abc\nADD CONSTRAINT cnstr_id\n UNIQUE (id)\nDEFERRABLE;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
@@ -838,7 +849,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "public.users",
+            "ObjectName": "public.users, constraint: (users_email_key)",
             "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "ALTER TABLE ONLY public.users\n    ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
@@ -848,7 +859,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "unique_def_test",
+            "ObjectName": "unique_def_test, constraint: (unique_def_test_id_key)",
             "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
@@ -858,7 +869,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "unique_def_test1",
+            "ObjectName": "unique_def_test1, constraint: (unique_def_test1_id_key)",
             "Reason": "DEFERRABLE constraints not supported yet",
             "SqlStatement": "create table unique_def_test1(id int, c1 int, UNIQUE(id)  DEFERRABLE INITIALLY DEFERRED);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
@@ -1008,7 +1019,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "public.meeting",
+            "ObjectName": "public.meeting, constraint: (no_time_overlap)",
             "Reason": "Exclusion constraint is not supported yet",
             "SqlStatement": "ALTER TABLE ONLY public.meeting\n    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
@@ -1018,9 +1029,19 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "Test",
+            "ObjectName": "Test, constraint: (no_time_overlap_constr)",
             "Reason": "Exclusion constraint is not supported yet",
-            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026)\n);",
+            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
+            "Suggestion": "Refer docs link for details on possible workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "Test, constraint: (Test_room_id_time_range_excl)",
+            "Reason": "Exclusion constraint is not supported yet",
+            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
             "Suggestion": "Refer docs link for details on possible workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"

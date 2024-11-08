@@ -238,3 +238,24 @@ SELECT pg_advisory_unlock(1,2);
 SELECT pg_advisory_xact_lock(1,2); 
 SELECT pg_advisory_unlock_all();
 
+
+CREATE OR REPLACE FUNCTION public.check_sales_region()
+RETURNS TRIGGER AS $$
+BEGIN
+
+    IF NEW.amount < 0 THEN
+        RAISE EXCEPTION 'Amount cannot be negative';
+    END IF;
+
+    IF NEW.branch IS NULL OR NEW.branch = '' THEN
+        RAISE EXCEPTION 'Branch name cannot be null or empty';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER before_sales_region_insert_update
+BEFORE INSERT OR UPDATE ON public.sales_region
+FOR EACH ROW
+EXECUTE FUNCTION public.check_sales_region();

@@ -85,8 +85,22 @@ func (qp *QueryParser) GetUnsupportedQueryConstructs() ([]utils.UnsupportedQuery
 		result = append(result, utils.UnsupportedQueryConstruct{
 			ConstructType: unsupportedConstruct,
 			Query:         qp.QueryString,
+			DocsLink:      getDocsLink(unsupportedConstruct),
 		})
 	}
 
 	return result, nil
+}
+
+func getDocsLink(constructType string) string {
+	switch constructType {
+	case ADVISORY_LOCKS:
+		return ADVISORY_LOCKS_DOC_LINK
+	case SYSTEM_COLUMNS:
+		return SYSTEM_COLUMNS_DOC_LINK
+	case XML_FUNCTIONS:
+		return XML_FUNCTIONS_DOC_LINK
+	default:
+		panic(fmt.Sprintf("construct type %q not supported", constructType))
+	}
 }

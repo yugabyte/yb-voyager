@@ -520,6 +520,14 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
 		},
 		{
+			"FeatureName": "REFERENCING clause for triggers",
+			"Objects": []
+		},
+		{
+			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
+			"Objects": []
+		},
+		{
 			"FeatureName": "Tables with stored generated columns",
 			"Objects": [
 				{

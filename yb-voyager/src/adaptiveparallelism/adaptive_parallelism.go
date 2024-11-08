@@ -33,6 +33,7 @@ const (
 	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC          = "tserver_root_memory_soft_limit"
 	MEMORY_TOTAL_METRIC                            = "memory_total"
 	MEMORY_AVAILABLE_METRIC                        = "memory_available"
+	MIN_PARALLELISM                                = 1
 	DEFAULT_MAX_CPU_THRESHOLD                      = 70
 	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
 	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
@@ -74,14 +75,14 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 	readConfig()
 	for {
 		time.Sleep(time.Duration(ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS) * time.Second)
-		err := fetchClusterMetricsAndUpdateParallelism(yb)
+		err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
 		if err != nil {
 			log.Warnf("adaptive: error updating parallelism: %v", err)
 		}
 	}
 }
 
-func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPool) error {
+func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPool, minParallelism int, maxParallelism int) error {
 	clusterMetrics, err := yb.GetClusterMetrics()
 	log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics)) // TODO: move to debug?
 	if err != nil {
@@ -98,16 +99,30 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	}
 
 	if cpuLoadHigh || memLoadHigh {
+		deltaParallelism := -1
+		if (yb.GetNumConnectionsInPool() + deltaParallelism) < minParallelism {
+			log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, not reducing parallelism to %d as it will become less than minParallelism %d",
+				cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism, minParallelism)
+			return nil
+		}
+
 		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, reducing parallelism to %d",
-			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()-1)
-		err = yb.UpdateNumConnectionsInPool(-1)
+			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism)
+		err = yb.UpdateNumConnectionsInPool(deltaParallelism)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with -1: %w", err)
 		}
 	} else {
+		deltaParallelism := 1
+		if (yb.GetNumConnectionsInPool() + deltaParallelism) > maxParallelism {
+			log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, not increasing parallelism to %d as it will become more than maxParallelism %d",
+				cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism, maxParallelism)
+			return nil
+		}
+
 		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, increasing parallelism to %d",
-			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+1)
-		err := yb.UpdateNumConnectionsInPool(1)
+			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism)
+		err := yb.UpdateNumConnectionsInPool(deltaParallelism)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with +1 : %w", err)
 		}

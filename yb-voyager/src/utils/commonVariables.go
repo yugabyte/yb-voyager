@@ -126,6 +126,7 @@ type TableColumnsDataTypes struct {
 type UnsupportedQueryConstruct struct {
 	ConstructType string
 	Query         string
+	DocsLink      string
 }
 
 // ================== Segment ==============================

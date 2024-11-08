@@ -660,7 +660,7 @@ func (pg *TargetPostgreSQL) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 
 func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
 	// if MAX_BATCH_SIZE is set in env then return that value
-	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200 * 1024 * 1024) // default: 200 * 1024 * 1024 MB
+	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200*1024*1024) // default: 200 * 1024 * 1024 MB
 }
 
 func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
@@ -1025,4 +1025,81 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 func (pg *TargetPostgreSQL) getSchemaList() []string {
 	schemas := strings.Split(pg.tconf.Schema, ",")
 	return schemas
+}
+
+func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
+	querySchemaArray := pg.getSchemaList()
+	querySchemaList := strings.Join(querySchemaArray, ",")
+
+	// Check the trigger status using the tgenabled column, which can have three possible values:
+	// 'O' indicates that the trigger is enabled and will fire on the specified events (fully active).
+	// 'D' indicates that the trigger is disabled and will not fire (inactive).
+	// 'R' (replica) status on a trigger means it is enabled but will only fire during replication events, not during regular operations.
+	// 'A' (always) status on a trigger in PostgreSQL means that the trigger is enabled and will fire for all operations, regardless of any session replication role settings.
+	// This query returns only the triggers that are enabled (either 'O' or 'R' or 'A').
+	query := fmt.Sprintf(`
+	SELECT
+		tgname AS trigger_name,
+		tgrelid::regclass AS table_name,
+		n.nspname AS schema_name
+	FROM
+		pg_trigger
+	JOIN
+		pg_class ON pg_trigger.tgrelid = pg_class.oid
+	JOIN
+		pg_namespace n ON pg_class.relnamespace = n.oid
+	WHERE
+		n.nspname = ANY(string_to_array('%s', ','))  -- schema list
+		AND tgenabled NOT IN ('D')  -- exclude disabled triggers
+		AND tgname NOT LIKE 'RI_%%'  -- exclude RI_ (system-generated) triggers
+	ORDER BY
+		table_name, trigger_name;`, querySchemaList)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var triggerName, tableName, schemaName string
+		err = rows.Scan(&triggerName, &tableName, &schemaName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("scan row: %w", err)
+		}
+		enabledTriggers = append(enabledTriggers, fmt.Sprintf("%s on %s", triggerName, tableName))
+	}
+
+	query = fmt.Sprintf(`
+	SELECT
+		conname AS constraint_name,
+		conrelid::regclass AS table_name,
+		confrelid::regclass AS referenced_table,
+		convalidated AS is_valid,
+		nspname AS schema_name
+	FROM
+		pg_constraint
+	JOIN pg_namespace ON pg_namespace.oid = pg_constraint.connamespace
+	WHERE
+		contype = 'f'          -- Only foreign key constraints
+		AND convalidated = true     -- Only those that are VALID (enabled)
+		AND nspname = ANY (string_to_array('%s', ','))  -- Replace with your schema list
+		;`, querySchemaList)
+
+	rows, err = pg.Query(query)
+	if err != nil {
+		return nil, nil, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var fkName, tableName, referencedTable, isValid, schemaName string
+		err = rows.Scan(&fkName, &tableName, &referencedTable, &isValid, &schemaName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("scan row: %w", err)
+		}
+		enabledFks = append(enabledFks, fmt.Sprintf("%s on %s", fkName, tableName))
+	}
+
+	return enabledTriggers, enabledFks, nil
 }
