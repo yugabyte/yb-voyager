@@ -813,7 +813,6 @@ normalize_json() {
     local output_file="$2"
     local temp_file="/tmp/temp_file.json"
 
-	# TODO: remove InvalidCount from IGNORED and update existing report to account that
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
         if type == "object" then
