@@ -204,6 +204,8 @@ CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
 
 -- Unsupported Query Constructs 
 
+drop extension if exists pg_stat_statements;
+
 create extension pg_stat_statements;
 
 SELECT pg_stat_statements_reset();
