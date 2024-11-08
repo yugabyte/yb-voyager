@@ -217,9 +217,15 @@ FROM employees2;
 
 -- XML Functions
 
-SELECT xpath('/employee/name', xmlparse(DOCUMENT '<employee><name>John</name></employee>'));
+SELECT table_to_xml('employees2', true, false, '');
 
-SELECT xmlserialize(CONTENT xmlelement(NAME "employee") AS TEXT);
+SELECT xmlparse(document '<data><item>A</item></data>') as xmldata;
+
+SELECT xmlforest(first_name AS element1, last_name AS element2) FROM employees2;
+
+SELECT xmlelement(name root, xmlelement(name child, 'value'));
+
+SELECT xpath('/wrapper/root/child', '<wrapper><root><child>value</child></root></wrapper>'::xml);
 
 -- Not Reported Currently
 
