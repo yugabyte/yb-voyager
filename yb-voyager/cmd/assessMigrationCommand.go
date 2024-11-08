@@ -836,14 +836,9 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
 	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
-	assessmentReport.SchemaSummary.Description = "Objects that will be created on the target YugabyteDB."
+	assessmentReport.SchemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION
 	if source.DBType == ORACLE {
-		assessmentReport.SchemaSummary.Description += " Some of the index and sequence names might be different from those in the source database."
-	}
-
-	// set invalidCount to zero so that it doesn't show up in the report
-	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
-		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
+		assessmentReport.SchemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION_ORACLE
 	}
 
 	// fetching unsupportedFeaturing with the help of Issues report in SchemaReport
