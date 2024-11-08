@@ -12,27 +12,32 @@
 			{
 				"ObjectType": "SCHEMA",
 				"TotalCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "public"
 			},
 			{
 				"ObjectType": "EXTENSION",
 				"TotalCount": 2,
+				"InvalidCount": 1,
 				"ObjectNames": "hstore, postgis"
 			},
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 3,
+				"InvalidCount": 1,
 				"ObjectNames": "public.osm_changeset, public.osm_changeset_comment, public.osm_changeset_state"
 			},
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 5,
+				"InvalidCount": 1,
                 "ObjectNames": "changeset_geom_gist ON public.osm_changeset, created_idx ON public.osm_changeset, tags_idx ON public.osm_changeset, user_id_idx ON public.osm_changeset, user_name_idx ON public.osm_changeset",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
 			{
 				"ObjectType": "FUNCTION",
 				"TotalCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "public.insert_osm_data"
 			}
 		]
