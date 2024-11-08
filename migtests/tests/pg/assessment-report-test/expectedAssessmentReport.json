@@ -19,7 +19,7 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 2,
+				"TotalCount": 3,
 				"InvalidCount": 0,
 				"ObjectNames": "citext, pgcrypto, pg_stat_statements"
 			},
