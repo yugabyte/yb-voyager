@@ -1894,31 +1894,38 @@
 	"UnsupportedQueryConstructs": [
 		{
 			"ConstructType": "Advisory Locks",
-			"Query": "SELECT pg_advisory_lock($1,$2)"
+			"Query": "SELECT pg_advisory_lock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
 		},
 		{
 			"ConstructType": "Advisory Locks",
-			"Query": "SELECT pg_advisory_unlock($1,$2)"
+			"Query": "SELECT pg_advisory_unlock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
 		},
 		{
 			"ConstructType": "Advisory Locks",
-			"Query": "SELECT pg_advisory_unlock_all()"
+			"Query": "SELECT pg_advisory_unlock_all()",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
 		},
 		{
 			"ConstructType": "Advisory Locks",
-			"Query": "SELECT pg_advisory_xact_lock($1,$2)"
+			"Query": "SELECT pg_advisory_xact_lock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
 		},
 		{
 			"ConstructType": "System Columns",
-			"Query": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM employees2"
+			"Query": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM employees2",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns"
 		},
 		{
 			"ConstructType": "XML Functions",
-			"Query": "SELECT xpath($1, xmlparse(DOCUMENT $2))"
+			"Query": "SELECT xpath($1, xmlparse(DOCUMENT $2))",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
 		},
 		{
 			"ConstructType": "XML Functions",
-			"Query": "SELECT xmlserialize(CONTENT xmlelement(NAME \"employee\") AS TEXT)"
+			"Query": "SELECT xmlserialize(CONTENT xmlelement(NAME \"employee\") AS TEXT)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
 		}
 	]
 }
