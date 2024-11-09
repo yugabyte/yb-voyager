@@ -19,9 +19,9 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 2,
+				"TotalCount": 3,
 				"InvalidCount": 0,
-				"ObjectNames": "citext, pgcrypto"
+				"ObjectNames": "citext, pgcrypto, pg_stat_statements"
 			},
 			{
 				"ObjectType": "TYPE",
@@ -1906,5 +1906,56 @@
 			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
 		}
 	],
-	"UnsupportedQueryConstructs": null
+	"UnsupportedQueryConstructs": [
+		{
+			"ConstructType": "Advisory Locks",
+			"Query": "SELECT pg_advisory_xact_lock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
+		},
+		{
+			"ConstructType": "Advisory Locks",
+			"Query": "SELECT pg_advisory_unlock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
+		},
+		{
+			"ConstructType": "Advisory Locks",
+			"Query": "SELECT pg_advisory_unlock_all()",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
+		},
+		{
+			"ConstructType": "Advisory Locks",
+			"Query": "SELECT pg_advisory_lock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
+		},
+		{
+			"ConstructType": "System Columns",
+			"Query": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM employees2",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT xmlparse(document $1) as xmldata",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT table_to_xml($1, $2, $3, $4)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT xmlforest(first_name AS element1, last_name AS element2) FROM employees2",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT xmlelement(name root, xmlelement(name child, $1))",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT xml_is_well_formed($1)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		}
+	]
 }
