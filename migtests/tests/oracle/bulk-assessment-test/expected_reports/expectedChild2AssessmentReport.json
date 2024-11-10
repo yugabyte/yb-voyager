@@ -3,7 +3,7 @@
 	"MigrationComplexity": "MEDIUM",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB. Some of the index and sequence names might be different from those in the source database.",
-		"DbName": "ORCLPDB1",
+		"DbName": "",
 		"SchemaNames": [
 			"TEST_SCHEMA2"
 		],
