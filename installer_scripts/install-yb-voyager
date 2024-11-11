@@ -131,10 +131,10 @@ centos_main() {
 	fi
 	
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
 		$YUM_INSTALL jq 1>&2
-		fetch_latest_release_data
+		fetch_release_data
 	fi
 	
 	centos_check_base_repo_enabled
@@ -177,10 +177,10 @@ ubuntu_main() {
 	sudo apt-get update 1>&2
 
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
 		sudo apt-get install -y jq 1>&2
-		fetch_latest_release_data
+		fetch_release_data
 	fi
 
 	output "Installing packages."
@@ -225,10 +225,10 @@ macos_main() {
 	macos_install_brew
 
 	# TODO: Remove the usage of jq and use something inbuilt in the future.
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
 		brew install jq 1>&2
-		fetch_latest_release_data
+		fetch_release_data
 	fi
 
 	macos_install_pg_dump
@@ -248,41 +248,49 @@ macos_main() {
 # COMMON
 #=============================================================================
 
-# Function to fetch the latest release data from GitHub API
-fetch_latest_release_data() {
-    # Fetch the latest release data from GitHub API
-    LATEST_RELEASE_DATA=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest)
-    if [ -z "$LATEST_RELEASE_DATA" ]; then
-        echo "ERROR: Failed to fetch the latest release data from the GitHub API."
+# Function to fetch the release data from GitHub API
+fetch_release_data() {
+    # Fetch the latest release data from GitHub API if VERSION is latest
+	if [ "${VERSION}" == "latest" ]; then
+		RELEASE_DATA=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/releases/latest)
+		if [ -z "$RELEASE_DATA" ]; then
+			echo "ERROR: Failed to fetch the latest release data from the GitHub API."
+			exit 1
+		fi
+	fi 
+
+    # Extract the latest release name and tag name from the fetched data if VERSION is latest
+	if [ "${VERSION}" == "latest" ]; then
+		RELEASE_NAME=$(echo "$RELEASE_DATA" | jq -r '.name')
+		TAG_NAME=$(echo "$RELEASE_DATA" | jq -r '.tag_name')
+	else 
+		# If the version is not latest, then the provided VERSION is used in the release name and tag name
+		RELEASE_NAME="v${VERSION}"
+		TAG_NAME="yb-voyager/v${VERSION}"
+	fi
+
+    # Fetch the commit hash of the tagged commit related to the release
+    TAG_DATA=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/git/refs/tags/${TAG_NAME})
+    if [ -z "$TAG_DATA" ]; then
+        echo "ERROR: Failed to fetch the tagged commit data from the GitHub API."
         exit 1
     fi
 
-    # Extract the latest release name and tag name
-    LATEST_RELEASE_NAME=$(echo "$LATEST_RELEASE_DATA" | jq -r '.name')
-    LATEST_TAG_NAME=$(echo "$LATEST_RELEASE_DATA" | jq -r '.tag_name')
-
-    # Fetch the commit hash of the latest tagged commit
-    LATEST_TAG_DATA=$(curl -s https://api.github.com/repos/yugabyte/yb-voyager/git/refs/tags/${LATEST_TAG_NAME})
-    if [ -z "$LATEST_TAG_DATA" ]; then
-        echo "ERROR: Failed to fetch the latest tagged commit data from the GitHub API."
-        exit 1
-    fi
-
-    LATEST_TAGGED_COMMIT=$(echo "$LATEST_TAG_DATA" | jq -r '.object.sha')
+    TAGGED_COMMIT=$(echo "$TAG_DATA" | jq -r '.object.sha')
 
     # Extract voyager version from the release name
-    VOYAGER_VERSION=$(echo "$LATEST_RELEASE_NAME" | sed 's/v//')
+    VOYAGER_VERSION=$(echo "$RELEASE_NAME" | sed 's/v//')
 
     # Log the fetched data to the log file
-    echo "LATEST_RELEASE_NAME=${LATEST_RELEASE_NAME}" >> "$LOG_FILE"
-    echo "LATEST_TAG_NAME=${LATEST_TAG_NAME}" >> "$LOG_FILE"
-    echo "LATEST_TAGGED_COMMIT=${LATEST_TAGGED_COMMIT}" >> "$LOG_FILE"
+    echo "RELEASE_NAME=${RELEASE_NAME}" >> "$LOG_FILE"
+    echo "TAG_NAME=${TAG_NAME}" >> "$LOG_FILE"
+    echo "TAGGED_COMMIT=${TAGGED_COMMIT}" >> "$LOG_FILE"
     echo "VOYAGER_VERSION=${VOYAGER_VERSION}" >> "$LOG_FILE"
 
     # Set global variables for version and hash
-    VOYAGER_RELEASE_NAME=${VOYAGER_RELEASE_NAME:-${LATEST_RELEASE_NAME}}
-    DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.5.2-${VOYAGER_VERSION}"}
-    YB_VOYAGER_GIT_HASH=${LATEST_TAGGED_COMMIT}
+    VOYAGER_RELEASE_NAME=${RELEASE_NAME}
+    DEBEZIUM_VERSION="2.5.2-${VOYAGER_VERSION}"
+    YB_VOYAGER_GIT_HASH=${TAGGED_COMMIT}
 }
 
 check_java() {
@@ -308,10 +316,10 @@ check_java() {
 }
 
 install_debezium_server(){
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
-		output "Installing debezium:${VERSION}:${DEBEZIUM_VERSION}"
-		install_debezium_server_latest_release
+		output "Installing debezium:${DEBEZIUM_VERSION}"
+		install_debezium_server_from_release
 		return
 	fi
 	output "Installing debezium:${VERSION}."
@@ -330,7 +338,7 @@ install_debezium_server(){
 	package_debezium_server_local
 }
 
-install_debezium_server_latest_release() {
+install_debezium_server_from_release() {
 	debezium_server_filename="debezium-server.tar.gz"
 	# download
 	wget -nv "https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager/${VOYAGER_RELEASE_NAME}/${debezium_server_filename}"
@@ -523,9 +531,9 @@ rebuild_voyager_local() {
 get_passed_options() {
 	if [ "$1" == "linux" ]
 	then
-		OPTS=$(getopt -o "lpv", --long install-from-local-source,only-pg-support,rebuild-voyager-local --name 'install-yb-voyager' -- $ARGS_LINUX)
+		OPTS=$(getopt -o "lpvV", --long install-from-local-source,only-pg-support,rebuild-voyager-local,version: --name 'install-yb-voyager' -- $ARGS_LINUX)
 	else
-		OPTS=$(getopt  lpv  $ARGS_MACOS)
+		OPTS=$(getopt  lpvV  $ARGS_MACOS)
 	fi
 
 	eval set -- "$OPTS"
@@ -540,9 +548,14 @@ get_passed_options() {
 				ONLY_PG="true"; 
 				shift 
 				;;
-			-v | --rebuild-voyager-local )
+			-r | --rebuild-voyager-local )
 				REBUILD_VOYAGER_LOCAL="true";
 				shift
+				;;
+			-V | --version )  
+				VERSION="$2" 
+				echo "Installing yb-voyager:${VERSION}"
+				shift 2
 				;;
 			* ) 
 				break 
@@ -629,9 +642,9 @@ update_yb_voyager_bashrc() {
 
 install_yb_voyager() {
 	GO=${GO:-"go"}
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
-	    output "Installing yb-voyager:${VERSION}:${VOYAGER_VERSION}"
+	    output "Installing yb-voyager:${VOYAGER_VERSION}"
 		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
 		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 		return
@@ -801,7 +814,7 @@ create_base_ora2pg_conf_file() {
 	fi
 	output "Installing the latest base-ora2pg.conf"
 
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
 		sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 	else
@@ -823,7 +836,7 @@ create_pg_dump_args_file() {
 	fi
 	output "Installing the latest pg_dump-args.ini"
 
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
 		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/pg_dump-args.ini
 	else
@@ -840,7 +853,7 @@ create_gather_assessment_metadata_dir() {
 	sudo mkdir -p $scripts_parent_dir
 
 	output "Installing the latest scripts for gathering assessment metadata"
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
 		TAR_URL="https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/$scripts_dir_path/${scripts_dir_name}.tar.gz"
 		sudo wget -nv -O /tmp/${scripts_dir_name}.tar.gz $TAR_URL
@@ -860,7 +873,7 @@ create_guardrail_scripts_dir() {
 	sudo mkdir -p $scripts_parent_dir/$scripts_dir_name
 
 	output "Installing the guardrails scripts"
-	if [ "${VERSION}" == "latest" ]
+	if [ "${VERSION}" != "local" ]
 	then
 		TAR_URL="https://github.com/yugabyte/yb-voyager/archive/$YB_VOYAGER_GIT_HASH.tar.gz"
 		sudo wget -nv -O /tmp/yb-voyager.tar.gz $TAR_URL
