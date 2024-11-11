@@ -40,6 +40,7 @@ var importDataToSourceCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
 		}
+		tconf.EnableYBAdaptiveParallelism = false
 		importDataCmd.PreRun(cmd, args)
 		importDataCmd.Run(cmd, args)
 	},
