@@ -181,13 +181,13 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 		}
 		displayTableName := finalFullTableName.ForMinOutput()
 		partitions := leafPartitions[finalFullTableName.ForOutput()]
-		if source.DBType == POSTGRESQL && partitions != nil {
+		if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
 			partitions := strings.Join(partitions, ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
 		}
 		snapshotStatus, ok := exportedSnapshotStatus.Get(finalFullTableName)
 		if !ok {
-			continue
+			return nil, fmt.Errorf("snapshot status for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)
 		}
 		finalStatus := snapshotStatus[0]
 		if len(snapshotStatus) > 1 { // status for root partition wrt leaf partitions
@@ -205,15 +205,15 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 			}
 			if exportingLeaf > 0 {
 				finalStatus = "EXPORTING"
-			} else if doneLeaf == len(snapshotStatus) {
-				finalStatus = "DONE"
 			} else if not_started == len(snapshotStatus) {
-				finalStatus = "NOT_STARTED"
+				finalStatus = "NOT-STARTED"
+			} else {
+				finalStatus = "DONE"
 			}
 		}
 		exportedCount, ok := exportedSnapshotRow.Get(finalFullTableName)
 		if !ok {
-			continue
+			return nil, fmt.Errorf("snapshot row count for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)
 		}
 		row := &exportTableMigStatusOutputRow{
 			TableName:     displayTableName,
