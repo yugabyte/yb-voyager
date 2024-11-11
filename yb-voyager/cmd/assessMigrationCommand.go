@@ -1022,15 +1022,10 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
-		// queryParser := queryparser.New(query)
-		// err := queryParser.Parse()
-		// if err != nil {
-		// 	log.Errorf("failed to parse query - [%s]: %v", query, err)
-		// }
 
 		issues, err := parserIssueDetector.GetIssues(query)
 		if err != nil {
-			log.Errorf("failed while trying to fetch query issues from parse tree of query - [%s]: %v",
+			log.Errorf("failed while trying to fetch query issues in query - [%s]: %v",
 				query, err)
 		}
 
