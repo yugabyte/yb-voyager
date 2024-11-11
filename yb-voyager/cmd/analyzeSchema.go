@@ -36,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -1575,7 +1576,56 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
+	checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
+}
+
+func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
+	for _, sqlInfoStmt := range sqlInfoArr {
+		queryParser := queryparser.New(sqlInfoStmt.formattedStmt)
+		err := queryParser.ParsePLPGSQLToJson()
+		if err != nil {
+			log.Infof("error in parsing the stmt-%s to json: %v", sqlInfoStmt.formattedStmt, err)
+			continue
+		}
+		plPgSqlStatements, err := queryParser.GetAllPLPGSQLStatements() 
+		if err != nil {
+			log.Infof("error in parsing the PLPGSQL stmt-%s: %v", sqlInfoStmt.formattedStmt, err)
+			continue
+		}
+		for _, plpgsqlStmt := range plPgSqlStatements {
+			queryParser = queryparser.New(plpgsqlStmt)
+			err := queryParser.Parse()
+			if err != nil {
+				log.Infof("error in parsing the PLPGSQL stmt-%s of object-%s", plpgsqlStmt, err)
+				continue
+			}
+			unsupportedConstructsInStmt, err := queryParser.GetUnsupportedQueryConstructs()
+			if err != nil {
+				log.Infof("error in getting the unsupported construct from stmt-%s: %v", plpgsqlStmt, err)
+				continue
+			}
+			//TODO convert this unsupportedConstructInStmt to Issue and report
+			for _, construct := range unsupportedConstructsInStmt {
+				issue := convertUnsupportedConstructToIssue(construct, sqlInfoStmt,  objType)
+				schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
+			}
+			// fmt.Printf("%v", unsupportedConstructsInStmt)
+		}
+	}
+
+}
+
+func convertUnsupportedConstructToIssue(construct utils.UnsupportedQueryConstruct, sqlInfoStmt sqlInfo, objType string) utils.Issue {
+	return utils.Issue{
+		ObjectType: objType,
+		ObjectName: sqlInfoStmt.objName,
+		Reason: construct.ConstructType,
+		SqlStatement: construct.Query,
+		DocsLink: construct.DocsLink,
+		FilePath: sqlInfoStmt.fileName,
+		IssueType: UNSUPPORTED_PLPGSQL_OBEJCTS,
+	}
 }
 
 func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {

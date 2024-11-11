@@ -1,13 +1,16 @@
 package queryparser
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
@@ -17,11 +20,17 @@ const (
 	PG_QUERY_XMLEXPR_NODE   = "pg_query.XmlExpr"
 	PG_QUERY_FUNCCALL_NODE  = "pg_query.FuncCall"
 	PG_QUERY_COLUMNREF_NODE = "pg_query.ColumnRef"
+	PLPGSQL_EXPR            = "PLpgSQL_expr"
+	ACTION                  = "action"
+	QUERY                   = "query"
+	PLPGSQL_FUNCTION        = "PLpgSQL_function"
 )
 
 type QueryParser struct {
-	QueryString string
-	ParseTree   *pg_query.ParseResult
+	QueryString    string
+	ParseTree      *pg_query.ParseResult
+	ParseJson      string
+	PlPgSQLQueries []string
 }
 
 func New(query string) *QueryParser {
@@ -37,6 +46,16 @@ func (qp *QueryParser) Parse() error {
 		return err
 	}
 	qp.ParseTree = tree
+	return nil
+}
+
+func (qp *QueryParser) ParsePLPGSQLToJson() error {
+	log.Debugf("parsing the PLPGSQL to json query-%s", qp.QueryString)
+	jsonString, err := pg_query.ParsePlPgSqlToJSON(qp.QueryString)
+	if err != nil {
+		return err
+	}
+	qp.ParseJson = jsonString
 	return nil
 }
 
@@ -102,5 +121,69 @@ func getDocsLink(constructType string) string {
 		return XML_FUNCTIONS_DOC_LINK
 	default:
 		panic(fmt.Sprintf("construct type %q not supported", constructType))
+	}
+}
+
+func (qe *QueryParser) GetAllPLPGSQLStatements() ([]string, error) {
+	if qe.ParseJson == "" {
+		return []string{}, nil
+	}
+	var parsedJsonMapList []map[string]interface{}
+	log.Debugf("parsing the json string-%s of stmt-%s", qe.ParseJson, qe.QueryString)
+	err := json.Unmarshal([]byte(qe.ParseJson), &parsedJsonMapList)
+	if err != nil {
+		return []string{}, fmt.Errorf("error parsing the json string of stmt-%s: %v", qe.QueryString, err)
+	}
+
+	if len(parsedJsonMapList) == 0 {
+		return []string{}, nil
+	}
+
+	parsedJsonMap := parsedJsonMapList[0]
+
+	function := parsedJsonMap[PLPGSQL_FUNCTION]
+	parsedFunctionMap, ok := function.(map[string]interface{})
+	if !ok {
+		return []string{}, nil
+	}
+
+	actions := parsedFunctionMap[ACTION]
+	var plPgSqlStatements []string
+	TraversePlPgSQLActions(actions, &plPgSqlStatements)
+	return plPgSqlStatements, nil
+}
+
+func TraversePlPgSQLActions(action interface{}, plPgSqlStatements *[]string) {
+	actionMap, ok := action.(map[string]interface{})
+	if !ok {
+		//In case the value of a field is not a <key , val> but a list of <key, val>
+		lists, ok := action.([]interface{})
+		if ok {
+			for _, l := range lists {
+				TraversePlPgSQLActions(l, plPgSqlStatements)
+			}
+		}
+		return
+	}
+
+	for k, v := range actionMap {
+		switch k {
+		case PLPGSQL_EXPR:
+			expr, ok := v.(map[string]interface{})
+			if ok {
+				query, ok := expr[QUERY]
+				if ok {
+					q := strings.Trim(query.(string), "'")
+					q = strings.TrimSpace(q)
+					if !strings.HasSuffix(q, ";") {
+						q += ";"
+					}
+
+					*plPgSqlStatements = append(*plPgSqlStatements, q)
+				}
+			}
+		default:
+			TraversePlPgSQLActions(v, plPgSqlStatements)
+		}
 	}
 }

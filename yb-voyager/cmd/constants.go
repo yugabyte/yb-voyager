@@ -101,6 +101,7 @@ const (
 
 	UNSUPPORTED_FEATURES                = "unsupported_features"
 	UNSUPPORTED_DATATYPES               = "unsupported_datatypes"
+	UNSUPPORTED_PLPGSQL_OBEJCTS         = "unsupported_plpgsql_objects"
 	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
 
 	HTML = "html"
