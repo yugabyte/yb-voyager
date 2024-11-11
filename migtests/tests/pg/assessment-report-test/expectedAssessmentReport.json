@@ -14,76 +14,91 @@
 			{
 				"ObjectType": "SCHEMA",
 				"TotalCount": 3,
+				"InvalidCount": 0,
 				"ObjectNames": "public, schema2, test_views"
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 2,
-				"ObjectNames": "citext, pgcrypto"
+				"TotalCount": 3,
+				"InvalidCount": 0,
+				"ObjectNames": "citext, pgcrypto, pg_stat_statements"
 			},
 			{
 				"ObjectType": "TYPE",
 				"TotalCount": 5,
+				"InvalidCount": 0,
 				"ObjectNames": "public.address_type, public.enum_kind, public.item_details, schema2.enum_kind, schema2.item_details"
 			},
 			{
 				"ObjectType": "DOMAIN",
 				"TotalCount": 2,
+				"InvalidCount": 0,
 				"ObjectNames": "public.person_name, schema2.person_name"
 			},
 			{
 				"ObjectType": "SEQUENCE",
 				"TotalCount": 26,
+				"InvalidCount": 0,
 				"ObjectNames": "public.\"Case_Sensitive_Columns_id_seq\", public.\"Mixed_Case_Table_Name_Test_id_seq\", public.\"Recipients_id_seq\", public.\"WITH_id_seq\", public.employees2_id_seq, public.ext_test_id_seq, public.mixed_data_types_table1_id_seq, public.mixed_data_types_table2_id_seq, public.orders2_id_seq, public.parent_table_id_seq, public.with_example1_id_seq, public.with_example2_id_seq, schema2.\"Case_Sensitive_Columns_id_seq\", schema2.\"Mixed_Case_Table_Name_Test_id_seq\", schema2.\"Recipients_id_seq\", schema2.\"WITH_id_seq\", schema2.employees2_id_seq, schema2.ext_test_id_seq, schema2.mixed_data_types_table1_id_seq, schema2.mixed_data_types_table2_id_seq, schema2.orders2_id_seq, schema2.parent_table_id_seq, schema2.with_example1_id_seq, schema2.with_example2_id_seq, test_views.view_table1_id_seq, test_views.view_table2_id_seq"
 			},
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 63,
+				"InvalidCount": 20,
 				"ObjectNames": "public.\"Case_Sensitive_Columns\", public.\"Mixed_Case_Table_Name_Test\", public.\"Recipients\", public.\"WITH\", public.audit, public.sales_region, public.boston, public.c, public.parent_table, public.child_table, public.citext_type, public.combined_tbl, public.documents, public.employees2, public.ext_test, public.foo, public.inet_type, public.london, public.mixed_data_types_table1, public.mixed_data_types_table2, public.orders, public.orders2, public.products, public.session_log, public.session_log1, public.session_log2, public.sydney, public.test_exclude_basic, public.test_jsonb, public.test_xml_type, public.ts_query_table, public.tt, public.with_example1, public.with_example2, schema2.\"Case_Sensitive_Columns\", schema2.\"Mixed_Case_Table_Name_Test\", schema2.\"Recipients\", schema2.\"WITH\", schema2.audit, schema2.sales_region, schema2.boston, schema2.c, schema2.parent_table, schema2.child_table, schema2.employees2, schema2.ext_test, schema2.foo, schema2.london, schema2.mixed_data_types_table1, schema2.mixed_data_types_table2, schema2.orders, schema2.orders2, schema2.products, schema2.session_log, schema2.session_log1, schema2.session_log2, schema2.sydney, schema2.test_xml_type, schema2.tt, schema2.with_example1, schema2.with_example2, test_views.view_table1, test_views.view_table2"
 			},
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 24,
+				"InvalidCount": 20,
 				"ObjectNames": "idx1 ON public.combined_tbl, idx2 ON public.combined_tbl, idx3 ON public.combined_tbl, idx4 ON public.combined_tbl, idx5 ON public.combined_tbl, idx6 ON public.combined_tbl, idx7 ON public.combined_tbl, idx_array ON public.documents, idx_box_data ON public.mixed_data_types_table1, idx_box_data_brin ON public.mixed_data_types_table1, idx_citext ON public.citext_type, idx_citext1 ON public.citext_type, idx_citext2 ON public.citext_type, idx_inet ON public.inet_type, idx_inet1 ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_point_data ON public.mixed_data_types_table1, idx_valid ON public.test_jsonb, tsquery_idx ON public.ts_query_table, tsvector_idx ON public.documents, idx_box_data ON schema2.mixed_data_types_table1, idx_box_data_spgist ON schema2.mixed_data_types_table1, idx_point_data ON schema2.mixed_data_types_table1"
 			},
 			{
 				"ObjectType": "FUNCTION",
 				"TotalCount": 7,
+				"InvalidCount": 0,
 				"ObjectNames": "public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.total"
 			},
 			{
 				"ObjectType": "AGGREGATE",
 				"TotalCount": 2,
+				"InvalidCount": 0,
 				"ObjectNames": "public.inc_sum, schema2.inc_sum"
 			},
 			{
 				"ObjectType": "PROCEDURE",
 				"TotalCount": 2,
+				"InvalidCount": 0,
 				"ObjectNames": "public.tt_insert_data, schema2.tt_insert_data"
 			},
 			{
 				"ObjectType": "VIEW",
 				"TotalCount": 6,
+				"InvalidCount": 2,
 				"ObjectNames": "public.sales_employees, schema2.sales_employees, test_views.v1, test_views.v2, test_views.v3, test_views.v4"
 			},
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 3,
+				"InvalidCount": 1,
 				"ObjectNames": "audit_trigger ON public.tt, before_sales_region_insert_update ON public.sales_region, audit_trigger ON schema2.tt"
 			},
 			{
 				"ObjectType": "MVIEW",
 				"TotalCount": 3,
+				"InvalidCount": 0,
 				"ObjectNames": "test_views.xyz_mview, test_views.abc_mview, test_views.mv1"
 			},
 			{
 				"ObjectType": "RULE",
 				"TotalCount": 4,
+				"InvalidCount": 0,
 				"ObjectNames": "protect_test_views_v1, protect_test_views_v2, protect_test_views_v3, protect_test_views_view_table1"
 			},
 			{
 				"ObjectType": "POLICY",
 				"TotalCount": 4,
+				"InvalidCount": 2,
 				"ObjectNames": "policy_test_fine ON public.test_exclude_basic, policy_test_fine_2 ON public.employees2, policy_test_report ON public.test_xml_type, policy_test_report ON schema2.test_xml_type"
 			}
 		]
@@ -1891,5 +1906,56 @@
 			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
 		}
 	],
-	"UnsupportedQueryConstructs": null
+	"UnsupportedQueryConstructs": [
+		{
+			"ConstructType": "Advisory Locks",
+			"Query": "SELECT pg_advisory_xact_lock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
+		},
+		{
+			"ConstructType": "Advisory Locks",
+			"Query": "SELECT pg_advisory_unlock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
+		},
+		{
+			"ConstructType": "Advisory Locks",
+			"Query": "SELECT pg_advisory_unlock_all()",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
+		},
+		{
+			"ConstructType": "Advisory Locks",
+			"Query": "SELECT pg_advisory_lock($1,$2)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks"
+		},
+		{
+			"ConstructType": "System Columns",
+			"Query": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM employees2",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT xmlparse(document $1) as xmldata",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT table_to_xml($1, $2, $3, $4)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT xmlforest(first_name AS element1, last_name AS element2) FROM employees2",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT xmlelement(name root, xmlelement(name child, $1))",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		},
+		{
+			"ConstructType": "XML Functions",
+			"Query": "SELECT xml_is_well_formed($1)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions"
+		}
+	]
 }

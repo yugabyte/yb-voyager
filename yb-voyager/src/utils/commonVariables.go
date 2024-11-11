@@ -80,10 +80,10 @@ type SchemaReport struct {
 }
 
 type SchemaSummary struct {
-	Description string     `json:"Description,omitempty"`
-	DBName      string     `json:"DbName,omitempty"`
-	SchemaNames []string   `json:"SchemaNames,omitempty"`
-	DBVersion   string     `json:"DbVersion,omitempty"`
+	Description string     `json:"Description"`
+	DBName      string     `json:"DbName"`
+	SchemaNames []string   `json:"SchemaNames"`
+	DBVersion   string     `json:"DbVersion"`
 	Notes       []string   `json:"Notes,omitempty"`
 	DBObjects   []DBObject `json:"DatabaseObjects"`
 }
@@ -91,8 +91,8 @@ type SchemaSummary struct {
 type DBObject struct {
 	ObjectType   string `json:"ObjectType"`
 	TotalCount   int    `json:"TotalCount"`
-	InvalidCount int    `json:"InvalidCount,omitempty"`
-	ObjectNames  string `json:"ObjectNames,omitempty"`
+	InvalidCount int    `json:"InvalidCount"`
+	ObjectNames  string `json:"ObjectNames"`
 	Details      string `json:"Details,omitempty"`
 }
 

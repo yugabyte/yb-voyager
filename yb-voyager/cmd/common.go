@@ -1135,10 +1135,10 @@ type AssessmentReport struct {
 	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
 	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
-	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-	Notes                      []string                              `json:"Notes"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
+	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                      []string                              `json:"Notes"`
 }
 
 type UnsupportedFeature struct {
