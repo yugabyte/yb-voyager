@@ -357,21 +357,6 @@ func renameDatafileDescriptor(exportDir string) {
 	datafileDescriptor.Save()
 }
 
-func renameExportSnapshotStatus(exportSnapshotStatusFile *jsonfile.JsonFile[ExportSnapshotStatus]) error {
-	err := exportSnapshotStatusFile.Update(func(exportSnapshotStatus *ExportSnapshotStatus) {
-		for i, tableStatus := range exportSnapshotStatus.Tables {
-			renamedTable, isRenamed := renameTableIfRequired(tableStatus.TableName)
-			if isRenamed {
-				exportSnapshotStatus.Tables[i].TableName = renamedTable
-			}
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("update export snapshot status: %w", err)
-	}
-	return nil
-}
-
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
 	if importerRole == IMPORT_FILE_ROLE {
 		fmt.Printf("import report\n")
