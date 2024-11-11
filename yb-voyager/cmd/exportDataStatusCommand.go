@@ -150,6 +150,9 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while getting migration status record: %v", err)
 	}
+	if msr == nil {
+		return nil, nil
+	}
 	tableList := msr.TableListExportedFromSource
 	source = *msr.SourceDBConf
 	sqlname.SourceDBType = source.DBType
@@ -182,7 +185,10 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 			partitions := strings.Join(partitions, ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
 		}
-		snapshotStatus, _ := exportedSnapshotStatus.Get(finalFullTableName)
+		snapshotStatus, ok := exportedSnapshotStatus.Get(finalFullTableName)
+		if !ok {
+			continue
+		}
 		finalStatus := snapshotStatus[0]
 		if len(snapshotStatus) > 1 { // status for root partition wrt leaf partitions
 			exportingLeaf := 0
@@ -205,7 +211,10 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 				finalStatus = "NOT_STARTED"
 			}
 		}
-		exportedCount, _ := exportedSnapshotRow.Get(finalFullTableName)
+		exportedCount, ok := exportedSnapshotRow.Get(finalFullTableName)
+		if !ok {
+			continue
+		}
 		row := &exportTableMigStatusOutputRow{
 			TableName:     displayTableName,
 			Status:        finalStatus,
