@@ -239,7 +239,7 @@
                 {{ $currentType := "" }}
                 {{ $docsLink := "" }}
                 {{ range $i, $construct := .UnsupportedQueryConstructs }}
-                    {{ if ne $construct.ConstructType $currentType }}
+                    {{ if ne $construct.ConstructTypeName $currentType }}
                         {{ if ne $currentType "" }}
                                 </ul>
                             </div>
@@ -255,11 +255,11 @@
                         {{ end }}
                         {{ $docsLink = $construct.DocsLink }}
                         <tr>
-                            <td><strong>{{ $construct.ConstructType }}</strong></td>
+                            <td><strong>{{ $construct.ConstructTypeName }}</strong></td>
                             <td>
                                 <div class="scrollable-div">
                                     <ul>
-                        {{ $currentType = $construct.ConstructType }}
+                        {{ $currentType = $construct.ConstructTypeName }}
                     {{ end }}
                     <li class="list_item">{{ $construct.Query }}</li>
                 {{ end }}
