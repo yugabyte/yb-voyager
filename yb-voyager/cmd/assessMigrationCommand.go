@@ -1033,17 +1033,17 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			log.Errorf("failed while trying to fetch query issues from parse tree of query - [%s]: %v",
 				query, err)
 		}
-		if issues != nil {
-			for _, issue := range issues {
-				uqc := utils.UnsupportedQueryConstruct{
-					Query:             issue.SqlStatement,
-					ConstructType:     issue.Type,
-					ConstructTypeName: issue.TypeName,
-					DocsLink:          issue.DocsLink,
-				}
-				result = append(result, uqc)
+
+		for _, issue := range issues {
+			uqc := utils.UnsupportedQueryConstruct{
+				Query:             issue.SqlStatement,
+				ConstructType:     issue.Type,
+				ConstructTypeName: issue.TypeName,
+				DocsLink:          issue.DocsLink,
 			}
+			result = append(result, uqc)
 		}
+
 	}
 
 	// sort the slice to group same constructType in html and json reports

@@ -82,7 +82,6 @@ func (p *ParserIssueDetector) getDMLIssues(query string, parseTree *pg_query.Par
 		case XML_FUNCTIONS:
 			result = append(result, issue.NewXmlFunctionsIssue(issue.DML_QUERY_OBJECT_TYPE, "", query))
 		}
-		return result, nil
 	}
 	return result, nil
 }
