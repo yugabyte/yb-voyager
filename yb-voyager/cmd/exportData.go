@@ -900,11 +900,6 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	if source.DBType == POSTGRESQL {
 		//Make leaf partitions data files entry under the name of root table
 		renameDatafileDescriptor(exportDir)
-		//Similarly for the export snapshot status file
-		err = renameExportSnapshotStatus(exportSnapshotStatusFile)
-		if err != nil {
-			return fmt.Errorf("rename export snapshot status: %w", err)
-		}
 	}
 	displayExportedRowCountSnapshot(false)
 
