@@ -1,0 +1,88 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package queryissue
+
+import (
+	"fmt"
+
+	pg_query "github.com/pganalyze/pg_query_go/v5"
+	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"google.golang.org/protobuf/reflect/protoreflect"
+)
+
+type ParserIssueDetector struct {
+	// TODO: Add fields here
+	// e.g. store composite types, etc. for future processing.
+}
+
+func NewParserIssueDetector() *ParserIssueDetector {
+	return &ParserIssueDetector{}
+}
+
+func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query: %w", err)
+	}
+	return p.getDMLIssues(query, parseTree)
+}
+
+func (p *ParserIssueDetector) getDMLIssues(query string, parseTree *pg_query.ParseResult) ([]issue.IssueInstance, error) {
+	var result []issue.IssueInstance
+	var unsupportedConstructs []string
+	visited := make(map[protoreflect.Message]bool)
+	detectors := []UnsupportedConstructDetector{
+		NewFuncCallDetector(),
+		NewColumnRefDetector(),
+		NewXmlExprDetector(),
+	}
+
+	processor := func(msg protoreflect.Message) error {
+		for _, detector := range detectors {
+			log.Debugf("running detector %T", detector)
+			constructs, err := detector.Detect(msg)
+			if err != nil {
+				log.Debugf("error in detector %T: %v", detector, err)
+				return fmt.Errorf("error in detectors %T: %w", detector, err)
+			}
+			unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
+		}
+		return nil
+	}
+
+	parseTreeProtoMsg := queryparser.GetProtoMessageFromParseTree(parseTree)
+	err := queryparser.TraverseParseTree(parseTreeProtoMsg, visited, processor)
+	if err != nil {
+		return result, fmt.Errorf("error traversing parse tree message: %w", err)
+	}
+
+	for _, unsupportedConstruct := range unsupportedConstructs {
+		switch unsupportedConstruct {
+		case ADVISORY_LOCKS:
+			result = append(result, issue.NewAdvisoryLocksIssue(issue.DML_QUERY_OBJECT_TYPE, "", query))
+		case SYSTEM_COLUMNS:
+			result = append(result, issue.NewSystemColumnsIssue(issue.DML_QUERY_OBJECT_TYPE, "", query))
+		case XML_FUNCTIONS:
+			result = append(result, issue.NewXmlFunctionsIssue(issue.DML_QUERY_OBJECT_TYPE, "", query))
+		}
+		return result, nil
+	}
+	return result, nil
+}

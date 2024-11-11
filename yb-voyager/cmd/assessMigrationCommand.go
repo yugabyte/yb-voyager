@@ -40,7 +40,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -995,6 +995,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	if source.DBType != POSTGRESQL {
 		return nil, nil
 	}
+	parserIssueDetector := queryissue.NewParserIssueDetector()
 	query := fmt.Sprintf("SELECT DISTINCT query from %s", migassessment.DB_QUERIES_SUMMARY)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
@@ -1026,19 +1027,26 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
-		queryParser := queryparser.New(query)
-		err := queryParser.Parse()
-		if err != nil {
-			log.Errorf("failed to parse query - [%s]: %v", query, err)
-		}
+		// queryParser := queryparser.New(query)
+		// err := queryParser.Parse()
+		// if err != nil {
+		// 	log.Errorf("failed to parse query - [%s]: %v", query, err)
+		// }
 
-		unsupportedConstructs, err := queryParser.GetUnsupportedQueryConstructs()
+		issues, err := parserIssueDetector.GetIssues(query)
 		if err != nil {
-			log.Errorf("failed while trying to fetch unsupported constructs from parse tree of query - [%s]: %s",
-				query, err.Error())
+			log.Errorf("failed while trying to fetch query issues from parse tree of query - [%s]: %v",
+				query, err)
 		}
-		if unsupportedConstructs != nil {
-			result = append(result, unsupportedConstructs...)
+		if issues != nil {
+			for _, issue := range issues {
+				uqc := utils.UnsupportedQueryConstruct{
+					Query:         issue.SqlStatement,
+					ConstructType: issue.Type,
+					DocsLink:      issue.DocsLink,
+				}
+				result = append(result, uqc)
+			}
 		}
 	}
 

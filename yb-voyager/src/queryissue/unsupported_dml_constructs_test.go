@@ -1,4 +1,4 @@
-package queryparser
+package queryissue
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -76,7 +77,7 @@ func TestFuncCallDetector(t *testing.T) {
 		}
 
 		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
-		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 		// The detector should detect Advisory Locks in these queries
 		assert.Contains(t, unsupportedConstructs, ADVISORY_LOCKS, "Advisory Locks not detected in SQL: %s", sql)
@@ -138,7 +139,7 @@ func TestColumnRefDetector(t *testing.T) {
 		}
 
 		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
-		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 		// The detector should detect System Columns in these queries
 		assert.Contains(t, unsupportedConstructs, SYSTEM_COLUMNS, "System Columns not detected in SQL: %s", sql)
@@ -260,7 +261,7 @@ WHERE id = 1;`,
 		}
 
 		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
-		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 		// The detector should detect XML Functions in these queries
 		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS, "XML Functions not detected in SQL: %s", sql)
@@ -326,7 +327,7 @@ RETURNING id,
 		}
 
 		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
-		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 
 		sort.Strings(unsupportedConstructs)
