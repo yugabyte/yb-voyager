@@ -428,6 +428,9 @@ centos_main() {
         echo ""
         echo -e "\e[33mYum packages:\e[0m"
         print_dependencies "${centos_yum_package_requirements[@]}"
+        echo ""
+        echo -e "\e[33mCPAN modules:\e[0m"
+        print_dependencies "${cpan_modules_requirements[@]}"
         print_steps_to_install_oic_on_centos
         exit 0
     fi
@@ -606,6 +609,9 @@ ubuntu_main() {
         echo ""
         echo -e "\e[33mApt packages:\e[0m"
         print_dependencies "${ubuntu_apt_package_requirements[@]}"
+        echo ""
+        echo -e "\e[33mCPAN modules:\e[0m"
+        print_dependencies "${cpan_modules_requirements[@]}"
         print_steps_to_install_oic_on_ubuntu
         exit 0
     fi
