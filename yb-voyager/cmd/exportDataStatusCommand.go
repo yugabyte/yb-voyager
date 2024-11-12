@@ -181,6 +181,7 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 		}
 		displayTableName := finalFullTableName.ForMinOutput()
 		partitions := leafPartitions[finalFullTableName.ForOutput()]
+		//Changing the display of the partition tables in case table-list is set because there can be case where user has passed a subset of leaft tables in the list
 		if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
 			partitions := strings.Join(partitions, ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
