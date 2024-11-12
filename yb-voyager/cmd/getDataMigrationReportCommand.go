@@ -16,7 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/fatih/color"
@@ -137,6 +139,9 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
+	if dbzmStatus == nil {
+		return
+	}
 	dbzmNameTupToRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
 
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
@@ -150,6 +155,9 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if source.DBType == POSTGRESQL {
 		exportSnapshotStatus, err = exportSnapshotStatusFile.Read()
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return
+			}
 			utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 		}
 		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(exportSnapshotStatus)

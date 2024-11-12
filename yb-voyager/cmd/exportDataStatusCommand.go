@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -183,6 +184,7 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 		partitions := leafPartitions[finalFullTableName.ForOutput()]
 		//Changing the display of the partition tables in case table-list is set because there can be case where user has passed a subset of leaft tables in the list
 		if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
+			slices.Sort(partitions)
 			partitions := strings.Join(partitions, ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
 		}
@@ -207,6 +209,8 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 			if exportingLeaf > 0 {
 				finalStatus = "EXPORTING"
 			} else if not_started == len(snapshotStatus) {
+				//In case of partition tables in PG, we are clubbing the status of all leafs and then returning the status
+				//For root table we are sending NOT_STARTED and if only all leaf partitions will have NOT_STARTED else EXPORTING/DONE
 				finalStatus = "NOT-STARTED"
 			} else {
 				finalStatus = "DONE"

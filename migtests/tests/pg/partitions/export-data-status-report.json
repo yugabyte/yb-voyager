@@ -1,0 +1,37 @@
+[
+  {
+    "table_name": "customers",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "sales",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "emp",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "p1.sales_region",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "range_columns_partition_test",
+    "status": "DONE",
+    "exported_count": 6
+  },
+  {
+    "table_name": "sales_region",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "test_partitions_sequences",
+    "status": "DONE",
+    "exported_count": 1000
+  }
+]
