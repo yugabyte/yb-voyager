@@ -18,14 +18,14 @@ package issue
 
 // Types
 const (
-	ADVISORY_LOCKS = "advisory_locks"
-	SYSTEM_COLUMNS = "system_columns"
-	XML_FUNCTIONS  = "xml_functions"
+	ADVISORY_LOCKS = "ADVISORY_LOCKS"
+	SYSTEM_COLUMNS = "SYSTEM_COLUMNS"
+	XML_FUNCTIONS  = "XML_FUNCTIONS"
 )
 
 // Object types
 const (
-	TABLE_OBJECT_TYPE     = "table"
-	FUNCTION_OBJECT_TYPE  = "function"
-	DML_QUERY_OBJECT_TYPE = "dml_query"
+	TABLE_OBJECT_TYPE     = "TABLE"
+	FUNCTION_OBJECT_TYPE  = "FUNCTION"
+	DML_QUERY_OBJECT_TYPE = "DML_QUERY"
 )
