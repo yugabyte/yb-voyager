@@ -38,7 +38,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -1588,22 +1587,16 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		plPgSqlStatements, err := queryparser.GetAllPLPGSQLStatements(sqlInfoStmt.formattedStmt)
+		parserIssueDetector := queryissue.NewParserIssueDetector()
+		issues, err := parserIssueDetector.GetIssues(sqlInfoStmt.formattedStmt)
 		if err != nil {
-			log.Infof("error in parsing the PLPGSQL stmt-%s: %v", sqlInfoStmt.formattedStmt, err) //TODO: confirm
+			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
 		}
-		for _, plpgsqlStmt := range plPgSqlStatements {
-			parserIssueDetector := queryissue.NewParserIssueDetector()
-			issues, err := parserIssueDetector.GetIssues(plpgsqlStmt)
-			if err != nil {
-				log.Infof("error in getting the unsupported construct from stmt-%s: %v", plpgsqlStmt, err)
-				continue
-			}
-			for _, issueInstance := range issues {
-				issue := convertIssueInstanceToAnalyzeIssue(issueInstance, sqlInfoStmt, objType)
-				schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
-			}
+		fmt.Printf("%v" , issues)
+		for _, issueInstance := range issues {
+			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, sqlInfoStmt, objType)
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 		}
 	}
 
@@ -1767,7 +1760,7 @@ func getObjectNameWithTable(stmt string, regexObjName string) string {
 	parsedTree, err := pg_query.Parse(stmt)
 	if err != nil {
 		// in case it is not able to parse stmt as its not in PG syntax so returning the regex name
-		log.Errorf("Erroring parsing the the stmt %s - %v", stmt, err)
+		log.Errorf("Error parsing the the stmt %s - %v", stmt, err)
 		return regexObjName
 	}
 	var objectName *sqlname.ObjectName

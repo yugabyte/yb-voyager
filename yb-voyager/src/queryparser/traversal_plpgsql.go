@@ -16,54 +16,13 @@ limitations under the License.
 package queryparser
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
 	PLPGSQL_EXPR            = "PLpgSQL_expr"
-	ACTION                  = "action"
 	QUERY                   = "query"
-	PLPGSQL_FUNCTION        = "PLpgSQL_function"
 )
-
-
-func GetAllPLPGSQLStatements(query string) ([]string, error) {
-	parsedJson, err := ParsePLPGSQLToJson(query)
-	if err != nil {
-		log.Infof("error in parsing the stmt-%s to json: %v", query, err)
-		return []string{}, err
-	}
-	if parsedJson == "" {
-		return []string{}, nil
-	}
-	var parsedJsonMapList []map[string]interface{}
-	log.Debugf("parsing the json string-%s of stmt-%s", parsedJson, query)
-	err = json.Unmarshal([]byte(parsedJson), &parsedJsonMapList)
-	if err != nil {
-		return []string{}, fmt.Errorf("error parsing the json string of stmt-%s: %v", query, err)
-	}
-
-	if len(parsedJsonMapList) == 0 {
-		return []string{}, nil
-	}
-
-	parsedJsonMap := parsedJsonMapList[0]
-
-	function := parsedJsonMap[PLPGSQL_FUNCTION]
-	parsedFunctionMap, ok := function.(map[string]interface{})
-	if !ok {
-		return []string{}, nil
-	}
-
-	actions := parsedFunctionMap[ACTION]
-	var plPgSqlStatements []string
-	TraversePlPgSQLActions(actions, &plPgSqlStatements)
-	return plPgSqlStatements, nil
-}
 
 func TraversePlPgSQLActions(action interface{}, plPgSqlStatements *[]string) {
 	actionMap, ok := action.(map[string]interface{})
