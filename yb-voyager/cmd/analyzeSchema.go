@@ -1588,14 +1588,9 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		parsedJson, err := queryparser.ParsePLPGSQLToJson(sqlInfoStmt.formattedStmt)
+		plPgSqlStatements, err := queryparser.GetAllPLPGSQLStatements(sqlInfoStmt.formattedStmt)
 		if err != nil {
-			log.Infof("error in parsing the stmt-%s to json: %v", sqlInfoStmt.formattedStmt, err)
-			continue
-		}
-		plPgSqlStatements, err := queryparser.GetAllPLPGSQLStatements(sqlInfoStmt.formattedStmt, parsedJson)
-		if err != nil {
-			log.Infof("error in parsing the PLPGSQL stmt-%s: %v", sqlInfoStmt.formattedStmt, err)
+			log.Infof("error in parsing the PLPGSQL stmt-%s: %v", sqlInfoStmt.formattedStmt, err) //TODO: confirm
 			continue
 		}
 		for _, plpgsqlStmt := range plPgSqlStatements {
@@ -1605,25 +1600,46 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 				log.Infof("error in getting the unsupported construct from stmt-%s: %v", plpgsqlStmt, err)
 				continue
 			}
-			//TODO convert this unsupportedConstructInStmt to Issue and report
 			for _, issueInstance := range issues {
-				issue := convertIssueInstanceToIssue(issueInstance, fpath)
+				issue := convertIssueInstanceToAnalyzeIssue(issueInstance, sqlInfoStmt, objType)
 				schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 			}
-			// fmt.Printf("%v", unsupportedConstructsInStmt)
 		}
 	}
 
 }
 
-func convertIssueInstanceToIssue(issueInstance issue.IssueInstance, fpath string) utils.Issue {
+func getPlpgSQLObjectTemplate(objType string) string {
+	switch objType {
+	case "FUNCTION":
+		return `CREATE FUNCTION %s(...) RETURNS return_type
+LANGUAGE plpgsql AS $$ BEGIN
+...
+%s
+...
+END; $$;`
+	case "PROCEDURE":
+		return `CREATE PROCEDURE %s(...) 
+LANGUAGE plpgsql AS $$ BEGIN
+...
+%s
+...
+END; $$;`
+	}
+	return ""
+}
+
+func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, sqlInfoStmt sqlInfo, objType string) utils.Issue {
+	//TODO: confirm if this is right way to display
+	objTypePlpgSqlTemplate := getPlpgSQLObjectTemplate(objType)
+	transformedStmt := fmt.Sprintf(objTypePlpgSqlTemplate, sqlInfoStmt.objName, issueInstance.SqlStatement)
 	return utils.Issue{
-		ObjectType:   issueInstance.ObjectType,
-		ObjectName:   issueInstance.ObjectName,
+		ObjectType:   objType,
+		ObjectName:   sqlInfoStmt.objName,
 		Reason:       issueInstance.TypeName,
-		SqlStatement: issueInstance.SqlStatement,
+		SqlStatement: transformedStmt,
 		DocsLink:     issueInstance.DocsLink,
-		FilePath:     fpath,
+		FilePath:     sqlInfoStmt.fileName,
 		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,
 	}
 }
