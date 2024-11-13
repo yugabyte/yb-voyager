@@ -140,7 +140,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
 	if dbzmStatus == nil {
-		return
+		utils.ErrExit("Export data has not started yet. Try running after export has started.")
 	}
 	dbzmNameTupToRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
 
@@ -156,7 +156,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		exportSnapshotStatus, err = exportSnapshotStatusFile.Read()
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
-				return
+				utils.ErrExit("Export data has not started yet. Try running after export has started.")
 			}
 			utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 		}

@@ -73,7 +73,7 @@ var exportDataStatusCmd = &cobra.Command{
 		source = *msr.SourceDBConf
 		sqlname.SourceDBType = source.DBType
 		leafPartitions := getLeafPartitionsFromRootTable()
-		
+
 		var rows []*exportTableMigStatusOutputRow
 		if useDebezium {
 			rows, err = runExportDataStatusCmdDbzm(streamChanges, leafPartitions, msr)
@@ -124,7 +124,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool, leafPartitions map[string][]
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
 	if status == nil {
-		return nil, nil
+		utils.ErrExit("Export data has not started yet. Try running after export has started.")
 	}
 	InProgressTableSno = status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
@@ -142,14 +142,8 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartiti
 	if err != nil {
 		utils.ErrExit("lookup %s in name registry: %v", tableStatus.TableName, err)
 	}
-	displayTableName := nt.ForMinOutput()
-	partitions := leafPartitions[nt.ForOutput()]
-	//Changing the display of the partition tables in case table-list is set because there can be case where user has passed a subset of leaft tables in the list
-	if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
-		slices.Sort(partitions)
-		partitions := strings.Join(partitions, ", ")
-		displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
-	}
+	//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
+	displayTableName := getDisplayName(nt, leafPartitions[nt.ForOutput()], msr.IsExportTableListSet)
 	row := &exportTableMigStatusOutputRow{
 		TableName:     displayTableName,
 		Status:        "DONE",
@@ -165,6 +159,18 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartiti
 	return row
 }
 
+func getDisplayName(nt sqlname.NameTuple, partitions []string, isTableListSet bool) string {
+	displayTableName := nt.ForMinOutput()
+	//Changing the display of the partition tables in case table-list is set because there can be case where user has passed a subset of leaft tables in the list
+	if source.DBType == POSTGRESQL && partitions != nil {
+		slices.Sort(partitions)
+		partitions := strings.Join(partitions, ", ")
+		displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
+	}
+
+	return displayTableName
+}
+
 func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions map[string][]string) ([]*exportTableMigStatusOutputRow, error) {
 	tableList := msr.TableListExportedFromSource
 	var outputRows []*exportTableMigStatusOutputRow
@@ -173,7 +179,7 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			utils.ErrExit("Export data has not started yet. Try running after export has started.")
 		}
 		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 	}
@@ -188,14 +194,8 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 		if err != nil {
 			return nil, fmt.Errorf("lookup %s in name registry: %v", tableName, err)
 		}
-		displayTableName := finalFullTableName.ForMinOutput()
-		partitions := leafPartitions[finalFullTableName.ForOutput()]
-		//Changing the display of the partition tables in case table-list is set because there can be case where user has passed a subset of leaft tables in the list
-		if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
-			slices.Sort(partitions)
-			partitions := strings.Join(partitions, ", ")
-			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
-		}
+		//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
+		displayTableName := getDisplayName(finalFullTableName, leafPartitions[finalFullTableName.ForOutput()], msr.IsExportTableListSet)
 		snapshotStatus, ok := exportedSnapshotStatus.Get(finalFullTableName)
 		if !ok {
 			return nil, fmt.Errorf("snapshot status for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)

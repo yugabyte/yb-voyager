@@ -241,6 +241,8 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	}
 	tables := msr.TableListExportedFromSource
 	for leaf, root := range msr.SourceRenameTablesMap {
+		//Using the SQLName here to avoid creating the NameTuples manually for leafTable case as in a case partition names changes on target
+		//NameRegistry won't be able to figure out the map of source->target tuples.
 		leafTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(leaf))
 		rootTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(root))
 		leaf = leafTable.Qualified.MinQuoted
@@ -251,6 +253,7 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 		if !lo.Contains(tables, root) {
 			continue
 		}
+		//Adding a Qualified.MinQuoted to key and values which is similar to NameTuple.ForOutput();
 		leafPartitions[root] = append(leafPartitions[root], leaf)
 	}
 
@@ -291,6 +294,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				utils.ErrExit("lookup table %s in name registry : %v", key, err)
 			}
 			displayTableName := table.CurrentName.Unqualified.MinQuoted
+			//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
 			partitions := leafPartitions[table.ForOutput()]
 			if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
 				partitions := strings.Join(partitions, ", ")
