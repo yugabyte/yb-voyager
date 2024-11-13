@@ -162,7 +162,7 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartiti
 func getDisplayName(nt sqlname.NameTuple, partitions []string, isTableListSet bool) string {
 	displayTableName := nt.ForMinOutput()
 	//Changing the display of the partition tables in case table-list is set because there can be case where user has passed a subset of leaft tables in the list
-	if source.DBType == POSTGRESQL && partitions != nil {
+	if source.DBType == POSTGRESQL && partitions != nil  && isTableListSet {
 		slices.Sort(partitions)
 		partitions := strings.Join(partitions, ", ")
 		displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
