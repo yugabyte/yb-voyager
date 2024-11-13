@@ -236,11 +236,13 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
-	if !msr.IsExportTableListSet || msr.SourceDBConf.DBType != POSTGRESQL {
+	if msr.SourceDBConf.DBType != POSTGRESQL {
 		return leafPartitions
 	}
 	tables := msr.TableListExportedFromSource
 	for leaf, root := range msr.SourceRenameTablesMap {
+		//Using the SQLName here to avoid creating the NameTuples manually for leafTable case as in a case partition names changes on target
+		//NameRegistry won't be able to figure out the map of source->target tuples.
 		leafTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(leaf))
 		rootTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(root))
 		leaf = leafTable.Qualified.MinQuoted
@@ -251,6 +253,7 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 		if !lo.Contains(tables, root) {
 			continue
 		}
+		//Adding a Qualified.MinQuoted to key and values which is similar to NameTuple.ForOutput();
 		leafPartitions[root] = append(leafPartitions[root], leaf)
 	}
 
@@ -268,6 +271,10 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
 	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
@@ -287,8 +294,9 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				utils.ErrExit("lookup table %s in name registry : %v", key, err)
 			}
 			displayTableName := table.CurrentName.Unqualified.MinQuoted
+			//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
 			partitions := leafPartitions[table.ForOutput()]
-			if source.DBType == POSTGRESQL && partitions != nil {
+			if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
 				partitions := strings.Join(partitions, ", ")
 				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
 			}
@@ -351,21 +359,6 @@ func renameDatafileDescriptor(exportDir string) {
 		}
 	}
 	datafileDescriptor.Save()
-}
-
-func renameExportSnapshotStatus(exportSnapshotStatusFile *jsonfile.JsonFile[ExportSnapshotStatus]) error {
-	err := exportSnapshotStatusFile.Update(func(exportSnapshotStatus *ExportSnapshotStatus) {
-		for i, tableStatus := range exportSnapshotStatus.Tables {
-			renamedTable, isRenamed := renameTableIfRequired(tableStatus.TableName)
-			if isRenamed {
-				exportSnapshotStatus.Tables[i].TableName = renamedTable
-			}
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("update export snapshot status: %w", err)
-	}
-	return nil
 }
 
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
@@ -898,10 +891,6 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	for _, tableStatus := range exportSnapshotStatus.Tables {
-		if tableStatus.FileName == "" {
-			//in case of root table as well in the tablelist during export an entry with empty file name is there
-			continue
-		}
 		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
