@@ -202,7 +202,6 @@ CREATE INDEX idx7 on public.combined_tbl (address);
 
 CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
 
-
 CREATE OR REPLACE FUNCTION public.check_sales_region()
 RETURNS TRIGGER AS $$
 BEGIN

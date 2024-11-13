@@ -228,7 +228,7 @@ const (
 	EXCLUSION_CONSTRAINT_ISSUE                     = "Exclusion constraint is not supported yet"
 	ALTER_TABLE_DISABLE_RULE_ISSUE                 = "ALTER TABLE name DISABLE RULE not supported yet"
 	STORAGE_PARAMETERS_DDL_STMT_ISSUE              = "Storage parameters are not supported yet."
-	ALTER_TABLE_SET_ATTRUBUTE_ISSUE                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
+	ALTER_TABLE_SET_ATTRIBUTE_ISSUE                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
 	FOREIGN_TABLE_ISSUE_REASON                     = "Foreign tables require manual intervention."
 	ALTER_TABLE_CLUSTER_ON_ISSUE                   = "ALTER TABLE CLUSTER not supported yet."
 	DEFERRABLE_CONSTRAINT_ISSUE                    = "DEFERRABLE constraints not supported yet"
@@ -283,6 +283,10 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 	var schemaSummary utils.SchemaSummary
 
+	schemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION
+	if sourceDBConf.DBType == ORACLE {
+		schemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION_ORACLE
+	}
 	if !tconf.ImportMode && sourceDBConf != nil { // this info is available only if we are exporting from source
 		schemaSummary.DBName = sourceDBConf.DBName
 		schemaSummary.SchemaNames = strings.Split(sourceDBConf.Schema, "|")
@@ -1254,7 +1258,7 @@ func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlS
 	*/
 	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_SetOptions &&
 		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList().GetItems()) > 0 {
-		reportCase(fpath, ALTER_TABLE_SET_ATTRUBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
+		reportCase(fpath, ALTER_TABLE_SET_ATTRIBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
 			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
 	}
 

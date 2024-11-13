@@ -814,8 +814,8 @@ normalize_json() {
     local output_file="$2"
     local temp_file="/tmp/temp_file.json"
 
-    # Normalize JSON with jq
-    jq 'walk(
+    # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
+    jq --sort-keys 'walk(
         if type == "object" then
             .ObjectNames? |= (if type == "string" then split(", ") | sort | join(", ") else . end) |
             .VoyagerVersion? = "IGNORED" |

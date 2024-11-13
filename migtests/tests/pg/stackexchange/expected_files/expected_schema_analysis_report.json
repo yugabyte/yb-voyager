@@ -2,6 +2,7 @@
     "VoyagerVersion": "IGNORED",
     "MigrationComplexity": "MEDIUM",
     "Summary": {
+        "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "test_stackex",
         "SchemaNames": [
             "public"
@@ -11,16 +12,19 @@
             {
                 "ObjectType": "SCHEMA",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "public"
             },
             {
                 "ObjectType": "EXTENSION",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "tsm_system_rows"
             },
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 21,
+                "InvalidCount": 0,
                 "ObjectNames": "public.allposttags, public.posts, public.badges, public.closeasofftopicreasontypes, public.closereasontypes, public.comments, public.flagtypes, public.posthistory, public.posthistorytypes, public.postlinks, public.postlinktypes, public.posttags, public.posttypes, public.questionanswer, public.reviewtaskresulttype, public.reviewtasktypes, public.tags, public.users, public.usertagqa, public.votes, public.votetypes"
             },
             {
@@ -32,6 +36,7 @@
             {
                 "ObjectType": "VIEW",
                 "TotalCount": 2,
+                "InvalidCount": 0,
                 "ObjectNames": "public.answers, public.questions"
             }
         ]

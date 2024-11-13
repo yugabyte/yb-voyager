@@ -12,32 +12,38 @@
 			{
 				"ObjectType": "SCHEMA",
 				"TotalCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "public"
 			},
 			{
 				"ObjectType": "EXTENSION",
 				"TotalCount": 4,
+				"InvalidCount": 0,
 				"ObjectNames": "btree_gist, dblink, hstore, \"uuid-ossp\""
 			},
 			{
 				"ObjectType": "DOMAIN",
 				"TotalCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "public.currency"
 			},
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 9,
+				"InvalidCount": 2,
 				"ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
 			},
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 2,
+				"InvalidCount": 0,
 				"ObjectNames": "reports_attrs_idx ON public.reports, reports_report_idx ON public.reports",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "report_tsv_update ON public.reports"
 			}
 		]

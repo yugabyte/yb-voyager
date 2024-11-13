@@ -17,11 +17,14 @@ func TestFuncCallDetector(t *testing.T) {
 	advisoryLockSqls := []string{
 		`SELECT pg_advisory_lock(100), COUNT(*) FROM cars;`,
 		`SELECT pg_advisory_lock_shared(100), COUNT(*) FROM cars;`,
+		`SELECT pg_advisory_unlock_shared(100);`,
 		`SELECT * FROM (SELECT pg_advisory_xact_lock(200)) AS lock_acquired;`,
 		`SELECT * FROM (SELECT pg_advisory_xact_lock_shared(200)) AS lock_acquired;`,
 		`SELECT id, first_name FROM employees WHERE pg_try_advisory_lock(300) IS TRUE;`,
 		`SELECT id, first_name FROM employees WHERE salary > 400 AND EXISTS (SELECT 1 FROM pg_advisory_lock(500));`,
 		`SELECT id, first_name FROM employees WHERE pg_try_advisory_lock(600) IS TRUE AND salary > 700;`,
+		`SELECT pg_try_advisory_lock_shared(1234, 100);`,
+		`SELECT pg_try_advisory_xact_lock_shared(1,2);`,
 		`WITH lock_cte AS (
             SELECT pg_advisory_lock(1000) AS lock_acquired
         )
@@ -56,6 +59,7 @@ func TestFuncCallDetector(t *testing.T) {
         FROM employees e
         JOIN lock_cte ON TRUE
         WHERE pg_advisory_unlock(500) = TRUE;`,
+		`SELECT pg_advisory_unlock_all();`,
 	}
 
 	detector := NewFuncCallDetector()
@@ -91,6 +95,12 @@ func TestColumnRefDetector(t *testing.T) {
 		`SELECT * FROM (SELECT xmin, xmax FROM employees) AS version_info;`,
 		`SELECT * FROM employees WHERE xmin = 200;`,
 		`SELECT * FROM employees WHERE 1 = 1 AND xmax = 300;`,
+		`SELECT cmin
+		FROM employees;`,
+		`SELECT cmax
+		FROM employees;`,
+		`SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+		FROM employees;`,
 		`WITH versioned_employees AS (
             SELECT *, xmin, xmax
             FROM employees
@@ -232,6 +242,34 @@ WHERE id = 2;`,
 		`SELECT xml_is_well_formed(xmltext('<employee><name>Jane Doe</name></employee>')) AS is_well_formed
 FROM employees
 WHERE id = 1;`,
+		`SELECT xmlparse(DOCUMENT '<employee><name>John</name></employee>');`,
+		`SELECT xpath_exists('/employee/name', '<employee><name>John</name></employee>'::xml)`,
+		`SELECT table_to_xml('employees', TRUE, FALSE, '');`,
+		`SELECT query_to_xml('SELECT * FROM employees', TRUE, FALSE, '');`,
+		`SELECT schema_to_xml('public', TRUE, FALSE, '');`,
+		`SELECT database_to_xml(TRUE, TRUE, '');`,
+		`SELECT query_to_xmlschema('SELECT * FROM employees', TRUE, FALSE, '');`,
+		`SELECT table_to_xmlschema('employees', TRUE, FALSE, '');`,
+		`SELECT xmlconcat('<root><tag1>value1</tag1></root>'::xml, '<tag2>value2</tag2>'::xml);`,
+		`SELECT xmlcomment('Sample XML comment');`,
+		`SELECT xmlpi(name php, 'echo "hello world";');`,
+		`SELECT xmlroot('<root><child>content</child></root>', VERSION '1.0');`,
+		`SELECT xmlagg('<item>content</item>');`,
+		`SELECT xmlexists('//some/path' PASSING BY REF '<root><some><path/></some></root>');`,
+		`SELECT table_to_xml_and_xmlschema('public', 'employees', true, false, '');`,
+		`SELECT * FROM cursor_to_xmlschema('foo_cursor', false, true,'');`,
+		`SELECT * FROM cursor_to_xml('foo_cursor', 1, false, false,'');`,
+		`SELECT query_to_xml_and_xmlschema('SELECT * FROM employees', true, false, '');`,
+		`SELECT schema_to_xmlschema('public', true, false, '');`,
+		`SELECT schema_to_xml_and_xmlschema('public', true, false, '');`,
+		`SELECT database_to_xmlschema(true, false, '');`,
+		`SELECT database_to_xml_and_xmlschema(true, false, '');`,
+		`SELECT xmlconcat2('<element>Content</element>', '<additional>More Content</additional>');`,
+		`SELECT xmlvalidate('<root><valid>content</valid></root>');`,
+		`SELECT xml_in('<root><data>input</data></root>');`,
+		`SELECT xml_out('<root><data>output</data></root>');`,
+		`SELECT xml_recv('');`,
+		`SELECT xml_send('<root><data>send</data></root>');`,
 	}
 
 	detectors := []UnsupportedConstructDetector{

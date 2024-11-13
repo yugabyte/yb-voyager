@@ -51,6 +51,7 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 	}
 	sconf := msr.SourceDBConf
 	tconf.TargetDBType = sconf.DBType
+	tconf.EnableYBAdaptiveParallelism = false
 	if tconf.TargetDBType == POSTGRESQL {
 		if cmd.Flags().Lookup("source-replica-db-schema").Changed {
 			utils.ErrExit("cannot specify --source-replica-db-schema for PostgreSQL source")

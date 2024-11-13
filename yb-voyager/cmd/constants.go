@@ -102,7 +102,6 @@ const (
 	UNSUPPORTED_FEATURES                = "unsupported_features"
 	UNSUPPORTED_DATATYPES               = "unsupported_datatypes"
 	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
-	MIGRATION_CAVEATS                   = "migration_caveats"
 
 	HTML = "html"
 	JSON = "json"
@@ -161,12 +160,28 @@ const (
 	XID_DATATYPE_DOC_LINK                         = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported"
 	UNSUPPORTED_DATATYPES_DOC_LINK                = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration"
+	// temporary, till unsupported datatype documentation is shifted to known issues for Oracle
+	UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE = "https://docs.yugabyte.com/preview/yugabyte-voyager/reference/datatype-mapping-oracle"
 )
 
 /*
 List of all the features we are reporting as part of Unsupported features and Migration caveats
 */
 const (
+	// Types for AssessmentIssue
+	FEATURE           = "feature"
+	DATATYPE          = "datatype"
+	QUERY_CONSTRUCT   = "query_construct" // confused: in json for some values we are using space separated and for some snake_case
+	MIGRATION_CAVEATS = "migration_caveats"
+
+	// Description
+	FEATURE_ISSUE_TYPE_DESCRIPTION          = "Features of the source database that are not supported on the target YugabyteDB."
+	DATATYPE_ISSUE_TYPE_DESCRIPTION         = "Data types of the source database that are not supported on the target YugabyteDB."
+	MIGRATION_CAVEATS_TYPE_DESCRIPTION      = "Migration Caveats highlights the current limitations with the migration workflow."
+	UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION = "Source database queries not supported in YugabyteDB, identified by scanning system tables."
+	SCHEMA_SUMMARY_DESCRIPTION              = "Objects that will be created on the target YugabyteDB."
+	SCHEMA_SUMMARY_DESCRIPTION_ORACLE       = SCHEMA_SUMMARY_DESCRIPTION + " Some of the index and sequence names might be different from those in the source database."
+
 	//Unsupported Features
 
 	//Oracle

@@ -397,19 +397,15 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
-		if tconf.EnableYBAdaptiveParallelism {
-			if tconf.Parallelism > 0 {
-				utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism flag")
-			}
+	if tconf.EnableYBAdaptiveParallelism {
+		if tconf.Parallelism > 0 {
+			utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism true. If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --enable-adaptive-parallelism false")
 		}
-		if tconf.MaxParallelism > 0 {
-			if !tconf.EnableYBAdaptiveParallelism {
-				utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
-			}
-		}
-	} else {
-		// not relevant for source-replica and source
-		tconf.EnableYBAdaptiveParallelism = false
 	}
+	if tconf.MaxParallelism > 0 {
+		if !tconf.EnableYBAdaptiveParallelism {
+			utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+		}
+	}
+
 }
