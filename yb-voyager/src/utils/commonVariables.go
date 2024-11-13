@@ -124,8 +124,7 @@ type TableColumnsDataTypes struct {
 }
 
 type UnsupportedQueryConstruct struct {
-	ConstructType     string
-	ConstructTypeName string `json:"-"`
+	ConstructTypeName string
 	Query             string
 	DocsLink          string
 }

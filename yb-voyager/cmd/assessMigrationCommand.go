@@ -143,7 +143,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	})
 
 	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
-		return q.ConstructType
+		return q.ConstructTypeName
 	})
 	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
 		return len(constructs)
@@ -518,7 +518,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 		issues = append(issues, AssessmentIssuePayload{
 			Type:            QUERY_CONSTRUCT,
 			TypeDescription: UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
-			Subtype:         uqc.ConstructType,
+			Subtype:         uqc.ConstructTypeName,
 			SqlStatement:    uqc.Query,
 			DocsLink:        uqc.DocsLink,
 		})
@@ -1032,7 +1032,6 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		for _, issue := range issues {
 			uqc := utils.UnsupportedQueryConstruct{
 				Query:             issue.SqlStatement,
-				ConstructType:     issue.Type,
 				ConstructTypeName: issue.TypeName,
 				DocsLink:          issue.DocsLink,
 			}
@@ -1044,7 +1043,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	// sort the slice to group same constructType in html and json reports
 	log.Infof("sorting the result slice based on construct type")
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].ConstructType <= result[j].ConstructType
+		return result[i].ConstructTypeName <= result[j].ConstructTypeName
 	})
 	return result, nil
 }
