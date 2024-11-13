@@ -22,7 +22,7 @@ var advisoryLocksIssue = Issue{
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
-	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks",
+	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
 }
 
 func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
@@ -35,7 +35,7 @@ var systemColumnsIssue = Issue{
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
-	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns",
+	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
 func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
@@ -48,7 +48,7 @@ var xmlFunctionsIssue = Issue{
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
-	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions",
+	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
 }
 
 func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
