@@ -40,7 +40,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -143,7 +143,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	})
 
 	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
-		return q.ConstructType
+		return q.ConstructTypeName
 	})
 	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
 		return len(constructs)
@@ -518,7 +518,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 		issues = append(issues, AssessmentIssuePayload{
 			Type:            QUERY_CONSTRUCT,
 			TypeDescription: UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
-			Subtype:         uqc.ConstructType,
+			Subtype:         uqc.ConstructTypeName,
 			SqlStatement:    uqc.Query,
 			DocsLink:        uqc.DocsLink,
 		})
@@ -836,14 +836,9 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	schemaAnalysisReport := analyzeSchemaInternal(&source)
 	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
-	assessmentReport.SchemaSummary.Description = "Objects that will be created on the target YugabyteDB."
+	assessmentReport.SchemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION
 	if source.DBType == ORACLE {
-		assessmentReport.SchemaSummary.Description += " Some of the index and sequence names might be different from those in the source database."
-	}
-
-	// set invalidCount to zero so that it doesn't show up in the report
-	for i := 0; i < len(assessmentReport.SchemaSummary.DBObjects); i++ {
-		assessmentReport.SchemaSummary.DBObjects[i].InvalidCount = 0
+		assessmentReport.SchemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION_ORACLE
 	}
 
 	// fetching unsupportedFeaturing with the help of Issues report in SchemaReport
@@ -995,6 +990,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	if source.DBType != POSTGRESQL {
 		return nil, nil
 	}
+	parserIssueDetector := queryissue.NewParserIssueDetector()
 	query := fmt.Sprintf("SELECT DISTINCT query from %s", migassessment.DB_QUERIES_SUMMARY)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
@@ -1026,26 +1022,28 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
-		queryParser := queryparser.New(query)
-		err := queryParser.Parse()
+
+		issues, err := parserIssueDetector.GetIssues(query)
 		if err != nil {
-			log.Errorf("failed to parse query - [%s]: %v", query, err)
+			log.Errorf("failed while trying to fetch query issues in query - [%s]: %v",
+				query, err)
 		}
 
-		unsupportedConstructs, err := queryParser.GetUnsupportedQueryConstructs()
-		if err != nil {
-			log.Errorf("failed while trying to fetch unsupported constructs from parse tree of query - [%s]: %s",
-				query, err.Error())
+		for _, issue := range issues {
+			uqc := utils.UnsupportedQueryConstruct{
+				Query:             issue.SqlStatement,
+				ConstructTypeName: issue.TypeName,
+				DocsLink:          issue.DocsLink,
+			}
+			result = append(result, uqc)
 		}
-		if unsupportedConstructs != nil {
-			result = append(result, unsupportedConstructs...)
-		}
+
 	}
 
 	// sort the slice to group same constructType in html and json reports
 	log.Infof("sorting the result slice based on construct type")
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].ConstructType <= result[j].ConstructType
+		return result[i].ConstructTypeName <= result[j].ConstructTypeName
 	})
 	return result, nil
 }

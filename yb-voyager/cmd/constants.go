@@ -180,6 +180,8 @@ const (
 	DATATYPE_ISSUE_TYPE_DESCRIPTION         = "Data types of the source database that are not supported on the target YugabyteDB."
 	MIGRATION_CAVEATS_TYPE_DESCRIPTION      = "Migration Caveats highlights the current limitations with the migration workflow."
 	UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION = "Source database queries not supported in YugabyteDB, identified by scanning system tables."
+	SCHEMA_SUMMARY_DESCRIPTION              = "Objects that will be created on the target YugabyteDB."
+	SCHEMA_SUMMARY_DESCRIPTION_ORACLE       = SCHEMA_SUMMARY_DESCRIPTION + " Some of the index and sequence names might be different from those in the source database."
 
 	//Unsupported Features
 

@@ -8,6 +8,15 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+const (
+	PG_QUERY_NODE_NODE      = "pg_query.Node"
+	PG_QUERY_STRING_NODE    = "pg_query.String"
+	PG_QUERY_ASTAR_NODE     = "pg_query.A_Star"
+	PG_QUERY_XMLEXPR_NODE   = "pg_query.XmlExpr"
+	PG_QUERY_FUNCCALL_NODE  = "pg_query.FuncCall"
+	PG_QUERY_COLUMNREF_NODE = "pg_query.ColumnRef"
+)
+
 // function type for processing nodes during traversal
 type NodeProcessor func(msg protoreflect.Message) error
 

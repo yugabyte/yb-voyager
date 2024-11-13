@@ -12,22 +12,26 @@
 			{
 				"ObjectType": "SEQUENCE",
 				"TotalCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "simple_log_seq"
 			},
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 27,
+				"InvalidCount": 2,
 				"ObjectNames": "clob_table, simple_cars_table, simple_log, dept, iot_table, sales, departments_p1, departments_p2, departments, func_based_table, bfile_table, xml_table, \", rev_table, nclob_table, sales_bitmap_idx_table, departments_p3, simple_car_type, blob_table, func_rev_table, text_table, customers, emp, employees2, generated_column_table, orders, simple_table"
 			},
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 3,
+				"InvalidCount": 0,
 				"ObjectNames": "sales_bitmap_idx_table_product_id ON sales_bitmap_idx_table, func_based_table_data ON func_based_table, orders_customer_id ON orders",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 1,
+				"InvalidCount": 1,
 				"ObjectNames": "trg_simple_insert"
 			}
 		]

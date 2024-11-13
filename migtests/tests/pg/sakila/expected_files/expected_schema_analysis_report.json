@@ -2,6 +2,7 @@
     "VoyagerVersion": "IGNORED",
     "MigrationComplexity": "HIGH",
     "Summary": {
+        "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_sakila",
         "SchemaNames": [
             "public"
@@ -11,21 +12,25 @@
             {
                 "ObjectType": "SCHEMA",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "public"
             },
             {
                 "ObjectType": "TYPE",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "public.mpaa_rating"
             },
             {
                 "ObjectType": "DOMAIN",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "public.year"
             },
             {
                 "ObjectType": "SEQUENCE",
                 "TotalCount": 13,
+                "InvalidCount": 0,
                 "ObjectNames": "public.customer_customer_id_seq, public.actor_actor_id_seq, public.category_category_id_seq, public.film_film_id_seq, public.address_address_id_seq, public.city_city_id_seq, public.country_country_id_seq, public.inventory_inventory_id_seq, public.language_language_id_seq, public.payment_payment_id_seq, public.rental_rental_id_seq, public.staff_staff_id_seq, public.store_store_id_seq"
             },
             {
@@ -43,26 +48,31 @@
             {
                 "ObjectType": "FUNCTION",
                 "TotalCount": 9,
+                "InvalidCount": 0,
                 "ObjectNames": "public._group_concat, public.film_in_stock, public.film_not_in_stock, public.get_customer_balance, public.inventory_held_by_customer, public.inventory_in_stock, public.last_day, public.last_updated, public.rewards_report"
             },
             {
                 "ObjectType": "AGGREGATE",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "public.group_concat"
             },
             {
                 "ObjectType": "VIEW",
                 "TotalCount": 7,
+                "InvalidCount": 0,
                 "ObjectNames": "public.actor_info, public.customer_list, public.film_list, public.nicer_but_slower_film_list, public.sales_by_film_category, public.sales_by_store, public.staff_list"
             },
             {
                 "ObjectType": "TRIGGER",
                 "TotalCount": 15,
+                "InvalidCount": 0,
                 "ObjectNames": "film_fulltext_trigger ON public.film, last_updated ON public.actor, last_updated ON public.address, last_updated ON public.category, last_updated ON public.city, last_updated ON public.country, last_updated ON public.customer, last_updated ON public.film, last_updated ON public.film_actor, last_updated ON public.film_category, last_updated ON public.inventory, last_updated ON public.language, last_updated ON public.rental, last_updated ON public.staff, last_updated ON public.store"
             },
             {
                 "ObjectType": "RULE",
                 "TotalCount": 6,
+                "InvalidCount": 0,
                 "ObjectNames": "payment_insert_p2007_01, payment_insert_p2007_02, payment_insert_p2007_03, payment_insert_p2007_04, payment_insert_p2007_05, payment_insert_p2007_06"
             }
         ]

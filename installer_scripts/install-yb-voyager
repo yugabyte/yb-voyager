@@ -858,16 +858,15 @@ create_guardrail_scripts_dir() {
 	scripts_parent_dir="/opt/yb-voyager"
 	scripts_dir_name="guardrails-scripts"
 	sudo mkdir -p $scripts_parent_dir/$scripts_dir_name
-	YB_VOYAGER_GIT_HASH_TEMP="512c53a3cd3f111b7e2c35c5dbb0c36e0c3280d1"
 
 	output "Installing the guardrails scripts"
 	if [ "${VERSION}" == "latest" ]
 	then
-		TAR_URL="https://github.com/yugabyte/yb-voyager/archive/$YB_VOYAGER_GIT_HASH_TEMP.tar.gz"
+		TAR_URL="https://github.com/yugabyte/yb-voyager/archive/$YB_VOYAGER_GIT_HASH.tar.gz"
 		sudo wget -nv -O /tmp/yb-voyager.tar.gz $TAR_URL
 		sudo tar -xzf /tmp/yb-voyager.tar.gz -C /tmp 1>&2
-		sudo cp -r /tmp/yb-voyager-$YB_VOYAGER_GIT_HASH_TEMP/guardrails-scripts/* $scripts_parent_dir/$scripts_dir_name 1>&2
-		sudo rm -rf /tmp/yb-voyager-$YB_VOYAGER_GIT_HASH_TEMP
+		sudo cp -r /tmp/yb-voyager-$YB_VOYAGER_GIT_HASH/guardrails-scripts/* $scripts_parent_dir/$scripts_dir_name 1>&2
+		sudo rm -rf /tmp/yb-voyager-$YB_VOYAGER_GIT_HASH
 		sudo rm /tmp/yb-voyager.tar.gz
 	else
 		pushd $REPO_ROOT > /dev/null

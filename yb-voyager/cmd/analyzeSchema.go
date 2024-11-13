@@ -35,7 +35,9 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -284,6 +286,10 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 	var schemaSummary utils.SchemaSummary
 
+	schemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION
+	if sourceDBConf.DBType == ORACLE {
+		schemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION_ORACLE
+	}
 	if !tconf.ImportMode && sourceDBConf != nil { // this info is available only if we are exporting from source
 		schemaSummary.DBName = sourceDBConf.DBName
 		schemaSummary.SchemaNames = strings.Split(sourceDBConf.Schema, "|")
@@ -1582,32 +1588,26 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		queryParser := queryparser.New(sqlInfoStmt.formattedStmt)
-		err := queryParser.ParsePLPGSQLToJson()
+		parsedJson, err := queryparser.ParsePLPGSQLToJson(sqlInfoStmt.formattedStmt)
 		if err != nil {
 			log.Infof("error in parsing the stmt-%s to json: %v", sqlInfoStmt.formattedStmt, err)
 			continue
 		}
-		plPgSqlStatements, err := queryParser.GetAllPLPGSQLStatements() 
+		plPgSqlStatements, err := queryparser.GetAllPLPGSQLStatements(sqlInfoStmt.formattedStmt, parsedJson)
 		if err != nil {
 			log.Infof("error in parsing the PLPGSQL stmt-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
 		}
 		for _, plpgsqlStmt := range plPgSqlStatements {
-			queryParser = queryparser.New(plpgsqlStmt)
-			err := queryParser.Parse()
-			if err != nil {
-				log.Infof("error in parsing the PLPGSQL stmt-%s of object-%s", plpgsqlStmt, err)
-				continue
-			}
-			unsupportedConstructsInStmt, err := queryParser.GetUnsupportedQueryConstructs()
+			parserIssueDetector := queryissue.NewParserIssueDetector()
+			issues, err := parserIssueDetector.GetIssues(plpgsqlStmt)
 			if err != nil {
 				log.Infof("error in getting the unsupported construct from stmt-%s: %v", plpgsqlStmt, err)
 				continue
 			}
 			//TODO convert this unsupportedConstructInStmt to Issue and report
-			for _, construct := range unsupportedConstructsInStmt {
-				issue := convertUnsupportedConstructToIssue(construct, sqlInfoStmt,  objType)
+			for _, issueInstance := range issues {
+				issue := convertIssueInstanceToIssue(issueInstance, fpath)
 				schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 			}
 			// fmt.Printf("%v", unsupportedConstructsInStmt)
@@ -1616,15 +1616,15 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 
 }
 
-func convertUnsupportedConstructToIssue(construct utils.UnsupportedQueryConstruct, sqlInfoStmt sqlInfo, objType string) utils.Issue {
+func convertIssueInstanceToIssue(issueInstance issue.IssueInstance, fpath string) utils.Issue {
 	return utils.Issue{
-		ObjectType: objType,
-		ObjectName: sqlInfoStmt.objName,
-		Reason: construct.ConstructType,
-		SqlStatement: construct.Query,
-		DocsLink: construct.DocsLink,
-		FilePath: sqlInfoStmt.fileName,
-		IssueType: UNSUPPORTED_PLPGSQL_OBEJCTS,
+		ObjectType:   issueInstance.ObjectType,
+		ObjectName:   issueInstance.ObjectName,
+		Reason:       issueInstance.TypeName,
+		SqlStatement: issueInstance.SqlStatement,
+		DocsLink:     issueInstance.DocsLink,
+		FilePath:     fpath,
+		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,
 	}
 }
 
