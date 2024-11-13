@@ -124,7 +124,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool, leafPartitions map[string][]
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
 	if status == nil {
-		utils.ErrExit("Export data has not started yet. Try running after export has started.")
+		return nil, fmt.Errorf("export data has not started yet. Try running after export has started")
 	}
 	InProgressTableSno = status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
@@ -179,7 +179,7 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			utils.ErrExit("Export data has not started yet. Try running after export has started.")
+			return nil, fmt.Errorf("export data has not started yet. Try running after export has started")
 		}
 		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 	}
