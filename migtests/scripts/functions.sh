@@ -532,37 +532,38 @@ get_data_migration_report(){
 }
 
 verify_report() {
-	expected_report=$1
-	actual_report=$2
-	if [ -f "${actual_report}" ]
-	then
-		echo "Printing ${actual_report} file"
-		cat "${actual_report}"
-		 # Parse JSON data
-        actual_data=$(jq -c '.' "${actual_report}")
+    expected_report=$1
+    actual_report=$2
+
+    if [ -f "${actual_report}" ]; then        
+        # Parse and sort JSON data
+        actual_data=$(jq -c '.' "${actual_report}" | jq -S 'sort_by(.table_name)')
         
-        if [ -f "${expected_report}" ]
-        then
-            expected_data=$(jq -c '.' "${expected_report}")
+        if [ -f "${expected_report}" ]; then
+            expected_data=$(jq -c '.' "${expected_report}" | jq -S 'sort_by(.table_name)')
             
-            # Compare data
-			actual_data=$(echo $actual_data | jq -S 'sort_by(.table_name)')
-			expected_data=$(echo $expected_data | jq -S 'sort_by(.table_name)')
-            if [ "$actual_data" == "$expected_data" ]
-            then
-                echo "Data matches expected report."
-            else
-                echo "Data does not match expected report."
-				exit 1
+            # Save the sorted JSON data to temporary files
+            temp_actual=$(mktemp)
+            temp_expected=$(mktemp)
+            echo "$actual_data" > "$temp_actual"
+            echo "$expected_data" > "$temp_expected"
+
+            compare_files "$temp_actual" "$temp_expected"
+            
+            # Clean up temporary files
+            rm "$temp_actual" "$temp_expected"
+            
+            # If files do not match, exit
+            if [ $? -ne 0 ]; then
+                exit 1
             fi
         else
             echo "No ${expected_report} found."
-			# exit 1 
         fi
-	else
-		echo "No ${actual_report} found."
-		exit 1
-	fi
+    else
+        echo "No ${actual_report} found."
+        exit 1
+    fi
 }
 
 
@@ -681,12 +682,83 @@ setup_fallback_environment() {
 		elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
 		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+
+		disable_triggers_sql=$(mktemp)
+        drop_constraints_sql=$(mktemp)
+		formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g")
+
+		cat <<EOF > "${disable_triggers_sql}"
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, '"' || table_name || '"' AS t_name
+        FROM information_schema.tables
+        WHERE table_type = 'BASE TABLE'
+        AND table_schema IN ('${formatted_schema_list}')
+    LOOP
+        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' DISABLE TRIGGER ALL';
+    END LOOP;
+END \$\$;
+EOF
+
+        # Populate the SQL file for dropping referential constraints
+        cat <<EOF > "${drop_constraints_sql}"
+DO \$\$
+DECLARE
+    fk RECORD;
+BEGIN
+    FOR fk IN
+        SELECT conname, conrelid::regclass AS table_name
+        FROM pg_constraint
+        JOIN pg_class ON conrelid = pg_class.oid
+        JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+        WHERE contype = 'f'
+        AND pg_namespace.nspname IN ('${formatted_schema_list}')
+    LOOP
+        EXECUTE 'ALTER TABLE ' || fk.table_name || ' DROP CONSTRAINT ' || fk.conname;
+    END LOOP;
+END \$\$;
+EOF
+
+        # Run the SQL files
+        psql_import_file "${SOURCE_DB_NAME}" "${disable_triggers_sql}"
+        psql_import_file "${SOURCE_DB_NAME}" "${drop_constraints_sql}"
+
+        # Clean up temporary files
+        rm -f "${disable_triggers_sql}" "${drop_constraints_sql}"
+
 		# cat > alter_user_superuser.sql <<EOF
     	# ALTER ROLE ybvoyager WITH SUPERUSER;
 # EOF
     # run_psql ${SOURCE_DB_NAME} "$(cat alter_user_superuser.sql)"
 	fi
 
+}
+
+reenable_triggers_fkeys() {
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		enable_triggers_sql=$(mktemp)
+		formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g")
+
+		cat <<EOF > "${enable_triggers_sql}"
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, '"' || table_name || '"' AS t_name
+        FROM information_schema.tables
+        WHERE table_type = 'BASE TABLE'
+        AND table_schema IN ('${formatted_schema_list}')
+    LOOP
+        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' ENABLE TRIGGER ALL';
+    END LOOP;
+END \$\$;
+EOF
+		psql_import_file "${SOURCE_DB_NAME}" "${enable_triggers_sql}"
+	fi
 }
 
 assess_migration() {
