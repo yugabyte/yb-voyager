@@ -687,6 +687,7 @@ setup_fallback_environment() {
         drop_constraints_sql=$(mktemp)
 		formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g")
 
+		# Disabling Triggers
 		cat <<EOF > "${disable_triggers_sql}"
 DO \$\$
 DECLARE
@@ -703,7 +704,7 @@ BEGIN
 END \$\$;
 EOF
 
-        # Populate the SQL file for dropping referential constraints
+        # Dropping Fkeys
         cat <<EOF > "${drop_constraints_sql}"
 DO \$\$
 DECLARE
@@ -722,19 +723,11 @@ BEGIN
 END \$\$;
 EOF
 
-        # Run the SQL files
         psql_import_file "${SOURCE_DB_NAME}" "${disable_triggers_sql}"
         psql_import_file "${SOURCE_DB_NAME}" "${drop_constraints_sql}"
 
-        # Clean up temporary files
         rm -f "${disable_triggers_sql}" "${drop_constraints_sql}"
-
-		# cat > alter_user_superuser.sql <<EOF
-    	# ALTER ROLE ybvoyager WITH SUPERUSER;
-# EOF
-    # run_psql ${SOURCE_DB_NAME} "$(cat alter_user_superuser.sql)"
 	fi
-
 }
 
 reenable_triggers_fkeys() {
