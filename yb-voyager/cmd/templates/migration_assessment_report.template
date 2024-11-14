@@ -59,6 +59,16 @@
         .list_item {
             margin-bottom: 15px;
         }
+        pre {
+            width: 100%; /* Ensure the pre/code content takes full width of the container */
+            word-wrap: break-word; /* Break long lines into multiple lines */
+            overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
+            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
+            word-break: break-all; /* Prevents long words from overflowing */
+            margin: 0; /* Remove default margins */
+            padding: 0; /* Remove default padding */
+            font-family: monospace; /* Optional: ensure a monospaced font */
+        }
 
     </style>
 </head>
@@ -280,6 +290,50 @@
             </table>
         {{ else }}
             <p>No unsupported query constructs found in the source database for target YugabyteDB.</p>
+        {{ end }}
+
+        <h2>Unsupported PL/pgSQL objects</h2>
+        {{ if .UnsupportedPlPgSqlObjects}}
+            <p>Source schema objects having unsupported statements in PLPGSQL code block: </p>
+            <table>
+                <tr>
+                    <th>Feature Name</th>
+                    <th>Object type</th>
+                    <th>Statement</th>
+                    <th>Details</th>
+                </tr>
+               {{ range  .UnsupportedPlPgSqlObjects }}
+                <!-- Feature Row with rowspan for grouping -->
+                <tr>
+                    {{ $objectsGroupByObjectType := groupByObjectType .Objects}}
+                    {{ $numUniqueObjectTypes := numKeysInMapStringObjectInfo $objectsGroupByObjectType }}
+                    {{ $docsLink := .DocsLink }}
+                    <td rowspan={{$numUniqueObjectTypes}}><strong>{{ .FeatureName }}</strong></td>
+                    {{ $isNextRowRequired := false }}
+                    {{ range $type, $objectsByType := $objectsGroupByObjectType }}
+                        {{ if $isNextRowRequired }}
+                           <tr>
+                        {{ end }}
+                        <td>{{$type}}</td>
+                        <td>
+                            <div class="scrollable-div">
+                                <ul>
+                                    {{ range $objectsByType }}
+                                        <li class="list_item"><pre>{{ .SqlStatement }}</pre></li>
+                                    {{ end }}
+                                </ul>
+                            </div>
+                        </td>
+                        {{ if not $isNextRowRequired }}
+                            <td rowspan={{$numUniqueObjectTypes}}><a href="{{ $docsLink }}" target="_blank">Link</a></td>
+                        {{ end }}
+                        {{ $isNextRowRequired = true }}
+                        </tr>
+                    {{ end }}
+                {{ end }}
+            </table>
+        {{ else }}
+            <p>No unsupported PL/pgSQL objects found in the source database for target YugabyteDB.</p>
         {{ end }}
 
         {{ if .MigrationCaveats}}

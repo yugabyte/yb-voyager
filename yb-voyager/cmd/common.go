@@ -1135,8 +1135,9 @@ type AssessmentReport struct {
 	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
 	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
-	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
+	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
+	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
 }
@@ -1150,6 +1151,7 @@ type UnsupportedFeature struct {
 }
 
 type ObjectInfo struct {
+	ObjectType   string
 	ObjectName   string
 	SqlStatement string
 }

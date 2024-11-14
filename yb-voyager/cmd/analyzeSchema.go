@@ -1581,7 +1581,9 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
-	checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
+	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
+		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
+	}
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 }
 
@@ -1593,7 +1595,7 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
 		}
-		fmt.Printf("%v" , issues)
+		fmt.Printf("%v", issues)
 		for _, issueInstance := range issues {
 			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, sqlInfoStmt, objType)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
