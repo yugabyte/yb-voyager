@@ -91,7 +91,7 @@ func TestVersionPrefixGreaterThanOrEqual(t *testing.T) {
 		assert.NoError(t, err)
 		v2, err := NewYBVersion(v[1])
 		assert.NoError(t, err)
-		greaterThan, err := v1.PrefixGreaterThanOrEqual(v2)
+		greaterThan, err := v1.CommonPrefixGreaterThanOrEqual(v2)
 		assert.NoError(t, err)
 		assert.True(t, greaterThan, "%s >= %s", v[0], v[1])
 	}
@@ -108,7 +108,7 @@ func TestVersionPrefixLessThan(t *testing.T) {
 		assert.NoError(t, err)
 		v2, err := NewYBVersion(v[1])
 		assert.NoError(t, err)
-		lessThan, err := v1.PrefixLessThan(v2)
+		lessThan, err := v1.CommonPrefixLessThan(v2)
 		assert.NoError(t, err)
 		assert.True(t, lessThan, "%s < %s", v[0], v[1])
 	}
@@ -117,6 +117,6 @@ func TestVersionPrefixLessThan(t *testing.T) {
 func TestComparingDifferentSeriesThrowsError(t *testing.T) {
 	v1, _ := NewYBVersion("2024.1.1")
 	v2, _ := NewYBVersion("2.21.1")
-	_, err := v1.PrefixGreaterThanOrEqual(v2)
+	_, err := v1.CompareCommonPrefix(v2)
 	assert.Error(t, err)
 }

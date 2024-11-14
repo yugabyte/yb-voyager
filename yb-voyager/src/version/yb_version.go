@@ -82,7 +82,7 @@ func (ybv *YBVersion) originalSegmentsLen() int {
 	return len(segments)
 }
 
-func (ybv *YBVersion) ComparePrefix(other *YBVersion) (int, error) {
+func (ybv *YBVersion) CompareCommonPrefix(other *YBVersion) (int, error) {
 	if ybv.Series() != other.Series() {
 		return 0, fmt.Errorf("Cannot compare versions with different series: %s and %s", ybv.Series(), other.Series())
 	}
@@ -101,16 +101,16 @@ func (ybv *YBVersion) ComparePrefix(other *YBVersion) (int, error) {
 	return ybvMin.Compare(otherMin), nil
 }
 
-func (ybv *YBVersion) PrefixGreaterThanOrEqual(other *YBVersion) (bool, error) {
-	res, err := ybv.ComparePrefix(other)
+func (ybv *YBVersion) CommonPrefixGreaterThanOrEqual(other *YBVersion) (bool, error) {
+	res, err := ybv.CompareCommonPrefix(other)
 	if err != nil {
 		return false, err
 	}
 	return res >= 0, nil
 }
 
-func (ybv *YBVersion) PrefixLessThan(other *YBVersion) (bool, error) {
-	res, err := ybv.ComparePrefix(other)
+func (ybv *YBVersion) CommonPrefixLessThan(other *YBVersion) (bool, error) {
+	res, err := ybv.CompareCommonPrefix(other)
 	if err != nil {
 		return false, err
 	}
