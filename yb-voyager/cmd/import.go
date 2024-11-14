@@ -386,7 +386,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 	}
 
 	if numLinesInASplit > defaultBatchSize {
-		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
+		utils.PrintAndLog("Increasing the --batch-size to a very high value is not recommended as the whole batch is executed in one transaction.")
 	}
 }
 
