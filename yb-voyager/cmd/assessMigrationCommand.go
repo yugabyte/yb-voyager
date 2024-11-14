@@ -105,6 +105,11 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
+//Assessment feature names to send the object names for to callhome
+var featuresToSendObjectsToCallhome = []string{
+	EXTENSION_FEATURE,
+}
+
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
 		return
@@ -152,10 +157,16 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			return callhome.UnsupportedFeature{
+			res := callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
 				ObjectCount: len(feature.Objects),
 			}
+			if slices.Contains(featuresToSendObjectsToCallhome, feature.FeatureName) {
+				res.Objects = lo.Map(feature.Objects, func(o ObjectInfo, _ int) string {
+					return o.ObjectName
+				})
+			}
+			return res
 		})),
 		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
 		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),

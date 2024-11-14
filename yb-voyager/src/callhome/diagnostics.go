@@ -76,6 +76,8 @@ type Payload struct {
 	Status           string    `json:"status"`
 }
 
+// SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
+// https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
 type SourceDBDetails struct {
 	Host      string `json:"host"` //keeping it empty for now, as field is parsed in big query app
 	DBType    string `json:"db_type"`
@@ -84,6 +86,8 @@ type SourceDBDetails struct {
 	Role      string `json:"role,omitempty"`      //for differentiating replica details
 }
 
+// SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
+// https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L556
 type TargetDBDetails struct {
 	Host      string `json:"host"`
 	DBVersion string `json:"db_version"`
@@ -92,8 +96,9 @@ type TargetDBDetails struct {
 }
 
 type UnsupportedFeature struct {
-	FeatureName string `json:"FeatureName"`
-	ObjectCount int    `json:"ObjectCount"`
+	FeatureName string   `json:"FeatureName"`
+	Objects     []string `json:"Objects,omitempty"`
+	ObjectCount int      `json:"ObjectCount"`
 }
 
 type AssessMigrationPhasePayload struct {
@@ -129,6 +134,8 @@ type ExportSchemaPhasePayload struct {
 	CommentsOnObjects      bool `json:"comments_on_objects"`
 }
 
+// SHOULD NOT REMOVE THESE TWO (issues, database_objects) FIELDS of AnalyzePhasePayload as parsing these specifically here
+// https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L563
 type AnalyzePhasePayload struct {
 	Issues          string `json:"issues"`
 	DatabaseObjects string `json:"database_objects"`
