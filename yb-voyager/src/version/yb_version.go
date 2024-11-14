@@ -38,7 +38,7 @@ const (
 )
 
 type YBVersion struct {
-	V *version.Version
+	*version.Version
 }
 
 func NewYBVersion(v string) (*YBVersion, error) {
@@ -60,7 +60,7 @@ func NewYBVersion(v string) (*YBVersion, error) {
 }
 
 func (ybv *YBVersion) Series() string {
-	return joinIntsWith(ybv.V.Segments()[:2], ".")
+	return joinIntsWith(ybv.Segments()[:2], ".")
 }
 
 func (ybv *YBVersion) ReleaseType() string {
@@ -77,37 +77,48 @@ func (ybv *YBVersion) ReleaseType() string {
 }
 
 func (ybv *YBVersion) originalSegmentsLen() int {
-	orig := ybv.V.Original()
+	orig := ybv.Original()
 	segments := strings.Split(orig, ".")
 	return len(segments)
 }
 
-func (ybv *YBVersion) ComparePrefix(other *YBVersion) int {
+func (ybv *YBVersion) ComparePrefix(other *YBVersion) (int, error) {
+	if ybv.Series() != other.Series() {
+		return 0, fmt.Errorf("Cannot compare versions with different series: %s and %s", ybv.Series(), other.Series())
+	}
 	myOriginalSegLen := ybv.originalSegmentsLen()
 	otherOriginalSegLen := other.originalSegmentsLen()
 	minSegLen := min(myOriginalSegLen, otherOriginalSegLen)
 
-	ybvMin, err := version.NewVersion(joinIntsWith(ybv.V.Segments()[:minSegLen], "."))
+	ybvMin, err := version.NewVersion(joinIntsWith(ybv.Segments()[:minSegLen], "."))
 	if err != nil {
 		panic(err)
 	}
-	otherMin, err := version.NewVersion(joinIntsWith(other.V.Segments()[:minSegLen], "."))
+	otherMin, err := version.NewVersion(joinIntsWith(other.Segments()[:minSegLen], "."))
 	if err != nil {
 		panic(err)
 	}
-	return ybvMin.Compare(otherMin)
+	return ybvMin.Compare(otherMin), nil
 }
 
-func (ybv *YBVersion) PrefixGreaterThanOrEqual(other *YBVersion) bool {
-	return ybv.ComparePrefix(other) >= 0
+func (ybv *YBVersion) PrefixGreaterThanOrEqual(other *YBVersion) (bool, error) {
+	res, err := ybv.ComparePrefix(other)
+	if err != nil {
+		return false, err
+	}
+	return res >= 0, nil
 }
 
-func (ybv *YBVersion) PrefixLessThan(other *YBVersion) bool {
-	return ybv.ComparePrefix(other) < 0
+func (ybv *YBVersion) PrefixLessThan(other *YBVersion) (bool, error) {
+	res, err := ybv.ComparePrefix(other)
+	if err != nil {
+		return false, err
+	}
+	return res < 0, nil
 }
 
 func (ybv *YBVersion) String() string {
-	return ybv.V.Original()
+	return ybv.Original()
 }
 
 func joinIntsWith(ints []int, delimiter string) string {
