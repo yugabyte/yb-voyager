@@ -857,7 +857,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 	assessmentReport.UnsupportedFeaturesDesc = FEATURE_ISSUE_TYPE_DESCRIPTION
-	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
+	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", false) {
 		unsupportedPlpgSqlObjects := fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport)
 		assessmentReport.UnsupportedPlPgSqlObjects = unsupportedPlpgSqlObjects
 	}
