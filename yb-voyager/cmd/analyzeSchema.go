@@ -1595,7 +1595,6 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
 		}
-		fmt.Printf("%v", issues)
 		for _, issueInstance := range issues {
 			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, sqlInfoStmt, objType)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)

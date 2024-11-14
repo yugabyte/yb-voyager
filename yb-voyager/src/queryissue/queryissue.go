@@ -59,7 +59,7 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 			issuesInQuery, err := p.GetIssues(plpgsqlQuery)
 			if err != nil {
 				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance" 
-				log.Infof("error getting issues in query: %w", err)
+				log.Infof("error getting issues in query: %v", err)
 				continue
 			}
 			issues = append(issues, issuesInQuery...)
