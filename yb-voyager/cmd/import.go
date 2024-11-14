@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -386,7 +387,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 	}
 
 	if numLinesInASplit > defaultBatchSize {
-		utils.PrintAndLog("Increasing the --batch-size to a very high value is not recommended as the whole batch is executed in one transaction.")
+		utils.PrintAndLog(color.YellowString("Increasing the --batch-size to a very high value is not recommended as the whole batch is executed in one transaction."))
 	}
 }
 
