@@ -1152,7 +1152,7 @@ type UnsupportedFeature struct {
 
 type ObjectInfo struct {
 	ObjectType   string
-	ObjectName   string
+	ObjectName   string `json:"-"` //only using as of now for html report Unsupported PLpg/SQL objects feature
 	SqlStatement string
 }
 
