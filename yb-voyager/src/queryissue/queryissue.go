@@ -81,6 +81,7 @@ func(p *ParserIssueDetector) GetAllPLPGSQLStatements(query string) ([]string, er
 		return []string{}, nil
 	}
 	var parsedJsonMapList []map[string]interface{}
+	//Refer to the queryparser.traversal_plpgsql.go for example and sample parsed json
 	log.Debugf("parsing the json string-%s of stmt-%s", parsedJson, query)
 	err = json.Unmarshal([]byte(parsedJson), &parsedJsonMapList)
 	if err != nil {
