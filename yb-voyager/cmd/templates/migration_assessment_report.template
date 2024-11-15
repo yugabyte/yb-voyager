@@ -35,7 +35,7 @@
         th {
             background-color: #f2f2f2;
         }
-        tr:nth-child(even){background-color: #f9f9f9;}
+        .formatted_table tr:nth-child(even){background-color: #f9f9f9;}
         ul {
             padding-left: 20px;
         }
@@ -169,7 +169,7 @@
         <p>{{.UnsupportedDataTypesDesc}}</p>
         {{ if .UnsupportedDataTypes }}
             <div class="scrollable-div">
-                <table>
+                <table class="formatted_table">
                     <tr>
                         <th>Schema</th>
                         <th>Table</th>
@@ -240,7 +240,7 @@
         <h2>Unsupported Query Constructs</h2>
         {{ if .UnsupportedQueryConstructs}}
             <p>Source database queries not supported in YugabyteDB, identified by scanning system tables:</p>
-            <table>
+            <table class="formatted_table">
                 <tr>
                     <th>Construct Type</th>
                     <th>Queries</th>
@@ -292,8 +292,8 @@
             <p>No unsupported query constructs found in the source database for target YugabyteDB.</p>
         {{ end }}
 
-        {{ if .UnsupportedPlPgSqlObjects}}
         <h2>Unsupported PL/pgSQL objects</h2>
+        {{ if .UnsupportedPlPgSqlObjects}}
             <p>Source schema objects having unsupported statements in PLPGSQL code block: </p>
             <table>
                 <tr>
