@@ -1259,7 +1259,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
             "Reason": "Advisory Locks",
-            "SqlStatement": "CREATE FUNCTION create_and_populate_tables(...) RETURNS return_type\nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT pg_advisory_lock(sender_id);\n...\nEND; $$;",
+            "SqlStatement": "SELECT pg_advisory_lock(sender_id);",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
@@ -1269,7 +1269,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
             "Reason": "Advisory Locks",
-            "SqlStatement": "CREATE FUNCTION create_and_populate_tables(...) RETURNS return_type\nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT pg_advisory_lock(receiver_id);\n...\nEND; $$;",
+            "SqlStatement": "SELECT pg_advisory_lock(receiver_id);",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
@@ -1279,7 +1279,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
             "Reason": "Advisory Locks",
-            "SqlStatement": "CREATE FUNCTION create_and_populate_tables(...) RETURNS return_type\nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT pg_advisory_unlock(sender_id);\n...\nEND; $$;",
+            "SqlStatement": "SELECT pg_advisory_unlock(sender_id);",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
@@ -1289,7 +1289,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
             "Reason": "Advisory Locks",
-            "SqlStatement": "CREATE FUNCTION create_and_populate_tables(...) RETURNS return_type\nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT pg_advisory_unlock(receiver_id);\n...\nEND; $$;",
+            "SqlStatement": "SELECT pg_advisory_unlock(receiver_id);",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
@@ -1299,7 +1299,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
             "Reason": "Advisory Locks",
-            "SqlStatement": "CREATE FUNCTION create_and_populate_tables(...) RETURNS return_type\nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT pg_advisory_unlock(sender_id);\n...\nEND; $$;",
+            "SqlStatement": "SELECT pg_advisory_unlock(sender_id);",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
@@ -1309,7 +1309,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
             "Reason": "Advisory Locks",
-            "SqlStatement": "CREATE FUNCTION create_and_populate_tables(...) RETURNS return_type\nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT pg_advisory_unlock(receiver_id);\n...\nEND; $$;",
+            "SqlStatement": "SELECT pg_advisory_unlock(receiver_id);",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
@@ -1319,7 +1319,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
             "Reason": "XML Functions",
-            "SqlStatement": "CREATE FUNCTION create_and_populate_tables(...) RETURNS return_type\nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;\n...\nEND; $$;",
+            "SqlStatement": "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
@@ -1329,7 +1329,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
             "Reason": "System Columns",
-            "SqlStatement": "CREATE FUNCTION create_and_populate_tables(...) RETURNS return_type\nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);\n...\nEND; $$;",
+            "SqlStatement": "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
@@ -1339,7 +1339,7 @@
             "ObjectType": "PROCEDURE",
             "ObjectName": "add_employee",
             "Reason": "Advisory Locks",
-            "SqlStatement": "CREATE PROCEDURE add_employee(...) \nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT id, first_name FROM employees WHERE pg_try_advisory_lock(300) IS TRUE;\n...\nEND; $$;",
+            "SqlStatement": "SELECT id, first_name FROM employees WHERE pg_try_advisory_lock(300) IS TRUE;",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
@@ -1349,7 +1349,7 @@
             "ObjectType": "PROCEDURE",
             "ObjectName": "add_employee",
             "Reason": "System Columns",
-            "SqlStatement": "CREATE PROCEDURE add_employee(...) \nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT e.id, e.name,\n            ROW_NUMBER() OVER (ORDER BY e.ctid) AS row_num\n        FROM employees e;\n...\nEND; $$;",
+            "SqlStatement": "SELECT e.id, e.name,\n            ROW_NUMBER() OVER (ORDER BY e.ctid) AS row_num\n        FROM employees e;",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
@@ -1359,7 +1359,7 @@
             "ObjectType": "PROCEDURE",
             "ObjectName": "add_employee",
             "Reason": "XML Functions",
-            "SqlStatement": "CREATE PROCEDURE add_employee(...) \nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT e.id, x.employee_xml\n        FROM employees e\n        JOIN (\n            SELECT xmlelement(name \"employee\", xmlattributes(e.id AS \"id\"), e.name) AS employee_xml\n            FROM employees e\n        ) x ON x.employee_xml IS NOT NULL\n        WHERE xmlexists('//employee[name=\"John Doe\"]' PASSING BY REF x.employee_xml);\n...\nEND; $$;",
+            "SqlStatement": "SELECT e.id, x.employee_xml\n        FROM employees e\n        JOIN (\n            SELECT xmlelement(name \"employee\", xmlattributes(e.id AS \"id\"), e.name) AS employee_xml\n            FROM employees e\n        ) x ON x.employee_xml IS NOT NULL\n        WHERE xmlexists('//employee[name=\"John Doe\"]' PASSING BY REF x.employee_xml);",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
@@ -1369,7 +1369,7 @@
             "ObjectType": "PROCEDURE",
             "ObjectName": "add_employee",
             "Reason": "Advisory Locks",
-            "SqlStatement": "CREATE PROCEDURE add_employee(...) \nLANGUAGE plpgsql AS $$ BEGIN\n...\nSELECT e.id,\n            CASE\n                WHEN e.salary \u003e 100000 THEN pg_advisory_lock(e.id)\n                ELSE pg_advisory_unlock(e.id)\n            END AS lock_status\n        FROM employees e;\n...\nEND; $$;",
+            "SqlStatement": "SELECT e.id,\n            CASE\n                WHEN e.salary \u003e 100000 THEN pg_advisory_lock(e.id)\n                ELSE pg_advisory_unlock(e.id)\n            END AS lock_status\n        FROM employees e;",
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"

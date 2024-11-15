@@ -1603,35 +1603,12 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 
 }
 
-func getPlpgSQLObjectTemplate(objType string) string {
-	switch objType {
-	case "FUNCTION":
-		return `CREATE FUNCTION %s(...) RETURNS return_type
-LANGUAGE plpgsql AS $$ BEGIN
-...
-%s
-...
-END; $$;`
-	case "PROCEDURE":
-		return `CREATE PROCEDURE %s(...) 
-LANGUAGE plpgsql AS $$ BEGIN
-...
-%s
-...
-END; $$;`
-	}
-	return ""
-}
-
 func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, sqlInfoStmt sqlInfo, objType string) utils.Issue {
-	//TODO: confirm if this is right way to display
-	objTypePlpgSqlTemplate := getPlpgSQLObjectTemplate(objType)
-	transformedStmt := fmt.Sprintf(objTypePlpgSqlTemplate, sqlInfoStmt.objName, issueInstance.SqlStatement)
 	return utils.Issue{
 		ObjectType:   objType,
 		ObjectName:   sqlInfoStmt.objName,
 		Reason:       issueInstance.TypeName,
-		SqlStatement: transformedStmt,
+		SqlStatement: issueInstance.SqlStatement, //Displaying the actual query in the PLPGSQL block that is problematic
 		DocsLink:     issueInstance.DocsLink,
 		FilePath:     sqlInfoStmt.fileName,
 		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,

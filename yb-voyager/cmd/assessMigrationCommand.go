@@ -1013,9 +1013,6 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 			})
 			docsLink = issue.DocsLink
 		}
-		slices.SortFunc(objects, func(a, b ObjectInfo) int {
-			return lo.Ternary(a.ObjectType < b.ObjectType, 1, -1)
-		})
 		feature := UnsupportedFeature{
 			FeatureName: reason,
 			DisplayDDL:  true,
@@ -1294,6 +1291,8 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"split":                        split,
 		"groupByObjectType":            groupByObjectType,
 		"numKeysInMapStringObjectInfo": numKeysInMapStringObjectInfo,
+		"groupByObjectName":            groupByObjectName,
+		"totalUniqueObjectNamesOfAllTypes":  totalUniqueObjectNamesOfAllTypes, 
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
@@ -1315,6 +1314,20 @@ func groupByObjectType(objects []ObjectInfo) map[string][]ObjectInfo {
 	return lo.GroupBy(objects, func(object ObjectInfo) string {
 		return object.ObjectType
 	})
+}
+
+func groupByObjectName(objects []ObjectInfo) map[string][]ObjectInfo {
+	return lo.GroupBy(objects, func(object ObjectInfo) string {
+		return object.ObjectName
+	})
+}
+
+func totalUniqueObjectNamesOfAllTypes(m map[string][]ObjectInfo) int {
+	totalObjectNames := 0
+	for _, objects := range m {
+		totalObjectNames += len(lo.Keys(groupByObjectName(objects)))
+	}
+	return totalObjectNames
 }
 
 func numKeysInMapStringObjectInfo(m map[string][]ObjectInfo) int {

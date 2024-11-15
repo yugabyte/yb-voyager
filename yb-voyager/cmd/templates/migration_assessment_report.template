@@ -292,13 +292,14 @@
             <p>No unsupported query constructs found in the source database for target YugabyteDB.</p>
         {{ end }}
 
-        <h2>Unsupported PL/pgSQL objects</h2>
         {{ if .UnsupportedPlPgSqlObjects}}
+        <h2>Unsupported PL/pgSQL objects</h2>
             <p>Source schema objects having unsupported statements in PLPGSQL code block: </p>
             <table>
                 <tr>
                     <th>Feature Name</th>
                     <th>Object type</th>
+                    <th>Object name</th>
                     <th>Statement</th>
                     <th>Details</th>
                 </tr>
@@ -306,29 +307,39 @@
                 <!-- Feature Row with rowspan for grouping -->
                 <tr>
                     {{ $objectsGroupByObjectType := groupByObjectType .Objects}}
-                    {{ $numUniqueObjectTypes := numKeysInMapStringObjectInfo $objectsGroupByObjectType }}
+                    {{ $numUniqueObjectNamesOfAllTypes := totalUniqueObjectNamesOfAllTypes $objectsGroupByObjectType}}
                     {{ $docsLink := .DocsLink }}
-                    <td rowspan={{$numUniqueObjectTypes}}><strong>{{ .FeatureName }}</strong></td>
-                    {{ $isNextRowRequired := false }}
+                    <td rowspan={{$numUniqueObjectNamesOfAllTypes}}><strong>{{ .FeatureName }}</strong></td>
+                    {{ $isNextRowRequiredForObjectType := false }}
                     {{ range $type, $objectsByType := $objectsGroupByObjectType }}
-                        {{ if $isNextRowRequired }}
+                        {{ $objectGroupByObjectName := groupByObjectName $objectsByType }}
+                        {{ $numUniqueObjectNames := numKeysInMapStringObjectInfo $objectGroupByObjectName }}
+                        {{ if $isNextRowRequiredForObjectType }}
                            <tr>
                         {{ end }}
-                        <td>{{$type}}</td>
-                        <td>
-                            <div class="scrollable-div">
-                                <ul>
-                                    {{ range $objectsByType }}
-                                        <li class="list_item"><pre>{{ .SqlStatement }}</pre></li>
-                                    {{ end }}
-                                </ul>
-                            </div>
-                        </td>
-                        {{ if not $isNextRowRequired }}
-                            <td rowspan={{$numUniqueObjectTypes}}><a href="{{ $docsLink }}" target="_blank">Link</a></td>
+                        <td rowspan={{$numUniqueObjectNames}} >{{$type}}</td>
+                        {{ $isNextRowRequiredForObjectName := false }}
+                        {{ range $name, $objectsByName := $objectGroupByObjectName }}
+                            {{ if $isNextRowRequiredForObjectName }}
+                              <tr>
+                            {{ end }}
+                            <td>{{ $name }}</td> 
+                            <td>
+                                <div class="scrollable-div">
+                                    <ul>
+                                        {{ range $objectsByName }}
+                                            <li class="list_item"><pre>{{ .SqlStatement }}</pre></li>
+                                        {{ end }}
+                                    </ul>
+                                </div>
+                            </td>
+                            {{ if not $isNextRowRequiredForObjectType }}
+                                <td rowspan={{$numUniqueObjectNamesOfAllTypes}}><a href="{{ $docsLink }}" target="_blank">Link</a></td>
+                            {{ end }}
+                            {{ $isNextRowRequiredForObjectName = true }}
+                            {{ $isNextRowRequiredForObjectType = true }}
+                            </tr>
                         {{ end }}
-                        {{ $isNextRowRequired = true }}
-                        </tr>
                     {{ end }}
                 {{ end }}
             </table>
