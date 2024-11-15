@@ -17,7 +17,7 @@ limitations under the License.
 package issue
 
 import (
-	"testing"
+	"testing"A
 
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"

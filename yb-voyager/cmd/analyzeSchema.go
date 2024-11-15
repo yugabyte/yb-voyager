@@ -2162,6 +2162,7 @@ var analyzeSchemaCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validOutputFormats := []string{"html", "json", "txt", "xml"}
 		validateReportOutputFormat(validOutputFormats, analyzeSchemaReportFormat)
+		validateAndSetTargetDbVersionFlag()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -2174,6 +2175,9 @@ func init() {
 	registerCommonGlobalFlags(analyzeSchemaCmd)
 	analyzeSchemaCmd.PersistentFlags().StringVar(&analyzeSchemaReportFormat, "output-format", "",
 		"format in which report can be generated: ('html', 'txt', 'json', 'xml'). If not provided, reports will be generated in both 'json' and 'html' formats by default.")
+
+	analyzeSchemaCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
+		"Target YugabyteDB version to analyze schema for. Defaults to latest stable version.")
 }
 
 func validateReportOutputFormat(validOutputFormats []string, format string) {
