@@ -43,6 +43,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
 )
 
 var (
@@ -1019,11 +1020,15 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	}
 
 	var result []utils.UnsupportedQueryConstruct
+	targetDbVersion, err := version.NewYBVersion("2024.1.3.0")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse target YugabyteDB version: %w", err)
+	}
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
 
-		issues, err := parserIssueDetector.GetIssues(query)
+		issues, err := parserIssueDetector.GetIssues(query, targetDbVersion)
 		if err != nil {
 			log.Errorf("failed while trying to fetch query issues in query - [%s]: %v",
 				query, err)

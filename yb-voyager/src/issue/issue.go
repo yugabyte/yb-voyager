@@ -16,13 +16,56 @@ limitations under the License.
 
 package issue
 
+import (
+	"fmt"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
+)
+
 type Issue struct {
-	Type            string // (advisory_locks, index_not_supported, etc)
-	TypeName        string // for display
-	TypeDescription string
-	Suggestion      string
-	GH              string
-	DocsLink        string
+	Type                         string // (advisory_locks, index_not_supported, etc)
+	TypeName                     string // for display
+	TypeDescription              string
+	Suggestion                   string
+	GH                           string
+	DocsLink                     string
+	MinimumFixedVersionStable    *version.YBVersion
+	MinimumFixedVersionPreview   *version.YBVersion
+	MinimumFixedVersionStableOld *version.YBVersion
+}
+
+func (i Issue) IsFixedIn(v *version.YBVersion) (bool, error) {
+	switch v.ReleaseType() {
+	case version.STABLE:
+		if i.MinimumFixedVersionStable == nil {
+			return false, nil
+		}
+		greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(i.MinimumFixedVersionStable)
+		if err != nil {
+			return false, fmt.Errorf("comparing versions %s and %s: %w", v, i.MinimumFixedVersionStable, err)
+		}
+		return greaterThanMin, nil
+	case version.PREVIEW:
+		if i.MinimumFixedVersionPreview == nil {
+			return false, nil
+		}
+		greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(i.MinimumFixedVersionPreview)
+		if err != nil {
+			return false, fmt.Errorf("comparing versions %s and %s: %w", v, i.MinimumFixedVersionPreview, err)
+		}
+		return greaterThanMin, nil
+	case version.STABLE_OLD:
+		if i.MinimumFixedVersionStableOld == nil {
+			return false, nil
+		}
+		greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(i.MinimumFixedVersionStableOld)
+		if err != nil {
+			return false, fmt.Errorf("comparing versions %s and %s: %w", v, i.MinimumFixedVersionStableOld, err)
+		}
+		return greaterThanMin, nil
+	default:
+		return false, fmt.Errorf("unsupported release type: %s", v.ReleaseType())
+	}
 }
 
 type IssueInstance struct {

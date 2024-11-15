@@ -24,6 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -36,12 +37,29 @@ func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{}
 }
 
-func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) GetIssues(query string, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
-	return p.getDMLIssues(query, parseTree)
+	issues, err := p.getDMLIssues(query, parseTree)
+	if err != nil {
+		return nil, fmt.Errorf("error getting DML issues: %w", err)
+	}
+
+	// Filter out issues that are fixed in the target DB version.
+	var filteredIssues []issue.IssueInstance
+	for _, i := range issues {
+		fixed, err := i.IsFixedIn(targetDbVersion)
+		if err != nil {
+			return nil, fmt.Errorf("checking if issue %v is supported: %w", i, err)
+		}
+		if !fixed {
+			filteredIssues = append(filteredIssues, i)
+		}
+	}
+
+	return filteredIssues, nil
 }
 
 func (p *ParserIssueDetector) getDMLIssues(query string, parseTree *pg_query.ParseResult) ([]issue.IssueInstance, error) {
