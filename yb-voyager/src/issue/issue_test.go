@@ -106,3 +106,21 @@ func TestIssueFixedInStableOld(t *testing.T) {
 		assert.Equalf(t, expected, fixed, "comparing ybv %s to fixed [%s, %s]", ybVersion, fixedVersionStableOld, fixedVersionStable)
 	}
 }
+
+func TestIssueFixedFalseWhenMinimumNotSpecified(t *testing.T) {
+	issue := Issue{
+		Type: ADVISORY_LOCKS,
+	}
+
+	versionsToCheck := []string{"2024.1", "2.20.7", "2.21.1.1"}
+
+	for _, v := range versionsToCheck {
+		ybVersion, err := version.NewYBVersion(v)
+		assert.NoError(t, err)
+
+		fixed, err := issue.IsFixedIn(ybVersion)
+		assert.NoError(t, err)
+		// If the minimum fixed version is not specified, the issue is not fixed in any version.
+		assert.Falsef(t, fixed, "comparing ybv %s to fixed should be false", ybVersion)
+	}
+}
