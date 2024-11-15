@@ -37,6 +37,16 @@ const (
 	STABLE_OLD = "stable_old"
 )
 
+/*
+YBVersion is a wrapper around hashicorp/go-version.Version that adds some Yugabyte-specific
+functionality.
+ 1. It only supports versions with 2, 3, or 4 segments (A.B, A.B.C, A.B.C.D).
+ 2. It only accepts one of supported Yugabyte version series.
+ 3. It provides a method to compare versions based on common prefix of segments. This is useful in cases
+    where the version is not fully specified (e.g. 2.20 vs 2.20.7.0).
+    If the user specifies 2.20, a reasonable assumption is that they would be on the latest 2.20.x.y version.
+    Therefore, we want only want to compare the prefix 2.20 between versions and ignore the rest.
+*/
 type YBVersion struct {
 	*version.Version
 }
@@ -82,6 +92,16 @@ func (ybv *YBVersion) originalSegmentsLen() int {
 	return len(segments)
 }
 
+/*
+Compare the common prefix of segments between two versions.
+Similar to method go-version.Version.Compare, but only compares the common prefix of segments.
+This is useful in cases where the version is not fully specified (e.g. 2.20 vs 2.20.7.0).
+If the user wants to compare 2.20 and 2.20.7.0, a reasonable assumption is that they would be on the latest 2.20.x.y version.
+Therefore, we want only want to compare the prefix 2.20 between versions and ignore the rest.
+
+This returns -1, 0, or 1 if this version is smaller, equal,
+or larger than the other version, respectively.
+*/
 func (ybv *YBVersion) CompareCommonPrefix(other *YBVersion) (int, error) {
 	if ybv.Series() != other.Series() {
 		return 0, fmt.Errorf("Cannot compare versions with different series: %s and %s", ybv.Series(), other.Series())
