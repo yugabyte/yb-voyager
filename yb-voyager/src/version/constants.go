@@ -19,13 +19,13 @@ import "github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 var LatestStable *YBVersion
 
-var v2024_1 *YBVersion
+var V2024_1 *YBVersion
 
 func init() {
 	var err error
-	v2024_1, err = NewYBVersion("2024.1")
+	V2024_1, err = NewYBVersion("2024.1")
 	if err != nil {
 		utils.ErrExit("could not create version 2024.1")
 	}
-	LatestStable = v2024_1
+	LatestStable = V2024_1
 }
