@@ -19,6 +19,7 @@ package issue
 import (
 	"fmt"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
 )
 
@@ -77,6 +78,35 @@ type IssueInstance struct {
 }
 
 func newIssueInstance(issue Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) IssueInstance {
+	// We want the full version to be specified in issues.
+	// Consider this example:
+	// Actual fixed version = 2024.1.4.2
+	// Specified MinimumFixedVersionStable = 2024.1.4 // this is what we want to avoid.
+	// IsFixedIn("2024.1.4.1") should return false ideally, but it will return true in this case
+	// becaus we will only compare the common prefix 2024.1.4 and ignore the rest.
+
+	// Ideally we should have the validations done at init time,
+	// but doing that for all the issues defined as variables is not possible to do in golang
+	// when all of them are declared as simple variables.
+	// We would have to list all the issues in a slice/map and loop over them to validate,
+	// which is not required/fool-proof (someone might just declare an issue outside of that list).
+	// So, we will do the validations here assuming that issue creation is tested somewhere via unit tests.
+	if issue.MinimumFixedVersionPreview != nil {
+		if issue.MinimumFixedVersionPreview.OriginalSegmentsLen() != 4 {
+			utils.ErrExit("ERROR: MinimumFixedVersionPreview in %v must have 4 segments", issue)
+		}
+	}
+	if issue.MinimumFixedVersionStable != nil {
+		if issue.MinimumFixedVersionStable.OriginalSegmentsLen() != 4 {
+			utils.ErrExit("ERROR: MinimumFixedVersionStable in %v must have 4 segments", issue)
+		}
+	}
+	if issue.MinimumFixedVersionStableOld != nil {
+		if issue.MinimumFixedVersionStableOld.OriginalSegmentsLen() != 4 {
+			utils.ErrExit("ERROR: MinimumFixedVersionStableOld in %v must have 4 segments", issue)
+		}
+	}
+
 	return IssueInstance{
 		Issue:        issue,
 		ObjectType:   objectType,

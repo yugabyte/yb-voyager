@@ -58,7 +58,7 @@ func NewYBVersion(v string) (*YBVersion, error) {
 	}
 
 	ybv := &YBVersion{v1}
-	origSegLen := ybv.originalSegmentsLen()
+	origSegLen := ybv.OriginalSegmentsLen()
 	if origSegLen < 2 || origSegLen > 4 {
 		return nil, fmt.Errorf("invalid YB version: %s. Version should have between min 2 and max 4 segments (A.B.C.D). Version %s has ybv.originalSegmentsLen()", v, v)
 	}
@@ -86,7 +86,7 @@ func (ybv *YBVersion) ReleaseType() string {
 	}
 }
 
-func (ybv *YBVersion) originalSegmentsLen() int {
+func (ybv *YBVersion) OriginalSegmentsLen() int {
 	orig := ybv.Original()
 	segments := strings.Split(orig, ".")
 	return len(segments)
@@ -106,8 +106,8 @@ func (ybv *YBVersion) CompareCommonPrefix(other *YBVersion) (int, error) {
 	if ybv.Series() != other.Series() {
 		return 0, fmt.Errorf("cannot compare versions with different series: %s and %s", ybv.Series(), other.Series())
 	}
-	myOriginalSegLen := ybv.originalSegmentsLen()
-	otherOriginalSegLen := other.originalSegmentsLen()
+	myOriginalSegLen := ybv.OriginalSegmentsLen()
+	otherOriginalSegLen := other.OriginalSegmentsLen()
 	minSegLen := min(myOriginalSegLen, otherOriginalSegLen)
 
 	ybvMin, err := version.NewVersion(joinIntsWith(ybv.Segments()[:minSegLen], "."))
