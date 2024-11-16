@@ -39,6 +39,25 @@ func ParsePLPGSQLToJson(query string) (string, error) {
 	return jsonString, err
 }
 
+func DeparseSelectStmt(selectStmt *pg_query.SelectStmt) (string, error) {
+	if selectStmt != nil {
+		deparseResult := &pg_query.ParseResult{
+			Stmts: []*pg_query.RawStmt{
+				{
+					Stmt: &pg_query.Node{
+						Node: &pg_query.Node_SelectStmt{SelectStmt: selectStmt},
+					},
+				},
+			},
+		}
+
+		// Deparse the SelectStmt to get the string representation
+		selectSQL, err := pg_query.Deparse(deparseResult)
+		return selectSQL, err
+	}
+	return "", nil
+}
+
 func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
 }

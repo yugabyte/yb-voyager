@@ -60,9 +60,9 @@
             },
             {
                 "ObjectType": "MVIEW",
-                "TotalCount": 1,
+                "TotalCount": 2,
                 "InvalidCount": 1,
-                "ObjectNames": "test"
+                "ObjectNames": "test, public.sample_data_view"
             },
             {
                 "ObjectType": "CONVERSION",

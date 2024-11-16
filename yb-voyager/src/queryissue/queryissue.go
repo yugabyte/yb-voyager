@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	ACTION                  = "action"
-	PLPGSQL_FUNCTION        = "PLpgSQL_function"
+	ACTION           = "action"
+	PLPGSQL_FUNCTION = "PLpgSQL_function"
 )
 
 type ParserIssueDetector struct {
@@ -58,7 +58,7 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		for _, plpgsqlQuery := range plpgsqlQueries {
 			issuesInQuery, err := p.GetIssues(plpgsqlQuery)
 			if err != nil {
-				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance" 
+				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
 				log.Infof("error getting issues in query: %v", err)
 				continue
 			}
@@ -66,12 +66,27 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		}
 		return issues, nil
 	}
-	//TODO: add handling for VIEW/MVIEW to parse select 
+	//Handle the Mview/View DDL's Select stmt issues
+	createAsNode, isCreateAsStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
+	isMviewObject := isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
+	var selectStmt *pg_query.SelectStmt
+	if isViewStmt {
+		selectStmt = viewNode.ViewStmt.GetQuery().GetSelectStmt()
+	} else if isMviewObject {
+		selectStmt = createAsNode.CreateTableAsStmt.GetQuery().GetSelectStmt()
+	}
+	if isViewStmt || isMviewObject {
+		selectStmtQuery, err := queryparser.DeparseSelectStmt(selectStmt)
+		if err != nil {
+			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
+		}
+		return p.GetIssues(selectStmtQuery)
+	}
 	return p.getDMLIssues(query, parseTree)
 }
 
-
-func(p *ParserIssueDetector) GetAllPLPGSQLStatements(query string) ([]string, error) {
+func (p *ParserIssueDetector) GetAllPLPGSQLStatements(query string) ([]string, error) {
 	parsedJson, err := queryparser.ParsePLPGSQLToJson(query)
 	if err != nil {
 		log.Infof("error in parsing the stmt-%s to json: %v", query, err)
