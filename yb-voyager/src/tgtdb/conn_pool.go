@@ -75,7 +75,7 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 		conns:                     make(chan *pgx.Conn, params.NumMaxConnections),
 		idleConns:                 make(chan *pgx.Conn, params.NumMaxConnections),
 		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumMaxConnections),
-		disableThrottling:         false,
+		disableThrottling:         true,
 		size:                      params.NumConnections,
 		pendingConnsToClose:       0,
 	}
