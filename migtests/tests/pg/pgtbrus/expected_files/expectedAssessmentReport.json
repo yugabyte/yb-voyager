@@ -235,5 +235,6 @@
 			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
 		}
 	],
-	"UnsupportedQueryConstructs": null
+	"UnsupportedQueryConstructs": null,
+    "UnsupportedPlPgSqlObjects": null
 }

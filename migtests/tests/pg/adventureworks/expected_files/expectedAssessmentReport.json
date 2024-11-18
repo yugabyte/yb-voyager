@@ -1707,5 +1707,6 @@
 			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema."
 		}
 	],
-	"UnsupportedQueryConstructs": null
+	"UnsupportedQueryConstructs": null,
+	"UnsupportedPlPgSqlObjects": null
 }

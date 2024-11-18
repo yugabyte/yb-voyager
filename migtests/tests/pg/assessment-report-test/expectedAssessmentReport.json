@@ -1957,5 +1957,6 @@
 			"Query": "SELECT xml_is_well_formed($1)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
 		}
-	]
+	],
+	"UnsupportedPlPgSqlObjects": null
 }
