@@ -37,19 +37,19 @@
             {
                 "ObjectType": "FUNCTION",
                 "TotalCount": 1,
-                "InvalidCount": 0,
+                "InvalidCount": 1,
                 "ObjectNames": "create_and_populate_tables"
             },
             {
                 "ObjectType": "PROCEDURE",
                 "TotalCount": 6,
-                "InvalidCount": 3,
+                "InvalidCount": 4,
                 "ObjectNames": "foo, foo1, sp_createnachabatch, test, test1, add_employee"
             },
             {
                 "ObjectType": "VIEW",
                 "TotalCount": 4,
-                "InvalidCount": 3,
+                "InvalidCount": 4,
                 "ObjectNames": "v1, v2, test, public.orders_view"
             },
             {
@@ -61,7 +61,7 @@
             {
                 "ObjectType": "MVIEW",
                 "TotalCount": 2,
-                "InvalidCount": 1,
+                "InvalidCount": 2,
                 "ObjectNames": "test, public.sample_data_view"
             },
             {
