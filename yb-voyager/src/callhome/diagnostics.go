@@ -94,7 +94,7 @@ type TargetDBDetails struct {
 type UnsupportedFeature struct {
 	FeatureName       string         `json:"FeatureName"`
 	ObjectCount       int            `json:"ObjectCount"`
-	ObjectNameToCount map[string]int `json:"count_per_object,omitempty"`
+	ObjectNameToCount map[string]int `json:"IssueCountPerObject,omitempty"`
 }
 
 type AssessMigrationPhasePayload struct {
@@ -252,7 +252,7 @@ func SendPayload(payload *Payload) error {
 	requestBody := bytes.NewBuffer(postBody)
 
 	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
-	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+	callhomeURL := fmt.Sprintf("http://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
 		log.Infof("error while sending diagnostic data: %s", err)
