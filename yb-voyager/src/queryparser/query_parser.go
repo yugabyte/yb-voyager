@@ -71,8 +71,29 @@ func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	return isPlPgSQLObject
 }
 
+func IsViewObject(parseTree *pg_query.ParseResult) bool {
+	_, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
+	return isViewStmt
+}
+
+func IsMviewObject(parseTree *pg_query.ParseResult) bool {
+	createAsNode, isCreateAsStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+	return isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
+}
+
+func GetSelectStmtFromViewOrMView(parseTree *pg_query.ParseResult) *pg_query.SelectStmt {
+	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
+	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+	if isViewStmt {
+		return viewNode.ViewStmt.GetQuery().GetSelectStmt()
+	}
+	return createAsNode.CreateTableAsStmt.GetQuery().GetSelectStmt()
+}
+
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {
 	createFuncNode, isCreateFunc := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt)
+	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
+	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
 	switch true {
 	case isCreateFunc:
 		/*
@@ -91,8 +112,20 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		}
 		funcNameList := stmt.GetFuncname()
 		return objectType, getFunctionObjectName(funcNameList)
+	case isViewStmt:
+		viewName := viewNode.ViewStmt.View
+		return "VIEW", getObjectNameFromRangeVar(viewName)
+	case IsMviewObject(parseTree):
+		intoMview := createAsNode.CreateTableAsStmt.Into.Rel
+		return "MVIEW", getObjectNameFromRangeVar(intoMview)
 	}
 	return "", ""
+}
+
+func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
+	schema := obj.Schemaname
+	name := obj.Relname
+	return lo.Ternary(schema != "", fmt.Sprintf("%s.%s", schema, name), name)
 }
 
 func getFunctionObjectName(funcNameList []*pg_query.Node) string {

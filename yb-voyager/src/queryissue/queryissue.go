@@ -42,8 +42,8 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 	if queryparser.IsPLPGSQLObject(parseTree) {
-		plpgsqlObjType, plpgsqlObjName := queryparser.GetObjectTypeAndObjectName(parseTree)
 		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
 		if err != nil {
 			return nil, fmt.Errorf("error getting all the queries from query: %w", err)
@@ -52,34 +52,35 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		for _, plpgsqlQuery := range plpgsqlQueries {
 			issuesInQuery, err := p.GetIssues(plpgsqlQuery)
 			if err != nil {
-				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance" 
+				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
 				log.Infof("error getting issues in query: %v", err)
 				continue
 			}
-			for _, i := range issuesInQuery {
-				i.ObjectType = plpgsqlObjType
-				i.ObjectName = plpgsqlObjName
-				issues = append(issues, i)
-			}
+			issues = append(issues, issuesInQuery...)
 		}
-		return issues, nil
+		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			i.ObjectType = objType
+			i.ObjectName = objName
+			return i
+		}), nil
 	}
 	//Handle the Mview/View DDL's Select stmt issues
-	createAsNode, isCreateAsStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
-	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
-	isMviewObject := isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
-	var selectStmt *pg_query.SelectStmt
-	if isViewStmt {
-		selectStmt = viewNode.ViewStmt.GetQuery().GetSelectStmt()
-	} else if isMviewObject {
-		selectStmt = createAsNode.CreateTableAsStmt.GetQuery().GetSelectStmt()
-	}
-	if isViewStmt || isMviewObject {
+	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
+		selectStmt := queryparser.GetSelectStmtFromViewOrMView(parseTree)
 		selectStmtQuery, err := queryparser.DeparseSelectStmt(selectStmt)
 		if err != nil {
 			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
 		}
-		return p.GetIssues(selectStmtQuery)
+		issues, err := p.GetIssues(selectStmtQuery)
+		if err != nil {
+			return nil, err
+		}
+		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			i.ObjectType = objType
+			i.ObjectName = objName
+			return i
+		}), nil
+
 	}
 	return p.getDMLIssues(query, parseTree)
 }
