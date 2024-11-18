@@ -78,6 +78,8 @@
         <p><strong>Database Version:</strong> {{.}}</p>
         {{end}}
 
+        <p><strong>Target YB Version:</strong> {{.TargetDBVersion}} </p>
+
         {{if eq .MigrationComplexity "NOT AVAILABLE"}}
         <!-- Do nothing -->
         {{else}} 
@@ -233,6 +235,7 @@
             <table>
                 <tr>
                     <th>Construct Type</th>
+                    <th>Supported Versions</th>
                     <th>Queries</th>
                     <th>Details</th>
                 </tr>
@@ -256,6 +259,7 @@
                         {{ $docsLink = $construct.DocsLink }}
                         <tr>
                             <td><strong>{{ $construct.ConstructTypeName }}</strong></td>
+                            <td> {{ getSupportedVersionString $construct.MinimumFixedVersionStable $construct.MinimumFixedVersionPreview }}</td>
                             <td>
                                 <div class="scrollable-div">
                                     <ul>

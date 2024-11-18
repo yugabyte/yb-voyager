@@ -58,6 +58,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
 )
 
 var (
@@ -1117,6 +1118,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
 type AssessmentReport struct {
 	VoyagerVersion             string                                `json:"VoyagerVersion"`
+	TargetDBVersion            *version.YBVersion                    `json:"TargetDBVersion"`
 	MigrationComplexity        string                                `json:"MigrationComplexity"`
 	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
 	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
@@ -1125,7 +1127,7 @@ type AssessmentReport struct {
 	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
-	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
+	UnsupportedQueryConstructs []UnsupportedQueryConstruct           `json:"UnsupportedQueryConstructs"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
 }

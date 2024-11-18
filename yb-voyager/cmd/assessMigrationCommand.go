@@ -147,10 +147,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		return datatype.DataType
 	})
 
-	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
+	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q UnsupportedQueryConstruct) string {
 		return q.ConstructTypeName
 	})
-	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
+	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []UnsupportedQueryConstruct, _ string) int {
 		return len(constructs)
 	})
 
@@ -790,6 +790,9 @@ var bytesTemplate []byte
 func generateAssessmentReport() (err error) {
 	utils.PrintAndLog("Generating assessment report...")
 
+	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
+	assessmentReport.TargetDBVersion = targetDbVersion
+
 	err = getAssessmentReportContentFromAnalyzeSchema()
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
@@ -809,7 +812,6 @@ func generateAssessmentReport() (err error) {
 		assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 	}
 
-	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
@@ -994,7 +996,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	return unsupportedFeatures, nil
 }
 
-func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
+func fetchUnsupportedQueryConstructs() ([]UnsupportedQueryConstruct, error) {
 	if source.DBType != POSTGRESQL {
 		return nil, nil
 	}
@@ -1026,7 +1028,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		return nil, nil
 	}
 
-	var result []utils.UnsupportedQueryConstruct
+	var result []UnsupportedQueryConstruct
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
@@ -1038,10 +1040,13 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		}
 
 		for _, issue := range issues {
-			uqc := utils.UnsupportedQueryConstruct{
-				Query:             issue.SqlStatement,
-				ConstructTypeName: issue.TypeName,
-				DocsLink:          issue.DocsLink,
+			minFixVersionStable := lo.Ternary(issue.MinimumFixedVersionStableOld != nil, issue.MinimumFixedVersionStableOld, issue.MinimumFixedVersionStable)
+			uqc := UnsupportedQueryConstruct{
+				Query:                      issue.SqlStatement,
+				ConstructTypeName:          issue.TypeName,
+				DocsLink:                   issue.DocsLink,
+				MinimumFixedVersionStable:  minFixVersionStable,
+				MinimumFixedVersionPreview: issue.MinimumFixedVersionPreview,
 			}
 			result = append(result, uqc)
 		}
@@ -1257,7 +1262,8 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
-		"split": split,
+		"split":                     split,
+		"getSupportedVersionString": getSupportedVersionString,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
@@ -1277,6 +1283,21 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
+}
+
+func getSupportedVersionString(minSupVerStable *version.YBVersion, minSupVerPreview *version.YBVersion) string {
+	if minSupVerStable == nil && minSupVerPreview == nil {
+		return "N/A"
+	}
+
+	var supportedVersions string
+	if minSupVerStable != nil {
+		supportedVersions = fmt.Sprintf(">=%s (stable)", minSupVerStable.String())
+	}
+	if minSupVerPreview != nil {
+		supportedVersions = fmt.Sprintf("%s, >=%s (preview)", supportedVersions, minSupVerPreview.String())
+	}
+	return supportedVersions
 }
 
 func validateSourceDBTypeForAssessMigration() {
@@ -1312,4 +1333,12 @@ func validateAndSetTargetDbVersionFlag() {
 			utils.ErrExit("invalid target-db-version: %q. %v", targetDbVersionStrFlag, err)
 		}
 	}
+}
+
+type UnsupportedQueryConstruct struct {
+	ConstructTypeName          string
+	MinimumFixedVersionStable  *version.YBVersion
+	MinimumFixedVersionPreview *version.YBVersion
+	Query                      string
+	DocsLink                   string
 }

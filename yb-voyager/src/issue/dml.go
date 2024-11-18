@@ -16,6 +16,8 @@ limitations under the License.
 
 package issue
 
+import "github.com/yugabyte/yb-voyager/yb-voyager/src/version"
+
 var advisoryLocksIssue = Issue{
 	Type:            ADVISORY_LOCKS,
 	TypeName:        "Advisory Locks",
@@ -43,12 +45,14 @@ func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement st
 }
 
 var xmlFunctionsIssue = Issue{
-	Type:            XML_FUNCTIONS,
-	TypeName:        "XML Functions",
-	TypeDescription: "",
-	Suggestion:      "",
-	GH:              "",
-	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+	Type:                       XML_FUNCTIONS,
+	TypeName:                   "XML Functions",
+	TypeDescription:            "",
+	Suggestion:                 "",
+	GH:                         "",
+	DocsLink:                   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+	MinimumFixedVersionStable:  version.V2024_1_4_0,
+	MinimumFixedVersionPreview: version.V2_21_1_0,
 }
 
 func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
