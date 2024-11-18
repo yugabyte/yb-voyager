@@ -289,11 +289,11 @@ fetch_release_data() {
 
     # Set global variables for version and hash
     VOYAGER_RELEASE_NAME=${RELEASE_NAME}
-    DEBEZIUM_VERSION="2.5.2-${VOYAGER_VERSION}"
+    DEBEZIUM_VERSION="${DEBEZIUM_LOCAL_VERSION}-${VOYAGER_VERSION}"
 	# If voyager version contains 0rcx then DEBEZIUM_VERSION will be like 0rcx.2.5.2-[voyager version without rcx]
 	if [[ $VOYAGER_VERSION == *"rc"* ]]; then
 		# In case rc release voyager version is like 0rc1.1.8.5
-		DEBEZIUM_VERSION="${VOYAGER_VERSION:0:4}.2.5.2-${VOYAGER_VERSION:5}"
+		DEBEZIUM_VERSION="${VOYAGER_VERSION:0:4}.${DEBEZIUM_LOCAL_VERSION}-${VOYAGER_VERSION:5}"
 	fi
     YB_VOYAGER_GIT_HASH=${TAGGED_COMMIT}
 }
@@ -559,7 +559,6 @@ get_passed_options() {
 				;;
 			-V | --version )  
 				VERSION="$2" 
-				echo "Installing yb-voyager:${VERSION}"
 				shift 2
 				;;
 			* ) 
