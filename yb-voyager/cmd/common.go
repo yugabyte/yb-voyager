@@ -1133,11 +1133,13 @@ type AssessmentReport struct {
 }
 
 type UnsupportedFeature struct {
-	FeatureName        string       `json:"FeatureName"`
-	Objects            []ObjectInfo `json:"Objects"`
-	DisplayDDL         bool         `json:"-"` // just used by html format to display the DDL for some feature and object names for other
-	DocsLink           string       `json:"DocsLink,omitempty"`
-	FeatureDescription string       `json:"FeatureDescription,omitempty"`
+	FeatureName                string             `json:"FeatureName"`
+	Objects                    []ObjectInfo       `json:"Objects"`
+	DisplayDDL                 bool               `json:"-"` // just used by html format to display the DDL for some feature and object names for other
+	DocsLink                   string             `json:"DocsLink,omitempty"`
+	FeatureDescription         string             `json:"FeatureDescription,omitempty"`
+	MinimumFixedVersionStable  *version.YBVersion `json:"MinimumFixedVersionStable"`
+	MinimumFixedVersionPreview *version.YBVersion `json:"MinimumFixedVersionPreview"`
 }
 
 type ObjectInfo struct {

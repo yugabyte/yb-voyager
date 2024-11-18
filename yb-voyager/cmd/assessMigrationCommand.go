@@ -884,7 +884,16 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 			objects = append(objects, objectInfo)
 		}
 	}
-	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description}
+	u := UnsupportedFeature{
+		FeatureName:        featureName,
+		Objects:            objects,
+		DisplayDDL:         displayDDLInHTML,
+		DocsLink:           link,
+		FeatureDescription: description,
+	}
+	u.MinimumFixedVersionPreview = version.V2_21_1_0
+	u.MinimumFixedVersionStable = version.V2024_1_4_0
+	return u
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
@@ -919,9 +928,11 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 
 func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.SchemaReport, unsupportedIndexDatatypes []string) UnsupportedFeature {
 	indexesOnComplexTypesFeature := UnsupportedFeature{
-		FeatureName: "Index on complex datatypes",
-		DisplayDDL:  false,
-		Objects:     []ObjectInfo{},
+		FeatureName:                "Index on complex datatypes",
+		DisplayDDL:                 false,
+		Objects:                    []ObjectInfo{},
+		MinimumFixedVersionStable:  version.V2024_1_4_0,
+		MinimumFixedVersionPreview: version.V2_21_1_0,
 	}
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array")             // adding it here only as we know issue form analyze will come with type
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "user_defined_type") // adding it here as we UDTs will come with this type.
@@ -989,10 +1000,27 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	}
 
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_INDEXES_FEATURE, unsupportedIndexes, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{VIRTUAL_COLUMNS_FEATURE, virtualColumns, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{INHERITED_TYPES_FEATURE, inheritedTypes, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_PARTITIONING_METHODS_FEATURE, unsupportedPartitionTypes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures,
+		UnsupportedFeature{
+			FeatureName: UNSUPPORTED_INDEXES_FEATURE,
+			Objects:     unsupportedIndexes,
+			DisplayDDL:  false})
+	unsupportedFeatures = append(unsupportedFeatures,
+		UnsupportedFeature{
+			FeatureName: VIRTUAL_COLUMNS_FEATURE,
+			Objects:     virtualColumns,
+			DisplayDDL:  false})
+	unsupportedFeatures = append(unsupportedFeatures,
+		UnsupportedFeature{
+			FeatureName: INHERITED_TYPES_FEATURE,
+			Objects:     inheritedTypes,
+			DisplayDDL:  false})
+	unsupportedFeatures = append(unsupportedFeatures,
+		UnsupportedFeature{
+			FeatureName: UNSUPPORTED_PARTITIONING_METHODS_FEATURE,
+			Objects:     unsupportedPartitionTypes,
+			DisplayDDL:  false})
+
 	return unsupportedFeatures, nil
 }
 
@@ -1195,14 +1223,29 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			for _, col := range unsupportedDataTypesForLiveMigration {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
+			migrationCaveats = append(migrationCaveats,
+				UnsupportedFeature{
+					FeatureName:        UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE,
+					Objects:            columns,
+					DisplayDDL:         false,
+					DocsLink:           UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
+					FeatureDescription: UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE,
+				})
+
 		}
 		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, col := range unsupportedDataTypesForLiveMigrationWithFForFB {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE})
+			migrationCaveats = append(migrationCaveats,
+				UnsupportedFeature{
+					FeatureName:        UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE,
+					Objects:            columns,
+					DisplayDDL:         false,
+					DocsLink:           UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
+					FeatureDescription: UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE,
+				})
 		}
 		assessmentReport.MigrationCaveats = migrationCaveats
 	}
