@@ -112,11 +112,11 @@ func (ybv *YBVersion) CompareCommonPrefix(other *YBVersion) (int, error) {
 
 	ybvMin, err := version.NewVersion(joinIntsWith(ybv.Segments()[:minSegLen], "."))
 	if err != nil {
-		panic(err)
+		return 0, fmt.Errorf("create version from segments: %v", ybv.Segments()[:minSegLen])
 	}
 	otherMin, err := version.NewVersion(joinIntsWith(other.Segments()[:minSegLen], "."))
 	if err != nil {
-		panic(err)
+		return 0, fmt.Errorf("create version from segments: %v", other.Segments()[:minSegLen])
 	}
 	return ybvMin.Compare(otherMin), nil
 }
