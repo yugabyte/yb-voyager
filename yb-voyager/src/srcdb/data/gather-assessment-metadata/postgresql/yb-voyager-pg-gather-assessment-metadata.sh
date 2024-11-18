@@ -147,45 +147,52 @@ main() {
     fi
 
     # checking before quoting connection_string
-    pg_stat_available=$(psql -A -t -q $pg_connection_string -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'")
+    pgss_ext_schema=$(psql -A -t -q $pg_connection_string -c "SELECT nspname FROM pg_extension e, pg_namespace n WHERE e.extnamespace = n.oid AND e.extname = 'pg_stat_statements'")
+    log "INFO" "pg_stat_statements extension is available in schema: $pgss_ext_schema"
 
     # quote the required shell variables
     pg_connection_string=$(quote_string "$pg_connection_string")
     schema_list=$(quote_string "$schema_list")
 
-    print_and_log "INFO" "Assessment metadata collection started for '$schema_list' schemas"
+    print_and_log "INFO" "Assessment metadata collection started for $schema_list schema(s)"
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
         script_action=$(basename "$script" .psql | sed 's/-/ /g')
-        if [[ "$script_name" == "db-queries-summary" ]]; then
-            if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ]]; then
-                continue
-            fi
-            if [[ "$pg_stat_available" != "1" ]]; then
-                print_and_log "INFO" "Skipping $script_action: pg_stat_statements is unavailable."
-                continue
-            fi
-        fi
+        
         print_and_log "INFO" "Collecting $script_action..."
-        if [ $script_name == "table-index-iops" ]; then
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
-            log "INFO" "Executing initial IOPS collection: $psql_command"
-            run_command "$psql_command"
-            mv table-index-iops.csv table-index-iops-initial.csv
-            
-            log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
-            # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
-            sleep $iops_capture_interval 
-            
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
-            log "INFO" "Executing final IOPS collection: $psql_command"
-            run_command "$psql_command"
-            mv table-index-iops.csv table-index-iops-final.csv
-        else
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
-            log "INFO" "Executing script: $psql_command"
-            run_command "$psql_command"
-        fi
+        
+        case $script_name in
+            "table-index-iops")
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
+                log "INFO" "Executing initial IOPS collection: $psql_command"
+                run_command "$psql_command"
+                mv table-index-iops.csv table-index-iops-initial.csv
+
+                log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
+                # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
+                sleep $iops_capture_interval
+
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
+                log "INFO" "Executing final IOPS collection: $psql_command"
+                run_command "$psql_command"
+                mv table-index-iops.csv table-index-iops-final.csv
+            ;;
+            "db-queries-summary")
+                if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" || -z "$pgss_ext_schema" ]]; then
+                    print_and_log "INFO" "Skipping $script_action: pg_stat_statements is unavailable or reporting disabled."
+                    continue
+                fi
+
+                psql_command="psql -q $pg_connection_string -f $script -v schema_name=$pgss_ext_schema -v ON_ERROR_STOP=on"
+                log "INFO" "Executing script: $psql_command"
+                run_command "$psql_command"
+            ;;
+            *)
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
+                log "INFO" "Executing script: $psql_command"
+                run_command "$psql_command"
+            ;;
+        esac
     done
 
     # check for pg_dump version

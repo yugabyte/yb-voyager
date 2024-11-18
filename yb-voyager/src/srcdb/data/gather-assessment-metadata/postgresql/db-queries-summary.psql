@@ -3,7 +3,7 @@ SELECT
     queryid,
     query
 FROM
-    pg_stat_statements
+    :schema_name.pg_stat_statements
 WHERE
     dbid = (SELECT oid FROM pg_database WHERE datname = current_database());
 
