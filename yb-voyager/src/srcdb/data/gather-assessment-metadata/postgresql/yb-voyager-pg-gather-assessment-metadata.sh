@@ -148,6 +148,7 @@ main() {
 
     # checking before quoting connection_string
     pgss_ext_schema=$(psql -A -t -q $pg_connection_string -c "SELECT nspname FROM pg_extension e, pg_namespace n WHERE e.extnamespace = n.oid AND e.extname = 'pg_stat_statements'")
+    # TODO: what if the fetch pgss schema is not in schema_list provided by user
     log "INFO" "pg_stat_statements extension is available in schema: $pgss_ext_schema"
 
     # quote the required shell variables
