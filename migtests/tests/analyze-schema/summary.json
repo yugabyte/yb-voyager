@@ -48,9 +48,9 @@
             },
             {
                 "ObjectType": "VIEW",
-                "TotalCount": 3,
+                "TotalCount": 4,
                 "InvalidCount": 3,
-                "ObjectNames": "v1, v2, test"
+                "ObjectNames": "v1, v2, test, public.orders_view"
             },
             {
                 "ObjectType": "TRIGGER",
