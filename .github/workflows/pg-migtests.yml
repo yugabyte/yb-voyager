@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: ['main']
+    branches: ['main', 'priyanshi/unsupported-plpgsql-objects']
 
 jobs:
   run-pg-migration-tests:
