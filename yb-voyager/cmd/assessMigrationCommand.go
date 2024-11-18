@@ -165,6 +165,21 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 				ObjectCount: len(feature.Objects),
 			}
 		})),
+		UnsupportedPlPgSqlObjects: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedPlPgSqlObjects, func(plpgsql UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+			groupedObjects := groupByObjectName(plpgsql.Objects)
+			var objectNameToCount map[string]int
+			i := 1
+			for _, objects := range groupedObjects {
+				dummyObjectName := fmt.Sprintf("dummy_name_%d", i) //can't send the actual obejct name to callhome so having a dummy one for map
+				i++
+				objectNameToCount[dummyObjectName] = len(objects)
+			}
+			return callhome.UnsupportedFeature{
+				FeatureName:       plpgsql.FeatureName,
+				ObjectCount:       len(plpgsql.Objects),
+				ObjectNameToCount: objectNameToCount,
+			}
+		})),
 		TableSizingStats: callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats: callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:    callhome.MarshalledJsonString(schemaSummaryCopy),
@@ -524,6 +539,19 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 		})
 	}
 
+	for _, plpgsqlObjects := range ar.UnsupportedPlPgSqlObjects {
+		for _, object := range plpgsqlObjects.Objects {
+			issues = append(issues, AssessmentIssuePayload{
+				Type:               PLPGSQL_OBJECT,
+				TypeDescription:    UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
+				Subtype:            plpgsqlObjects.FeatureName,
+				SubtypeDescription: plpgsqlObjects.FeatureDescription,
+				ObjectName:         object.ObjectName,
+				SqlStatement:       object.SqlStatement,
+				DocsLink:           plpgsqlObjects.DocsLink,
+			})
+		}
+	}
 	return issues
 }
 
@@ -1288,11 +1316,11 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
-		"split":                        split,
-		"groupByObjectType":            groupByObjectType,
-		"numKeysInMapStringObjectInfo": numKeysInMapStringObjectInfo,
-		"groupByObjectName":            groupByObjectName,
-		"totalUniqueObjectNamesOfAllTypes":  totalUniqueObjectNamesOfAllTypes, 
+		"split":                            split,
+		"groupByObjectType":                groupByObjectType,
+		"numKeysInMapStringObjectInfo":     numKeysInMapStringObjectInfo,
+		"groupByObjectName":                groupByObjectName,
+		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
