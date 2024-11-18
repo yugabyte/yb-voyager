@@ -17,7 +17,6 @@ limitations under the License.
 package queryissue
 
 import (
-	"encoding/json"
 	"fmt"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
@@ -27,11 +26,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
-)
-
-const (
-	ACTION           = "action"
-	PLPGSQL_FUNCTION = "PLpgSQL_function"
 )
 
 type ParserIssueDetector struct {
@@ -48,9 +42,9 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
-	_, isPlPgSQLObject := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt) // CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
-	if isPlPgSQLObject {
-		plpgsqlQueries, err := p.GetAllPLPGSQLStatements(query)
+	if queryparser.IsPLPGSQLObject(parseTree) {
+		plpgsqlObjType, plpgsqlObjName := queryparser.GetObjectTypeAndObjectName(parseTree)
+		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
 		if err != nil {
 			return nil, fmt.Errorf("error getting all the queries from query: %w", err)
 		}
@@ -58,11 +52,15 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		for _, plpgsqlQuery := range plpgsqlQueries {
 			issuesInQuery, err := p.GetIssues(plpgsqlQuery)
 			if err != nil {
-				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
+				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance" 
 				log.Infof("error getting issues in query: %v", err)
 				continue
 			}
-			issues = append(issues, issuesInQuery...)
+			for _, i := range issuesInQuery {
+				i.ObjectType = plpgsqlObjType
+				i.ObjectName = plpgsqlObjName
+				issues = append(issues, i)
+			}
 		}
 		return issues, nil
 	}
@@ -84,41 +82,6 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		return p.GetIssues(selectStmtQuery)
 	}
 	return p.getDMLIssues(query, parseTree)
-}
-
-func (p *ParserIssueDetector) GetAllPLPGSQLStatements(query string) ([]string, error) {
-	parsedJson, err := queryparser.ParsePLPGSQLToJson(query)
-	if err != nil {
-		log.Infof("error in parsing the stmt-%s to json: %v", query, err)
-		return []string{}, err
-	}
-	if parsedJson == "" {
-		return []string{}, nil
-	}
-	var parsedJsonMapList []map[string]interface{}
-	//Refer to the queryparser.traversal_plpgsql.go for example and sample parsed json
-	log.Debugf("parsing the json string-%s of stmt-%s", parsedJson, query)
-	err = json.Unmarshal([]byte(parsedJson), &parsedJsonMapList)
-	if err != nil {
-		return []string{}, fmt.Errorf("error parsing the json string of stmt-%s: %v", query, err)
-	}
-
-	if len(parsedJsonMapList) == 0 {
-		return []string{}, nil
-	}
-
-	parsedJsonMap := parsedJsonMapList[0]
-
-	function := parsedJsonMap[PLPGSQL_FUNCTION]
-	parsedFunctionMap, ok := function.(map[string]interface{})
-	if !ok {
-		return []string{}, nil
-	}
-
-	actions := parsedFunctionMap[ACTION]
-	var plPgSqlStatements []string
-	queryparser.TraversePlPgSQLActions(actions, &plPgSqlStatements)
-	return plPgSqlStatements, nil
 }
 
 func (p *ParserIssueDetector) getDMLIssues(query string, parseTree *pg_query.ParseResult) ([]issue.IssueInstance, error) {

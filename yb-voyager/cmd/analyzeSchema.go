@@ -128,10 +128,11 @@ var (
 	schemaAnalysisReport      utils.SchemaReport
 	partitionTablesMap        = make(map[string]bool)
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
-	primaryConsInAlter = make(map[string]*sqlInfo)
-	summaryMap         = make(map[string]*summaryInfo)
-	multiRegex         = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
-	dollarQuoteRegex   = regexp.MustCompile(`(\$.*\$)`)
+	primaryConsInAlter  = make(map[string]*sqlInfo)
+	summaryMap          = make(map[string]*summaryInfo)
+	parserIssueDetector = queryissue.NewParserIssueDetector()
+	multiRegex          = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
+	dollarQuoteRegex    = regexp.MustCompile(`(\$.*\$)`)
 	/*
 		this will contain the information in this format:
 		public.table1 -> {
@@ -1589,28 +1590,27 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		parserIssueDetector := queryissue.NewParserIssueDetector()
 		issues, err := parserIssueDetector.GetIssues(sqlInfoStmt.formattedStmt)
 		if err != nil {
 			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
 		}
 		for _, issueInstance := range issues {
-			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, sqlInfoStmt, objType)
+			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 		}
 	}
 
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, sqlInfoStmt sqlInfo, objType string) utils.Issue {
+func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string) utils.Issue {
 	return utils.Issue{
-		ObjectType:   objType,
-		ObjectName:   sqlInfoStmt.objName,
+		ObjectType:   issueInstance.ObjectType,
+		ObjectName:   issueInstance.ObjectName,
 		Reason:       issueInstance.TypeName,
 		SqlStatement: issueInstance.SqlStatement, //Displaying the actual query in the PLPGSQL block that is problematic
 		DocsLink:     issueInstance.DocsLink,
-		FilePath:     sqlInfoStmt.fileName,
+		FilePath:     fileName,
 		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,
 	}
 }
