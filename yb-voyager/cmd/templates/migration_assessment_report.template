@@ -188,13 +188,9 @@
         {{range .UnsupportedFeatures}}
             {{if .Objects}} <!-- Check if Objects is not empty -->
                 {{ $hasUnsupportedFeatures = true }}
-                {{ $supportedVersionsStr := getSupportedVersionString .MinimumFixedVersionStable .MinimumFixedVersionPreview }}
-
                 {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
                     <h4>{{.FeatureName}}</h4>
-                    {{ if ne $supportedVersionsStr "" }}
-                    Supported in versions: {{ $supportedVersionsStr}}
-                    {{end}}
+                    <p>{{ getSupportedVersionString .MinimumFixedVersionStable .MinimumFixedVersionPreview }} </p>
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -204,9 +200,7 @@
                     </div>
                 {{else}}
                     <h4>{{.FeatureName}}</h4>
-                    {{ if ne $supportedVersionsStr "" }}
-                    Supported in versions: {{ $supportedVersionsStr}}
-                    {{end}}
+                    <p>{{ getSupportedVersionString .MinimumFixedVersionStable .MinimumFixedVersionPreview }} </p>
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -243,12 +237,12 @@
             <table>
                 <tr>
                     <th>Construct Type</th>
-                    <th>Supported Versions</th>
                     <th>Queries</th>
                     <th>Details</th>
                 </tr>
                 {{ $currentType := "" }}
                 {{ $docsLink := "" }}
+                {{ $supporterVerStr := "" }}
                 {{ range $i, $construct := .UnsupportedQueryConstructs }}
                     {{ if ne $construct.ConstructTypeName $currentType }}
                         {{ if ne $currentType "" }}
@@ -256,6 +250,7 @@
                             </div>
                         </td>
                         <td>
+                            {{ $supporterVerStr }}
                             {{ if $docsLink }}
                                 <a href="{{ $docsLink }}" target="_blank">Link</a>
                             {{ else }}
@@ -265,9 +260,9 @@
                         </tr>
                         {{ end }}
                         {{ $docsLink = $construct.DocsLink }}
+                        {{ $supporterVerStr = getSupportedVersionString $construct.MinimumFixedVersionStable $construct.MinimumFixedVersionPreview}}
                         <tr>
                             <td><strong>{{ $construct.ConstructTypeName }}</strong></td>
-                            <td> {{ getSupportedVersionString $construct.MinimumFixedVersionStable $construct.MinimumFixedVersionPreview }}</td>
                             <td>
                                 <div class="scrollable-div">
                                     <ul>
@@ -281,6 +276,7 @@
                     </div>
                 </td>
                 <td>
+                    {{ $supporterVerStr }} 
                     {{ if $docsLink }}
                         <a href="{{ $docsLink }}" target="_blank">Link</a>
                     {{ else }}

@@ -1330,15 +1330,15 @@ func split(value string, delimiter string) []string {
 
 func getSupportedVersionString(minSupVerStable *version.YBVersion, minSupVerPreview *version.YBVersion) string {
 	if minSupVerStable == nil && minSupVerPreview == nil {
-		return "N/A"
+		return ""
 	}
 
-	var supportedVersions string
+	supportedVersions := "Supported in versions: "
 	if minSupVerStable != nil {
-		supportedVersions = fmt.Sprintf(">=%s (stable)", minSupVerStable.String())
+		supportedVersions = fmt.Sprintf("%s >=%s (stable)", supportedVersions, minSupVerStable.String())
 	}
 	if minSupVerPreview != nil {
-		supportedVersions = fmt.Sprintf("%s, >=%s (preview)", supportedVersions, minSupVerPreview.String())
+		supportedVersions = fmt.Sprintf("%s >=%s (preview)", supportedVersions, minSupVerPreview.String())
 	}
 	return supportedVersions
 }
