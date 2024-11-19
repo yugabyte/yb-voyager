@@ -57,6 +57,8 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 				continue
 			}
 			for _, i := range issuesInQuery {
+				//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object 
+				//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 				i.ObjectType = plpgsqlObjType
 				i.ObjectName = plpgsqlObjName
 				issues = append(issues, i)
