@@ -239,11 +239,6 @@ func exportData() bool {
 		utils.ErrExit("schema %q does not exist", source.Schema)
 	}
 
-	// Check if source DB has required permissions for export data
-	if source.RunGuardrailsChecks {
-		checkExportDataPermissions()
-	}
-
 	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
@@ -259,6 +254,11 @@ func exportData() bool {
 	var partitionsToRootTableMap map[string]string
 	// get initial table list
 	partitionsToRootTableMap, finalTableList, isTableListSet := getInitialTableList()
+
+	// Check if source DB has required permissions for export data
+	if source.RunGuardrailsChecks {
+		checkExportDataPermissions()
+	}
 
 	// finalize table list and column list
 	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList, isTableListSet)
