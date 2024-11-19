@@ -120,6 +120,10 @@
                     {{ if $issue.DocsLink }}
                     <li><strong>Docs Link:</strong> <a href='{{ $issue.DocsLink }}' target="_blank">{{ $issue.DocsLink }}</a></li>
                     {{ end }}
+                    {{ $supporterVerStr := getSupportedVersionString $issue.MinimumFixedVersionStable $issue.MinimumFixedVersionPreview}}
+                    {{ if $supporterVerStr }}
+                    <li><strong>Fixed in Versions:</strong> {{ $supporterVerStr }}</li>
+                    {{ end }}
                 </ul>
             </li>
             {{ end }}

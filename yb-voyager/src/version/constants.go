@@ -15,8 +15,6 @@ limitations under the License.
 */
 package version
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
 var LatestStable *YBVersion
 
 var V2024_1 *YBVersion
@@ -27,15 +25,15 @@ func init() {
 	var err error
 	V2024_1, err = NewYBVersion("2024.1")
 	if err != nil {
-		utils.ErrExit("could not create version 2024.1")
+		panic("could not create version 2024.1")
 	}
 	V2024_1_4_0, err = NewYBVersion("2024.1.4.0")
 	if err != nil {
-		utils.ErrExit("could not create version 2024.1.4.0")
+		panic("could not create version 2024.1.4.0")
 	}
 	V2_21_1_0, err = NewYBVersion("2.21.1.0")
 	if err != nil {
-		utils.ErrExit("could not create version 2.21.1.0")
+		panic("could not create version 2.21.1.0")
 	}
 	LatestStable = V2024_1
 }

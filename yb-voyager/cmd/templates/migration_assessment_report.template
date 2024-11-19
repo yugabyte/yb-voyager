@@ -190,7 +190,7 @@
                 {{ $hasUnsupportedFeatures = true }}
                 {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
                     <h4>{{.FeatureName}}</h4>
-                    <p>{{ getSupportedVersionString .MinimumFixedVersionStable .MinimumFixedVersionPreview }} </p>
+                    <p>Supported in Versions: {{ getSupportedVersionString .MinimumFixedVersionStable .MinimumFixedVersionPreview }} </p>
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -200,7 +200,7 @@
                     </div>
                 {{else}}
                     <h4>{{.FeatureName}}</h4>
-                    <p>{{ getSupportedVersionString .MinimumFixedVersionStable .MinimumFixedVersionPreview }} </p>
+                    <p>Supported in Versions: {{ getSupportedVersionString .MinimumFixedVersionStable .MinimumFixedVersionPreview }} </p>
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -250,7 +250,7 @@
                             </div>
                         </td>
                         <td>
-                            {{ $supporterVerStr }}
+                            Supported in Versions: {{ $supporterVerStr }}
                             {{ if $docsLink }}
                                 <a href="{{ $docsLink }}" target="_blank">Link</a>
                             {{ else }}
@@ -276,7 +276,7 @@
                     </div>
                 </td>
                 <td>
-                    {{ $supporterVerStr }} 
+                    Supported in Versions: {{ $supporterVerStr }} 
                     {{ if $docsLink }}
                         <a href="{{ $docsLink }}" target="_blank">Link</a>
                     {{ else }}

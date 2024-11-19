@@ -39,6 +39,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
 )
 
 type summaryInfo struct {
@@ -260,6 +261,8 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	if sourceDBType == POSTGRESQL {
 		issue.DocsLink = docsLink
 	}
+	issue.MinimumFixedVersionPreview = version.V2_21_1_0
+	issue.MinimumFixedVersionStable = version.V2024_1_4_0
 
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
@@ -1933,7 +1936,8 @@ var funcMap = template.FuncMap{
 		}
 		return total
 	},
-	"split": split,
+	"split":                     split,
+	"getSupportedVersionString": getSupportedVersionString,
 }
 
 // add info to the 'reportStruct' variable and return

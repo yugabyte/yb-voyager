@@ -38,6 +38,9 @@ Issues
   - Suggestion      : {{ .Suggestion }} {{ end }}{{ if .GH }}
   - Github Issue    : {{ .GH }}{{ end }}{{ if .DocsLink }}
   - Docs Link       : {{ .DocsLink }}{{ end }}
+{{ $supporterVerStr := getSupportedVersionString $issue.MinimumFixedVersionStable $issue.MinimumFixedVersionPreview}}
+{{ if $supporterVerStr }}
+  - Fixed in Versions: {{ $supporterVerStr }}
 {{ end }}{{ else }}
 No issues found.{{ end }}
 

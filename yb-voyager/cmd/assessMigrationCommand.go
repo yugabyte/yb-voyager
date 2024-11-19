@@ -1333,9 +1333,9 @@ func getSupportedVersionString(minSupVerStable *version.YBVersion, minSupVerPrev
 		return ""
 	}
 
-	supportedVersions := "Supported in versions: "
+	supportedVersions := ""
 	if minSupVerStable != nil {
-		supportedVersions = fmt.Sprintf("%s >=%s (stable)", supportedVersions, minSupVerStable.String())
+		supportedVersions = fmt.Sprintf(">=%s (stable)", minSupVerStable.String())
 	}
 	if minSupVerPreview != nil {
 		supportedVersions = fmt.Sprintf("%s >=%s (preview)", supportedVersions, minSupVerPreview.String())
