@@ -22,9 +22,10 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/reflect/protoreflect"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type ParserIssueDetector struct {
@@ -41,6 +42,31 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+	if queryparser.IsPLPGSQLObject(parseTree) {
+		plpgsqlObjType, plpgsqlObjName := queryparser.GetObjectTypeAndObjectName(parseTree)
+		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
+		if err != nil {
+			return nil, fmt.Errorf("error getting all the queries from query: %w", err)
+		}
+		var issues []issue.IssueInstance
+		for _, plpgsqlQuery := range plpgsqlQueries {
+			issuesInQuery, err := p.GetIssues(plpgsqlQuery)
+			if err != nil {
+				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
+				log.Errorf("error getting issues in query-%s: %v", query, err)
+				continue
+			}
+			for _, i := range issuesInQuery {
+				//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object 
+				//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+				i.ObjectType = plpgsqlObjType
+				i.ObjectName = plpgsqlObjName
+				issues = append(issues, i)
+			}
+		}
+		return issues, nil
+	}
+	//TODO: add handling for VIEW/MVIEW to parse select
 	return p.getDMLIssues(query, parseTree)
 }
 

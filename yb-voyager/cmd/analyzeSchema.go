@@ -35,7 +35,9 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -126,10 +128,11 @@ var (
 	schemaAnalysisReport      utils.SchemaReport
 	partitionTablesMap        = make(map[string]bool)
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
-	primaryConsInAlter = make(map[string]*sqlInfo)
-	summaryMap         = make(map[string]*summaryInfo)
-	multiRegex         = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
-	dollarQuoteRegex   = regexp.MustCompile(`(\$.*\$)`)
+	primaryConsInAlter  = make(map[string]*sqlInfo)
+	summaryMap          = make(map[string]*summaryInfo)
+	parserIssueDetector = queryissue.NewParserIssueDetector()
+	multiRegex          = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
+	dollarQuoteRegex    = regexp.MustCompile(`(\$.*\$)`)
 	/*
 		this will contain the information in this format:
 		public.table1 -> {
@@ -1579,7 +1582,37 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
+	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
+		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
+	}
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
+}
+
+func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
+	for _, sqlInfoStmt := range sqlInfoArr {
+		issues, err := parserIssueDetector.GetIssues(sqlInfoStmt.formattedStmt)
+		if err != nil {
+			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
+			continue
+		}
+		for _, issueInstance := range issues {
+			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath)
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
+		}
+	}
+
+}
+
+func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string) utils.Issue {
+	return utils.Issue{
+		ObjectType:   issueInstance.ObjectType,
+		ObjectName:   issueInstance.ObjectName,
+		Reason:       issueInstance.TypeName,
+		SqlStatement: issueInstance.SqlStatement, //Displaying the actual query in the PLPGSQL block that is problematic
+		DocsLink:     issueInstance.DocsLink,
+		FilePath:     fileName,
+		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,
+	}
 }
 
 func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
@@ -1705,7 +1738,7 @@ func getObjectNameWithTable(stmt string, regexObjName string) string {
 	parsedTree, err := pg_query.Parse(stmt)
 	if err != nil {
 		// in case it is not able to parse stmt as its not in PG syntax so returning the regex name
-		log.Errorf("Erroring parsing the the stmt %s - %v", stmt, err)
+		log.Errorf("Error parsing the the stmt %s - %v", stmt, err)
 		return regexObjName
 	}
 	var objectName *sqlname.ObjectName

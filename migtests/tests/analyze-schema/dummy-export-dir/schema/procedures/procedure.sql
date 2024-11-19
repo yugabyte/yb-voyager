@@ -112,3 +112,40 @@ $body$
 LANGUAGE PLPGSQL
 SECURITY DEFINER
 ;
+
+CREATE OR REPLACE PROCEDURE add_employee(
+    emp_name VARCHAR,
+    emp_age INT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT id, first_name FROM employees WHERE pg_try_advisory_lock(300) IS TRUE;
+
+    -- Insert a new record into the employees table
+    INSERT INTO employees(name, age)
+    VALUES (emp_name, emp_age);
+
+    SELECT e.id, e.name,
+            ROW_NUMBER() OVER (ORDER BY e.ctid) AS row_num
+        FROM employees e;
+
+    SELECT e.id, x.employee_xml
+        FROM employees e
+        JOIN (
+            SELECT xmlelement(name "employee", xmlattributes(e.id AS "id"), e.name) AS employee_xml
+            FROM employees e
+        ) x ON x.employee_xml IS NOT NULL
+        WHERE xmlexists('//employee[name="John Doe"]' PASSING BY REF x.employee_xml);
+    
+    SELECT e.id,
+            CASE
+                WHEN e.salary > 100000 THEN pg_advisory_lock(e.id)
+                ELSE pg_advisory_unlock(e.id)
+            END AS lock_status
+        FROM employees e;
+
+    -- Optional: Log a message
+    RAISE NOTICE 'Employee % of age % added successfully.', emp_name, emp_age;
+END;
+$$;
