@@ -79,7 +79,7 @@ func GetAllPLPGSQLStatements(query string) ([]string, error) {
 
 	actions := parsedFunctionMap[ACTION]
 	var plPgSqlStatements []string
-	TraversePlPgSQLActions(actions, &plPgSqlStatements)
+	TraversePlPgSQLJson(actions, &plPgSqlStatements)
 	return plPgSqlStatements, nil
 }
 
@@ -180,12 +180,12 @@ parsed json -
 	  }
 	}
 */
-func TraversePlPgSQLActions(fieldValue interface{}, plPgSqlStatements *[]string) {
-	actionMap, isMap := fieldValue.(map[string]interface{})
-	lists, isList := fieldValue.([]interface{})
+func TraversePlPgSQLJson(fieldValue interface{}, plPgSqlStatements *[]string) {
+	fieldMap, isMap := fieldValue.(map[string]interface{})
+	fieldList, isList := fieldValue.([]interface{})
 	switch true {
 	case isMap:
-		for k, v := range actionMap {
+		for k, v := range fieldMap {
 			switch k {
 			// base case of recursive calls to reach this PLPGSQL_EXPR field in json which will have "query" field with statement
 			case PLPGSQL_EXPR:
@@ -199,13 +199,13 @@ func TraversePlPgSQLActions(fieldValue interface{}, plPgSqlStatements *[]string)
 					}
 				}
 			default:
-				TraversePlPgSQLActions(v, plPgSqlStatements)
+				TraversePlPgSQLJson(v, plPgSqlStatements)
 			}
 		}
 	case isList:
 		//In case the value of a field is not a <key , val> but a list of <key, val> e.g. "body"
-		for _, l := range lists {
-			TraversePlPgSQLActions(l, plPgSqlStatements)
+		for _, l := range fieldList {
+			TraversePlPgSQLJson(l, plPgSqlStatements)
 		}
 	}
 

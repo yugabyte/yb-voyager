@@ -59,6 +59,8 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 			issues = append(issues, issuesInQuery...)
 		}
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object 
+			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 			i.ObjectType = objType
 			i.ObjectName = objName
 			return i
@@ -76,6 +78,8 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 			return nil, err
 		}
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object 
+			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 			i.ObjectType = objType
 			i.ObjectName = objName
 			return i
