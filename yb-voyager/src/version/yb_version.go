@@ -90,6 +90,11 @@ func (ybv *YBVersion) ReleaseType() string {
 	}
 }
 
+// This returns the len of the segments in the original
+// input. For instance if input is 2024.1,
+// go-version.Version.Segments() will return [2024, 1, 0, 0]
+// original = 2024.1
+// originalSegmentsLen  = 2 ([2024,1])
 func (ybv *YBVersion) originalSegmentsLen() int {
 	orig := ybv.Original()
 	segments := strings.Split(orig, ".")
