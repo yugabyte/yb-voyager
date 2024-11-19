@@ -406,7 +406,6 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		// Check for java
-		// Java should be greater than or equal to 17
 		binaryCheckIssue, err := checkJavaVersion()
 		if err != nil {
 			return nil, err
@@ -436,8 +435,6 @@ func checkJavaVersion() (binaryCheckIssue string, err error) {
 		javaBinary = javaHome + "/bin/java"
 	}
 
-	// Java should be greater than or equal to 17
-	// Get the java version and check if it is greater than or equal to 17
 	cmd := exec.Command(javaBinary, "-version")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
