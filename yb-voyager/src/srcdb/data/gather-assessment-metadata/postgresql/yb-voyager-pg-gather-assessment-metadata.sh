@@ -118,6 +118,29 @@ run_command() {
     fi
 }
 
+
+# Function to convert schema list to an array and ensure 'public' is included
+prepare_schema_array() {
+    local schema_list=$1
+    local -a schema_array
+
+    # Convert the schema list (pipe-separated) to an array
+    IFS='|' read -r -a schema_array <<< "$schema_list"
+    local public_found=false
+    for schema in "${schema_array[@]}"; do
+        if [[ "$schema" == "public" ]]; then
+            public_found=true
+            break
+        fi
+    done
+
+    if [[ $public_found == false ]]; then
+        schema_array+=("public")
+    fi
+
+    echo "${schema_array[*]}"
+}
+
 main() {
     # Resolve the absolute path of assessment_metadata_dir
     assessment_metadata_dir=$(cd "$assessment_metadata_dir" && pwd)
@@ -148,8 +171,10 @@ main() {
 
     # checking before quoting connection_string
     pgss_ext_schema=$(psql -A -t -q $pg_connection_string -c "SELECT nspname FROM pg_extension e, pg_namespace n WHERE e.extnamespace = n.oid AND e.extname = 'pg_stat_statements'")
-    # TODO: what if the fetch pgss schema is not in schema_list provided by user
     log "INFO" "pg_stat_statements extension is available in schema: $pgss_ext_schema"
+
+    schema_array=$(prepare_schema_array $schema_list)
+    log "INFO" "schema_array for checking pgss_ext_schema: $schema_array"
 
     # quote the required shell variables
     pg_connection_string=$(quote_string "$pg_connection_string")
@@ -179,8 +204,18 @@ main() {
                 mv table-index-iops.csv table-index-iops-final.csv
             ;;
             "db-queries-summary")
-                if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" || -z "$pgss_ext_schema" ]]; then
-                    print_and_log "INFO" "Skipping $script_action: pg_stat_statements is unavailable or reporting disabled."
+                if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ]]; then
+                    print_and_log "INFO" "Skipping $script_action: Reporting of unsupported query constructs is disabled."
+                    continue
+                fi
+
+                if [[ -z "$pgss_ext_schema" ]]; then
+                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension schema is not found or not accessible."
+                    continue
+                fi
+
+                if [[ ! " ${schema_array[*]} " =~ " $pgss_ext_schema " ]]; then
+                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension schema '$pgss_ext_schema' is not in the expected schema list (${schema_array[*]})."
                     continue
                 fi
 
