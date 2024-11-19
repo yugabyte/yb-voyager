@@ -335,6 +335,18 @@ create table combined_tbl (
 	bittv bit varying(15)
 );
 
+CREATE TABLE combined_tbl1(
+	id int,
+	t tsrange, 
+	d daterange, 
+	tz tstzrange, 
+	n numrange, 
+	i4 int4range, 
+	i8 int8range,
+	inym INTERVAL YEAR TO MONTH,
+	inds INTERVAL DAY TO SECOND(9)
+);
+
 CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
 
 CREATE TABLE test_udt (

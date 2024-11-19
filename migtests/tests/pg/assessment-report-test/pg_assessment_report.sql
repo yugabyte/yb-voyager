@@ -180,6 +180,8 @@ create table public.combined_tbl (
 	maddr macaddr, 
 	maddr8 macaddr8,
 	lsn pg_lsn, 
+    inds3 INTERVAL DAY TO SECOND(3),
+    d daterange,
 	bitt bit (13),
 	bittv bit varying(15),
     address address_type,
@@ -199,6 +201,10 @@ CREATE INDEX idx5 on public.combined_tbl (bitt);
 CREATE INDEX idx6 on public.combined_tbl (bittv);
 
 CREATE INDEX idx7 on public.combined_tbl (address);
+
+CREATE INDEX idx8 on public.combined_tbl (d);
+
+CREATE INDEX idx9 on public.combined_tbl (inds3);
 
 CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
 
