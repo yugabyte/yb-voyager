@@ -167,17 +167,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		})),
 		UnsupportedPlPgSqlObjects: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedPlPgSqlObjects, func(plpgsql UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			groupedObjects := groupByObjectName(plpgsql.Objects)
-			objectNameToCount := make(map[string]int)
-			i := 1
-			for _, objects := range groupedObjects {
-				dummyObjectName := fmt.Sprintf("dummy_name_%d", i) //can't send the actual obejct name to callhome so having a dummy one for map
-				i++
-				objectNameToCount[dummyObjectName] = len(objects)
-			}
 			return callhome.UnsupportedFeature{
-				FeatureName:       plpgsql.FeatureName,
-				ObjectCount:       len(plpgsql.Objects),
-				ObjectNameToCount: objectNameToCount,
+				FeatureName:      plpgsql.FeatureName,
+				ObjectCount:      len(lo.Keys(groupedObjects)),
+				TotalOccurrences: len(plpgsql.Objects),
 			}
 		})),
 		TableSizingStats: callhome.MarshalledJsonString(tableSizingStats),
