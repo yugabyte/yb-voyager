@@ -1068,6 +1068,8 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		}
 
 		for _, issue := range issues {
+			// if MinimumFixedVersionStableOld is defined, pick that because that would be lower
+			// than MinimumFixedVersionStable. If not, pick MinimumFixedVersionStable.
 			minFixVersionStable := lo.Ternary(issue.MinimumFixedVersionStableOld != nil, issue.MinimumFixedVersionStableOld, issue.MinimumFixedVersionStable)
 			uqc := utils.UnsupportedQueryConstruct{
 				Query:                      issue.SqlStatement,

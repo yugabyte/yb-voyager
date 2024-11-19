@@ -141,6 +141,8 @@ func (ybv *YBVersion) String() string {
 	return ybv.Original()
 }
 
+// override the UnmarshalText method of Version.
+// UnmarshalText implements encoding.TextUnmarshaler interface.
 func (ybv *YBVersion) UnmarshalText(b []byte) error {
 	temp, err := NewYBVersion(string(b))
 	if err != nil {
