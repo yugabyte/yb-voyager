@@ -147,10 +147,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		return datatype.DataType
 	})
 
-	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q UnsupportedQueryConstruct) string {
+	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
 		return q.ConstructTypeName
 	})
-	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []UnsupportedQueryConstruct, _ string) int {
+	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
 		return len(constructs)
 	})
 
@@ -1024,7 +1024,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	return unsupportedFeatures, nil
 }
 
-func fetchUnsupportedQueryConstructs() ([]UnsupportedQueryConstruct, error) {
+func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
 	if source.DBType != POSTGRESQL {
 		return nil, nil
 	}
@@ -1056,7 +1056,7 @@ func fetchUnsupportedQueryConstructs() ([]UnsupportedQueryConstruct, error) {
 		return nil, nil
 	}
 
-	var result []UnsupportedQueryConstruct
+	var result []utils.UnsupportedQueryConstruct
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
@@ -1069,7 +1069,7 @@ func fetchUnsupportedQueryConstructs() ([]UnsupportedQueryConstruct, error) {
 
 		for _, issue := range issues {
 			minFixVersionStable := lo.Ternary(issue.MinimumFixedVersionStableOld != nil, issue.MinimumFixedVersionStableOld, issue.MinimumFixedVersionStable)
-			uqc := UnsupportedQueryConstruct{
+			uqc := utils.UnsupportedQueryConstruct{
 				Query:                      issue.SqlStatement,
 				ConstructTypeName:          issue.TypeName,
 				DocsLink:                   issue.DocsLink,
@@ -1376,12 +1376,4 @@ func validateAndSetTargetDbVersionFlag() {
 			utils.ErrExit("invalid target-db-version: %q. %v", targetDbVersionStrFlag, err)
 		}
 	}
-}
-
-type UnsupportedQueryConstruct struct {
-	ConstructTypeName          string
-	MinimumFixedVersionStable  *version.YBVersion
-	MinimumFixedVersionPreview *version.YBVersion
-	Query                      string
-	DocsLink                   string
 }

@@ -1127,7 +1127,7 @@ type AssessmentReport struct {
 	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
-	UnsupportedQueryConstructs []UnsupportedQueryConstruct           `json:"UnsupportedQueryConstructs"`
+	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
 }

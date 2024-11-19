@@ -126,6 +126,14 @@ type TableColumnsDataTypes struct {
 	DataType   string `json:"DataType"`
 }
 
+type UnsupportedQueryConstruct struct {
+	ConstructTypeName          string
+	MinimumFixedVersionStable  *version.YBVersion
+	MinimumFixedVersionPreview *version.YBVersion
+	Query                      string
+	DocsLink                   string
+}
+
 // ================== Segment ==============================
 type Segment struct {
 	Num      int
