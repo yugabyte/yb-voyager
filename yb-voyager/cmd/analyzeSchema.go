@@ -686,6 +686,13 @@ var UnsupportedIndexDatatypes = []string{
 	"path",
 	"polygon",
 	"txid_snapshot",
+	"daterange",
+	"tsrange",
+	"tstzrange",
+	"numrange",
+	"int4range",
+	"int8range",
+	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
