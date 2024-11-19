@@ -18,6 +18,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -31,6 +33,8 @@ import (
 
 // source struct will be populated by CLI arguments parsing
 var source srcdb.Source
+
+const MIN_REQUIRED_JAVA_VERSION = 17
 
 // to disable progress bar during data export and import
 var disablePb utils.BoolStr
@@ -395,20 +399,28 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 			if err != nil {
 				return nil, err
 			} else if binaryCheckIssue != "" {
-
 				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
-		}
-		if len(binaryCheckIssues) > 0 {
-			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
 		}
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
+		// Check for java
+		// Java should be greater than or equal to 17
+		binaryCheckIssue, err := checkJavaVersion()
+		if err != nil {
+			return nil, err
+		} else if binaryCheckIssue != "" {
+			binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
+			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
+		} else if len(binaryCheckIssues) > 0 {
+			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
+		}
+
 		// Check for debezium
 		// FindDebeziumDistribution returns an error only if the debezium distribution is not found
 		// So its error mesage will be added to problems
-		err := dbzm.FindDebeziumDistribution(source.DBType, false)
+		err = dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
 			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 			binaryCheckIssues = append(binaryCheckIssues, "Please check your Voyager installation and try again")
@@ -416,4 +428,47 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 	}
 
 	return binaryCheckIssues, nil
+}
+
+func checkJavaVersion() (binaryCheckIssue string, err error) {
+	javaBinary := "java"
+	if javaHome := os.Getenv("JAVA_HOME"); javaHome != "" {
+		javaBinary = javaHome + "/bin/java"
+	}
+
+	// Java should be greater than or equal to 17
+	// Get the java version and check if it is greater than or equal to 17
+	cmd := exec.Command(javaBinary, "-version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Sprintf("java: required version >= %d", MIN_REQUIRED_JAVA_VERSION), nil
+	}
+
+	// Example output
+	// openjdk version "17" 2021-09-14
+	// OpenJDK Runtime Environment (build 17+35-2724)
+	// OpenJDK 64-Bit Server VM (build 17+35-2724, mixed mode, sharing)
+	versionOutput := string(output)
+	versionLine := strings.Split(versionOutput, "\n")[0]
+	versionParts := strings.Split(versionLine, " ")
+	if len(versionParts) < 3 {
+		return "", fmt.Errorf("unexpected java version format: %s", versionOutput)
+	}
+
+	version := strings.Trim(versionParts[2], "\"")
+	versionNumbers := strings.Split(version, ".")
+	if len(versionNumbers) < 1 {
+		return "", fmt.Errorf("unexpected java version format: %s", version)
+	}
+
+	majorVersion, err := strconv.Atoi(versionNumbers[0])
+	if err != nil {
+		return "", fmt.Errorf("error parsing java version: %v", err)
+	}
+
+	if majorVersion < MIN_REQUIRED_JAVA_VERSION {
+		return fmt.Sprintf("Java version %s is not supported. Please install Java version %d or higher", version, MIN_REQUIRED_JAVA_VERSION), nil
+	}
+
+	return "", nil
 }

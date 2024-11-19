@@ -36,24 +36,6 @@ fi
 # Add * to the end of the connector path
 YB_OR_PG_CONNECTOR_PATH="$YB_OR_PG_CONNECTOR_PATH/*"
 
-
-# Resolve Java
-if [ -z "$JAVA_HOME" ]; then
-  JAVA_BINARY="java"
-else
-  JAVA_BINARY="$JAVA_HOME/bin/java"
-fi
-MIN_REQUIRED_MAJOR_VERSION='17'
-JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
-if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
-then
-    echo "Found sufficient java version = ${JAVA_MAJOR_VER}"
-else
-    echo "ERROR: Java not found or insufficient version ${JAVA_MAJOR_VER}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
-    exit 1;
-fi
-
-
 # Run
 if [ "$OSTYPE" = "msys" ] || [ "$OSTYPE" = "cygwin" ]; then
   PATH_SEP=";"
