@@ -239,6 +239,17 @@ func exportData() bool {
 		utils.ErrExit("schema %q does not exist", source.Schema)
 	}
 
+	if source.RunGuardrailsChecks {
+		schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
+		if err != nil {
+			utils.ErrExit("get schemas missing usage permissions: %v", err)
+		}
+		if len(schemasMissingUsage) > 0 {
+			fmt.Printf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
+			utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"))
+		}
+	}
+
 	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()

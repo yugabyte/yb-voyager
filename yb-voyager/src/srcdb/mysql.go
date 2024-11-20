@@ -549,3 +549,7 @@ func (ms *MySQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCo
 func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 	return nil, nil
 }
+
+func (ms *MySQL) GetSchemasMissingUsagePermissions() ([]string, error) {
+	return nil, nil
+}

@@ -61,6 +61,7 @@ type SourceDB interface {
 	GetMissingExportDataPermissions(exportType string) ([]string, error)
 	GetMissingAssessMigrationPermissions() ([]string, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
+	GetSchemasMissingUsagePermissions() ([]string, error)
 }
 
 func newSourceDB(source *Source) SourceDB {

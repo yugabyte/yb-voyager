@@ -187,17 +187,6 @@ func (pg *PostgreSQL) GetVersion() string {
 
 func (pg *PostgreSQL) CheckSchemaExists() bool {
 	schemaList := pg.checkSchemasExists()
-
-	if pg.source.RunGuardrailsChecks {
-		// Check if schemas have USAGE permission
-		missingSchemas, err := pg.listSchemasMissingUsagePermission()
-		if err != nil {
-			utils.ErrExit("error checking schema usage permissions: %v", err)
-		}
-		if len(missingSchemas) > 0 {
-			utils.ErrExit("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", pg.source.User)), strings.Join(missingSchemas, ", "))
-		}
-	}
 	return schemaList != nil
 }
 
@@ -1521,7 +1510,7 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm
 	return tablesWithMissingPerm, nil
 }
 
-func (pg *PostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
+func (pg *PostgreSQL) GetSchemasMissingUsagePermissions() ([]string, error) {
 	// Users need usage permissions on the schemas they want to export and the pg_catalog and information_schema schemas
 	trimmedSchemaList := pg.getTrimmedSchemaList()
 	trimmedSchemaList = append(trimmedSchemaList, "pg_catalog", "information_schema")
