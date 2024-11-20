@@ -135,7 +135,7 @@ func exportSchema() error {
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
 		checkIfSchemasHaveUsagePermissions()
-		missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
+		missingPerms, err := source.DB().GetMissingExportSchemaPermissions("")
 		if err != nil {
 			return fmt.Errorf("failed to get missing migration permissions: %w", err)
 		}

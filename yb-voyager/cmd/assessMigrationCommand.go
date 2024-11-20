@@ -336,7 +336,7 @@ func assessMigration() (err error) {
 		// Check if source db has permissions to assess migration
 		if source.RunGuardrailsChecks {
 			checkIfSchemasHaveUsagePermissions()
-			missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
+			missingPerms, err := source.DB().GetMissingAssessMigrationPermissions()
 			if err != nil {
 				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
 			}

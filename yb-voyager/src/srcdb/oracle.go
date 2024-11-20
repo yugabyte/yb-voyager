@@ -717,11 +717,11 @@ func (ora *Oracle) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 
-func (ora *Oracle) GetMissingExportSchemaPermissions() ([]string, error) {
+func (ora *Oracle) GetMissingExportSchemaPermissions(queryTableList string) ([]string, error) {
 	return nil, nil
 }
 
-func (ora *Oracle) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
 	return nil, nil
 }
 

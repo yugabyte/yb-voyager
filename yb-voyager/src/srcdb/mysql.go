@@ -534,11 +534,11 @@ func (ms *MySQL) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 
-func (ms *MySQL) GetMissingExportSchemaPermissions() ([]string, error) {
+func (ms *MySQL) GetMissingExportSchemaPermissions(queryTableList string) ([]string, error) {
 	return nil, nil
 }
 
-func (ms *MySQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+func (ms *MySQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
 	return nil, nil
 }
 
