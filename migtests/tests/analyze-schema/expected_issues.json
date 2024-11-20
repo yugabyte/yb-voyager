@@ -1373,5 +1373,65 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+        },
+        {
+            "IssueType": "unsupported_plpgsql_objects",
+            "ObjectType": "MVIEW",
+            "ObjectName": "public.sample_data_view",
+            "Reason": "XML Functions",
+            "SqlStatement": "SELECT sample_data.id, sample_data.name, sample_data.description, xmlforest(sample_data.name AS name, sample_data.description AS description) AS xml_data, pg_try_advisory_lock(sample_data.id::bigint) AS lock_acquired, sample_data.ctid AS row_ctid, sample_data.xmin AS xmin_value FROM public.sample_data",
+            "Suggestion": "",
+            "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+        },
+        {
+            "IssueType": "unsupported_plpgsql_objects",
+            "ObjectType": "MVIEW",
+            "ObjectName": "public.sample_data_view",
+            "Reason": "Advisory Locks",
+            "SqlStatement": "SELECT sample_data.id, sample_data.name, sample_data.description, xmlforest(sample_data.name AS name, sample_data.description AS description) AS xml_data, pg_try_advisory_lock(sample_data.id::bigint) AS lock_acquired, sample_data.ctid AS row_ctid, sample_data.xmin AS xmin_value FROM public.sample_data",
+            "Suggestion": "",
+            "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+        },
+        {
+            "IssueType": "unsupported_plpgsql_objects",
+            "ObjectType": "MVIEW",
+            "ObjectName": "public.sample_data_view",
+            "Reason": "System Columns",
+            "SqlStatement": "SELECT sample_data.id, sample_data.name, sample_data.description, xmlforest(sample_data.name AS name, sample_data.description AS description) AS xml_data, pg_try_advisory_lock(sample_data.id::bigint) AS lock_acquired, sample_data.ctid AS row_ctid, sample_data.xmin AS xmin_value FROM public.sample_data",
+            "Suggestion": "",
+            "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
+        },
+        {
+            "IssueType": "unsupported_plpgsql_objects",
+            "ObjectType": "VIEW",
+            "ObjectName": "public.orders_view",
+            "Reason": "XML Functions",
+            "SqlStatement": "SELECT orders.order_id, orders.customer_name, orders.product_name, orders.quantity, orders.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name), xmlelement(name \"Quantity\", orders.quantity), xmlelement(name \"TotalPrice\", orders.price * orders.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(orders.customer_name || orders.product_name)::bigint) AS lock_acquired, orders.ctid AS row_ctid, orders.xmin AS transaction_id FROM public.orders",
+            "Suggestion": "",
+            "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+        },
+        {
+            "IssueType": "unsupported_plpgsql_objects",
+            "ObjectType": "VIEW",
+            "ObjectName": "public.orders_view",
+            "Reason": "Advisory Locks",
+            "SqlStatement": "SELECT orders.order_id, orders.customer_name, orders.product_name, orders.quantity, orders.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name), xmlelement(name \"Quantity\", orders.quantity), xmlelement(name \"TotalPrice\", orders.price * orders.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(orders.customer_name || orders.product_name)::bigint) AS lock_acquired, orders.ctid AS row_ctid, orders.xmin AS transaction_id FROM public.orders",
+            "Suggestion": "",
+            "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+        },
+        {
+            "IssueType": "unsupported_plpgsql_objects",
+            "ObjectType": "VIEW",
+            "ObjectName": "public.orders_view",
+            "Reason": "System Columns",
+            "SqlStatement": "SELECT orders.order_id, orders.customer_name, orders.product_name, orders.quantity, orders.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name), xmlelement(name \"Quantity\", orders.quantity), xmlelement(name \"TotalPrice\", orders.price * orders.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(orders.customer_name || orders.product_name)::bigint) AS lock_acquired, orders.ctid AS row_ctid, orders.xmin AS transaction_id FROM public.orders",
+            "Suggestion": "",
+            "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
         }
 ]

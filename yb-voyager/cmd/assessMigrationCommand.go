@@ -155,6 +155,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			return callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
 				ObjectCount: len(feature.Objects),
+				TotalOccurrences: len(feature.Objects),
 			}
 		})),
 		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
@@ -163,6 +164,15 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			return callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
 				ObjectCount: len(feature.Objects),
+				TotalOccurrences: len(feature.Objects),
+			}
+		})),
+		UnsupportedPlPgSqlObjects: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedPlPgSqlObjects, func(plpgsql UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+			groupedObjects := groupByObjectName(plpgsql.Objects)
+			return callhome.UnsupportedFeature{
+				FeatureName:      plpgsql.FeatureName,
+				ObjectCount:      len(lo.Keys(groupedObjects)),
+				TotalOccurrences: len(plpgsql.Objects),
 			}
 		})),
 		TableSizingStats: callhome.MarshalledJsonString(tableSizingStats),
@@ -524,6 +534,19 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 		})
 	}
 
+	for _, plpgsqlObjects := range ar.UnsupportedPlPgSqlObjects {
+		for _, object := range plpgsqlObjects.Objects {
+			issues = append(issues, AssessmentIssuePayload{
+				Type:               PLPGSQL_OBJECT,
+				TypeDescription:    UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
+				Subtype:            plpgsqlObjects.FeatureName,
+				SubtypeDescription: plpgsqlObjects.FeatureDescription,
+				ObjectName:         object.ObjectName,
+				SqlStatement:       object.SqlStatement,
+				DocsLink:           plpgsqlObjects.DocsLink,
+			})
+		}
+	}
 	return issues
 }
 
@@ -857,7 +880,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 	assessmentReport.UnsupportedFeaturesDesc = FEATURE_ISSUE_TYPE_DESCRIPTION
-	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", false) {
+	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
 		unsupportedPlpgSqlObjects := fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport)
 		assessmentReport.UnsupportedPlPgSqlObjects = unsupportedPlpgSqlObjects
 	}
@@ -1288,11 +1311,11 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
-		"split":                        split,
-		"groupByObjectType":            groupByObjectType,
-		"numKeysInMapStringObjectInfo": numKeysInMapStringObjectInfo,
-		"groupByObjectName":            groupByObjectName,
-		"totalUniqueObjectNamesOfAllTypes":  totalUniqueObjectNamesOfAllTypes, 
+		"split":                            split,
+		"groupByObjectType":                groupByObjectType,
+		"numKeysInMapStringObjectInfo":     numKeysInMapStringObjectInfo,
+		"groupByObjectName":                groupByObjectName,
+		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 

@@ -222,3 +222,65 @@ CREATE TRIGGER before_sales_region_insert_update
 BEFORE INSERT OR UPDATE ON public.sales_region
 FOR EACH ROW
 EXECUTE FUNCTION public.check_sales_region();
+
+
+ CREATE TABLE public.ordersentry (
+    order_id SERIAL PRIMARY KEY,
+    customer_name TEXT NOT NULL,
+    product_name TEXT NOT NULL,
+    quantity INT NOT NULL,
+    price NUMERIC(10, 2) NOT NULL,
+    processed_at timestamp
+);
+
+INSERT INTO public.ordersentry (customer_name, product_name, quantity, price)
+VALUES
+    ('Alice', 'Laptop', 1, 1200.00),
+    ('Bob', 'Smartphone', 2, 800.00),
+    ('Charlie', 'Tablet', 1, 500.00);
+
+CREATE VIEW public.ordersentry_view AS
+SELECT
+    order_id,
+    customer_name,
+    product_name,
+    quantity,
+    price,
+    xmlelement(
+        name "OrderDetails",
+        xmlelement(name "Customer", customer_name),
+        xmlelement(name "Product", product_name),
+        xmlelement(name "Quantity", quantity),
+        xmlelement(name "TotalPrice", price * quantity)
+    ) AS order_xml,
+    xmlconcat(
+        xmlelement(name "Customer", customer_name),
+        xmlelement(name "Product", product_name)
+    ) AS summary_xml,
+    pg_try_advisory_lock(hashtext(customer_name || product_name)) AS lock_acquired,
+    ctid AS row_ctid,
+    xmin AS transaction_id
+FROM
+    ordersentry;
+
+CREATE OR REPLACE FUNCTION process_order(orderid INT) RETURNS VOID AS $$
+DECLARE
+    lock_acquired BOOLEAN;
+BEGIN
+    lock_acquired := pg_try_advisory_lock(orderid); -- not able to report this as it is an assignment statement TODO: fix when support this 
+
+    IF NOT lock_acquired THEN
+        RAISE EXCEPTION 'Order % already being processed by another session', orderid;
+    END IF;
+
+    UPDATE orders
+    SET processed_at = NOW()
+    WHERE orders.order_id = orderid;
+
+    RAISE NOTICE 'Order % processed successfully', orderid;
+
+    PERFORM pg_advisory_unlock(orderid);
+END;
+$$ LANGUAGE plpgsql;
+
+select process_order(1);

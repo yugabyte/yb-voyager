@@ -1125,7 +1125,7 @@ type AssessmentReport struct {
 	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
 	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
-	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects,omitempty"`
+	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                      []string                              `json:"Notes"`
@@ -1140,7 +1140,7 @@ type UnsupportedFeature struct {
 }
 
 type ObjectInfo struct {
-	ObjectType   string `json:"-"` //only using as of now for html report Unsupported PLpg/SQL objects feature
+	ObjectType   string `json:"ObjectType,omitempty"`
 	ObjectName   string
 	SqlStatement string
 }

@@ -19,17 +19,19 @@ if [ ! -f "$TEMP_SQL" ]; then
 fi
 
 # Writing temporary SQL script to create DB objects for the test
+# running the unsupported_quer_constructs.sql fileafter after all schema creation to nto get any DDL in pg_stat_statements
 cat <<EOF > "$TEMP_SQL"
 \i ${TEST_DIR}/../misc-objects-1/schema.sql;
 \i ${TEST_DIR}/../misc-objects-2/pg_misc_objects2.sql;
 \i ${TEST_DIR}/../views-and-rules/pg_views_and_rules_automation.sql;
 \i pg_assessment_report.sql;
-\i unsupported_query_constructs.sql
 CREATE SCHEMA IF NOT EXISTS schema2;
 SET SEARCH_PATH TO schema2;
 \i ${TEST_DIR}/../misc-objects-1/schema.sql;
 \i ${TEST_DIR}/../misc-objects-2/pg_misc_objects2.sql;
 \i pg_assessment_report.sql;
+SET SEARCH_PATH TO public;
+\i unsupported_query_constructs.sql;
 EOF
 
 # Run the temporary SQL script

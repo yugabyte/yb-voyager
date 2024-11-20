@@ -43,7 +43,7 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
 	if queryparser.IsPLPGSQLObject(parseTree) {
-		plpgsqlObjType, plpgsqlObjName := queryparser.GetObjectTypeAndObjectName(parseTree)
+		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
 		if err != nil {
 			return nil, fmt.Errorf("error getting all the queries from query: %w", err)
@@ -56,17 +56,36 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 				log.Errorf("error getting issues in query-%s: %v", query, err)
 				continue
 			}
-			for _, i := range issuesInQuery {
-				//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object 
-				//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-				i.ObjectType = plpgsqlObjType
-				i.ObjectName = plpgsqlObjName
-				issues = append(issues, i)
-			}
+			issues = append(issues, issuesInQuery...)
 		}
-		return issues, nil
+		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+			i.ObjectType = objType
+			i.ObjectName = objName
+			return i
+		}), nil
 	}
-	//TODO: add handling for VIEW/MVIEW to parse select
+	//Handle the Mview/View DDL's Select stmt issues
+	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
+		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+		selectStmtQuery, err := queryparser.GetSelectStmtQueryFromViewOrMView(parseTree)
+		if err != nil {
+			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
+		}
+		issues, err := p.GetIssues(selectStmtQuery)
+		if err != nil {
+			return nil, err
+		}
+		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+			i.ObjectType = objType
+			i.ObjectName = objName
+			return i
+		}), nil
+
+	}
 	return p.getDMLIssues(query, parseTree)
 }
 
