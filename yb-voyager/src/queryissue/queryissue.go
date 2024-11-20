@@ -97,6 +97,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string, parseTree *pg_query.Par
 		NewFuncCallDetector(),
 		NewColumnRefDetector(),
 		NewXmlExprDetector(),
+		NewRangeTableFuncDetector(),
 	}
 
 	processor := func(msg protoreflect.Message) error {

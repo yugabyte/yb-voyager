@@ -120,7 +120,7 @@ func NewRangeTableFuncDetector() *RangeTableFunDetector {
 
 // Detect checks if a RangeTableFunc node is present for a XMLTABLE() function
 func (d *RangeTableFunDetector) Detect(msg protoreflect.Message) ([]string, error) {
-	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_RANGE_TABLE_FUNC_NODE {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_RANGETABLEFUNC_NODE {
 		if isXMLTable(msg) {
 			return []string{XML_FUNCTIONS}, nil
 		}
@@ -175,8 +175,15 @@ func isXMLTable(rangeTableFunc protoreflect.Message) bool {
 	}
 
 	xpath := queryparser.GetStringValueFromNode(rowexprNode)
-	log.Debugf("xpath value found: %s\n", xpath)
-	if xpath == "" || !queryparser.IsXPathExprForXmlTable(xpath) {
+	log.Debugf("xpath expression in the node: %s\n", xpath)
+	// Keep both cases check(param placeholder and absolute check)
+	if xpath == "" {
+		// Attempt to check if 'rowexpr' is a parameter placeholder like '$1'
+		isPlaceholder := queryparser.IsParameterPlaceholder(rowexprNode)
+		if !isPlaceholder {
+			return false
+		}
+	} else if !queryparser.IsXPathExprForXmlTable(xpath) {
 		return false
 	}
 

@@ -280,6 +280,13 @@ func TestRangeTableFuncDetector(t *testing.T) {
 		            product TEXT PATH 'product',
 		            quantity TEXT PATH 'quantity'
 		    ) AS items;`,
+		`CREATE VIEW public.order_items_view AS
+		SELECT o.order_id,
+			o.customer_name,
+			items.product,
+			(items.quantity)::integer AS quantity
+		FROM public.orders_view o,
+			LATERAL XMLTABLE(('/order/item'::text) PASSING (o.order_details) COLUMNS product text PATH ('product'::text), quantity text PATH ('quantity'::text)) items;`,
 
 		// Test Case 7: XMLTABLE with aggregation functions
 		`SELECT

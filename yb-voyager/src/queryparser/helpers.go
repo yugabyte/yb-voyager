@@ -108,6 +108,8 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 		return extractStringField(node, "sval")
 	case PG_QUERY_ACONST_NODE:
 		return extractAConstString(node)
+	case PG_QUERY_TYPECAST_NODE:
+		return traverseAndExtractAConst(node, "arg")
 	// example: SELECT * FROM employees;
 	case PG_QUERY_ASTAR_NODE:
 		return ""
@@ -149,6 +151,22 @@ func extractAConstString(aConstMsg protoreflect.Message) string {
 	return extractStringField(svalMsg, "sval")
 }
 
+// traverseAndExtractAConst traverses to a specified field and extracts the 'A_Const' string value
+// Sample example:: rowexpr:{type_cast:{arg:{a_const:{sval:{sval:"/order/item"}
+func traverseAndExtractAConst(nodeMsg protoreflect.Message, fieldName string) string {
+	field := nodeMsg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field == nil || !nodeMsg.Has(field) {
+		return ""
+	}
+
+	childMsg := nodeMsg.Get(field).Message()
+	if childMsg == nil || !childMsg.IsValid() {
+		return ""
+	}
+
+	return GetStringValueFromNode(childMsg)
+}
+
 /*
 isXPathExprForXmlTable checks whether a given string is a valid XPath expression for XMLTABLE()'s rowexpr.
 It returns true if the expression starts with '/' or '//', indicating an absolute or anywhere path.
@@ -179,4 +197,39 @@ func IsXPathExprForXmlTable(expression string) bool {
 
 func GetMsgFullName(msg protoreflect.Message) string {
 	return string(msg.Descriptor().FullName())
+}
+
+// IsParameterPlaceholder checks if the given node represents a parameter placeholder like $1
+func IsParameterPlaceholder(nodeMsg protoreflect.Message) bool {
+	if nodeMsg == nil || !nodeMsg.IsValid() {
+		return false
+	}
+
+	// Retrieve the 'node' oneof descriptor
+	nodeOneof := nodeMsg.Descriptor().Oneofs().ByName("node")
+	if nodeOneof == nil {
+		return false
+	}
+
+	// Determine which field is set in the 'node' oneof
+	nodeField := nodeMsg.WhichOneof(nodeOneof)
+	if nodeField == nil {
+		return false
+	}
+
+	// Get the message corresponding to the set field
+	nodeValue := nodeMsg.Get(nodeField)
+	node := nodeValue.Message()
+	if node == nil || !node.IsValid() {
+		return false
+	}
+
+	// Identify the type of the node
+	nodeType := node.Descriptor().FullName()
+	if nodeType == PG_QUERY_PARAMREF_NODE {
+		// This node represents a parameter reference like $1
+		return true
+	}
+
+	return false
 }
