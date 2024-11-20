@@ -77,13 +77,13 @@ func IsViewObject(parseTree *pg_query.ParseResult) bool {
 }
 
 func IsMviewObject(parseTree *pg_query.ParseResult) bool {
-	createAsNode, isCreateAsStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+	createAsNode, isCreateAsStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt) //for MVIEW case 
 	return isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
 }
 
 func GetSelectStmtQueryFromViewOrMView(parseTree *pg_query.ParseResult) (string, error) {
 	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
-	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)//For MVIEW case 
 	var selectStmt *pg_query.SelectStmt
 	if isViewStmt {
 		selectStmt = viewNode.ViewStmt.GetQuery().GetSelectStmt()
