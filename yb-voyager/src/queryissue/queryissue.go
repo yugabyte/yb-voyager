@@ -42,8 +42,8 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
-	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 	if queryparser.IsPLPGSQLObject(parseTree) {
+		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
 		if err != nil {
 			return nil, fmt.Errorf("error getting all the queries from query: %w", err)
@@ -59,7 +59,7 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 			issues = append(issues, issuesInQuery...)
 		}
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
-			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object 
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 			i.ObjectType = objType
 			i.ObjectName = objName
@@ -68,8 +68,8 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 	}
 	//Handle the Mview/View DDL's Select stmt issues
 	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
-		selectStmt := queryparser.GetSelectStmtFromViewOrMView(parseTree)
-		selectStmtQuery, err := queryparser.DeparseSelectStmt(selectStmt)
+		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+		selectStmtQuery, err := queryparser.GetSelectStmtQueryFromViewOrMView(parseTree)
 		if err != nil {
 			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
 		}
@@ -78,7 +78,7 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 			return nil, err
 		}
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
-			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object 
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 			i.ObjectType = objType
 			i.ObjectName = objName

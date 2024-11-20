@@ -94,7 +94,7 @@ type TargetDBDetails struct {
 type UnsupportedFeature struct {
 	FeatureName      string `json:"FeatureName"`
 	ObjectCount      int    `json:"ObjectCount"`
-	TotalOccurrences int    `json:"TotalOccurrences"`
+	TotalOccurrences int    `json:"TotalOccurrences,omitempty"`
 }
 
 type AssessMigrationPhasePayload struct {

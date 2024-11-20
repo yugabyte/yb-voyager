@@ -155,6 +155,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			return callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
 				ObjectCount: len(feature.Objects),
+				TotalOccurrences: len(feature.Objects),
 			}
 		})),
 		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
@@ -163,6 +164,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			return callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
 				ObjectCount: len(feature.Objects),
+				TotalOccurrences: len(feature.Objects),
 			}
 		})),
 		UnsupportedPlPgSqlObjects: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedPlPgSqlObjects, func(plpgsql UnsupportedFeature, _ int) callhome.UnsupportedFeature {

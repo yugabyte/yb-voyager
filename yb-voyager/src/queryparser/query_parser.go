@@ -44,7 +44,7 @@ func ParsePLPGSQLToJson(query string) (string, error) {
 
 func DeparseSelectStmt(selectStmt *pg_query.SelectStmt) (string, error) {
 	if selectStmt != nil {
-		deparseResult := &pg_query.ParseResult{
+		parseResult := &pg_query.ParseResult{
 			Stmts: []*pg_query.RawStmt{
 				{
 					Stmt: &pg_query.Node{
@@ -55,7 +55,7 @@ func DeparseSelectStmt(selectStmt *pg_query.SelectStmt) (string, error) {
 		}
 
 		// Deparse the SelectStmt to get the string representation
-		selectSQL, err := pg_query.Deparse(deparseResult)
+		selectSQL, err := pg_query.Deparse(parseResult)
 		return selectSQL, err
 	}
 	return "", nil
@@ -81,13 +81,20 @@ func IsMviewObject(parseTree *pg_query.ParseResult) bool {
 	return isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
 }
 
-func GetSelectStmtFromViewOrMView(parseTree *pg_query.ParseResult) *pg_query.SelectStmt {
+func GetSelectStmtQueryFromViewOrMView(parseTree *pg_query.ParseResult) (string, error) {
 	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
 	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+	var selectStmt *pg_query.SelectStmt
 	if isViewStmt {
-		return viewNode.ViewStmt.GetQuery().GetSelectStmt()
+		selectStmt = viewNode.ViewStmt.GetQuery().GetSelectStmt()
+	} else {
+		selectStmt = createAsNode.CreateTableAsStmt.GetQuery().GetSelectStmt()
 	}
-	return createAsNode.CreateTableAsStmt.GetQuery().GetSelectStmt()
+	selectStmtQuery, err := DeparseSelectStmt(selectStmt)
+	if err != nil {
+		return "", fmt.Errorf("deparsing the select stmt: %v", err)
+	}
+	return selectStmtQuery, nil
 }
 
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {
@@ -118,10 +125,12 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 	case IsMviewObject(parseTree):
 		intoMview := createAsNode.CreateTableAsStmt.Into.Rel
 		return "MVIEW", getObjectNameFromRangeVar(intoMview)
+	default:
+		panic("unsupported type of parseResult")
 	}
-	return "", ""
 }
 
+// Range Var is the struct to get the relation information like relation name, schema name, persisted relation or not, etc..
 func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	schema := obj.Schemaname
 	name := obj.Relname
