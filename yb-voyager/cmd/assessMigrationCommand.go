@@ -150,9 +150,15 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
 		return q.ConstructTypeName
 	})
-	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
-		return len(constructs)
-	})
+	// Transforming the grouped map into a slice of callhome.UnsupportedQueryConstruct
+	var unsupportedQueryConstructsSlice []callhome.UnsupportedQueryConstruct
+	for constructType, constructs := range groupedByConstructType {
+		uqc := callhome.UnsupportedQueryConstruct{
+			ConstructType: constructType,
+			QueryCount:    int64(len(constructs)),
+		}
+		unsupportedQueryConstructsSlice = append(unsupportedQueryConstructsSlice, uqc)
+	}
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		MigrationComplexity: assessmentReport.MigrationComplexity,
@@ -171,7 +177,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			}
 			return res
 		})),
-		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
+		UnsupportedQueryConstructs: callhome.MarshalledJsonString(unsupportedQueryConstructsSlice),
 		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
 		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.MigrationCaveats, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			return callhome.UnsupportedFeature{

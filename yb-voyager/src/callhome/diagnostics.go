@@ -102,6 +102,11 @@ type UnsupportedFeature struct {
 	TotalOccurrences int      `json:"TotalOccurrences"`
 }
 
+type UnsupportedQueryConstruct struct {
+	ConstructType string `json:"ConstructType"`
+	QueryCount    int64  `json:"QueryCount"`
+}
+
 type AssessMigrationPhasePayload struct {
 	MigrationComplexity        string `json:"migration_complexity"`
 	UnsupportedFeatures        string `json:"unsupported_features"`
