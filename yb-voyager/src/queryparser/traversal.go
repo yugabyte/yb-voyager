@@ -27,9 +27,11 @@ const (
 	PG_QUERY_NODE_NODE      = "pg_query.Node"
 	PG_QUERY_STRING_NODE    = "pg_query.String"
 	PG_QUERY_ASTAR_NODE     = "pg_query.A_Star"
+	PG_QUERY_ACONST_NODE     = "pg_query.A_Const"
 	PG_QUERY_XMLEXPR_NODE   = "pg_query.XmlExpr"
 	PG_QUERY_FUNCCALL_NODE  = "pg_query.FuncCall"
 	PG_QUERY_COLUMNREF_NODE = "pg_query.ColumnRef"
+	PG_QUERY_RANGE_TABLE_FUNC_NODE = "pg_query.RangeTableFunc"
 )
 
 // function type for processing nodes during traversal

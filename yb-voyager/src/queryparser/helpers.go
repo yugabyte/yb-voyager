@@ -15,7 +15,11 @@ limitations under the License.
 */
 package queryparser
 
-import "google.golang.org/protobuf/reflect/protoreflect"
+import (
+	"strings"
+
+	"google.golang.org/protobuf/reflect/protoreflect"
+)
 
 const (
 	DOCS_LINK_PREFIX        = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"
@@ -79,12 +83,19 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 		return ""
 	}
 
-	// 'nodeMsg' is a 'pg_query.Node' getting the set field in the 'node' oneof
-	nodeField := nodeMsg.WhichOneof(nodeMsg.Descriptor().Oneofs().ByName("node"))
+	// Retrieve the 'node' oneof descriptor
+	nodeOneof := nodeMsg.Descriptor().Oneofs().ByName("node")
+	if nodeOneof == nil {
+		return ""
+	}
+
+	// Determine which field is set in the 'node' oneof
+	nodeField := nodeMsg.WhichOneof(nodeOneof)
 	if nodeField == nil {
 		return ""
 	}
 
+	// Get the message corresponding to the set field
 	nodeValue := nodeMsg.Get(nodeField)
 	node := nodeValue.Message()
 	if node == nil || !node.IsValid() {
@@ -94,15 +105,76 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 	nodeType := node.Descriptor().FullName()
 	switch nodeType {
 	case PG_QUERY_STRING_NODE:
-		strField := node.Descriptor().Fields().ByName("sval")
-		strValue := node.Get(strField)
-		return strValue.String()
+		return extractStringField(node, "sval")
+	case PG_QUERY_ACONST_NODE:
+		return extractAConstString(node)
 	// example: SELECT * FROM employees;
 	case PG_QUERY_ASTAR_NODE:
 		return ""
 	default:
 		return ""
 	}
+}
+
+// extractStringField safely extracts a string field from a node
+// Sample example:: {column_ref:{fields:{string:{sval:"s"}}  fields:{string:{sval:"tableoid"}}  location:7}
+func extractStringField(node protoreflect.Message, fieldName string) string {
+	strField := node.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if strField == nil || !node.Has(strField) {
+		return ""
+	}
+	return node.Get(strField).String()
+}
+
+// extractAConstString extracts the string from an 'A_Const' node's 'sval' field
+// Sample example:: rowexpr:{a_const:{sval:{sval:"//Product"}  location:124}}
+func extractAConstString(aConstMsg protoreflect.Message) string {
+	// Extract the 'sval' field from 'A_Const'
+	svalField := aConstMsg.Descriptor().Fields().ByName("sval")
+	if svalField == nil || !aConstMsg.Has(svalField) {
+		return ""
+	}
+
+	svalMsg := aConstMsg.Get(svalField).Message()
+	if svalMsg == nil || !svalMsg.IsValid() {
+		return ""
+	}
+
+	// Ensure svalMsg is of type 'pg_query.String'
+	if svalMsg.Descriptor().FullName() != "pg_query.String" {
+		return ""
+	}
+
+	// Extract the actual string value from 'pg_query.String'
+	return extractStringField(svalMsg, "sval")
+}
+
+/*
+isXPathExprForXmlTable checks whether a given string is a valid XPath expression for XMLTABLE()'s rowexpr.
+It returns true if the expression starts with '/' or '//', indicating an absolute or anywhere path.
+This covers the primary cases used in XMLTABLE() for selecting XML nodes as rows.
+
+XPath Expression Cases Covered for XMLTABLE():
+1. Absolute Paths:
+- Starts with a single '/' indicating the root node.
+- Example: "/library/book"
+
+2. Anywhere Paths:
+- Starts with double '//' indicating selection from anywhere in the document.
+- Example: "//book/author"
+
+For a comprehensive overview of XPath expressions, refer to:
+https://developer.mozilla.org/en-US/docs/Web/XPath
+*/
+func IsXPathExprForXmlTable(expression string) bool {
+	// Trim leading and trailing whitespace
+	expression = strings.TrimSpace(expression)
+	if expression == "" {
+		return false
+	}
+
+	// Check if the expression starts with '/' or '//'
+	return strings.HasPrefix(expression, "/") || strings.HasPrefix(expression, "//")
 }
 
 func GetMsgFullName(msg protoreflect.Message) string {
