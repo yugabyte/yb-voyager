@@ -752,7 +752,7 @@ END \$\$;
 EOF
 		psql_import_file "${SOURCE_DB_NAME}" "${enable_triggers_sql}"
 	fi
-# TODO: Add re-creating FKs
+#TODO: Add re-creating FKs
 }
 
 assess_migration() {
