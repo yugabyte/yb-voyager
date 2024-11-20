@@ -34,6 +34,7 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -395,6 +396,19 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 	}
 	log.Infof("non empty tables: %v", result)
 	return result
+}
+
+func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
+	tableNames := lo.Map(tables, func(nt sqlname.NameTuple, _ int) string {
+		return nt.ForUserQuery()
+	})
+	commaSeparatedTableNames := strings.Join(tableNames, ", ")
+	query := fmt.Sprintf("TRUNCATE TABLE %s", commaSeparatedTableNames)
+	_, err := yb.Exec(query)
+	if err != nil {
+		return fmt.Errorf("truncate tables with query %q: %w", query, err)
+	}
+	return nil
 }
 
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
