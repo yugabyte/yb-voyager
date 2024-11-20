@@ -22,14 +22,16 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-version"
+	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
 )
 
-var supportedYBVersionStableSeriesOld = []string{"2.20"}
+// Reference - https://docs.yugabyte.com/preview/releases/ybdb-releases/
+var supportedYBVersionStableSeriesOld = []string{"2.14", "2.18", "2.20"}
 var supportedYBVersionStableSeries = []string{"2024.1"}
-var supportedYBVersionPreviewSeries = []string{"2.21"}
+var supportedYBVersionPreviewSeries = []string{"2.21", "2.23"}
 
-var allSupportedYBVersionSeries = append(append(supportedYBVersionStableSeries, supportedYBVersionPreviewSeries...), supportedYBVersionStableSeriesOld...)
+var allSupportedYBVersionSeries = lo.Flatten([][]string{supportedYBVersionStableSeries, supportedYBVersionPreviewSeries, supportedYBVersionStableSeriesOld})
 
 const (
 	STABLE     = "stable"
@@ -69,6 +71,8 @@ func NewYBVersion(v string) (*YBVersion, error) {
 	return ybv, nil
 }
 
+// The first two segments essentially represent the release series
+// as per https://docs.yugabyte.com/preview/releases/ybdb-releases/
 func (ybv *YBVersion) Series() string {
 	return joinIntsWith(ybv.Segments()[:2], ".")
 }
@@ -86,6 +90,11 @@ func (ybv *YBVersion) ReleaseType() string {
 	}
 }
 
+// This returns the len of the segments in the original
+// input. For instance if input is 2024.1,
+// go-version.Version.Segments() will return [2024, 1, 0, 0]
+// original = 2024.1
+// originalSegmentsLen  = 2 ([2024,1])
 func (ybv *YBVersion) OriginalSegmentsLen() int {
 	orig := ybv.Original()
 	segments := strings.Split(orig, ".")
@@ -112,11 +121,11 @@ func (ybv *YBVersion) CompareCommonPrefix(other *YBVersion) (int, error) {
 
 	ybvMin, err := version.NewVersion(joinIntsWith(ybv.Segments()[:minSegLen], "."))
 	if err != nil {
-		panic(err)
+		return 0, fmt.Errorf("create version from segments: %v", ybv.Segments()[:minSegLen])
 	}
 	otherMin, err := version.NewVersion(joinIntsWith(other.Segments()[:minSegLen], "."))
 	if err != nil {
-		panic(err)
+		return 0, fmt.Errorf("create version from segments: %v", other.Segments()[:minSegLen])
 	}
 	return ybvMin.Compare(otherMin), nil
 }
