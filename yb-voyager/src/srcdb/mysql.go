@@ -47,7 +47,7 @@ func newMySQL(s *Source) *MySQL {
 
 func (ms *MySQL) Connect() error {
 	db, err := sql.Open("mysql", ms.getConnectionUri())
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(ms.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ms.db = db
 	return err

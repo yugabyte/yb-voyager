@@ -47,7 +47,7 @@ func newOracle(s *Source) *Oracle {
 
 func (ora *Oracle) Connect() error {
 	db, err := sql.Open("godror", ora.getConnectionUri())
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(ora.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ora.db = db
 	return err

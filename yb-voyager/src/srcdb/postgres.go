@@ -109,7 +109,7 @@ func newPostgreSQL(s *Source) *PostgreSQL {
 
 func (pg *PostgreSQL) Connect() error {
 	db, err := sql.Open("pgx", pg.getConnectionUri())
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(pg.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	pg.db = db
 	return err
