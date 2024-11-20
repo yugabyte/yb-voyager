@@ -42,6 +42,7 @@ require (
 
 require (
 	github.com/fergusstrange/embedded-postgres v1.29.0 // indirect
+	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect

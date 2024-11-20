@@ -105,7 +105,7 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
-//Assessment feature names to send the object names for to callhome
+// Assessment feature names to send the object names for to callhome
 var featuresToSendObjectsToCallhome = []string{
 	EXTENSION_FEATURE,
 }
@@ -164,9 +164,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 				})
 			}
 			res := callhome.UnsupportedFeature{
-				FeatureName: feature.FeatureName,
-				ObjectCount: len(feature.Objects),
-				Objects: objects,
+				FeatureName:      feature.FeatureName,
+				ObjectCount:      len(feature.Objects),
+				Objects:          objects,
+				TotalOccurrences: len(feature.Objects),
 			}
 			return res
 		})),
@@ -174,8 +175,17 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
 		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.MigrationCaveats, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			return callhome.UnsupportedFeature{
-				FeatureName: feature.FeatureName,
-				ObjectCount: len(feature.Objects),
+				FeatureName:      feature.FeatureName,
+				ObjectCount:      len(feature.Objects),
+				TotalOccurrences: len(feature.Objects),
+			}
+		})),
+		UnsupportedPlPgSqlObjects: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedPlPgSqlObjects, func(plpgsql UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+			groupedObjects := groupByObjectName(plpgsql.Objects)
+			return callhome.UnsupportedFeature{
+				FeatureName:      plpgsql.FeatureName,
+				ObjectCount:      len(lo.Keys(groupedObjects)),
+				TotalOccurrences: len(plpgsql.Objects),
 			}
 		})),
 		TableSizingStats: callhome.MarshalledJsonString(tableSizingStats),
@@ -537,6 +547,19 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 		})
 	}
 
+	for _, plpgsqlObjects := range ar.UnsupportedPlPgSqlObjects {
+		for _, object := range plpgsqlObjects.Objects {
+			issues = append(issues, AssessmentIssuePayload{
+				Type:               PLPGSQL_OBJECT,
+				TypeDescription:    UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
+				Subtype:            plpgsqlObjects.FeatureName,
+				SubtypeDescription: plpgsqlObjects.FeatureDescription,
+				ObjectName:         object.ObjectName,
+				SqlStatement:       object.SqlStatement,
+				DocsLink:           plpgsqlObjects.DocsLink,
+			})
+		}
+	}
 	return issues
 }
 
@@ -870,6 +893,10 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
 	assessmentReport.UnsupportedFeaturesDesc = FEATURE_ISSUE_TYPE_DESCRIPTION
+	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
+		unsupportedPlpgSqlObjects := fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport)
+		assessmentReport.UnsupportedPlPgSqlObjects = unsupportedPlpgSqlObjects
+	}
 	return nil
 }
 
@@ -997,6 +1024,41 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{INHERITED_TYPES_FEATURE, inheritedTypes, false, "", ""})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_PARTITIONING_METHODS_FEATURE, unsupportedPartitionTypes, false, "", ""})
 	return unsupportedFeatures, nil
+}
+
+func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []UnsupportedFeature {
+	if source.DBType != POSTGRESQL {
+		return nil
+	}
+	analyzeIssues := schemaAnalysisReport.Issues
+	plpgsqlIssues := lo.Filter(analyzeIssues, func(issue utils.Issue, _ int) bool {
+		return issue.IssueType == UNSUPPORTED_PLPGSQL_OBEJCTS
+	})
+	groupPlpgsqlIssuesByReason := lo.GroupBy(plpgsqlIssues, func(issue utils.Issue) string {
+		return issue.Reason
+	})
+	var unsupportedPlpgSqlObjects []UnsupportedFeature
+	for reason, issues := range groupPlpgsqlIssuesByReason {
+		var objects []ObjectInfo
+		var docsLink string
+		for _, issue := range issues {
+			objects = append(objects, ObjectInfo{
+				ObjectType:   issue.ObjectType,
+				ObjectName:   issue.ObjectName,
+				SqlStatement: issue.SqlStatement,
+			})
+			docsLink = issue.DocsLink
+		}
+		feature := UnsupportedFeature{
+			FeatureName: reason,
+			DisplayDDL:  true,
+			DocsLink:    docsLink,
+			Objects:     objects,
+		}
+		unsupportedPlpgSqlObjects = append(unsupportedPlpgSqlObjects, feature)
+	}
+	return unsupportedPlpgSqlObjects
+
 }
 
 func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
@@ -1262,7 +1324,11 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
-		"split": split,
+		"split":                            split,
+		"groupByObjectType":                groupByObjectType,
+		"numKeysInMapStringObjectInfo":     numKeysInMapStringObjectInfo,
+		"groupByObjectName":                groupByObjectName,
+		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
@@ -1278,6 +1344,30 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
+}
+
+func groupByObjectType(objects []ObjectInfo) map[string][]ObjectInfo {
+	return lo.GroupBy(objects, func(object ObjectInfo) string {
+		return object.ObjectType
+	})
+}
+
+func groupByObjectName(objects []ObjectInfo) map[string][]ObjectInfo {
+	return lo.GroupBy(objects, func(object ObjectInfo) string {
+		return object.ObjectName
+	})
+}
+
+func totalUniqueObjectNamesOfAllTypes(m map[string][]ObjectInfo) int {
+	totalObjectNames := 0
+	for _, objects := range m {
+		totalObjectNames += len(lo.Keys(groupByObjectName(objects)))
+	}
+	return totalObjectNames
+}
+
+func numKeysInMapStringObjectInfo(m map[string][]ObjectInfo) int {
+	return len(lo.Keys(m))
 }
 
 func split(value string, delimiter string) []string {

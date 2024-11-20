@@ -1,0 +1,37 @@
+[
+  {
+    "table_name": "customers (cust_other, cust_part11, cust_part12, cust_part21, cust_part22)",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "sales (sales_2019_q4, sales_2020_q1, sales_2020_q2)",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "emp (emp_0, emp_1, emp_2)",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "p1.sales_region (p2.boston, p2.london, p2.sydney)",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "range_columns_partition_test (range_columns_partition_test_p0, range_columns_partition_test_p1)",
+    "status": "DONE",
+    "exported_count": 6
+  },
+  {
+    "table_name": "sales_region (boston, london, sydney)",
+    "status": "DONE",
+    "exported_count": 1000
+  },
+  {
+    "table_name": "test_partitions_sequences (test_partitions_sequences_b, test_partitions_sequences_l, test_partitions_sequences_s)",
+    "status": "DONE",
+    "exported_count": 1000
+  }
+]

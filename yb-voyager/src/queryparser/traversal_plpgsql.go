@@ -1,0 +1,230 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package queryparser
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	PLPGSQL_EXPR = "PLpgSQL_expr"
+	QUERY        = "query"
+
+	ACTION           = "action"
+	PLPGSQL_FUNCTION = "PLpgSQL_function"
+)
+
+/*
+*
+This function is not concrete yet because of following limitation from parser -
+The following queries are not the actual query we need so if we pass all these queries directly to parser again to detect the unsupported feature/construct. It will fail for some of these with syntax error, e.g.
+
+			a. query "balance > 0 AND balance < withdrawal;" error - syntax error at or near "balance"
+			b. query "format('
+	            CREATE TABLE IF NOT EXISTS %I (
+	                id SERIAL PRIMARY KEY,
+	                name TEXT,
+	                amount NUMERIC
+	            )', partition_table);" error - syntax error at or near "format"
+			c. query "(SELECT balance FROM accounts WHERE account_id = sender_id) < transfer_amount;" error - syntax error at or near "<"
+
+These issues are majorly expressions, conditions, assignments, loop variables, raise parameters, etc… and the parser is giving all these as queries so we can’t differentiate  as such between actual query and these.
+*
+*/
+func GetAllPLPGSQLStatements(query string) ([]string, error) {
+	parsedJson, err := ParsePLPGSQLToJson(query)
+	if err != nil {
+		log.Infof("error in parsing the stmt-%s to json: %v", query, err)
+		return []string{}, err
+	}
+	if parsedJson == "" {
+		return []string{}, nil
+	}
+	var parsedJsonMapList []map[string]interface{}
+	//Refer to the queryparser.traversal_plpgsql.go for example and sample parsed json
+	log.Debugf("parsing the json string-%s of stmt-%s", parsedJson, query)
+	err = json.Unmarshal([]byte(parsedJson), &parsedJsonMapList)
+	if err != nil {
+		return []string{}, fmt.Errorf("error parsing the json string of stmt-%s: %v", query, err)
+	}
+
+	if len(parsedJsonMapList) == 0 {
+		return []string{}, nil
+	}
+
+	parsedJsonMap := parsedJsonMapList[0]
+
+	function := parsedJsonMap[PLPGSQL_FUNCTION]
+	parsedFunctionMap, ok := function.(map[string]interface{})
+	if !ok {
+		return []string{}, fmt.Errorf("error getting the PlPgSQL_Function field in parsed json-%s", parsedJson)
+	}
+
+	actions := parsedFunctionMap[ACTION]
+	var plPgSqlStatements []string
+	TraversePlPgSQLJson(actions, &plPgSqlStatements)
+	return plPgSqlStatements, nil
+}
+
+/*
+Query example-
+
+	CREATE OR REPLACE FUNCTION func_example_advi(
+	   sender_id INT,
+	   receiver_id INT,
+	   transfer_amount NUMERIC
+
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+	-- Acquire advisory locks to prevent concurrent updates on the same accounts
+	PERFORM pg_advisory_lock(sender_id);
+	PERFORM pg_advisory_lock(receiver_id);
+
+	-- Deduct the amount from the sender's account
+	UPDATE accounts
+	SET balance = balance - transfer_amount
+	WHERE account_id = sender_id;
+
+	-- Add the amount to the receiver's account
+	UPDATE accounts
+	SET balance = balance + transfer_amount
+	WHERE account_id = receiver_id;
+
+	-- Release the advisory locks
+	PERFORM pg_advisory_unlock(sender_id);
+	PERFORM pg_advisory_unlock(receiver_id);
+
+END;
+$$;
+
+parsed json -
+
+	{
+	  "PLpgSQL_function": {
+	    "datums": [
+	      ...
+	    ],
+	    "action": {
+	      "PLpgSQL_stmt_block": {
+	        "lineno": 2,
+	        "body": [
+	          {
+	            "PLpgSQL_stmt_perform": {
+	              "lineno": 4,
+	              "expr": {
+	                "PLpgSQL_expr": {
+	                  "query": "SELECT pg_advisory_lock(sender_id)",
+	                  "parseMode": 0
+	                }
+	              }
+	            }
+	          },
+	          {
+				... similar to above
+	          },
+	          {
+	            "PLpgSQL_stmt_execsql": {
+	              "lineno": 8,
+	              "sqlstmt": {
+	                "PLpgSQL_expr": {
+	                  "query": "UPDATE accounts \n    SET balance = balance - transfer_amount \n    WHERE account_id = sender_id",
+	                  "parseMode": 0
+	                }
+	              }
+	            }
+	          },
+	          {
+				.... similar to above
+	          },
+	          {
+	            ... similar to below
+	          },
+	          {
+	            "PLpgSQL_stmt_perform": {
+	              "lineno": 19,
+	              "expr": {
+	                "PLpgSQL_expr": {
+	                  "query": "SELECT pg_advisory_unlock(receiver_id)",
+	                  "parseMode": 0
+	                }
+	              }
+	            }
+	          },
+	          {
+	            "PLpgSQL_stmt_return": {}
+	          }
+	        ]
+	      }
+	    }
+	  }
+	}
+*/
+func TraversePlPgSQLJson(fieldValue interface{}, plPgSqlStatements *[]string) {
+	fieldMap, isMap := fieldValue.(map[string]interface{})
+	fieldList, isList := fieldValue.([]interface{})
+	switch true {
+	case isMap:
+		for k, v := range fieldMap {
+			switch k {
+			// base case of recursive calls to reach this PLPGSQL_EXPR field in json which will have "query" field with statement
+			case PLPGSQL_EXPR:
+				expr, ok := v.(map[string]interface{})
+				if ok {
+					query, ok := expr[QUERY]
+					if ok {
+						q := formatExprQuery(query.(string)) // formating the query of parsed json if required
+
+						*plPgSqlStatements = append(*plPgSqlStatements, q)
+					}
+				}
+			default:
+				TraversePlPgSQLJson(v, plPgSqlStatements)
+			}
+		}
+	case isList:
+		//In case the value of a field is not a <key , val> but a list of <key, val> e.g. "body"
+		for _, l := range fieldList {
+			TraversePlPgSQLJson(l, plPgSqlStatements)
+		}
+	}
+
+}
+
+// Function to format the PLPGSQL EXPR query from the json string
+func formatExprQuery(q string) string {
+	/*
+		PLPGSQL line -
+		EXECUTE 'DROP TABLE IF EXISTS employees';
+
+		json str -
+		 "PLpgSQL_expr": {
+			"query": "'DROP TABLE IF EXISTS employees'",
+	*/
+	q = strings.Trim(q, "'") //to remove any extra '' around the statement
+	q = strings.TrimSpace(q)
+	if !strings.HasSuffix(q, ";") { // adding the ; to query in case not added already
+		q += ";"
+	}
+	return q
+}

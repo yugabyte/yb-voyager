@@ -101,6 +101,7 @@ const (
 
 	UNSUPPORTED_FEATURES                = "unsupported_features"
 	UNSUPPORTED_DATATYPES               = "unsupported_datatypes"
+	UNSUPPORTED_PLPGSQL_OBEJCTS         = "unsupported_plpgsql_objects"
 	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
 
 	HTML = "html"
@@ -173,12 +174,14 @@ const (
 	DATATYPE          = "datatype"
 	QUERY_CONSTRUCT   = "query_construct" // confused: in json for some values we are using space separated and for some snake_case
 	MIGRATION_CAVEATS = "migration_caveats"
+	PLPGSQL_OBJECT    = "plpgsql_object"
 
 	// Description
 	FEATURE_ISSUE_TYPE_DESCRIPTION          = "Features of the source database that are not supported on the target YugabyteDB."
 	DATATYPE_ISSUE_TYPE_DESCRIPTION         = "Data types of the source database that are not supported on the target YugabyteDB."
 	MIGRATION_CAVEATS_TYPE_DESCRIPTION      = "Migration Caveats highlights the current limitations with the migration workflow."
 	UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION = "Source database queries not supported in YugabyteDB, identified by scanning system tables."
+	UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION = "Source schema objects having unsupported statements on the target YugabyteDB in PLPGSQL code block"
 	SCHEMA_SUMMARY_DESCRIPTION              = "Objects that will be created on the target YugabyteDB."
 	SCHEMA_SUMMARY_DESCRIPTION_ORACLE       = SCHEMA_SUMMARY_DESCRIPTION + " Some of the index and sequence names might be different from those in the source database."
 
