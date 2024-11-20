@@ -722,7 +722,7 @@ func reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode *pg_qu
 			displayName := fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, alterCmd.GetDef().GetConstraint().GetConname())
 			reportCase(fpath, fmt.Sprintf(ISSUE_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "TABLE", displayName, sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+				UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
 			return
 		}
 	}
@@ -747,7 +747,7 @@ func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_
 			summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
 			reportCase(fpath, fmt.Sprintf(ISSUE_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
 				"Refer to the docs link for the workaround", "TABLE", fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
+				UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
 		}
 	}
 	for _, column := range columns {
