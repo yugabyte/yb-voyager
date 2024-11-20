@@ -185,10 +185,12 @@ func isXMLTable(rangeTableFunc protoreflect.Message) bool {
 	if columnsField == nil {
 		return false
 	}
+
 	columnsList := rangeTableFunc.Get(columnsField).List()
 	if columnsList.Len() == 0 {
 		return false
 	}
 
+	// this means all the required fields of RangeTableFunc node for being a XMLTABLE() are present
 	return true
 }
