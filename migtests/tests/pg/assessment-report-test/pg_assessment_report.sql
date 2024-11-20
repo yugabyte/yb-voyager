@@ -183,10 +183,14 @@ create table public.combined_tbl (
     inds3 INTERVAL DAY TO SECOND(3),
     d daterange,
 	bitt bit (13),
-	bittv bit varying(15),
+	bittv bit varying(15) UNIQUE,
     address address_type,
-    arr_enum enum_kind[]
+    arr_enum enum_kind[],
+    PRIMARY KEY (id, arr_enum)
 );
+
+ALTER TABLE public.combined_tbl 
+        ADD CONSTRAINT uk UNIQUE(lsn);
 
 CREATE index idx1 on public.combined_tbl (c);
 
