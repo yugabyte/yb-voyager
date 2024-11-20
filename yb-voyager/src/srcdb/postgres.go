@@ -187,6 +187,17 @@ func (pg *PostgreSQL) GetVersion() string {
 
 func (pg *PostgreSQL) CheckSchemaExists() bool {
 	schemaList := pg.checkSchemasExists()
+
+	if pg.source.RunGuardrailsChecks {
+		// Check if schemas have USAGE permission
+		missingSchemas, err := pg.listSchemasMissingUsagePermission()
+		if err != nil {
+			utils.ErrExit("error checking schema usage permissions: %v", err)
+		}
+		if len(missingSchemas) > 0 {
+			utils.ErrExit("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", pg.source.User)), strings.Join(missingSchemas, ", "))
+		}
+	}
 	return schemaList != nil
 }
 
@@ -225,17 +236,10 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 }
 
 func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
-	query := fmt.Sprintf(`
-	SELECT 
-		c.relname AS table_name
-	FROM 
-		pg_catalog.pg_class c
-	JOIN 
-		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-	WHERE 
-		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
-		AND n.nspname = '%s'; 
-	`, schemaName)
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -265,18 +269,10 @@ func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	query := fmt.Sprintf(`
-	SELECT 
-		n.nspname AS table_schema,
-		c.relname AS table_name
-	FROM 
-		pg_catalog.pg_class c
-	JOIN 
-		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-	WHERE 
-		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
-		AND n.nspname IN (%s);  
-	`, querySchemaList)
+	query := fmt.Sprintf(`SELECT table_schema, table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema IN (%s);`, querySchemaList)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -671,17 +667,9 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 
 	// For this query in case of case sensitive tables, minquoting is required
-	query := fmt.Sprintf(`SELECT
-	inhparent::pg_catalog.regclass AS parent_table
-	FROM
-	pg_catalog.pg_inherits
-	JOIN
-	pg_catalog.pg_class AS child ON pg_inherits.inhrelid = child.oid
-	JOIN
-	pg_catalog.pg_namespace AS nsp_child ON child.relnamespace = nsp_child.oid
-	WHERE
-	child.relname = '%s'
-	AND nsp_child.nspname = '%s';`, table.CurrentName.Unqualified.MinQuoted, table.CurrentName.SchemaName)
+	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
+	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
+	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
@@ -1042,15 +1030,6 @@ Returns:
 func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
 	var combinedResult []string
 
-	// Check if schemas have USAGE permission
-	missingSchemas, err := pg.listSchemasMissingUsagePermission()
-	if err != nil {
-		return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
-	}
-	if len(missingSchemas) > 0 {
-		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing USAGE permission for user %s on Schemas: ", pg.source.User), strings.Join(missingSchemas, ", ")))
-	}
-
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission()
 	if err != nil {
@@ -1125,15 +1104,6 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 			combinedResult = append(combinedResult, fmt.Sprintf("\n%sCREATE on database %s", color.RedString("Missing permission for user "+pg.source.User+": "), pg.source.DBName))
 		}
 
-		// Check if schemas have USAGE permission
-		missingSchemas, err := pg.listSchemasMissingUsagePermission()
-		if err != nil {
-			return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
-		}
-		if len(missingSchemas) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", pg.source.User)), strings.Join(missingSchemas, ", ")))
-		}
-
 		// Check replica identity of tables
 		// missingTables, err := pg.listTablesMissingReplicaIdentityFull()
 		// if err != nil {
@@ -1184,15 +1154,6 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 
 func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 	var combinedResult []string
-
-	// Check if schemas have USAGE permission
-	missingSchemas, err := pg.listSchemasMissingUsagePermission()
-	if err != nil {
-		return nil, fmt.Errorf("error checking schema usage permissions: %w", err)
-	}
-	if len(missingSchemas) > 0 {
-		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing USAGE permission for user %s on Schemas: ", pg.source.User), strings.Join(missingSchemas, ", ")))
-	}
 
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission()
