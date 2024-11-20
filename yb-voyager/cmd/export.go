@@ -413,10 +413,13 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		if javaIssue != "" {
 			binaryCheckIssues = append(binaryCheckIssues, javaIssue)
 		}
-		if len(binaryCheckIssues) > 0 {
-			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
-		}
+	}
 
+	if len(binaryCheckIssues) > 0 {
+		binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
+	}
+
+	if changeStreamingIsEnabled(exportType) || useDebezium {
 		// Check for debezium
 		// FindDebeziumDistribution returns an error only if the debezium distribution is not found
 		// So its error mesage will be added to problems
