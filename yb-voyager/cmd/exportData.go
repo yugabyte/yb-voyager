@@ -257,7 +257,7 @@ func exportData() bool {
 	defer cancel()
 	var partitionsToRootTableMap map[string]string
 	// get initial table list
-	partitionsToRootTableMap, finalTableList, isTableListSet := getInitialTableList()
+	partitionsToRootTableMap, finalTableList := getInitialTableList()
 
 	// Check if source DB has required permissions for export data
 	if source.RunGuardrailsChecks {
@@ -265,7 +265,7 @@ func exportData() bool {
 	}
 
 	// finalize table list and column list
-	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList, isTableListSet)
+	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList)
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
@@ -498,7 +498,14 @@ func checkIfSchemasHaveUsagePermissions() {
 	}
 	if len(schemasMissingUsage) > 0 {
 		fmt.Printf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
-		utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"))
+
+		var link string
+		if changeStreamingIsEnabled(exportType) {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
+		} else {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+		}
+		utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString(link))
 	}
 }
 
@@ -732,7 +739,7 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	}
 }
 
-func getInitialTableList() (map[string]string, []sqlname.NameTuple, bool) {
+func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	var tableList []sqlname.NameTuple
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList []sqlname.NameTuple
@@ -792,10 +799,10 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, bool) {
 		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
-	return partitionsToRootTableMap, finalTableList, isTableListSet
+	return partitionsToRootTableMap, finalTableList
 }
 
-func finalizeTableColumnList(finalTableList []sqlname.NameTuple, isTableListSet bool) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
