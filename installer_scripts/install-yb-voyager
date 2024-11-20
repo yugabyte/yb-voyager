@@ -279,21 +279,23 @@ fetch_release_data() {
     TAGGED_COMMIT=$(echo "$TAG_DATA" | jq -r '.object.sha')
 
     # Extract voyager version from the release name
-    VOYAGER_VERSION=$(echo "$RELEASE_NAME" | sed 's/v//')
+    VOYAGER_RELEASE_VERSION=$(echo "$RELEASE_NAME" | sed 's/v//')
 
     # Log the fetched data to the log file
     echo "RELEASE_NAME=${RELEASE_NAME}" >> "$LOG_FILE"
     echo "TAG_NAME=${TAG_NAME}" >> "$LOG_FILE"
     echo "TAGGED_COMMIT=${TAGGED_COMMIT}" >> "$LOG_FILE"
-    echo "VOYAGER_VERSION=${VOYAGER_VERSION}" >> "$LOG_FILE"
+    echo "VOYAGER_RELEASE_VERSION=${VOYAGER_RELEASE_VERSION}" >> "$LOG_FILE"
 
     # Set global variables for version and hash
     VOYAGER_RELEASE_NAME=${RELEASE_NAME}
-    DEBEZIUM_VERSION="${DEBEZIUM_LOCAL_VERSION}-${VOYAGER_VERSION}"
+    DEBEZIUM_VERSION="${DEBEZIUM_LOCAL_VERSION}-${VOYAGER_RELEASE_VERSION}"
 	# If voyager version contains 0rcx then DEBEZIUM_VERSION will be like 0rcx.2.5.2-[voyager version without rcx]
-	if [[ $VOYAGER_VERSION == *"rc"* ]]; then
+	if [[ $VOYAGER_RELEASE_VERSION == *"rc"* ]]; then
 		# In case rc release voyager version is like 0rc1.1.8.5
-		DEBEZIUM_VERSION="${VOYAGER_VERSION:0:4}.${DEBEZIUM_LOCAL_VERSION}-${VOYAGER_VERSION:5}"
+		RC_PREFIX="${VOYAGER_RELEASE_VERSION:0:4}"
+		VOYAGER_VERSION="${VOYAGER_RELEASE_VERSION:5}"
+		DEBEZIUM_VERSION="${RC_PREFIX}.${DEBEZIUM_LOCAL_VERSION}-${VOYAGER_VERSION}"
 	fi
     YB_VOYAGER_GIT_HASH=${TAGGED_COMMIT}
 }
@@ -648,7 +650,7 @@ install_yb_voyager() {
 	GO=${GO:-"go"}
 	if [ "${VERSION}" != "local" ]
 	then
-	    output "Installing yb-voyager:${VOYAGER_VERSION}"
+	    output "Installing yb-voyager:${VOYAGER_RELEASE_VERSION}"
 		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
 		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 		return
