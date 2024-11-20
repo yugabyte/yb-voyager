@@ -321,7 +321,7 @@ create table combined_tbl (
 	c cidr, 
 	ci circle, 
 	b box, 
-	j json, 
+	j json UNIQUE,
 	l line, 
 	ls lseg, 
 	maddr macaddr, 
@@ -332,8 +332,12 @@ create table combined_tbl (
 	p2 polygon, 
 	id1 txid_snapshot,
 	bitt bit (13),
-	bittv bit varying(15)
+	bittv bit varying(15),
+	CONSTRAINT pk PRIMARY KEY (id, maddr8)
 );
+
+ALTER TABLE combined_tbl 
+		ADD CONSTRAINT combined_tbl_unique UNIQUE(id, bitt);
 
 CREATE TABLE combined_tbl1(
 	id int,
@@ -341,11 +345,15 @@ CREATE TABLE combined_tbl1(
 	d daterange, 
 	tz tstzrange, 
 	n numrange, 
-	i4 int4range, 
+	i4 int4range UNIQUE, 
 	i8 int8range,
 	inym INTERVAL YEAR TO MONTH,
-	inds INTERVAL DAY TO SECOND(9)
+	inds INTERVAL DAY TO SECOND(9),
+	PRIMARY KEY(id, t, n)
 );
+
+ALTER TABLE combined_tbl1 
+		ADD CONSTRAINT combined_tbl1_unique UNIQUE(id, d);
 
 CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
 
