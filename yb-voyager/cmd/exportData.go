@@ -240,14 +240,7 @@ func exportData() bool {
 	}
 
 	if source.RunGuardrailsChecks {
-		schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
-		if err != nil {
-			utils.ErrExit("get schemas missing usage permissions: %v", err)
-		}
-		if len(schemasMissingUsage) > 0 {
-			fmt.Printf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
-			utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"))
-		}
+		checkIfSchemasHaveUsagePermissions()
 	}
 
 	clearMigrationStateIfRequired()
@@ -495,6 +488,17 @@ func checkExportDataPermissions() {
 	} else {
 		// TODO: Print this message on the console too once the code is stable
 		log.Info("All required permissions are present for the source database.")
+	}
+}
+
+func checkIfSchemasHaveUsagePermissions() {
+	schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
+	if err != nil {
+		utils.ErrExit("get schemas missing usage permissions: %v", err)
+	}
+	if len(schemasMissingUsage) > 0 {
+		fmt.Printf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
+		utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"))
 	}
 }
 
