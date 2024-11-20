@@ -35,16 +35,22 @@
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
             {
+                "ObjectType": "FUNCTION",
+                "TotalCount": 1,
+                "InvalidCount": 1,
+                "ObjectNames": "create_and_populate_tables"
+            },
+            {
                 "ObjectType": "PROCEDURE",
-                "TotalCount": 5,
-                "InvalidCount": 3,
-                "ObjectNames": "foo, foo1, sp_createnachabatch, test, test1"
+                "TotalCount": 6,
+                "InvalidCount": 4,
+                "ObjectNames": "foo, foo1, sp_createnachabatch, test, test1, add_employee"
             },
             {
                 "ObjectType": "VIEW",
-                "TotalCount": 3,
-                "InvalidCount": 3,
-                "ObjectNames": "v1, v2, test"
+                "TotalCount": 4,
+                "InvalidCount": 4,
+                "ObjectNames": "v1, v2, test, public.orders_view"
             },
             {
                 "ObjectType": "TRIGGER",
@@ -54,9 +60,9 @@
             },
             {
                 "ObjectType": "MVIEW",
-                "TotalCount": 1,
-                "InvalidCount": 1,
-                "ObjectNames": "test"
+                "TotalCount": 2,
+                "InvalidCount": 2,
+                "ObjectNames": "test, public.sample_data_view"
             },
             {
                 "ObjectType": "CONVERSION",

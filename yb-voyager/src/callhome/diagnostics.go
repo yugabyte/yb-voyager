@@ -92,8 +92,9 @@ type TargetDBDetails struct {
 }
 
 type UnsupportedFeature struct {
-	FeatureName string `json:"FeatureName"`
-	ObjectCount int    `json:"ObjectCount"`
+	FeatureName      string `json:"FeatureName"`
+	ObjectCount      int    `json:"ObjectCount"`
+	TotalOccurrences int    `json:"TotalOccurrences"`
 }
 
 type AssessMigrationPhasePayload struct {
@@ -102,6 +103,7 @@ type AssessMigrationPhasePayload struct {
 	UnsupportedDatatypes       string `json:"unsupported_datatypes"`
 	UnsupportedQueryConstructs string `json:"unsupported_query_constructs"`
 	MigrationCaveats           string `json:"migration_caveats"`
+	UnsupportedPlPgSqlObjects  string `json:"unsupported_plpgsql_objects"`
 	Error                      string `json:"error,omitempty"` // Removed it for now, TODO
 	TableSizingStats           string `json:"table_sizing_stats"`
 	IndexSizingStats           string `json:"index_sizing_stats"`

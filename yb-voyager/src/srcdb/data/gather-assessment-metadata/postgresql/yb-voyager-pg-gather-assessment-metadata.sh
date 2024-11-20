@@ -118,6 +118,29 @@ run_command() {
     fi
 }
 
+
+# Function to convert schema list to an array and ensure 'public' is included
+prepare_schema_array() {
+    local schema_list=$1
+    local -a schema_array
+
+    # Convert the schema list (pipe-separated) to an array
+    IFS='|' read -r -a schema_array <<< "$schema_list"
+    local public_found=false
+    for schema in "${schema_array[@]}"; do
+        if [[ "$schema" == "public" ]]; then
+            public_found=true
+            break
+        fi
+    done
+
+    if [[ $public_found == false ]]; then
+        schema_array+=("public")
+    fi
+
+    echo "${schema_array[*]}"
+}
+
 main() {
     # Resolve the absolute path of assessment_metadata_dir
     assessment_metadata_dir=$(cd "$assessment_metadata_dir" && pwd)
@@ -147,45 +170,65 @@ main() {
     fi
 
     # checking before quoting connection_string
-    pg_stat_available=$(psql -A -t -q $pg_connection_string -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'")
+    pgss_ext_schema=$(psql -A -t -q $pg_connection_string -c "SELECT nspname FROM pg_extension e, pg_namespace n WHERE e.extnamespace = n.oid AND e.extname = 'pg_stat_statements'")
+    log "INFO" "pg_stat_statements extension is available in schema: $pgss_ext_schema"
+
+    schema_array=$(prepare_schema_array $schema_list)
+    log "INFO" "schema_array for checking pgss_ext_schema: $schema_array"
 
     # quote the required shell variables
     pg_connection_string=$(quote_string "$pg_connection_string")
     schema_list=$(quote_string "$schema_list")
 
-    print_and_log "INFO" "Assessment metadata collection started for '$schema_list' schemas"
+    print_and_log "INFO" "Assessment metadata collection started for $schema_list schema(s)"
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
         script_action=$(basename "$script" .psql | sed 's/-/ /g')
-        if [[ "$script_name" == "db-queries-summary" ]]; then
-            if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ]]; then
-                continue
-            fi
-            if [[ "$pg_stat_available" != "1" ]]; then
-                print_and_log "INFO" "Skipping $script_action: pg_stat_statements is unavailable."
-                continue
-            fi
-        fi
+        
         print_and_log "INFO" "Collecting $script_action..."
-        if [ $script_name == "table-index-iops" ]; then
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
-            log "INFO" "Executing initial IOPS collection: $psql_command"
-            run_command "$psql_command"
-            mv table-index-iops.csv table-index-iops-initial.csv
-            
-            log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
-            # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
-            sleep $iops_capture_interval 
-            
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
-            log "INFO" "Executing final IOPS collection: $psql_command"
-            run_command "$psql_command"
-            mv table-index-iops.csv table-index-iops-final.csv
-        else
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
-            log "INFO" "Executing script: $psql_command"
-            run_command "$psql_command"
-        fi
+        
+        case $script_name in
+            "table-index-iops")
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
+                log "INFO" "Executing initial IOPS collection: $psql_command"
+                run_command "$psql_command"
+                mv table-index-iops.csv table-index-iops-initial.csv
+
+                log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
+                # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
+                sleep $iops_capture_interval
+
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
+                log "INFO" "Executing final IOPS collection: $psql_command"
+                run_command "$psql_command"
+                mv table-index-iops.csv table-index-iops-final.csv
+            ;;
+            "db-queries-summary")
+                if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ]]; then
+                    print_and_log "INFO" "Skipping $script_action: Reporting of unsupported query constructs is disabled."
+                    continue
+                fi
+
+                if [[ -z "$pgss_ext_schema" ]]; then
+                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension schema is not found or not accessible."
+                    continue
+                fi
+
+                if [[ ! " ${schema_array[*]} " =~ " $pgss_ext_schema " ]]; then
+                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension schema '$pgss_ext_schema' is not in the expected schema list (${schema_array[*]})."
+                    continue
+                fi
+
+                psql_command="psql -q $pg_connection_string -f $script -v schema_name=$pgss_ext_schema -v ON_ERROR_STOP=on"
+                log "INFO" "Executing script: $psql_command"
+                run_command "$psql_command"
+            ;;
+            *)
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
+                log "INFO" "Executing script: $psql_command"
+                run_command "$psql_command"
+            ;;
+        esac
     done
 
     # check for pg_dump version

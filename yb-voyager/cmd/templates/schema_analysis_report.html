@@ -44,6 +44,16 @@
             font-weight: bold;
             background-color: #f9f9f9;
         }
+        pre {
+            width: 100%; /* Ensure the pre/code content takes full width of the container */
+            word-wrap: break-word; /* Break long lines into multiple lines */
+            overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
+            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
+            word-break: break-all; /* Prevents long words from overflowing */
+            margin: 0; /* Remove default margins */
+            padding: 0; /* Remove default padding */
+            font-family: Arial, Helvetica, sans-serif; /* Optional: ensure a monospaced font */
+        }
     </style>
 </head>
 <body>
@@ -109,7 +119,7 @@
                     <li><strong>Issue Type:</strong> {{ $issue.IssueType }}</li>
                     <li><strong>Object Name:</strong> {{ $issue.ObjectName }}</li>
                     <li><strong>Reason:</strong> {{ $issue.Reason }}</li>
-                    <li><strong>SQL Statement:</strong> {{ $issue.SqlStatement }}</li>
+                    <li><strong>SQL Statement:</strong> <pre>{{ $issue.SqlStatement }}</pre></li>
                     <li><strong>File Path:</strong> {{ $issue.FilePath }}<a href='{{ $issue.FilePath }}'> [Preview]</a></li>
                     {{ if $issue.Suggestion }}
                     <li><strong>Suggestion:</strong> {{ $issue.Suggestion }}</li>

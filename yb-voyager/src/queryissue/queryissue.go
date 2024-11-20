@@ -22,10 +22,11 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/reflect/protoreflect"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type ParserIssueDetector struct {
@@ -38,13 +39,9 @@ func NewParserIssueDetector() *ParserIssueDetector {
 }
 
 func (p *ParserIssueDetector) GetIssues(query string, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
-	parseTree, err := queryparser.Parse(query)
+	issues, err := p.getIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing query: %w", err)
-	}
-	issues, err := p.getDMLIssues(query, parseTree)
-	if err != nil {
-		return nil, fmt.Errorf("error getting DML issues: %w", err)
+		return nil, err
 	}
 
 	// Filter out issues that are fixed in the target DB version.
@@ -60,6 +57,64 @@ func (p *ParserIssueDetector) GetIssues(query string, targetDbVersion *version.Y
 	}
 
 	return filteredIssues, nil
+
+}
+
+func (p *ParserIssueDetector) getIssues(query string) ([]issue.IssueInstance, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query: %w", err)
+	}
+
+	if queryparser.IsPLPGSQLObject(parseTree) {
+		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
+		if err != nil {
+			return nil, fmt.Errorf("error getting all the queries from query: %w", err)
+		}
+		var issues []issue.IssueInstance
+		for _, plpgsqlQuery := range plpgsqlQueries {
+			issuesInQuery, err := p.getIssues(plpgsqlQuery)
+			if err != nil {
+				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
+				log.Errorf("error getting issues in query-%s: %v", query, err)
+				continue
+			}
+			issues = append(issues, issuesInQuery...)
+		}
+		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+			i.ObjectType = objType
+			i.ObjectName = objName
+			return i
+		}), nil
+	}
+	//Handle the Mview/View DDL's Select stmt issues
+	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
+		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+		selectStmtQuery, err := queryparser.GetSelectStmtQueryFromViewOrMView(parseTree)
+		if err != nil {
+			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
+		}
+		issues, err := p.getIssues(selectStmtQuery)
+		if err != nil {
+			return nil, err
+		}
+		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+			i.ObjectType = objType
+			i.ObjectName = objName
+			return i
+		}), nil
+
+	}
+	issues, err := p.getDMLIssues(query, parseTree)
+	if err != nil {
+		return nil, fmt.Errorf("error getting DML issues: %w", err)
+	}
+	return issues, nil
 }
 
 func (p *ParserIssueDetector) getDMLIssues(query string, parseTree *pg_query.ParseResult) ([]issue.IssueInstance, error) {
