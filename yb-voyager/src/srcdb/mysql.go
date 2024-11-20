@@ -75,17 +75,17 @@ func (ms *MySQL) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg")
 }
 
-func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
+func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.AsQualifiedCatalogName())
 
 	log.Infof("Querying row count of table %s", tableName)
 	err := ms.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
+		return 0, fmt.Errorf("query %q for row count of %q: %w", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
-	return rowCount
+	return rowCount, nil
 }
 
 func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
