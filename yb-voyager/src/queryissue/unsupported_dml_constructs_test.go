@@ -20,7 +20,6 @@ import (
 	"sort"
 	"testing"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +28,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 )
 
-// TestFuncCallDetector tests the Advisory Lock Detector.
 func TestFuncCallDetector(t *testing.T) {
 	advisoryLockSqls := []string{
 		`SELECT pg_advisory_lock(100), COUNT(*) FROM cars;`,
@@ -81,7 +79,7 @@ func TestFuncCallDetector(t *testing.T) {
 
 	detector := NewFuncCallDetector()
 	for _, sql := range advisoryLockSqls {
-		parseResult, err := pg_query.Parse(sql)
+		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
@@ -96,15 +94,13 @@ func TestFuncCallDetector(t *testing.T) {
 			return nil
 		}
 
-		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		// The detector should detect Advisory Locks in these queries
 		assert.Contains(t, unsupportedConstructs, ADVISORY_LOCKS, "Advisory Locks not detected in SQL: %s", sql)
 	}
 }
 
-// TestColumnRefDetector tests the System Column Detector.
 func TestColumnRefDetector(t *testing.T) {
 	systemColumnSqls := []string{
 		`SELECT xmin, xmax FROM employees;`,
@@ -147,9 +143,8 @@ func TestColumnRefDetector(t *testing.T) {
 	}
 
 	detector := NewColumnRefDetector()
-
 	for _, sql := range systemColumnSqls {
-		parseResult, err := pg_query.Parse(sql)
+		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
@@ -164,16 +159,192 @@ func TestColumnRefDetector(t *testing.T) {
 			return nil
 		}
 
-		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		// The detector should detect System Columns in these queries
 		assert.Contains(t, unsupportedConstructs, SYSTEM_COLUMNS, "System Columns not detected in SQL: %s", sql)
 	}
 }
 
-// TestXmlExprDetector tests the XML Function Detection.
-func TestXmlExprDetectorAndFuncCallDetector(t *testing.T) {
+func TestRangeTableFuncDetector(t *testing.T) {
+	xmlTableSqls := []string{
+		// Test Case 1: Simple XMLTABLE usage with basic columns
+		`SELECT
+		    p.id,
+		    x.product_id,
+		    x.product_name,
+		    x.price
+		FROM
+		    products_basic p,
+		    XMLTABLE(
+		        '//Product'
+		        PASSING p.data
+		        COLUMNS
+		            product_id TEXT PATH 'ID',
+		            product_name TEXT PATH 'Name',
+		            price NUMERIC PATH 'Price'
+		    ) AS x;`,
+
+		// Test Case 2: XMLTABLE with CROSS JOIN LATERAL
+		`SELECT
+		    o.order_id,
+		    items.product,
+		    items.quantity::INT
+		FROM
+		    orders_lateral o
+		    CROSS JOIN LATERAL XMLTABLE(
+		        '/order/item'
+		        PASSING o.order_details
+		        COLUMNS
+		            product TEXT PATH 'product',
+		            quantity TEXT PATH 'quantity'
+		    ) AS items;`,
+
+		// Test Case 3: XMLTABLE within a Common Table Expression (CTE)
+		`WITH xml_data AS (
+		    SELECT id, xml_column FROM xml_documents_cte
+		)
+		SELECT
+		    xd.id,
+		    e.emp_id,
+		    e.name,
+		    e.department
+		FROM
+		    xml_data xd,
+		    XMLTABLE(
+		        '//Employee'
+		        PASSING xd.xml_column
+		        COLUMNS
+		            emp_id INT PATH 'ID',
+		            name TEXT PATH 'Name',
+		            department TEXT PATH 'Department'
+		    ) AS e;`,
+
+		// Test Case 4: Nested XMLTABLEs for handling hierarchical XML structures
+		`SELECT
+		    s.section_name,
+		    b.title,
+		    b.author
+		FROM
+		    library_nested l,
+		    XMLTABLE(
+		        '/library/section'
+		        PASSING l.lib_data
+		        COLUMNS
+		            section_name TEXT PATH '@name',
+		            books XML PATH 'book'
+		    ) AS s,
+		    XMLTABLE(
+		        '/book'
+		        PASSING s.books
+		        COLUMNS
+		            title TEXT PATH 'title',
+		            author TEXT PATH 'author'
+		    ) AS b;`,
+
+		// Test Case 5: XMLTABLE with XML namespaces
+		`SELECT
+		    x.emp_name,
+		    x.position,
+		    x.city,
+		    x.country
+		FROM
+		    employees_ns,
+		    XMLTABLE(
+		        XMLNAMESPACES (
+		            'http://example.com/emp' AS emp,
+		            'http://example.com/address' AS addr
+		        ),
+		        '/emp:Employee'  -- Using the emp namespace prefix
+		        PASSING employees_ns.emp_data
+		        COLUMNS
+		            emp_name TEXT PATH 'emp:Name',        -- Using emp prefix
+		            position TEXT PATH 'emp:Position',    -- Using emp prefix
+		            city TEXT PATH 'addr:Address/addr:City',
+		            country TEXT PATH 'addr:Address/addr:Country'
+		    ) AS x;`,
+
+		// Test Case 6: XMLTABLE used within a VIEW creation
+		`CREATE VIEW order_items_view AS
+		SELECT
+		    o.order_id,
+		    o.customer_name,
+		    items.product,
+		    items.quantity::INT
+		FROM
+		    orders_view o,
+		    XMLTABLE(
+		        '/order/item'
+		        PASSING o.order_details
+		        COLUMNS
+		            product TEXT PATH 'product',
+		            quantity TEXT PATH 'quantity'
+		    ) AS items;`,
+
+		// Test Case 7: XMLTABLE with aggregation functions
+		`SELECT
+		    s.report_id,
+		    SUM(t.amount::NUMERIC) AS total_sales
+		FROM
+		    sales_reports_nested s,
+		    XMLTABLE(
+		        '/sales/transaction'
+		        PASSING s.sales_data
+		        COLUMNS
+		            amount TEXT PATH 'amount'
+		    ) AS t
+		GROUP BY
+		    s.report_id;`,
+
+		// Test Case 8: Nested XMLTABLE() with subqueries
+		`SELECT
+		s.report_id,
+		SUM(t.amount::NUMERIC) AS total_sales
+	FROM
+		sales_reports_complex s,
+		XMLTABLE(
+			'/sales/transaction'
+			PASSING s.sales_data
+			COLUMNS
+				transaction_id INT PATH '@id',
+				transaction_details XML PATH 'details'
+		) AS t,
+		XMLTABLE(
+			'/transaction/detail'
+			PASSING t.transaction_details
+			COLUMNS
+				amount TEXT PATH 'amount'
+		) AS detail
+	GROUP BY
+		s.report_id;`,
+	}
+
+	detector := NewRangeTableFuncDetector()
+	for _, sql := range xmlTableSqls {
+		parseResult, err := queryparser.Parse(sql)
+		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
+
+		visited := make(map[protoreflect.Message]bool)
+		unsupportedConstructs := []string{}
+
+		processor := func(msg protoreflect.Message) error {
+			constructs, err := detector.Detect(msg)
+			if err != nil {
+				return err
+			}
+			unsupportedConstructs = append(unsupportedConstructs, constructs...)
+			return nil
+		}
+
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS, "XML Functions not detected in SQL: %s", sql)
+	}
+}
+
+// TestXmlExprDetector tests the XML Function Detection - FuncCallDetector, XMLExprDetector, RangeTableFuncDetector.
+func TestXMLFunctionsDetectors(t *testing.T) {
 	xmlFunctionSqls := []string{
 		`SELECT id, xmlelement(name "employee", name) AS employee_data FROM employees;`,
 		`SELECT id, xpath('/person/name/text()', data) AS name FROM xml_example;`,
@@ -230,26 +401,25 @@ WHERE id = 5;`,
 		`SELECT xmlforest(name, department) AS employee_info
 FROM employees
 WHERE id = 4;`,
-		// TODO: future -
-		// 		`SELECT xmltable.*
-		// FROM xmldata,
-		//     XMLTABLE('//ROWS/ROW'
-		//             PASSING data
-		//             COLUMNS id int PATH '@id',
-		//                 ordinality FOR ORDINALITY,
-		//                 "COUNTRY_NAME" text,
-		//                 country_id text PATH 'COUNTRY_ID',
-		//                 size_sq_km float PATH 'SIZE[@unit = "sq_km"]',
-		//                 size_other text PATH
-		//                 'concat(SIZE[@unit!="sq_km"], " ", SIZE[@unit!="sq_km"]/@unit)',
-		//                  premier_name text PATH 'PREMIER_NAME' DEFAULT 'not specified');`,
-		// 		`SELECT xmltable.*
-		// FROM XMLTABLE(XMLNAMESPACES('http://example.com/myns' AS x,
-		//                             'http://example.com/b' AS "B"),
-		//              '/x:example/x:item'
-		//                 PASSING (SELECT data FROM xmldata)
-		//                 COLUMNS foo int PATH '@foo',
-		//                   bar int PATH '@B:bar');`,
+		`SELECT xmltable.*
+		FROM xmldata,
+		    XMLTABLE('//ROWS/ROW'
+		            PASSING data
+		            COLUMNS id int PATH '@id',
+		                ordinality FOR ORDINALITY,
+		                "COUNTRY_NAME" text,
+		                country_id text PATH 'COUNTRY_ID',
+		                size_sq_km float PATH 'SIZE[@unit = "sq_km"]',
+		                size_other text PATH
+		                'concat(SIZE[@unit!="sq_km"], " ", SIZE[@unit!="sq_km"]/@unit)',
+		                 premier_name text PATH 'PREMIER_NAME' DEFAULT 'not specified');`,
+		`SELECT xmltable.*
+		FROM XMLTABLE(XMLNAMESPACES('http://example.com/myns' AS x,
+		                            'http://example.com/b' AS "B"),
+		             '/x:example/x:item'
+		                PASSING (SELECT data FROM xmldata)
+		                COLUMNS foo int PATH '@foo',
+		                  bar int PATH '@B:bar');`,
 		`SELECT xml_is_well_formed_content('<project>Alpha</project>') AS is_well_formed_content
 FROM projects
 WHERE project_id = 10;`,
@@ -291,11 +461,12 @@ WHERE id = 1;`,
 
 	detectors := []UnsupportedConstructDetector{
 		NewXmlExprDetector(),
+		NewRangeTableFuncDetector(),
 		NewFuncCallDetector(),
 	}
 
 	for _, sql := range xmlFunctionSqls {
-		parseResult, err := pg_query.Parse(sql)
+		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
@@ -314,7 +485,7 @@ WHERE id = 1;`,
 			return nil
 		}
 
-		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 		// The detector should detect XML Functions in these queries
@@ -361,7 +532,7 @@ RETURNING id,
 		NewXmlExprDetector(),
 	}
 	for _, sql := range combinationSqls {
-		parseResult, err := pg_query.Parse(sql)
+		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
@@ -380,7 +551,7 @@ RETURNING id,
 			return nil
 		}
 
-		parseTreeMsg := parseResult.Stmts[0].Stmt.ProtoReflect()
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 
