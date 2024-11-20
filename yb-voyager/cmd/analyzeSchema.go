@@ -1694,6 +1694,7 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 }
 
 func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string) utils.Issue {
+	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 	return utils.Issue{
 		ObjectType:   issueInstance.ObjectType,
 		ObjectName:   issueInstance.ObjectName,
