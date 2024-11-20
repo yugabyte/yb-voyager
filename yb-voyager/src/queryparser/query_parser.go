@@ -65,6 +65,25 @@ func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
 }
 
+func IsDMLQuery(query string) (bool, error) {
+	parseTree, err := Parse(query)
+	if err != nil {
+		return false, fmt.Errorf("error in parsing the query: %v", err)
+	}
+	stmtNode := parseTree.Stmts[0].Stmt.Node
+
+	switch stmtNode.(type) {
+	case *pg_query.Node_SelectStmt,
+		*pg_query.Node_InsertStmt,
+		*pg_query.Node_UpdateStmt,
+		*pg_query.Node_DeleteStmt,
+		*pg_query.Node_CopyStmt:
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
 	_, isPlPgSQLObject := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt)
@@ -77,13 +96,13 @@ func IsViewObject(parseTree *pg_query.ParseResult) bool {
 }
 
 func IsMviewObject(parseTree *pg_query.ParseResult) bool {
-	createAsNode, isCreateAsStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt) //for MVIEW case 
+	createAsNode, isCreateAsStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt) //for MVIEW case
 	return isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
 }
 
 func GetSelectStmtQueryFromViewOrMView(parseTree *pg_query.ParseResult) (string, error) {
 	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
-	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)//For MVIEW case 
+	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt) //For MVIEW case
 	var selectStmt *pg_query.SelectStmt
 	if isViewStmt {
 		selectStmt = viewNode.ViewStmt.GetQuery().GetSelectStmt()
