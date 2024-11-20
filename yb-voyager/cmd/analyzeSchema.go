@@ -2126,10 +2126,10 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
-		for _, r := range reasonsToSendObjectNameToCallhome {
-			if !strings.Contains(issue.Reason, r) {
-				issue.ObjectName = "XXX" // Redacting object name before sending
-			}
+		if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
+			return strings.Contains(issue.Reason, r)
+		}) {
+			issue.ObjectName = "XXX" // Redacting object name before sending in case reason is not in list
 		}
 		for _, sensitiveReason := range reasonsIncludingSensitiveInformationToCallhome {
 			if strings.Contains(issue.Reason, sensitiveReason) {
