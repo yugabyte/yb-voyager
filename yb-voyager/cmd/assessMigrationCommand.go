@@ -157,14 +157,16 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+			var objects []string
+			if slices.Contains(featuresToSendObjectsToCallhome, feature.FeatureName) {
+				objects = lo.Map(feature.Objects, func(o ObjectInfo, _ int) string {
+					return o.ObjectName
+				})
+			}
 			res := callhome.UnsupportedFeature{
 				FeatureName: feature.FeatureName,
 				ObjectCount: len(feature.Objects),
-			}
-			if slices.Contains(featuresToSendObjectsToCallhome, feature.FeatureName) {
-				res.Objects = lo.Map(feature.Objects, func(o ObjectInfo, _ int) string {
-					return o.ObjectName
-				})
+				Objects: objects,
 			}
 			return res
 		})),
