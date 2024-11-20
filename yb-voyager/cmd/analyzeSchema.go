@@ -1590,7 +1590,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		issues, err := parserIssueDetector.GetIssues(sqlInfoStmt.formattedStmt)
+		issues, err := parserIssueDetector.GetIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
 		if err != nil {
 			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
