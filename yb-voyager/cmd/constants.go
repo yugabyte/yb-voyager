@@ -212,6 +212,7 @@ const (
 	UNLOGGED_TABLE_FEATURE                                    = "Unlogged tables"
 	REFERENCING_TRIGGER_FEATURE                               = "REFERENCING clause for triggers"
 	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE = "BEFORE ROW triggers on Partitioned tables"
+	PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE             = "Primary / Unique key constraints on complex datatypes"
 
 	// Migration caveats
 

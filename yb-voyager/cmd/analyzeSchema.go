@@ -237,7 +237,7 @@ const (
 	POLICY_ROLE_ISSUE                              = "Policy require roles to be created."
 	VIEW_CHECK_OPTION_ISSUE                        = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 	ISSUE_INDEX_WITH_COMPLEX_DATATYPES             = `INDEX on column '%s' not yet supported`
-	ISSUE_CONSTRAINT_WITH_COMPLEX_DATATYPES        = `Primary key and Unique constraint on column '%s' not yet supported`
+	ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES  = `Primary key and Unique constraint on column '%s' not yet supported`
 	ISSUE_UNLOGGED_TABLE                           = "UNLOGGED tables are not supported yet."
 	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
@@ -677,6 +677,13 @@ var UnsupportedIndexDatatypes = []string{
 	"cidr",
 	"bit",    // for BIT (n)
 	"varbit", // for BIT varying (n)
+	"daterange",
+	"tsrange",
+	"tstzrange",
+	"numrange",
+	"int4range",
+	"int8range",
+	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
 	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
 	//Need to understand if there is other method or way available in PG to have these index key [TODO]
 	"circle",
@@ -688,13 +695,6 @@ var UnsupportedIndexDatatypes = []string{
 	"path",
 	"polygon",
 	"txid_snapshot",
-	"daterange",
-	"tsrange",
-	"tstzrange",
-	"numrange",
-	"int4range",
-	"int8range",
-	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
@@ -720,7 +720,7 @@ func reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode *pg_qu
 		typeName, ok := unsupportedColumnsForTable[colName]
 		if ok {
 			displayName := fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, alterCmd.GetDef().GetConstraint().GetConname())
-			reportCase(fpath, fmt.Sprintf(ISSUE_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reportCase(fpath, fmt.Sprintf(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
 				"Refer to the docs link for the workaround", "TABLE", displayName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
 			return
@@ -739,19 +739,31 @@ func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_
 	}
 	reportConstraintIfrequired := func(con *pg_query.Constraint, colNames []string, typeName string) {
 		conType := con.GetContype()
+		if !slices.Contains([]pg_query.ConstrType{pg_query.ConstrType_CONSTR_PRIMARY, pg_query.ConstrType_CONSTR_UNIQUE}, conType) {
+			return
+		}
 		generatedConName := generateConstraintName(conType, fullyQualifiedName, colNames)
 		specifiedConstraintName := con.GetConname()
 		conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 		//report the PK / Unique constraint in CREATE TABLE on this column
-		if slices.Contains([]pg_query.ConstrType{pg_query.ConstrType_CONSTR_PRIMARY, pg_query.ConstrType_CONSTR_UNIQUE}, conType) {
-			summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
-				"Refer to the docs link for the workaround", "TABLE", fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
-		}
+		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
+		reportCase(fpath, fmt.Sprintf(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
+			"Refer to the docs link for the workaround", "TABLE", fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt,
+			UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
+
 	}
 	for _, column := range columns {
 		if column.GetColumnDef() != nil {
+			/*
+			e.g. create table unique_def_test(id int, d daterange UNIQUE, c1 int);
+			create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}...
+			table_elts:{column_def:{colname:"d"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
+			typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}} ....
+
+			here checking the case where this clause is in column definition so iterating over each column_def and in that
+			constraint type is UNIQUE/ PK reporting that 
+			supported.
+			*/
 			colName := column.GetColumnDef().GetColname()
 			typeName, ok := unsupportedColumnsForTable[colName]
 			if !ok {
@@ -762,6 +774,14 @@ func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_
 				reportConstraintIfrequired(c.GetConstraint(), []string{colName}, typeName)
 			}
 		} else if column.GetConstraint() != nil {
+			/*
+				e.g. create table uniquen_def_test1(id int, c1 citext, CONSTRAINT pk PRIMARY KEY(id, c));
+				{create_stmt:{relation:{relname:"unique_def_test1"  inh:true  relpersistence:"p"  location:80}  table_elts:{column_def:{colname:"id"
+				type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
+				table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
+
+				here checking the case where this UK/ PK is at the end of column definition as a separate constraint 
+			*/
 			keys := column.GetConstraint().GetKeys()
 			columns := []string{}
 			for _, k := range keys {
@@ -892,7 +912,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		typeName, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName]
 		if ok {
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
@@ -904,7 +924,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
 			//In case casting is happening for an array type
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/25003",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
@@ -914,7 +934,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			if slices.Contains(compositeTypes, fullCastTypeName) {
 				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type")
 			}
-			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/25003",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
