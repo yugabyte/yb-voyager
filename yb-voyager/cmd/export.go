@@ -406,13 +406,14 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		// Check for java
-		binaryCheckIssue, err := checkJavaVersion()
+		javaIssue, err := checkJavaVersion()
 		if err != nil {
 			return nil, err
-		} else if binaryCheckIssue != "" {
-			binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
-			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
-		} else if len(binaryCheckIssues) > 0 {
+		}
+		if javaIssue != "" {
+			binaryCheckIssues = append(binaryCheckIssues, javaIssue)
+		}
+		if len(binaryCheckIssues) > 0 {
 			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
 		}
 
@@ -423,6 +424,10 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		if err != nil {
 			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 			binaryCheckIssues = append(binaryCheckIssues, "Please check your Voyager installation and try again")
+		}
+	} else {
+		if len(binaryCheckIssues) > 0 {
+			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
 		}
 	}
 
@@ -435,6 +440,7 @@ func checkJavaVersion() (binaryCheckIssue string, err error) {
 		javaBinary = javaHome + "/bin/java"
 	}
 
+	// Execute `java -version` to get the version
 	cmd := exec.Command(javaBinary, "-version")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -442,25 +448,42 @@ func checkJavaVersion() (binaryCheckIssue string, err error) {
 	}
 
 	// Example output
-	// openjdk version "17" 2021-09-14
-	// OpenJDK Runtime Environment (build 17+35-2724)
-	// OpenJDK 64-Bit Server VM (build 17+35-2724, mixed mode, sharing)
+	// java version "11.0.16" 2022-07-19 LTS
+	// Java(TM) SE Runtime Environment (build 11.0.16+8-LTS-211)
+	// Java HotSpot(TM) 64-Bit Server VM (build 11.0.16+8-LTS-211, mixed mode, sharing)
+
+	// Convert output to string
 	versionOutput := string(output)
-	versionLine := strings.Split(versionOutput, "\n")[0]
-	versionParts := strings.Split(versionLine, " ")
-	if len(versionParts) < 3 {
-		return "", fmt.Errorf("unexpected java version format: %s", versionOutput)
+
+	// Extract the line with the version
+	var versionLine string
+	lines := strings.Split(versionOutput, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "version") {
+			versionLine = line
+			break
+		}
+	}
+	if versionLine == "" {
+		return "", fmt.Errorf("unable to find java version in output: %s", versionOutput)
 	}
 
-	version := strings.Trim(versionParts[2], "\"")
+	// Extract version string from the line (mimics awk -F '"' '/version/ {print $2}')
+	startIndex := strings.Index(versionLine, "\"")
+	endIndex := strings.LastIndex(versionLine, "\"")
+	if startIndex == -1 || endIndex == -1 || startIndex >= endIndex {
+		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+	}
+	version := versionLine[startIndex+1 : endIndex]
+
+	// Extract major version
 	versionNumbers := strings.Split(version, ".")
 	if len(versionNumbers) < 1 {
-		return "", fmt.Errorf("unexpected java version format: %s", version)
+		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
 	}
-
 	majorVersion, err := strconv.Atoi(versionNumbers[0])
 	if err != nil {
-		return "", fmt.Errorf("error parsing java version: %v", err)
+		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
 	}
 
 	if majorVersion < MIN_REQUIRED_JAVA_VERSION {
