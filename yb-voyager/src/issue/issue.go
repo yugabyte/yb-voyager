@@ -30,9 +30,9 @@ type Issue struct {
 	Suggestion                   string
 	GH                           string
 	DocsLink                     string
-	MinimumFixedVersionStable    *version.YBVersion
-	MinimumFixedVersionPreview   *version.YBVersion
-	MinimumFixedVersionStableOld *version.YBVersion
+	MinimumFixedVersionStable    *version.YBVersion // should be fully specified A.B.C.D (4 segments)
+	MinimumFixedVersionPreview   *version.YBVersion // should be fully specified A.B.C.D (4 segments)
+	MinimumFixedVersionStableOld *version.YBVersion // should be fully specified A.B.C.D (4 segments)
 }
 
 func (i Issue) IsFixedIn(v *version.YBVersion) (bool, error) {
