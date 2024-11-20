@@ -2224,7 +2224,8 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 	return nil
 }
 
-var reasonsIncludingSensitiveInformation = []string{
+// analyze issue reasons to modify the reason before sending to callhome as will have sensitive information
+var reasonsIncludingSensitiveInformationToCallhome = []string{
 	UNSUPPORTED_PG_SYNTAX,
 	POLICY_ROLE_ISSUE,
 	UNSUPPORTED_DATATYPE,
@@ -2232,6 +2233,11 @@ var reasonsIncludingSensitiveInformation = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 	STORED_GENERATED_COLUMN_ISSUE_REASON,
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION,
+}
+
+// analyze issue reasons to send the object names for to callhome
+var reasonsToSendObjectNameToCallhome = []string{
+	UNSUPPORTED_EXTENSION_ISSUE,
 }
 
 func packAndSendAnalyzeSchemaPayload(status string) {
@@ -2243,9 +2249,13 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	payload.MigrationPhase = ANALYZE_PHASE
 	var callhomeIssues []utils.Issue
 	for _, issue := range schemaAnalysisReport.Issues {
-		issue.SqlStatement = ""  // Obfuscate sensitive information before sending to callhome cluster
-		issue.ObjectName = "XXX" // Redacting object name before sending
-		for _, sensitiveReason := range reasonsIncludingSensitiveInformation {
+		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
+		if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
+			return strings.Contains(issue.Reason, r)
+		}) {
+			issue.ObjectName = "XXX" // Redacting object name before sending in case reason is not in list
+		}
+		for _, sensitiveReason := range reasonsIncludingSensitiveInformationToCallhome {
 			if strings.Contains(issue.Reason, sensitiveReason) {
 				switch sensitiveReason {
 				case UNSUPPORTED_DATATYPE, UNSUPPORTED_DATATYPE_LIVE_MIGRATION:
