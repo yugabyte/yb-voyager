@@ -157,6 +157,7 @@ const (
 	PARTITION_KEY_NOT_PK_DOC_LINK                 = DOCS_LINK_PREFIX + ORACLE_PREFIX + "#partition-key-column-not-part-of-primary-key-columns"
 	DROP_TEMP_TABLE_DOC_LINK                      = DOCS_LINK_PREFIX + MYSQL_PREFIX + "#drop-temporary-table-statements-are-not-supported"
 	INDEX_ON_UNSUPPORTED_TYPE                     = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported"
+	PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE          = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported" //Keeping it similar for now, will see if we need to a separate issue on docs
 	UNLOGGED_TABLE_DOC_LINK                       = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unlogged-table-is-not-supported"
 	XID_DATATYPE_DOC_LINK                         = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported"
 	UNSUPPORTED_DATATYPES_DOC_LINK                = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb"
@@ -211,6 +212,7 @@ const (
 	UNLOGGED_TABLE_FEATURE                                    = "Unlogged tables"
 	REFERENCING_TRIGGER_FEATURE                               = "REFERENCING clause for triggers"
 	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE = "BEFORE ROW triggers on Partitioned tables"
+	PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE             = "Primary / Unique key constraints on complex datatypes"
 
 	// Migration caveats
 

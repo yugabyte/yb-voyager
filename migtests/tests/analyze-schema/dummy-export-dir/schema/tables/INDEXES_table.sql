@@ -81,6 +81,21 @@ CREATE INDEX idx14 on combined_tbl (bitt);
 
 CREATE INDEX idx15 on combined_tbl (bittv);
 
+CREATE INDEX idx1 on combined_tbl1 (d);
+
+CREATE INDEX idx2 on combined_tbl1 (t);
+
+CREATE INDEX idx3 on combined_tbl1 (tz);
+
+CREATE INDEX idx4 on combined_tbl1 (n);
+
+CREATE INDEX idx5 on combined_tbl1 (i4);
+
+CREATE INDEX idx6 on combined_tbl1 (i8);
+
+CREATE INDEX idx7  on combined_tbl1 (inym);
+
+CREATE INDEX idx8  on combined_tbl1 (inds);
 
 CREATE INDEX idx_udt on test_udt(home_address);
 

@@ -226,7 +226,7 @@
             "SqlStatement": "CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {

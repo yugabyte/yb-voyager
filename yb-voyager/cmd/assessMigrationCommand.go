@@ -941,6 +941,10 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, UnsupportedIndexDatatypes))
+
+	pkOrUkConstraintIssuePrefix := strings.Split(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, "%s")[0]
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE, pkOrUkConstraintIssuePrefix, schemaAnalysisReport, false, ""))
+
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, ISSUE_UNLOGGED_TABLE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, REFERENCING_CLAUSE_FOR_TRIGGERS, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE, schemaAnalysisReport, false, ""))
