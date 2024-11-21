@@ -225,6 +225,8 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 }
 
 func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
+	// So, we are using pg_catalog to get the table names.
 	query := fmt.Sprintf(`
 	SELECT 
 		c.relname AS table_name
@@ -265,6 +267,8 @@ func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
+	// So, we are using pg_catalog to get the table names.
 	query := fmt.Sprintf(`
 	SELECT 
 		n.nspname AS table_schema,
@@ -1082,11 +1086,10 @@ The function performs the following checks:
 */
 func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
 	var combinedResult []string
-	var qualifiedQuotedTableList []string
-	for _, table := range finalTableList {
-		qualifiedQuotedTableList = append(qualifiedQuotedTableList, table.ForOutput())
-	}
-	queryTableList := "'" + strings.Join(qualifiedQuotedTableList, "','") + "'"
+	qualifiedMinQuotedTableNames := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) string {
+		return table.ForOutput()
+	})
+	queryTableList := fmt.Sprintf("'%s'", strings.Join(qualifiedMinQuotedTableNames, "','"))
 
 	// For live migration
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {

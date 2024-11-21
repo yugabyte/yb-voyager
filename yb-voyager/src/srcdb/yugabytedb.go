@@ -162,6 +162,8 @@ func (yb *YugabyteDB) checkSchemasExists() []string {
 }
 
 func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
+	// So, we are using pg_catalog to get the table names.
 	query := fmt.Sprintf(`
 	SELECT 
 		c.relname AS table_name
@@ -202,6 +204,8 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
+	// So, we are using pg_catalog to get the table names.
 	query := fmt.Sprintf(`
 	SELECT 
 		n.nspname AS table_schema,
