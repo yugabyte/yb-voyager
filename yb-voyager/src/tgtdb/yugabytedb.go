@@ -82,7 +82,7 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 		var pgErr *pgconn5.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Hint != "" || pgErr.Detail != "" {
-				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT:%q\nDETAIL:%q", query, yb.tconf.Host, err, pgErr.Hint, pgErr.Detail)
+				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, yb.tconf.Host, err, pgErr.Hint, pgErr.Detail)
 			}
 		}
 		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
