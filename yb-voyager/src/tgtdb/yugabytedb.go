@@ -33,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -78,6 +79,12 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 
 	res, err := yb.db.Exec(query)
 	if err != nil {
+		var pgErr *pgconn5.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Hint != "" || pgErr.Detail != "" {
+				return rowsAffected, fmt.Errorf("run query %q on target %q: %w HINT:%q DETAIL:%q", query, yb.tconf.Host, err, pgErr.Hint, pgErr.Detail)
+			}
+		}
 		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
 	}
 	rowsAffected, err = res.RowsAffected()
@@ -406,7 +413,7 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	query := fmt.Sprintf("TRUNCATE TABLE %s", commaSeparatedTableNames)
 	_, err := yb.Exec(query)
 	if err != nil {
-		return fmt.Errorf("truncate tables with query %q: %w", query, err)
+		return err
 	}
 	return nil
 }
