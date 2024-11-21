@@ -982,3 +982,26 @@ cutover_to_target() {
     
     yb-voyager initiate cutover to target ${args} $*
 }
+
+resolve_and_install_dependencies() {
+    local error_output="$1"
+
+    # Check if there are unmet dependencies
+    if echo "$error_output" | grep -q "The following packages have unmet dependencies:"; then
+        echo "Unmet dependencies found, resolving..."
+
+        # Extract dependencies, capturing package name and exact version
+        dependencies=$(echo "$error_output" | grep -oP 'Depends: \K[^\s]+ \(=[^\)]+')
+
+        # Remove " (= " part and format the dependencies to package-name=version format
+        dependencies=$(echo "$dependencies" | sed 's/ (= /=/g')
+
+        # Loop through dependencies and install them
+        for dep in $dependencies; do
+            echo "Installing dependency: $dep"
+            sudo apt-get install -y --allow-downgrades "$dep"
+        done
+    else
+        echo "No unmet dependencies found."
+    fi
+}
