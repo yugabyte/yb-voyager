@@ -1222,7 +1222,7 @@ func (pg *PostgreSQL) listTablesMissingOwnerPermission(queryTableList string) ([
 		FROM pg_class c
 		JOIN pg_namespace n ON c.relnamespace = n.oid
 		WHERE c.relkind IN ('r', 'p') -- 'r' indicates a table, 'p' indicates a partitioned table
-		  AND (n.nspname || '.' || c.relname) IN (%s)
+		  AND (quote_ident(n.nspname) || '.' || quote_ident(c.relname)) IN (%s)
 	)
 	SELECT
 		schema_name,
@@ -1340,7 +1340,7 @@ func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull(queryTableList string
 		END AS status
 	FROM pg_class c
 	JOIN pg_namespace n ON c.relnamespace = n.oid
-	WHERE (n.nspname || '.' || c.relname) IN (%s)
+	WHERE (quote_ident(n.nspname) || '.' || quote_ident(c.relname)) IN (%s)
 	AND c.relkind IN ('r', 'p');
 	`, MISSING, GRANTED, queryTableList)
 
@@ -1506,15 +1506,15 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission(queryTableList string) (
 	} else {
 		checkTableSelectPermissionQuery = fmt.Sprintf(`
 		SELECT
-            quote_ident(split_part(t.schemaname || '.' || t.tablename, '.', 1)) AS schema_name,
-            quote_ident(split_part(t.schemaname || '.' || t.tablename, '.', 2)) AS table_name,
+            t.schemaname AS schema_name,
+            t.tablename AS table_name,
             CASE 
-                WHEN has_table_privilege('%s', t.schemaname || '.' || t.tablename, 'SELECT') 
+                WHEN has_table_privilege('%s', quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT') 
                 THEN '%s' 
                 ELSE '%s' 
             END AS status
         FROM pg_tables t
-        WHERE t.schemaname || '.' || t.tablename IN (%s);
+        WHERE quote_ident(t.schemaname) || '.' || quote_ident(t.tablename) IN (%s);
 	`, pg.source.User, GRANTED, MISSING, queryTableList)
 	}
 
