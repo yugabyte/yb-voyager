@@ -416,7 +416,7 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 	}
 
 	if len(binaryCheckIssues) > 0 {
-		binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
+		binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again")
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
@@ -425,10 +425,13 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		// So its error mesage will be added to problems
 		err = dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
+			if len(binaryCheckIssues) > 0 {
+				binaryCheckIssues = append(binaryCheckIssues, "")
+			}
 			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 			binaryCheckIssues = append(binaryCheckIssues, "Please check your Voyager installation and try again")
 		}
-	} 
+	}
 
 	return binaryCheckIssues, nil
 }
