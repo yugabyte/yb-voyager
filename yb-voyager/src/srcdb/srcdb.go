@@ -31,7 +31,7 @@ type SourceDB interface {
 	Disconnect()
 	CheckSchemaExists() bool
 	GetConnectionUriWithoutPassword() string
-	GetTableRowCount(tableName sqlname.NameTuple) int64
+	GetTableRowCount(tableName sqlname.NameTuple) (int64, error)
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string

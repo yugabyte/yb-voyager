@@ -52,7 +52,7 @@ func newYugabyteDB(s *Source) *YugabyteDB {
 
 func (yb *YugabyteDB) Connect() error {
 	db, err := sql.Open("pgx", yb.getConnectionUri())
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(yb.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	yb.db = db
 	return err
@@ -74,16 +74,16 @@ func (yb *YugabyteDB) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
 }
 
-func (yb *YugabyteDB) GetTableRowCount(tableName sqlname.NameTuple) int64 {
+func (yb *YugabyteDB) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 	log.Infof("Querying row count of table %q", tableName)
 	err := yb.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
+		return 0, fmt.Errorf("query %q for row count of %q: %w", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
-	return rowCount
+	return rowCount, nil
 }
 
 func (yb *YugabyteDB) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {

@@ -47,7 +47,7 @@ func newOracle(s *Source) *Oracle {
 
 func (ora *Oracle) Connect() error {
 	db, err := sql.Open("godror", ora.getConnectionUri())
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(ora.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ora.db = db
 	return err
@@ -82,17 +82,17 @@ func (ora *Oracle) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg", "sqlplus")
 }
 
-func (ora *Oracle) GetTableRowCount(tableName sqlname.NameTuple) int64 {
+func (ora *Oracle) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 
 	log.Infof("Querying row count of table %q", tableName)
 	err := ora.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
+		return 0, fmt.Errorf("query %q for row count of %q: %w", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
-	return rowCount
+	return rowCount, nil
 }
 
 func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {

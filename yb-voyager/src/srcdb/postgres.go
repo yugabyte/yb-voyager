@@ -109,7 +109,7 @@ func newPostgreSQL(s *Source) *PostgreSQL {
 
 func (pg *PostgreSQL) Connect() error {
 	db, err := sql.Open("pgx", pg.getConnectionUri())
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(pg.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	pg.db = db
 	return err
@@ -143,16 +143,16 @@ func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
 }
 
-func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
+func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
 	log.Infof("Querying row count of table %q", tableName)
 	err := pg.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
+		return 0, fmt.Errorf("query %q for row count of %q: %w", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
-	return rowCount
+	return rowCount, nil
 }
 
 func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
