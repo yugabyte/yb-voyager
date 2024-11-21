@@ -375,10 +375,6 @@ func (ms *MySQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }
 
-func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
-	panic("not implemented")
-}
-
 /*
 Only valid case is when the table has a auto increment column
 Note: a mysql table can have only one auto increment column
@@ -534,11 +530,11 @@ func (ms *MySQL) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 
-func (ms *MySQL) GetMissingExportSchemaPermissions() ([]string, error) {
+func (ms *MySQL) GetMissingExportSchemaPermissions(queryTableList string) ([]string, error) {
 	return nil, nil
 }
 
-func (ms *MySQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+func (ms *MySQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
 	return nil, nil
 }
 

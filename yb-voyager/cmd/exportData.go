@@ -261,7 +261,7 @@ func exportData() bool {
 
 	// Check if source DB has required permissions for export data
 	if source.RunGuardrailsChecks {
-		checkExportDataPermissions()
+		checkExportDataPermissions(finalTableList)
 	}
 
 	// finalize table list and column list
@@ -348,10 +348,6 @@ func exportData() bool {
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
 			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
-			err := source.DB().ValidateTablesReadyForLiveMigration(finalTableList)
-			if err != nil {
-				utils.ErrExit("error: validate if tables are ready for live migration: %v", err)
-			}
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
 				if err != nil {
@@ -445,7 +441,7 @@ func exportData() bool {
 	}
 }
 
-func checkExportDataPermissions() {
+func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 	// If source is PostgreSQL or YB, check if the number of existing replicaton slots is less than the max allowed
 	if (source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType)) ||
 		(source.DBType == YUGABYTEDB && !bool(useYBgRPCConnector)) {
@@ -463,7 +459,7 @@ func checkExportDataPermissions() {
 		}
 	}
 
-	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
+	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
 	if err != nil {
 		utils.ErrExit("get missing export data permissions: %v", err)
 	}

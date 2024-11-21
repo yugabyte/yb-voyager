@@ -162,10 +162,19 @@ func (yb *YugabyteDB) checkSchemasExists() []string {
 }
 
 func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
-	query := fmt.Sprintf(`SELECT table_name
-			  FROM information_schema.tables
-			  WHERE table_type = 'BASE TABLE' AND
-			        table_schema = '%s';`, schemaName)
+	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
+	// So, we are using pg_catalog to get the table names.
+	query := fmt.Sprintf(`
+	SELECT 
+		c.relname AS table_name
+	FROM 
+		pg_catalog.pg_class c
+	JOIN 
+		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE 
+		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
+		AND n.nspname = '%s'; 
+	`, schemaName)
 
 	rows, err := yb.db.Query(query)
 	if err != nil {
@@ -195,10 +204,20 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	query := fmt.Sprintf(`SELECT table_schema, table_name
-			  FROM information_schema.tables
-			  WHERE table_type = 'BASE TABLE' AND
-			        table_schema IN (%s);`, querySchemaList)
+	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
+	// So, we are using pg_catalog to get the table names.
+	query := fmt.Sprintf(`
+	SELECT 
+		n.nspname AS table_schema,
+		c.relname AS table_name
+	FROM 
+		pg_catalog.pg_class c
+	JOIN 
+		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE 
+		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
+		AND n.nspname IN (%s);  
+	`, querySchemaList)
 
 	rows, err := yb.db.Query(query)
 	if err != nil {
@@ -261,10 +280,6 @@ func (yb *YugabyteDB) GetConnectionUriWithoutPassword() string {
 }
 
 func (yb *YugabyteDB) ExportSchema(exportDir string, schemaDir string) {
-	panic("not implemented")
-}
-
-func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
 	panic("not implemented")
 }
 
@@ -1033,11 +1048,11 @@ func (yb *YugabyteDB) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 
-func (yb *YugabyteDB) GetMissingExportSchemaPermissions() ([]string, error) {
+func (yb *YugabyteDB) GetMissingExportSchemaPermissions(queryTableList string) ([]string, error) {
 	return nil, nil
 }
 
-func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
 	return nil, nil
 }
 

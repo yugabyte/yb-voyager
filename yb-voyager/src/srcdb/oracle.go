@@ -434,10 +434,6 @@ func (ora *Oracle) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }
 
-func (ora *Oracle) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
-	panic("not implemented")
-}
-
 /*
 GetColumnToSequenceMap returns a map of column name to sequence name for all identity columns in the given list of tables.
 Note: There can be only one identity column per table in Oracle
@@ -717,11 +713,11 @@ func (ora *Oracle) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 
-func (ora *Oracle) GetMissingExportSchemaPermissions() ([]string, error) {
+func (ora *Oracle) GetMissingExportSchemaPermissions(queryTableList string) ([]string, error) {
 	return nil, nil
 }
 
-func (ora *Oracle) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
 	return nil, nil
 }
 

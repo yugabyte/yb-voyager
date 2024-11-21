@@ -54,11 +54,10 @@ type SourceDB interface {
 	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
-	ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion(exportType string) error
-	GetMissingExportSchemaPermissions() ([]string, error)
-	GetMissingExportDataPermissions(exportType string) ([]string, error)
+	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)
+	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error)
 	GetMissingAssessMigrationPermissions() ([]string, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)

@@ -225,10 +225,19 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 }
 
 func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
-	query := fmt.Sprintf(`SELECT table_name
-			  FROM information_schema.tables
-			  WHERE table_type = 'BASE TABLE' AND
-			        table_schema = '%s';`, schemaName)
+	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
+	// So, we are using pg_catalog to get the table names.
+	query := fmt.Sprintf(`
+	SELECT 
+		c.relname AS table_name
+	FROM 
+		pg_catalog.pg_class c
+	JOIN 
+		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE 
+		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
+		AND n.nspname = '%s'; 
+	`, schemaName)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -258,10 +267,20 @@ func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	query := fmt.Sprintf(`SELECT table_schema, table_name
-			  FROM information_schema.tables
-			  WHERE table_type = 'BASE TABLE' AND
-			        table_schema IN (%s);`, querySchemaList)
+	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
+	// So, we are using pg_catalog to get the table names.
+	query := fmt.Sprintf(`
+	SELECT 
+		n.nspname AS table_schema,
+		c.relname AS table_name
+	FROM 
+		pg_catalog.pg_class c
+	JOIN 
+		pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE 
+		c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
+		AND n.nspname IN (%s);  
+	`, querySchemaList)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -656,9 +675,17 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 
 	// For this query in case of case sensitive tables, minquoting is required
-	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
-	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
+	query := fmt.Sprintf(`SELECT
+	inhparent::pg_catalog.regclass AS parent_table
+	FROM
+	pg_catalog.pg_inherits
+	JOIN
+	pg_catalog.pg_class AS child ON pg_inherits.inhrelid = child.oid
+	JOIN
+	pg_catalog.pg_namespace AS nsp_child ON child.relnamespace = nsp_child.oid
+	WHERE
+	child.relname = '%s'
+	AND nsp_child.nspname = '%s';`, table.CurrentName.Unqualified.MinQuoted, table.CurrentName.SchemaName)
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
@@ -948,43 +975,6 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
-func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
-	var tablesWithReplicaIdentityNotFull []string
-	var qualifiedTableNames []string
-	for _, table := range tableList {
-		sname, tname := table.ForCatalogQuery()
-		qualifiedTableNames = append(qualifiedTableNames, fmt.Sprintf("'%s.%s'", sname, tname))
-	}
-	query := fmt.Sprintf(`SELECT n.nspname || '.' || c.relname AS table_name_with_schema
-    FROM pg_class AS c
-    JOIN pg_namespace AS n ON c.relnamespace = n.oid
-    WHERE (n.nspname || '.' || c.relname) IN (%s)
-    AND c.relkind = 'r'
-    AND c.relreplident <> 'f';`, strings.Join(qualifiedTableNames, ","))
-	rows, err := pg.db.Query(query)
-	if err != nil {
-		return fmt.Errorf("error in querying(%q) source database for replica identity: %v", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-	for rows.Next() {
-		var tableWithSchema string
-		err := rows.Scan(&tableWithSchema)
-		if err != nil {
-			return fmt.Errorf("error in scanning query rows for replica identity: %v", err)
-		}
-		tablesWithReplicaIdentityNotFull = append(tablesWithReplicaIdentityNotFull, tableWithSchema)
-	}
-	if len(tablesWithReplicaIdentityNotFull) > 0 {
-		return fmt.Errorf("tables %v do not have REPLICA IDENTITY FULL\nPlease ALTER the tables and set their REPLICA IDENTITY to FULL", tablesWithReplicaIdentityNotFull)
-	}
-	return nil
-}
-
 // =============================== Guardrails ===============================
 
 func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
@@ -1016,11 +1006,11 @@ Returns:
   - []string: A slice of strings describing the missing permissions, if any.
   - error: An error if any issues occur during the permission checks.
 */
-func (pg *PostgreSQL) GetMissingExportSchemaPermissions() ([]string, error) {
+func (pg *PostgreSQL) GetMissingExportSchemaPermissions(queryTableList string) ([]string, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
-	missingTables, err := pg.listTablesMissingSelectPermission()
+	missingTables, err := pg.listTablesMissingSelectPermission(queryTableList)
 	if err != nil {
 		return nil, fmt.Errorf("error checking table select permissions: %w", err)
 	}
@@ -1057,8 +1047,12 @@ The function performs the following checks:
   - Checks if the user has create permission on the database.
   - Checks if the user has ownership over all tables.
 */
-func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
 	var combinedResult []string
+	qualifiedMinQuotedTableNames := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) string {
+		return table.ForOutput()
+	})
+	queryTableList := fmt.Sprintf("'%s'", strings.Join(qualifiedMinQuotedTableNames, "','"))
 
 	// For live migration
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
@@ -1094,16 +1088,16 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 		}
 
 		// Check replica identity of tables
-		// missingTables, err := pg.listTablesMissingReplicaIdentityFull()
-		// if err != nil {
-		// 	return nil, fmt.Errorf("error in checking table replica identity: %w", err)
-		// }
-		// if len(missingTables) > 0 {
-		// 	combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables missing replica identity full: "), strings.Join(missingTables, ", ")))
-		// }
+		missingTables, err := pg.listTablesMissingReplicaIdentityFull(queryTableList)
+		if err != nil {
+			return nil, fmt.Errorf("error in checking table replica identity: %w", err)
+		}
+		if len(missingTables) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables missing replica identity full: "), strings.Join(missingTables, ", ")))
+		}
 
 		// Check if user has ownership over all tables
-		missingTables, err := pg.listTablesMissingOwnerPermission()
+		missingTables, err = pg.listTablesMissingOwnerPermission(queryTableList)
 		if err != nil {
 			return nil, fmt.Errorf("error in checking table owner permissions: %w", err)
 		}
@@ -1122,7 +1116,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string) ([]stri
 	} else {
 		// For offline migration
 		// Check if schemas have USAGE permission and check if tables in the provided schemas have SELECT permission
-		res, err := pg.GetMissingExportSchemaPermissions()
+		res, err := pg.GetMissingExportSchemaPermissions(queryTableList)
 		if err != nil {
 			return nil, fmt.Errorf("error in getting missing export data permissions: %w", err)
 		}
@@ -1145,7 +1139,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
-	missingTables, err := pg.listTablesMissingSelectPermission()
+	missingTables, err := pg.listTablesMissingSelectPermission("")
 	if err != nil {
 		return nil, fmt.Errorf("error checking table select permissions: %w", err)
 	}
@@ -1181,10 +1175,7 @@ func (pg *PostgreSQL) isMigrationUserASuperUser() (bool, error) {
 	return isSuperUser, nil
 }
 
-func (pg *PostgreSQL) listTablesMissingOwnerPermission() ([]string, error) {
-	trimmedSchemaList := pg.getTrimmedSchemaList()
-	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
-
+func (pg *PostgreSQL) listTablesMissingOwnerPermission(queryTableList string) ([]string, error) {
 	checkTableOwnerPermissionQuery := fmt.Sprintf(`
 	WITH table_ownership AS (
 		SELECT
@@ -1193,8 +1184,8 @@ func (pg *PostgreSQL) listTablesMissingOwnerPermission() ([]string, error) {
 			pg_get_userbyid(c.relowner) AS owner_name
 		FROM pg_class c
 		JOIN pg_namespace n ON c.relnamespace = n.oid
-		WHERE c.relkind IN ('r', 'p') -- 'r' indicates a table 'p' indicates a partitioned table
-		AND n.nspname IN (%s)
+		WHERE c.relkind IN ('r', 'p') -- 'r' indicates a table, 'p' indicates a partitioned table
+		  AND (quote_ident(n.nspname) || '.' || quote_ident(c.relname)) IN (%s)
 	)
 	SELECT
 		schema_name,
@@ -1211,7 +1202,7 @@ func (pg *PostgreSQL) listTablesMissingOwnerPermission() ([]string, error) {
 			) THEN true
 			ELSE false
 		END AS has_ownership
-	FROM table_ownership;`, querySchemaList, pg.source.User, pg.source.User)
+	FROM table_ownership;`, queryTableList, pg.source.User, pg.source.User)
 
 	rows, err := pg.db.Query(checkTableOwnerPermissionQuery)
 	if err != nil {
@@ -1299,54 +1290,55 @@ func (pg *PostgreSQL) checkReplicationPermission() (bool, error) {
 	return hasPermission, nil
 }
 
-// func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull() ([]string, error) {
-// 	trimmedSchemaList := pg.getTrimmedSchemaList()
-// 	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
-// 	checkTableReplicaIdentityQuery := fmt.Sprintf(`SELECT
-// 	n.nspname AS schema_name,
-// 	c.relname AS table_name,
-// 	c.relreplident AS replica_identity,
-// 	CASE
-// 		WHEN c.relreplident <> 'f'
-// 		THEN '%s'
-// 		ELSE '%s'
-// 	END AS status
-// 	FROM pg_class c
-// 	JOIN pg_namespace n ON c.relnamespace = n.oid
-// 	WHERE quote_ident(n.nspname) IN (%s)
-// 	AND c.relkind IN ('r', 'p');`, MISSING, GRANTED, querySchemaList)
-// 	rows, err := pg.db.Query(checkTableReplicaIdentityQuery)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error in querying(%q) source database for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
-// 	}
-// 	defer func() {
-// 		closeErr := rows.Close()
-// 		if closeErr != nil {
-// 			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
-// 		}
-// 	}()
+func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull(queryTableList string) ([]string, error) {
+	checkTableReplicaIdentityQuery := fmt.Sprintf(`
+	SELECT
+		n.nspname AS schema_name,
+		c.relname AS table_name,
+		c.relreplident AS replica_identity,
+		CASE
+			WHEN c.relreplident <> 'f'
+			THEN '%s'
+			ELSE '%s'
+		END AS status
+	FROM pg_class c
+	JOIN pg_namespace n ON c.relnamespace = n.oid
+	WHERE (quote_ident(n.nspname) || '.' || quote_ident(c.relname)) IN (%s)
+	AND c.relkind IN ('r', 'p');
+	`, MISSING, GRANTED, queryTableList)
 
-// 	var missingTables []string
-// 	var tableSchemaName, tableName, replicaIdentity, status string
+	rows, err := pg.db.Query(checkTableReplicaIdentityQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
+		}
+	}()
 
-// 	for rows.Next() {
-// 		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
-// 		}
-// 		if status == MISSING {
-// 			// quote table name as it can be case sensitive
-// 			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
-// 		}
-// 	}
+	var missingTables []string
+	var tableSchemaName, tableName, replicaIdentity, status string
 
-// 	// Check for errors during row iteration
-// 	if err = rows.Err(); err != nil {
-// 		return nil, fmt.Errorf("error iterating over query rows: %w", err)
-// 	}
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		if status == MISSING {
+			// quote table name as it can be case sensitive
+			missingTables = append(missingTables, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
+		}
+	}
 
-// 	return missingTables, nil
-// }
+	// Check for errors during row iteration
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	return missingTables, nil
+}
 
 func (pg *PostgreSQL) checkWalLevel() (msg string) {
 	query := `SELECT current_setting('wal_level') AS wal_level;`
@@ -1434,43 +1426,61 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 	return sequencesWithMissingPerm, nil
 }
 
-func (pg *PostgreSQL) listTablesMissingSelectPermission() (tablesWithMissingPerm []string, err error) {
+func (pg *PostgreSQL) listTablesMissingSelectPermission(queryTableList string) (tablesWithMissingPerm []string, err error) {
 	// Users only need SELECT permissions on the tables of the schema they want to export for export schema
-	trimmedSchemaList := pg.getTrimmedSchemaList()
-	trimmedSchemaList = append(trimmedSchemaList, "pg_catalog", "information_schema")
-	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+	checkTableSelectPermissionQuery := ""
+	if queryTableList == "" {
 
-	checkTableSelectPermissionQuery := fmt.Sprintf(`
-	WITH schema_list AS (
-		SELECT unnest(ARRAY[%s]) AS schema_name
-	),
-	accessible_schemas AS (
-		SELECT schema_name
-		FROM schema_list
-		WHERE has_schema_privilege('%s', quote_ident(schema_name), 'USAGE')
-	)
-	SELECT
-		t.schemaname AS schema_name,
-		t.tablename AS table_name,
-		CASE 
-			WHEN has_table_privilege('%s', quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT') 
-			THEN '%s' 
-			ELSE '%s' 
-		END AS status
-	FROM pg_tables t
-	JOIN accessible_schemas a ON t.schemaname = a.schema_name
-	UNION ALL
-	SELECT
-		t.schemaname AS schema_name,
-		t.tablename AS table_name,
-		'%s' AS status
-	FROM pg_tables t
-	WHERE t.schemaname IN (SELECT schema_name FROM schema_list)
-	AND NOT EXISTS (
-		SELECT 1
-		FROM accessible_schemas a
-		WHERE t.schemaname = a.schema_name
-	);`, querySchemaList, pg.source.User, pg.source.User, GRANTED, MISSING, NO_USAGE_PERMISSION)
+		trimmedSchemaList := pg.getTrimmedSchemaList()
+		trimmedSchemaList = append(trimmedSchemaList, "pg_catalog", "information_schema")
+		querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
+
+		checkTableSelectPermissionQuery = fmt.Sprintf(`
+		WITH schema_list AS (
+			SELECT unnest(ARRAY[%s]) AS schema_name
+		),
+		accessible_schemas AS (
+			SELECT schema_name
+			FROM schema_list
+			WHERE has_schema_privilege('%s', quote_ident(schema_name), 'USAGE')
+		)
+		SELECT
+			t.schemaname AS schema_name,
+			t.tablename AS table_name,
+			CASE 
+				WHEN has_table_privilege('%s', quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT') 
+				THEN '%s' 
+				ELSE '%s' 
+			END AS status
+		FROM pg_tables t
+		JOIN accessible_schemas a ON t.schemaname = a.schema_name
+		UNION ALL
+		SELECT
+			t.schemaname AS schema_name,
+			t.tablename AS table_name,
+			'%s' AS status
+		FROM pg_tables t
+		WHERE t.schemaname IN (SELECT schema_name FROM schema_list)
+		AND NOT EXISTS (
+			SELECT 1
+			FROM accessible_schemas a
+			WHERE t.schemaname = a.schema_name
+		);`, querySchemaList, pg.source.User, pg.source.User, GRANTED, MISSING, NO_USAGE_PERMISSION)
+	} else {
+		checkTableSelectPermissionQuery = fmt.Sprintf(`
+		SELECT
+            t.schemaname AS schema_name,
+            t.tablename AS table_name,
+            CASE 
+                WHEN has_table_privilege('%s', quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT') 
+                THEN '%s' 
+                ELSE '%s' 
+            END AS status
+        FROM pg_tables t
+        WHERE quote_ident(t.schemaname) || '.' || quote_ident(t.tablename) IN (%s);
+	`, pg.source.User, GRANTED, MISSING, queryTableList)
+	}
+
 	rows, err := pg.db.Query(checkTableSelectPermissionQuery)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying(%q) source database for checking table select permission: %w", checkTableSelectPermissionQuery, err)
