@@ -41,7 +41,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -1097,16 +1096,9 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	var result []utils.UnsupportedQueryConstruct
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
-		isDML, err := queryparser.IsDMLQuery(query)
-		if err != nil {
-			return nil, fmt.Errorf("error checking whether executed query is a DML: %v", err)
-		}
-		if !isDML {
-			continue
-		}
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
 
-		issues, err := parserIssueDetector.GetIssues(query)
+		issues, err := parserIssueDetector.GetDMLIssues(query)
 		if err != nil {
 			log.Errorf("failed while trying to fetch query issues in query - [%s]: %v",
 				query, err)

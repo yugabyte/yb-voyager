@@ -19,7 +19,6 @@ package queryissue
 import (
 	"fmt"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -37,7 +36,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{}
 }
 
-func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
@@ -50,7 +49,7 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		}
 		var issues []issue.IssueInstance
 		for _, plpgsqlQuery := range plpgsqlQueries {
-			issuesInQuery, err := p.GetIssues(plpgsqlQuery)
+			issuesInQuery, err := p.GetAllIssues(plpgsqlQuery)
 			if err != nil {
 				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
 				log.Errorf("error getting issues in query-%s: %v", query, err)
@@ -73,7 +72,7 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		if err != nil {
 			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
 		}
-		issues, err := p.GetIssues(selectStmtQuery)
+		issues, err := p.GetAllIssues(selectStmtQuery)
 		if err != nil {
 			return nil, err
 		}
@@ -86,10 +85,17 @@ func (p *ParserIssueDetector) GetIssues(query string) ([]issue.IssueInstance, er
 		}), nil
 
 	}
-	return p.getDMLIssues(query, parseTree)
+	//get DML issues
+	return p.GetDMLIssues(query)
 }
 
-func (p *ParserIssueDetector) getDMLIssues(query string, parseTree *pg_query.ParseResult) ([]issue.IssueInstance, error) {
+//TODO: in future when we will DDL issues detection here we need `GetDDLIssues`
+
+func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query: %w", err)
+	}
 	var result []issue.IssueInstance
 	var unsupportedConstructs []string
 	visited := make(map[protoreflect.Message]bool)
@@ -113,7 +119,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string, parseTree *pg_query.Par
 	}
 
 	parseTreeProtoMsg := queryparser.GetProtoMessageFromParseTree(parseTree)
-	err := queryparser.TraverseParseTree(parseTreeProtoMsg, visited, processor)
+	err = queryparser.TraverseParseTree(parseTreeProtoMsg, visited, processor)
 	if err != nil {
 		return result, fmt.Errorf("error traversing parse tree message: %w", err)
 	}
