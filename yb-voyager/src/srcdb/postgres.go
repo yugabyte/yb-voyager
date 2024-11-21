@@ -46,8 +46,9 @@ const MAX_SUPPORTED_PG_VERSION = "16"
 const MISSING = "MISSING"
 const GRANTED = "GRANTED"
 const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
+const PG_STAT_STATEMENTS = "pg_stat_statements"
 
-var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database"}
+var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database", "pg_extension"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
@@ -1147,7 +1148,77 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
 	}
 
+	result, err := pg.checkPgStatStatementsSetup()
+	if err != nil {
+		return nil, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
+	}
+
+	if result != "" {
+		combinedResult = append(combinedResult, result)
+	}
 	return combinedResult, nil
+}
+
+const (
+	queryPgStatStatementsSchema = `
+		SELECT nspname
+		FROM pg_extension e
+		JOIN pg_namespace n ON e.extnamespace = n.oid
+		WHERE e.extname = 'pg_stat_statements'`
+
+	querySharedPreloadLibraries = `SELECT current_setting('shared_preload_libraries')`
+
+	queryHasReadStatsPermission = `
+		SELECT pg_has_role(current_user, 'pg_read_all_stats', 'USAGE')`
+)
+
+// checkPgStatStatementsSetup checks if pg_stat_statements is properly installed and if the user has the necessary read permissions.
+func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
+	if !utils.GetEnvAsBool("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS", true) {
+		log.Infof("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS is set as false, skipping guardrails check for pg_stat_statements")
+		return "", nil
+	}
+
+	// 1. check if pg_stat_statements extension is available on source
+	var pgssExtSchema string
+	err := pg.db.QueryRow(queryPgStatStatementsSchema).Scan(&pgssExtSchema)
+	if err != nil && err != sql.ErrNoRows {
+		return "", fmt.Errorf("failed to fetch the schema of pg_stat_statement available in: %w", err)
+	}
+	if pgssExtSchema == "" {
+		return "pg_stat_statements extension is not installed on source DB, required for detecting Unsupported Query Constructs", nil
+	} else {
+		schemaList := lo.Union(pg.getTrimmedSchemaList(), []string{"public"})
+		if !slices.Contains(schemaList, pgssExtSchema) {
+			return fmt.Sprintf("pg_stat_statements extension schema %q is not in the schema list (%s), required for detecting Unsupported Query Constructs",
+				pgssExtSchema, strings.Join(schemaList, ", ")), nil
+		}
+	}
+
+	// 2. check if its properly installed/loaded
+	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
+	// so trying a best effort here, if accessible then check otherwise it will fail during the gather metadata
+	var sharedPreloadLibraries string
+	err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
+	if err != nil {
+		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %v", err)
+	}
+	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
+		return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
+	}
+
+	// 3. User has permission to read from pg_stat_statements table
+	var hasReadAllStats bool
+	err = pg.db.QueryRow(queryHasReadStatsPermission).Scan(&hasReadAllStats)
+	if err != nil {
+		return "", fmt.Errorf("failed to check pg_read_all_stats grant on migration user: %w", err)
+	}
+
+	if !hasReadAllStats {
+		return "User doesn't have permissions to read pg_stat_statements view, unsupported query constructs won't be detected/reported", nil
+	}
+
+	return "", nil
 }
 
 func (pg *PostgreSQL) isMigrationUserASuperUser() (bool, error) {
