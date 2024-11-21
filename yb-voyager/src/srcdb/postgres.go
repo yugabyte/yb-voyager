@@ -1159,7 +1159,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 		return nil, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
 	}
 
-	if len(result) > 0 {
+	if result != "" {
 		combinedResult = append(combinedResult, result)
 	}
 	return combinedResult, nil
@@ -1180,6 +1180,11 @@ const (
 
 // checkPgStatStatementsSetup checks if pg_stat_statements is properly installed and if the user has the necessary read permissions.
 func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
+	if !utils.GetEnvAsBool("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS", true) {
+		log.Infof("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS is set as false, skipping guardrails check for pg_stat_statements")
+		return "", nil
+	}
+
 	// 1. check if pg_stat_statements extension is available on source
 	var pgssExtSchema string
 	err := pg.db.QueryRow(queryPgStatStatementsSchema).Scan(&pgssExtSchema)
@@ -1187,7 +1192,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 		return "", fmt.Errorf("failed to fetch the schema of pg_stat_statement available in: %w", err)
 	}
 	if pgssExtSchema == "" {
-		return "pg_stat_statements extension is not installed on source DB", nil
+		return "pg_stat_statements extension is not installed on source DB, required for detecting Unsupported Query Constructs", nil
 	} else {
 		schemaList := lo.Union(pg.getTrimmedSchemaList(), []string{"public"})
 		if !slices.Contains(schemaList, pgssExtSchema) {
@@ -1202,7 +1207,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	var sharedPreloadLibraries string
 	err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
 	if err != nil {
-		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %w", err)
+		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %v", err)
 	}
 	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
 		return "pg_stat_statements is not loaded via shared_preload_libraries", nil
@@ -1216,7 +1221,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	}
 
 	if !hasReadAllStats {
-		return fmt.Sprintf("User doesn't have permissions to read pg_stat_statements view, unsupported query constructs won't be detected/reported"), nil
+		return "User doesn't have permissions to read pg_stat_statements view, unsupported query constructs won't be detected/reported", nil
 	}
 
 	return "", nil
