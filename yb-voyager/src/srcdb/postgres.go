@@ -367,6 +367,9 @@ func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableLis
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
+	if tablesProgressMetadata == nil {
+		return
+	}
 	dfd := datafile.Descriptor{
 		FileFormat:                 datafile.TEXT,
 		DataFileList:               getExportedDataFileList(tablesProgressMetadata),
