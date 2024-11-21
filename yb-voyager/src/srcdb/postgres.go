@@ -1153,7 +1153,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
 	}
 
-	result, err := pg.checkPgssInstalledProperlyWithReadPermission()
+	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
 		return nil, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
 	}
@@ -1164,19 +1164,30 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 	return combinedResult, nil
 }
 
-func (pg *PostgreSQL) checkPgssInstalledProperlyWithReadPermission() (string, error) {
+const (
+	queryPgStatStatementsSchema = `
+		SELECT nspname
+		FROM pg_extension e
+		JOIN pg_namespace n ON e.extnamespace = n.oid
+		WHERE e.extname = 'pg_stat_statements'`
+
+	querySharedPreloadLibraries = `SELECT current_setting('shared_preload_libraries')`
+
+	queryHasReadStatsPermission = `
+		SELECT pg_has_role(current_user, 'pg_read_all_stats', 'USAGE')`
+)
+
+// checkPgStatStatementsSetup checks if pg_stat_statements is properly installed and if the user has the necessary read permissions.
+func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	// 1. check if pg_stat_statements extension is available on source
-	query := `SELECT nspname FROM pg_extension e, pg_namespace n
-	WHERE e.extnamespace = n.oid AND e.extname = 'pg_stat_statements'`
 	var pgssExtSchema string
-	err := pg.db.QueryRow(query).Scan(&pgssExtSchema)
+	err := pg.db.QueryRow(queryPgStatStatementsSchema).Scan(&pgssExtSchema)
 	if err != nil && err != sql.ErrNoRows {
 		return "", fmt.Errorf("failed to fetch the schema of pg_stat_statement available in: %w", err)
 	}
 	if pgssExtSchema == "" {
 		return "pg_stat_statements extension is not installed on source DB", nil
 	} else {
-		// check schema list
 		schemaList := lo.Union(pg.getTrimmedSchemaList(), []string{"public"})
 		if !slices.Contains(schemaList, pgssExtSchema) {
 			return fmt.Sprintf("pg_stat_statements extension schema %q is not in the schema list (%s)",
@@ -1187,17 +1198,15 @@ func (pg *PostgreSQL) checkPgssInstalledProperlyWithReadPermission() (string, er
 	// 2. check if its properly installed/loaded
 	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
 	// so trying a best effort here, if accessible then check otherwise it will fail during the gather metadata
-	query = `SELECT current_setting('shared_preload_libraries');`
 	var sharedPreloadLibraries string
-	err = pg.db.QueryRow(query).Scan(&sharedPreloadLibraries)
+	err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
 	if err != nil {
-		utils.PrintAndLog("failed to check if pg_stat_statements extension is properly loaded on source DB: %w", err)
+		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %w", err)
 	}
 
 	// 3. User has permission to read from pg_stat_statements table
-	query = `SELECT pg_has_role(current_user, 'pg_read_all_stats', 'USAGE');`
 	var hasReadAllStats bool
-	err = pg.db.QueryRow(query).Scan(&hasReadAllStats)
+	err = pg.db.QueryRow(queryHasReadStatsPermission).Scan(&hasReadAllStats)
 	if err != nil {
 		return "", fmt.Errorf("failed to check pg_read_all_stats grant on migration user: %w", err)
 	}
