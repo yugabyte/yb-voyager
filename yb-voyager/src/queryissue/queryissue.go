@@ -85,7 +85,6 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 		}), nil
 
 	}
-	//get DML issues
 	return p.GetDMLIssues(query)
 }
 
