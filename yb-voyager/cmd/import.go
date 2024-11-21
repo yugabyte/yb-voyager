@@ -231,13 +231,13 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("truncate-splits")
 }
 
-func registerImportDataFlags(cmd *cobra.Command) {
+func registerImportDataToTargetFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		`Starts a fresh import with exported data files present in the export-dir/data directory. 
 If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
-	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables before importing data (default false)")
+	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on target YugabyteDB before importing data (default false)")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

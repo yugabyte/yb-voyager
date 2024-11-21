@@ -924,7 +924,8 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
 			return nt.ForOutput()
 		})
-		if truncateTables {
+		if importerRole == TARGET_DB_IMPORTER_ROLE && truncateTables {
+			// truncate tables only supported for import-data-to-target.
 			utils.PrintAndLog("Truncating non-empty tables on target DB : %v", nonEmptyTableNames)
 			err := tdb.TruncateTables(nonEmptyNts)
 			if err != nil {
@@ -932,7 +933,10 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			}
 		} else {
 			utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
-			utils.PrintAndLog("The above list of tables on target DB are not empty. If you wish to truncate them, re-run the import command with --truncate-tables flag.")
+			utils.PrintAndLog("The above list of tables on target DB are not empty.")
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				utils.PrintAndLog("If you wish to truncate them, re-run the import command with --truncate-tables true")
+			}
 			yes := utils.AskPrompt("Do you want to start afresh without truncating tables")
 			if !yes {
 				utils.ErrExit("Aborting import.")
@@ -1431,8 +1435,8 @@ func init() {
 	registerTargetDBConnFlags(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataCommonFlags(importDataToTargetCmd)
-	registerImportDataFlags(importDataCmd)
-	registerImportDataFlags(importDataToTargetCmd)
+	registerImportDataToTargetFlags(importDataCmd)
+	registerImportDataToTargetFlags(importDataToTargetCmd)
 }
 
 func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {

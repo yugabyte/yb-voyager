@@ -70,7 +70,6 @@ func init() {
 	registerStartCleanFlag(importDataToSourceReplicaCmd)
 	registerImportDataCommonFlags(importDataToSourceReplicaCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceReplicaCmd)
-	BoolVar(importDataToSourceReplicaCmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on source-replica before importing data (default false)")
 }
 
 func registerStartCleanFlag(cmd *cobra.Command) {
