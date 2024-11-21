@@ -52,7 +52,7 @@ func newYugabyteDB(s *Source) *YugabyteDB {
 
 func (yb *YugabyteDB) Connect() error {
 	db, err := sql.Open("pgx", yb.getConnectionUri())
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(yb.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	yb.db = db
 	return err
