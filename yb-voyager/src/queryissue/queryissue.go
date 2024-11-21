@@ -102,6 +102,7 @@ func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance,
 		NewFuncCallDetector(),
 		NewColumnRefDetector(),
 		NewXmlExprDetector(),
+		NewRangeTableFuncDetector(),
 	}
 
 	processor := func(msg protoreflect.Message) error {

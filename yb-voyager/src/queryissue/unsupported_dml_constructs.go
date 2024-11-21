@@ -111,3 +111,32 @@ func (d *XmlExprDetector) Detect(msg protoreflect.Message) ([]string, error) {
 	}
 	return nil, nil
 }
+
+/*
+RangeTableFunc node manages functions that produce tables, structuring output into rows and columns
+for SQL queries. Example: XMLTABLE()
+
+ASSUMPTION:
+- RangeTableFunc is used for representing XMLTABLE() only as of now
+- Comments from Postgres code:
+  - RangeTableFunc - raw form of "table functions" such as XMLTABLE
+  - Note: JSON_TABLE is also a "table function", but it uses JsonTable node,
+  - not RangeTableFunc.
+
+- link: https://github.com/postgres/postgres/blob/ea792bfd93ab8ad4ef4e3d1a741b8595db143677/src/include/nodes/parsenodes.h#L651
+*/
+type RangeTableFuncDetector struct{}
+
+func NewRangeTableFuncDetector() *RangeTableFuncDetector {
+	return &RangeTableFuncDetector{}
+}
+
+// Detect checks if a RangeTableFunc node is present for a XMLTABLE() function
+func (d *RangeTableFuncDetector) Detect(msg protoreflect.Message) ([]string, error) {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_RANGETABLEFUNC_NODE {
+		if queryparser.IsXMLTable(msg) {
+			return []string{XML_FUNCTIONS}, nil
+		}
+	}
+	return nil, nil
+}

@@ -15,7 +15,12 @@ limitations under the License.
 */
 package queryparser
 
-import "google.golang.org/protobuf/reflect/protoreflect"
+import (
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/reflect/protoreflect"
+)
 
 const (
 	DOCS_LINK_PREFIX        = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"
@@ -79,12 +84,12 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 		return ""
 	}
 
-	// 'nodeMsg' is a 'pg_query.Node' getting the set field in the 'node' oneof
-	nodeField := nodeMsg.WhichOneof(nodeMsg.Descriptor().Oneofs().ByName("node"))
+	nodeField := getOneofActiveField(nodeMsg, "node")
 	if nodeField == nil {
 		return ""
 	}
 
+	// Get the message corresponding to the set field
 	nodeValue := nodeMsg.Get(nodeField)
 	node := nodeValue.Message()
 	if node == nil || !node.IsValid() {
@@ -93,11 +98,16 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 
 	nodeType := node.Descriptor().FullName()
 	switch nodeType {
+	// Represents a simple string literal in a query, such as names or values directly provided in the SQL text.
 	case PG_QUERY_STRING_NODE:
-		strField := node.Descriptor().Fields().ByName("sval")
-		strValue := node.Get(strField)
-		return strValue.String()
-	// example: SELECT * FROM employees;
+		return extractStringField(node, "sval")
+	// Represents a constant value in SQL expressions, often used for literal values like strings, numbers, or keywords.
+	case PG_QUERY_ACONST_NODE:
+		return extractAConstString(node)
+	// Represents a type casting operation in SQL, where a value is explicitly converted from one type to another using a cast expression.
+	case PG_QUERY_TYPECAST_NODE:
+		return traverseAndExtractAConst(node, "arg")
+	// Represents the asterisk '*' used in SQL to denote the selection of all columns in a table. Example: SELECT * FROM employees;
 	case PG_QUERY_ASTAR_NODE:
 		return ""
 	default:
@@ -105,6 +115,222 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 	}
 }
 
+// extractStringField safely extracts a string field from a node
+// Sample example:: {column_ref:{fields:{string:{sval:"s"}}  fields:{string:{sval:"tableoid"}}  location:7}
+func extractStringField(node protoreflect.Message, fieldName string) string {
+	strField := node.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if strField == nil || !node.Has(strField) {
+		return ""
+	}
+	return node.Get(strField).String()
+}
+
+// extractAConstString extracts the string from an 'A_Const' node's 'sval' field
+// Sample example:: rowexpr:{a_const:{sval:{sval:"//Product"}  location:124}}
+func extractAConstString(aConstMsg protoreflect.Message) string {
+	// Extract the 'sval' field from 'A_Const'
+	svalField := aConstMsg.Descriptor().Fields().ByName("sval")
+	if svalField == nil || !aConstMsg.Has(svalField) {
+		return ""
+	}
+
+	svalMsg := aConstMsg.Get(svalField).Message()
+	if svalMsg == nil || !svalMsg.IsValid() {
+		return ""
+	}
+
+	// Ensure svalMsg is of type 'pg_query.String'
+	if svalMsg.Descriptor().FullName() != "pg_query.String" {
+		return ""
+	}
+
+	// Extract the actual string value from 'pg_query.String'
+	return extractStringField(svalMsg, "sval")
+}
+
+// traverseAndExtractAConst traverses to a specified field and extracts the 'A_Const' string value
+// Sample example:: rowexpr:{type_cast:{arg:{a_const:{sval:{sval:"/order/item"}
+func traverseAndExtractAConst(nodeMsg protoreflect.Message, fieldName string) string {
+	field := nodeMsg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field == nil || !nodeMsg.Has(field) {
+		return ""
+	}
+
+	childMsg := nodeMsg.Get(field).Message()
+	if childMsg == nil || !childMsg.IsValid() {
+		return ""
+	}
+
+	return GetStringValueFromNode(childMsg)
+}
+
+/*
+Note: XMLTABLE() is not a simple function(stored in FuncCall node), its a table function
+which generates set of rows using the info(about rows, columns, content) provided to it
+Hence its requires a more complex node structure(RangeTableFunc node) to represent.
+
+XMLTABLE transforms XML data into relational table format, making it easier to query XML structures.
+Detection in RangeTableFunc Node:
+- docexpr: Refers to the XML data source, usually a column storing XML.
+- rowexpr: XPath expression (starting with '/' or '//') defining the rows in the XML.
+- columns: Specifies the data extraction from XML into relational columns.
+
+Example: Converting XML data about books into a table:
+SQL Query:
+
+	SELECT x.*
+	FROM XMLTABLE(
+		'/bookstore/book'
+		PASSING xml_column
+		COLUMNS
+			title TEXT PATH 'title',
+			author TEXT PATH 'author'
+	) AS x;
+
+Parsetree: stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"x"}}  fields:{a_star:{}}  location:7}}  location:7}}
+from_clause:{range_table_func:
+	{docexpr:{column_ref:{fields:{string:{sval:"xml_column"}}  location:57}}
+	rowexpr:{a_const:{sval:{sval:"/bookstore/book"}  location:29}}
+	columns:{range_table_func_col:{colname:"title"  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:87}  colexpr:{a_const:{sval:{sval:"title"}  location:97}}  location:81}}
+	columns:{range_table_func_col:{colname:"author"  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:116}  colexpr:{a_const:{sval:{sval:"author"}  location:126}}  location:109}}
+alias:{aliasname:"x"}  location:17}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}  stmt_len:142
+
+Here, 'docexpr' points to 'xml_column' containing XML data, 'rowexpr' selects each 'book' node, and 'columns' extract 'title' and 'author' from each book.
+Hence Presence of XPath in 'rowexpr' and structured 'columns' typically indicates XMLTABLE usage.
+*/
+// Function to detect if a RangeTableFunc node represents XMLTABLE()
+func IsXMLTable(rangeTableFunc protoreflect.Message) bool {
+	if GetMsgFullName(rangeTableFunc) != PG_QUERY_RANGETABLEFUNC_NODE {
+		return false
+	}
+
+	log.Debug("checking if range table func node is for XMLTABLE()")
+	// Check for 'docexpr' field
+	docexprField := rangeTableFunc.Descriptor().Fields().ByName("docexpr")
+	if docexprField == nil {
+		return false
+	}
+	docexprNode := rangeTableFunc.Get(docexprField).Message()
+	if docexprNode == nil {
+		return false
+	}
+
+	// Check for 'rowexpr' field
+	rowexprField := rangeTableFunc.Descriptor().Fields().ByName("rowexpr")
+	if rowexprField == nil {
+		return false
+	}
+	rowexprNode := rangeTableFunc.Get(rowexprField).Message()
+	if rowexprNode == nil {
+		return false
+	}
+
+	xpath := GetStringValueFromNode(rowexprNode)
+	log.Debugf("xpath expression in the node: %s\n", xpath)
+	// Keep both cases check(param placeholder and absolute check)
+	if xpath == "" {
+		// Attempt to check if 'rowexpr' is a parameter placeholder like '$1'
+		isPlaceholder := IsParameterPlaceholder(rowexprNode)
+		if !isPlaceholder {
+			return false
+		}
+	} else if !IsXPathExprForXmlTable(xpath) {
+		return false
+	}
+
+	// Check for 'columns' field
+	columnsField := rangeTableFunc.Descriptor().Fields().ByName("columns")
+	if columnsField == nil {
+		return false
+	}
+
+	columnsList := rangeTableFunc.Get(columnsField).List()
+	if columnsList.Len() == 0 {
+		return false
+	}
+
+	// this means all the required fields of RangeTableFunc node for being a XMLTABLE() are present
+	return true
+}
+
+/*
+isXPathExprForXmlTable checks whether a given string is a valid XPath expression for XMLTABLE()'s rowexpr.
+It returns true if the expression starts with '/' or '//', indicating an absolute or anywhere path.
+This covers the primary cases used in XMLTABLE() for selecting XML nodes as rows.
+
+XPath Expression Cases Covered for XMLTABLE():
+1. Absolute Paths:
+- Starts with a single '/' indicating the root node.
+- Example: "/library/book"
+
+2. Anywhere Paths:
+- Starts with double '//' indicating selection from anywhere in the document.
+- Example: "//book/author"
+
+For a comprehensive overview of XPath expressions, refer to:
+https://developer.mozilla.org/en-US/docs/Web/XPath
+*/
+func IsXPathExprForXmlTable(expression string) bool {
+	// Trim leading and trailing whitespace
+	expression = strings.TrimSpace(expression)
+	if expression == "" {
+		return false
+	}
+
+	// Check if the expression starts with '/' or '//'
+	return strings.HasPrefix(expression, "/") || strings.HasPrefix(expression, "//")
+}
+
 func GetMsgFullName(msg protoreflect.Message) string {
 	return string(msg.Descriptor().FullName())
+}
+
+// IsParameterPlaceholder checks if the given node represents a parameter placeholder like $1
+func IsParameterPlaceholder(nodeMsg protoreflect.Message) bool {
+	if nodeMsg == nil || !nodeMsg.IsValid() {
+		return false
+	}
+
+	nodeField := getOneofActiveField(nodeMsg, "node")
+	if nodeField == nil {
+		return false
+	}
+
+	// Get the message corresponding to the set field
+	nodeValue := nodeMsg.Get(nodeField)
+	node := nodeValue.Message()
+	if node == nil || !node.IsValid() {
+		return false
+	}
+
+	// Identify the type of the node
+	nodeType := node.Descriptor().FullName()
+	if nodeType == PG_QUERY_PARAMREF_NODE {
+		// This node represents a parameter reference like $1
+		return true
+	}
+
+	return false
+}
+
+// getOneofActiveField retrieves the active field from a specified oneof in a Protobuf message.
+// It returns the FieldDescriptor of the active field if a field is set, or nil if no field is set or the oneof is not found.
+func getOneofActiveField(msg protoreflect.Message, oneofName string) protoreflect.FieldDescriptor {
+	if msg == nil {
+		return nil
+	}
+
+	// Get the descriptor of the message and find the oneof by name
+	descriptor := msg.Descriptor()
+	if descriptor == nil {
+		return nil
+	}
+
+	oneofDescriptor := descriptor.Oneofs().ByName(protoreflect.Name(oneofName))
+	if oneofDescriptor == nil {
+		return nil
+	}
+
+	// Determine which field within the oneof is set
+	return msg.WhichOneof(oneofDescriptor)
 }
