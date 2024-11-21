@@ -158,7 +158,7 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 		m[schemaName] = tableNames
 		seqNames, err := reg.params.SDB.GetAllSequencesRaw(schemaName)
 		if err != nil {
-			return false, fmt.Errorf("get all table names: %w", err)
+			return false, fmt.Errorf("get all sequence names: %w", err)
 		}
 		m[schemaName] = append(m[schemaName], seqNames...)
 	}
@@ -211,7 +211,7 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 		m[schemaName] = tableNames
 		seqNames, err := yb.GetAllSequencesRaw(schemaName)
 		if err != nil {
-			return false, fmt.Errorf("get all table names: %w", err)
+			return false, fmt.Errorf("get all sequence names: %w", err)
 		}
 		m[schemaName] = append(m[schemaName], seqNames...)
 	}

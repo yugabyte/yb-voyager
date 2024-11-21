@@ -1048,3 +1048,7 @@ func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, error) {
 func (yb *YugabyteDB) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
 	return checkReplicationSlotsForPGAndYB(yb.db)
 }
+
+func (yb *YugabyteDB) GetSchemasMissingUsagePermissions() ([]string, error) {
+	return nil, nil
+}
