@@ -217,11 +217,12 @@ func checkImportDataPermissions() {
 		utils.PrintAndLog(output)
 
 		var link string
-		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+		switch importerRole {
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/#prepare-source-replica-database"
-		} else if importerRole == SOURCE_DB_IMPORTER_ROLE {
+		case SOURCE_DB_IMPORTER_ROLE:
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#prepare-the-source-database"
-		} else {
+		default:
 			if changeStreamingIsEnabled(importType) {
 				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-target-database"
 			} else {
@@ -231,11 +232,9 @@ func checkImportDataPermissions() {
 		fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
 
 		// Prompt user to continue if missing permissions only if fk and triggers check did not fail
-		if !fkAndTriggersCheckFailed {
-			if !utils.AskPrompt("\nDo you want to continue anyway") {
-				utils.ErrExit("Please grant the required permissions and retry the import.")
-			}
-		} else {
+		if fkAndTriggersCheckFailed {
+			utils.ErrExit("Please grant the required permissions and retry the import.")
+		} else if !utils.AskPrompt("\nDo you want to continue anyway") {
 			utils.ErrExit("Please grant the required permissions and retry the import.")
 		}
 	} else {
