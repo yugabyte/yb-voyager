@@ -155,6 +155,14 @@ SQL Query:
 			author TEXT PATH 'author'
 	) AS x;
 
+Parsetree: stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"x"}}  fields:{a_star:{}}  location:7}}  location:7}}
+from_clause:{range_table_func:
+	{docexpr:{column_ref:{fields:{string:{sval:"xml_column"}}  location:57}}
+	rowexpr:{a_const:{sval:{sval:"/bookstore/book"}  location:29}}
+	columns:{range_table_func_col:{colname:"title"  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:87}  colexpr:{a_const:{sval:{sval:"title"}  location:97}}  location:81}}
+	columns:{range_table_func_col:{colname:"author"  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:116}  colexpr:{a_const:{sval:{sval:"author"}  location:126}}  location:109}}
+alias:{aliasname:"x"}  location:17}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}  stmt_len:142
+
 Here, 'docexpr' points to 'xml_column' containing XML data, 'rowexpr' selects each 'book' node, and 'columns' extract 'title' and 'author' from each book.
 Hence Presence of XPath in 'rowexpr' and structured 'columns' typically indicates XMLTABLE usage.
 */
