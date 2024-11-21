@@ -46,6 +46,7 @@ const MAX_SUPPORTED_PG_VERSION = "16"
 const MISSING = "MISSING"
 const GRANTED = "GRANTED"
 const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
+const PG_STAT_STATEMENTS = "pg_stat_statements"
 
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database", "pg_extension"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
@@ -1202,6 +1203,9 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
 	if err != nil {
 		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %w", err)
+	}
+	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
+		return "pg_stat_statements is not loaded via shared_preload_libraries", nil
 	}
 
 	// 3. User has permission to read from pg_stat_statements table
