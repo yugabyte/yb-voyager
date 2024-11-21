@@ -428,11 +428,7 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 			binaryCheckIssues = append(binaryCheckIssues, "Please check your Voyager installation and try again")
 		}
-	} else {
-		if len(binaryCheckIssues) > 0 {
-			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
-		}
-	}
+	} 
 
 	return binaryCheckIssues, nil
 }
