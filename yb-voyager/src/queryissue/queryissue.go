@@ -57,7 +57,6 @@ func (p *ParserIssueDetector) GetIssues(query string, targetDbVersion *version.Y
 	}
 
 	return filteredIssues, nil
-
 }
 
 func (p *ParserIssueDetector) getIssues(query string) ([]issue.IssueInstance, error) {

@@ -36,37 +36,26 @@ type Issue struct {
 }
 
 func (i Issue) IsFixedIn(v *version.YBVersion) (bool, error) {
+	var minVersion *version.YBVersion
 	switch v.ReleaseType() {
 	case version.STABLE:
-		if i.MinimumFixedVersionStable == nil {
-			return false, nil
-		}
-		greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(i.MinimumFixedVersionStable)
-		if err != nil {
-			return false, fmt.Errorf("comparing versions %s and %s: %w", v, i.MinimumFixedVersionStable, err)
-		}
-		return greaterThanMin, nil
+		minVersion = i.MinimumFixedVersionStable
 	case version.PREVIEW:
-		if i.MinimumFixedVersionPreview == nil {
-			return false, nil
-		}
-		greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(i.MinimumFixedVersionPreview)
-		if err != nil {
-			return false, fmt.Errorf("comparing versions %s and %s: %w", v, i.MinimumFixedVersionPreview, err)
-		}
-		return greaterThanMin, nil
+		minVersion = i.MinimumFixedVersionPreview
 	case version.STABLE_OLD:
-		if i.MinimumFixedVersionStableOld == nil {
-			return false, nil
-		}
-		greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(i.MinimumFixedVersionStableOld)
-		if err != nil {
-			return false, fmt.Errorf("comparing versions %s and %s: %w", v, i.MinimumFixedVersionStableOld, err)
-		}
-		return greaterThanMin, nil
+		minVersion = i.MinimumFixedVersionStableOld
 	default:
 		return false, fmt.Errorf("unsupported release type: %s", v.ReleaseType())
 	}
+
+	if minVersion == nil {
+		return false, nil
+	}
+	greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(minVersion)
+	if err != nil {
+		return false, fmt.Errorf("comparing versions %s and %s: %w", v, minVersion, err)
+	}
+	return greaterThanMin, nil
 }
 
 type IssueInstance struct {

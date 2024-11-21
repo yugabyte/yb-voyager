@@ -54,8 +54,6 @@ var (
 	intervalForCapturingIOPS         int64
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
-	targetDbVersionStrFlag           string
-	targetDbVersion                  *version.YBVersion
 )
 
 var sourceConnectionFlags = []string{
