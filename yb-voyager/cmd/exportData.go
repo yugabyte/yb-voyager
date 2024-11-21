@@ -497,7 +497,7 @@ func checkIfSchemasHaveUsagePermissions() {
 		utils.ErrExit("get schemas missing usage permissions: %v", err)
 	}
 	if len(schemasMissingUsage) > 0 {
-		fmt.Printf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
+		utils.PrintAndLog("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
 
 		var link string
 		if changeStreamingIsEnabled(exportType) {
