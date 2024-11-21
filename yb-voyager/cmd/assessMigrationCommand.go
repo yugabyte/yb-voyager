@@ -1104,8 +1104,6 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 				query, err)
 		}
 
-		fmt.Printf("query %s, issues %v", query, issues)
-
 		for _, issue := range issues {
 			uqc := utils.UnsupportedQueryConstruct{
 				Query:             issue.SqlStatement,
