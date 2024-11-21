@@ -555,7 +555,7 @@ get_passed_options() {
 				ONLY_PG="true"; 
 				shift 
 				;;
-			-r | --rebuild-voyager-local )
+			-v | --rebuild-voyager-local )
 				REBUILD_VOYAGER_LOCAL="true";
 				shift
 				;;
