@@ -1324,19 +1324,6 @@ func (pg *PostgreSQL) checkReplicationPermission() (bool, error) {
 	return hasPermission, nil
 }
 
-// SELECT
-//     n.nspname AS schema_name,
-//     c.relname AS table_name,
-//     c.relreplident AS replica_identity,
-//     CASE
-//         WHEN c.relreplident <> 'f' THEN 'GRANTED'
-//         ELSE 'MISSING'
-//     END AS status
-// FROM pg_class c
-// JOIN pg_namespace n ON c.relnamespace = n.oid
-// WHERE (n.nspname || '.' || c.relname) IN ('schema1.table1', 'schema2.table2', 'schema3.table3')
-// AND c.relkind IN ('r', 'p');
-
 func (pg *PostgreSQL) listTablesMissingReplicaIdentityFull(queryTableList string) ([]string, error) {
 	checkTableReplicaIdentityQuery := fmt.Sprintf(`
 	SELECT

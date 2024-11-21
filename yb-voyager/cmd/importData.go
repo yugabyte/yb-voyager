@@ -239,7 +239,12 @@ func checkImportDataPermissions() {
 			utils.ErrExit("Please grant the required permissions and retry the import.")
 		}
 	} else {
-		log.Info("The target database has the required permissions for importing data.")
+		// If only fk and triggers check failed just simply error out
+		if fkAndTriggersCheckFailed {
+			utils.ErrExit("")
+		} else {
+			log.Info("The target database has the required permissions for importing data.")
+		}
 	}
 }
 
