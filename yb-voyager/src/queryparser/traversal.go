@@ -116,7 +116,7 @@ func TraverseParseTree(msg protoreflect.Message, visited map[protoreflect.Messag
 
 	// Reference Oneof - https://protobuf.dev/programming-guides/proto3/#oneof
 	if nodeType == PG_QUERY_NODE_NODE {
-		nodeField := msg.WhichOneof(msg.Descriptor().Oneofs().ByName("node"))
+		nodeField := getOneofActiveField(msg, "node")
 		if nodeField != nil {
 			value := msg.Get(nodeField)
 			if value.IsValid() {

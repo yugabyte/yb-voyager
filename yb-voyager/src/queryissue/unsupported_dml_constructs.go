@@ -112,14 +112,18 @@ func (d *XmlExprDetector) Detect(msg protoreflect.Message) ([]string, error) {
 	return nil, nil
 }
 
-type RangeTableFunDetector struct{}
+/*
+RangeTableFunc node manages functions that produce tables, structuring output into rows and columns
+for SQL queries. Example: XMLTABLE()
+*/
+type RangeTableFuncDetector struct{}
 
-func NewRangeTableFuncDetector() *RangeTableFunDetector {
-	return &RangeTableFunDetector{}
+func NewRangeTableFuncDetector() *RangeTableFuncDetector {
+	return &RangeTableFuncDetector{}
 }
 
 // Detect checks if a RangeTableFunc node is present for a XMLTABLE() function
-func (d *RangeTableFunDetector) Detect(msg protoreflect.Message) ([]string, error) {
+func (d *RangeTableFuncDetector) Detect(msg protoreflect.Message) ([]string, error) {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_RANGETABLEFUNC_NODE {
 		if isXMLTable(msg) {
 			return []string{XML_FUNCTIONS}, nil
@@ -129,6 +133,10 @@ func (d *RangeTableFunDetector) Detect(msg protoreflect.Message) ([]string, erro
 }
 
 /*
+Note: XMLTABLE() is not a simple function(stored in FuncCall node), its a table function
+which generates set of rows using the info(about rows, columns, content) provided to it
+Hence its requires a more complex node structure(RangeTableFunc node) to represent.
+
 XMLTABLE transforms XML data into relational table format, making it easier to query XML structures.
 Detection in RangeTableFunc Node:
 - docexpr: Refers to the XML data source, usually a column storing XML.
@@ -149,9 +157,8 @@ SQL Query:
 
 Here, 'docexpr' points to 'xml_column' containing XML data, 'rowexpr' selects each 'book' node, and 'columns' extract 'title' and 'author' from each book.
 Hence Presence of XPath in 'rowexpr' and structured 'columns' typically indicates XMLTABLE usage.
-
-Function to detect if a RangeTableFunc node represents XMLTABLE()
 */
+// Function to detect if a RangeTableFunc node represents XMLTABLE()
 func isXMLTable(rangeTableFunc protoreflect.Message) bool {
 	log.Infof("checking if range table func node is for XMLTABLE()")
 	// Check for 'docexpr' field

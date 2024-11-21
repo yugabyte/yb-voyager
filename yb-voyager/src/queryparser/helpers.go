@@ -83,14 +83,7 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 		return ""
 	}
 
-	// Retrieve the 'node' oneof descriptor
-	nodeOneof := nodeMsg.Descriptor().Oneofs().ByName("node")
-	if nodeOneof == nil {
-		return ""
-	}
-
-	// Determine which field is set in the 'node' oneof
-	nodeField := nodeMsg.WhichOneof(nodeOneof)
+	nodeField := getOneofActiveField(nodeMsg, "node")
 	if nodeField == nil {
 		return ""
 	}
@@ -104,13 +97,16 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 
 	nodeType := node.Descriptor().FullName()
 	switch nodeType {
+	// Represents a simple string literal in a query, such as names or values directly provided in the SQL text.
 	case PG_QUERY_STRING_NODE:
 		return extractStringField(node, "sval")
+	// Represents a constant value in SQL expressions, often used for literal values like strings, numbers, or keywords.
 	case PG_QUERY_ACONST_NODE:
 		return extractAConstString(node)
+	// Represents a type casting operation in SQL, where a value is explicitly converted from one type to another using a cast expression.
 	case PG_QUERY_TYPECAST_NODE:
 		return traverseAndExtractAConst(node, "arg")
-	// example: SELECT * FROM employees;
+	// Represents the asterisk '*' used in SQL to denote the selection of all columns in a table. Example: SELECT * FROM employees;
 	case PG_QUERY_ASTAR_NODE:
 		return ""
 	default:
@@ -205,14 +201,7 @@ func IsParameterPlaceholder(nodeMsg protoreflect.Message) bool {
 		return false
 	}
 
-	// Retrieve the 'node' oneof descriptor
-	nodeOneof := nodeMsg.Descriptor().Oneofs().ByName("node")
-	if nodeOneof == nil {
-		return false
-	}
-
-	// Determine which field is set in the 'node' oneof
-	nodeField := nodeMsg.WhichOneof(nodeOneof)
+	nodeField := getOneofActiveField(nodeMsg, "node")
 	if nodeField == nil {
 		return false
 	}
@@ -232,4 +221,26 @@ func IsParameterPlaceholder(nodeMsg protoreflect.Message) bool {
 	}
 
 	return false
+}
+
+// getOneofActiveField retrieves the active field from a specified oneof in a Protobuf message.
+// It returns the FieldDescriptor of the active field if a field is set, or nil if no field is set or the oneof is not found.
+func getOneofActiveField(msg protoreflect.Message, oneofName string) protoreflect.FieldDescriptor {
+	if msg == nil {
+		return nil
+	}
+
+	// Get the descriptor of the message and find the oneof by name
+	descriptor := msg.Descriptor()
+	if descriptor == nil {
+		return nil
+	}
+
+	oneofDescriptor := descriptor.Oneofs().ByName(protoreflect.Name(oneofName))
+	if oneofDescriptor == nil {
+		return nil
+	}
+
+	// Determine which field within the oneof is set
+	return msg.WhichOneof(oneofDescriptor)
 }
