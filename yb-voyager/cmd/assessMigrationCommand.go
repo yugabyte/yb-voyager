@@ -158,8 +158,8 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			return callhome.UnsupportedFeature{
-				FeatureName: feature.FeatureName,
-				ObjectCount: len(feature.Objects),
+				FeatureName:      feature.FeatureName,
+				ObjectCount:      len(feature.Objects),
 				TotalOccurrences: len(feature.Objects),
 			}
 		})),
@@ -167,8 +167,8 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
 		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.MigrationCaveats, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			return callhome.UnsupportedFeature{
-				FeatureName: feature.FeatureName,
-				ObjectCount: len(feature.Objects),
+				FeatureName:      feature.FeatureName,
+				ObjectCount:      len(feature.Objects),
 				TotalOccurrences: len(feature.Objects),
 			}
 		})),
@@ -278,7 +278,8 @@ func init() {
 	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
-		"Target YugabyteDB version to assess migration for. Defaults to latest stable version.")
+		"Target YugabyteDB version to assess migration for. Defaults to latest stable version (2024.1)")
+	assessMigrationCmd.Flags().MarkHidden("target-db-version")
 }
 
 func assessMigration() (err error) {
