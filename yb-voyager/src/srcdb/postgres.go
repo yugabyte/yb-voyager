@@ -975,43 +975,6 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
-func (pg *PostgreSQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
-	var tablesWithReplicaIdentityNotFull []string
-	var qualifiedTableNames []string
-	for _, table := range tableList {
-		sname, tname := table.ForCatalogQuery()
-		qualifiedTableNames = append(qualifiedTableNames, fmt.Sprintf("'%s.%s'", sname, tname))
-	}
-	query := fmt.Sprintf(`SELECT n.nspname || '.' || c.relname AS table_name_with_schema
-    FROM pg_class AS c
-    JOIN pg_namespace AS n ON c.relnamespace = n.oid
-    WHERE (n.nspname || '.' || c.relname) IN (%s)
-    AND c.relkind = 'r'
-    AND c.relreplident <> 'f';`, strings.Join(qualifiedTableNames, ","))
-	rows, err := pg.db.Query(query)
-	if err != nil {
-		return fmt.Errorf("error in querying(%q) source database for replica identity: %v", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-	for rows.Next() {
-		var tableWithSchema string
-		err := rows.Scan(&tableWithSchema)
-		if err != nil {
-			return fmt.Errorf("error in scanning query rows for replica identity: %v", err)
-		}
-		tablesWithReplicaIdentityNotFull = append(tablesWithReplicaIdentityNotFull, tableWithSchema)
-	}
-	if len(tablesWithReplicaIdentityNotFull) > 0 {
-		return fmt.Errorf("tables %v do not have REPLICA IDENTITY FULL\nPlease ALTER the tables and set their REPLICA IDENTITY to FULL", tablesWithReplicaIdentityNotFull)
-	}
-	return nil
-}
-
 // =============================== Guardrails ===============================
 
 func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {

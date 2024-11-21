@@ -283,10 +283,6 @@ func (yb *YugabyteDB) ExportSchema(exportDir string, schemaDir string) {
 	panic("not implemented")
 }
 
-func (yb *YugabyteDB) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
-	panic("not implemented")
-}
-
 func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
