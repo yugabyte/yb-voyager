@@ -1103,7 +1103,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
 
-		issues, err := parserIssueDetector.GetIssues(query)
+		issues, err := parserIssueDetector.GetDMLIssues(query)
 		if err != nil {
 			log.Errorf("failed while trying to fetch query issues in query - [%s]: %v",
 				query, err)
