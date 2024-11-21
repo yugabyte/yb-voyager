@@ -1196,7 +1196,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	} else {
 		schemaList := lo.Union(pg.getTrimmedSchemaList(), []string{"public"})
 		if !slices.Contains(schemaList, pgssExtSchema) {
-			return fmt.Sprintf("pg_stat_statements extension schema %q is not in the schema list (%s)",
+			return fmt.Sprintf("pg_stat_statements extension schema %q is not in the schema list (%s), required for detecting Unsupported Query Constructs",
 				pgssExtSchema, strings.Join(schemaList, ", ")), nil
 		}
 	}
@@ -1210,7 +1210,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %v", err)
 	}
 	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
-		return "pg_stat_statements is not loaded via shared_preload_libraries", nil
+		return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
 	}
 
 	// 3. User has permission to read from pg_stat_statements table
