@@ -43,6 +43,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
