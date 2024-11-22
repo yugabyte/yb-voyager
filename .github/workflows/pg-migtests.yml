@@ -14,7 +14,8 @@ jobs:
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
-          - live
+          - live_basic
+          - live_advanced
 
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
@@ -167,13 +168,6 @@ jobs:
         if: ${{ matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/multiple-schemas
 
-      - name: "Set up gcp environment"
-        env:
-          GCS_CLIENT_ID: ${{ secrets.PGUPTA_GCS_CLIENT_ID }}
-          GCS_CLIENT_SECRET: ${{ secrets.PGUPTA_GCS_CLIENT_SECRET }}
-          GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
-        run: migtests/scripts/gcs/create_gcs_credentials_file
-
       - name: "TEST: pg-codependent-schemas"
         if: ${{ matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/codependent-schemas
@@ -191,31 +185,30 @@ jobs:
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
 
       - name: "TEST: pg-basic-non-public-live-migration-test"
-        if: ${{ matrix.test_group == 'live' }}
+        if: ${{ matrix.test_group == 'live_basic' }}
         run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test
-      
-      - name: "TEST: pg-unique-key-conflicts-test"
-        if: ${{ matrix.test_group == 'live' }}
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test
-
-      # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
-      - name: "TEST: pg-live-migration-multiple-schemas"
-        if: ${{ matrix.test_group == 'live' }}
-        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
 
       - name: "TEST: pg-basic-public-fall-forward-test"
-        if: ${{ matrix.test_group == 'live' }}
+        if: ${{ matrix.test_group == 'live_basic' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
-      #   if: ${{ matrix.test_group == 'live' }}
       #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
 
       - name: "TEST: pg-datatypes-fall-back-test"
-        if: ${{ matrix.test_group == 'live' }}
+        if: ${{ matrix.test_group == 'live_basic' }}
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes
 
+      # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
+      - name: "TEST: pg-live-migration-multiple-schemas"
+        if: ${{ matrix.test_group == 'live_advanced' }}
+        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
+
+      - name: "TEST: pg-unique-key-conflicts-test"
+        if: ${{ matrix.test_group == 'live_advanced' }}
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test
+
       - name: "TEST: pg-live-migration-partitions-fall-forward"
-        if: ${{ matrix.test_group == 'live' }}
+        if: ${{ matrix.test_group == 'live_advanced' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
       
