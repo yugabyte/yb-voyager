@@ -100,8 +100,8 @@ jobs:
             echo "Running tests on version $version"
 
             echo "Start YugabyteDB cluster"
-            docker pull yugabytedb/yugabyte:$version
-            VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml up -d
+            docker run -d --name yugabytedb -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
+            yugabytedb/yugabyte:$version bin/yugabyted start --background=false --ui=false
             sleep 20
           
             echo "Test YugabyteDB connection"
