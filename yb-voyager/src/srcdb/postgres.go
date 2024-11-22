@@ -1195,27 +1195,27 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 		}
 	}
 
-	// 2. check if its properly installed/loaded
+	// 2. User has permission to read from pg_stat_statements table
+	var hasReadAllStats bool
+	err = pg.db.QueryRow(queryHasReadStatsPermission).Scan(&hasReadAllStats)
+	if err != nil {
+		return "", fmt.Errorf("failed to check pg_read_all_stats grant on migration user: %w", err)
+	}
+	if !hasReadAllStats {
+		return "User doesn't have permissions to read pg_stat_statements view, unsupported query constructs won't be detected/reported", nil
+	}
+
+	// 3. check if its properly installed/loaded
 	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
 	// so trying a best effort here, if accessible then check otherwise it will fail during the gather metadata
 	var sharedPreloadLibraries string
 	err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
 	if err != nil {
 		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %v", err)
-	}
-	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
-		return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
-	}
-
-	// 3. User has permission to read from pg_stat_statements table
-	var hasReadAllStats bool
-	err = pg.db.QueryRow(queryHasReadStatsPermission).Scan(&hasReadAllStats)
-	if err != nil {
-		return "", fmt.Errorf("failed to check pg_read_all_stats grant on migration user: %w", err)
-	}
-
-	if !hasReadAllStats {
-		return "User doesn't have permissions to read pg_stat_statements view, unsupported query constructs won't be detected/reported", nil
+	} else {
+		if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
+			return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
+		}
 	}
 
 	return "", nil
