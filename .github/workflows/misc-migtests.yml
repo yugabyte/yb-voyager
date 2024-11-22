@@ -100,7 +100,7 @@ jobs:
             echo "Running tests on version $version"
 
             echo "Start YugabyteDB cluster"
-            docker run -d --name yugabytedb -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
+            docker run -d --name yugabytedb-$version -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:$version bin/yugabyted start --background=false --ui=false
             sleep 20
           
@@ -122,8 +122,8 @@ jobs:
             migtests/tests/import-file/run-import-file-test
 
             echo "Stop the cluster before the next iteration"
-            VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml down --volumes
-            docker network prune -f
+            docker stop yugabytedb-$version
+            docker remove yugabytedb-$version
           done
         shell: bash
 
