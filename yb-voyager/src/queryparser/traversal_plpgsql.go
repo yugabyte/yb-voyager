@@ -253,14 +253,18 @@ func GetAllTypeNamesInPlpgSQLStmt(query string) ([]string, error) {
 	}
 
 	datums := parsedFunctionMap[DATUMS]
-	datumList, isList := datums.([]map[string]interface{})
+	datumList, isList := datums.([]interface{})
 	if !isList {
 		return []string{}, fmt.Errorf("error getting type names datums field is not list in parsed json-%s", parsedJson)
 	}
 
 	var typeNames []string
 	for _, datum := range datumList {
-		for key, val := range datum {
+		datumMap, ok := datum.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		for key, val := range datumMap {
 			switch key {
 			case PLPGSQL_VAR:
 				typeName := getTypeNameFromPlpgSQLVar(val)

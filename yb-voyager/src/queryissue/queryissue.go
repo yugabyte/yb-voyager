@@ -18,6 +18,7 @@ package queryissue
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -57,6 +58,14 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 			}
 			issues = append(issues, issuesInQuery...)
 		}
+
+		percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
+		fmt.Printf("%v", err)
+		if err != nil {
+			return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
+		}
+		issues = append(issues, percentTypeSyntaxIssues...)
+
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
 			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
@@ -83,9 +92,30 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 			i.ObjectName = objName
 			return i
 		}), nil
-
 	}
 	return p.GetDMLIssues(query)
+}
+
+func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]issue.IssueInstance, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing the query-%s: %v", query, err)
+	}
+
+	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+	typeNames, err := queryparser.GetAllTypeNamesInPlpgSQLStmt(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting type names in PLPGSQL: %v", err)
+	}
+	fmt.Printf("typeNames %v", typeNames)
+	var issues []issue.IssueInstance
+	for _, typeName := range typeNames {
+		if strings.HasSuffix(typeName, "%TYPE") {
+			issues = append(issues, issue.NewPercentTypeSyntaxIssue(objType, objName, typeName)) // TODO: confirm
+		}
+	}
+	fmt.Printf("type issues %v", issues)
+	return issues, nil
 }
 
 //TODO: in future when we will DDL issues detection here we need `GetDDLIssues`
