@@ -95,6 +95,9 @@ func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance,
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
+		return nil, nil
+	}
 	var result []issue.IssueInstance
 	var unsupportedConstructs []string
 	visited := make(map[protoreflect.Message]bool)
