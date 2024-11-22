@@ -25,6 +25,7 @@ const (
 	SOURCE_DB_IMPORTER_ROLE         = "source_db_importer"         // Fallback.
 	SOURCE_REPLICA_DB_IMPORTER_ROLE = "source_replica_db_importer" // Fall-forward.
 	SOURCE_DB_EXPORTER_ROLE         = "source_db_exporter"
+	SOURCE_DB_EXPORTER_STATUS_ROLE  = "source_db_exporter_status"
 	TARGET_DB_EXPORTER_FF_ROLE      = "target_db_exporter_ff"
 	TARGET_DB_EXPORTER_FB_ROLE      = "target_db_exporter_fb"
 	IMPORT_FILE_ROLE                = "import_file"
@@ -147,6 +148,9 @@ func (reg *NameRegistry) UnRegisterYBNames() error {
 }
 
 func (reg *NameRegistry) registerSourceNames() (bool, error) {
+	if reg.params.SDB == nil {
+		return false, fmt.Errorf("source db connection is not available")
+	}
 	reg.SourceDBType = reg.params.SourceDBType
 	reg.initSourceDBSchemaNames()
 	m := make(map[string][]string)
@@ -403,7 +407,7 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 		t.CurrentName = t.SourceName
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		t.CurrentName = t.SourceName
-	case SOURCE_DB_EXPORTER_ROLE:
+	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_EXPORTER_STATUS_ROLE:
 		t.CurrentName = t.SourceName
 	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
 		t.CurrentName = t.TargetName
