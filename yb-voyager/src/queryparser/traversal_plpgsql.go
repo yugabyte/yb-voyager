@@ -28,6 +28,11 @@ const (
 	QUERY        = "query"
 
 	ACTION           = "action"
+	DATUMS           = "datums"
+	PLPGSQL_VAR      = "PLpgSQL_var"
+	DATATYPE         = "datatype"
+	TYPENAME         = "typname"
+	PLPGSQL_TYPE     = "PLpgSQL_type"
 	PLPGSQL_FUNCTION = "PLpgSQL_function"
 )
 
@@ -49,27 +54,10 @@ These issues are majorly expressions, conditions, assignments, loop variables, r
 *
 */
 func GetAllPLPGSQLStatements(query string) ([]string, error) {
-	parsedJson, err := ParsePLPGSQLToJson(query)
+	parsedJson, parsedJsonMap, err := getParsedJsonMap(query)
 	if err != nil {
-		log.Infof("error in parsing the stmt-%s to json: %v", query, err)
 		return []string{}, err
 	}
-	if parsedJson == "" {
-		return []string{}, nil
-	}
-	var parsedJsonMapList []map[string]interface{}
-	//Refer to the queryparser.traversal_plpgsql.go for example and sample parsed json
-	log.Debugf("parsing the json string-%s of stmt-%s", parsedJson, query)
-	err = json.Unmarshal([]byte(parsedJson), &parsedJsonMapList)
-	if err != nil {
-		return []string{}, fmt.Errorf("error parsing the json string of stmt-%s: %v", query, err)
-	}
-
-	if len(parsedJsonMapList) == 0 {
-		return []string{}, nil
-	}
-
-	parsedJsonMap := parsedJsonMapList[0]
 
 	function := parsedJsonMap[PLPGSQL_FUNCTION]
 	parsedFunctionMap, ok := function.(map[string]interface{})
@@ -227,4 +215,109 @@ func formatExprQuery(q string) string {
 		q += ";"
 	}
 	return q
+}
+
+func getParsedJsonMap(query string) (string, map[string]interface{}, error) {
+	parsedJson, err := ParsePLPGSQLToJson(query)
+	if err != nil {
+		log.Infof("error in parsing the stmt-%s to json: %v", query, err)
+		return parsedJson, nil, err
+	}
+	if parsedJson == "" {
+		return "", nil, nil
+	}
+	var parsedJsonMapList []map[string]interface{}
+	//Refer to the queryparser.traversal_plpgsql.go for example and sample parsed json
+	log.Debugf("parsing the json string-%s of stmt-%s", parsedJson, query)
+	err = json.Unmarshal([]byte(parsedJson), &parsedJsonMapList)
+	if err != nil {
+		return parsedJson, nil, fmt.Errorf("error parsing the json string of stmt-%s: %v", query, err)
+	}
+
+	if len(parsedJsonMapList) == 0 {
+		return parsedJson, nil, nil
+	}
+
+	return parsedJson, parsedJsonMapList[0], nil
+}
+
+func GetAllTypeNamesInPlpgSQLStmt(query string) ([]string, error) {
+	parsedJson, parsedJsonMap, err := getParsedJsonMap(query)
+	if err != nil {
+		return []string{}, nil
+	}
+	function := parsedJsonMap[PLPGSQL_FUNCTION]
+	parsedFunctionMap, ok := function.(map[string]interface{})
+	if !ok {
+		return []string{}, fmt.Errorf("error getting the PlPgSQL_Function field in parsed json-%s", parsedJson)
+	}
+
+	datums := parsedFunctionMap[DATUMS]
+	datumList, isList := datums.([]map[string]interface{})
+	if !isList {
+		return []string{}, fmt.Errorf("error getting type names datums field is not list in parsed json-%s", parsedJson)
+	}
+
+	var typeNames []string
+	for _, datum := range datumList {
+		for key, val := range datum {
+			switch key {
+			case PLPGSQL_VAR:
+				typeName := getTypeNameFromPlpgSQLVar(val)
+				if typeName != "" {
+					typeNames = append(typeNames, typeName)
+				}
+			}
+		}
+	}
+	return typeNames, nil
+}
+
+/*
+example of PLPGSQL_VAR -
+"PLpgSQL_var": {
+	"refname": "tax_rate",
+	"lineno": 3,
+	"datatype": {
+		"PLpgSQL_type": {
+			"typname": "employees.tax_rate%TYPE"
+		}
+	}
+}
+*/
+func getTypeNameFromPlpgSQLVar(plpgsqlVar interface{}) string {
+	//getting the map of <key,val > of PLpgSQL_Var json
+	valueMap, ok := plpgsqlVar.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	//getting the "datatype" field of PLpgSQL_Var json
+	datatype, ok := valueMap[DATATYPE]
+	if !ok {
+		return ""
+	}
+
+	datatypeValueMap, ok := datatype.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	plpgsqlType, ok := datatypeValueMap[PLPGSQL_TYPE]
+	if !ok {
+		return ""
+	}
+
+	typeValueMap, ok := plpgsqlType.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	typeName, ok := typeValueMap[TYPENAME]
+	if !ok {
+		return ""
+	}
+
+	return typeName.(string)
+
 }
