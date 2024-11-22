@@ -65,7 +65,7 @@ jobs:
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
           sleep 10
-      #      if: matrix.BETA_FAST_DATA_EXPORT == 1
+
       - name: Install python3 and psycopg2
         run: |
           sudo apt install -y python3
