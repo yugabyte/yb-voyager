@@ -52,34 +52,34 @@ func checkTableStructure(db *sql.DB, tableName string, expectedColumns map[strin
 	for colName, expectedProps := range expectedColumns {
 		actualProps, exists := actualColumns[colName]
 		if !exists {
-			return fmt.Errorf("table %s missing expected column: %s", tableName, colName)
+			return fmt.Errorf("table %s missing expected column: %s. There is some breaking change!", tableName, colName)
 		}
 
 		// Check type
 		if actualProps.Type != expectedProps.Type {
-			return fmt.Errorf("table %s column %s: expected type %s, got %s", tableName, colName, expectedProps.Type, actualProps.Type)
+			return fmt.Errorf("table %s column %s: expected type %s, got %s. There is some breaking change!", tableName, colName, expectedProps.Type, actualProps.Type)
 		}
 
 		// Check if it's part of the primary key
 		if actualProps.PrimaryKey != expectedProps.PrimaryKey {
-			return fmt.Errorf("table %s column %s: expected primary key to be %v, got %v", tableName, colName, expectedProps.PrimaryKey, actualProps.PrimaryKey)
+			return fmt.Errorf("table %s column %s: expected primary key to be %v, got %v. There is some breaking change!", tableName, colName, expectedProps.PrimaryKey, actualProps.PrimaryKey)
 		}
 
 		// Check NOT NULL constraint
 		if actualProps.NotNull != expectedProps.NotNull {
-			return fmt.Errorf("table %s column %s: expected NOT NULL to be %v, got %v", tableName, colName, expectedProps.NotNull, actualProps.NotNull)
+			return fmt.Errorf("table %s column %s: expected NOT NULL to be %v, got %v. There is some breaking change!", tableName, colName, expectedProps.NotNull, actualProps.NotNull)
 		}
 
 		// Check default value
 		if (expectedProps.Default == nil && actualProps.Default != nil) || (expectedProps.Default != nil && (actualProps.Default == nil || *expectedProps.Default != *actualProps.Default)) {
-			return fmt.Errorf("table %s column %s: expected default value %v, got %v", tableName, colName, expectedProps.Default, actualProps.Default)
+			return fmt.Errorf("table %s column %s: expected default value %v, got %v. There is some breaking change!", tableName, colName, expectedProps.Default, actualProps.Default)
 		}
 	}
 
 	// Check for any additional unexpected columns
 	for colName := range actualColumns {
 		if _, exists := expectedColumns[colName]; !exists {
-			return fmt.Errorf("table %s has unexpected additional column: %s", tableName, colName)
+			return fmt.Errorf("table %s has unexpected additional column: %s. There is some breaking change!", tableName, colName)
 		}
 	}
 
@@ -108,7 +108,7 @@ func checkTableExistence(t *testing.T, db *sql.DB, expectedTables map[string]map
 	// Compare actual tables with expected tables
 	for tableName := range expectedTables {
 		if _, exists := actualTables[tableName]; !exists {
-			return fmt.Errorf("expected table %s not found", tableName)
+			return fmt.Errorf("expected table %s not found. There is some breaking change!", tableName)
 		} else {
 			t.Logf("Found table: %s", tableName)
 		}
@@ -117,7 +117,7 @@ func checkTableExistence(t *testing.T, db *sql.DB, expectedTables map[string]map
 	// Check for any additional unexpected tables
 	for tableName := range actualTables {
 		if _, exists := expectedTables[tableName]; !exists {
-			return fmt.Errorf("unexpected additional table: %s", tableName)
+			return fmt.Errorf("unexpected additional table: %s. There is some breaking change!", tableName)
 		}
 	}
 

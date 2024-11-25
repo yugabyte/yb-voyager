@@ -3,6 +3,7 @@ package namereg
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/samber/lo"
@@ -377,7 +378,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 //=====================================================
 
 type dummySourceDB struct {
-	tableNames map[string][]string // schemaName -> tableNames
+	tableNames    map[string][]string // schemaName -> tableNames
 	sequenceNames map[string][]string // schemaName -> sequenceNames
 }
 
@@ -398,8 +399,8 @@ func (db *dummySourceDB) GetAllSequencesRaw(schemaName string) ([]string, error)
 }
 
 type dummyTargetDB struct {
-	tableNames map[string][]string // schemaName -> tableNames
-	sequenceNames map[string][]string // schemaName -> sequenceNames		
+	tableNames    map[string][]string // schemaName -> tableNames
+	sequenceNames map[string][]string // schemaName -> sequenceNames
 }
 
 func (db *dummyTargetDB) GetAllSchemaNamesRaw() ([]string, error) {
@@ -413,7 +414,6 @@ func (db *dummyTargetDB) GetAllTableNamesRaw(schemaName string) ([]string, error
 	}
 	return tableNames, nil
 }
-
 
 func (db *dummyTargetDB) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	sequenceNames, ok := db.sequenceNames[schemaName]
@@ -448,18 +448,18 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	}
 
 	sourceNamesMap := make(map[string][]string)
-	for k,v := range dummySdb.tableNames {
+	for k, v := range dummySdb.tableNames {
 		sourceNamesMap[k] = append(sourceNamesMap[k], v...)
 	}
-	for k,v := range dummySdb.sequenceNames {
+	for k, v := range dummySdb.sequenceNames {
 		sourceNamesMap[k] = append(sourceNamesMap[k], v...)
 	}
 
 	targetNamesMap := make(map[string][]string)
-	for k,v := range dummyTdb.tableNames {
+	for k, v := range dummyTdb.tableNames {
 		targetNamesMap[k] = append(targetNamesMap[k], v...)
 	}
-	for k,v := range dummyTdb.sequenceNames {
+	for k, v := range dummyTdb.sequenceNames {
 		targetNamesMap[k] = append(targetNamesMap[k], v...)
 	}
 
@@ -497,7 +497,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	seq1 := buildNameTuple(reg, "SAKILA", "SEQ1", "", "")
 	stup, err := reg.LookupTableName("SEQ1")
 	require.Nil(err)
-	assert.Equal(seq1, stup)	
+	assert.Equal(seq1, stup)
 
 	// When `export data` restarts, the registry should be reloaded from the file.
 	reg = newNameRegistry("")
@@ -548,4 +548,82 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	require.Nil(err)
 	assert.Equal(table1, ntup)
 	assert.Equal(`SAKILA_FF."TABLE1"`, table1.ForUserQuery())
+}
+
+func TestNameRegistryStructure(t *testing.T) {
+	// Define the expected structure for NameRegistryParams
+	expectedNameRegistryParams := struct {
+		FilePath       string
+		Role           string
+		SourceDBType   string
+		SourceDBSchema string
+		SourceDBName   string
+		SDB            SourceDBInterface
+		TargetDBSchema string
+		YBDB           YBDBInterface
+	}{}
+
+	// Define the expected structure for NameRegistry
+	expectedNameRegistry := struct {
+		SourceDBType                     string
+		SourceDBSchemaNames              []string
+		DefaultSourceDBSchemaName        string
+		SourceDBTableNames               map[string][]string
+		YBSchemaNames                    []string
+		DefaultYBSchemaName              string
+		YBTableNames                     map[string][]string
+		DefaultSourceReplicaDBSchemaName string
+		params                           NameRegistryParams
+	}{}
+
+	t.Run("Check NameRegistryParams structure", func(t *testing.T) {
+		compareStructAndReport(t, reflect.TypeOf(NameRegistryParams{}), reflect.TypeOf(expectedNameRegistryParams), "NameRegistryParams")
+	})
+
+	t.Run("Check NameRegistry structure", func(t *testing.T) {
+		compareStructAndReport(t, reflect.TypeOf(NameRegistry{}), reflect.TypeOf(expectedNameRegistry), "NameRegistry")
+	})
+}
+
+// Helper function to compare struct types and report changes
+func compareStructAndReport(t *testing.T, actual, expected reflect.Type, structName string) {
+	if actual.Kind() != reflect.Struct || expected.Kind() != reflect.Struct {
+		t.Fatalf("Both %s and expected type must be structs", structName)
+	}
+
+	if actual.NumField() != expected.NumField() {
+		t.Errorf("%s: Number of fields mismatch. Got %d, expected %d. There is some breaking change!", structName, actual.NumField(), expected.NumField())
+	}
+
+	for i := 0; i < max(actual.NumField(), expected.NumField()); i++ {
+		var actualField, expectedField reflect.StructField
+		var actualExists, expectedExists bool
+
+		if i < actual.NumField() {
+			actualField = actual.Field(i)
+			actualExists = true
+		}
+		if i < expected.NumField() {
+			expectedField = expected.Field(i)
+			expectedExists = true
+		}
+
+		// Compare field names
+		if actualExists && expectedExists && actualField.Name != expectedField.Name {
+			t.Errorf("%s: Field name mismatch at position %d. Got %s, expected %s. There is some breaking change!", structName, i, actualField.Name, expectedField.Name)
+		}
+
+		// Compare field types
+		if actualExists && expectedExists && actualField.Type != expectedField.Type {
+			t.Errorf("%s: Field type mismatch for %s. Got %s, expected %s. There is some breaking change!", structName, actualField.Name, actualField.Type, expectedField.Type)
+		}
+
+		// Report missing fields
+		if !actualExists && expectedExists {
+			t.Errorf("%s: Missing field %s of type %s. There is some breaking change!", structName, expectedField.Name, expectedField.Type)
+		}
+		if actualExists && !expectedExists {
+			t.Errorf("%s: Unexpected field %s of type %s. There is some breaking change!", structName, actualField.Name, actualField.Type)
+		}
+	}
 }
