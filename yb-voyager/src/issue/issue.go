@@ -28,9 +28,6 @@ type Issue struct {
 	GH                     string
 	DocsLink               string
 	MinimumVersionsFixedIn map[string]*version.YBVersion // key: series (2024.1, 2.21, etc)
-	// MinimumFixedVersionStable    *version.YBVersion // should be fully specified A.B.C.D (4 segments)
-	// MinimumFixedVersionPreview   *version.YBVersion // should be fully specified A.B.C.D (4 segments)
-	// MinimumFixedVersionStableOld *version.YBVersion // should be fully specified A.B.C.D (4 segments)
 }
 
 func (i Issue) IsFixedIn(v *version.YBVersion) (bool, error) {
@@ -39,27 +36,6 @@ func (i Issue) IsFixedIn(v *version.YBVersion) (bool, error) {
 		return false, nil
 	}
 	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
-
-	// var minVersion *version.YBVersion
-	// switch v.ReleaseType() {
-	// case version.STABLE:
-	// 	minVersion = i.MinimumFixedVersionStable
-	// case version.PREVIEW:
-	// 	minVersion = i.MinimumFixedVersionPreview
-	// case version.STABLE_OLD:
-	// 	minVersion = i.MinimumFixedVersionStableOld
-	// default:
-	// 	return false, fmt.Errorf("unsupported release type: %s", v.ReleaseType())
-	// }
-
-	// if minVersion == nil {
-	// 	return false, nil
-	// }
-	// greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(minVersion)
-	// if err != nil {
-	// 	return false, fmt.Errorf("comparing versions %s and %s: %w", v, minVersion, err)
-	// }
-	// return greaterThanMin, nil
 }
 
 type IssueInstance struct {
