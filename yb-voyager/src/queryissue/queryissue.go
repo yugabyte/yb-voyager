@@ -37,26 +37,19 @@ func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{}
 }
 
-// func (p *ParserIssueDetector) GetIssues(query string, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
-// 	issues, err := p.getIssues(query)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	// Filter out issues that are fixed in the target DB version.
-// 	var filteredIssues []issue.IssueInstance
-// 	for _, i := range issues {
-// 		fixed, err := i.IsFixedIn(targetDbVersion)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("checking if issue %v is supported: %w", i, err)
-// 		}
-// 		if !fixed {
-// 			filteredIssues = append(filteredIssues, i)
-// 		}
-// 	}
-
-// 	return filteredIssues, nil
-// }
+func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.IssueInstance, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
+	var filteredIssues []issue.IssueInstance
+	for _, i := range issues {
+		fixed, err := i.IsFixedIn(targetDbVersion)
+		if err != nil {
+			return nil, fmt.Errorf("checking if issue %v is supported: %w", i, err)
+		}
+		if !fixed {
+			filteredIssues = append(filteredIssues, i)
+		}
+	}
+	return filteredIssues, nil
+}
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
@@ -80,13 +73,15 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *versio
 			}
 			issues = append(issues, issuesInQuery...)
 		}
-		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
-			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
-			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-			i.ObjectType = objType
-			i.ObjectName = objName
-			return i
-		}), nil
+
+		//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+		//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+		for _, issue := range issues {
+			issue.ObjectType = objType
+			issue.ObjectName = objName
+		}
+
+		return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
 	}
 	//Handle the Mview/View DDL's Select stmt issues
 	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
@@ -99,17 +94,18 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *versio
 		if err != nil {
 			return nil, err
 		}
-		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
-			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
-			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-			i.ObjectType = objType
-			i.ObjectName = objName
-			return i
-		}), nil
+
+		//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+		//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+		for _, issue := range issues {
+			issue.ObjectType = objType
+			issue.ObjectName = objName
+		}
+		return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
 
 	}
 
-	issues, err := p.GetDMLIssues(query)
+	issues, err := p.GetDMLIssues(query, targetDbVersion)
 	if err != nil {
 		return nil, fmt.Errorf("error getting DML issues: %w", err)
 	}
@@ -118,7 +114,7 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *versio
 
 //TODO: in future when we will DDL issues detection here we need `GetDDLIssues`
 
-func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
@@ -162,5 +158,5 @@ func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance,
 			result = append(result, issue.NewXmlFunctionsIssue(issue.DML_QUERY_OBJECT_TYPE, "", query))
 		}
 	}
-	return result, nil
+	return p.getIssuesNotFixedInTargetDbVersion(result, targetDbVersion)
 }
