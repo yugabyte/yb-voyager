@@ -17,15 +17,24 @@ package version
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
+const (
+	SERIES_2_14   = "2.14"
+	SERIES_2_18   = "2.18"
+	SERIES_2_20   = "2.20"
+	SERIES_2024_1 = "2024.1"
+	SERIES_2_21   = "2.21"
+	SERIES_2_23   = "2.23"
+)
+
 var LatestStable *YBVersion
 
-var V2024_1 *YBVersion
+var V2024_1_3_0 *YBVersion
 
 func init() {
 	var err error
-	V2024_1, err = NewYBVersion("2024.1")
+	V2024_1_3_0, err = NewYBVersion("2024.1.3.0")
 	if err != nil {
 		utils.ErrExit("could not create version 2024.1")
 	}
-	LatestStable = V2024_1
+	LatestStable = V2024_1_3_0
 }

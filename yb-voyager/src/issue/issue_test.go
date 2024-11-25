@@ -27,15 +27,16 @@ func TestIssueFixedInStable(t *testing.T) {
 	fixedVersion, err := version.NewYBVersion("2024.1.1.0")
 	assert.NoError(t, err)
 	issue := Issue{
-		Type:                      ADVISORY_LOCKS,
-		MinimumFixedVersionStable: fixedVersion,
+		Type: ADVISORY_LOCKS,
+		MinimumVersionsFixedIn: map[string]*version.YBVersion{
+			version.SERIES_2024_1: fixedVersion,
+		},
 	}
 
 	versionsToCheck := map[string]bool{
-		"2024.1":     true, // assume latest version, so true
 		"2024.1.1.0": true,
 		"2024.1.1.1": true,
-		"2024.1.0":   false,
+		"2024.1.0.0": false,
 	}
 	for v, expected := range versionsToCheck {
 		ybVersion, err := version.NewYBVersion(v)
@@ -51,15 +52,15 @@ func TestIssueFixedInPreview(t *testing.T) {
 	fixedVersion, err := version.NewYBVersion("2.21.4.5")
 	assert.NoError(t, err)
 	issue := Issue{
-		Type:                       ADVISORY_LOCKS,
-		MinimumFixedVersionPreview: fixedVersion,
+		Type: ADVISORY_LOCKS,
+		MinimumVersionsFixedIn: map[string]*version.YBVersion{
+			version.SERIES_2_21: fixedVersion,
+		},
 	}
 
 	versionsToCheck := map[string]bool{
-		"2.21":     true, // assume latest version, so true
 		"2.21.4.5": true,
 		"2.21.5.5": true,
-		"2.21.3":   false,
 		"2.21.4.1": false,
 	}
 	for v, expected := range versionsToCheck {
@@ -79,23 +80,20 @@ func TestIssueFixedInStableOld(t *testing.T) {
 	assert.NoError(t, err)
 
 	issue := Issue{
-		Type:                         ADVISORY_LOCKS,
-		MinimumFixedVersionStableOld: fixedVersionStableOld,
-		MinimumFixedVersionStable:    fixedVersionStable,
+		Type: ADVISORY_LOCKS,
+		MinimumVersionsFixedIn: map[string]*version.YBVersion{
+			version.SERIES_2024_1: fixedVersionStable,
+			version.SERIES_2_20:   fixedVersionStableOld,
+		},
 	}
 
 	versionsToCheck := map[string]bool{
-		"2.20":       true, // assume latest version, so true
-		"2024.1":     true, // assume latest version, so true
-		"2.20.0":     false,
-		"2.20.7":     true,
-		"2.20.7.1":   true,
+		"2.20.0.0":   false,
 		"2.20.7.0":   false,
-		"2024.1.1":   true,
+		"2.20.7.1":   true,
 		"2024.1.1.1": true,
 		"2024.1.1.2": true,
 		"2024.1.1.0": false,
-		"2024.1.0":   false,
 	}
 	for v, expected := range versionsToCheck {
 		ybVersion, err := version.NewYBVersion(v)
@@ -112,7 +110,7 @@ func TestIssueFixedFalseWhenMinimumNotSpecified(t *testing.T) {
 		Type: ADVISORY_LOCKS,
 	}
 
-	versionsToCheck := []string{"2024.1", "2.20.7", "2.21.1.1"}
+	versionsToCheck := []string{"2024.1.0.0", "2.20.7.4", "2.21.1.1"}
 
 	for _, v := range versionsToCheck {
 		ybVersion, err := version.NewYBVersion(v)

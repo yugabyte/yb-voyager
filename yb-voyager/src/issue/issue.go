@@ -17,45 +17,49 @@ limitations under the License.
 package issue
 
 import (
-	"fmt"
-
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
 )
 
 type Issue struct {
-	Type                         string // (advisory_locks, index_not_supported, etc)
-	TypeName                     string // for display
-	TypeDescription              string
-	Suggestion                   string
-	GH                           string
-	DocsLink                     string
-	MinimumFixedVersionStable    *version.YBVersion // should be fully specified A.B.C.D (4 segments)
-	MinimumFixedVersionPreview   *version.YBVersion // should be fully specified A.B.C.D (4 segments)
-	MinimumFixedVersionStableOld *version.YBVersion // should be fully specified A.B.C.D (4 segments)
+	Type                   string // (advisory_locks, index_not_supported, etc)
+	TypeName               string // for display
+	TypeDescription        string
+	Suggestion             string
+	GH                     string
+	DocsLink               string
+	MinimumVersionsFixedIn map[string]*version.YBVersion // key: series (2024.1, 2.21, etc)
+	// MinimumFixedVersionStable    *version.YBVersion // should be fully specified A.B.C.D (4 segments)
+	// MinimumFixedVersionPreview   *version.YBVersion // should be fully specified A.B.C.D (4 segments)
+	// MinimumFixedVersionStableOld *version.YBVersion // should be fully specified A.B.C.D (4 segments)
 }
 
 func (i Issue) IsFixedIn(v *version.YBVersion) (bool, error) {
-	var minVersion *version.YBVersion
-	switch v.ReleaseType() {
-	case version.STABLE:
-		minVersion = i.MinimumFixedVersionStable
-	case version.PREVIEW:
-		minVersion = i.MinimumFixedVersionPreview
-	case version.STABLE_OLD:
-		minVersion = i.MinimumFixedVersionStableOld
-	default:
-		return false, fmt.Errorf("unsupported release type: %s", v.ReleaseType())
-	}
-
-	if minVersion == nil {
+	minVersionFixedInSeries, ok := i.MinimumVersionsFixedIn[v.Series()]
+	if !ok {
 		return false, nil
 	}
-	greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(minVersion)
-	if err != nil {
-		return false, fmt.Errorf("comparing versions %s and %s: %w", v, minVersion, err)
-	}
-	return greaterThanMin, nil
+	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
+
+	// var minVersion *version.YBVersion
+	// switch v.ReleaseType() {
+	// case version.STABLE:
+	// 	minVersion = i.MinimumFixedVersionStable
+	// case version.PREVIEW:
+	// 	minVersion = i.MinimumFixedVersionPreview
+	// case version.STABLE_OLD:
+	// 	minVersion = i.MinimumFixedVersionStableOld
+	// default:
+	// 	return false, fmt.Errorf("unsupported release type: %s", v.ReleaseType())
+	// }
+
+	// if minVersion == nil {
+	// 	return false, nil
+	// }
+	// greaterThanMin, err := v.CommonPrefixGreaterThanOrEqual(minVersion)
+	// if err != nil {
+	// 	return false, fmt.Errorf("comparing versions %s and %s: %w", v, minVersion, err)
+	// }
+	// return greaterThanMin, nil
 }
 
 type IssueInstance struct {
@@ -67,35 +71,6 @@ type IssueInstance struct {
 }
 
 func newIssueInstance(issue Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) IssueInstance {
-	// We want the full version to be specified in issues.
-	// Consider this example:
-	// Actual fixed version = 2024.1.4.2
-	// Specified MinimumFixedVersionStable = 2024.1.4 // this is what we want to avoid.
-	// IsFixedIn("2024.1.4.1") should return false ideally, but it will return true in this case
-	// becaus we will only compare the common prefix 2024.1.4 and ignore the rest.
-
-	// Ideally we should have the validations done at init time,
-	// but doing that for all the issues defined as variables is not possible to do in golang
-	// when all of them are declared as simple variables.
-	// We would have to list all the issues in a slice/map and loop over them to validate,
-	// which is not required/fool-proof (someone might just declare an issue outside of that list).
-	// So, we will do the validations here assuming that issue creation is tested somewhere via unit tests.
-	if issue.MinimumFixedVersionPreview != nil {
-		if issue.MinimumFixedVersionPreview.OriginalSegmentsLen() != 4 {
-			utils.ErrExit("ERROR: MinimumFixedVersionPreview in %v must have 4 segments", issue)
-		}
-	}
-	if issue.MinimumFixedVersionStable != nil {
-		if issue.MinimumFixedVersionStable.OriginalSegmentsLen() != 4 {
-			utils.ErrExit("ERROR: MinimumFixedVersionStable in %v must have 4 segments", issue)
-		}
-	}
-	if issue.MinimumFixedVersionStableOld != nil {
-		if issue.MinimumFixedVersionStableOld.OriginalSegmentsLen() != 4 {
-			utils.ErrExit("ERROR: MinimumFixedVersionStableOld in %v must have 4 segments", issue)
-		}
-	}
-
 	return IssueInstance{
 		Issue:        issue,
 		ObjectType:   objectType,
