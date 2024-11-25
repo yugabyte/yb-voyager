@@ -588,7 +588,7 @@ func TestNameRegistryStructure(t *testing.T) {
 // Helper function to compare struct types and report changes
 func compareStructAndReport(t *testing.T, actual, expected reflect.Type, structName string) {
 	if actual.Kind() != reflect.Struct || expected.Kind() != reflect.Struct {
-		t.Fatalf("Both %s and expected type must be structs", structName)
+		t.Fatalf("Both %s and expected type must be structs. There is some breaking change!", structName)
 	}
 
 	if actual.NumField() != expected.NumField() {
