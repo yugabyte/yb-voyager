@@ -1195,17 +1195,19 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 		}
 	}
 
+	// TODO: finalise the approach for detecting shared_preload_libraries
 	// 2. check if its properly installed/loaded
 	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
 	// so trying a best effort here, if accessible then check otherwise it will fail during the gather metadata
-	var sharedPreloadLibraries string
-	err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
-	if err != nil {
-		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %v", err)
-	}
-	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
-		return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
-	}
+	// var sharedPreloadLibraries string
+	// err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
+	// if err != nil {
+	// 	log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %v", err)
+	// } else {
+	// 	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
+	// 		return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
+	// 	}
+	// }
 
 	// 3. User has permission to read from pg_stat_statements table
 	var hasReadAllStats bool
