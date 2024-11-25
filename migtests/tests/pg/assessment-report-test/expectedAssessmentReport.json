@@ -43,15 +43,15 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 64,
-				"InvalidCount": 20,
-				"ObjectNames": "public.ordersentry, public.\"Case_Sensitive_Columns\", public.\"Mixed_Case_Table_Name_Test\", public.\"Recipients\", public.\"WITH\", public.audit, public.sales_region, public.boston, public.c, public.parent_table, public.child_table, public.citext_type, public.combined_tbl, public.documents, public.employees2, public.ext_test, public.foo, public.inet_type, public.london, public.mixed_data_types_table1, public.mixed_data_types_table2, public.orders, public.orders2, public.products, public.session_log, public.session_log1, public.session_log2, public.sydney, public.test_exclude_basic, public.test_jsonb, public.test_xml_type, public.ts_query_table, public.tt, public.with_example1, public.with_example2, schema2.\"Case_Sensitive_Columns\", schema2.\"Mixed_Case_Table_Name_Test\", schema2.\"Recipients\", schema2.\"WITH\", schema2.audit, schema2.sales_region, schema2.boston, schema2.c, schema2.parent_table, schema2.child_table, schema2.employees2, schema2.ext_test, schema2.foo, schema2.london, schema2.mixed_data_types_table1, schema2.mixed_data_types_table2, schema2.orders, schema2.orders2, schema2.products, schema2.session_log, schema2.session_log1, schema2.session_log2, schema2.sydney, schema2.test_xml_type, schema2.tt, schema2.with_example1, schema2.with_example2, test_views.view_table1, test_views.view_table2"
+				"TotalCount": 66,
+				"InvalidCount": 22,
+				"ObjectNames": "public.ordersentry, public.library_nested, public.orders_lateral, public.\"Case_Sensitive_Columns\", public.\"Mixed_Case_Table_Name_Test\", public.\"Recipients\", public.\"WITH\", public.audit, public.sales_region, public.boston, public.c, public.parent_table, public.child_table, public.citext_type, public.combined_tbl, public.documents, public.employees2, public.ext_test, public.foo, public.inet_type, public.london, public.mixed_data_types_table1, public.mixed_data_types_table2, public.orders, public.orders2, public.products, public.session_log, public.session_log1, public.session_log2, public.sydney, public.test_exclude_basic, public.test_jsonb, public.test_xml_type, public.ts_query_table, public.tt, public.with_example1, public.with_example2, schema2.\"Case_Sensitive_Columns\", schema2.\"Mixed_Case_Table_Name_Test\", schema2.\"Recipients\", schema2.\"WITH\", schema2.audit, schema2.sales_region, schema2.boston, schema2.c, schema2.parent_table, schema2.child_table, schema2.employees2, schema2.ext_test, schema2.foo, schema2.london, schema2.mixed_data_types_table1, schema2.mixed_data_types_table2, schema2.orders, schema2.orders2, schema2.products, schema2.session_log, schema2.session_log1, schema2.session_log2, schema2.sydney, schema2.test_xml_type, schema2.tt, schema2.with_example1, schema2.with_example2, test_views.view_table1, test_views.view_table2"
 			},
 			{
 				"ObjectType": "INDEX",
-				"TotalCount": 24,
-				"InvalidCount": 20,
-				"ObjectNames": "idx1 ON public.combined_tbl, idx2 ON public.combined_tbl, idx3 ON public.combined_tbl, idx4 ON public.combined_tbl, idx5 ON public.combined_tbl, idx6 ON public.combined_tbl, idx7 ON public.combined_tbl, idx_array ON public.documents, idx_box_data ON public.mixed_data_types_table1, idx_box_data_brin ON public.mixed_data_types_table1, idx_citext ON public.citext_type, idx_citext1 ON public.citext_type, idx_citext2 ON public.citext_type, idx_inet ON public.inet_type, idx_inet1 ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_point_data ON public.mixed_data_types_table1, idx_valid ON public.test_jsonb, tsquery_idx ON public.ts_query_table, tsvector_idx ON public.documents, idx_box_data ON schema2.mixed_data_types_table1, idx_box_data_spgist ON schema2.mixed_data_types_table1, idx_point_data ON schema2.mixed_data_types_table1"
+				"TotalCount": 26,
+				"InvalidCount": 22,
+				"ObjectNames": "idx8 ON public.combined_tbl, idx9 ON public.combined_tbl, idx1 ON public.combined_tbl, idx2 ON public.combined_tbl, idx3 ON public.combined_tbl, idx4 ON public.combined_tbl, idx5 ON public.combined_tbl, idx6 ON public.combined_tbl, idx7 ON public.combined_tbl, idx_array ON public.documents, idx_box_data ON public.mixed_data_types_table1, idx_box_data_brin ON public.mixed_data_types_table1, idx_citext ON public.citext_type, idx_citext1 ON public.citext_type, idx_citext2 ON public.citext_type, idx_inet ON public.inet_type, idx_inet1 ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_point_data ON public.mixed_data_types_table1, idx_valid ON public.test_jsonb, tsquery_idx ON public.ts_query_table, tsvector_idx ON public.documents, idx_box_data ON schema2.mixed_data_types_table1, idx_box_data_spgist ON schema2.mixed_data_types_table1, idx_point_data ON schema2.mixed_data_types_table1"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -167,9 +167,11 @@
 				"test_views.view_table2",
 				"test_views.mv1",
 				"test_views.abc_mview",
-				"test_views.view_table1"
+				"test_views.view_table1",
+				"public.library_nested",
+				"public.orders_lateral"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 70 objects (62 tables/materialized views and 8 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 24 objects (5 tables/materialized views and 19 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 72 objects (64 tables/materialized views and 8 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 28 objects (5 tables/materialized views and 23 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": [
 				"public.combined_tbl",
 				"public.citext_type",
@@ -247,6 +249,18 @@
 			"TableName": "ordersentry_view",
 			"ColumnName": "transaction_id",
 			"DataType": "xid"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "library_nested",
+			"ColumnName": "lib_data",
+			"DataType": "xml"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "orders_lateral",
+			"ColumnName": "order_details",
+			"DataType": "xml"
 		}
 	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
@@ -473,6 +487,32 @@
 				{
 					"ObjectName": "USER_DEFINED_TYPE: idx7 ON public.combined_tbl",
 					"SqlStatement": "CREATE INDEX idx7 ON public.combined_tbl USING btree (address);"
+				},
+				{
+					"ObjectName": "DATERANGE: idx8 ON public.combined_tbl",
+					"SqlStatement": "CREATE INDEX idx8 ON public.combined_tbl USING btree (d);"
+				},
+				{
+					"ObjectName": "INTERVAL: idx9 ON public.combined_tbl",
+					"SqlStatement": "CREATE INDEX idx9 ON public.combined_tbl USING btree (inds3);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+		},
+		{
+			"FeatureName": "Primary / Unique key constraints on complex datatypes",
+			"Objects": [
+				{
+					"ObjectName": "public.combined_tbl, constraint: combined_tbl_bittv_key",
+					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_bittv_key UNIQUE (bittv);"
+				},
+				{
+					"ObjectName": "public.combined_tbl, constraint: uk",
+					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT uk UNIQUE (lsn);"
+				},
+				{
+					"ObjectName": "public.combined_tbl, constraint: combined_tbl_pkey",
+					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_pkey PRIMARY KEY (id, arr_enum);"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
@@ -624,7 +664,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 9,
+			"ColumnCount": 11,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -647,6 +687,34 @@
 			"ObjectType": "",
 			"ParentTableName": null,
 			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "orders_lateral",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "library_nested",
+			"RowCount": 1,
+			"ColumnCount": 2,
+			"Reads": 1,
+			"Writes": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
 		},
 		{
 			"SchemaName": "public",
@@ -1658,6 +1726,34 @@
 		},
 		{
 			"SchemaName": "public",
+			"ObjectName": "idx8",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx9",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
 			"ObjectName": "idx7",
 			"RowCount": null,
 			"ColumnCount": 1,
@@ -1687,6 +1783,34 @@
 		{
 			"SchemaName": "public",
 			"ObjectName": "idx5",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "combined_tbl_bittv_key",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.combined_tbl",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "uk",
 			"RowCount": null,
 			"ColumnCount": 1,
 			"Reads": 0,
@@ -1988,6 +2112,21 @@
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT xml_is_well_formed($1)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+		},
+		{
+			"ConstructTypeName": "XML Functions",
+			"Query": "SELECT\n    s.section_name,\n    b.title,\n    b.author\nFROM\n    library_nested l,\n    XMLTABLE(\n        $1\n        PASSING l.lib_data\n        COLUMNS\n            section_name TEXT PATH $2,\n            books XML PATH $3\n    ) AS s,\n    XMLTABLE(\n        $4\n        PASSING s.books\n        COLUMNS\n            title TEXT PATH $5,\n            author TEXT PATH $6\n) AS b",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+		},
+		{
+			"ConstructTypeName": "XML Functions",
+			"Query": "SELECT\n    o.order_id,\n    items.product,\n    items.quantity::INT\nFROM\n    orders_lateral o\n    CROSS JOIN LATERAL XMLTABLE(\n        $1\n        PASSING o.order_details\n        COLUMNS\n            product TEXT PATH $2,\n            quantity TEXT PATH $3\n) AS items",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+		},
+		{
+			"ConstructTypeName": "XML Functions",
+			"Query": "SELECT *\nFROM xmltable(\n    $1\n    PASSING $2\n    COLUMNS \n        name TEXT PATH $3\n)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
 		}
 	],

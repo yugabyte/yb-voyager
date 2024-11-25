@@ -192,6 +192,10 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlna
 	return result
 }
 
+func (tdb *TargetOracleDB) TruncateTables(tables []sqlname.NameTuple) error {
+	return fmt.Errorf("truncate tables not implemented for oracle")
+}
+
 func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
 	return false
 }

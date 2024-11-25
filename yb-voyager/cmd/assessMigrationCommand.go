@@ -108,6 +108,11 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
+// Assessment feature names to send the object names for to callhome
+var featuresToSendObjectsToCallhome = []string{
+	EXTENSION_FEATURE,
+}
+
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
 		return
@@ -155,11 +160,19 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			return callhome.UnsupportedFeature{
+			var objects []string
+			if slices.Contains(featuresToSendObjectsToCallhome, feature.FeatureName) {
+				objects = lo.Map(feature.Objects, func(o ObjectInfo, _ int) string {
+					return o.ObjectName
+				})
+			}
+			res := callhome.UnsupportedFeature{
 				FeatureName:      feature.FeatureName,
 				ObjectCount:      len(feature.Objects),
+				Objects:          objects,
 				TotalOccurrences: len(feature.Objects),
 			}
+			return res
 		})),
 		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
 		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
@@ -329,7 +342,8 @@ func assessMigration() (err error) {
 
 		// Check if source db has permissions to assess migration
 		if source.RunGuardrailsChecks {
-			missingPerms, err := source.DB().GetMissingExportSchemaPermissions()
+			checkIfSchemasHaveUsagePermissions()
+			missingPerms, err := source.DB().GetMissingAssessMigrationPermissions()
 			if err != nil {
 				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
 			}
@@ -934,6 +948,10 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, UnsupportedIndexDatatypes))
+
+	pkOrUkConstraintIssuePrefix := strings.Split(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, "%s")[0]
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE, pkOrUkConstraintIssuePrefix, schemaAnalysisReport, false, ""))
+
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, ISSUE_UNLOGGED_TABLE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, REFERENCING_CLAUSE_FOR_TRIGGERS, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE, schemaAnalysisReport, false, ""))
@@ -1091,8 +1109,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
-
-		issues, err := parserIssueDetector.GetIssues(query, targetDbVersion)
+		issues, err := parserIssueDetector.GetDMLIssues(query, targetDbVersion)
 		if err != nil {
 			log.Errorf("failed while trying to fetch query issues in query - [%s]: %v",
 				query, err)

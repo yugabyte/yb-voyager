@@ -65,9 +65,10 @@ func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
 }
 
+
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
-	_, isPlPgSQLObject := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt)
+	_, isPlPgSQLObject := getCreateFuncStmtNode(parseTree)
 	return isPlPgSQLObject
 }
 
@@ -77,13 +78,13 @@ func IsViewObject(parseTree *pg_query.ParseResult) bool {
 }
 
 func IsMviewObject(parseTree *pg_query.ParseResult) bool {
-	createAsNode, isCreateAsStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt) //for MVIEW case 
+	createAsNode, isCreateAsStmt := getCreateTableAsStmtNode(parseTree) //for MVIEW case
 	return isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
 }
 
 func GetSelectStmtQueryFromViewOrMView(parseTree *pg_query.ParseResult) (string, error) {
-	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
-	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)//For MVIEW case 
+	viewNode, isViewStmt := getCreateViewNode(parseTree)
+	createAsNode, _ := getCreateTableAsStmtNode(parseTree) //For MVIEW case
 	var selectStmt *pg_query.SelectStmt
 	if isViewStmt {
 		selectStmt = viewNode.ViewStmt.GetQuery().GetSelectStmt()
@@ -98,9 +99,9 @@ func GetSelectStmtQueryFromViewOrMView(parseTree *pg_query.ParseResult) (string,
 }
 
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {
-	createFuncNode, isCreateFunc := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt)
-	viewNode, isViewStmt := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
-	createAsNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+	createFuncNode, isCreateFunc := getCreateFuncStmtNode(parseTree)
+	viewNode, isViewStmt := getCreateViewNode(parseTree)
+	createAsNode, _ := getCreateTableAsStmtNode(parseTree)
 	switch true {
 	case isCreateFunc:
 		/*
@@ -147,4 +148,19 @@ func getFunctionObjectName(funcNameList []*pg_query.Node) string {
 		funcSchemaName = funcNameList[len(funcNameList)-2].GetString_().Sval // // func name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
 	}
 	return lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
+}
+
+func getCreateTableAsStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateTableAsStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+	return node, ok
+}
+
+func getCreateViewNode(parseTree *pg_query.ParseResult) (*pg_query.Node_ViewStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_ViewStmt)
+	return node, ok
+}
+
+func getCreateFuncStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateFunctionStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt)
+	return node, ok
 }

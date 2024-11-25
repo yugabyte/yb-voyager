@@ -217,11 +217,12 @@ func checkImportDataPermissions() {
 		utils.PrintAndLog(output)
 
 		var link string
-		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+		switch importerRole {
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/#prepare-source-replica-database"
-		} else if importerRole == SOURCE_DB_IMPORTER_ROLE {
+		case SOURCE_DB_IMPORTER_ROLE:
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#prepare-the-source-database"
-		} else {
+		default:
 			if changeStreamingIsEnabled(importType) {
 				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-target-database"
 			} else {
@@ -231,15 +232,18 @@ func checkImportDataPermissions() {
 		fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
 
 		// Prompt user to continue if missing permissions only if fk and triggers check did not fail
-		if !fkAndTriggersCheckFailed {
-			if !utils.AskPrompt("\nDo you want to continue anyway") {
-				utils.ErrExit("Please grant the required permissions and retry the import.")
-			}
-		} else {
+		if fkAndTriggersCheckFailed {
+			utils.ErrExit("Please grant the required permissions and retry the import.")
+		} else if !utils.AskPrompt("\nDo you want to continue anyway") {
 			utils.ErrExit("Please grant the required permissions and retry the import.")
 		}
 	} else {
-		log.Info("The target database has the required permissions for importing data.")
+		// If only fk and triggers check failed just simply error out
+		if fkAndTriggersCheckFailed {
+			utils.ErrExit("")
+		} else {
+			log.Info("The target database has the required permissions for importing data.")
+		}
 	}
 }
 
@@ -924,12 +928,27 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
 			return nt.ForOutput()
 		})
-		utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
-		utils.PrintAndLog("The above list of tables on target DB are not empty. ")
-		yes := utils.AskPrompt("Are you sure you want to start afresh without truncating tables")
-		if !yes {
-			utils.ErrExit("Aborting import. Manually truncate the tables on target DB before continuing.")
+		if importerRole == TARGET_DB_IMPORTER_ROLE && truncateTables {
+			// truncate tables only supported for import-data-to-target.
+			utils.PrintAndLog("Truncating non-empty tables on DB: %v", nonEmptyTableNames)
+			err := tdb.TruncateTables(nonEmptyNts)
+			if err != nil {
+				utils.ErrExit("failed to truncate tables: %s", err)
+			}
+		} else {
+			utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
+			utils.PrintAndLog("The above list of tables on DB are not empty.")
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				utils.PrintAndLog("If you wish to truncate them, re-run the import command with --truncate-tables true")
+			} else {
+				utils.PrintAndLog("If you wish to truncate them, re-run the import command after manually truncating the tables on DB.")
+			}
+			yes := utils.AskPrompt("Do you want to start afresh without truncating tables")
+			if !yes {
+				utils.ErrExit("Aborting import.")
+			}
 		}
+
 	}
 
 	for _, task := range tasks {
@@ -1422,8 +1441,8 @@ func init() {
 	registerTargetDBConnFlags(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataCommonFlags(importDataToTargetCmd)
-	registerImportDataFlags(importDataCmd)
-	registerImportDataFlags(importDataToTargetCmd)
+	registerImportDataToTargetFlags(importDataCmd)
+	registerImportDataToTargetFlags(importDataToTargetCmd)
 }
 
 func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {
