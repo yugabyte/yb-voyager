@@ -289,7 +289,7 @@ func init() {
 	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
-		"Target YugabyteDB version to assess migration for. Defaults to latest stable version (2024.1)")
+		fmt.Sprintf("Target YugabyteDB version to assess migration for. Defaults to latest stable version (%s)", version.LatestStable.String()))
 	assessMigrationCmd.Flags().MarkHidden("target-db-version")
 }
 
