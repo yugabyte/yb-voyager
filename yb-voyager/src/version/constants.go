@@ -28,13 +28,13 @@ const (
 
 var LatestStable *YBVersion
 
-var V2024_1_3_0 *YBVersion
+var V2024_1_3_1 *YBVersion
 
 func init() {
 	var err error
-	V2024_1_3_0, err = NewYBVersion("2024.1.3.0")
+	V2024_1_3_1, err = NewYBVersion("2024.1.3.1")
 	if err != nil {
 		utils.ErrExit("could not create version 2024.1")
 	}
-	LatestStable = V2024_1_3_0
+	LatestStable = V2024_1_3_1
 }
