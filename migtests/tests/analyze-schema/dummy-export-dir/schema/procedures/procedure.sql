@@ -149,3 +149,27 @@ BEGIN
     RAISE NOTICE 'Employee % of age % added successfully.', emp_name, emp_age;
 END;
 $$;
+
+CREATE OR REPLACE PROCEDURE update_salary(emp_id INT, increment NUMERIC) AS $$
+DECLARE
+    current_salary employees.salary%TYPE; -- Matches the type of the salary column
+BEGIN
+    SELECT salary INTO current_salary FROM employees WHERE id = emp_id;
+
+    IF current_salary IS NULL THEN
+        RAISE NOTICE 'Employee ID % does not exist.', emp_id;
+    ELSE
+        UPDATE employees SET salary = current_salary + increment WHERE id = emp_id;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE PROCEDURE get_employee_details_proc(emp_id employees.id%Type, salary employees.salary%TYPE, tax_rate numeric)  AS $$ 
+DECLARE
+    employee_name employees.name%TYPE; 
+BEGIN
+    SELECT name INTO employee_name FROM employees e WHERE e.id = emp_id and e.salary = salary and e.tax_rate = tax_rate;
+   
+END;
+$$ LANGUAGE plpgsql;
