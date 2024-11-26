@@ -65,7 +65,6 @@ func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
 }
 
-
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
 	_, isPlPgSQLObject := getCreateFuncStmtNode(parseTree)
@@ -163,4 +162,57 @@ func getCreateViewNode(parseTree *pg_query.ParseResult) (*pg_query.Node_ViewStmt
 func getCreateFuncStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateFunctionStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt)
 	return node, ok
+}
+
+func IsFunctionObject(parseTree *pg_query.ParseResult) bool {
+	funcNode, ok := getCreateFuncStmtNode(parseTree)
+	if !ok {
+		return false
+	}
+	return !funcNode.CreateFunctionStmt.IsProcedure
+}
+
+func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
+	typeName := ""
+	typeSchemaName := ""
+	if len(typeNames) > 0 {
+		typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+	}
+	if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+		typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+	}
+
+	return typeName, typeSchemaName
+}
+
+func GetReturnTypeOfFunc(parseTree *pg_query.ParseResult) string {
+	funcNode, _ := getCreateFuncStmtNode(parseTree)
+	returnType := funcNode.CreateFunctionStmt.GetReturnType()
+	typeNames := returnType.GetNames()
+	typeName, typeSchema := getTypeNameAndSchema(typeNames)
+	finalTypeName := lo.Ternary(typeSchema != "", fmt.Sprintf("%s.%s", typeSchema, typeName), typeName)
+	if returnType.PctType { // %TYPE declaration
+		return finalTypeName + "%TYPE"
+	}
+	return finalTypeName
+}
+
+func GetFuncParametersTypeNames(parseTree *pg_query.ParseResult) []string {
+	funcNode, _ := getCreateFuncStmtNode(parseTree)
+	parameters := funcNode.CreateFunctionStmt.GetParameters()
+	var paramTypeNames []string
+	for _, param := range parameters {
+		funcParam, ok := param.Node.(*pg_query.Node_FunctionParameter)
+		if ok {
+			paramType := funcParam.FunctionParameter.ArgType
+			typeNames := paramType.GetNames()
+			typeName, typeSchema := getTypeNameAndSchema(typeNames)
+			finalTypeName := lo.Ternary(typeSchema != "", fmt.Sprintf("%s.%s", typeSchema, typeName), typeName)
+			if paramType.PctType { // %TYPE declaration
+				paramTypeNames = append(paramTypeNames, finalTypeName+"%TYPE")
+			}
+			paramTypeNames = append(paramTypeNames, finalTypeName)
+		}
+	}
+	return paramTypeNames
 }

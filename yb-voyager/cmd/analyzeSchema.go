@@ -755,14 +755,14 @@ func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_
 	for _, column := range columns {
 		if column.GetColumnDef() != nil {
 			/*
-			e.g. create table unique_def_test(id int, d daterange UNIQUE, c1 int);
-			create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}...
-			table_elts:{column_def:{colname:"d"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
-			typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}} ....
+				e.g. create table unique_def_test(id int, d daterange UNIQUE, c1 int);
+				create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}...
+				table_elts:{column_def:{colname:"d"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
+				typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}} ....
 
-			here checking the case where this clause is in column definition so iterating over each column_def and in that
-			constraint type is UNIQUE/ PK reporting that 
-			supported.
+				here checking the case where this clause is in column definition so iterating over each column_def and in that
+				constraint type is UNIQUE/ PK reporting that
+				supported.
 			*/
 			colName := column.GetColumnDef().GetColname()
 			typeName, ok := unsupportedColumnsForTable[colName]
@@ -780,7 +780,7 @@ func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_
 				type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
 				table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
 
-				here checking the case where this UK/ PK is at the end of column definition as a separate constraint 
+				here checking the case where this UK/ PK is at the end of column definition as a separate constraint
 			*/
 			keys := column.GetConstraint().GetKeys()
 			columns := []string{}
@@ -1723,6 +1723,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 		DocsLink:     issueInstance.DocsLink,
 		FilePath:     fileName,
 		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,
+		Suggestion:   issueInstance.Suggestion,
+		GH:           issueInstance.GH,
 	}
 }
 
