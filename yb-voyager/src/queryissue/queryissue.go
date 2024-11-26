@@ -83,14 +83,13 @@ func (p *ParserIssueDetector) getAllIssues(query string) ([]issue.IssueInstance,
 			issues = append(issues, issuesInQuery...)
 		}
 
-		//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
-		//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-		for _, issue := range issues {
-			issue.ObjectType = objType
-			issue.ObjectName = objName
-		}
-
-		return issues, nil
+		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+			i.ObjectType = objType
+			i.ObjectName = objName
+			return i
+		}), nil
 	}
 	//Handle the Mview/View DDL's Select stmt issues
 	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
@@ -104,13 +103,13 @@ func (p *ParserIssueDetector) getAllIssues(query string) ([]issue.IssueInstance,
 			return nil, err
 		}
 
-		//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
-		//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-		for _, issue := range issues {
-			issue.ObjectType = objType
-			issue.ObjectName = objName
-		}
-		return issues, nil
+		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+			i.ObjectType = objType
+			i.ObjectName = objName
+			return i
+		}), nil
 
 	}
 
