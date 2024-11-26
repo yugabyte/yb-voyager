@@ -308,9 +308,9 @@ $$;
         }
     },
 
-	Notes:
-	1. Not giving typename for variables in function parameter in the json, for that using the GetTypeNamesFromFuncParameters()
-	2. Not giving the return type in the json, for that using the GetReturnTypeOfFunc()
+	Caveats:
+	1. Not returning typename for variables in function parameter from this function (in correct in json as UNKNOWN), for that using the GetTypeNamesFromFuncParameters()
+	2. Not returning the return type from this function (not available in json), for that using the GetReturnTypeOfFunc()
 */
 func GetAllTypeNamesInPlpgSQLStmt(query string) ([]string, error) {
 	parsedJson, parsedJsonMap, err := getParsedJsonMap(query)

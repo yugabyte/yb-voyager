@@ -60,7 +60,6 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 		}
 
 		percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
-		fmt.Printf("%v", err)
 		if err != nil {
 			return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
 		}

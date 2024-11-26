@@ -188,10 +188,14 @@ func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
 func GetReturnTypeOfFunc(parseTree *pg_query.ParseResult) string {
 	funcNode, _ := getCreateFuncStmtNode(parseTree)
 	returnType := funcNode.CreateFunctionStmt.GetReturnType()
-	typeNames := returnType.GetNames()
+	return getParserTypeInString(returnType)
+}
+
+func getParserTypeInString(typeVar *pg_query.TypeName) string {
+	typeNames := typeVar.GetNames()
 	typeName, typeSchema := getTypeNameAndSchema(typeNames)
 	finalTypeName := lo.Ternary(typeSchema != "", fmt.Sprintf("%s.%s", typeSchema, typeName), typeName)
-	if returnType.PctType { // %TYPE declaration
+	if typeVar.PctType { // %TYPE declaration, so adding %TYPE for using it further
 		return finalTypeName + "%TYPE"
 	}
 	return finalTypeName
@@ -205,13 +209,7 @@ func GetFuncParametersTypeNames(parseTree *pg_query.ParseResult) []string {
 		funcParam, ok := param.Node.(*pg_query.Node_FunctionParameter)
 		if ok {
 			paramType := funcParam.FunctionParameter.ArgType
-			typeNames := paramType.GetNames()
-			typeName, typeSchema := getTypeNameAndSchema(typeNames)
-			finalTypeName := lo.Ternary(typeSchema != "", fmt.Sprintf("%s.%s", typeSchema, typeName), typeName)
-			if paramType.PctType { // %TYPE declaration
-				paramTypeNames = append(paramTypeNames, finalTypeName+"%TYPE")
-			}
-			paramTypeNames = append(paramTypeNames, finalTypeName)
+			paramTypeNames = append(paramTypeNames, getParserTypeInString(paramType))
 		}
 	}
 	return paramTypeNames
