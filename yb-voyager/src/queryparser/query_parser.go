@@ -17,6 +17,7 @@ package queryparser
 
 import (
 	"fmt"
+	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
@@ -172,30 +173,24 @@ func IsFunctionObject(parseTree *pg_query.ParseResult) bool {
 	return !funcNode.CreateFunctionStmt.IsProcedure
 }
 
-func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
-	typeName := ""
-	typeSchemaName := ""
-	if len(typeNames) > 0 {
-		typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-	}
-	if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-		typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-	}
-
-	return typeName, typeSchemaName
-}
-
 func GetReturnTypeOfFunc(parseTree *pg_query.ParseResult) string {
 	funcNode, _ := getCreateFuncStmtNode(parseTree)
 	returnType := funcNode.CreateFunctionStmt.GetReturnType()
 	return getParserTypeInString(returnType)
 }
 
+func getQualifiedTypeName(typeNames []*pg_query.Node) string {
+	var typeNameStrings []string
+	for _, n := range typeNames {
+		typeNameStrings = append(typeNameStrings, n.GetString_().Sval)
+	}
+	return strings.Join(typeNameStrings, ".")
+}
+
 func getParserTypeInString(typeVar *pg_query.TypeName) string {
 	typeNames := typeVar.GetNames()
-	typeName, typeSchema := getTypeNameAndSchema(typeNames)
-	finalTypeName := lo.Ternary(typeSchema != "", fmt.Sprintf("%s.%s", typeSchema, typeName), typeName)
-	if typeVar.PctType { // %TYPE declaration, so adding %TYPE for using it further
+	finalTypeName := getQualifiedTypeName(typeNames) // type name can qualified table_name.column in case of %TYPE
+	if typeVar.PctType {                             // %TYPE declaration, so adding %TYPE for using it further
 		return finalTypeName + "%TYPE"
 	}
 	return finalTypeName

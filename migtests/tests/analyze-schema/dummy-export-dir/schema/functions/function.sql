@@ -138,7 +138,7 @@ AFTER UPDATE OF salary ON employees
 FOR EACH ROW EXECUTE FUNCTION log_salary_change();
 
 CREATE OR REPLACE FUNCTION get_employee_details(emp_id employees.id%Type) 
-RETURNS employees.name%Type AS $$ 
+RETURNS public.employees.name%Type AS $$ 
 DECLARE
     employee_name employees.name%TYPE;
 BEGIN

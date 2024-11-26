@@ -1720,7 +1720,7 @@
             "ObjectType": "FUNCTION",
             "ObjectName": "get_employee_details",
             "Reason": "Referenced type declaration of variables",
-            "SqlStatement": "employees.name%TYPE",
+            "SqlStatement": "public.employees.name%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
