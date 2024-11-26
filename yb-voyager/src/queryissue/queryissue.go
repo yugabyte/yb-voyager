@@ -107,14 +107,17 @@ func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]issue.
 	if err != nil {
 		return nil, fmt.Errorf("error getting type names in PLPGSQL: %v", err)
 	}
-	fmt.Printf("typeNames %v", typeNames)
+
+	if queryparser.IsFunctionObject(parseTree) {
+		typeNames = append(typeNames, queryparser.GetReturnTypeOfFunc(parseTree))
+	}
+	typeNames = append(typeNames, queryparser.GetFuncParametersTypeNames(parseTree)...)
 	var issues []issue.IssueInstance
 	for _, typeName := range typeNames {
 		if strings.HasSuffix(typeName, "%TYPE") {
 			issues = append(issues, issue.NewPercentTypeSyntaxIssue(objType, objName, typeName)) // TODO: confirm
 		}
 	}
-	fmt.Printf("type issues %v", issues)
 	return issues, nil
 }
 

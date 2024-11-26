@@ -241,6 +241,77 @@ func getParsedJsonMap(query string) (string, map[string]interface{}, error) {
 	return parsedJson, parsedJsonMapList[0], nil
 }
 
+/*
+example -
+CREATE FUNCTION public.get_employeee_salary(emp_id employees.employee_id%TYPE) RETURNS employees.salary%Type
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    emp_salary employees.salary%TYPE;  
+BEGIN
+    SELECT salary INTO emp_salary
+    FROM employees
+    WHERE employee_id = emp_id;
+    RETURN emp_salary;
+END;
+$$;
+[
+    {
+        "PLpgSQL_function": {
+            "datums": [
+                {
+                    "PLpgSQL_var": {
+                        "refname": "emp_id",
+                        "datatype": {
+                            "PLpgSQL_type": {
+                                "typname": "UNKNOWN" 
+                            }
+                        }
+                    }
+                },
+                {
+                    "PLpgSQL_var": {
+                        "refname": "found",
+                        "datatype": {
+                            "PLpgSQL_type": {
+                                "typname": "UNKNOWN"
+                            }
+                        }
+                    }
+                },
+                {
+                    "PLpgSQL_var": {
+                        "refname": "emp_salary",
+                        "lineno": 3,
+                        "datatype": {
+                            "PLpgSQL_type": {
+                                "typname": "employees.salary%TYPE"
+                            }
+                        }
+                    }
+                },
+                {
+                    "PLpgSQL_row": {
+                        "refname": "(unnamed row)",
+                        "lineno": 5,
+                        "fields": [
+                            {
+                                "name": "emp_salary",
+                                "varno": 2
+                            }
+                        ]
+                    }
+                }
+            ],"action": {
+               ....
+            }
+        }
+    },
+
+	Notes:
+	1. Not giving typename for variables in function parameter in the json, for that using the GetTypeNamesFromFuncParameters()
+	2. Not giving the return type in the json, for that using the GetReturnTypeOfFunc()
+*/
 func GetAllTypeNamesInPlpgSQLStmt(query string) ([]string, error) {
 	parsedJson, parsedJsonMap, err := getParsedJsonMap(query)
 	if err != nil {
