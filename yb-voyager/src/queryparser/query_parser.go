@@ -173,6 +173,15 @@ func IsFunctionObject(parseTree *pg_query.ParseResult) bool {
 	return !funcNode.CreateFunctionStmt.IsProcedure
 }
 
+/*
+return type ex-
+CREATE OR REPLACE FUNCTION public.process_combined_tbl(
+    ... 
+)
+RETURNS public.combined_tbl.maddr%TYPE AS  
+return_type:{names:{string:{sval:"public"}}  names:{string:{sval:"combined_tbl"}}  names:{string:{sval:"maddr"}} 
+pct_type:true  typemod:-1  location:226}
+*/
 func GetReturnTypeOfFunc(parseTree *pg_query.ParseResult) string {
 	funcNode, _ := getCreateFuncStmtNode(parseTree)
 	returnType := funcNode.CreateFunctionStmt.GetReturnType()
@@ -196,6 +205,22 @@ func getParserTypeInString(typeVar *pg_query.TypeName) string {
 	return finalTypeName
 }
 
+/*
+function ex - 
+CREATE OR REPLACE FUNCTION public.process_combined_tbl(
+    p_id int,        
+    p_c public.combined_tbl.c%TYPE,          
+    p_bitt public.combined_tbl.bitt%TYPE, 
+	..
+)
+parseTree-
+parameters:{function_parameter:{name:"p_id"  arg_type:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1  location:66} 
+mode:FUNC_PARAM_DEFAULT}}  parameters:{function_parameter:{name:"p_c"  arg_type:{names:{string:{sval:"public"}}  names:{string:{sval:"combined_tbl"}}
+names:{string:{sval:"c"}}  pct_type:true  typemod:-1  location:87}  mode:FUNC_PARAM_DEFAULT}}  parameters:{function_parameter:{name:"p_bitt"  
+arg_type:{names:{string:{sval:"public"}}  names:{string:{sval:"combined_tbl"}}  names:{string:{sval:"bitt"}}  pct_type:true  typemod:-1  
+location:136}  mode:FUNC_PARAM_DEFAULT}} 
+
+*/
 func GetFuncParametersTypeNames(parseTree *pg_query.ParseResult) []string {
 	funcNode, _ := getCreateFuncStmtNode(parseTree)
 	parameters := funcNode.CreateFunctionStmt.GetParameters()
