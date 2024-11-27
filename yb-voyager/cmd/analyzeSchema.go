@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -368,7 +369,7 @@ func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
 
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
-		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		parseTree, err := queryparser.Parse(sqlStmtInfo.stmt)
 		if err != nil { //if the Stmt is not already report by any of the regexes
 			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
 				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX, err.Error())
@@ -376,6 +377,14 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 					"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 			}
 			continue
+		}
+		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt)
+		if err != nil {
+			log.Infof("error getting ddl issues for query-%s: %v ", err)
+			continue
+		}
+		for _, i := range ddlIssues {
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
 		}
 		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
@@ -387,7 +396,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if objType == TABLE && isCreateTable {
 			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
-			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
+			// reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
@@ -755,14 +764,14 @@ func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_
 	for _, column := range columns {
 		if column.GetColumnDef() != nil {
 			/*
-			e.g. create table unique_def_test(id int, d daterange UNIQUE, c1 int);
-			create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}...
-			table_elts:{column_def:{colname:"d"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
-			typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}} ....
+				e.g. create table unique_def_test(id int, d daterange UNIQUE, c1 int);
+				create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}...
+				table_elts:{column_def:{colname:"d"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
+				typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}} ....
 
-			here checking the case where this clause is in column definition so iterating over each column_def and in that
-			constraint type is UNIQUE/ PK reporting that 
-			supported.
+				here checking the case where this clause is in column definition so iterating over each column_def and in that
+				constraint type is UNIQUE/ PK reporting that
+				supported.
 			*/
 			colName := column.GetColumnDef().GetColname()
 			typeName, ok := unsupportedColumnsForTable[colName]
@@ -780,7 +789,7 @@ func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_
 				type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
 				table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
 
-				here checking the case where this UK/ PK is at the end of column definition as a separate constraint 
+				here checking the case where this UK/ PK is at the end of column definition as a separate constraint
 			*/
 			keys := column.GetConstraint().GetKeys()
 			columns := []string{}
@@ -1706,23 +1715,50 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 			continue
 		}
 		for _, issueInstance := range issues {
-			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath)
+			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath, true)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 		}
 	}
 
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string) utils.Issue {
+var MigrationCaveatsIssues = []string{
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+	FOREIGN_TABLE_ISSUE_REASON,
+	POLICY_ROLE_ISSUE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
+}
+
+func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string, isDMLIssue bool) utils.Issue {
+	issueType := UNSUPPORTED_FEATURES
+	switch true {
+	case slices.Contains(MigrationCaveatsIssues, issueInstance.TypeName):
+		issueType = MIGRATION_CAVEATS
+	case issueInstance.TypeName == UNSUPPORTED_DATATYPE:
+		issueType = UNSUPPORTED_DATATYPES
+	case isDMLIssue:
+		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
+	}
+	//TODO: issue TYpe fetching in case of DDL issues in PLPGSQL
+
+	reason := issueInstance.TypeName
+	switch issueInstance.TypeName {
+	case STORED_GENERATED_COLUMN_ISSUE_REASON:
+		reason = reason + fmt.Sprintf(" Generated Columns: (%s)", issueInstance.Details["Generated_Columns"].(string))
+	}
+
 	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 	return utils.Issue{
 		ObjectType:   issueInstance.ObjectType,
 		ObjectName:   issueInstance.ObjectName,
-		Reason:       issueInstance.TypeName,
-		SqlStatement: issueInstance.SqlStatement, //Displaying the actual query in the PLPGSQL block that is problematic
+		Reason:       reason,
+		SqlStatement: issueInstance.SqlStatement,
 		DocsLink:     issueInstance.DocsLink,
 		FilePath:     fileName,
-		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,
+		IssueType:    issueType,
+		Suggestion:   issueInstance.Suggestion,
+		GH:           issueInstance.GH,
 	}
 }
 

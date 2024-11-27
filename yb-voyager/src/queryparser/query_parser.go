@@ -102,6 +102,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 	createFuncNode, isCreateFunc := getCreateFuncStmtNode(parseTree)
 	viewNode, isViewStmt := getCreateViewNode(parseTree)
 	createAsNode, _ := getCreateTableAsStmtNode(parseTree)
+	createTableNode, isCreateTable := getCreateTableStmtNode(parseTree)
 	switch true {
 	case isCreateFunc:
 		/*
@@ -126,6 +127,11 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 	case IsMviewObject(parseTree):
 		intoMview := createAsNode.CreateTableAsStmt.Into.Rel
 		return "MVIEW", getObjectNameFromRangeVar(intoMview)
+	case isCreateTable:
+		schemaName := createTableNode.CreateStmt.Relation.Schemaname
+		tableName := createTableNode.CreateStmt.Relation.Relname
+		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+		return "TABLE", fullyQualifiedName
 	default:
 		panic("unsupported type of parseResult")
 	}
@@ -163,4 +169,32 @@ func getCreateViewNode(parseTree *pg_query.ParseResult) (*pg_query.Node_ViewStmt
 func getCreateFuncStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateFunctionStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt)
 	return node, ok
+}
+
+func getCreateTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+	return node, ok
+}
+
+func IsCreateTable(parseTree *pg_query.ParseResult) bool {
+	_, IsCreateTable := getCreateTableStmtNode(parseTree)
+	return IsCreateTable
+}
+
+func GetGeneratedColumns(parseTree *pg_query.ParseResult) []string {
+	createTableNode, _ := getCreateTableStmtNode(parseTree)
+	columns := createTableNode.CreateStmt.TableElts
+	var generatedColumns []string
+	for _, column := range columns {
+		//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
+		if column.GetColumnDef() != nil {
+			constraints := column.GetColumnDef().Constraints
+			for _, constraint := range constraints {
+				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
+					generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
+				}
+			}
+		}
+	}
+	return generatedColumns
 }

@@ -18,6 +18,7 @@ package queryissue
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -28,12 +29,37 @@ import (
 )
 
 type ParserIssueDetector struct {
+	/*
+		this will contain the information in this format:
+		public.table1 -> {
+			column1: citext | jsonb | inet | tsquery | tsvector | array
+			...
+		}
+		schema2.table2 -> {
+			column3: citext | jsonb | inet | tsquery | tsvector | array
+			...
+		}
+		Here only those columns on tables are stored which have unsupported type for Index in YB
+	*/
+	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
+	/*
+		list of composite types with fully qualified typename in the exported schema
+	*/
+	compositeTypes []string
+	/*
+		list of enum types with fully qualified typename in the exported schema
+	*/
+	enumTypes []string
 	// TODO: Add fields here
 	// e.g. store composite types, etc. for future processing.
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
-	return &ParserIssueDetector{}
+	return &ParserIssueDetector{
+		columnsWithUnsupportedIndexDatatypes: make(map[string]map[string]string),
+		compositeTypes:                       make([]string, 0),
+		enumTypes:                            make([]string, 0),
+	}
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance, error) {
@@ -85,10 +111,40 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 		}), nil
 
 	}
-	return p.GetDMLIssues(query)
+	dmlIssues, err := p.GetDMLIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting dml issues: %v", err)
+	}
+	_, err = p.GetDDLIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting ddl issues: %v", err)
+	}
+	issues := dmlIssues
+	// issues = append(issues, ddlIssues...)
+	return issues, nil
 }
 
-//TODO: in future when we will DDL issues detection here we need `GetDDLIssues`
+func (p *ParserIssueDetector) GetDDLIssues(query string) ([]issue.IssueInstance, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query: %w", err)
+	}
+	var issues []issue.IssueInstance
+	if queryparser.IsCreateTable(parseTree) {
+		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+
+		//GENERATED COLUMNS
+		generatedColumns := queryparser.GetGeneratedColumns(parseTree)
+		if len(generatedColumns) > 0 {
+			issues = append(issues, issue.NewGeneratedColumnsIssue(objType, objName, query, map[string]interface{}{
+				"Generated_Columns": strings.Join(generatedColumns, ","),
+			}))
+		}
+
+	}
+
+	return issues, nil
+}
 
 func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
