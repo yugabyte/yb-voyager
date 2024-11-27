@@ -81,7 +81,7 @@ type Config struct {
 var baseConfigTemplate = `
 debezium.format.value=connect
 debezium.format.key=connect
-quarkus.http.log=8181
+quarkus.http.port=8181
 quarkus.log.console.json=false
 quarkus.log.level=%s
 `
