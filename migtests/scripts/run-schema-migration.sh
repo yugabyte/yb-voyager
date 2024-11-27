@@ -118,7 +118,7 @@ main() {
         mv "${EXPORT_DIR}/schema/failed.sql" "${EXPORT_DIR}/schema/failed.sql.bak"
         #replace_files
         replace_files "${TEST_DIR}/replacement_dir" "${EXPORT_DIR}/schema"
-        import_schema
+        import_schema --start-clean t
 
         if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
         then
