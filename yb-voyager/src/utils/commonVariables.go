@@ -110,6 +110,14 @@ type Issue struct {
 	MinimumVersionsFixedIn map[string]*version.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 }
 
+func (i Issue) IsFixedIn(v *version.YBVersion) (bool, error) {
+	minVersionFixedInSeries, ok := i.MinimumVersionsFixedIn[v.Series()]
+	if !ok {
+		return false, nil
+	}
+	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
+}
+
 type IndexInfo struct {
 	// TODO: ADD SchemaName string `json:"SchemaName"`
 	IndexName string   `json:"IndexName"`

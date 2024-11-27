@@ -2116,6 +2116,20 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		}
 	}
 
+	// Ideally all filtering of issues should happen in queryissue pkg layer,
+	// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
+	var filteredIssues []utils.Issue
+	for _, i := range schemaAnalysisReport.Issues {
+		fixed, err := i.IsFixedIn(targetDbVersion)
+		if err != nil {
+			utils.ErrExit("checking if issue %v is supported: %v", i, err)
+		}
+		if !fixed {
+			filteredIssues = append(filteredIssues, i)
+		}
+	}
+	schemaAnalysisReport.Issues = filteredIssues
+
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
