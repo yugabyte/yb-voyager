@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"os"
 	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // CompareStructAndReport compares two struct types and reports any mismatches.
@@ -50,5 +53,24 @@ func CompareStructAndReport(t *testing.T, actual, expected reflect.Type, structN
 		if actualExists && !expectedExists {
 			t.Errorf("%s: Unexpected field %s of type %s. There is some breaking change!", structName, actualField.Name, actualField.Type)
 		}
+	}
+}
+
+// CompareJsonStructs compares two structs by marshalling them into JSON and reports any differences.
+func CompareJsonStructs(t *testing.T, outputFilePath string, expectedJSON string, exportDir string) {
+	// Read the output JSON file
+	outputBytes, err := os.ReadFile(outputFilePath)
+	if err != nil {
+		t.Fatalf("Failed to read output JSON file: %v", err)
+	}
+
+	// Compare the output JSON with the expected JSON
+	if diff := cmp.Diff(expectedJSON, string(outputBytes)); diff != "" {
+		t.Errorf("JSON file mismatch (-expected +actual):\n%s", diff)
+	}
+
+	// Optionally, remove the test directory if empty
+	if err := os.RemoveAll(exportDir); err != nil {
+		t.Logf("Failed to remove test export directory: %v", err)
 	}
 }
