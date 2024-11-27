@@ -914,10 +914,35 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	return nil
 }
 
+// when we group multiple Issue instances into a single bucket of UnsupportedFeature.
+// Ideally, all the issues in the same bucket should have the same minimum version fixed in.
+// We want to validate that and fail if not.
+func areMinVersionsFixedInEqual(m1 map[string]*version.YBVersion, m2 map[string]*version.YBVersion) bool {
+	if m1 == nil && m2 == nil {
+		return true
+	}
+	if m1 == nil || m2 == nil {
+		return false
+	}
+
+	if len(m1) != len(m2) {
+		return false
+	}
+	for k, v := range m1 {
+		if m2[k] == nil || !m2[k].Equal(v) {
+			return false
+		}
+	}
+	return true
+}
+
 func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, displayDDLInHTML bool, description string) UnsupportedFeature {
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
 	link := "" // for oracle we shouldn't display any line for links
+	var minVersionsFixedIn map[string]*version.YBVersion
+	var minVersionsFixedInSet bool
+
 	for _, issue := range schemaAnalysisReport.Issues {
 		if strings.Contains(issue.Reason, issueReason) {
 			objectInfo := ObjectInfo{
@@ -926,9 +951,16 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 			}
 			link = issue.DocsLink
 			objects = append(objects, objectInfo)
+			if !minVersionsFixedInSet {
+				minVersionsFixedIn = issue.MinimumVersionsFixedIn
+				minVersionsFixedInSet = true
+			}
+			if !areMinVersionsFixedInEqual(minVersionsFixedIn, issue.MinimumVersionsFixedIn) {
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", featureName, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
+			}
 		}
 	}
-	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description, nil}
+	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description, minVersionsFixedIn}
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
@@ -966,6 +998,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 }
 
 func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.SchemaReport, unsupportedIndexDatatypes []string) UnsupportedFeature {
+	// TODO: include MinimumVersionsFixedIn
 	indexesOnComplexTypesFeature := UnsupportedFeature{
 		FeatureName: "Index on complex datatypes",
 		DisplayDDL:  false,
@@ -1063,12 +1096,22 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 	for reason, issues := range groupPlpgsqlIssuesByReason {
 		var objects []ObjectInfo
 		var docsLink string
+		var minVersionsFixedIn map[string]*version.YBVersion
+		var minVersionsFixedInSet bool
+
 		for _, issue := range issues {
 			objects = append(objects, ObjectInfo{
 				ObjectType:   issue.ObjectType,
 				ObjectName:   issue.ObjectName,
 				SqlStatement: issue.SqlStatement,
 			})
+			if !minVersionsFixedInSet {
+				minVersionsFixedIn = issue.MinimumVersionsFixedIn
+				minVersionsFixedInSet = true
+			}
+			if !areMinVersionsFixedInEqual(minVersionsFixedIn, issue.MinimumVersionsFixedIn) {
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", reason, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
+			}
 			docsLink = issue.DocsLink
 		}
 		feature := UnsupportedFeature{

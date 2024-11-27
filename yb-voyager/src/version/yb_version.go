@@ -102,6 +102,10 @@ func (ybv *YBVersion) GreaterThanOrEqual(other *YBVersion) bool {
 	return ybv.Version.GreaterThanOrEqual(other.Version)
 }
 
+func (ybv *YBVersion) Equal(other *YBVersion) bool {
+	return ybv.Version.Equal(other.Version)
+}
+
 func (ybv *YBVersion) String() string {
 	return ybv.Original()
 }
