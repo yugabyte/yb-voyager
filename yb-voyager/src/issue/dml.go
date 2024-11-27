@@ -53,6 +53,7 @@ var xmlFunctionsIssue = Issue{
 	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
 	MinimumVersionsFixedIn: map[string]*version.YBVersion{
 		version.SERIES_2024_1: version.V2024_1_4_0,
+		version.SERIES_2_23:   version.V2_23_5_0,
 	},
 }
 

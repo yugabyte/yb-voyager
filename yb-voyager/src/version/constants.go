@@ -28,6 +28,7 @@ var LatestStable *YBVersion
 
 var V2024_1_3_1 *YBVersion
 var V2024_1_4_0 *YBVersion
+var V2_23_5_0 *YBVersion
 
 func init() {
 	var err error
@@ -39,6 +40,9 @@ func init() {
 	if err != nil {
 		panic("could not create version 2024.1.4.0")
 	}
-
+	V2_23_5_0, err = NewYBVersion("2.23.5.0")
+	if err != nil {
+		panic("could not create version 2.23.5.0")
+	}
 	LatestStable = V2024_1_3_1
 }
