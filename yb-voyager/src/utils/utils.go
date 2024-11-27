@@ -684,3 +684,17 @@ func ChangeFileExtension(filePath string, newExt string) string {
 
 	return filePath + newExt
 }
+
+// Port 0 generally returns port number in range 30xxx - 60xxx but it also depends on OS and network configuration
+func GetFreePort() (int, error) {
+	// Listen on port 0, which tells the OS to assign an available port
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, fmt.Errorf("failed to listen on a port: %v", err)
+	}
+	defer listener.Close()
+
+	// Retrieve the assigned port
+	addr := listener.Addr().(*net.TCPAddr)
+	return addr.Port, nil
+}
