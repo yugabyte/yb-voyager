@@ -830,6 +830,9 @@ var bytesTemplate []byte
 func generateAssessmentReport() (err error) {
 	utils.PrintAndLog("Generating assessment report...")
 
+	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
+	assessmentReport.TargetDBVersion = targetDbVersion
+
 	err = getAssessmentReportContentFromAnalyzeSchema()
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
@@ -849,7 +852,6 @@ func generateAssessmentReport() (err error) {
 		assessmentReport.UnsupportedQueryConstructs = unsupportedQueries
 	}
 
-	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, err := fetchColumnsWithUnsupportedDataTypes()
 	if err != nil {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
@@ -926,7 +928,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 			objects = append(objects, objectInfo)
 		}
 	}
-	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description}
+	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description, nil}
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
@@ -1035,10 +1037,10 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	}
 
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_INDEXES_FEATURE, unsupportedIndexes, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{VIRTUAL_COLUMNS_FEATURE, virtualColumns, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{INHERITED_TYPES_FEATURE, inheritedTypes, false, "", ""})
-	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_PARTITIONING_METHODS_FEATURE, unsupportedPartitionTypes, false, "", ""})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_INDEXES_FEATURE, unsupportedIndexes, false, "", "", nil})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{VIRTUAL_COLUMNS_FEATURE, virtualColumns, false, "", "", nil})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{INHERITED_TYPES_FEATURE, inheritedTypes, false, "", "", nil})
+	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_PARTITIONING_METHODS_FEATURE, unsupportedPartitionTypes, false, "", "", nil})
 	return unsupportedFeatures, nil
 }
 
@@ -1121,9 +1123,10 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 
 		for _, issue := range issues {
 			uqc := utils.UnsupportedQueryConstruct{
-				Query:             issue.SqlStatement,
-				ConstructTypeName: issue.TypeName,
-				DocsLink:          issue.DocsLink,
+				Query:                  issue.SqlStatement,
+				ConstructTypeName:      issue.TypeName,
+				DocsLink:               issue.DocsLink,
+				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 			}
 			result = append(result, uqc)
 		}
@@ -1272,14 +1275,14 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			for _, col := range unsupportedDataTypesForLiveMigration {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE})
+			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE, nil})
 		}
 		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, col := range unsupportedDataTypesForLiveMigrationWithFForFB {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE})
+			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE, nil})
 		}
 		assessmentReport.MigrationCaveats = migrationCaveats
 	}
@@ -1344,6 +1347,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"numKeysInMapStringObjectInfo":     numKeysInMapStringObjectInfo,
 		"groupByObjectName":                groupByObjectName,
 		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
+		"getSupportedVersionString":        getSupportedVersionString,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
@@ -1387,6 +1391,20 @@ func numKeysInMapStringObjectInfo(m map[string][]ObjectInfo) int {
 
 func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
+}
+
+func getSupportedVersionString(minimumVersionsFixedIn map[string]*version.YBVersion) string {
+	if minimumVersionsFixedIn == nil {
+		return ""
+	}
+	supportedVersions := []string{}
+	for series, minVersionFixedIn := range minimumVersionsFixedIn {
+		if minVersionFixedIn == nil {
+			continue
+		}
+		supportedVersions = append(supportedVersions, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
+	}
+	return strings.Join(supportedVersions, ", ")
 }
 
 func validateSourceDBTypeForAssessMigration() {

@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
 )
 
 const (
@@ -97,15 +98,16 @@ type DBObject struct {
 }
 
 type Issue struct {
-	IssueType    string `json:"IssueType"`
-	ObjectType   string `json:"ObjectType"`
-	ObjectName   string `json:"ObjectName"`
-	Reason       string `json:"Reason"`
-	SqlStatement string `json:"SqlStatement,omitempty"`
-	FilePath     string `json:"FilePath"`
-	Suggestion   string `json:"Suggestion"`
-	GH           string `json:"GH"`
-	DocsLink     string `json:"DocsLink,omitempty"`
+	IssueType              string                        `json:"IssueType"`
+	ObjectType             string                        `json:"ObjectType"`
+	ObjectName             string                        `json:"ObjectName"`
+	Reason                 string                        `json:"Reason"`
+	SqlStatement           string                        `json:"SqlStatement,omitempty"`
+	FilePath               string                        `json:"FilePath"`
+	Suggestion             string                        `json:"Suggestion"`
+	GH                     string                        `json:"GH"`
+	DocsLink               string                        `json:"DocsLink,omitempty"`
+	MinimumVersionsFixedIn map[string]*version.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 }
 
 type IndexInfo struct {
@@ -124,9 +126,10 @@ type TableColumnsDataTypes struct {
 }
 
 type UnsupportedQueryConstruct struct {
-	ConstructTypeName string
-	Query             string
-	DocsLink          string
+	ConstructTypeName      string
+	Query                  string
+	DocsLink               string
+	MinimumVersionsFixedIn map[string]*version.YBVersion // key: series (2024.1, 2.21, etc)
 }
 
 // ================== Segment ==============================
