@@ -302,6 +302,7 @@ func (c *Config) String() string {
 		log.Warnf("failed to get a free port for quarkus http server, falling back to 8080: %v", err)
 		quarkusLogPort = 8080
 	}
+	log.Infof("using port number %d for quarkus http server", quarkusLogPort)
 
 	var conf string
 	switch c.SourceDBType {
