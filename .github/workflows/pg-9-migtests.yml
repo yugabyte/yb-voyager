@@ -126,6 +126,3 @@ jobs:
       - name: "TEST: pg-constraints"
         if: !cancelled()
         run: migtests/scripts/run-test.sh pg/constraints
-
-
-      
