@@ -116,13 +116,13 @@ jobs:
           psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: pg-case-sensitivity-single-table"
-        if: !cancelled()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
 
       - name: "TEST: pg-datatypes"
-        if: !cancelled()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh pg/datatypes
 
       - name: "TEST: pg-constraints"
-        if: !cancelled()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh pg/constraints
