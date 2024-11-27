@@ -57,7 +57,7 @@ func CompareStructAndReport(t *testing.T, actual, expected reflect.Type, structN
 }
 
 // CompareJsonStructs compares two structs by marshalling them into JSON and reports any differences.
-func CompareJsonStructs(t *testing.T, outputFilePath string, expectedJSON string, exportDir string) {
+func CompareJson(t *testing.T, outputFilePath string, expectedJSON string, exportDir string) {
 	// Read the output JSON file
 	outputBytes, err := os.ReadFile(outputFilePath)
 	if err != nil {

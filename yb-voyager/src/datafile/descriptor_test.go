@@ -8,7 +8,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func TestFileEntryAndDescriptorStructures(t *testing.T) {
+func TestFileEntryAndDescriptorStructs(t *testing.T) {
 	// Define the expected structure for FileEntry
 	expectedFileEntry := struct {
 		FilePath  string `json:"FilePath"`
@@ -99,5 +99,5 @@ func TestDescriptorJSONDiff(t *testing.T) {
 }`
 
 	// Compare the output JSON with the expected JSON
-	utils.CompareJsonStructs(t, outputFilePath, expectedJSON, exportDir)
+	utils.CompareJson(t, outputFilePath, expectedJSON, exportDir)
 }

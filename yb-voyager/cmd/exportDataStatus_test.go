@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 func TestExportSnapshotStatusStructures(t *testing.T) {
@@ -28,4 +30,50 @@ func TestExportSnapshotStatusStructures(t *testing.T) {
 	t.Run("Check ExportSnapshotStatus structure", func(t *testing.T) {
 		utils.CompareStructAndReport(t, reflect.TypeOf(ExportSnapshotStatus{}), reflect.TypeOf(expectedExportSnapshotStatus), "ExportSnapshotStatus")
 	})
+}
+
+func TestExportSnapshotStatusJSONDiff(t *testing.T) {
+	// Create a table list of type []sqlname.NameTuple
+	o1 := sqlname.NewObjectName(POSTGRESQL, "public", "public", "table1")
+	o2 := sqlname.NewObjectName(POSTGRESQL, "public", "schema1", "table2")
+	nameTuple1 := sqlname.NameTuple{CurrentName: o1, SourceName: o1, TargetName: o1}
+	nameTuple2 := sqlname.NameTuple{CurrentName: o2, SourceName: o2, TargetName: o2}
+	tableList := []sqlname.NameTuple{
+		nameTuple1,
+		nameTuple2,
+	}
+
+	exportDir = "./test_export_dir/"
+
+	// Make export directory
+	err := os.MkdirAll(exportDir+"/metainfo", 0755)
+	if err != nil {
+		t.Fatalf("failed to create export directory: %v", err)
+	}
+
+	// Call initializeExportTableMetadata to create the export_snapshot_status.json file
+	initializeExportTableMetadata(tableList)
+
+	expectedExportSnapshotStatusJSON := `{
+  "tables": {
+    "public.\"table1\"": {
+      "table_name": "public.\"table1\"",
+      "file_name": "",
+      "status": "NOT-STARTED",
+      "exported_row_count_snapshot": 0
+    },
+    "schema1.\"table2\"": {
+      "table_name": "schema1.\"table2\"",
+      "file_name": "",
+      "status": "NOT-STARTED",
+      "exported_row_count_snapshot": 0
+    }
+  }
+}`
+
+	// Compare the JSON representation of the sample ExportSnapshotStatus instance
+	utils.CompareJson(t, exportDir+"/metainfo/export_snapshot_status.json", expectedExportSnapshotStatusJSON, exportDir)
+
+	// Clean up the export directory
+	err = os.RemoveAll(exportDir)
 }
