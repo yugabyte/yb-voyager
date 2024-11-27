@@ -32,6 +32,7 @@ var supportedYBVersionStableSeries = []string{SERIES_2024_1}
 var supportedYBVersionPreviewSeries = []string{SERIES_2_21, SERIES_2_23}
 
 var allSupportedYBVersionSeries = lo.Flatten([][]string{supportedYBVersionStableSeries, supportedYBVersionPreviewSeries, supportedYBVersionStableSeriesOld})
+var ErrUnsupportedSeries = fmt.Errorf("unsupported YB version series. Supported YB version series = %v", allSupportedYBVersionSeries)
 
 const (
 	STABLE     = "stable"
@@ -58,11 +59,11 @@ func NewYBVersion(v string) (*YBVersion, error) {
 	ybv := &YBVersion{v1}
 	origSegLen := ybv.OriginalSegmentsLen()
 	if origSegLen != 4 {
-		return nil, fmt.Errorf("invalid YB version: %s. Version should have exactly 4 segments (A.B.C.D). Version %s has ybv.originalSegmentsLen()", v, v)
+		return nil, fmt.Errorf("invalid YB version: %s. It has %d segments. Version should have exactly 4 segments (A.B.C.D).", v, origSegLen)
 	}
 
 	if !slices.Contains(allSupportedYBVersionSeries, ybv.Series()) {
-		return nil, fmt.Errorf("unsupported YB version series: %s. Supported YB version series = %v", ybv.Series(), allSupportedYBVersionSeries)
+		return nil, ErrUnsupportedSeries
 	}
 	return ybv, nil
 }

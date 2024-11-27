@@ -2317,7 +2317,10 @@ var analyzeSchemaCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validOutputFormats := []string{"html", "json", "txt", "xml"}
 		validateReportOutputFormat(validOutputFormats, analyzeSchemaReportFormat)
-		validateAndSetTargetDbVersionFlag()
+		err := validateAndSetTargetDbVersionFlag()
+		if err != nil {
+			utils.ErrExit("%v", err)
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {

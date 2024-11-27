@@ -21,6 +21,7 @@ import (
 	_ "embed"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -82,7 +83,10 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
-		validateAndSetTargetDbVersionFlag()
+		err := validateAndSetTargetDbVersionFlag()
+		if err != nil {
+			utils.ErrExit("%v", err)
+		}
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
 			for _, f := range sourceConnectionFlags {
@@ -1407,15 +1411,26 @@ func validateAssessmentMetadataDirFlag() {
 	}
 }
 
-func validateAndSetTargetDbVersionFlag() {
+func validateAndSetTargetDbVersionFlag() error {
 	if targetDbVersionStrFlag == "" {
 		targetDbVersion = version.LatestStable
 		utils.PrintAndLog("Defaulting to latest stable YugabyteDB version: %s", targetDbVersion)
+		return nil
+	}
+	var err error
+	targetDbVersion, err = version.NewYBVersion(targetDbVersionStrFlag)
+
+	if !errors.Is(err, version.ErrUnsupportedSeries) {
+		return err
+	}
+
+	// error is ErrUnsupportedSeries
+	utils.PrintAndLog("%v", err)
+	if utils.AskPrompt("Do you want to continue with the latest stable YugabyteDB version:", version.LatestStable.String()) {
+		targetDbVersion = version.LatestStable
+		return nil
 	} else {
-		var err error
-		targetDbVersion, err = version.NewYBVersion(targetDbVersionStrFlag)
-		if err != nil {
-			utils.ErrExit("invalid target-db-version: %q. %v", targetDbVersionStrFlag, err)
-		}
+		utils.ErrExit("Aborting..")
+		return nil
 	}
 }
