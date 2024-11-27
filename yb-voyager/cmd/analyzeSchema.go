@@ -265,6 +265,12 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 		issue.DocsLink = docsLink
 	}
 
+	// just for testing
+	issue.MinimumVersionsFixedIn = map[string]*version.YBVersion{
+		version.SERIES_2024_1: version.V2024_1_4_0,
+		version.SERIES_2_23:   version.V2_23_5_0,
+	}
+
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
 
@@ -2078,7 +2084,8 @@ var funcMap = template.FuncMap{
 		}
 		return total
 	},
-	"split": split,
+	"split":                     split,
+	"getSupportedVersionString": getSupportedVersionString,
 }
 
 // add info to the 'reportStruct' variable and return
@@ -2132,6 +2139,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
+	schemaAnalysisReport.TargetDBVersion = targetDbVersion
 	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaAnalysisReport
 }
