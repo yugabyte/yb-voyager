@@ -231,7 +231,7 @@ func SizingAssessment() error {
 	}
 
 	// calculate time taken for colocated import
-	importTimeForColocatedObjects, parallelVoyagerJobsColocated, err := calculateTimeTakenAndParallelJobsForImport(
+	importTimeForColocatedObjects, _, err := calculateTimeTakenAndParallelJobsForImport(
 		finalSizingRecommendation.ColocatedTables, sourceIndexMetadata, colocatedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED)
 	if err != nil {
@@ -240,7 +240,7 @@ func SizingAssessment() error {
 	}
 
 	// calculate time taken for sharded import
-	importTimeForShardedObjects, parallelVoyagerJobsSharded, err := calculateTimeTakenAndParallelJobsForImport(
+	importTimeForShardedObjects, _, err := calculateTimeTakenAndParallelJobsForImport(
 		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED)
 	if err != nil {
@@ -258,9 +258,9 @@ func SizingAssessment() error {
 		NumNodes:                        finalSizingRecommendation.NumNodes,
 		OptimalSelectConnectionsPerNode: finalSizingRecommendation.OptimalSelectConnectionsPerNode,
 		OptimalInsertConnectionsPerNode: finalSizingRecommendation.OptimalInsertConnectionsPerNode,
-		ParallelVoyagerJobs:             math.Min(float64(parallelVoyagerJobsColocated), float64(parallelVoyagerJobsSharded)),
-		ColocatedReasoning:              reasoning,
-		EstimatedTimeInMinForImport:     importTimeForColocatedObjects + importTimeForShardedObjects,
+		//ParallelVoyagerJobs:             math.Min(float64(parallelVoyagerJobsColocated), float64(parallelVoyagerJobsSharded)),
+		ColocatedReasoning:          reasoning,
+		EstimatedTimeInMinForImport: importTimeForColocatedObjects + importTimeForShardedObjects,
 	}
 	SizingReport.SizingRecommendation = *sizingRecommendation
 
