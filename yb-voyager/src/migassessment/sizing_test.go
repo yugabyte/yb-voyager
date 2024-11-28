@@ -913,9 +913,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			rowCount: sql.NullFloat64{Float64: 100000},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			rowCount: sql.NullFloat64{Float64: 100000},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact
@@ -959,9 +961,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1461},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 2009},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 
@@ -1014,9 +1018,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1461},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 2009},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	//TODO: modify index impact with actual colocated data when it is available and adjust the calculations
@@ -1060,9 +1066,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 	shardedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact
@@ -1104,9 +1112,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 	shardedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	indexImpacts := []ExpDataLoadTimeIndexImpact{
@@ -1156,9 +1166,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 	shardedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 
@@ -1204,9 +1216,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact // doesn't have any impact as there are no indexes
@@ -1248,9 +1262,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact // doesn't have any impact as there are no indexes
@@ -1297,9 +1313,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact // doesn't have any impact as there are no indexes
@@ -1347,9 +1365,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 	colocatedLoadTimes := []ExpDataLoadTime{
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 19}, migrationTimeSecs: sql.NullFloat64{Float64: 1134},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 		{
 			csvSizeGB: sql.NullFloat64{Float64: 29}, migrationTimeSecs: sql.NullFloat64{Float64: 1657},
+			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact // doesn't have any impact as there are no indexes
