@@ -103,6 +103,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 	viewNode, isViewStmt := getCreateViewNode(parseTree)
 	createAsNode, _ := getCreateTableAsStmtNode(parseTree)
 	createTableNode, isCreateTable := getCreateTableStmtNode(parseTree)
+	createIndexNode, isCreateIndex := getCreateIndexStmtNode(parseTree)
 	switch true {
 	case isCreateFunc:
 		/*
@@ -132,9 +133,21 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		tableName := createTableNode.CreateStmt.Relation.Relname
 		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
 		return "TABLE", fullyQualifiedName
+	case isCreateIndex:
+		indexName := createIndexNode.IndexStmt.Idxname
+		schemaName := createIndexNode.IndexStmt.Relation.GetSchemaname()
+		tableName := createIndexNode.IndexStmt.Relation.GetRelname()
+		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+		displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
+		return "INDEX", displayObjName
 	default:
 		panic("unsupported type of parseResult")
 	}
+}
+
+func GetIndexAccessMethod(parseTree *pg_query.ParseResult) string {
+	indexNode, _ := getCreateIndexStmtNode(parseTree)
+	return indexNode.IndexStmt.AccessMethod
 }
 
 // Range Var is the struct to get the relation information like relation name, schema name, persisted relation or not, etc..
@@ -176,6 +189,16 @@ func getCreateTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_Cre
 	return node, ok
 }
 
+func getCreateIndexStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_IndexStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
+	return node, ok
+}
+
+func IsCreateIndex(parseTree *pg_query.ParseResult) bool {
+	_, isCreateIndex := getCreateIndexStmtNode(parseTree)
+	return isCreateIndex
+}
+
 func IsCreateTable(parseTree *pg_query.ParseResult) bool {
 	_, IsCreateTable := getCreateTableStmtNode(parseTree)
 	return IsCreateTable
@@ -197,4 +220,17 @@ func GetGeneratedColumns(parseTree *pg_query.ParseResult) []string {
 		}
 	}
 	return generatedColumns
+}
+
+func IsUnloggedTable(parseTree *pg_query.ParseResult) bool {
+	createTableNode, _ := getCreateTableStmtNode(parseTree)
+	/*
+		e.g CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
+		stmt:{create_stmt:{relation:{schemaname:"public" relname:"tbl_unlogged" inh:true relpersistence:"u" location:19}
+		table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}
+		typemod:-1 location:54} is_local:true location:51}} table_elts:{column_def:{colname:"val" type_name:{names:{string:{sval:"text"}}
+		typemod:-1 location:93} is_local:true location:89}} oncommit:ONCOMMIT_NOOP}} stmt_len:99
+		here, relpersistence is the information about the persistence of this table where u-> unlogged, p->persistent, t->temporary tables
+	*/
+	return createTableNode.CreateStmt.Relation.GetRelpersistence() == "u" 
 }

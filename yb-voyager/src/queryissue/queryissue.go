@@ -18,7 +18,7 @@ package queryissue
 
 import (
 	"fmt"
-	"strings"
+	"slices"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -88,6 +88,7 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 			i.ObjectType = objType
 			i.ObjectName = objName
+			i.Details["IS_PLPGSQL_ISSUE"] = true
 			return i
 		}), nil
 	}
@@ -107,6 +108,7 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 			i.ObjectType = objType
 			i.ObjectName = objName
+			i.Details["IS_PLPGSQL_ISSUE"] = true
 			return i
 		}), nil
 
@@ -136,15 +138,27 @@ func (p *ParserIssueDetector) GetDDLIssues(query string) ([]issue.IssueInstance,
 		//GENERATED COLUMNS
 		generatedColumns := queryparser.GetGeneratedColumns(parseTree)
 		if len(generatedColumns) > 0 {
-			issues = append(issues, issue.NewGeneratedColumnsIssue(objType, objName, query, map[string]interface{}{
-				"Generated_Columns": strings.Join(generatedColumns, ","),
-			}))
+			issues = append(issues, issue.NewGeneratedColumnsIssue(objType, objName, query, generatedColumns))
+		}
+
+		if queryparser.IsUnloggedTable(parseTree) {
+			issues = append(issues, issue.NewUnloggedTableIssue(objType, objName, query))
+		}
+	}
+
+	if queryparser.IsCreateIndex(parseTree) {
+		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+
+		indexAccessMethod := queryparser.GetIndexAccessMethod(parseTree)
+		if slices.Contains(UnsupportedIndexMethods, indexAccessMethod) {
+			issues = append(issues, issue.NewUnsupportedIndexMethodIssue(objType, objName, query, indexAccessMethod))
 		}
 
 	}
 
 	return issues, nil
 }
+
 
 func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)

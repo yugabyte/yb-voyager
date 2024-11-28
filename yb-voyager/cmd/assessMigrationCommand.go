@@ -921,7 +921,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	for _, indexMethod := range unsupportedIndexMethods {
+	for _, indexMethod := range queryissue.UnsupportedIndexMethods {
 		displayIndexMethod := strings.ToUpper(indexMethod)
 		feature := fmt.Sprintf("%s indexes", displayIndexMethod)
 		reason := fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, displayIndexMethod)

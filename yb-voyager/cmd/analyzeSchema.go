@@ -396,13 +396,11 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if objType == TABLE && isCreateTable {
 			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
-			// reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
 			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 			reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode, sqlStmtInfo, fpath)
-			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
 		if isAlterTable {
 			reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode, sqlStmtInfo, fpath)
@@ -412,7 +410,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportDeferrableConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
 		}
 		if isCreateIndex {
-			reportIndexMethods(createIndexNode, sqlStmtInfo, fpath)
+			// reportIndexMethods(createIndexNode, sqlStmtInfo, fpath)
 			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
 			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
 			checkGinVariations(createIndexNode, sqlStmtInfo, fpath)
@@ -951,51 +949,6 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 	}
 }
 
-var unsupportedIndexMethods = []string{
-	"gist",
-	"brin",
-	"spgist",
-}
-
-func reportIndexMethods(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
-	indexMethod := createIndexNode.IndexStmt.AccessMethod
-
-	if !slices.Contains(unsupportedIndexMethods, indexMethod) {
-		return
-	}
-
-	indexName := createIndexNode.IndexStmt.GetIdxname()
-	relName := createIndexNode.IndexStmt.GetRelation()
-	schemaName := relName.GetSchemaname()
-	tableName := relName.GetRelname()
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
-
-	summaryMap["INDEX"].invalidCount[displayObjName] = true
-
-	reportCase(fpath, fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, strings.ToUpper(indexMethod)),
-		"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", displayObjName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_INDEX_METHODS_DOC_LINK)
-}
-
-func reportUnloggedTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	/*
-		e.g CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
-		stmt:{create_stmt:{relation:{schemaname:"public" relname:"tbl_unlogged" inh:true relpersistence:"u" location:19}
-		table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}
-		typemod:-1 location:54} is_local:true location:51}} table_elts:{column_def:{colname:"val" type_name:{names:{string:{sval:"text"}}
-		typemod:-1 location:93} is_local:true location:89}} oncommit:ONCOMMIT_NOOP}} stmt_len:99
-		here, relpersistence is the information about the persistence of this table where u-> unlogged, p->persistent, t->temporary tables
-	*/
-	if createTableNode.CreateStmt.Relation.GetRelpersistence() == "u" {
-		reportCase(fpath, ISSUE_UNLOGGED_TABLE, "https://github.com/yugabyte/yugabyte-db/issues/1129/",
-			"Remove UNLOGGED keyword to make it work", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt,
-			UNSUPPORTED_FEATURES, UNLOGGED_TABLE_DOC_LINK)
-	}
-}
-
 // Checks Whether there is a GIN index
 /*
 Following type of SQL queries are being taken care of by this function -
@@ -1446,32 +1399,6 @@ func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTabl
 	}
 }
 
-func reportGeneratedStoredColumnTables(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	var generatedColumns []string
-	for _, column := range columns {
-		//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
-		if column.GetColumnDef() != nil {
-			constraints := column.GetColumnDef().Constraints
-			for _, constraint := range constraints {
-				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
-					generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
-				}
-			}
-		}
-	}
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	if len(generatedColumns) > 0 {
-		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-		reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
-			"https://github.com/yugabyte/yugabyte-db/issues/10695",
-			"Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
-			TABLE, fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GENERATED_STORED_COLUMN_DOC_LINK)
-	}
-}
-
 // Checks compatibility of views
 func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
@@ -1737,22 +1664,16 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 		issueType = MIGRATION_CAVEATS
 	case issueInstance.TypeName == UNSUPPORTED_DATATYPE:
 		issueType = UNSUPPORTED_DATATYPES
-	case isDMLIssue:
+	case issueInstance.Details["IS_PLPGSQL_ISSUE"]:
 		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
 	}
-	//TODO: issue TYpe fetching in case of DDL issues in PLPGSQL
-
-	reason := issueInstance.TypeName
-	switch issueInstance.TypeName {
-	case STORED_GENERATED_COLUMN_ISSUE_REASON:
-		reason = reason + fmt.Sprintf(" Generated Columns: (%s)", issueInstance.Details["Generated_Columns"].(string))
-	}
+	//TODO: issue TYpe fetching in case of DDL issues in PLPGSQL - currently using the Details map of the issueInstance to store the issue
 
 	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 	return utils.Issue{
 		ObjectType:   issueInstance.ObjectType,
 		ObjectName:   issueInstance.ObjectName,
-		Reason:       reason,
+		Reason:       issueInstance.TypeName,
 		SqlStatement: issueInstance.SqlStatement,
 		DocsLink:     issueInstance.DocsLink,
 		FilePath:     fileName,
