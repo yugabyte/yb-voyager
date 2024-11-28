@@ -1166,7 +1166,7 @@ const (
 		JOIN pg_namespace n ON e.extnamespace = n.oid
 		WHERE e.extname = 'pg_stat_statements'`
 
-	querySharedPreloadLibraries = `SELECT current_setting('shared_preload_libraries')`
+	queryCheckPgssLoaded = `SELECT query from pg_stat_statements LIMIT 1`
 
 	queryHasReadStatsPermission = `
 		SELECT pg_has_role(current_user, 'pg_read_all_stats', 'USAGE')`
@@ -1195,21 +1195,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 		}
 	}
 
-	// TODO: finalise the approach for detecting shared_preload_libraries
-	// 2. check if its properly installed/loaded
-	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
-	// so trying a best effort here, if accessible then check otherwise it will fail during the gather metadata
-	// var sharedPreloadLibraries string
-	// err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
-	// if err != nil {
-	// 	log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %v", err)
-	// } else {
-	// 	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
-	// 		return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
-	// 	}
-	// }
-
-	// 3. User has permission to read from pg_stat_statements table
+	// 2. User has permission to read from pg_stat_statements table
 	var hasReadAllStats bool
 	err = pg.db.QueryRow(queryHasReadStatsPermission).Scan(&hasReadAllStats)
 	if err != nil {
@@ -1218,6 +1204,14 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 
 	if !hasReadAllStats {
 		return "User doesn't have permissions to read pg_stat_statements view, unsupported query constructs won't be detected/reported", nil
+	}
+
+	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
+	// so instead of getting current_settings(), executing SELECT query on pg_stat_statements view
+	// 3. check if its properly installed/loaded without any extra permissions
+	_, err = pg.db.Exec(queryCheckPgssLoaded)
+	if err != nil && strings.Contains(err.Error(), "pg_stat_statements must be loaded via shared_preload_libraries") {
+		return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
 	}
 
 	return "", nil
