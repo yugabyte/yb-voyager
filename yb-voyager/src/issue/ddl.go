@@ -64,3 +64,98 @@ func NewUnsupportedIndexMethodIssue(objectType string, objectName string, sqlSta
 	issue.TypeName = fmt.Sprintf(unsupportedIndexMethodIssue.TypeName, strings.ToUpper(indexAccessMethod))
 	return newIssueInstance(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var storageParameterIssue = Issue{
+	Type:       STORAGE_PARAMETER,
+	TypeName:   "Storage parameters are not supported yet.",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/23467",
+	Suggestion: "Remove the storage parameters from the DDL",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+}
+
+func NewStorageParameterIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	details := map[string]interface{}{}
+	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
+	if objectType == "TABLE" {
+		details["INCREASE_INVALID_COUNT"] = false
+	}
+	return newIssueInstance(storageParameterIssue, objectType, objectName, sqlStatement, details)
+}
+
+var setAttributeIssue = Issue{
+	Type:       SET_ATTRIBUTES,
+	TypeName:   "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1124",
+	Suggestion: "Remove it from the exported schema",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-alter-table-ddl-variants-in-source-schema",
+}
+
+func NewSetAttributeIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	details := map[string]interface{}{}
+	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
+	if objectType == "TABLE" {
+		details["INCREASE_INVALID_COUNT"] = false
+	}
+	return newIssueInstance(setAttributeIssue, objectType, objectName, sqlStatement, details)
+}
+
+var clusterOnIssue = Issue{
+	Type:       CLUSTER_ON,
+	TypeName:   "ALTER TABLE CLUSTER not supported yet.",
+	GH:         "https://github.com/YugaByte/yugabyte-db/issues/1124",
+	Suggestion: "Remove it from the exported schema.",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-alter-table-ddl-variants-in-source-schema",
+}
+
+func NewClusterONIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	details := map[string]interface{}{}
+	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
+	if objectType == "TABLE" {
+		details["INCREASE_INVALID_COUNT"] = false
+	}
+	return newIssueInstance(clusterOnIssue, objectType, objectName, sqlStatement, details)
+}
+
+var disableRuleIssue = Issue{
+	Type:       DISABLE_RULE,
+	TypeName:   "ALTER TABLE name DISABLE RULE not supported yet",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1124",
+	Suggestion: "Remove this and the rule '%s' from the exported schema to be not enabled on the table.",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-alter-table-ddl-variants-in-source-schema",
+}
+
+func NewDisableRuleIssue(objectType string, objectName string, sqlStatement string, ruleName string) IssueInstance {
+	details := map[string]interface{}{}
+	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
+	if objectType == "TABLE" {
+		details["INCREASE_INVALID_COUNT"] = false
+	}
+	issue := disableRuleIssue
+	issue.Suggestion = fmt.Sprintf(issue.Suggestion, ruleName)
+	return newIssueInstance(issue, objectType, objectName, sqlStatement, details)
+}
+
+
+var exclusionConstraintIssue = Issue{
+	Type: EXCLUSION_CONSTRAINTS,
+	TypeName: "Exclusion constraint is not supported yet",
+	GH: "https://github.com/yugabyte/yugabyte-db/issues/3944",
+	Suggestion: "Refer docs link for details on possible workaround",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#exclusion-constraints-is-not-supported",
+}
+
+func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	return newIssueInstance(exclusionConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var deferrableConstraintIssue = Issue{
+	Type: DEFERRABLE_CONSTRAINTS,
+	TypeName: "DEFERRABLE constraints not supported yet",
+	GH:"https://github.com/yugabyte/yugabyte-db/issues/1709",
+	Suggestion: "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
+}
+
+func NewDeferrableConstraintIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	return newIssueInstance(deferrableConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

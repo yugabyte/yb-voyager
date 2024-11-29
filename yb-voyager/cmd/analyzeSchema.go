@@ -405,13 +405,8 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		if isAlterTable {
 			reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode, sqlStmtInfo, fpath)
 			reportAlterAddPKOnPartition(alterTableNode, sqlStmtInfo, fpath)
-			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
-			reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
-			reportDeferrableConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
 		}
 		if isCreateIndex {
-			// reportIndexMethods(createIndexNode, sqlStmtInfo, fpath)
-			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
 			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
 			checkGinVariations(createIndexNode, sqlStmtInfo, fpath)
 		}
@@ -1301,83 +1296,6 @@ func getColumnNamesFromExclusions(keys []*pg_query.Node) []string {
 	return res
 }
 
-func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
-	indexName := createIndexNode.IndexStmt.GetIdxname()
-	relName := createIndexNode.IndexStmt.GetRelation()
-	schemaName := relName.GetSchemaname()
-	tableName := relName.GetRelname()
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	/*
-		e.g. CREATE INDEX idx on table_name(id) with (fillfactor='70');
-		index_stmt:{idxname:"idx" relation:{relname:"table_name" inh:true relpersistence:"p" location:21} access_method:"btree"
-		index_params:{index_elem:{name:"id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}} ...
-		here again similar to ALTER table Storage parameters options is the high level field in for WITH options.
-	*/
-	if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
-		//YB doesn't support any storage parameters from PG yet refer -
-		//https://docs.yugabyte.com/preview/api/ysql/the-sql-language/statements/ddl_create_table/#storage-parameters-1
-		summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)] = true
-		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
-			"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt, UNSUPPORTED_FEATURES, STORAGE_PARAMETERS_DDL_STMT_DOC_LINK)
-	}
-}
-
-func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string, objType string) {
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	// this will the list of items in the SET (attribute=value, ..)
-	/*
-		e.g. alter table test_1 alter column col1 set (attribute_option=value);
-		cmds:{alter_table_cmd:{subtype:AT_SetOptions name:"col1" def:{list:{items:{def_elem:{defname:"attribute_option"
-		arg:{type_name:{names:{string:{sval:"value"}} typemod:-1 location:263}} defaction:DEFELEM_UNSPEC location:246}}}}...
-		for set attribute issue we will the type of alter setting the options and in the 'def' definition field which has the
-		information of the type, we will check if there is any list which will only present in case there is syntax like <SubTYPE> (...)
-	*/
-	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_SetOptions &&
-		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList().GetItems()) > 0 {
-		reportCase(fpath, ALTER_TABLE_SET_ATTRIBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
-			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
-	}
-
-	/*
-		e.g. alter table test add constraint uk unique(id) with (fillfactor='70');
-		alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_UNIQUE conname:"asd" location:292
-		keys:{string:{sval:"id"}} options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}}...
-		Similarly here we are trying to get the constraint if any and then get the options field which is WITH options
-		in this case only so checking that for this case.
-	*/
-
-	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_AddConstraint &&
-		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
-		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
-			"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, STORAGE_PARAMETERS_DDL_STMT_DOC_LINK)
-	}
-
-	/*
-		e.g. ALTER TABLE example DISABLE example_rule;
-		cmds:{alter_table_cmd:{subtype:AT_DisableRule name:"example_rule" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
-		checking the subType is sufficient in this case
-	*/
-	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
-		ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
-		reportCase(fpath, ALTER_TABLE_DISABLE_RULE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
-			fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
-	}
-	/*
-		e.g. ALTER TABLE example CLUSTER ON idx;
-		stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13}
-		cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
-
-	*/
-	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_ClusterOn {
-		reportCase(fpath, ALTER_TABLE_CLUSTER_ON_ISSUE,
-			"https://github.com/YugaByte/yugabyte-db/issues/1124", "Remove it from the exported schema.", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
-	}
-
-}
-
 func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
 
 	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
@@ -1668,8 +1586,13 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
 	}
 	//TODO: issue TYpe fetching in case of DDL issues in PLPGSQL - currently using the Details map of the issueInstance to store the issue
+	
+	//TODO: how to different between same issue on differnt obejct types like ALTER/INDEX for not adding it ot invalid count map
+	increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"] 
+	if !ok || (increaseInvalidCount.(bool)) {
+		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	}
 
-	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 	return utils.Issue{
 		ObjectType:   issueInstance.ObjectType,
 		ObjectName:   issueInstance.ObjectName,
