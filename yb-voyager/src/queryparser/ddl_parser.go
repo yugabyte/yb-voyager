@@ -42,6 +42,28 @@ func NewTableParser() *TableParser {
 	return &TableParser{}
 }
 
+/*
+e.g. In case if PRIMARY KEY is included in column definition
+
+	 CREATE TABLE example2 (
+	 	id numeric NOT NULL PRIMARY KEY,
+		country_code varchar(3),
+		record_type varchar(5)
+
+) PARTITION BY RANGE (country_code, record_type) ;
+stmts:{stmt:{create_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:193}  table_elts:{column_def:{colname:"id"
+type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  typemod:-1  location:208}  is_local:true
+constraints:{constraint:{contype:CONSTR_NOTNULL  location:216}}  constraints:{constraint:{contype:CONSTR_PRIMARY  location:225}}
+location:205}}  ...  partspec:{strategy:PARTITION_STRATEGY_RANGE
+part_params:{partition_elem:{name:"country_code"  location:310}}  part_params:{partition_elem:{name:"record_type"  location:324}}
+location:290}  oncommit:ONCOMMIT_NOOP}}  stmt_location:178  stmt_len:159}
+
+In case if PRIMARY KEY in column list CREATE TABLE example1 (..., PRIMARY KEY(id,country_code) ) PARTITION BY RANGE (country_code, record_type);
+stmts:{stmt:{create_stmt:{relation:{relname:"example1"  inh:true  relpersistence:"p"  location:15}  table_elts:{column_def:{colname:"id"
+type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  ... table_elts:{constraint:{contype:CONSTR_PRIMARY
+location:98  keys:{string:{sval:"id"}} keys:{string:{sval:"country_code"}}}}  partspec:{strategy:PARTITION_STRATEGY_RANGE
+part_params:{partition_elem:{name:"country_code" location:150}}  part_params:{partition_elem:{name:"record_type"  ...
+*/
 func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	createTableNode, ok := getCreateTableStmtNode(parseTree)
 	if !ok {
@@ -55,6 +77,7 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 		IsPartitioned:    createTableNode.CreateStmt.GetPartspec() != nil,
 		GeneratedColumns: make([]string, 0),
 		Constraints:      make([]TableConstraint, 0),
+		PartitionColumns: make([]string, 0),
 	}
 
 	// Parse columns and their properties
@@ -109,6 +132,20 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 			conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
 			tableConstraint.ConstraintName = conName
 			table.Constraints = append(table.Constraints, tableConstraint)
+		}
+	}
+
+	if table.IsPartitioned {
+
+		partitionElements := createTableNode.CreateStmt.GetPartspec().GetPartParams()
+		table.PartitionStrategy = createTableNode.CreateStmt.GetPartspec().GetStrategy()
+
+		for _, partElem := range partitionElements {
+			if partElem.GetPartitionElem().GetExpr() != nil {
+				table.IsExpressionPartition = true
+			} else {
+				table.PartitionColumns = append(table.PartitionColumns, partElem.GetPartitionElem().GetName())
+			}
 		}
 	}
 
@@ -313,12 +350,15 @@ func (t *TriggerParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error
 
 // DDL Objects
 type Table struct {
-	SchemaName       string
-	TableName        string
-	IsUnlogged       bool
-	IsPartitioned    bool
-	GeneratedColumns []string
-	Constraints      []TableConstraint
+	SchemaName            string
+	TableName             string
+	IsUnlogged            bool
+	IsPartitioned         bool
+	IsExpressionPartition bool
+	PartitionStrategy     pg_query.PartitionStrategy
+	PartitionColumns      []string
+	GeneratedColumns      []string
+	Constraints           []TableConstraint
 }
 
 type TableConstraint struct {
@@ -351,6 +391,25 @@ func (t *Table) GetObjectName() string {
 	return qualifiedTable
 }
 func (t *Table) GetSchemaName() string { return t.SchemaName }
+
+func (t *Table) PrimaryKeyColumns() []string {
+	for _, c := range t.Constraints {
+		if c.ConstraintType == PRIMARY_CONSTR_TYPE {
+			return c.Columns
+		}
+	}
+	return []string{}
+}
+
+func (t *Table) UniqueKeyColumns() []string {
+	uniqueCols := make([]string, 0)
+	for _, c := range t.Constraints {
+		if c.ConstraintType == UNIQUE_CONSTR_TYPE {
+			uniqueCols = append(uniqueCols, c.Columns...)
+		}
+	}
+	return uniqueCols
+}
 
 type Index struct {
 	SchemaName        string
@@ -502,6 +561,8 @@ const (
 	FOREIGN_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_FOREIGN
 	DEFAULT_SORTING_ORDER = pg_query.SortByDir_SORTBY_DEFAULT
 	PRIMARY_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_PRIMARY
+	UNIQUE_CONSTR_TYPE    = pg_query.ConstrType_CONSTR_UNIQUE
+	LIST_PARTITION        = pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST
 )
 
 var deferrableConstraintsList = []pg_query.ConstrType{

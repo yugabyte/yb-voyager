@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/samber/lo"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 )
@@ -85,6 +87,52 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 					"",
 				))
 			}
+		}
+	}
+
+	if table.IsPartitioned {
+
+        /*
+        1. Adding PK to Partitioned  Table (in cases where ALTER is before create)
+        2. Expression partitions are not allowed if PK/UNIQUE columns are there is table
+        3. List partition strategy is not allowed with multi-column partitions.
+        4. Partition columns should all be included in Primary key set if any on table.
+        */
+		alterAddPk := d.primaryConsInAlter[table.GetObjectName()]
+		if alterAddPk != nil {
+			issues = append(issues, issue.NewAlterTableAddPKOnPartiionIssue(
+				issue.TABLE_OBJECT_TYPE,
+				table.GetObjectName(),
+				alterAddPk.Query,
+			))
+		}
+		primaryKeyColumns := table.PrimaryKeyColumns()
+		uniqueKeyColumns := table.UniqueKeyColumns()
+
+		if table.IsExpressionPartition && (len(primaryKeyColumns) > 0 || len(uniqueKeyColumns) > 0) {
+			issues = append(issues, issue.NewExpressionPartitionIssue(
+				issue.TABLE_OBJECT_TYPE,
+				table.GetObjectName(),
+				"",
+			))
+		}
+
+		if table.PartitionStrategy == queryparser.LIST_PARTITION &&
+			len(table.PartitionColumns) > 1 {
+			issues = append(issues, issue.NewMultiColumnListPartition(
+				issue.TABLE_OBJECT_TYPE,
+				table.GetObjectName(),
+				"",
+			))
+		}
+		partitionColumnsNotInPK, _ := lo.Difference(table.PartitionColumns, primaryKeyColumns)
+		if len(primaryKeyColumns) > 0 && len(partitionColumnsNotInPK) > 0 {
+			issues = append(issues, issue.NewInsufficientColumnInPKForPartition(
+				issue.TABLE_OBJECT_TYPE,
+				table.GetObjectName(),
+				"",
+				partitionColumnsNotInPK,
+			))
 		}
 	}
 
@@ -166,10 +214,12 @@ type AlterTableIssueDetector struct {
 }
 
 func (p *ParserIssueDetector) NewAlterTableIssueDetector() *AlterTableIssueDetector {
-	return &AlterTableIssueDetector{}
+	return &AlterTableIssueDetector{
+		partitionTablesMap: p.partitionTablesMap,
+	}
 }
 
-func (d *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
 	alter, ok := obj.(*queryparser.AlterTable)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected AlterTable")
@@ -205,6 +255,15 @@ func (d *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]iss
 			issues = append(issues, issue.NewDeferrableConstraintIssue(
 				issue.TABLE_OBJECT_TYPE,
 				fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
+				"",
+			))
+		}
+
+		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&
+			aid.partitionTablesMap[alter.GetObjectName()] {
+			issues = append(issues, issue.NewAlterTableAddPKOnPartiionIssue(
+				issue.TABLE_OBJECT_TYPE,
+				alter.GetObjectName(),
 				"",
 			))
 		}
@@ -283,7 +342,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issu
 			"",
 		))
 	}
-    
+
 	if trigger.IsBeforeRowTrigger() && tid.partitionTablesMap[trigger.GetTableName()] {
 		issues = append(issues, issue.NewBeforeRowOnPartitionTableIssue(
 			issue.TRIGGER_OBJECT_TYPE,

@@ -413,14 +413,12 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
 
 		if objType == TABLE && isCreateTable {
-			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
 			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 			reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode, sqlStmtInfo, fpath)
 		}
 		if isAlterTable {
 			reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode, sqlStmtInfo, fpath)
-			reportAlterAddPKOnPartition(alterTableNode, sqlStmtInfo, fpath)
 		}
 		if isCreateIndex {
 			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
@@ -463,140 +461,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			enumTypes = append(enumTypes, fullTypeName)
 		}
 	}
-}
-
-func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-
-	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	/*
-			e.g.
-			ALTER TABLE example2
-		 		ADD CONSTRAINT example2_pkey PRIMARY KEY (id);
-			tmts:{stmt:{alter_table_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:693}
-			cmds:{alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_PRIMARY  conname:"example2_pkey"
-			location:710  keys:{string:{sval:"id"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}  stmt_location:679  stmt_len:72}
-
-	*/
-
-	constraint := alterCmd.GetDef().GetConstraint()
-
-	if constraint != nil && constraint.Contype == pg_query.ConstrType_CONSTR_PRIMARY {
-		if partitionTablesMap[fullyQualifiedName] {
-			reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-				"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
-		} else {
-			primaryConsInAlter[fullyQualifiedName] = &sqlStmtInfo
-		}
-	}
-}
-
-/*
-This functions reports multiple issues -
-1. Adding PK to Partitioned  Table (in cases where ALTER is before create)
-2. Expression partitions are not allowed if PK/UNIQUE columns are there is table
-3. List partition strategy is not allowed with multi-column partitions.
-4. Partition columns should all be included in Primary key set if any on table.
-*/
-func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-
-	/*
-		e.g. In case if PRIMARY KEY is included in column definition
-		 CREATE TABLE example2 (
-		 	id numeric NOT NULL PRIMARY KEY,
-			country_code varchar(3),
-			record_type varchar(5)
-		) PARTITION BY RANGE (country_code, record_type) ;
-		stmts:{stmt:{create_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:193}  table_elts:{column_def:{colname:"id"
-		type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  typemod:-1  location:208}  is_local:true
-		constraints:{constraint:{contype:CONSTR_NOTNULL  location:216}}  constraints:{constraint:{contype:CONSTR_PRIMARY  location:225}}
-		location:205}}  ...  partspec:{strategy:PARTITION_STRATEGY_RANGE
-		part_params:{partition_elem:{name:"country_code"  location:310}}  part_params:{partition_elem:{name:"record_type"  location:324}}
-		location:290}  oncommit:ONCOMMIT_NOOP}}  stmt_location:178  stmt_len:159}
-
-		In case if PRIMARY KEY in column list CREATE TABLE example1 (..., PRIMARY KEY(id,country_code) ) PARTITION BY RANGE (country_code, record_type);
-		stmts:{stmt:{create_stmt:{relation:{relname:"example1"  inh:true  relpersistence:"p"  location:15}  table_elts:{column_def:{colname:"id"
-		type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  ... table_elts:{constraint:{contype:CONSTR_PRIMARY
-		location:98  keys:{string:{sval:"id"}} keys:{string:{sval:"country_code"}}}}  partspec:{strategy:PARTITION_STRATEGY_RANGE
-		part_params:{partition_elem:{name:"country_code" location:150}}  part_params:{partition_elem:{name:"record_type"  ...
-	*/
-	if createTableNode.CreateStmt.GetPartspec() == nil {
-		//If not partition table then no need to proceed
-		return
-	}
-
-	if primaryConsInAlter[fullyQualifiedName] != nil {
-		//reporting the ALTER TABLE ADD PK on partition table here in case the order is different if ALTER is before the CREATE
-		alterTableSqlInfo := primaryConsInAlter[fullyQualifiedName]
-		reportCase(alterTableSqlInfo.fileName, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-			"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, alterTableSqlInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
-	}
-
-	partitionTablesMap[fullyQualifiedName] = true // marking the partition tables in the map
-
-	var primaryKeyColumns, partitionColumns, uniqueKeyColumns []string
-
-	for _, column := range columns {
-		if column.GetColumnDef() != nil { //In case PRIMARY KEY constraint is added with column definition
-			constraints := column.GetColumnDef().Constraints
-			for _, constraint := range constraints {
-				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_PRIMARY {
-					primaryKeyColumns = []string{column.GetColumnDef().Colname}
-				}
-				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_UNIQUE {
-					uniqueKeyColumns = append(uniqueKeyColumns, column.GetColumnDef().Colname)
-				}
-			}
-		} else if column.GetConstraint() != nil {
-			//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
-			for _, key := range column.GetConstraint().GetKeys() {
-				if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_PRIMARY {
-					primaryKeyColumns = append(primaryKeyColumns, key.GetString_().Sval)
-				} else if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_UNIQUE {
-					uniqueKeyColumns = append(uniqueKeyColumns, key.GetString_().Sval)
-				}
-			}
-		}
-	}
-
-	partitionElements := createTableNode.CreateStmt.GetPartspec().GetPartParams()
-
-	for _, partElem := range partitionElements {
-		if partElem.GetPartitionElem().GetExpr() != nil {
-			//Expression partitions
-			if len(primaryKeyColumns) > 0 || len(uniqueKeyColumns) > 0 {
-				summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-				reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
-					"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXPRESSION_PARTIITON_DOC_LINK)
-			}
-		} else {
-			partitionColumns = append(partitionColumns, partElem.GetPartitionElem().GetName())
-		}
-	}
-
-	if len(partitionColumns) > 1 && createTableNode.CreateStmt.GetPartspec().GetStrategy() == pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST {
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
-			"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, LIST_PARTIION_MULTI_COLUMN_DOC_LINK)
-	}
-
-	if len(primaryKeyColumns) == 0 { // no need to report in case of non-PK tables
-		return
-	}
-
-	partitionColumnsNotInPK, _ := lo.Difference(partitionColumns, primaryKeyColumns)
-	if len(partitionColumnsNotInPK) > 0 {
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, fmt.Sprintf("%s - (%s)", INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION, strings.Join(partitionColumnsNotInPK, ", ")),
-			"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, PARTITION_KEY_NOT_PK_DOC_LINK)
-	}
-
 }
 
 // Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)

@@ -24,6 +24,8 @@ import (
 const (
 	DOCS_LINK_PREFIX  = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"
 	POSTGRESQL_PREFIX = "postgresql/"
+	MYSQL_PREFIX      = "mysql/"
+	ORACLE_PREFIX     = "oracle/"
 )
 
 var generatedColumnsIssue = Issue{
@@ -49,7 +51,12 @@ var unloggedTableIssue = Issue{
 }
 
 func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(unloggedTableIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	details := map[string]interface{}{}
+	//for UNLOGGED TABLE as its not reported in the TABLE objects
+	if objectType == "TABLE" {
+		details["INCREASE_INVALID_COUNT"] = false
+	}
+	return newIssueInstance(unloggedTableIssue, objectType, objectName, sqlStatement, details)
 }
 
 var unsupportedIndexMethodIssue = Issue{
@@ -203,7 +210,12 @@ var constraintTriggerIssue = Issue{
 }
 
 func NewConstraintTriggerIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
-	return newIssueInstance(constraintTriggerIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	details := map[string]interface{}{}
+	//for CONSTRAINT TRIGGER we don't have separate object
+	if objectType == "TRIGGER" {
+		details["INCREASE_INVALID_COUNT"] = false
+	}
+	return newIssueInstance(constraintTriggerIssue, objectType, objectName, SqlStatement, details)
 }
 
 var referencingClauseInTriggerIssue = Issue{
@@ -227,4 +239,58 @@ var beforeRowTriggerOnPartitionTableIssue = Issue{
 
 func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
 	return newIssueInstance(beforeRowTriggerOnPartitionTableIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var alterTableAddPKOnPartitionIssue = Issue{
+	Type:     ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
+	TypeName: "Adding primary key to a partitioned table is not supported yet.",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#adding-primary-key-to-a-partitioned-table-results-in-an-error",
+	GH:       "https://github.com/yugabyte/yugabyte-db/issues/10074",
+}
+
+func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
+	details := map[string]interface{}{}
+	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
+	if objectType == "TABLE" {
+		details["INCREASE_INVALID_COUNT"] = false
+	}
+	return newIssueInstance(alterTableAddPKOnPartitionIssue, objectType, objectName, SqlStatement, details)
+}
+
+var expressionPartitionIssue = Issue{
+	Type:       EXPRESSION_PARTITION_WITH_PK_UK,
+	TypeName:   "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
+	Suggestion: "Remove the Constriant from the table definition",
+	GH:         "https://github.com/yugabyte/yb-voyager/issues/698",
+	DocsLink:   DOCS_LINK_PREFIX + MYSQL_PREFIX + "#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
+}
+
+func NewExpressionPartitionIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
+	return newIssueInstance(expressionPartitionIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var multiColumnListPartition = Issue{
+	Type:       MULTI_COLUMN_LIST_PARTITION,
+	TypeName:   `cannot use "list" partition strategy with more than one column`,
+	Suggestion: "Make it a single column partition by list or choose other supported Partitioning methods",
+	GH:         "https://github.com/yugabyte/yb-voyager/issues/699",
+	DocsLink:   DOCS_LINK_PREFIX + MYSQL_PREFIX + "#multi-column-partition-by-list-is-not-supported",
+}
+
+func NewMultiColumnListPartition(objectType string, objectName string, SqlStatement string) IssueInstance {
+	return newIssueInstance(multiColumnListPartition, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var insufficientColumnsInPKForPartition = Issue{
+	Type:       INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION,
+	TypeName:   "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+	Suggestion: "Add all Partition columns to Primary Key",
+	GH:         "https://github.com/yugabyte/yb-voyager/issues/578",
+	DocsLink:   DOCS_LINK_PREFIX + ORACLE_PREFIX + "#partition-key-column-not-part-of-primary-key-columns",
+}
+
+func NewInsufficientColumnInPKForPartition(objectType string, objectName string, SqlStatement string, partitionColumnsNotInPK []string) IssueInstance {
+	issue := insufficientColumnsInPKForPartition
+	issue.TypeName = fmt.Sprintf("%s - (%s)", issue.TypeName, strings.Join(partitionColumnsNotInPK, ", "))
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
