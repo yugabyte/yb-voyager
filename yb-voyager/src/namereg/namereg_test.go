@@ -629,6 +629,7 @@ func TestNameRegistryJson(t *testing.T) {
 		t.Fatalf("Failed to save NameRegistry to JSON: %v", err)
 	}
 
+	// TODO: Use a single string instead of a slice of strings for the expected JSON
 	expectedJSON := strings.Join([]string{
 		"{",
 		`  "SourceDBType": "oracle",`,
