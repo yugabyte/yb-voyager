@@ -151,6 +151,8 @@ func validateSchema(t *testing.T, db *sql.DB, schema string, expectedTables map[
 			t.Errorf("Missing expected table: %s", expectedTable)
 		}
 	}
+
+	// Check for extra tables
 	for actualTable := range actualTables {
 		if _, found := expectedTables[actualTable]; !found {
 			t.Errorf("Unexpected table found: %s", actualTable)

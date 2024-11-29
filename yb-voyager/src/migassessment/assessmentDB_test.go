@@ -10,7 +10,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func TestAssessmentDB(t *testing.T) {
+func TestInitAssessmentDB(t *testing.T) {
 	expectedTables := map[string]map[string]utils.ColumnProperties{
 		TABLE_INDEX_IOPS: {
 			"schema_name":      {Type: "TEXT", PrimaryKey: 1},

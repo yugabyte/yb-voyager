@@ -8,7 +8,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func TestFileEntryAndDescriptorStructs(t *testing.T) {
+func TestDescriptorStructs(t *testing.T) {
 	// Define the expected structure for FileEntry
 	expectedFileEntry := struct {
 		FilePath  string `json:"FilePath"`
@@ -31,15 +31,15 @@ func TestFileEntryAndDescriptorStructs(t *testing.T) {
 	}{}
 
 	t.Run("Check FileEntry structure", func(t *testing.T) {
-		utils.CompareStructAndReport(t, reflect.TypeOf(FileEntry{}), reflect.TypeOf(expectedFileEntry), "FileEntry")
+		utils.CompareStructs(t, reflect.TypeOf(FileEntry{}), reflect.TypeOf(expectedFileEntry), "FileEntry")
 	})
 
 	t.Run("Check Descriptor structure", func(t *testing.T) {
-		utils.CompareStructAndReport(t, reflect.TypeOf(Descriptor{}), reflect.TypeOf(expectedDescriptor), "Descriptor")
+		utils.CompareStructs(t, reflect.TypeOf(Descriptor{}), reflect.TypeOf(expectedDescriptor), "Descriptor")
 	})
 }
 
-func TestDescriptorJSONDiff(t *testing.T) {
+func TestDescriptorJson(t *testing.T) {
 	// Set up the temporary export directory
 	exportDir := "/tmp/test_export_dir/"
 	outputFilePath := exportDir + DESCRIPTOR_PATH

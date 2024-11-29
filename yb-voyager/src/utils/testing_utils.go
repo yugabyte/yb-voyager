@@ -17,8 +17,8 @@ type ColumnProperties struct {
 	Default    *string // Default value, if any (nil means no default)
 }
 
-// CompareStructAndReport compares two struct types and reports any mismatches.
-func CompareStructAndReport(t *testing.T, actual, expected reflect.Type, structName string) {
+// CompareStructs compares two struct types and reports any mismatches.
+func CompareStructs(t *testing.T, actual, expected reflect.Type, structName string) {
 	if actual.Kind() != reflect.Struct || expected.Kind() != reflect.Struct {
 		t.Fatalf("Both %s and expected type must be structs. There is some breaking change!", structName)
 	}
@@ -65,7 +65,7 @@ func CompareStructAndReport(t *testing.T, actual, expected reflect.Type, structN
 	}
 }
 
-// CompareJsonStructs compares two structs by marshalling them into JSON and reports any differences.
+// CompareJson compares two structs by marshalling them into JSON and reports any differences.
 func CompareJson(t *testing.T, outputFilePath string, expectedJSON string, exportDir string) {
 	// Read the output JSON file
 	outputBytes, err := os.ReadFile(outputFilePath)
@@ -78,7 +78,7 @@ func CompareJson(t *testing.T, outputFilePath string, expectedJSON string, expor
 		t.Errorf("JSON file mismatch (-expected +actual):\n%s", diff)
 	}
 
-	// Optionally, remove the test directory if empty
+	// Remove the test directory
 	if err := os.RemoveAll(exportDir); err != nil {
 		t.Logf("Failed to remove test export directory: %v", err)
 	}

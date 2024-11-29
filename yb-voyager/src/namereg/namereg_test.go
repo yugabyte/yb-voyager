@@ -3,7 +3,9 @@ package namereg
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/samber/lo"
@@ -551,7 +553,9 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	assert.Equal(`SAKILA_FF."TABLE1"`, table1.ForUserQuery())
 }
 
-func TestNameRegistryStructure(t *testing.T) {
+// Unit tests for breaking changes in NameRegistry.
+
+func TestNameRegistryStructs(t *testing.T) {
 	// Define the expected structure for NameRegistryParams
 	expectedNameRegistryParams := struct {
 		FilePath       string
@@ -578,10 +582,84 @@ func TestNameRegistryStructure(t *testing.T) {
 	}{}
 
 	t.Run("Check NameRegistryParams structure", func(t *testing.T) {
-		utils.CompareStructAndReport(t, reflect.TypeOf(NameRegistryParams{}), reflect.TypeOf(expectedNameRegistryParams), "NameRegistryParams")
+		utils.CompareStructs(t, reflect.TypeOf(NameRegistryParams{}), reflect.TypeOf(expectedNameRegistryParams), "NameRegistryParams")
 	})
 
 	t.Run("Check NameRegistry structure", func(t *testing.T) {
-		utils.CompareStructAndReport(t, reflect.TypeOf(NameRegistry{}), reflect.TypeOf(expectedNameRegistry), "NameRegistry")
+		utils.CompareStructs(t, reflect.TypeOf(NameRegistry{}), reflect.TypeOf(expectedNameRegistry), "NameRegistry")
 	})
+}
+
+func TestNameRegistryJson(t *testing.T) {
+	exportDir := "./test_export_dir/"
+	outputFilePath := filepath.Join(exportDir, "test_dummy_name_registry.json")
+
+	// Create a sample NameRegistry instance
+	reg := &NameRegistry{
+		SourceDBType: ORACLE,
+		params: NameRegistryParams{
+			FilePath:       outputFilePath,
+			Role:           TARGET_DB_IMPORTER_ROLE,
+			SourceDBType:   ORACLE,
+			SourceDBSchema: "SAKILA",
+			SourceDBName:   "ORCLPDB1",
+			TargetDBSchema: "ybsakila",
+		},
+		SourceDBSchemaNames:       []string{"SAKILA"},
+		DefaultSourceDBSchemaName: "SAKILA",
+		SourceDBTableNames: map[string][]string{
+			"SAKILA": {"TABLE1", "TABLE2", "MixedCaps", "lower_caps"},
+		},
+		YBSchemaNames:       []string{"ybsakila"},
+		DefaultYBSchemaName: "ybsakila",
+		YBTableNames: map[string][]string{
+			"ybsakila": {"table1", "table2", "mixedcaps", "lower_caps"},
+		},
+		DefaultSourceReplicaDBSchemaName: "SAKILA_FF",
+	}
+
+	// Ensure the export directory exists
+	if err := os.MkdirAll(exportDir, 0755); err != nil {
+		t.Fatalf("Failed to create export directory: %v", err)
+	}
+
+	// Marshal the NameRegistry instance to JSON
+	err := reg.save()
+	if err != nil {
+		t.Fatalf("Failed to save NameRegistry to JSON: %v", err)
+	}
+
+	expectedJSON := strings.Join([]string{
+		"{",
+		`  "SourceDBType": "oracle",`,
+		`  "SourceDBSchemaNames": [`,
+		`    "SAKILA"`,
+		"  ],",
+		`  "DefaultSourceDBSchemaName": "SAKILA",`,
+		`  "SourceDBTableNames": {`,
+		`    "SAKILA": [`,
+		`      "TABLE1",`,
+		`      "TABLE2",`,
+		`      "MixedCaps",`,
+		`      "lower_caps"`,
+		"    ]",
+		"  },",
+		`  "YBSchemaNames": [`,
+		`    "ybsakila"`,
+		"  ],",
+		`  "DefaultYBSchemaName": "ybsakila",`,
+		`  "YBTableNames": {`,
+		`    "ybsakila": [`,
+		`      "table1",`,
+		`      "table2",`,
+		`      "mixedcaps",`,
+		`      "lower_caps"`,
+		"    ]",
+		"  },",
+		`  "DefaultSourceReplicaDBSchemaName": "SAKILA_FF"`,
+		"}",
+	}, "\n")
+
+	// Read the JSON file and compare it with the expected JSON
+	utils.CompareJson(t, outputFilePath, expectedJSON, exportDir)
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func TestExportStatusStructures(t *testing.T) {
+func TestExportStatusStructs(t *testing.T) {
 	// Define the expected structure for TableExportStatus
 	expectedTableExportStatus := struct {
 		Sno                      int    `json:"sno"`
@@ -26,10 +26,16 @@ func TestExportStatusStructures(t *testing.T) {
 	}{}
 
 	t.Run("Check TableExportStatus structure", func(t *testing.T) {
-		utils.CompareStructAndReport(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
+		utils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
 	})
 
 	t.Run("Check ExportStatus structure", func(t *testing.T) {
-		utils.CompareStructAndReport(t, reflect.TypeOf(ExportStatus{}), reflect.TypeOf(expectedExportStatus), "ExportStatus")
+		utils.CompareStructs(t, reflect.TypeOf(ExportStatus{}), reflect.TypeOf(expectedExportStatus), "ExportStatus")
 	})
 }
+
+// TODO: Implement this test
+// The export status json file is created by debezium and currently we dont have infrastructure to test it.
+// To test this we need to create a json file (using dbzm code) and read it back (here) and compare the values.
+// func TestReadExportStatus(t *testing.T) {
+//}

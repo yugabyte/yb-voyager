@@ -9,7 +9,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-func TestExportSnapshotStatusStructures(t *testing.T) {
+func TestExportSnapshotStatusStructs(t *testing.T) {
 	// Define the expected structure for TableExportStatus
 	expectedTableExportStatus := struct {
 		TableName                string `json:"table_name"`
@@ -24,15 +24,15 @@ func TestExportSnapshotStatusStructures(t *testing.T) {
 	}{}
 
 	t.Run("Check TableExportStatus structure", func(t *testing.T) {
-		utils.CompareStructAndReport(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
+		utils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
 	})
 
 	t.Run("Check ExportSnapshotStatus structure", func(t *testing.T) {
-		utils.CompareStructAndReport(t, reflect.TypeOf(ExportSnapshotStatus{}), reflect.TypeOf(expectedExportSnapshotStatus), "ExportSnapshotStatus")
+		utils.CompareStructs(t, reflect.TypeOf(ExportSnapshotStatus{}), reflect.TypeOf(expectedExportSnapshotStatus), "ExportSnapshotStatus")
 	})
 }
 
-func TestExportSnapshotStatusJSONDiff(t *testing.T) {
+func TestExportSnapshotStatusJson(t *testing.T) {
 	// Create a table list of type []sqlname.NameTuple
 	o1 := sqlname.NewObjectName(POSTGRESQL, "public", "public", "table1")
 	o2 := sqlname.NewObjectName(POSTGRESQL, "public", "schema1", "table2")
