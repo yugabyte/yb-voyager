@@ -301,6 +301,6 @@ func TestYugabyteDStructs(t *testing.T) {
 	}{}
 
 	t.Run("Check YugabyteD structure", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(YugabyteD{}), reflect.TypeOf(&expectedYugabyteD), "YugabyteD")
+		utils.CompareStructs(t, reflect.TypeOf(&YugabyteD{}).Elem(), reflect.TypeOf(&expectedYugabyteD).Elem(), "YugabyteD")
 	})
 }
