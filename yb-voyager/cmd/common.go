@@ -476,11 +476,19 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
+
 	msr, err := metaDBInstance.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 
+	msrVoyagerVersionString := msr.VoyagerVersion
+
+	detectVersionCompatibility(msrVoyagerVersionString, migrationExportDir)
+	return metaDBInstance
+}
+
+func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportDir string) {
 	// If the msr VoyagerVersion is less than the PREVIOUS_BREAKING_CHANGE_VERSION, then the export-dir is not compatible with the current Voyager version.
 	// This version will always be a final release version and never "main" or "rc" version.
 	previousBreakingChangeVersion, err := version.NewVersion(utils.PREVIOUS_BREAKING_CHANGE_VERSION)
@@ -490,37 +498,23 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 
 	var versionCheckFailed bool
 
-	if msr.VoyagerVersion == "main" {
+	if msrVoyagerVersionString == "main" {
 		// If the export-dir was created using the main branch, then the current version should also be the main branch.
 		if utils.YB_VOYAGER_VERSION != "main" {
 			versionCheckFailed = true
 		}
-	} else if msr.VoyagerVersion != "" {
-		msrVoyagerVersionString := msr.VoyagerVersion
-		if strings.Contains(msrVoyagerVersionString, "rc") {
-			// RC version will be like 0rc1.1.8.6
-			// We need to extract 1.8.6 from it
-			// Compring with this 1.8.6 should be enough to check if the version is compatible with the current version
-			// Split the string at "rc" to isolate the part after it
-			parts := strings.Split(msrVoyagerVersionString, "rc")
-			if len(parts) > 1 {
-				// Further split the remaining part by '.' and remove the first segment
-				versionParts := strings.Split(parts[1], ".")
-				if len(versionParts) > 1 {
-					msrVoyagerVersionString = strings.Join(versionParts[1:], ".") // Join the parts after the first one
-				} else {
-					log.Printf("Unexpected version format after 'rc': %s", msrVoyagerVersionString)
-					utils.ErrExit("could not extract version from %q", msr.VoyagerVersion)
-				}
-			} else {
-				log.Printf("Unexpected version format: %s", msrVoyagerVersionString)
-				utils.ErrExit("could not extract version from %q", msr.VoyagerVersion)
+	} else if msrVoyagerVersionString != "" {
+		msrVoyagerFinalVersion := msrVoyagerVersionString
+		if strings.Contains(msrVoyagerFinalVersion, "rc") {
+			msrVoyagerFinalVersion, err = utils.GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion)
+			if err != nil {
+				utils.ErrExit("could not get final release version from rc version %q: %v", msrVoyagerFinalVersion, err)
 			}
 		}
 
-		msrVoyagerVersion, err := version.NewVersion(msrVoyagerVersionString)
+		msrVoyagerVersion, err := version.NewVersion(msrVoyagerFinalVersion)
 		if err != nil {
-			utils.ErrExit("could not create version from %q: %v", msr.VoyagerVersion, err)
+			utils.ErrExit("could not create version from %q: %v", msrVoyagerFinalVersion, err)
 		}
 
 		if msrVoyagerVersion.LessThan(previousBreakingChangeVersion) {
@@ -532,8 +526,8 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 		userFacingMsg := fmt.Sprintf("\nThe export-dir %q was created using voyager version %q. "+
 			"However, the current version %q requires the export-dir to be created using version %q or later. "+
 			"Either use a compatible version to continue the migration or start afresh with a new export-dir. ",
-			migrationExportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, utils.PREVIOUS_BREAKING_CHANGE_VERSION)
-		if msr.VoyagerVersion == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
+			migrationExportDir, msrVoyagerVersionString, utils.YB_VOYAGER_VERSION, utils.PREVIOUS_BREAKING_CHANGE_VERSION)
+		if msrVoyagerVersionString == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
 			userFacingMsg = fmt.Sprintf("\nThe export-dir %q was created using older version. "+
 				"However, the current version %q requires the export-dir to be created using version %q or later. "+
 				"Either use a compatible version to continue the migration or start afresh with a new export-dir. ",
@@ -541,8 +535,6 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 		}
 		utils.ErrExit(userFacingMsg)
 	}
-
-	return metaDBInstance
 }
 
 func initAssessmentDB() {
