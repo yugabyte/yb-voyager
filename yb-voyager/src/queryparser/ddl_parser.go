@@ -93,9 +93,22 @@ func (p *IndexParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 		TableName:         indexNode.IndexStmt.Relation.Relname,
 		AccessMethod:      indexNode.IndexStmt.AccessMethod,
 		NumStorageOptions: len(indexNode.IndexStmt.GetOptions()),
+		Params:            p.parseIndexParams(indexNode.IndexStmt.IndexParams),
 	}
 
 	return index, nil
+}
+
+func (p *IndexParser) parseIndexParams(params []*pg_query.Node) []IndexParam {
+    var indexParams []IndexParam
+    for _, i := range params {
+        indexParams = append(indexParams, IndexParam{
+            SortByOrder: i.GetIndexElem().Ordering,
+            Name: i.GetIndexElem().GetName(),
+            //TODO: as per other cases
+        })
+    }
+    return indexParams
 }
 
 // AlterTableParser handles parsing ALTER TABLE statements
@@ -124,20 +137,20 @@ func (p *AlterTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, er
 		alter.NumSetAttributes = len(cmd.GetDef().GetList().GetItems())
 	case pg_query.AlterTableType_AT_AddConstraint:
 		alter.NumStorageOptions = len(cmd.GetDef().GetConstraint().GetOptions())
-        /*
-        e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
-        cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
-        here again same checking the definition of the alter stmt if it has constraint and checking its type
-        */
-        constraint := cmd.GetDef().GetConstraint()
-        alter.ConstraintType = constraint.Contype
-        alter.ConstraintName = constraint.Conname
-        alter.IsDeferrable = constraint.Deferrable
-        
+		/*
+		   e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
+		   cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
+		   here again same checking the definition of the alter stmt if it has constraint and checking its type
+		*/
+		constraint := cmd.GetDef().GetConstraint()
+		alter.ConstraintType = constraint.Contype
+		alter.ConstraintName = constraint.Conname
+		alter.IsDeferrable = constraint.Deferrable
+
 	case pg_query.AlterTableType_AT_DisableRule:
 		alter.RuleName = cmd.Name
 	}
-	
+
 	return alter, nil
 }
 
@@ -161,6 +174,14 @@ type Index struct {
 	TableName         string
 	AccessMethod      string
 	NumStorageOptions int
+	Params            []IndexParam
+}
+
+type IndexParam struct {
+	SortByOrder pg_query.SortByDir
+	Name        string
+	TypeName    string //In case of expression and casting to a type
+	//Add more fields
 }
 
 func (i *Index) GetObjectName() string {
@@ -176,6 +197,7 @@ const (
 	CLUSTER_ON            = pg_query.AlterTableType_AT_ClusterOn
 	EXCLUSION_CONSTR_TYPE = pg_query.ConstrType_CONSTR_EXCLUSION
 	FOREIGN_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_FOREIGN
+    DEFAULT_SORTING_ORDER = pg_query.SortByDir_SORTBY_DEFAULT
 )
 
 type AlterTable struct {

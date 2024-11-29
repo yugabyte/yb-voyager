@@ -100,6 +100,39 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		))
 	}
 
+	//GinVariations
+	if index.AccessMethod == GIN_ACCESS_METHOD {
+		if len(index.Params) > 1 {
+            /*
+                e.g. CREATE INDEX idx_name ON public.test USING gin (data, data2);
+                stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p"
+                location:125} access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+                index_params:{index_elem:{name:"data2" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_location:81 stmt_len:81
+            */
+			issues = append(issues, issue.NewMultiColumnGinIndexIssue(
+				issue.INDEX_OBJECT_TYPE,
+				index.GetObjectName(),
+				"",
+			))
+		} else {
+            /*
+                e.g. CREATE INDEX idx_name ON public.test USING gin (data DESC);
+                stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p" location:44}
+                access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DESC nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:80
+            */
+			//In case only one Param is there
+			param := index.Params[0]
+			if param.SortByOrder != queryparser.DEFAULT_SORTING_ORDER {
+				issues = append(issues, issue.NewOrderedGinIndexIssue(
+					issue.INDEX_OBJECT_TYPE,
+					index.GetObjectName(),
+					"",
+				))
+			}
+		}
+	}
+
+
 	return issues, nil
 }
 
@@ -190,3 +223,7 @@ func GetDDLDetector(obj queryparser.DDLObject) (DDLIssueDetector, error) {
 		return NewNoOpIssueDetector(), nil
 	}
 }
+
+const (
+	GIN_ACCESS_METHOD = "gin"
+)

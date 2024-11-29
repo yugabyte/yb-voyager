@@ -135,13 +135,12 @@ func NewDisableRuleIssue(objectType string, objectName string, sqlStatement stri
 	return newIssueInstance(issue, objectType, objectName, sqlStatement, details)
 }
 
-
 var exclusionConstraintIssue = Issue{
-	Type: EXCLUSION_CONSTRAINTS,
-	TypeName: "Exclusion constraint is not supported yet",
-	GH: "https://github.com/yugabyte/yugabyte-db/issues/3944",
+	Type:       EXCLUSION_CONSTRAINTS,
+	TypeName:   "Exclusion constraint is not supported yet",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/3944",
 	Suggestion: "Refer docs link for details on possible workaround",
-	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#exclusion-constraints-is-not-supported",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#exclusion-constraints-is-not-supported",
 }
 
 func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
@@ -149,13 +148,35 @@ func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatem
 }
 
 var deferrableConstraintIssue = Issue{
-	Type: DEFERRABLE_CONSTRAINTS,
-	TypeName: "DEFERRABLE constraints not supported yet",
-	GH:"https://github.com/yugabyte/yugabyte-db/issues/1709",
+	Type:       DEFERRABLE_CONSTRAINTS,
+	TypeName:   "DEFERRABLE constraints not supported yet",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1709",
 	Suggestion: "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
 }
 
 func NewDeferrableConstraintIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
 	return newIssueInstance(deferrableConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var multiColumnGinIndexIssue = Issue{
+	Type:     MULTI_COLUMN_GIN_INDEX,
+	TypeName: "Schema contains gin index on multi column which is not supported.",
+	GH:       "https://github.com/yugabyte/yugabyte-db/issues/10652",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gin-indexes-on-multiple-columns-are-not-supported",
+}
+
+func NewMultiColumnGinIndexIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	return newIssueInstance(multiColumnGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var orderedGinIndexIssue = Issue{
+	Type:     ORDERED_GIN_INDEX,
+	TypeName: "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
+	GH:       "https://github.com/yugabyte/yugabyte-db/issues/10653",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#issue-in-some-unsupported-cases-of-gin-indexes",
+}
+
+func NewOrderedGinIndexIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	return newIssueInstance(orderedGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
