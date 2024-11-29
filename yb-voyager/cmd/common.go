@@ -482,6 +482,7 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	}
 
 	// If the msr VoyagerVersion is less than the PREVIOUS_BREAKING_CHANGE_VERSION, then the export-dir is not compatible with the current Voyager version.
+	// This version will always be a final release version and never "main" or "rc" version.
 	previousBreakingChangeVersion, err := version.NewVersion(utils.PREVIOUS_BREAKING_CHANGE_VERSION)
 	if err != nil {
 		utils.ErrExit("could not create version from %q: %v", utils.PREVIOUS_BREAKING_CHANGE_VERSION, err)
@@ -495,7 +496,29 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 			versionCheckFailed = true
 		}
 	} else if msr.VoyagerVersion != "" {
-		msrVoyagerVersion, err := version.NewVersion(msr.VoyagerVersion)
+		msrVoyagerVersionString := msr.VoyagerVersion
+		if strings.Contains(msrVoyagerVersionString, "rc") {
+			// RC version will be like 0rc1.1.8.6
+			// We need to extract 1.8.6 from it
+			// Compring with this 1.8.6 should be enough to check if the version is compatible with the current version
+			// Split the string at "rc" to isolate the part after it
+			parts := strings.Split(msrVoyagerVersionString, "rc")
+			if len(parts) > 1 {
+				// Further split the remaining part by '.' and remove the first segment
+				versionParts := strings.Split(parts[1], ".")
+				if len(versionParts) > 1 {
+					msrVoyagerVersionString = strings.Join(versionParts[1:], ".") // Join the parts after the first one
+				} else {
+					log.Printf("Unexpected version format after 'rc': %s", msrVoyagerVersionString)
+					utils.ErrExit("could not extract version from %q", msr.VoyagerVersion)
+				}
+			} else {
+				log.Printf("Unexpected version format: %s", msrVoyagerVersionString)
+				utils.ErrExit("could not extract version from %q", msr.VoyagerVersion)
+			}
+		}
+
+		msrVoyagerVersion, err := version.NewVersion(msrVoyagerVersionString)
 		if err != nil {
 			utils.ErrExit("could not create version from %q: %v", msr.VoyagerVersion, err)
 		}
