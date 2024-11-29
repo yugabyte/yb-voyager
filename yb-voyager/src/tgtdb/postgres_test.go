@@ -8,35 +8,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
-
-func startPostgresContainer(ctx context.Context) (testcontainers.Container, error) {
-	// Create a PostgreSQL TestContainer
-	req := testcontainers.ContainerRequest{
-		Image:        "postgres:latest", // Use the latest PostgreSQL image
-		ExposedPorts: []string{"5432/tcp"},
-		Env: map[string]string{
-			"POSTGRES_USER":     "testuser",     // Set PostgreSQL username
-			"POSTGRES_PASSWORD": "testpassword", // Set PostgreSQL password
-			"POSTGRES_DB":       "testdb",       // Set PostgreSQL database name
-		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(30 * 1e9), // Wait for PostgreSQL to be ready
-	}
-
-	// Start the container
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-}
 
 func TestCreateVoyagerSchemaPG(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a YugabyteDB container
-	pgContainer, err := startPostgresContainer(ctx)
+	pgContainer, err := utils.StartPostgresContainer(ctx)
 	assert.NoError(t, err, "Failed to start YugabyteDB container")
 	defer pgContainer.Terminate(ctx)
 
@@ -53,7 +32,7 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = waitForDBConnection(db)
+	err = utils.WaitForPGYBDBConnection(db)
 	assert.NoError(t, err)
 
 	// Initialize the TargetYugabyteDB instance
@@ -65,44 +44,158 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 	err = pg.CreateVoyagerSchema()
 	assert.NoError(t, err, "CreateVoyagerSchema failed")
 
-	expectedTables := map[string][]Column{
+	expectedTables := map[string][]utils.ColumnPropertiesPGYB{
 		BATCH_METADATA_TABLE_NAME: {
-			{"migration_uuid", "uuid", "NO", nil, true},
-			{"data_file_name", "character varying", "NO", nil, true},
-			{"batch_number", "integer", "NO", nil, true},
-			{"schema_name", "character varying", "NO", nil, true},
-			{"table_name", "character varying", "NO", nil, true},
-			{"rows_imported", "bigint", "YES", nil, false},
+			{
+				Name:       "migration_uuid",
+				DataType:   "uuid",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "data_file_name",
+				DataType:   "character varying",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "batch_number",
+				DataType:   "integer",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "schema_name",
+				DataType:   "character varying",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "table_name",
+				DataType:   "character varying",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "rows_imported",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
 		},
 		EVENT_CHANNELS_METADATA_TABLE_NAME: {
-			{"migration_uuid", "uuid", "NO", nil, true},
-			{"channel_no", "integer", "NO", nil, true},
-			{"last_applied_vsn", "bigint", "YES", nil, false},
-			{"num_inserts", "bigint", "YES", nil, false},
-			{"num_deletes", "bigint", "YES", nil, false},
-			{"num_updates", "bigint", "YES", nil, false},
+			{
+				Name:       "migration_uuid",
+				DataType:   "uuid",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "channel_no",
+				DataType:   "integer",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "last_applied_vsn",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
+			{
+				Name:       "num_inserts",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
+			{
+				Name:       "num_deletes",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
+			{
+				Name:       "num_updates",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
 		},
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME: {
-			{"migration_uuid", "uuid", "NO", nil, true},
-			{"table_name", "character varying", "NO", nil, true},
-			{"channel_no", "integer", "NO", nil, true},
-			{"total_events", "bigint", "YES", nil, false},
-			{"num_inserts", "bigint", "YES", nil, false},
-			{"num_deletes", "bigint", "YES", nil, false},
-			{"num_updates", "bigint", "YES", nil, false},
+			{
+				Name:       "migration_uuid",
+				DataType:   "uuid",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "table_name",
+				DataType:   "character varying",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "channel_no",
+				DataType:   "integer",
+				IsNullable: "NO",
+				Default:    nil,
+				IsPrimary:  true,
+			},
+			{
+				Name:       "total_events",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
+			{
+				Name:       "num_inserts",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
+			{
+				Name:       "num_deletes",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
+			{
+				Name:       "num_updates",
+				DataType:   "bigint",
+				IsNullable: "YES",
+				Default:    nil,
+				IsPrimary:  false,
+			},
 		},
 	}
 
 	// Validate the schema and tables
 	t.Run("Check all the expected tables and no extra tables", func(t *testing.T) {
-		validateSchema(t, db, BATCH_METADATA_TABLE_SCHEMA, expectedTables)
+		utils.CheckTableExistencePGYB(t, db, BATCH_METADATA_TABLE_SCHEMA, expectedTables)
 	})
 
 	// Validate columns for each table
 	for tableName, expectedColumns := range expectedTables {
 		t.Run(fmt.Sprintf("Check columns for %s table", tableName), func(t *testing.T) {
 			table := strings.Split(tableName, ".")[1]
-			validateColumns(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
+			utils.CheckTableStructurePGYB(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
 		})
 	}
 }

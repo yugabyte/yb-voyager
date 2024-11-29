@@ -11,7 +11,7 @@ import (
 )
 
 func TestInitAssessmentDB(t *testing.T) {
-	expectedTables := map[string]map[string]utils.ColumnProperties{
+	expectedTables := map[string]map[string]utils.ColumnPropertiesSqlite{
 		TABLE_INDEX_IOPS: {
 			"schema_name":      {Type: "TEXT", PrimaryKey: 1},
 			"object_name":      {Type: "TEXT", PrimaryKey: 2},
@@ -101,7 +101,7 @@ func TestInitAssessmentDB(t *testing.T) {
 
 	// Verify the existence of each table and no extra tables
 	t.Run("Check table existence and no extra tables", func(t *testing.T) {
-		err := utils.CheckTableExistence(t, db, expectedTables)
+		err := utils.CheckTableExistenceSqlite(t, db, expectedTables)
 		if err != nil {
 			t.Errorf("Table existence mismatch: %v", err)
 		}
@@ -110,7 +110,7 @@ func TestInitAssessmentDB(t *testing.T) {
 	// Verify the structure of each table
 	for table, expectedColumns := range expectedTables {
 		t.Run(fmt.Sprintf("Check structure of %s table", table), func(t *testing.T) {
-			err := utils.CheckTableStructure(db, table, expectedColumns)
+			err := utils.CheckTableStructureSqlite(db, table, expectedColumns)
 			if err != nil {
 				t.Errorf("Table %s structure mismatch: %v", table, err)
 			}
