@@ -52,6 +52,7 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 		SchemaName:       createTableNode.CreateStmt.Relation.Schemaname,
 		TableName:        createTableNode.CreateStmt.Relation.Relname,
 		IsUnlogged:       createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
+		IsPartitioned:    createTableNode.CreateStmt.GetPartspec() != nil,
 		GeneratedColumns: make([]string, 0),
 		Constraints:      make([]TableConstraint, 0),
 	}
@@ -237,7 +238,7 @@ func (p *PolicyParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error)
 		PolicyName: policyNode.CreatePolicyStmt.GetPolicyName(),
 		SchemaName: policyNode.CreatePolicyStmt.GetTable().GetSchemaname(),
 		TableName:  policyNode.CreatePolicyStmt.GetTable().GetRelname(),
-        RoleNames:  make([]string, 0),
+		RoleNames:  make([]string, 0),
 	}
 	roles := policyNode.CreatePolicyStmt.GetRoles()
 	/*
@@ -258,7 +259,56 @@ func (p *PolicyParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error)
 			policy.RoleNames = append(policy.RoleNames, roleName)
 		}
 	}
-    return policy, nil
+	return policy, nil
+}
+
+// TriggerParser handles parsing CREATE Trigger statements
+type TriggerParser struct{}
+
+func NewTriggerParser() *TriggerParser {
+	return &TriggerParser{}
+}
+
+/*
+e.g.CREATE CONSTRAINT TRIGGER some_trig
+
+	AFTER DELETE ON xyz_schema.abc
+	DEFERRABLE INITIALLY DEFERRED
+	FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();
+
+create_trig_stmt:{isconstraint:true trigname:"some_trig" relation:{schemaname:"xyz_schema" relname:"abc" inh:true relpersistence:"p"
+location:56} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} row:true events:8 deferrable:true initdeferred:true}}
+stmt_len:160}
+
+e.g. CREATE TRIGGER projects_loose_fk_trigger
+
+	AFTER DELETE ON public.projects
+	REFERENCING OLD TABLE AS old_table
+	FOR EACH STATEMENT EXECUTE FUNCTION xyz_schema.some_trig();
+
+stmt:{create_trig_stmt:{trigname:"projects_loose_fk_trigger" relation:{schemaname:"public" relname:"projects" inh:true
+relpersistence:"p" location:58} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} events:8
+transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len:167}
+*/
+func (t *TriggerParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	triggerNode, ok := getCreateTriggerStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE TRIGGER statement")
+	}
+
+	trigger := &Trigger{
+		SchemaName:  triggerNode.CreateTrigStmt.Relation.Schemaname,
+		TableName:   triggerNode.CreateTrigStmt.Relation.Relname,
+		TriggerName: triggerNode.CreateTrigStmt.Trigname,
+
+		IsConstraint:           triggerNode.CreateTrigStmt.Isconstraint,
+		NumTransitionRelations: len(triggerNode.CreateTrigStmt.GetTransitionRels()),
+		Timing:                 triggerNode.CreateTrigStmt.Timing,
+		Events:                 triggerNode.CreateTrigStmt.Events,
+		ForEachRow:             triggerNode.CreateTrigStmt.Row,
+	}
+
+	return trigger, nil
 }
 
 // DDL Objects
@@ -266,6 +316,7 @@ type Table struct {
 	SchemaName       string
 	TableName        string
 	IsUnlogged       bool
+	IsPartitioned    bool
 	GeneratedColumns []string
 	Constraints      []TableConstraint
 }
@@ -324,6 +375,7 @@ func (i *Index) GetObjectName() string {
 func (i *Index) GetSchemaName() string { return i.SchemaName }
 
 type AlterTable struct {
+	Query             string
 	SchemaName        string
 	TableName         string
 	AlterType         pg_query.AlterTableType
@@ -346,7 +398,7 @@ type Policy struct {
 	SchemaName string
 	TableName  string
 	PolicyName string
-	RoleNames      []string
+	RoleNames  []string
 }
 
 func (p *Policy) GetObjectName() string {
@@ -354,6 +406,55 @@ func (p *Policy) GetObjectName() string {
 	return fmt.Sprintf("%s ON %s", p.PolicyName, qualifiedTable)
 }
 func (p *Policy) GetSchemaName() string { return p.SchemaName }
+
+type Trigger struct {
+	SchemaName             string
+	TableName              string
+	TriggerName            string
+	IsConstraint           bool
+	NumTransitionRelations int
+	ForEachRow             bool
+	Timing                 int32
+	Events                 int32
+}
+
+func (t *Trigger) GetObjectName() string {
+	return fmt.Sprintf("%s ON %s", t.TriggerName, t.GetTableName())
+}
+
+func (t *Trigger) GetTableName() string {
+	return lo.Ternary(t.SchemaName != "", fmt.Sprintf("%s.%s", t.SchemaName, t.TableName), t.TableName)
+}
+
+func (t *Trigger) GetSchemaName() string { return t.SchemaName }
+
+/*
+e.g.CREATE TRIGGER after_insert_or_delete_trigger
+
+	BEFORE INSERT OR DELETE ON main_table
+	FOR EACH ROW
+	EXECUTE FUNCTION handle_insert_or_delete();
+
+stmt:{create_trig_stmt:{trigname:"after_insert_or_delete_trigger" relation:{relname:"main_table" inh:true relpersistence:"p"
+location:111} funcname:{string:{sval:"handle_insert_or_delete"}} row:true timing:2 events:12}} stmt_len:177}
+
+here,
+timing - bits of BEFORE/AFTER/INSTEAD
+events - bits of "OR" INSERT/UPDATE/DELETE/TRUNCATE
+row - FOR EACH ROW (true), FOR EACH STATEMENT (false)
+refer - https://github.com/pganalyze/pg_query_go/blob/c3a818d346a927c18469460bb18acb397f4f4301/parser/include/postgres/catalog/pg_trigger_d.h#L49
+
+	TRIGGER_TYPE_BEFORE				(1 << 1)
+	TRIGGER_TYPE_INSERT				(1 << 2)
+	TRIGGER_TYPE_DELETE				(1 << 3)
+	TRIGGER_TYPE_UPDATE				(1 << 4)
+	TRIGGER_TYPE_TRUNCATE			(1 << 5)
+	TRIGGER_TYPE_INSTEAD			(1 << 6)
+*/
+func (t *Trigger) IsBeforeRowTrigger() bool {
+	isSecondBitSet := t.Timing&(1<<1) != 0
+	return t.ForEachRow && isSecondBitSet
+}
 
 //No op parser for objects we don't have parser yet
 
@@ -383,8 +484,10 @@ func GetDDLParser(parseTree *pg_query.ParseResult) (DDLParser, error) {
 		return NewIndexParser(), nil
 	case IsAlterTable(parseTree):
 		return NewAlterTableParser(), nil
-    case IsCreatePolicy(parseTree):
-        return NewPolicyParser(), nil
+	case IsCreatePolicy(parseTree):
+		return NewPolicyParser(), nil
+	case IsCreateTrigger(parseTree):
+		return NewTriggerParser(), nil
 	default:
 		return NewNoOpParser(), nil
 	}
@@ -398,6 +501,7 @@ const (
 	EXCLUSION_CONSTR_TYPE = pg_query.ConstrType_CONSTR_EXCLUSION
 	FOREIGN_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_FOREIGN
 	DEFAULT_SORTING_ORDER = pg_query.SortByDir_SORTBY_DEFAULT
+	PRIMARY_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_PRIMARY
 )
 
 var deferrableConstraintsList = []pg_query.ConstrType{

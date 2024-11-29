@@ -30,10 +30,14 @@ type DDLIssueDetector interface {
 }
 
 // TableIssueDetector handles detection of table-related issues
-type TableIssueDetector struct{}
+type TableIssueDetector struct {
+	primaryConsInAlter map[string]*queryparser.AlterTable
+}
 
-func NewTableIssueDetector() *TableIssueDetector {
-	return &TableIssueDetector{}
+func (p *ParserIssueDetector) NewTableIssueDetector() *TableIssueDetector {
+	return &TableIssueDetector{
+		primaryConsInAlter: p.primaryConsInAlter,
+	}
 }
 
 func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
@@ -90,7 +94,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 // IndexIssueDetector handles detection of index-related issues
 type IndexIssueDetector struct{}
 
-func NewIndexIssueDetector() *IndexIssueDetector {
+func (p *ParserIssueDetector) NewIndexIssueDetector() *IndexIssueDetector {
 	return &IndexIssueDetector{}
 }
 
@@ -157,9 +161,11 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 }
 
 // AlterTableIssueDetector handles detection of alter table-related issues
-type AlterTableIssueDetector struct{}
+type AlterTableIssueDetector struct {
+	partitionTablesMap map[string]bool
+}
 
-func NewAlterTableIssueDetector() *AlterTableIssueDetector {
+func (p *ParserIssueDetector) NewAlterTableIssueDetector() *AlterTableIssueDetector {
 	return &AlterTableIssueDetector{}
 }
 
@@ -223,7 +229,7 @@ func (d *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]iss
 // PolicyIssueDetector handles detection of Create policy issues
 type PolicyIssueDetector struct{}
 
-func NewPolicyIssueDetector() *PolicyIssueDetector {
+func (p *ParserIssueDetector) NewPolicyIssueDetector() *PolicyIssueDetector {
 	return &PolicyIssueDetector{}
 }
 
@@ -244,10 +250,55 @@ func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.I
 	return issues, nil
 }
 
+// TriggerIssueDetector handles detection of Create Trigger issues
+type TriggerIssueDetector struct {
+	partitionTablesMap map[string]bool
+}
+
+func (p *ParserIssueDetector) NewTriggerIssueDetector() *TriggerIssueDetector {
+	return &TriggerIssueDetector{
+		partitionTablesMap: p.partitionTablesMap,
+	}
+}
+
+func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+	trigger, ok := obj.(*queryparser.Trigger)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected Trigger")
+	}
+	issues := make([]issue.IssueInstance, 0)
+
+	if trigger.IsConstraint {
+		issues = append(issues, issue.NewConstraintTriggerIssue(
+			issue.TRIGGER_OBJECT_TYPE,
+			trigger.GetObjectName(),
+			"",
+		))
+	}
+
+	if trigger.NumTransitionRelations > 0 {
+		issues = append(issues, issue.NewReferencingClauseTrigIssue(
+			issue.TRIGGER_OBJECT_TYPE,
+			trigger.GetObjectName(),
+			"",
+		))
+	}
+    
+	if trigger.IsBeforeRowTrigger() && tid.partitionTablesMap[trigger.GetTableName()] {
+		issues = append(issues, issue.NewBeforeRowOnPartitionTableIssue(
+			issue.TRIGGER_OBJECT_TYPE,
+			trigger.GetObjectName(),
+			"",
+		))
+	}
+
+	return issues, nil
+}
+
 // Need to handle all the cases for which we don't have any issues detector
 type NoOpIssueDetector struct{}
 
-func NewNoOpIssueDetector() *NoOpIssueDetector {
+func (p *ParserIssueDetector) NewNoOpIssueDetector() *NoOpIssueDetector {
 	return &NoOpIssueDetector{}
 }
 
@@ -255,18 +306,20 @@ func (n *NoOpIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Iss
 	return nil, nil
 }
 
-func GetDDLDetector(obj queryparser.DDLObject) (DDLIssueDetector, error) {
+func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssueDetector, error) {
 	switch obj.(type) {
 	case *queryparser.Table:
-		return NewTableIssueDetector(), nil
+		return p.NewTableIssueDetector(), nil
 	case *queryparser.Index:
-		return NewIndexIssueDetector(), nil
+		return p.NewIndexIssueDetector(), nil
 	case *queryparser.AlterTable:
-		return NewAlterTableIssueDetector(), nil
+		return p.NewAlterTableIssueDetector(), nil
 	case *queryparser.Policy:
-		return NewPolicyIssueDetector(), nil
+		return p.NewPolicyIssueDetector(), nil
+	case *queryparser.Trigger:
+		return p.NewTriggerIssueDetector(), nil
 	default:
-		return NewNoOpIssueDetector(), nil
+		return p.NewNoOpIssueDetector(), nil
 	}
 }
 

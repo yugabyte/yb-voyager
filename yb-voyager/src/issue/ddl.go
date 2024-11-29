@@ -194,3 +194,37 @@ func NewPolicyRoleIssue(objectType string, objectName string, SqlStatement strin
 	issue.TypeName = fmt.Sprintf("%s Users - (%s)", issue.TypeName, strings.Join(roles, ","))
 	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
+
+var constraintTriggerIssue = Issue{
+	Type:     CONSTRAINT_TRIGGER,
+	TypeName: "CONSTRAINT TRIGGER not supported yet.",
+	GH:       "https://github.com/YugaByte/yugabyte-db/issues/1709",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#constraint-trigger-is-not-supported",
+}
+
+func NewConstraintTriggerIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
+	return newIssueInstance(constraintTriggerIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var referencingClauseInTriggerIssue = Issue{
+	Type:     REFERENCING_CLAUSE_FOR_TRIGGERS,
+	TypeName: "REFERENCING clause (transition tables) not supported yet.",
+	GH:       "https://github.com/YugaByte/yugabyte-db/issues/1668",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#referencing-clause-for-triggers",
+}
+
+func NewReferencingClauseTrigIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
+	return newIssueInstance(referencingClauseInTriggerIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var beforeRowTriggerOnPartitionTableIssue = Issue{
+	Type:       BEFORE_ROW_TRIGGER_ON_PARTITIONED_TABLE,
+	TypeName:   "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#before-row-triggers-on-partitioned-tables",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/24830",
+	Suggestion: "Create the triggers on individual partitions.",
+}
+
+func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
+	return newIssueInstance(beforeRowTriggerOnPartitionTableIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}

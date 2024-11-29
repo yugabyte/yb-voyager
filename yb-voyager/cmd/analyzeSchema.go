@@ -393,6 +393,11 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 				summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 			}
 		}
+		err = parserIssueDetector.ParseRequiredDDLs(sqlStmtInfo.formattedStmt)
+		if err != nil {
+			log.Infof("error parsing query-%s: %v ", err)
+			continue
+		}
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt)
 		if err != nil {
 			log.Infof("error getting ddl issues for query-%s: %v ", err)
@@ -406,7 +411,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
 		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
-		createTriggerNode, isCreateTrigger := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTrigStmt)
 
 		if objType == TABLE && isCreateTable {
 			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
@@ -420,10 +424,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		}
 		if isCreateIndex {
 			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
-		}
-
-		if isCreateTrigger {
-			reportUnsupportedTriggers(createTriggerNode, sqlStmtInfo, fpath)
 		}
 
 		if isCreateCompositeType {
@@ -463,80 +463,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			enumTypes = append(enumTypes, fullTypeName)
 		}
 	}
-}
-
-func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTriggerNode.CreateTrigStmt.Relation.Schemaname
-	tableName := createTriggerNode.CreateTrigStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	trigName := createTriggerNode.CreateTrigStmt.Trigname
-	displayObjectName := fmt.Sprintf("%s ON %s", trigName, fullyQualifiedName)
-
-	/*
-		e.g.CREATE CONSTRAINT TRIGGER some_trig
-			AFTER DELETE ON xyz_schema.abc
-			DEFERRABLE INITIALLY DEFERRED
-			FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();
-		create_trig_stmt:{isconstraint:true trigname:"some_trig" relation:{schemaname:"xyz_schema" relname:"abc" inh:true relpersistence:"p"
-		location:56} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} row:true events:8 deferrable:true initdeferred:true}}
-		stmt_len:160}
-	*/
-	if createTriggerNode.CreateTrigStmt.Isconstraint {
-		reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
-			"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", displayObjectName,
-			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, CONSTRAINT_TRIGGER_DOC_LINK)
-	}
-
-	/*
-		e.g. CREATE TRIGGER projects_loose_fk_trigger
-			AFTER DELETE ON public.projects
-			REFERENCING OLD TABLE AS old_table
-			FOR EACH STATEMENT EXECUTE FUNCTION xyz_schema.some_trig();
-		stmt:{create_trig_stmt:{trigname:"projects_loose_fk_trigger" relation:{schemaname:"public" relname:"projects" inh:true
-		relpersistence:"p" location:58} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} events:8
-		transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len:167}
-	*/
-	if createTriggerNode.CreateTrigStmt.GetTransitionRels() != nil {
-		summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
-		reportCase(fpath, REFERENCING_CLAUSE_FOR_TRIGGERS,
-			"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
-			UNSUPPORTED_FEATURES, REFERENCING_CLAUSE_TRIGGER_DOC_LINK)
-	}
-
-	/*
-		e.g.CREATE TRIGGER after_insert_or_delete_trigger
-			BEFORE INSERT OR DELETE ON main_table
-			FOR EACH ROW
-			EXECUTE FUNCTION handle_insert_or_delete();
-		stmt:{create_trig_stmt:{trigname:"after_insert_or_delete_trigger" relation:{relname:"main_table" inh:true relpersistence:"p"
-		location:111} funcname:{string:{sval:"handle_insert_or_delete"}} row:true timing:2 events:12}} stmt_len:177}
-
-		here,
-		timing - bits of BEFORE/AFTER/INSTEAD
-		events - bits of "OR" INSERT/UPDATE/DELETE/TRUNCATE
-		row - FOR EACH ROW (true), FOR EACH STATEMENT (false)
-		refer - https://github.com/pganalyze/pg_query_go/blob/c3a818d346a927c18469460bb18acb397f4f4301/parser/include/postgres/catalog/pg_trigger_d.h#L49
-			TRIGGER_TYPE_BEFORE				(1 << 1)
-			TRIGGER_TYPE_INSERT				(1 << 2)
-			TRIGGER_TYPE_DELETE				(1 << 3)
-			TRIGGER_TYPE_UPDATE				(1 << 4)
-			TRIGGER_TYPE_TRUNCATE			(1 << 5)
-			TRIGGER_TYPE_INSTEAD			(1 << 6)
-	*/
-
-	timing := createTriggerNode.CreateTrigStmt.Timing
-	isSecondBitSet := timing&(1<<1) != 0
-	if isSecondBitSet && createTriggerNode.CreateTrigStmt.Row {
-		// BEFORE clause will have the bits in timing as 1<<1
-		// BEFORE and FOR EACH ROW on partitioned table is not supported in PG<=12
-		if partitionTablesMap[fullyQualifiedName] {
-			summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
-			reportCase(fpath, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE,
-				"https://github.com/yugabyte/yugabyte-db/issues/24830", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, BEFORE_ROW_TRIGGER_PARTITIONED_TABLE_DOC_LINK)
-		}
-	}
-
 }
 
 func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
@@ -948,41 +874,6 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
 		}
-	}
-}
-
-func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePolicyStmt, sqlStmtInfo sqlInfo, fpath string) {
-	policyName := createPolicyNode.CreatePolicyStmt.GetPolicyName()
-	roles := createPolicyNode.CreatePolicyStmt.GetRoles()
-	relname := createPolicyNode.CreatePolicyStmt.GetTable()
-	schemaName := relname.Schemaname
-	tableName := relname.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	roleNames := make([]string, 0)
-	/*
-		e.g. CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);
-		stmt:{create_policy_stmt:{policy_name:"p" table:{relname:"tbl1" inh:true relpersistence:"p" location:20} cmd_name:"all"
-		permissive:true roles:{role_spec:{roletype:ROLESPEC_CSTRING rolename:"regress_rls_eve" location:28}} roles:{role_spec:
-		{roletype:ROLESPEC_CSTRING rolename:"regress_rls_frank" location:45}} qual:{a_const:{boolval:{boolval:true} location:70}}}}
-		stmt_len:75
-
-		here role_spec of each roles is managing the roles related information in a POLICY DDL if any, so we can just check if there is
-		a role name available in it which means there is a role associated with this DDL. Hence report it.
-
-	*/
-	for _, role := range roles {
-		roleName := role.GetRoleSpec().GetRolename() // only in case there is role associated with a policy it will error out in schema migration
-		if roleName != "" {
-			//this means there is some role or grants used in this Policy, so detecting it
-			roleNames = append(roleNames, roleName)
-		}
-	}
-	if len(roleNames) > 0 {
-		policyNameWithTable := fmt.Sprintf("%s ON %s", policyName, fullyQualifiedName)
-		summaryMap["POLICY"].invalidCount[policyNameWithTable] = true
-		reportCase(fpath, fmt.Sprintf("%s Users - (%s)", POLICY_ROLE_ISSUE, strings.Join(roleNames, ",")), "https://github.com/yugabyte/yb-voyager/issues/1655",
-			"Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
-			"POLICY", policyNameWithTable, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, POLICY_DOC_LINK)
 	}
 }
 
