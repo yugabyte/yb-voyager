@@ -22,7 +22,23 @@ type Column struct {
 	IsPrimary  bool
 }
 
-func TestCreateVoyagerSchema(t *testing.T) {
+func startYugabyteDBContainer(ctx context.Context) (testcontainers.Container, error) {
+	// Create a YugabyteDB TestContainer
+	req := testcontainers.ContainerRequest{
+		Image:        "yugabytedb/yugabyte:latest",
+		ExposedPorts: []string{"5433/tcp"},
+		WaitingFor:   wait.ForListeningPort("5433/tcp"),
+		Cmd:          []string{"bin/yugabyted", "start", "--daemon=false"},
+	}
+
+	// Start the container
+	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+}
+
+func TestCreateVoyagerSchemaYB(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a YugabyteDB container
@@ -95,22 +111,6 @@ func TestCreateVoyagerSchema(t *testing.T) {
 			validateColumns(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
 		})
 	}
-}
-
-func startYugabyteDBContainer(ctx context.Context) (testcontainers.Container, error) {
-	// Create a YugabyteDB TestContainer
-	req := testcontainers.ContainerRequest{
-		Image:        "yugabytedb/yugabyte:latest",
-		ExposedPorts: []string{"5433/tcp"},
-		WaitingFor:   wait.ForListeningPort("5433/tcp"),
-		Cmd:          []string{"bin/yugabyted", "start", "--daemon=false"},
-	}
-
-	// Start the container
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
 }
 
 // waitForDBConnection waits until the database is ready for connections.
