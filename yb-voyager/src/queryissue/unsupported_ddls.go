@@ -63,26 +63,26 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		))
 	}
 
-    if len(table.Constraints) > 0 {
+	if len(table.Constraints) > 0 {
 
-        for _, c := range table.Constraints {
-            if c.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
-                issues = append(issues, issue.NewExclusionConstraintIssue(
-                    issue.TABLE_OBJECT_TYPE,
-                    fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
-                    "",
-                ))
-            }
+		for _, c := range table.Constraints {
+			if c.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
+				issues = append(issues, issue.NewExclusionConstraintIssue(
+					issue.TABLE_OBJECT_TYPE,
+					fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+					"",
+				))
+			}
 
-            if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
-                issues = append(issues, issue.NewDeferrableConstraintIssue(
-                    issue.TABLE_OBJECT_TYPE,
-                    fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
-                    "",
-                ))
-            }
-        }
-    }
+			if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
+				issues = append(issues, issue.NewDeferrableConstraintIssue(
+					issue.TABLE_OBJECT_TYPE,
+					fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+					"",
+				))
+			}
+		}
+	}
 
 	return issues, nil
 }
@@ -124,23 +124,23 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 	//GinVariations
 	if index.AccessMethod == GIN_ACCESS_METHOD {
 		if len(index.Params) > 1 {
-            /*
-                e.g. CREATE INDEX idx_name ON public.test USING gin (data, data2);
-                stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p"
-                location:125} access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-                index_params:{index_elem:{name:"data2" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_location:81 stmt_len:81
-            */
+			/*
+			   e.g. CREATE INDEX idx_name ON public.test USING gin (data, data2);
+			   stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p"
+			   location:125} access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+			   index_params:{index_elem:{name:"data2" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_location:81 stmt_len:81
+			*/
 			issues = append(issues, issue.NewMultiColumnGinIndexIssue(
 				issue.INDEX_OBJECT_TYPE,
 				index.GetObjectName(),
 				"",
 			))
 		} else {
-            /*
-                e.g. CREATE INDEX idx_name ON public.test USING gin (data DESC);
-                stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p" location:44}
-                access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DESC nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:80
-            */
+			/*
+			   e.g. CREATE INDEX idx_name ON public.test USING gin (data DESC);
+			   stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p" location:44}
+			   access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DESC nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:80
+			*/
 			//In case only one Param is there
 			param := index.Params[0]
 			if param.SortByOrder != queryparser.DEFAULT_SORTING_ORDER {
@@ -152,7 +152,6 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 			}
 		}
 	}
-
 
 	return issues, nil
 }
@@ -221,6 +220,30 @@ func (d *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]iss
 	return issues, nil
 }
 
+// PolicyIssueDetector handles detection of Create policy issues
+type PolicyIssueDetector struct{}
+
+func NewPolicyIssueDetector() *PolicyIssueDetector {
+	return &PolicyIssueDetector{}
+}
+
+func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+	policy, ok := obj.(*queryparser.Policy)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected Policy")
+	}
+	issues := make([]issue.IssueInstance, 0)
+	if len(policy.RoleNames) > 0 {
+		issues = append(issues, issue.NewPolicyRoleIssue(
+			issue.POLICY_OBJECT_TYPE,
+			policy.GetObjectName(),
+			"",
+			policy.RoleNames,
+		))
+	}
+	return issues, nil
+}
+
 // Need to handle all the cases for which we don't have any issues detector
 type NoOpIssueDetector struct{}
 
@@ -240,6 +263,8 @@ func GetDDLDetector(obj queryparser.DDLObject) (DDLIssueDetector, error) {
 		return NewIndexIssueDetector(), nil
 	case *queryparser.AlterTable:
 		return NewAlterTableIssueDetector(), nil
+	case *queryparser.Policy:
+		return NewPolicyIssueDetector(), nil
 	default:
 		return NewNoOpIssueDetector(), nil
 	}

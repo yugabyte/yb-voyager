@@ -404,7 +404,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
-		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
 		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
 		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
 		createTriggerNode, isCreateTrigger := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTrigStmt)
@@ -421,10 +420,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		}
 		if isCreateIndex {
 			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
-		}
-
-		if isCreatePolicy {
-			reportPolicyRequireRolesOrGrants(createPolicyNode, sqlStmtInfo, fpath)
 		}
 
 		if isCreateTrigger {
@@ -1372,7 +1367,9 @@ var MigrationCaveatsIssues = []string{
 func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string, isDMLIssue bool) utils.Issue {
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
-	case slices.Contains(MigrationCaveatsIssues, issueInstance.TypeName):
+	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
+		return strings.Contains(issueInstance.TypeName, i)
+	}):
 		issueType = MIGRATION_CAVEATS
 	case issueInstance.TypeName == UNSUPPORTED_DATATYPE:
 		issueType = UNSUPPORTED_DATATYPES
@@ -1380,9 +1377,9 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
 	}
 	//TODO: issue TYpe fetching in case of DDL issues in PLPGSQL - currently using the Details map of the issueInstance to store the issue
-	
+
 	//TODO: how to different between same issue on differnt obejct types like ALTER/INDEX for not adding it ot invalid count map
-	increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"] 
+	increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"]
 	if !ok || (increaseInvalidCount.(bool)) {
 		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 	}

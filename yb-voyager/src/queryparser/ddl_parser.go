@@ -220,6 +220,47 @@ func (p *AlterTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, er
 	return alter, nil
 }
 
+// PolicyParser handles parsing CREATE POLICY statements
+type PolicyParser struct{}
+
+func NewPolicyParser() *PolicyParser {
+	return &PolicyParser{}
+}
+
+func (p *PolicyParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	policyNode, ok := getPolicyStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE POLICY statement")
+	}
+
+	policy := &Policy{
+		PolicyName: policyNode.CreatePolicyStmt.GetPolicyName(),
+		SchemaName: policyNode.CreatePolicyStmt.GetTable().GetSchemaname(),
+		TableName:  policyNode.CreatePolicyStmt.GetTable().GetRelname(),
+        RoleNames:  make([]string, 0),
+	}
+	roles := policyNode.CreatePolicyStmt.GetRoles()
+	/*
+		e.g. CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);
+		stmt:{create_policy_stmt:{policy_name:"p" table:{relname:"tbl1" inh:true relpersistence:"p" location:20} cmd_name:"all"
+		permissive:true roles:{role_spec:{roletype:ROLESPEC_CSTRING rolename:"regress_rls_eve" location:28}} roles:{role_spec:
+		{roletype:ROLESPEC_CSTRING rolename:"regress_rls_frank" location:45}} qual:{a_const:{boolval:{boolval:true} location:70}}}}
+		stmt_len:75
+
+		here role_spec of each roles is managing the roles related information in a POLICY DDL if any, so we can just check if there is
+		a role name available in it which means there is a role associated with this DDL. Hence report it.
+
+	*/
+	for _, role := range roles {
+		roleName := role.GetRoleSpec().GetRolename() // only in case there is role associated with a policy it will error out in schema migration
+		if roleName != "" {
+			//this means there is some role or grants used in this Policy, so detecting it
+			policy.RoleNames = append(policy.RoleNames, roleName)
+		}
+	}
+    return policy, nil
+}
+
 // DDL Objects
 type Table struct {
 	SchemaName       string
@@ -301,6 +342,19 @@ func (a *AlterTable) GetObjectName() string {
 }
 func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
 
+type Policy struct {
+	SchemaName string
+	TableName  string
+	PolicyName string
+	RoleNames      []string
+}
+
+func (p *Policy) GetObjectName() string {
+	qualifiedTable := lo.Ternary(p.SchemaName != "", fmt.Sprintf("%s.%s", p.SchemaName, p.TableName), p.TableName)
+	return fmt.Sprintf("%s ON %s", p.PolicyName, qualifiedTable)
+}
+func (p *Policy) GetSchemaName() string { return p.SchemaName }
+
 //No op parser for objects we don't have parser yet
 
 type NoOpParser struct{}
@@ -329,6 +383,8 @@ func GetDDLParser(parseTree *pg_query.ParseResult) (DDLParser, error) {
 		return NewIndexParser(), nil
 	case IsAlterTable(parseTree):
 		return NewAlterTableParser(), nil
+    case IsCreatePolicy(parseTree):
+        return NewPolicyParser(), nil
 	default:
 		return NewNoOpParser(), nil
 	}

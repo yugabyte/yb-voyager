@@ -217,6 +217,11 @@ func getAlterStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_AlterTabl
 	return node, ok
 }
 
+func getPolicyStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreatePolicyStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
+	return node, ok
+}
+
 func IsAlterTable(parseTree *pg_query.ParseResult) bool {
 	_, isAlter := getAlterStmtNode(parseTree)
 	return isAlter
@@ -230,6 +235,11 @@ func IsCreateIndex(parseTree *pg_query.ParseResult) bool {
 func IsCreateTable(parseTree *pg_query.ParseResult) bool {
 	_, IsCreateTable := getCreateTableStmtNode(parseTree)
 	return IsCreateTable
+}
+
+func IsCreatePolicy(parseTree *pg_query.ParseResult) bool {
+	_, isCreatePolicy := getPolicyStmtNode(parseTree)
+	return isCreatePolicy
 }
 
 // func GetGeneratedColumns(parseTree *pg_query.ParseResult) []string {

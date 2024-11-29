@@ -180,3 +180,17 @@ var orderedGinIndexIssue = Issue{
 func NewOrderedGinIndexIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
 	return newIssueInstance(orderedGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var policyRoleIssue = Issue{
+	Type:       POLICY_WITH_ROLES,
+	TypeName:   "Policy require roles to be created.",
+	Suggestion: "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+	GH:         "https://github.com/yugabyte/yb-voyager/issues/1655",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#policies-on-users-in-source-require-manual-user-creation",
+}
+
+func NewPolicyRoleIssue(objectType string, objectName string, SqlStatement string, roles []string) IssueInstance {
+	issue := policyRoleIssue
+	issue.TypeName = fmt.Sprintf("%s Users - (%s)", issue.TypeName, strings.Join(roles, ","))
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
