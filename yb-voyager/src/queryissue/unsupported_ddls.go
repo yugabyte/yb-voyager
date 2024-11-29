@@ -63,6 +63,27 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		))
 	}
 
+    if len(table.Constraints) > 0 {
+
+        for _, c := range table.Constraints {
+            if c.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
+                issues = append(issues, issue.NewExclusionConstraintIssue(
+                    issue.TABLE_OBJECT_TYPE,
+                    fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+                    "",
+                ))
+            }
+
+            if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
+                issues = append(issues, issue.NewDeferrableConstraintIssue(
+                    issue.TABLE_OBJECT_TYPE,
+                    fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+                    "",
+                ))
+            }
+        }
+    }
+
 	return issues, nil
 }
 

@@ -411,8 +411,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 		if objType == TABLE && isCreateTable {
 			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
-			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
 			reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode, sqlStmtInfo, fpath)
@@ -1087,79 +1085,6 @@ func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
 	return typeName, typeSchemaName
 }
 
-var deferrableConstraintsList = []pg_query.ConstrType{
-	pg_query.ConstrType_CONSTR_ATTR_DEFERRABLE,
-	pg_query.ConstrType_CONSTR_ATTR_DEFERRED,
-	pg_query.ConstrType_CONSTR_ATTR_IMMEDIATE,
-}
-
-func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-
-	for _, column := range columns {
-		/*
-			e.g. create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
-			create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}
-			table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
-			typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}}
-			constraints:{constraint:{contype:CONSTR_ATTR_DEFERRABLE  location:45}}  location:31}}  ....
-
-			here checking the case where this clause is in column definition so iterating over each column_def and in that
-			constraint type has deferrable or not and also it should not be a foreign constraint as Deferrable on FKs are
-			supported.
-		*/
-		if column.GetColumnDef() != nil {
-			constraints := column.GetColumnDef().GetConstraints()
-			colName := column.GetColumnDef().GetColname()
-			if constraints != nil {
-				isDeferrable := false
-				var deferrableConstraintType pg_query.ConstrType
-				for idx, constraint := range constraints {
-					if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
-						//Getting the constraint type before the DEFERRABLE clause as the clause is applicable to that constraint
-						if idx > 0 {
-							deferrableConstraintType = constraints[idx-1].GetConstraint().Contype
-						}
-						isDeferrable = true
-					}
-				}
-				if isDeferrable && deferrableConstraintType != pg_query.ConstrType_CONSTR_FOREIGN {
-					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-					generatedConName := generateConstraintName(deferrableConstraintType, tableName, []string{colName})
-					specifiedConstraintName := column.GetConstraint().GetConname()
-					conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
-						"Remove these constraints from the exported schema and make the necessary changes to the application before pointing it to target",
-						"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
-				}
-			}
-		} else if column.GetConstraint() != nil {
-			/*
-				e.g. create table uniquen_def_test1(id int, c1 int, UNIQUE(id) DEFERRABLE INITIALLY DEFERRED);
-				{create_stmt:{relation:{relname:"unique_def_test1"  inh:true  relpersistence:"p"  location:80}  table_elts:{column_def:{colname:"id"
-				type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
-				table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
-
-				here checking the case where this constraint is at the at the end as a constraint only, so checking deferrable field in constraint
-				in case of its not a FK.
-			*/
-			colNames := getColumnNames(column.GetConstraint().GetKeys())
-			if column.GetConstraint().Deferrable && column.GetConstraint().Contype != pg_query.ConstrType_CONSTR_FOREIGN {
-				generatedConName := generateConstraintName(column.GetConstraint().Contype, tableName, colNames)
-				specifiedConstraintName := column.GetConstraint().GetConname()
-				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
-					"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-					"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
-			}
-		}
-	}
-}
-
 func generateConstraintName(conType pg_query.ConstrType, tableName string, columns []string) string {
 	suffix := ""
 	//Deferrable is only applicable to following constraint
@@ -1184,105 +1109,6 @@ func getColumnNames(keys []*pg_query.Node) []string {
 		res = append(res, k.GetString_().Sval)
 	}
 	return res
-}
-
-func reportDeferrableConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-
-	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	/*
-		e.g. ALTER TABLE ONLY public.users ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;
-		alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_UNIQUE  conname:"users_email_key"
-		deferrable:true  location:196  keys:{string:{sval:"email"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}
-
-		similar to CREATE table 2nd case where constraint is at the end of column definitions mentioning the constraint only
-		so here as well while adding constraint checking the type of constraint and the deferrable field of it.
-	*/
-	constraint := alterCmd.GetDef().GetConstraint()
-	if constraint != nil && constraint.Deferrable && constraint.Contype != pg_query.ConstrType_CONSTR_FOREIGN {
-		conName := constraint.Conname
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
-			"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-			"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
-	}
-}
-
-func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	/*
-		e.g. CREATE TABLE "Test"(
-				id int,
-				room_id int,
-				time_range tsrange,
-				room_id1 int,
-				time_range1 tsrange
-				EXCLUDE USING gist (room_id WITH =, time_range WITH &&),
-				EXCLUDE USING gist (room_id1 WITH =, time_range1 WITH &&)
-			);
-		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:...table_elts:{constraint:{contype:CONSTR_EXCLUSION
-		location:226 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		items:{list:{items:{string:{sval:"="}}}}}} exclusions:{list:{items:{index_elem:{name:"time_range" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		items:{list:{items:{string:{sval:"&&"}}}}}} access_method:"gist"}} table_elts:{constraint:{contype:CONSTR_EXCLUSION location:282 exclusions:{list:
-		{items:{index_elem:{name:"room_id1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"="}}}}}}
-		exclusions:{list:{items:{index_elem:{name:"time_range1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"&&"}}}}}}
-		access_method:"gist"}} oncommit:ONCOMMIT_NOOP}} stmt_len:365}
-		here we are iterating over all the table_elts - table elements and which are comma separated column info in
-		the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def
-		is nil.
-
-	*/
-	for _, column := range columns {
-		//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
-		if column.GetColumnDef() == nil && column.GetConstraint() != nil {
-			if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
-				colNames := getColumnNamesFromExclusions(column.GetConstraint().GetExclusions())
-				generatedConName := generateConstraintName(column.GetConstraint().Contype, tableName, colNames)
-				specifiedConstraintName := column.GetConstraint().GetConname()
-				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-					"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
-			}
-		}
-	}
-}
-
-func getColumnNamesFromExclusions(keys []*pg_query.Node) []string {
-	var res []string
-	for _, k := range keys {
-		//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		//items:{list:{items:{string:{sval:"="}}}}}}
-		res = append(res, k.GetList().GetItems()[0].GetIndexElem().Name) // every first element of items in exclusions will be col name
-	}
-	return res
-}
-
-func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
-
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	/*
-		e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
-		cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
-		here again same checking the definition of the alter stmt if it has constraint and checking its type
-	*/
-	constraint := alterCmd.GetDef().GetConstraint()
-	if alterCmd.Subtype == pg_query.AlterTableType_AT_AddConstraint && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
-		// colNames := getColumnNamesFromExclusions(alterCmd.GetDef().GetConstraint().GetExclusions())
-		conName := constraint.Conname
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-			"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
-	}
 }
 
 // Checks compatibility of views

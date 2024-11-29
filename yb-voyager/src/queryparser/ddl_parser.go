@@ -17,6 +17,8 @@ package queryparser
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
@@ -51,18 +53,82 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 		TableName:        createTableNode.CreateStmt.Relation.Relname,
 		IsUnlogged:       createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
 		GeneratedColumns: make([]string, 0),
+		Constraints:      make([]TableConstraint, 0),
 	}
 
 	// Parse columns and their properties
 	for _, element := range createTableNode.CreateStmt.TableElts {
-		if colDef := element.GetColumnDef(); colDef != nil {
-			if p.isGeneratedColumn(colDef) {
-				table.GeneratedColumns = append(table.GeneratedColumns, colDef.Colname)
+		if element.GetColumnDef() != nil {
+			if p.isGeneratedColumn(element.GetColumnDef()) {
+				table.GeneratedColumns = append(table.GeneratedColumns, element.GetColumnDef().Colname)
 			}
+			constraints := element.GetColumnDef().GetConstraints()
+			colName := element.GetColumnDef().GetColname()
+			if constraints != nil {
+				for idx, c := range constraints {
+					constraint := c.GetConstraint()
+					if slices.Contains(deferrableConstraintsList, constraint.Contype) {
+						if idx > 0 {
+							lastConstraint := table.Constraints[len(table.Constraints)-1]
+							lastConstraint.IsDeferrable = true
+							table.Constraints[len(table.Constraints)-1] = lastConstraint
+						}
+					} else {
+						tc := TableConstraint{
+							ConstraintType: constraint.Contype,
+							Columns:        []string{colName},
+							IsDeferrable:   false,
+						}
+						generatedConName := tc.generateConstraintName(table.GetObjectName())
+						specifiedConstraintName := constraint.Conname
+						conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
+						tc.ConstraintName = conName
+						table.Constraints = append(table.Constraints, tc)
+					}
+				}
+			}
+
+		} else if element.GetConstraint() != nil {
+			constraint := element.GetConstraint()
+			conType := element.GetConstraint().Contype
+			columns := p.parseColumnsFromKeys(constraint.GetKeys())
+			if conType == EXCLUSION_CONSTR_TYPE {
+				exclusions := constraint.GetExclusions()
+				//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+				//items:{list:{items:{string:{sval:"="}}}}}}
+				columns = p.parseColumnsFromExclusions(exclusions)
+			}
+			tableConstraint := TableConstraint{
+				ConstraintType: conType,
+				Columns:        columns,
+				IsDeferrable:   constraint.Deferrable,
+			}
+			generatedConName := tableConstraint.generateConstraintName(table.GetObjectName())
+			specifiedConstraintName := constraint.Conname
+			conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
+			tableConstraint.ConstraintName = conName
+			table.Constraints = append(table.Constraints, tableConstraint)
 		}
 	}
 
 	return table, nil
+}
+
+func (p *TableParser) parseColumnsFromExclusions(list []*pg_query.Node) []string {
+	var res []string
+	for _, k := range list {
+		res = append(res, k.GetList().GetItems()[0].GetIndexElem().Name) // every first element of items in exclusions will be col name
+	}
+	return res
+}
+
+func (p *TableParser) parseColumnsFromKeys(keys []*pg_query.Node) []string {
+	var res []string
+	for _, k := range keys {
+		res = append(res, k.GetString_().Sval)
+	}
+	return res
+
 }
 
 func (p *TableParser) isGeneratedColumn(colDef *pg_query.ColumnDef) bool {
@@ -100,15 +166,15 @@ func (p *IndexParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 }
 
 func (p *IndexParser) parseIndexParams(params []*pg_query.Node) []IndexParam {
-    var indexParams []IndexParam
-    for _, i := range params {
-        indexParams = append(indexParams, IndexParam{
-            SortByOrder: i.GetIndexElem().Ordering,
-            Name: i.GetIndexElem().GetName(),
-            //TODO: as per other cases
-        })
-    }
-    return indexParams
+	var indexParams []IndexParam
+	for _, i := range params {
+		indexParams = append(indexParams, IndexParam{
+			SortByOrder: i.GetIndexElem().Ordering,
+			Name:        i.GetIndexElem().GetName(),
+			//TODO: as per other cases
+		})
+	}
+	return indexParams
 }
 
 // AlterTableParser handles parsing ALTER TABLE statements
@@ -160,6 +226,32 @@ type Table struct {
 	TableName        string
 	IsUnlogged       bool
 	GeneratedColumns []string
+	Constraints      []TableConstraint
+}
+
+type TableConstraint struct {
+	ConstraintType pg_query.ConstrType
+	ConstraintName string
+	IsDeferrable   bool
+	Columns        []string
+}
+
+func (t *TableConstraint) generateConstraintName(tableName string) string {
+	suffix := ""
+	//Deferrable is only applicable to following constraint
+	//https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Currently%2C%20only%20UNIQUE%2C%20PRIMARY%20KEY%2C%20EXCLUDE%2C%20and%20REFERENCES
+	switch t.ConstraintType {
+	case pg_query.ConstrType_CONSTR_UNIQUE:
+		suffix = "_key"
+	case pg_query.ConstrType_CONSTR_PRIMARY:
+		suffix = "_pkey"
+	case pg_query.ConstrType_CONSTR_EXCLUSION:
+		suffix = "_excl"
+	case pg_query.ConstrType_CONSTR_FOREIGN:
+		suffix = "_fkey"
+	}
+
+	return fmt.Sprintf("%s_%s%s", tableName, strings.Join(t.Columns, "_"), suffix)
 }
 
 func (t *Table) GetObjectName() string {
@@ -189,16 +281,6 @@ func (i *Index) GetObjectName() string {
 	return fmt.Sprintf("%s ON %s", i.IndexName, qualifiedTable)
 }
 func (i *Index) GetSchemaName() string { return i.SchemaName }
-
-const (
-	ADD_CONSTRAINT        = pg_query.AlterTableType_AT_AddConstraint
-	SET_OPTIONS           = pg_query.AlterTableType_AT_SetOptions
-	DISABLE_RULE          = pg_query.AlterTableType_AT_DisableRule
-	CLUSTER_ON            = pg_query.AlterTableType_AT_ClusterOn
-	EXCLUSION_CONSTR_TYPE = pg_query.ConstrType_CONSTR_EXCLUSION
-	FOREIGN_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_FOREIGN
-    DEFAULT_SORTING_ORDER = pg_query.SortByDir_SORTBY_DEFAULT
-)
 
 type AlterTable struct {
 	SchemaName        string
@@ -250,4 +332,20 @@ func GetDDLParser(parseTree *pg_query.ParseResult) (DDLParser, error) {
 	default:
 		return NewNoOpParser(), nil
 	}
+}
+
+const (
+	ADD_CONSTRAINT        = pg_query.AlterTableType_AT_AddConstraint
+	SET_OPTIONS           = pg_query.AlterTableType_AT_SetOptions
+	DISABLE_RULE          = pg_query.AlterTableType_AT_DisableRule
+	CLUSTER_ON            = pg_query.AlterTableType_AT_ClusterOn
+	EXCLUSION_CONSTR_TYPE = pg_query.ConstrType_CONSTR_EXCLUSION
+	FOREIGN_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_FOREIGN
+	DEFAULT_SORTING_ORDER = pg_query.SortByDir_SORTBY_DEFAULT
+)
+
+var deferrableConstraintsList = []pg_query.ConstrType{
+	pg_query.ConstrType_CONSTR_ATTR_DEFERRABLE,
+	pg_query.ConstrType_CONSTR_ATTR_DEFERRED,
+	pg_query.ConstrType_CONSTR_ATTR_IMMEDIATE,
 }
