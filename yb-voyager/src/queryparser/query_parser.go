@@ -249,6 +249,10 @@ func getEnumTypeStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_Create
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
 	return node, ok
 }
+func getForeignTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateForeignTableStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
+	return node, ok
+}
 
 func IsAlterTable(parseTree *pg_query.ParseResult) bool {
 	_, isAlter := getAlterStmtNode(parseTree)
@@ -279,6 +283,11 @@ func IsCreateType(parseTree *pg_query.ParseResult) bool {
 	_, isComposite := getCompositeTypeStmtNode(parseTree)
 	_, isEnum := getEnumTypeStmtNode(parseTree)
 	return isComposite || isEnum
+}
+
+func IsCreateForeign(parseTree *pg_query.ParseResult) bool {
+	_, isForeignTable := getForeignTableStmtNode(parseTree)
+	return isForeignTable
 }
 
 // func GetGeneratedColumns(parseTree *pg_query.ParseResult) []string {

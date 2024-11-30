@@ -407,3 +407,17 @@ func NewIndexOnComplexDatatypesIssue(objectType string, objectName string, SqlSt
 	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
 	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
+
+var foreignTableIssue = Issue{
+	Type:       FOREIGN_TABLE,
+	TypeName:   "Foreign tables require manual intervention.",
+	GH:         "https://github.com/yugabyte/yb-voyager/issues/1627",
+	Suggestion: "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+}
+
+func NewForeignTableIssue(objectType string, objectName string, SqlStatement string, serverName string) IssueInstance {
+	issue := foreignTableIssue
+	issue.Suggestion = fmt.Sprintf(issue.Suggestion, serverName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}

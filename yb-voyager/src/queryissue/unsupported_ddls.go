@@ -132,38 +132,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
 
 		if isUnsupportedDatatype {
-			switch col.TypeName {
-			case "xml":
-				issues = append(issues, issue.NewXMLDatatypeIssue(
-					issue.TABLE_OBJECT_TYPE,
-					table.GetObjectName(),
-					"",
-					col.ColumnName,
-				))
-			case "xid":
-				issues = append(issues, issue.NewXIDDatatypeIssue(
-					issue.TABLE_OBJECT_TYPE,
-					table.GetObjectName(),
-					"",
-					col.ColumnName,
-				))
-			case "geometry", "geography", "box2d", "box3d", "topogeometry":
-				issues = append(issues, issue.NewPostGisDatatypeIssue(
-					issue.TABLE_OBJECT_TYPE,
-					table.GetObjectName(),
-					"",
-					col.TypeName,
-					col.ColumnName,
-				))
-			default:
-				issues = append(issues, issue.NewUnsupportedDatatypesIssue(
-					issue.TABLE_OBJECT_TYPE,
-					table.GetObjectName(),
-					"",
-					col.TypeName,
-					col.ColumnName,
-				))
-			}
+			reportUnsupportedDatatypes(col, issue.TABLE_OBJECT_TYPE, table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLive {
 			issues = append(issues, issue.NewUnsupportedDatatypesForLMIssue(
 				issue.TABLE_OBJECT_TYPE,
@@ -235,6 +204,74 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 	}
 
 	return issues, nil
+}
+
+func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, objName string, issues *[]issue.IssueInstance) {
+	switch col.TypeName {
+	case "xml":
+		*issues = append(*issues, issue.NewXMLDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "xid":
+		*issues = append(*issues, issue.NewXIDDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "geometry", "geography", "box2d", "box3d", "topogeometry":
+		*issues = append(*issues, issue.NewPostGisDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	default:
+		*issues = append(*issues, issue.NewUnsupportedDatatypesIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	}
+}
+
+//ForeignTableIssueDetector handles detection Foreign table issues
+
+type ForeignTableIssueDetector struct{}
+
+func (p *ParserIssueDetector) NewForeignTableIssueDetector() *ForeignTableIssueDetector {
+	return &ForeignTableIssueDetector{}
+}
+
+func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+	foreignTable, ok := obj.(*queryparser.ForeignTable)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected Foreign Table")
+	}
+	issues := make([]issue.IssueInstance, 0)
+
+	issues = append(issues, issue.NewForeignTableIssue(
+		issue.FOREIGN_TABLE_OBJECT_TYPE,
+		foreignTable.GetObjectName(),
+		"",
+		foreignTable.ServerName,
+	))
+
+	for _, col := range foreignTable.Columns {
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
+		if isUnsupportedDatatype {
+			reportUnsupportedDatatypes(col, issue.FOREIGN_TABLE_OBJECT_TYPE, foreignTable.GetObjectName(), &issues)
+		}
+	}
+
+	return issues, nil
+
 }
 
 // IndexIssueDetector handles detection of index-related issues
@@ -568,6 +605,8 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 		return p.NewPolicyIssueDetector(), nil
 	case *queryparser.Trigger:
 		return p.NewTriggerIssueDetector(), nil
+    case *queryparser.ForeignTable:
+        return p.NewForeignTableIssueDetector(), nil
 	default:
 		return p.NewNoOpIssueDetector(), nil
 	}

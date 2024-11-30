@@ -171,6 +171,45 @@ func (p *TableParser) isGeneratedColumn(colDef *pg_query.ColumnDef) bool {
 	return false
 }
 
+type ForeignTableParser struct{}
+
+func NewForeignTableParser() *ForeignTableParser {
+	return &ForeignTableParser{}
+}
+
+func (f *ForeignTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	foreignTableNode, ok := getForeignTableStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE FOREIGN TABLE statement")
+	}
+	baseStmt := foreignTableNode.CreateForeignTableStmt.BaseStmt
+	relation := baseStmt.Relation
+	table := Table{
+		TableName:  relation.GetRelname(),
+		SchemaName: relation.GetSchemaname(),
+		//Not populating rest info
+	}
+	for _, element := range baseStmt.TableElts {
+		if element.GetColumnDef() != nil {
+			colName := element.GetColumnDef().GetColname()
+
+			typeNames := element.GetColumnDef().GetTypeName().GetNames()
+			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+			table.Columns = append(table.Columns, TableColumn{
+				ColumnName:  colName,
+				TypeName:    typeName,
+				TypeSchema:  typeSchemaName,
+				IsArrayType: len(element.GetColumnDef().GetTypeName().GetArrayBounds()) > 0,
+			})
+		}
+	}
+	return &ForeignTable{
+		Table:      table,
+		ServerName: foreignTableNode.CreateForeignTableStmt.GetServername(),
+	}, nil
+
+}
+
 // IndexParser handles parsing CREATE INDEX statements
 type IndexParser struct{}
 
@@ -435,6 +474,16 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 	t.Constraints = append(t.Constraints, tc)
 }
 
+type ForeignTable struct {
+	Table
+	ServerName string
+}
+
+func (f *ForeignTable) GetObjectName() string {
+	return lo.Ternary(f.SchemaName != "", f.SchemaName+"."+f.TableName, f.TableName)
+}
+func (f *ForeignTable) GetSchemaName() string { return f.SchemaName }
+
 type Index struct {
 	SchemaName        string
 	IndexName         string
@@ -632,6 +681,8 @@ func GetDDLParser(parseTree *pg_query.ParseResult) (DDLParser, error) {
 		return NewTriggerParser(), nil
 	case IsCreateType(parseTree):
 		return NewTypeParser(), nil
+	case IsCreateForeign(parseTree):
+		return NewForeignTableParser(), nil
 	default:
 		return NewNoOpParser(), nil
 	}

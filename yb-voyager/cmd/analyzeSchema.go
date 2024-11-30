@@ -345,27 +345,6 @@ func addSummaryDetailsForIndexes() {
 	}
 }
 
-func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
-	for _, sqlStmtInfo := range sqlInfoArr {
-		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
-		if err != nil {
-			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
-		}
-		createForeignTableNode, isForeignTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
-		if isForeignTable {
-			baseStmt := createForeignTableNode.CreateForeignTableStmt.BaseStmt
-			relation := baseStmt.Relation
-			schemaName := relation.Schemaname
-			tableName := relation.Relname
-			serverName := createForeignTableNode.CreateForeignTableStmt.Servername
-			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
-			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
-				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt, MIGRATION_CAVEATS, FOREIGN_TABLE_DOC_LINK)
-			reportUnsupportedDatatypes(relation, baseStmt.TableElts, sqlStmtInfo, fpath, "FOREIGN TABLE")
-		}
-	}
-}
 
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
@@ -405,45 +384,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		}
 		for _, i := range ddlIssues {
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
-		}
-		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
-		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
-
-		if isCreateCompositeType {
-			//Adding the composite types (UDTs) in the list
-			/*
-				e.g. CREATE TYPE non_public."Address_type" AS (
-						street VARCHAR(100),
-						city VARCHAR(50),
-						state VARCHAR(50),
-						zip_code VARCHAR(10)
-					);
-				stmt:{composite_type_stmt:{typevar:{schemaname:"non_public"  relname:"Address_type"  relpersistence:"p"  location:14}  coldeflist:{column_def:{colname:"street"
-				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"varchar"}}  typmods:{a_const:{ival:{ival:100}  location:65}}  typemod:-1  location:57} ...
-
-				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
-			*/
-			typeName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetRelname()
-			typeSchemaName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetSchemaname()
-			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
-			compositeTypes = append(compositeTypes, fullTypeName)
-		}
-		if isCreateEnumType {
-			//Adding the composite types (UDTs) in the list
-			/*
-				e.g. CREATE TYPE decline_reason AS ENUM (
-						'duplicate_payment_method',
-						'server_failure'
-					);
-				stmt:{create_enum_stmt:{type_name:{string:{sval:"decline_reason"}} vals:{string:{sval:"duplicate_payment_method"}} vals:{string:{sval:"server_failure"}}}}
-				stmt_len:101}
-
-				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
-			*/
-			typeNames := createEnumTypeNode.CreateEnumStmt.GetTypeName()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
-			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
-			enumTypes = append(enumTypes, fullTypeName)
 		}
 	}
 }
@@ -1237,9 +1177,6 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		}
 		if objType == "EXTENSION" {
 			checkExtensions(sqlInfoArr, filePath)
-		}
-		if objType == "FOREIGN TABLE" {
-			checkForeignTable(sqlInfoArr, filePath)
 		}
 		checker(sqlInfoArr, filePath, objType)
 
