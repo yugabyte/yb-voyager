@@ -407,18 +407,12 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
 		}
 		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
-		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
 		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
 		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
 
 		if objType == TABLE && isCreateTable {
-			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
-			reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode, sqlStmtInfo, fpath)
-		}
-		if isAlterTable {
-			reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode, sqlStmtInfo, fpath)
 		}
 		if isCreateIndex {
 			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
@@ -497,35 +491,6 @@ var UnsupportedIndexDatatypes = []string{
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
-func reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	unsupportedColumnsForTable, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
-	if !ok {
-		return
-	}
-	if alterCmd.GetSubtype() != pg_query.AlterTableType_AT_AddConstraint {
-		return
-	}
-	if !slices.Contains([]pg_query.ConstrType{pg_query.ConstrType_CONSTR_PRIMARY, pg_query.ConstrType_CONSTR_UNIQUE},
-		alterCmd.GetDef().GetConstraint().GetContype()) {
-		return
-	}
-	columns := alterCmd.GetDef().GetConstraint().GetKeys()
-	for _, col := range columns {
-		colName := col.GetString_().Sval
-		typeName, ok := unsupportedColumnsForTable[colName]
-		if ok {
-			displayName := fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, alterCmd.GetDef().GetConstraint().GetConname())
-			reportCase(fpath, fmt.Sprintf(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
-				"Refer to the docs link for the workaround", "TABLE", displayName, sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
-			return
-		}
-	}
-}
 
 func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
 	schemaName := createTableNode.CreateStmt.Relation.Schemaname
@@ -1126,7 +1091,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 		return strings.Contains(issueInstance.TypeName, i)
 	}):
 		issueType = MIGRATION_CAVEATS
-	case issueInstance.TypeName == UNSUPPORTED_DATATYPE:
+	case strings.HasPrefix(issueInstance.TypeName, UNSUPPORTED_DATATYPE):
 		issueType = UNSUPPORTED_DATATYPES
 	case issueInstance.Details["IS_PLPGSQL_ISSUE"]:
 		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS

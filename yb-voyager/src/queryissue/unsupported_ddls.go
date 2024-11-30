@@ -24,6 +24,8 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // DDLIssueDetector interface defines methods for detecting issues in DDL objects
@@ -33,12 +35,18 @@ type DDLIssueDetector interface {
 
 // TableIssueDetector handles detection of table-related issues
 type TableIssueDetector struct {
-	primaryConsInAlter map[string]*queryparser.AlterTable
+	primaryConsInAlter                   map[string]*queryparser.AlterTable
+	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
+	compositeTypes                       []string
+	enumTypes                            []string
 }
 
 func (p *ParserIssueDetector) NewTableIssueDetector() *TableIssueDetector {
 	return &TableIssueDetector{
-		primaryConsInAlter: p.primaryConsInAlter,
+		primaryConsInAlter:                   p.primaryConsInAlter,
+		columnsWithUnsupportedIndexDatatypes: p.columnsWithUnsupportedIndexDatatypes,
+		compositeTypes:                       p.compositeTypes,
+		enumTypes:                            p.enumTypes,
 	}
 }
 
@@ -87,17 +95,106 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 					"",
 				))
 			}
+
+			if c.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE || c.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+				for _, col := range c.Columns {
+					unsupportedColumnsForTable, ok := d.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
+					if !ok {
+						break
+					}
+
+					typeName, ok := unsupportedColumnsForTable[col]
+					if !ok {
+						continue
+					}
+					issues = append(issues, issue.NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
+						issue.TABLE_OBJECT_TYPE,
+						fmt.Sprintf("%s, constraint: %s", table.GetObjectName(), c.ConstraintName),
+						"",
+						typeName,
+					))
+				}
+			}
+		}
+	}
+	for _, col := range table.Columns {
+		liveUnsupportedDatatypes := srcdb.GetPGLiveMigrationUnsupportedDatatypes()
+		liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
+
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
+		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, col.TypeName)
+
+		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, col.TypeName)
+		isUDTDatatype := utils.ContainsAnyStringFromSlice(d.compositeTypes, col.GetFullTypeName()) //if type is array
+		isEnumDatatype := utils.ContainsAnyStringFromSlice(d.enumTypes, col.GetFullTypeName())     //is ENUM type
+		isArrayOfEnumsDatatype := col.IsArrayType && isEnumDatatype
+		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
+
+		if isUnsupportedDatatype {
+			switch col.TypeName {
+			case "xml":
+				issues = append(issues, issue.NewXMLDatatypeIssue(
+					issue.TABLE_OBJECT_TYPE,
+					table.GetObjectName(),
+					"",
+					col.ColumnName,
+				))
+			case "xid":
+				issues = append(issues, issue.NewXIDDatatypeIssue(
+					issue.TABLE_OBJECT_TYPE,
+					table.GetObjectName(),
+					"",
+					col.ColumnName,
+				))
+			case "geometry", "geography", "box2d", "box3d", "topogeometry":
+				issues = append(issues, issue.NewPostGisDatatypeIssue(
+					issue.TABLE_OBJECT_TYPE,
+					table.GetObjectName(),
+					"",
+					col.TypeName,
+					col.ColumnName,
+				))
+			default:
+				issues = append(issues, issue.NewUnsupportedDatatypesIssue(
+					issue.TABLE_OBJECT_TYPE,
+					table.GetObjectName(),
+					"",
+					col.TypeName,
+					col.ColumnName,
+				))
+			}
+		} else if isUnsupportedDatatypeInLive {
+			issues = append(issues, issue.NewUnsupportedDatatypesForLMIssue(
+				issue.TABLE_OBJECT_TYPE,
+				table.GetObjectName(),
+				"",
+				col.TypeName,
+				col.ColumnName,
+			))
+		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
+			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
+			reportTypeName := col.GetFullTypeName()
+			if col.IsArrayType { // For Array cases to make it clear in issue
+				reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
+			}
+			issues = append(issues, issue.NewUnsupportedDatatypesForLMWithFFOrFBIssue(
+				issue.TABLE_OBJECT_TYPE,
+				table.GetObjectName(),
+				"",
+				reportTypeName,
+				col.ColumnName,
+			))
 		}
 	}
 
 	if table.IsPartitioned {
 
-        /*
-        1. Adding PK to Partitioned  Table (in cases where ALTER is before create)
-        2. Expression partitions are not allowed if PK/UNIQUE columns are there is table
-        3. List partition strategy is not allowed with multi-column partitions.
-        4. Partition columns should all be included in Primary key set if any on table.
-        */
+		/*
+		   1. Adding PK to Partitioned  Table (in cases where ALTER is before create)
+		   2. Expression partitions are not allowed if PK/UNIQUE columns are there is table
+		   3. List partition strategy is not allowed with multi-column partitions.
+		   4. Partition columns should all be included in Primary key set if any on table.
+		*/
 		alterAddPk := d.primaryConsInAlter[table.GetObjectName()]
 		if alterAddPk != nil {
 			issues = append(issues, issue.NewAlterTableAddPKOnPartiionIssue(
@@ -210,12 +307,14 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 
 // AlterTableIssueDetector handles detection of alter table-related issues
 type AlterTableIssueDetector struct {
-	partitionTablesMap map[string]bool
+	partitionTablesMap                   map[string]bool
+	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
 }
 
 func (p *ParserIssueDetector) NewAlterTableIssueDetector() *AlterTableIssueDetector {
 	return &AlterTableIssueDetector{
-		partitionTablesMap: p.partitionTablesMap,
+		partitionTablesMap:                   p.partitionTablesMap,
+		columnsWithUnsupportedIndexDatatypes: p.columnsWithUnsupportedIndexDatatypes,
 	}
 }
 
@@ -266,6 +365,27 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 				alter.GetObjectName(),
 				"",
 			))
+		}
+
+		if alter.AddPrimaryKeyOrUniqueCons() {
+			for _, col := range alter.ConstraintColumns {
+				unsupportedColumnsForTable, ok := aid.columnsWithUnsupportedIndexDatatypes[alter.GetObjectName()]
+				if !ok {
+					break
+				}
+
+				typeName, ok := unsupportedColumnsForTable[col]
+				if !ok {
+					continue
+				}
+				issues = append(issues, issue.NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
+					issue.TABLE_OBJECT_TYPE,
+					fmt.Sprintf("%s, constraint: %s", alter.GetObjectName(), alter.ConstraintName),
+					"",
+					typeName,
+				))
+			}
+
 		}
 	case queryparser.DISABLE_RULE:
 		issues = append(issues, issue.NewDisableRuleIssue(

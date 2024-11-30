@@ -187,6 +187,19 @@ func getFunctionObjectName(funcNameList []*pg_query.Node) string {
 	return lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
 }
 
+func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
+	typeName := ""
+	typeSchemaName := ""
+	if len(typeNames) > 0 {
+		typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
+	}
+	if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
+		typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+	}
+
+	return typeName, typeSchemaName
+}
+
 func getCreateTableAsStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateTableAsStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
 	return node, ok
@@ -227,6 +240,16 @@ func getPolicyStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreatePo
 	return node, ok
 }
 
+func getCompositeTypeStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CompositeTypeStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
+	return node, ok
+}
+
+func getEnumTypeStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateEnumStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
+	return node, ok
+}
+
 func IsAlterTable(parseTree *pg_query.ParseResult) bool {
 	_, isAlter := getAlterStmtNode(parseTree)
 	return isAlter
@@ -250,6 +273,12 @@ func IsCreatePolicy(parseTree *pg_query.ParseResult) bool {
 func IsCreateTrigger(parseTree *pg_query.ParseResult) bool {
 	_, isCreateTrig := getCreateTriggerStmtNode(parseTree)
 	return isCreateTrig
+}
+
+func IsCreateType(parseTree *pg_query.ParseResult) bool {
+	_, isComposite := getCompositeTypeStmtNode(parseTree)
+	_, isEnum := getEnumTypeStmtNode(parseTree)
+	return isComposite || isEnum
 }
 
 // func GetGeneratedColumns(parseTree *pg_query.ParseResult) []string {

@@ -294,3 +294,97 @@ func NewInsufficientColumnInPKForPartition(objectType string, objectName string,
 	issue.TypeName = fmt.Sprintf("%s - (%s)", issue.TypeName, strings.Join(partitionColumnsNotInPK, ", "))
 	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
+
+var xmlDatatypeIssue = Issue{
+	Type:       XML_DATATYPE,
+	TypeName:   "Unsupported datatype - xml",
+	Suggestion: "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1043",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#data-ingestion-on-xml-data-type-is-not-supported",
+}
+
+func NewXMLDatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) IssueInstance {
+	issue := xmlDatatypeIssue
+	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var xidDatatypeIssue = Issue{
+	Type:       XID_DATATYPE,
+	TypeName:   "Unsupported datatype - xid",
+	Suggestion: "Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/15638",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported",
+}
+
+func NewXIDDatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) IssueInstance {
+	issue := xidDatatypeIssue
+	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var postgisDatatypeIssue = Issue{
+	Type:     POSTGIS_DATATYPES,
+	TypeName: "Unsupported datatype",
+	GH:       "https://github.com/yugabyte/yugabyte-db/issues/11323",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewPostGisDatatypeIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) IssueInstance {
+	issue := postgisDatatypeIssue
+	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var unsupportedDatatypesIssue = Issue{
+	Type:     UNSUPPORTED_DATATYPES,
+	TypeName: "Unsupported datatype",
+	GH:       "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewUnsupportedDatatypesIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) IssueInstance {
+	issue := unsupportedDatatypesIssue
+	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var unsupportedDatatypesForLiveMigrationIssue = Issue{
+	Type:     UNSUPPORTED_DATATYPES_LIVE_MIGRATION,
+	TypeName: "Unsupported datatype for Live migration",
+	GH:       "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewUnsupportedDatatypesForLMIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) IssueInstance {
+	issue := unsupportedDatatypesForLiveMigrationIssue
+	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = Issue{
+	Type:     UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB,
+	TypeName: "Unsupported datatype for Live migration with fall-forward/fallback",
+	GH:       "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) IssueInstance {
+	issue := unsupportedDatatypesForLiveMigrationWithFFOrFBIssue
+	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var primaryOrUniqueOnUnsupportedIndexTypesIssue = Issue{
+	Type:     PK_UK_ON_UNSUPPORTED_DATATYPE,
+	TypeName: "Primary key and Unique constraint on column '%s' not yet supported",
+	GH:       "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion: "Refer to the docs link for the workaround",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string) IssueInstance {
+	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
+	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}

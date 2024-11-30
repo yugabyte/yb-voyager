@@ -18,6 +18,7 @@ package queryissue
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -211,6 +212,37 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 		table, _ := ddlObj.(*queryparser.Table)
 		if table.IsPartitioned {
 			p.partitionTablesMap[table.GetObjectName()] = true
+		}
+
+		for _, col := range table.Columns {
+			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
+			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
+			switch true {
+			case col.IsArrayType:
+				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
+				_, ok := p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
+				if !ok {
+					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()] = make(map[string]string)
+				}
+				p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "array"
+			case isUnsupportedType || isUDTType:
+				_, ok := p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
+				if !ok {
+					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()] = make(map[string]string)
+				}
+				p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = col.TypeName
+				if isUDTType { //For UDTs
+					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "user_defined_type"
+				}
+			}
+		}
+
+	case *queryparser.CreateType:
+		typeObj, _ := ddlObj.(*queryparser.CreateType)
+		if typeObj.IsEnum {
+			p.enumTypes = append(p.enumTypes, typeObj.GetObjectName())
+		} else {
+			p.compositeTypes = append(p.compositeTypes, typeObj.GetObjectName())
 		}
 	}
 	return nil

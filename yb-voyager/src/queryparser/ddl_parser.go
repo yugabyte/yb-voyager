@@ -86,8 +86,18 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 			if p.isGeneratedColumn(element.GetColumnDef()) {
 				table.GeneratedColumns = append(table.GeneratedColumns, element.GetColumnDef().Colname)
 			}
-			constraints := element.GetColumnDef().GetConstraints()
 			colName := element.GetColumnDef().GetColname()
+
+			typeNames := element.GetColumnDef().GetTypeName().GetNames()
+			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+			table.Columns = append(table.Columns, TableColumn{
+				ColumnName:  colName,
+				TypeName:    typeName,
+				TypeSchema:  typeSchemaName,
+				IsArrayType: len(element.GetColumnDef().GetTypeName().GetArrayBounds()) > 0,
+			})
+
+			constraints := element.GetColumnDef().GetConstraints()
 			if constraints != nil {
 				for idx, c := range constraints {
 					constraint := c.GetConstraint()
@@ -98,16 +108,7 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 							table.Constraints[len(table.Constraints)-1] = lastConstraint
 						}
 					} else {
-						tc := TableConstraint{
-							ConstraintType: constraint.Contype,
-							Columns:        []string{colName},
-							IsDeferrable:   false,
-						}
-						generatedConName := tc.generateConstraintName(table.GetObjectName())
-						specifiedConstraintName := constraint.Conname
-						conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-						tc.ConstraintName = conName
-						table.Constraints = append(table.Constraints, tc)
+						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false)
 					}
 				}
 			}
@@ -115,23 +116,15 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 		} else if element.GetConstraint() != nil {
 			constraint := element.GetConstraint()
 			conType := element.GetConstraint().Contype
-			columns := p.parseColumnsFromKeys(constraint.GetKeys())
+			columns := parseColumnsFromKeys(constraint.GetKeys())
 			if conType == EXCLUSION_CONSTR_TYPE {
 				exclusions := constraint.GetExclusions()
 				//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
 				//items:{list:{items:{string:{sval:"="}}}}}}
 				columns = p.parseColumnsFromExclusions(exclusions)
 			}
-			tableConstraint := TableConstraint{
-				ConstraintType: conType,
-				Columns:        columns,
-				IsDeferrable:   constraint.Deferrable,
-			}
-			generatedConName := tableConstraint.generateConstraintName(table.GetObjectName())
-			specifiedConstraintName := constraint.Conname
-			conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-			tableConstraint.ConstraintName = conName
-			table.Constraints = append(table.Constraints, tableConstraint)
+			table.addConstraint(conType, columns, constraint.Conname, constraint.Deferrable)
+
 		}
 	}
 
@@ -160,7 +153,7 @@ func (p *TableParser) parseColumnsFromExclusions(list []*pg_query.Node) []string
 	return res
 }
 
-func (p *TableParser) parseColumnsFromKeys(keys []*pg_query.Node) []string {
+func parseColumnsFromKeys(keys []*pg_query.Node) []string {
 	var res []string
 	for _, k := range keys {
 		res = append(res, k.GetString_().Sval)
@@ -250,6 +243,7 @@ func (p *AlterTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, er
 		alter.ConstraintType = constraint.Contype
 		alter.ConstraintName = constraint.Conname
 		alter.IsDeferrable = constraint.Deferrable
+		alter.ConstraintColumns = parseColumnsFromKeys(constraint.GetKeys())
 
 	case pg_query.AlterTableType_AT_DisableRule:
 		alter.RuleName = cmd.Name
@@ -354,11 +348,23 @@ type Table struct {
 	TableName             string
 	IsUnlogged            bool
 	IsPartitioned         bool
+	Columns               []TableColumn
 	IsExpressionPartition bool
 	PartitionStrategy     pg_query.PartitionStrategy
 	PartitionColumns      []string
 	GeneratedColumns      []string
 	Constraints           []TableConstraint
+}
+
+type TableColumn struct {
+	ColumnName  string
+	TypeName    string
+	TypeSchema  string
+	IsArrayType bool
+}
+
+func (tc *TableColumn) GetFullTypeName() string {
+	return lo.Ternary(tc.TypeSchema != "", tc.TypeSchema+"."+tc.TypeName, tc.TypeName)
 }
 
 type TableConstraint struct {
@@ -411,6 +417,18 @@ func (t *Table) UniqueKeyColumns() []string {
 	return uniqueCols
 }
 
+func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, specifiedConName string, deferrable bool) {
+	tc := TableConstraint{
+		ConstraintType: conType,
+		Columns:        columns,
+		IsDeferrable:   deferrable,
+	}
+	generatedConName := tc.generateConstraintName(t.GetObjectName())
+	conName := lo.Ternary(specifiedConName == "", generatedConName, specifiedConName)
+	tc.ConstraintName = conName
+	t.Constraints = append(t.Constraints, tc)
+}
+
 type Index struct {
 	SchemaName        string
 	IndexName         string
@@ -442,9 +460,10 @@ type AlterTable struct {
 	NumSetAttributes  int
 	NumStorageOptions int
 	//In case AlterType - ADD_CONSTRAINT
-	ConstraintType pg_query.ConstrType
-	ConstraintName string
-	IsDeferrable   bool
+	ConstraintType    pg_query.ConstrType
+	ConstraintName    string
+	IsDeferrable      bool
+	ConstraintColumns []string
 }
 
 func (a *AlterTable) GetObjectName() string {
@@ -452,6 +471,10 @@ func (a *AlterTable) GetObjectName() string {
 	return qualifiedTable
 }
 func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
+
+func (a *AlterTable) AddPrimaryKeyOrUniqueCons() bool {
+	return a.ConstraintType == PRIMARY_CONSTR_TYPE || a.ConstraintType == UNIQUE_CONSTR_TYPE
+}
 
 type Policy struct {
 	SchemaName string
@@ -515,6 +538,50 @@ func (t *Trigger) IsBeforeRowTrigger() bool {
 	return t.ForEachRow && isSecondBitSet
 }
 
+type TypeParser struct{}
+
+func NewTypeParser() *TypeParser {
+	return &TypeParser{}
+}
+
+func (t *TypeParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	compositeNode, isComposite := getCompositeTypeStmtNode(parseTree)
+	enumNode, isEnum := getEnumTypeStmtNode(parseTree)
+
+	switch {
+	case isComposite:
+		createType := &CreateType{
+			TypeName:   compositeNode.CompositeTypeStmt.Typevar.GetRelname(),
+			SchemaName: compositeNode.CompositeTypeStmt.Typevar.GetSchemaname(),
+		}
+		return createType, nil
+	case isEnum:
+		typeNames := enumNode.CreateEnumStmt.GetTypeName()
+		typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+		createType := &CreateType{
+			TypeName:   typeName,
+			SchemaName: typeSchemaName,
+			IsEnum:     true,
+		}
+		return createType, nil
+
+	default:
+		return nil, fmt.Errorf("not CREATE TYPE statement")
+	}
+
+}
+
+type CreateType struct {
+	TypeName   string
+	SchemaName string
+	IsEnum     bool
+}
+
+func (c *CreateType) GetObjectName() string {
+	return lo.Ternary(c.SchemaName != "", fmt.Sprintf("%s.%s", c.SchemaName, c.TypeName), c.TypeName)
+}
+func (c *CreateType) GetSchemaName() string { return c.SchemaName }
+
 //No op parser for objects we don't have parser yet
 
 type NoOpParser struct{}
@@ -547,6 +614,8 @@ func GetDDLParser(parseTree *pg_query.ParseResult) (DDLParser, error) {
 		return NewPolicyParser(), nil
 	case IsCreateTrigger(parseTree):
 		return NewTriggerParser(), nil
+	case IsCreateType(parseTree):
+		return NewTypeParser(), nil
 	default:
 		return NewNoOpParser(), nil
 	}
