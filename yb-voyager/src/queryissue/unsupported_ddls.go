@@ -112,6 +112,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 						fmt.Sprintf("%s, constraint: %s", table.GetObjectName(), c.ConstraintName),
 						"",
 						typeName,
+						true,
 					))
 				}
 			}
@@ -237,10 +238,16 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 }
 
 // IndexIssueDetector handles detection of index-related issues
-type IndexIssueDetector struct{}
+type IndexIssueDetector struct {
+	compositeTypes                       []string
+	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
+}
 
 func (p *ParserIssueDetector) NewIndexIssueDetector() *IndexIssueDetector {
-	return &IndexIssueDetector{}
+	return &IndexIssueDetector{
+		columnsWithUnsupportedIndexDatatypes: p.columnsWithUnsupportedIndexDatatypes,
+		compositeTypes:                       p.compositeTypes,
+	}
 }
 
 func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
@@ -297,6 +304,69 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 					issue.INDEX_OBJECT_TYPE,
 					index.GetObjectName(),
 					"",
+				))
+			}
+		}
+	}
+
+	//Index on complex datatypes
+	/*
+		e.g.
+		1. CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
+		stmt:{index_stmt:{idxname:"tsvector_idx"  relation:{schemaname:"public"  relname:"documents"  inh:true  relpersistence:"p"  location:510}  access_method:"btree"
+		index_params:{index_elem:{name:"title_tsvector"  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}  index_params:{index_elem:{name:"id"
+		ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:479  stmt_len:69
+
+		2. CREATE INDEX idx_json ON public.test_json ((data::jsonb));
+		stmt:{index_stmt:{idxname:"idx_json"  relation:{schemaname:"public"  relname:"test_json"  inh:true  relpersistence:"p"  location:703}  access_method:"btree"
+		index_params:{index_elem:{expr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"data"}}  location:722}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1
+		location:728}  location:726}}  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:676  stmt_len:59
+	*/
+	/*
+	   cases covered
+	       1. normal index on column with these types
+	       2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
+	       3. expression index with  casting to unsupported types
+	       4. normal index on column with UDTs
+	       5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
+	*/
+	_, ok = d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
+	if ok && index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
+		for _, param := range index.Params {
+			if param.IsExpression {
+				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
+				isUDTType := slices.Contains(d.compositeTypes, param.GetFullExprCastTypeName())
+				if param.IsExprCastArrayType {
+					issues = append(issues, issue.NewIndexOnComplexDatatypesIssue(
+						issue.INDEX_OBJECT_TYPE,
+						index.GetObjectName(),
+						"",
+						"array",
+					))
+				} else if isUnsupportedType || isUDTType {
+					reportTypeName := param.ExprCastTypeName
+					if isUDTType {
+						reportTypeName = "user_defined_type"
+					}
+					issues = append(issues, issue.NewIndexOnComplexDatatypesIssue(
+						issue.INDEX_OBJECT_TYPE,
+						index.GetObjectName(),
+						"",
+						reportTypeName,
+					))
+				}
+
+			} else {
+				colName := param.ColName
+				typeName, ok := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()][colName]
+				if !ok {
+					continue
+				}
+				issues = append(issues, issue.NewIndexOnComplexDatatypesIssue(
+					issue.INDEX_OBJECT_TYPE,
+					index.GetObjectName(),
+					"",
+					typeName,
 				))
 			}
 		}
@@ -383,6 +453,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 					fmt.Sprintf("%s, constraint: %s", alter.GetObjectName(), alter.ConstraintName),
 					"",
 					typeName,
+					false,
 				))
 			}
 
@@ -503,5 +574,6 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 }
 
 const (
-	GIN_ACCESS_METHOD = "gin"
+	GIN_ACCESS_METHOD   = "gin"
+	BTREE_ACCESS_METHOD = "btree"
 )

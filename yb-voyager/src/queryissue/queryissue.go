@@ -268,7 +268,9 @@ func (p *ParserIssueDetector) GetDDLIssues(query string) ([]issue.IssueInstance,
 
 	// Add the original query to each issue
 	for i := range issues {
-		issues[i].SqlStatement = query
+		if issues[i].SqlStatement == "" {
+			issues[i].SqlStatement = query
+		}
 	}
 
 	return issues, nil

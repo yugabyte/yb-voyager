@@ -199,11 +199,17 @@ func (p *IndexParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 func (p *IndexParser) parseIndexParams(params []*pg_query.Node) []IndexParam {
 	var indexParams []IndexParam
 	for _, i := range params {
-		indexParams = append(indexParams, IndexParam{
-			SortByOrder: i.GetIndexElem().Ordering,
-			Name:        i.GetIndexElem().GetName(),
-			//TODO: as per other cases
-		})
+		ip := IndexParam{
+			SortByOrder:  i.GetIndexElem().Ordering,
+			ColName:      i.GetIndexElem().GetName(),
+			IsExpression: i.GetIndexElem().GetExpr() != nil,
+		}
+		if ip.IsExpression {
+			//For the expression index case to report in case casting to unsupported types #3
+			typeNames := i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
+			ip.ExprCastTypeName, ip.ExprCastTypeSchema = getTypeNameAndSchema(typeNames)
+		}
+		indexParams = append(indexParams, ip)
 	}
 	return indexParams
 }
@@ -439,17 +445,27 @@ type Index struct {
 }
 
 type IndexParam struct {
-	SortByOrder pg_query.SortByDir
-	Name        string
-	TypeName    string //In case of expression and casting to a type
+	SortByOrder         pg_query.SortByDir
+	ColName             string
+	IsExpression        bool
+	ExprCastTypeName    string //In case of expression and casting to a type
+	ExprCastTypeSchema  string //In case of expression and casting to a type
+	IsExprCastArrayType bool
 	//Add more fields
 }
 
+func (ip *IndexParam) GetFullExprCastTypeName() string {
+	return lo.Ternary(ip.ExprCastTypeSchema != "", ip.ExprCastTypeSchema+"."+ip.ExprCastTypeName, ip.ExprCastTypeName)
+}
+
 func (i *Index) GetObjectName() string {
-	qualifiedTable := lo.Ternary(i.SchemaName != "", fmt.Sprintf("%s.%s", i.SchemaName, i.TableName), i.TableName)
-	return fmt.Sprintf("%s ON %s", i.IndexName, qualifiedTable)
+	return fmt.Sprintf("%s ON %s", i.IndexName, i.GetTableName())
 }
 func (i *Index) GetSchemaName() string { return i.SchemaName }
+
+func (i *Index) GetTableName() string {
+	return lo.Ternary(i.SchemaName != "", fmt.Sprintf("%s.%s", i.SchemaName, i.TableName), i.TableName)
+}
 
 type AlterTable struct {
 	Query             string

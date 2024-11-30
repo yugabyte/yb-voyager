@@ -376,15 +376,34 @@ func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName s
 }
 
 var primaryOrUniqueOnUnsupportedIndexTypesIssue = Issue{
-	Type:     PK_UK_ON_UNSUPPORTED_DATATYPE,
-	TypeName: "Primary key and Unique constraint on column '%s' not yet supported",
-	GH:       "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Type:       PK_UK_ON_COMPLEX_DATATYPE,
+	TypeName:   "Primary key and Unique constraint on column '%s' not yet supported",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25003",
 	Suggestion: "Refer to the docs link for the workaround",
-	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
-func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string) IssueInstance {
+func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string, increaseInvalidCnt bool) IssueInstance {
+	details := map[string]interface{}{}
+	//for CONSTRAINT TRIGGER we don't have separate object
+	if !increaseInvalidCnt {
+		details["INCREASE_INVALID_COUNT"] = false
+	}
 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
+	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
+	return newIssueInstance(issue, objectType, objectName, SqlStatement, details)
+}
+
+var indexOnComplexDatatypesIssue = Issue{
+	Type:       INDEX_ON_COMPLEX_DATATYPE,
+	TypeName:   "INDEX on column '%s' not yet supported",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion: "Refer to the docs link for the workaround",
+	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported",
+}
+
+func NewIndexOnComplexDatatypesIssue(objectType string, objectName string, SqlStatement string, typeName string) IssueInstance {
+	issue := indexOnComplexDatatypesIssue
 	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
 	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
