@@ -18,7 +18,8 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
+export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
+export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_fallb_export-dir"}
 export QUEUE_SEGMENT_MAX_BYTES=400
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
@@ -35,6 +36,15 @@ then
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh
 else
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+fi
+
+if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
+    export SOURCE_DB_NAME="${NORMALIZED_TEST_NAME}_fallb"
+elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
+    export SOURCE_DB_SCHEMA="${NORMALIZED_TEST_NAME}_fallb"
+else
+    echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+    exit 1
 fi
 
 source ${SCRIPTS}/yugabytedb/env.sh
@@ -56,6 +66,10 @@ main() {
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
+	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
+	then
+		create_source_db ${SOURCE_DB_SCHEMA}
+	fi
 	./init-db
 
 	step "Grant source database user permissions for live migration"	
@@ -264,7 +278,7 @@ main() {
 
 	step "Clean up"
 	./cleanup-db
-	rm -rf "${EXPORT_DIR}/*"
+	rm -rf "${EXPORT_DIR}"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

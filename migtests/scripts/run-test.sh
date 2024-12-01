@@ -17,7 +17,8 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
+export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
+export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_offline_export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
@@ -33,9 +34,20 @@ then
 else
 	source ${TEST_DIR}/env.sh
 fi
-source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
-source ${SCRIPTS}/yugabytedb/env.sh
 
+source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+
+
+if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
+    export SOURCE_DB_NAME="${NORMALIZED_TEST_NAME}_offline"
+elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
+    export SOURCE_DB_SCHEMA="${NORMALIZED_TEST_NAME}_offline"
+else
+    echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+    exit 1
+fi
+
+source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
 
 main() {
@@ -52,6 +64,14 @@ main() {
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
+	if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
+    create_source_db ${SOURCE_DB_NAME}
+elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
+    create_source_db ${SOURCE_DB_SCHEMA}
+else
+    echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+    exit 1
+fi
 	./init-db
 
 	step "Grant source database user permissions"
@@ -190,7 +210,7 @@ main() {
 
 	step "Clean up"
 	./cleanup-db
-	rm -rf "${EXPORT_DIR}/*"
+	rm -rf "${EXPORT_DIR}"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

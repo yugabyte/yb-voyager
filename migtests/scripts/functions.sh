@@ -134,7 +134,8 @@ grant_user_permission_oracle(){
 	*/
 	GRANT FLASHBACK ANY TABLE TO ybvoyager;
 EOF
-	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"	
+	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"
+	rm oracle-inputs.sql
 
 }
 
@@ -149,6 +150,8 @@ EOF
 	run_sqlplus_as_sys ${pdb_name} "create-pdb-tablespace.sql"
 	cp ${SCRIPTS}/oracle/live-grants.sql oracle-inputs.sql
 	run_sqlplus_as_sys ${cdb_name} "oracle-inputs.sql"
+	rm create-pdb-tablespace.sql
+	rm oracle-inputs.sql
 }
 
 grant_permissions_for_live_migration_pg() {
@@ -191,7 +194,7 @@ run_sqlplus_as_sys() {
 run_sqlplus_as_schema_owner() {
     db_name=$1
     sql=$2
-    conn_string="${SOURCE_DB_USER_SCHEMA_OWNER}/${SOURCE_DB_USER_SCHEMA_OWNER_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+    conn_string="${SOURCE_DB_SCHEMA}/${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
     echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
 
@@ -623,16 +626,6 @@ get_value_from_msr(){
   echo $val
 }
 
-create_ff_schema(){
-	db_name=$1
-
-	cat > create-ff-schema.sql << EOF
-	CREATE USER FF_SCHEMA IDENTIFIED BY "password";
-	GRANT all privileges to FF_SCHEMA;
-EOF
-	run_sqlplus_as_sys ${db_name} "create-ff-schema.sql"
-}
-
 set_replica_identity(){
 	db_schema=$1
     cat > alter_replica_identity.sql <<EOF
@@ -647,6 +640,7 @@ set_replica_identity(){
     END \$CUSTOM\$;
 EOF
     run_psql ${SOURCE_DB_NAME} "$(cat alter_replica_identity.sql)"
+	rm alter_replica_identity.sql
 }
 
 grant_permissions_for_live_migration() {
@@ -1042,4 +1036,30 @@ cutover_to_target() {
     fi
     
     yb-voyager initiate cutover to target ${args} $*
+}
+
+create_source_db() {
+	source_db=$1
+	case ${SOURCE_DB_TYPE} in
+		postgresql)
+			run_psql postgres "DROP DATABASE IF EXISTS ${source_db};"
+			run_psql postgres "CREATE DATABASE ${source_db};"
+			;;
+		mysql)
+			run_mysql mysql "DROP DATABASE IF EXISTS ${source_db};"
+			run_mysql mysql "CREATE DATABASE ${source_db};"
+			;;
+		oracle)
+			cat > create-oracle-schema.sql << EOF
+			CREATE USER ${source_db} IDENTIFIED BY "password";
+			GRANT all privileges to ${source_db};
+EOF
+			run_sqlplus_as_sys ${SOURCE_DB_NAME} "create-oracle-schema.sql"
+			rm create-oracle-schema.sql
+			;;
+		*)
+			echo "ERROR: Source DB not created for ${SOURCE_DB_TYPE}"
+			exit 1
+			;;
+	esac
 }
