@@ -668,6 +668,17 @@ setup_fallback_environment() {
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
 		run_sqlplus_as_sys ${SOURCE_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
 		run_sqlplus_as_sys ${SOURCE_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
+		# Define the temporary file
+		TEMP_SCRIPT="/tmp/fall_back_prep.sql"
+		
+		# Replace TEST_SCHEMA with the value of SOURCE_DB_SCHEMA in the script
+		sed "s/TEST_SCHEMA/${SOURCE_DB_SCHEMA}/g" ${SCRIPTS}/oracle/fall_back_prep.sql > $TEMP_SCRIPT
+		
+		# Run the updated script using the run_sqlplus_as_sys function
+		run_sqlplus_as_sys ${SOURCE_DB_NAME} $TEMP_SCRIPT
+		
+		# Clean up the temporary file after execution
+		rm -f $TEMP_SCRIPT
 		elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
 		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql

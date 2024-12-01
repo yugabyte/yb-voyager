@@ -1,1 +1,2 @@
 export SOURCE_DB_TYPE="mysql"
+export TARGET_DB_SCHEMA="TEST_SAMPLE_CHINOOK"
