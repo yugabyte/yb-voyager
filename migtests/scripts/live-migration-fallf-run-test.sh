@@ -40,9 +40,9 @@ else
 fi
 
 if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
-    export SOURCE_DB_NAME="${NORMALIZED_TEST_NAME}_fallf"
+    export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_fallf"}
 elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
-    export SOURCE_DB_SCHEMA="${NORMALIZED_TEST_NAME}_fallf"
+    export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME}_fallf"}
 else
     echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
     exit 1

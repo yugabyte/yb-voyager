@@ -16,10 +16,6 @@ echo "Creating ${SOURCE_DB_NAME} database on source"
 run_mysql mysql "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
 run_mysql mysql "CREATE DATABASE ${SOURCE_DB_NAME};"
 
-# Replace 'sakila' with the value of SOURCE_DB_NAME in both SQL files
-sed -i "s/sakila/${SOURCE_DB_NAME}/g" sakila-db/sakila-schema.sql
-sed -i "s/USE sakila/USE ${SOURCE_DB_NAME}/g" sakila-db/sakila-data.sql
-
 echo "Initialising source database."
 run_mysql ${SOURCE_DB_NAME} "SOURCE sakila-db/sakila-schema.sql;"
 run_mysql ${SOURCE_DB_NAME} "SOURCE sakila-db/sakila-data.sql;"
