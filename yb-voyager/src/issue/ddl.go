@@ -211,7 +211,7 @@ var constraintTriggerIssue = Issue{
 
 func NewConstraintTriggerIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
 	details := map[string]interface{}{}
-	//for CONSTRAINT TRIGGER we don't have separate object
+	//for CONSTRAINT TRIGGER we don't have separate object type TODO: fix   
 	if objectType == "TRIGGER" {
 		details["INCREASE_INVALID_COUNT"] = false
 	}
@@ -385,7 +385,7 @@ var primaryOrUniqueOnUnsupportedIndexTypesIssue = Issue{
 
 func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string, increaseInvalidCnt bool) IssueInstance {
 	details := map[string]interface{}{}
-	//for CONSTRAINT TRIGGER we don't have separate object
+	//for ALTER not increasing count, but for Create increasing TODO: fix
 	if !increaseInvalidCnt {
 		details["INCREASE_INVALID_COUNT"] = false
 	}

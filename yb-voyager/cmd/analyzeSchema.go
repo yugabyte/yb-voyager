@@ -323,7 +323,6 @@ func addSummaryDetailsForIndexes() {
 	}
 }
 
-
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
 		parseTree, err := queryparser.Parse(sqlStmtInfo.stmt)
@@ -634,15 +633,15 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
+	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
 		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
 	}
-	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 }
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		issues, err := parserIssueDetector.GetAllIssues(sqlInfoStmt.formattedStmt)
+		issues, err := parserIssueDetector.GetAllPLPGSQLIssues(sqlInfoStmt.formattedStmt)
 		if err != nil {
 			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
@@ -663,7 +662,7 @@ var MigrationCaveatsIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string, isDMLIssue bool) utils.Issue {
+func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string, isPlPgSQLIssue bool) utils.Issue {
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
@@ -672,11 +671,10 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 		issueType = MIGRATION_CAVEATS
 	case strings.HasPrefix(issueInstance.TypeName, UNSUPPORTED_DATATYPE):
 		issueType = UNSUPPORTED_DATATYPES
-	case issueInstance.Details["IS_PLPGSQL_ISSUE"]:
+	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
 	}
-	//TODO: issue TYpe fetching in case of DDL issues in PLPGSQL - currently using the Details map of the issueInstance to store the issue
-
+	
 	//TODO: how to different between same issue on differnt obejct types like ALTER/INDEX for not adding it ot invalid count map
 	increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"]
 	if !ok || (increaseInvalidCount.(bool)) {

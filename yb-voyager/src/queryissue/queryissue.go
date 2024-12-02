@@ -55,8 +55,6 @@ type ParserIssueDetector struct {
 
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
-	// TODO: Add fields here
-	// e.g. store composite types, etc. for future processing.
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -70,10 +68,28 @@ func NewParserIssueDetector() *ParserIssueDetector {
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance, error) {
+	plpgsqlIssues, err := p.GetAllPLPGSQLIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting plpgsql issues: %v", err)
+	}
+
+	dmlIssues, err := p.GetDMLIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting dml issues: %v", err)
+	}
+	ddlIssues, err := p.GetDDLIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting ddl issues: %v", err)
+	}
+	return lo.Flatten([][]issue.IssueInstance{plpgsqlIssues, dmlIssues, ddlIssues}), nil
+}
+
+func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+	//TODO handle this in DDLPARSER, DDLIssueDetector
 	if queryparser.IsPLPGSQLObject(parseTree) {
 		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
@@ -95,7 +111,6 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 			i.ObjectType = objType
 			i.ObjectName = objName
-			i.Details["IS_PLPGSQL_ISSUE"] = true
 			return i
 		}), nil
 	}
@@ -106,7 +121,7 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 		if err != nil {
 			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
 		}
-		issues, err := p.GetAllIssues(selectStmtQuery)
+		issues, err := p.GetDMLIssues(selectStmtQuery)
 		if err != nil {
 			return nil, err
 		}
@@ -115,22 +130,11 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
 			i.ObjectType = objType
 			i.ObjectName = objName
-			i.Details["IS_PLPGSQL_ISSUE"] = true
 			return i
 		}), nil
+	}
 
-	}
-	dmlIssues, err := p.GetDMLIssues(query)
-	if err != nil {
-		return nil, fmt.Errorf("error getting dml issues: %v", err)
-	}
-	_, err = p.GetDDLIssues(query)
-	if err != nil {
-		return nil, fmt.Errorf("error getting ddl issues: %v", err)
-	}
-	issues := dmlIssues
-	// issues = append(issues, ddlIssues...)
-	return issues, nil
+	return nil, nil
 }
 
 // parseTree, err := queryparser.Parse(query)
