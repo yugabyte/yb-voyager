@@ -16,13 +16,26 @@ limitations under the License.
 
 package issue
 
+import (
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+)
+
 type Issue struct {
-	Type            string // (advisory_locks, index_not_supported, etc)
-	TypeName        string // for display
-	TypeDescription string
-	Suggestion      string
-	GH              string
-	DocsLink        string
+	Type                   string // (advisory_locks, index_not_supported, etc)
+	TypeName               string // for display
+	TypeDescription        string
+	Suggestion             string
+	GH                     string
+	DocsLink               string
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion // key: series (2024.1, 2.21, etc)
+}
+
+func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
+	minVersionFixedInSeries, ok := i.MinimumVersionsFixedIn[v.Series()]
+	if !ok {
+		return false, nil
+	}
+	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
 }
 
 type IssueInstance struct {

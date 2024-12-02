@@ -21,6 +21,7 @@ import (
 	_ "embed"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -43,6 +44,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var (
@@ -54,6 +56,7 @@ var (
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
 )
+
 var sourceConnectionFlags = []string{
 	"source-db-host",
 	"source-db-password",
@@ -80,6 +83,10 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
+		err := validateAndSetTargetDbVersionFlag()
+		if err != nil {
+			utils.ErrExit("%v", err)
+		}
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
 			for _, f := range sourceConnectionFlags {
@@ -284,6 +291,10 @@ func init() {
 		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). (only valid for PostgreSQL)")
 
 	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
+
+	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
+		fmt.Sprintf("Target YugabyteDB version to assess migration for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
+	assessMigrationCmd.Flags().MarkHidden("target-db-version")
 }
 
 func assessMigration() (err error) {
@@ -1102,8 +1113,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
-
-		issues, err := parserIssueDetector.GetDMLIssues(query)
+		issues, err := parserIssueDetector.GetDMLIssues(query, targetDbVersion)
 		if err != nil {
 			log.Errorf("failed while trying to fetch query issues in query - [%s]: %v",
 				query, err)
@@ -1398,5 +1408,29 @@ func validateAssessmentMetadataDirFlag() {
 		} else {
 			log.Infof("using provided assessment metadata directory: %s", assessmentMetadataDirFlag)
 		}
+	}
+}
+
+func validateAndSetTargetDbVersionFlag() error {
+	if targetDbVersionStrFlag == "" {
+		targetDbVersion = ybversion.LatestStable
+		utils.PrintAndLog("Defaulting to latest stable YugabyteDB version: %s", targetDbVersion)
+		return nil
+	}
+	var err error
+	targetDbVersion, err = ybversion.NewYBVersion(targetDbVersionStrFlag)
+
+	if err == nil || !errors.Is(err, ybversion.ErrUnsupportedSeries) {
+		return err
+	}
+
+	// error is ErrUnsupportedSeries
+	utils.PrintAndLog("%v", err)
+	if utils.AskPrompt("Do you want to continue with the latest stable YugabyteDB version:", ybversion.LatestStable.String()) {
+		targetDbVersion = ybversion.LatestStable
+		return nil
+	} else {
+		utils.ErrExit("Aborting..")
+		return nil
 	}
 }
