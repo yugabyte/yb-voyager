@@ -26,6 +26,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type ParserIssueDetector struct {
@@ -67,24 +68,56 @@ func NewParserIssueDetector() *ParserIssueDetector {
 	}
 }
 
-func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance, error) {
-	plpgsqlIssues, err := p.GetAllPLPGSQLIssues(query)
+func (p *ParserIssueDetector) getAllIssues(query string) ([]issue.IssueInstance, error) {
+	plpgsqlIssues, err := p.getPLPGSQLIssues(query)
 	if err != nil {
 		return nil, fmt.Errorf("error getting plpgsql issues: %v", err)
 	}
 
-	dmlIssues, err := p.GetDMLIssues(query)
+	dmlIssues, err := p.getDMLIssues(query)
 	if err != nil {
 		return nil, fmt.Errorf("error getting dml issues: %v", err)
 	}
-	ddlIssues, err := p.GetDDLIssues(query)
+	ddlIssues, err := p.getDDLIssues(query)
 	if err != nil {
 		return nil, fmt.Errorf("error getting ddl issues: %v", err)
 	}
 	return lo.Flatten([][]issue.IssueInstance{plpgsqlIssues, dmlIssues, ddlIssues}), nil
 }
 
-func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.IssueInstance, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	var filteredIssues []issue.IssueInstance
+	for _, i := range issues {
+		fixed, err := i.IsFixedIn(targetDbVersion)
+		if err != nil {
+			return nil, fmt.Errorf("checking if issue %v is supported: %w", i, err)
+		}
+		if !fixed {
+			filteredIssues = append(filteredIssues, i)
+		}
+	}
+	return filteredIssues, nil
+}
+
+func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	issues, err := p.getAllIssues(query)
+	if err != nil {
+		return issues, err
+	}
+
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	issues, err := p.getPLPGSQLIssues(query)
+	if err != nil {
+		return issues, nil
+	}
+
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
@@ -98,7 +131,7 @@ func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string) ([]issue.IssueIn
 		}
 		var issues []issue.IssueInstance
 		for _, plpgsqlQuery := range plpgsqlQueries {
-			issuesInQuery, err := p.GetAllIssues(plpgsqlQuery)
+			issuesInQuery, err := p.getAllIssues(plpgsqlQuery)
 			if err != nil {
 				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
 				log.Errorf("error getting issues in query-%s: %v", query, err)
@@ -106,6 +139,7 @@ func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string) ([]issue.IssueIn
 			}
 			issues = append(issues, issuesInQuery...)
 		}
+
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
 			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
@@ -121,10 +155,11 @@ func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string) ([]issue.IssueIn
 		if err != nil {
 			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
 		}
-		issues, err := p.GetDMLIssues(selectStmtQuery)
+		issues, err := p.getDMLIssues(selectStmtQuery)
 		if err != nil {
 			return nil, err
 		}
+
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
 			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
@@ -133,7 +168,6 @@ func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string) ([]issue.IssueIn
 			return i
 		}), nil
 	}
-
 	return nil, nil
 }
 
@@ -252,7 +286,17 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 	return nil
 }
 
-func (p *ParserIssueDetector) GetDDLIssues(query string) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	issues, err := p.getDDLIssues(query)
+	if err != nil {
+		return issues, nil
+	}
+
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+
+}
+
+func (p *ParserIssueDetector) getDDLIssues(query string) ([]issue.IssueInstance, error) {
 	// Parse the query into a DDL object
 	ddlObj, err := queryparser.ParseDDL(query)
 	if err != nil {
@@ -276,12 +320,20 @@ func (p *ParserIssueDetector) GetDDLIssues(query string) ([]issue.IssueInstance,
 			issues[i].SqlStatement = query
 		}
 	}
-
 	return issues, nil
-
 }
 
-func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	issues, err := p.getDMLIssues(query)
+	if err != nil {
+		return issues, err
+	}
+
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+// TODO: in future when we will DDL issues detection here we need `GetDDLIssues`
+func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)

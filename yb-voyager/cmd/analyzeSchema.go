@@ -42,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type summaryInfo struct {
@@ -354,7 +355,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			log.Infof("error parsing query-%s: %v ", err)
 			continue
 		}
-		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt)
+		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
 		if err != nil {
 			log.Infof("error getting ddl issues for query-%s: %v ", err)
 			continue
@@ -641,7 +642,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		issues, err := parserIssueDetector.GetAllPLPGSQLIssues(sqlInfoStmt.formattedStmt)
+		issues, err := parserIssueDetector.GetAllPLPGSQLIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
 		if err != nil {
 			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
@@ -674,7 +675,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
 	}
-	
+
 	//TODO: how to different between same issue on differnt obejct types like ALTER/INDEX for not adding it ot invalid count map
 	increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"]
 	if !ok || (increaseInvalidCount.(bool)) {
@@ -1281,6 +1282,10 @@ var analyzeSchemaCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validOutputFormats := []string{"html", "json", "txt", "xml"}
 		validateReportOutputFormat(validOutputFormats, analyzeSchemaReportFormat)
+		err := validateAndSetTargetDbVersionFlag()
+		if err != nil {
+			utils.ErrExit("%v", err)
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -1293,6 +1298,10 @@ func init() {
 	registerCommonGlobalFlags(analyzeSchemaCmd)
 	analyzeSchemaCmd.PersistentFlags().StringVar(&analyzeSchemaReportFormat, "output-format", "",
 		"format in which report can be generated: ('html', 'txt', 'json', 'xml'). If not provided, reports will be generated in both 'json' and 'html' formats by default.")
+
+	analyzeSchemaCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
+		fmt.Sprintf("Target YugabyteDB version to analyze schema for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
+	analyzeSchemaCmd.Flags().MarkHidden("target-db-version")
 }
 
 func validateReportOutputFormat(validOutputFormats []string, format string) {

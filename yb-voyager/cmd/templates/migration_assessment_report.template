@@ -303,38 +303,38 @@
                     <th>Statement</th>
                     <th>Details</th>
                 </tr>
-               {{ range  .UnsupportedPlPgSqlObjects }}
-                <!-- Feature Row with rowspan for grouping -->
-                <tr>
-                    {{ $objectsGroupByObjectType := groupByObjectType .Objects}}
-                    {{ $numUniqueObjectNamesOfAllTypes := totalUniqueObjectNamesOfAllTypes $objectsGroupByObjectType}}
+                {{ range  .UnsupportedPlPgSqlObjects }}
+                    <!-- Feature Row with rowspan for grouping -->
+                    <tr>
+                    {{ $objectsGroupByObjectType := groupByObjectType .Objects }}
+                    {{ $numUniqueObjectNamesOfAllTypes := totalUniqueObjectNamesOfAllTypes $objectsGroupByObjectType }}
                     {{ $docsLink := .DocsLink }}
-                    <td rowspan={{$numUniqueObjectNamesOfAllTypes}}><strong>{{ .FeatureName }}</strong></td>
+                    <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}><strong>{{ .FeatureName }}</strong></td>
                     {{ $isNextRowRequiredForObjectType := false }}
                     {{ range $type, $objectsByType := $objectsGroupByObjectType }}
                         {{ $objectGroupByObjectName := groupByObjectName $objectsByType }}
                         {{ $numUniqueObjectNames := numKeysInMapStringObjectInfo $objectGroupByObjectName }}
                         {{ if $isNextRowRequiredForObjectType }}
-                           <tr>
+                            <tr>
                         {{ end }}
-                        <td rowspan={{$numUniqueObjectNames}} >{{$type}}</td>
+                        <td rowspan={{ $numUniqueObjectNames }} >{{ $type }}</td>
                         {{ $isNextRowRequiredForObjectName := false }}
                         {{ range $name, $objectsByName := $objectGroupByObjectName }}
                             {{ if $isNextRowRequiredForObjectName }}
-                              <tr>
+                                <tr>
                             {{ end }}
-                            <td>{{ $name }}</td> 
+                            <td>{{ $name }}</td>
                             <td>
                                 <div class="scrollable-div">
                                     <ul>
-                                        {{ range $objectsByName }}
-                                            <li class="list_item"><pre>{{ .SqlStatement }}</pre></li>
-                                        {{ end }}
+                                    {{ range $objectsByName }}
+                                        <li class="list_item"><pre>{{ .SqlStatement }}</pre></li>
+                                    {{ end }}
                                     </ul>
                                 </div>
                             </td>
                             {{ if not $isNextRowRequiredForObjectType }}
-                                <td rowspan={{$numUniqueObjectNamesOfAllTypes}}><a href="{{ $docsLink }}" target="_blank">Link</a></td>
+                                <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}><a href="{{ $docsLink }}" target="_blank">Link</a></td>
                             {{ end }}
                             {{ $isNextRowRequiredForObjectName = true }}
                             {{ $isNextRowRequiredForObjectType = true }}
