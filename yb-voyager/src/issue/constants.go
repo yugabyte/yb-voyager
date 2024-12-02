@@ -49,6 +49,7 @@ const (
 	PK_UK_ON_COMPLEX_DATATYPE                       = "PK_UK_ON_COMPLEX_DATATYPE"
 	INDEX_ON_COMPLEX_DATATYPE                       = "INDEX_ON_COMPLEX_DATATYPE"
 	FOREIGN_TABLE                                   = "FOREIGN_TABLE"
+	INHERITANCE                                     = "INHERITANCE"
 )
 
 // Object types

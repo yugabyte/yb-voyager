@@ -79,6 +79,14 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		))
 	}
 
+	if table.IsInherited {
+		issues = append(issues, issue.NewInheritanceIssue(
+			issue.TABLE_OBJECT_TYPE,
+			table.GetObjectName(),
+			"",
+		))
+	}
+
 	if len(table.Constraints) > 0 {
 
 		for _, c := range table.Constraints {

@@ -421,3 +421,14 @@ func NewForeignTableIssue(objectType string, objectName string, SqlStatement str
 	issue.Suggestion = fmt.Sprintf(issue.Suggestion, serverName)
 	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
+
+var inheritanceIssue = Issue{
+	Type:     INHERITANCE,
+	TypeName: "TABLE INHERITANCE not supported in YugabyteDB",
+	GH:       "https://github.com/YugaByte/yugabyte-db/issues/1129",
+	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#table-inheritance-is-not-supported",
+}
+
+func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	return newIssueInstance(inheritanceIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

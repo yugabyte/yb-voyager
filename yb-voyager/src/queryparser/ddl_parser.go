@@ -102,8 +102,14 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 			e.g CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
 			stmt:{create_stmt:{relation:{schemaname:"public" relname:"tbl_unlogged" inh:true relpersistence:"u" location:19}
 		*/
-		IsUnlogged:       createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
-		IsPartitioned:    createTableNode.CreateStmt.GetPartspec() != nil,
+		IsUnlogged:    createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
+		IsPartitioned: createTableNode.CreateStmt.GetPartspec() != nil,
+		/*
+			CREATE TABLE Test(id int, name text) inherits(test_parent);
+			stmts:{stmt:{create_stmt:{relation:{relname:"test" inh:true relpersistence:"p" location:13} table_elts:{column_def:{colname:"id" ....
+			inh_relations:{range_var:{relname:"test_parent" inh:true relpersistence:"p" location:46}} oncommit:ONCOMMIT_NOOP}} stmt_len:58}
+		*/
+		IsInherited:      createTableNode.CreateStmt.GetInhRelations() != nil,
 		GeneratedColumns: make([]string, 0),
 		Constraints:      make([]TableConstraint, 0),
 		PartitionColumns: make([]string, 0),
@@ -237,6 +243,7 @@ type Table struct {
 	SchemaName            string
 	TableName             string
 	IsUnlogged            bool
+	IsInherited           bool
 	IsPartitioned         bool
 	Columns               []TableColumn
 	IsExpressionPartition bool
