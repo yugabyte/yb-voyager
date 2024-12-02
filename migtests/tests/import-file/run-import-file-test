@@ -41,9 +41,11 @@ main() {
 
 	export TARGET_DB_SCHEMA='non_public'
 
+# Kept --start-clean here to test the command for import data file. Can add proper validations for it once --truncate-tables is introduced here
+
 	step "Import data file: SMSA.txt -> smsa in a non-public schema"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
-			--file-table-map "SMSA.txt:smsa"  --start-clean true
+			--file-table-map "SMSA.txt:smsa" --start-clean true
 	
 	#clean up the export dir as we will have public schema from this test which should be on fresh export-dir 
 	rm -rf ${EXPORT_DIR}
@@ -53,7 +55,7 @@ main() {
 	#Default BATCH_SIZE_BYTES
 	step "Import data file: OneMRows.text -> one_m_rows"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
-		--file-table-map "OneMRows.text:one_m_rows" --start-clean true 
+		--file-table-map "OneMRows.text:one_m_rows"
 
 	
 	export MAX_BATCH_SIZE_BYTES=345643 #~300KB 
@@ -276,7 +278,7 @@ main() {
 	if [ "${RUN_LARGE_IMPORT_DATA_FILE_TEST}" = true ] ; then
 
 		step "Run large sized import data file test"
-		import_data_file --data-dir "s3://yb-voyager-test-data" --delimiter "\t" --format "text" --file-table-map "accounts_350m_data.sql:accounts_large" --start-clean true --yes
+		import_data_file --data-dir "s3://yb-voyager-test-data" --delimiter "\t" --format "text" --file-table-map "accounts_350m_data.sql:accounts_large" --yes
 
 	fi
 

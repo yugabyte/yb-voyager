@@ -236,7 +236,6 @@ export_schema() {
  		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
-		--start-clean t
 	"
 	if [ "${source_db_schema}" != "" ]
 	then
@@ -280,7 +279,6 @@ export_data() {
 		--disable-pb=true
 		--send-diagnostics=false
 		--yes
-		--start-clean 1
 	"
 	if [ "${TABLE_LIST}" != "" ]
 	then
@@ -371,7 +369,6 @@ import_schema() {
 		--target-db-name ${TARGET_DB_NAME}	
 		--yes
 		--send-diagnostics=false
-		--start-clean 1
 		"
 
 		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
@@ -392,7 +389,6 @@ import_data() {
 		--target-db-name ${TARGET_DB_NAME}
 		--disable-pb true
 		--send-diagnostics=false 
-		--start-clean 1
 		--truncate-splits true
 		--max-retries 1
 		"
@@ -436,7 +432,6 @@ import_data_to_source_replica() {
 	--source-replica-db-user ${SOURCE_REPLICA_DB_USER} 
 	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
 	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
-	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
 	--parallel-jobs 3
@@ -762,7 +757,6 @@ assess_migration() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
-		--start-clean t
 		--iops-capture-interval 0
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]

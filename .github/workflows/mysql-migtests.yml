@@ -30,6 +30,7 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
+
       - name: Install python3 and psycopg2
         run: |
           sudo apt install -y python3
@@ -59,8 +60,10 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker pull yugabytedb/yugabyte:${{ matrix.version }}
-          VERSION=${{ matrix.version }} docker compose -f migtests/setup/yb-docker-compose.yaml up -d
+          docker run -d --name yugabytedb \
+            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
+            yugabytedb/yugabyte:${{ matrix.version }} \
+            bin/yugabyted start --background=false --ui=false
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -77,59 +80,59 @@ jobs:
           psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: mysql-table-list-flags-test (table-list and exclude-table-list)"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/table-list-flags-tests
 
       - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh
 
       - name: "TEST: mysql-sakila"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/sakila
 
       - name: "TEST: mysql-datatypes"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/datatypes
 
       - name: "TEST: mysql-constraints"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/constraints
 
       - name: "TEST: mysql-case-indexes"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/indexes
 
       - name: "TEST: mysql-functions"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/functions
 
       - name: "TEST: mysql-case-sequences"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/sequences
 
       - name: "TEST: mysql-triggers-procedures"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/triggers-procedures
 
       - name: "TEST: mysql-case-views"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/views
 
       - name: "TEST: mysql-partitions"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/partitions
 
       - name: "TEST: mysql-sample-chinook"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/chinook
 
       - name: "TEST: mysql-misc-tests"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/misc-tests
       
       - name: "TEST: mysql-case-sensitivity-reserved-words"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/case-sensitivity-reserved-words
 
       # Placeholder for now so that a basic test can run
@@ -138,5 +141,5 @@ jobs:
           mysql -uroot -proot -e 'GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'ybvoyager'@'127.0.0.1';'
 
       - name: "TEST: mysql-live-migration-test"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test

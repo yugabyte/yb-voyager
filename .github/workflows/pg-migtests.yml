@@ -12,6 +12,11 @@ jobs:
       matrix:
         version: [2.21.1.0-b271, 2024.1.1.0-b137, 2.20.5.0-b72]
         BETA_FAST_DATA_EXPORT: [0, 1]
+        test_group:
+          - offline
+          - live_basic
+          - live_advanced
+
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
     runs-on: ubuntu-22.04
@@ -38,6 +43,7 @@ jobs:
           distribution: "temurin"
           java-version: "17"
           check-latest: true
+
       - name: Cache local Maven repository
         uses: actions/cache@v3
         with:
@@ -45,12 +51,13 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
+
       - name: "Enable postgres with wal_level as logical"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
           sleep 10
-      #      if: matrix.BETA_FAST_DATA_EXPORT == 1
+
       - name: Install python3 and psycopg2
         run: |
           sudo apt install -y python3
@@ -79,8 +86,10 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker pull yugabytedb/yugabyte:${{ matrix.version }}
-          VERSION=${{ matrix.version }} docker compose -f migtests/setup/yb-docker-compose.yaml up -d
+          docker run -d --name yugabytedb \
+            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
+            yugabytedb/yugabyte:${{ matrix.version }} \
+            bin/yugabyted start --background=false --ui=false
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -98,120 +107,112 @@ jobs:
           psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/table-list-flags-tests
 
       - name: "TEST: pg-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh
 
       - name: "TEST: pg-case-sensitivity-single-table"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
 
       - name: "TEST: pg-dvdrental"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/dvdrental
 
       - name: "TEST: pg-datatypes"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/datatypes
 
       - name: "TEST: pg-constraints"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/constraints
 
       - name: "TEST: pg-sequences"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/sequences
 
       - name: "TEST: pg-indexes"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/indexes
 
       - name: "TEST: pg-partitions"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/partitions 
 
       - name: "TEST: pg-partitions with (table-list)"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions 
 
       # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
       # Fixed in 2.17.1.0-b368
       - name: "TEST: pg-partitions-with-indexes"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/partitions-with-indexes
 
       - name: "TEST: pg-views-and-rules"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/views-and-rules
 
       - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/misc-objects-1
 
       - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/misc-objects-2
 
       - name: "TEST: pg-dependent-ddls"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/dependent-ddls
 
       - name: "TEST: pg-multiple-schemas"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/multiple-schemas
 
-      - name: "Set up gcp environment"
-        env:
-          GCS_CLIENT_ID: ${{ secrets.PGUPTA_GCS_CLIENT_ID }}
-          GCS_CLIENT_SECRET: ${{ secrets.PGUPTA_GCS_CLIENT_SECRET }}
-          GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
-        if: always()
-        run: migtests/scripts/gcs/create_gcs_credentials_file
-
       - name: "TEST: pg-codependent-schemas"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/codependent-schemas
 
       - name: "TEST: pg-sample-schema-emp"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/sample-employee
 
       - name: "TEST: pg-hasura-ecommerce"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/hasura-ecommerce
 
-      - name: "TEST: pg-basic-non-public-live-migration-test"
-        if: always()
-        run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test
-      
-      - name: "TEST: pg-unique-key-conflicts-test"
-        if: always()
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test
+      - name: "TEST: pg-case-sensitivity-reserved-words-offline"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
 
-      # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
-      - name: "TEST: pg-live-migration-multiple-schemas"
-        if: always()
-        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
+      - name: "TEST: pg-basic-non-public-live-migration-test"
+        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test
 
       - name: "TEST: pg-basic-public-fall-forward-test"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
-      #   if: always()
       #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
 
       - name: "TEST: pg-datatypes-fall-back-test"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes
 
+      # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
+      - name: "TEST: pg-live-migration-multiple-schemas"
+        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
+
+      - name: "TEST: pg-unique-key-conflicts-test"
+        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test
+
       - name: "TEST: pg-live-migration-partitions-fall-forward"
-        if: always()
+        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
       
-      - name: "TEST: pg-case-sensitivity-reserved-words-offline"
-        if: always()
-        run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
