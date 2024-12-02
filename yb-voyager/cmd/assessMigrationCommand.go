@@ -1420,7 +1420,7 @@ func validateAndSetTargetDbVersionFlag() error {
 	var err error
 	targetDbVersion, err = version.NewYBVersion(targetDbVersionStrFlag)
 
-	if !errors.Is(err, version.ErrUnsupportedSeries) {
+	if err == nil || !errors.Is(err, version.ErrUnsupportedSeries) {
 		return err
 	}
 
