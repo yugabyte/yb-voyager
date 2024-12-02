@@ -89,7 +89,7 @@ func (d *ColumnRefDetector) Detect(msg protoreflect.Message) ([]string, error) {
 		return nil, nil
 	}
 
-	colName := queryparser.GetColNameFromColumnRef(msg)
+	_, colName := queryparser.GetColNameFromColumnRef(msg)
 	log.Debugf("fetched column name from %s node: %q", queryparser.PG_QUERY_COLUMNREF_NODE, colName)
 	if constructType, isUnsupported := d.unsupportedColumns[colName]; isUnsupported {
 		log.Debugf("detected unsupported system column %q in msg - %+v", colName, msg)

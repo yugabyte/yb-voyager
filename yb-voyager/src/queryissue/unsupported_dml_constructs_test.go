@@ -733,6 +733,11 @@ func TestObjectCollector2(t *testing.T) {
 			ExpectedObjects: []string{"SALES_DATA.Order_Details"},
 			ExpectedSchemas: []string{"SALES_DATA"},
 		},
+		{
+			Sql:             `SELECT * FROM myfunc(analytics.calculate_metrics(2024)) AS cm(metrics);`,
+			ExpectedObjects: []string{"myfunc", "analytics.calculate_metrics"},
+			ExpectedSchemas: []string{"", "analytics"},
+		},
 	}
 
 	for _, tc := range tests {

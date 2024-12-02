@@ -42,6 +42,8 @@ Cases covered:
 1. SELECT queries - schema name can be with table/functions
 2. Insert/Update/Delete queries
 3. TODO: cover DDLs
+
+Since Collect() will be called for each node so just the collection at concerned leaf node is enough
 */
 func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 	if msg == nil || !msg.IsValid() {
@@ -51,7 +53,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 	nodeType := queryparser.GetMsgFullName(msg)
 	switch nodeType {
 	// Extract table or view names in FROM clauses
-	case "pg_query.RangeVar":
+	case queryparser.PG_QUERY_RANGEVAR_NODE:
 		schemaName := queryparser.GetStringField(msg, "schemaname")
 		relName := queryparser.GetStringField(msg, "relname")
 		objectName := relName
@@ -89,21 +91,6 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 		}
 		log.Debugf("[Funccall] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
 		c.addObject(objectName)
-
-	// Extract function names used in FROM clauses
-	case queryparser.PG_QUERY_RANGEFUNCTION:
-		funcExprMsg := queryparser.GetMessageField(msg, "funcexpr")
-		if funcExprMsg != nil {
-			schemaName, functionName := queryparser.GetFunctionName(funcExprMsg)
-			if functionName != "" {
-				objectName := functionName
-				if schemaName != "" {
-					objectName = fmt.Sprintf("%s.%s", schemaName, functionName)
-				}
-				log.Debugf("[RangeFunc] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
-				c.addObject(objectName)
-			}
-		}
 
 		// Add more cases as needed for other message types
 	}

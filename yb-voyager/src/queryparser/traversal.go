@@ -32,7 +32,8 @@ const (
 	PG_QUERY_XMLEXPR_NODE        = "pg_query.XmlExpr"
 	PG_QUERY_FUNCCALL_NODE       = "pg_query.FuncCall"
 	PG_QUERY_COLUMNREF_NODE      = "pg_query.ColumnRef"
-	PG_QUERY_RANGEFUNCTION       = "pg_query.RangeFunction"
+	PG_QUERY_RANGEFUNCTION_NODE  = "pg_query.RangeFunction"
+	PG_QUERY_RANGEVAR_NODE       = "pg_query.RangeVar"
 	PG_QUERY_RANGETABLEFUNC_NODE = "pg_query.RangeTableFunc"
 	PG_QUERY_PARAMREF_NODE       = "pg_query.ParamRef"
 
