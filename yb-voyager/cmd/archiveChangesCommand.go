@@ -57,11 +57,11 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Check to ensure that this is not the first command in the migration process
-	IsMetaDBPresent, err := IsMetaDBPresent(exportDir)
+	isMetaDBPresent, err := IsMetaDBPresent(exportDir)
 	if err != nil {
 		utils.ErrExit("Error checking if metaDB is present: %v", err)
 	}
-	if !IsMetaDBPresent {
+	if !isMetaDBPresent {
 		utils.ErrExit("Migration has not started yet. Run the commands in the order specified in the documentation: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/"))
 	}
 
