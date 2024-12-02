@@ -44,11 +44,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-<<<<<<< HEAD
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
-=======
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
->>>>>>> main
 )
 
 var (
@@ -921,7 +917,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 // when we group multiple Issue instances into a single bucket of UnsupportedFeature.
 // Ideally, all the issues in the same bucket should have the same minimum version fixed in.
 // We want to validate that and fail if not.
-func areMinVersionsFixedInEqual(m1 map[string]*version.YBVersion, m2 map[string]*version.YBVersion) bool {
+func areMinVersionsFixedInEqual(m1 map[string]*ybversion.YBVersion, m2 map[string]*ybversion.YBVersion) bool {
 	if m1 == nil && m2 == nil {
 		return true
 	}
@@ -944,7 +940,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
 	link := "" // for oracle we shouldn't display any line for links
-	var minVersionsFixedIn map[string]*version.YBVersion
+	var minVersionsFixedIn map[string]*ybversion.YBVersion
 	var minVersionsFixedInSet bool
 
 	for _, issue := range schemaAnalysisReport.Issues {
@@ -1007,9 +1003,9 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 		FeatureName: "Index on complex datatypes",
 		DisplayDDL:  false,
 		Objects:     []ObjectInfo{},
-		MinimumVersionsFixedIn: map[string]*version.YBVersion{
-			version.SERIES_2024_1: version.V2024_1_4_0,
-			version.SERIES_2_23:   version.V2_23_5_0,
+		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2024_1: ybversion.V2024_1_4_0,
+			ybversion.SERIES_2_23:   ybversion.V2_23_5_0,
 		},
 	}
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array")             // adding it here only as we know issue form analyze will come with type
@@ -1100,7 +1096,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 	for reason, issues := range groupPlpgsqlIssuesByReason {
 		var objects []ObjectInfo
 		var docsLink string
-		var minVersionsFixedIn map[string]*version.YBVersion
+		var minVersionsFixedIn map[string]*ybversion.YBVersion
 		var minVersionsFixedInSet bool
 
 		for _, issue := range issues {
@@ -1444,7 +1440,7 @@ func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
 }
 
-func getSupportedVersionString(minimumVersionsFixedIn map[string]*version.YBVersion) string {
+func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVersion) string {
 	if minimumVersionsFixedIn == nil {
 		return ""
 	}

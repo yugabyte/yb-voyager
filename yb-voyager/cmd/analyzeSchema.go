@@ -266,9 +266,9 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	}
 
 	// just for testing
-	issue.MinimumVersionsFixedIn = map[string]*version.YBVersion{
-		version.SERIES_2024_1: version.V2024_1_4_0,
-		version.SERIES_2_23:   version.V2_23_5_0,
+	issue.MinimumVersionsFixedIn = map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2024_1: ybversion.V2024_1_4_0,
+		ybversion.SERIES_2_23:   ybversion.V2_23_5_0,
 	}
 
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
