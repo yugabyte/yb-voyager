@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -32,6 +33,16 @@ var cutoverToTargetCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
+
+		// Check to ensure that this is not the first command in the migration process
+		isMetaDBPresent, err := IsMetaDBPresent(exportDir)
+		if err != nil {
+			utils.ErrExit("Error checking if metaDB is present: %v", err)
+		}
+		if !isMetaDBPresent {
+			utils.ErrExit("Migration has not started yet. Run the commands in the order specified in the documentation: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/"))
+		}
+
 		metaDB, err = metadb.NewMetaDB(exportDir)
 		if err != nil {
 			utils.ErrExit("Failed to initialize meta db: %s", err)
