@@ -1081,7 +1081,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	if source.DBType != POSTGRESQL {
 		return nil, nil
 	}
-	parserIssueDetector := queryissue.NewParserIssueDetector()
+	parserIssueDetector := queryissue.NewParserIssueDetector(source.Schema)
 	query := fmt.Sprintf("SELECT DISTINCT query from %s", migassessment.DB_QUERIES_SUMMARY)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {

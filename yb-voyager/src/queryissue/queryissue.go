@@ -18,24 +18,30 @@ package queryissue
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type ParserIssueDetector struct {
+	SourceSchemaList []string
 	// TODO: Add fields here
 	// e.g. store composite types, etc. for future processing.
 }
 
-func NewParserIssueDetector() *ParserIssueDetector {
-	return &ParserIssueDetector{}
+func NewParserIssueDetector(schemaList string) *ParserIssueDetector {
+	return &ParserIssueDetector{
+		SourceSchemaList: strings.Split(schemaList, "|"),
+	}
 }
 
 func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.IssueInstance, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
@@ -181,6 +187,8 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 		NewRangeTableFuncDetector(),
 	}
 
+	objectCollector := NewObjectCollector()
+
 	processor := func(msg protoreflect.Message) error {
 		for _, detector := range detectors {
 			log.Debugf("running detector %T", detector)
@@ -191,6 +199,8 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 			}
 			unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 		}
+
+		objectCollector.Collect(msg)
 		return nil
 	}
 
@@ -198,6 +208,13 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 	err = queryparser.TraverseParseTree(parseTreeProtoMsg, visited, processor)
 	if err != nil {
 		return result, fmt.Errorf("error traversing parse tree message: %w", err)
+	}
+
+	collectedSchemaList := objectCollector.GetSchemaList()
+	if !p.considerQuery(collectedSchemaList) {
+		utils.PrintAndLog("ignoring query due to difference in collected schema list %v(len=%d) vs source schema list %v(len=%d)",
+			collectedSchemaList, len(collectedSchemaList), p.SourceSchemaList, len(p.SourceSchemaList))
+		return nil, nil
 	}
 
 	for _, unsupportedConstruct := range unsupportedConstructs {
@@ -211,4 +228,37 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 		}
 	}
 	return result, nil
+}
+
+/*
+Queries to ignore:
+- Collected schemas is totally different than source schema list, not containing ""
+
+Queries to consider:
+- Collected schemas subset of source schema list
+- Collected schemas contains some from source schema list and some extras
+*/
+func (p *ParserIssueDetector) considerQuery(collectedSchemaList []string) bool {
+	fmt.Printf("[before] collected schema: %v\n", collectedSchemaList)
+	collectedSchemaList = lo.Filter(collectedSchemaList, func(item string, _ int) bool {
+		return item != "pg_catalog"
+	})
+
+	fmt.Printf("[after] collected schema: %v\n", collectedSchemaList)
+	consider := false
+	// empty schemaname indicates presence of unqualified objectnames in query
+	if slices.Contains(collectedSchemaList, "") {
+		color.Red("considering due to empty schema\n")
+		consider = true
+	}
+
+	for _, collectedSchema := range collectedSchemaList {
+		if slices.Contains(p.SourceSchemaList, collectedSchema) {
+			color.Red("considering due to '%s' schema\n", collectedSchema)
+			consider = true
+			break
+		}
+	}
+
+	return consider
 }

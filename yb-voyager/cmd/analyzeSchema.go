@@ -129,11 +129,10 @@ var (
 	schemaAnalysisReport      utils.SchemaReport
 	partitionTablesMap        = make(map[string]bool)
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
-	primaryConsInAlter  = make(map[string]*sqlInfo)
-	summaryMap          = make(map[string]*summaryInfo)
-	parserIssueDetector = queryissue.NewParserIssueDetector()
-	multiRegex          = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
-	dollarQuoteRegex    = regexp.MustCompile(`(\$.*\$)`)
+	primaryConsInAlter = make(map[string]*sqlInfo)
+	summaryMap         = make(map[string]*summaryInfo)
+	multiRegex         = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
+	dollarQuoteRegex   = regexp.MustCompile(`(\$.*\$)`)
 	/*
 		this will contain the information in this format:
 		public.table1 -> {
@@ -1684,7 +1683,7 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 }
 
 // Checks whether the script, fpath, can be migrated to YB
-func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
+func checker(sqlInfoArr []sqlInfo, fpath string, objType string, schemaList string) {
 	if !utils.FileOrFolderExists(fpath) {
 		return
 	}
@@ -1694,12 +1693,13 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
-		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
+		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType, schemaList)
 	}
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 }
 
-func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
+func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, schemaList string) {
+	parserIssueDetector := queryissue.NewParserIssueDetector(schemaList)
 	for _, sqlInfoStmt := range sqlInfoArr {
 		issues, err := parserIssueDetector.GetAllIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
 		if err != nil {
@@ -2111,7 +2111,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		if objType == "FOREIGN TABLE" {
 			checkForeignTable(sqlInfoArr, filePath)
 		}
-		checker(sqlInfoArr, filePath, objType)
+		checker(sqlInfoArr, filePath, objType, sourceDBConf.Schema)
 
 		if objType == "CONVERSION" {
 			checkConversions(sqlInfoArr, filePath)

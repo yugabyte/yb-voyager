@@ -17,7 +17,6 @@ package queryissue
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 
 	"github.com/samber/lo"
@@ -561,9 +560,181 @@ RETURNING id,
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
+		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
+	}
+}
 
-		sort.Strings(unsupportedConstructs)
-		sort.Strings(expectedConstructs)
-		assert.Equal(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs")
+func TestObjectsCollector(t *testing.T) {
+	tests := []struct {
+		Sql             string
+		ExpectedObjects []string
+		ExpectedSchemas []string
+	}{
+		{
+			Sql:             `SELECT * from public.employees`,
+			ExpectedObjects: []string{"public.employees"},
+			ExpectedSchemas: []string{"public"},
+		},
+		{
+			Sql:             `SELECT * from employees`,
+			ExpectedObjects: []string{"employees"},
+			ExpectedSchemas: []string{""}, // empty schemaname indicates unqualified objectname
+		},
+		{
+			Sql:             `SELECT * from s1.employees`,
+			ExpectedObjects: []string{"s1.employees"},
+			ExpectedSchemas: []string{"s1"},
+		},
+		{
+			Sql:             `SELECT * from s2.employees where salary > (Select salary from s3.employees)`,
+			ExpectedObjects: []string{"s3.employees", "s2.employees"},
+			ExpectedSchemas: []string{"s3", "s2"},
+		},
+		{
+			Sql:             `SELECT c.name, SUM(o.amount) AS total_spent FROM sales.customers c JOIN finance.orders o ON c.id = o.customer_id GROUP BY c.name HAVING SUM(o.amount) > 1000`,
+			ExpectedObjects: []string{"sales.customers", "finance.orders"},
+			ExpectedSchemas: []string{"sales", "finance"},
+		},
+		{
+			Sql:             `SELECT name FROM hr.employees WHERE department_id IN (SELECT id FROM public.departments WHERE location_id IN (SELECT id FROM eng.locations WHERE country = 'USA'))`,
+			ExpectedObjects: []string{"hr.employees", "public.departments", "eng.locations"},
+			ExpectedSchemas: []string{"hr", "public", "eng"},
+		},
+		{
+			Sql:             `SELECT name FROM sales.customers UNION SELECT name FROM marketing.customers;`,
+			ExpectedObjects: []string{"sales.customers", "marketing.customers"},
+			ExpectedSchemas: []string{"sales", "marketing"},
+		},
+		{
+			Sql: `CREATE VIEW analytics.top_customers AS
+					SELECT user_id, COUNT(*) as order_count	FROM public.orders GROUP BY user_id HAVING COUNT(*) > 10;`,
+			ExpectedObjects: []string{"analytics.top_customers", "public.orders"},
+			ExpectedSchemas: []string{"analytics", "public"},
+		},
+		{
+			Sql: `WITH user_orders AS (
+					SELECT u.id, o.id as order_id
+					FROM users u
+					JOIN orders o ON u.id = o.user_id
+					WHERE o.amount > 100
+				), order_items AS (
+					SELECT o.order_id, i.product_id
+					FROM order_items i
+					JOIN user_orders o ON i.order_id = o.order_id
+				)
+				SELECT p.name, COUNT(oi.product_id) FROM products p
+				JOIN order_items oi ON p.id = oi.product_id GROUP BY p.name;`,
+			ExpectedObjects: []string{"users", "orders", "order_items", "user_orders", "products"},
+			ExpectedSchemas: []string{""},
+		},
+		{
+			Sql: `UPDATE finance.accounts
+						SET balance = balance + 1000
+						WHERE account_id IN (
+							SELECT account_id FROM public.users WHERE active = true
+					);`,
+			ExpectedObjects: []string{"finance.accounts", "public.users"},
+			ExpectedSchemas: []string{"finance", "public"},
+		},
+		{
+			Sql:             `SELECT classid, objid, refobjid FROM pg_depend WHERE refclassid = $1::regclass AND deptype = $2 ORDER BY 3`,
+			ExpectedObjects: []string{"pg_depend"},
+			ExpectedSchemas: []string{""},
+		},
+		{
+			Sql:             `SELECT pg_advisory_unlock_shared(100);`,
+			ExpectedObjects: []string{}, // nothing collected
+			ExpectedSchemas: []string{},
+		},
+	}
+
+	for _, tc := range tests {
+		parseResult, err := queryparser.Parse(tc.Sql)
+		assert.NoError(t, err)
+
+		objectsCollector := NewObjectCollector()
+		processor := func(msg protoreflect.Message) error {
+			objectsCollector.Collect(msg)
+			return nil
+		}
+
+		visited := make(map[protoreflect.Message]bool)
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+
+		collectedObjects := objectsCollector.GetObjects()
+		collectedSchemas := objectsCollector.GetSchemaList()
+
+		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
+			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
+		assert.ElementsMatch(t, tc.ExpectedSchemas, collectedSchemas,
+			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
+	}
+}
+
+func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
+	combinationSqls := []string{
+		`WITH LockedEmployees AS (
+    SELECT *, pg_advisory_lock(xmin) AS lock_acquired
+    FROM employees
+    WHERE pg_try_advisory_lock(xmin) IS TRUE
+)
+SELECT xmlelement(name "EmployeeData", xmlagg(
+    xmlelement(name "Employee", xmlattributes(id AS "ID"),
+    xmlforest(name AS "Name", xmin AS "TransactionID", xmax AS "ModifiedID"))))
+FROM LockedEmployees
+WHERE xmax IS NOT NULL;`,
+		`WITH Data AS (
+    SELECT id, name, xmin, xmax,
+           pg_try_advisory_lock(id) AS lock_status,
+           xmlelement(name "info", xmlforest(name as "name", xmin as "transaction_start", xmax as "transaction_end")) as xml_info
+    FROM projects
+    WHERE xmin > 100 AND xmax < 500
+)
+SELECT x.id, x.xml_info
+FROM Data x
+WHERE x.lock_status IS TRUE;`,
+		`UPDATE employees
+SET salary = salary * 1.1
+WHERE pg_try_advisory_xact_lock(ctid) IS TRUE AND department = 'Engineering'
+RETURNING id,
+          xmlelement(name "UpdatedEmployee",
+                     xmlattributes(id AS "ID"),
+                     xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
+	}
+	expectedConstructs := []string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}
+
+	detectors := []UnsupportedConstructDetector{
+		NewFuncCallDetector(),
+		NewColumnRefDetector(),
+		NewXmlExprDetector(),
+	}
+	for _, sql := range combinationSqls {
+		parseResult, err := queryparser.Parse(sql)
+		assert.NoError(t, err)
+
+		visited := make(map[protoreflect.Message]bool)
+		unsupportedConstructs := []string{}
+
+		objectCollector := NewObjectCollector()
+		processor := func(msg protoreflect.Message) error {
+			for _, detector := range detectors {
+				log.Debugf("running detector %T", detector)
+				constructs, err := detector.Detect(msg)
+				if err != nil {
+					log.Debugf("error in detector %T: %v", detector, err)
+					return fmt.Errorf("error in detectors %T: %w", detector, err)
+				}
+				unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
+			}
+			objectCollector.Collect(msg)
+			return nil
+		}
+
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
 	}
 }

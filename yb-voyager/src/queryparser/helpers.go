@@ -30,10 +30,14 @@ const (
 	XML_FUNCTIONS_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xml-functions-is-not-yet-supported"
 )
 
+func GetMsgFullName(msg protoreflect.Message) string {
+	return string(msg.Descriptor().FullName())
+}
+
 // Sample example: {func_call:{funcname:{string:{sval:"pg_advisory_lock"}}
-func GetFuncNameFromFuncCall(funcCallNode protoreflect.Message) string {
+func GetFuncNameFromFuncCall(funcCallNode protoreflect.Message) (string, string) {
 	if GetMsgFullName(funcCallNode) != PG_QUERY_FUNCCALL_NODE {
-		return ""
+		return "", ""
 	}
 
 	funcnameField := funcCallNode.Get(funcCallNode.Descriptor().Fields().ByName("funcname"))
@@ -48,10 +52,13 @@ func GetFuncNameFromFuncCall(funcCallNode protoreflect.Message) string {
 			names = append(names, name)
 		}
 	}
+
 	if len(names) == 0 {
-		return ""
+		return "", ""
+	} else if len(names) == 1 {
+		return "", names[0]
 	}
-	return names[len(names)-1] // ignoring schema_name
+	return names[0], names[1]
 }
 
 // Sample example:: {column_ref:{fields:{string:{sval:"xmax"}}
@@ -281,10 +288,6 @@ func IsXPathExprForXmlTable(expression string) bool {
 	return strings.HasPrefix(expression, "/") || strings.HasPrefix(expression, "//")
 }
 
-func GetMsgFullName(msg protoreflect.Message) string {
-	return string(msg.Descriptor().FullName())
-}
-
 // IsParameterPlaceholder checks if the given node represents a parameter placeholder like $1
 func IsParameterPlaceholder(nodeMsg protoreflect.Message) bool {
 	if nodeMsg == nil || !nodeMsg.IsValid() {
@@ -333,4 +336,56 @@ func getOneofActiveField(msg protoreflect.Message, oneofName string) protoreflec
 
 	// Determine which field within the oneof is set
 	return msg.WhichOneof(oneofDescriptor)
+}
+
+// == Generic helper functions ==
+
+// GetStringField retrieves a string field from a message.
+func GetStringField(msg protoreflect.Message, fieldName string) string {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).String()
+	}
+	return ""
+}
+
+// GetMessageField retrieves a message field from a message.
+func GetMessageField(msg protoreflect.Message, fieldName string) protoreflect.Message {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Message()
+	}
+	return nil
+}
+
+// GetFunctionName extracts the function name and schema from a FuncCall node.
+func GetFunctionName(msg protoreflect.Message) (schemaName, objectName string) {
+	funcNameList := GetListField(msg, "funcname")
+	if funcNameList == nil || funcNameList.Len() == 0 {
+		return "", ""
+	}
+
+	return GetQualifiedName(funcNameList)
+}
+
+// GetListField retrieves a list field from a message.
+func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).List()
+	}
+	return nil
+}
+
+// GetQualifiedName extracts the schema and object name from a list.
+func GetQualifiedName(nameList protoreflect.List) (string, string) {
+	var schemaName, objectName string
+
+	if nameList.Len() == 1 {
+		objectName = GetStringField(nameList.Get(0).Message(), "string")
+	} else if nameList.Len() >= 2 {
+		schemaName = GetStringField(nameList.Get(0).Message(), "string")
+		objectName = GetStringField(nameList.Get(1).Message(), "string")
+	}
+	return schemaName, objectName
 }
