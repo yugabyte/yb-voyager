@@ -284,6 +284,8 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 	_, ok := ddlParser.(*queryparser.NoOpParser)
 	if !ok {
 		//Skip all the DDLs we are detecting issues on in the DDLIssueDetector
+		//Not Full-proof as we don't have all DDL types but atleast we will skip all the types we know currently 
+		//and if anything is detected from this we will get to know
 		return nil, nil
 	}
 	var result []issue.IssueInstance
