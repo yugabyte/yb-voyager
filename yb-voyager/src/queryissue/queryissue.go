@@ -25,6 +25,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type ParserIssueDetector struct {
@@ -36,11 +37,35 @@ func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{}
 }
 
-func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.IssueInstance, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	var filteredIssues []issue.IssueInstance
+	for _, i := range issues {
+		fixed, err := i.IsFixedIn(targetDbVersion)
+		if err != nil {
+			return nil, fmt.Errorf("checking if issue %v is supported: %w", i, err)
+		}
+		if !fixed {
+			filteredIssues = append(filteredIssues, i)
+		}
+	}
+	return filteredIssues, nil
+}
+
+func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	issues, err := p.getAllIssues(query)
+	if err != nil {
+		return issues, err
+	}
+
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+func (p *ParserIssueDetector) getAllIssues(query string) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+
 	if queryparser.IsPLPGSQLObject(parseTree) {
 		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
@@ -49,7 +74,7 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 		}
 		var issues []issue.IssueInstance
 		for _, plpgsqlQuery := range plpgsqlQueries {
-			issuesInQuery, err := p.GetAllIssues(plpgsqlQuery)
+			issuesInQuery, err := p.getAllIssues(plpgsqlQuery)
 			if err != nil {
 				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
 				log.Errorf("error getting issues in query-%s: %v", query, err)
@@ -57,6 +82,7 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 			}
 			issues = append(issues, issuesInQuery...)
 		}
+
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
 			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
@@ -72,10 +98,11 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 		if err != nil {
 			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
 		}
-		issues, err := p.GetAllIssues(selectStmtQuery)
+		issues, err := p.getAllIssues(selectStmtQuery)
 		if err != nil {
 			return nil, err
 		}
+
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
 			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
@@ -85,12 +112,25 @@ func (p *ParserIssueDetector) GetAllIssues(query string) ([]issue.IssueInstance,
 		}), nil
 
 	}
-	return p.GetDMLIssues(query)
+
+	issues, err := p.getDMLIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting DML issues: %w", err)
+	}
+	return issues, nil
 }
 
-//TODO: in future when we will DDL issues detection here we need `GetDDLIssues`
+func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	issues, err := p.getDMLIssues(query)
+	if err != nil {
+		return issues, err
+	}
 
-func (p *ParserIssueDetector) GetDMLIssues(query string) ([]issue.IssueInstance, error) {
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+// TODO: in future when we will DDL issues detection here we need `GetDDLIssues`
+func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
