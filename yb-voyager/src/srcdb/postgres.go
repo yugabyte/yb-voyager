@@ -1166,10 +1166,10 @@ const (
 		JOIN pg_namespace n ON e.extnamespace = n.oid
 		WHERE e.extname = 'pg_stat_statements'`
 
-	querySharedPreloadLibraries = `SELECT current_setting('shared_preload_libraries')`
-
 	queryHasReadStatsPermission = `
 		SELECT pg_has_role(current_user, 'pg_read_all_stats', 'USAGE')`
+
+	SHARED_PRELOAD_LIBRARY_ERROR = "pg_stat_statements must be loaded via shared_preload_libraries"
 )
 
 // checkPgStatStatementsSetup checks if pg_stat_statements is properly installed and if the user has the necessary read permissions.
@@ -1183,31 +1183,24 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	var pgssExtSchema string
 	err := pg.db.QueryRow(queryPgStatStatementsSchema).Scan(&pgssExtSchema)
 	if err != nil && err != sql.ErrNoRows {
-		return "", fmt.Errorf("failed to fetch the schema of pg_stat_statement available in: %w", err)
+		if err == sql.ErrNoRows {
+			return "pg_stat_statements extension is not installed on source DB, required for detecting Unsupported Query Constructs", nil
+		}
+		return "", fmt.Errorf("failed to fetch the schema of pg_stat_statements available in: %w", err)
 	}
+
 	if pgssExtSchema == "" {
 		return "pg_stat_statements extension is not installed on source DB, required for detecting Unsupported Query Constructs", nil
 	} else {
 		schemaList := lo.Union(pg.getTrimmedSchemaList(), []string{"public"})
+		log.Infof("comparing schema list %v against pgss extension schema '%s'", schemaList, pgssExtSchema)
 		if !slices.Contains(schemaList, pgssExtSchema) {
 			return fmt.Sprintf("pg_stat_statements extension schema %q is not in the schema list (%s), required for detecting Unsupported Query Constructs",
 				pgssExtSchema, strings.Join(schemaList, ", ")), nil
 		}
 	}
 
-	// 2. check if its properly installed/loaded
-	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
-	// so trying a best effort here, if accessible then check otherwise it will fail during the gather metadata
-	var sharedPreloadLibraries string
-	err = pg.db.QueryRow(querySharedPreloadLibraries).Scan(&sharedPreloadLibraries)
-	if err != nil {
-		log.Warnf("failed to check if pg_stat_statements extension is properly loaded on source DB: %v", err)
-	}
-	if !slices.Contains(strings.Split(sharedPreloadLibraries, ","), PG_STAT_STATEMENTS) {
-		return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
-	}
-
-	// 3. User has permission to read from pg_stat_statements table
+	// 2. User has permission to read from pg_stat_statements table
 	var hasReadAllStats bool
 	err = pg.db.QueryRow(queryHasReadStatsPermission).Scan(&hasReadAllStats)
 	if err != nil {
@@ -1215,7 +1208,20 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	}
 
 	if !hasReadAllStats {
-		return "User doesn't have permissions to read pg_stat_statements view, unsupported query constructs won't be detected/reported", nil
+		return "User doesn't have permissions to read pg_stat_statements view, required for detecting Unsupported Query Constructs", nil
+	}
+
+	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
+	// so instead of getting current_settings(), executing SELECT query on pg_stat_statements view
+	// 3. check if its properly installed/loaded without any extra permissions
+	queryCheckPgssLoaded := fmt.Sprintf("SELECT 1 from %s.pg_stat_statements LIMIT 1", pgssExtSchema)
+	log.Infof("query to check pgss is properly loaded - [%s]", queryCheckPgssLoaded)
+	_, err = pg.db.Exec(queryCheckPgssLoaded)
+	if err != nil {
+		if strings.Contains(err.Error(), SHARED_PRELOAD_LIBRARY_ERROR) {
+			return "pg_stat_statements is not loaded via shared_preload_libraries, required for detecting Unsupported Query Constructs", nil
+		}
+		return "", fmt.Errorf("failed to check pg_stat_statements is loaded via shared_preload_libraries: %w", err)
 	}
 
 	return "", nil

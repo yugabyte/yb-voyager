@@ -684,3 +684,37 @@ func ChangeFileExtension(filePath string, newExt string) string {
 
 	return filePath + newExt
 }
+
+// Port 0 generally returns port number in range 30xxx - 60xxx but it also depends on OS and network configuration
+func GetFreePort() (int, error) {
+	// Listen on port 0, which tells the OS to assign an available port
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, fmt.Errorf("failed to listen on a port: %v", err)
+	}
+	defer listener.Close()
+
+	// Retrieve the assigned port
+	addr := listener.Addr().(*net.TCPAddr)
+	return addr.Port, nil
+}
+
+func GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion string) (string, error) {
+	// RC version will be like 0rc1.1.8.6
+	// We need to extract 1.8.6 from it
+	// Compring with this 1.8.6 should be enough to check if the version is compatible with the current version
+	// Split the string at "rc" to isolate the part after it
+	parts := strings.Split(msrVoyagerFinalVersion, "rc")
+	if len(parts) > 1 {
+		// Further split the remaining part by '.' and remove the first segment
+		versionParts := strings.Split(parts[1], ".")
+		if len(versionParts) > 1 {
+			msrVoyagerFinalVersion = strings.Join(versionParts[1:], ".") // Join the parts after the first one
+		} else {
+			return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
+		}
+	} else {
+		return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
+	}
+	return msrVoyagerFinalVersion, nil
+}
