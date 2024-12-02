@@ -363,45 +363,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	}
 }
 
-func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
-	typeName := ""
-	typeSchemaName := ""
-	if len(typeNames) > 0 {
-		typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-	}
-	if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-		typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-	}
-
-	return typeName, typeSchemaName
-}
-
-func generateConstraintName(conType pg_query.ConstrType, tableName string, columns []string) string {
-	suffix := ""
-	//Deferrable is only applicable to following constraint
-	//https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Currently%2C%20only%20UNIQUE%2C%20PRIMARY%20KEY%2C%20EXCLUDE%2C%20and%20REFERENCES
-	switch conType {
-	case pg_query.ConstrType_CONSTR_UNIQUE:
-		suffix = "_key"
-	case pg_query.ConstrType_CONSTR_PRIMARY:
-		suffix = "_pkey"
-	case pg_query.ConstrType_CONSTR_EXCLUSION:
-		suffix = "_excl"
-	case pg_query.ConstrType_CONSTR_FOREIGN:
-		suffix = "_fkey"
-	}
-
-	return fmt.Sprintf("%s_%s%s", tableName, strings.Join(columns, "_"), suffix)
-}
-
-func getColumnNames(keys []*pg_query.Node) []string {
-	var res []string
-	for _, k := range keys {
-		res = append(res, k.GetString_().Sval)
-	}
-	return res
-}
-
 // Checks compatibility of views
 func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
