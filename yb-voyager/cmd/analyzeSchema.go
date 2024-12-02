@@ -129,32 +129,10 @@ var (
 	schemaAnalysisReport      utils.SchemaReport
 	partitionTablesMap        = make(map[string]bool)
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
-	primaryConsInAlter  = make(map[string]*sqlInfo)
 	summaryMap          = make(map[string]*summaryInfo)
 	parserIssueDetector = queryissue.NewParserIssueDetector()
 	multiRegex          = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex    = regexp.MustCompile(`(\$.*\$)`)
-	/*
-		this will contain the information in this format:
-		public.table1 -> {
-			column1: citext | jsonb | inet | tsquery | tsvector | array
-			...
-		}
-		schema2.table2 -> {
-			column3: citext | jsonb | inet | tsquery | tsvector | array
-			...
-		}
-		Here only those columns on tables are stored which have unsupported type for Index in YB
-	*/
-	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
-	/*
-		list of composite types with fully qualified typename in the exported schema
-	*/
-	compositeTypes = make([]string, 0)
-	/*
-		list of enum types with fully qualified typename in the exported schema
-	*/
-	enumTypes = make([]string, 0)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
@@ -388,87 +366,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	}
 }
 
-func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query.Node, sqlStmtInfo sqlInfo, fpath string, objectType string) {
-	schemaName := relation.Schemaname
-	tableName := relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	for _, column := range columns {
-		/*
-			e.g. CREATE TABLE test_xml_type(id int, data xml);
-			relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
-			type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} typemod:-1 location:32}
-			is_local:true location:29}} table_elts:{column_def:{colname:"data" type_name:{names:{string:{sval:"xml"}}
-			typemod:-1 location:42} is_local:true location:37}} oncommit:ONCOMMIT_NOOP}}
-
-			here checking the type of each column as type definition can be a list names for types which are native e.g. int
-			it has type names - [pg_catalog, int4] both to determine but for complex types like text,json or xml etc. if doesn't have
-			info about pg_catalog. so checking the 0th only in case XML/XID to determine the type and report
-		*/
-		if column.GetColumnDef() != nil {
-			typeNames := column.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
-			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
-			isArrayType := len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0
-			colName := column.GetColumnDef().GetColname()
-
-			liveUnsupportedDatatypes := srcdb.GetPGLiveMigrationUnsupportedDatatypes()
-			liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
-
-			isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName)
-			isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
-
-			isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, typeName)
-			isUDTDatatype := utils.ContainsAnyStringFromSlice(compositeTypes, fullTypeName) //if type is array
-			isEnumDatatype := utils.ContainsAnyStringFromSlice(enumTypes, fullTypeName)     //is ENUM type
-			isArrayOfEnumsDatatype := isArrayType && isEnumDatatype
-			isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
-
-			if isUnsupportedDatatype {
-				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
-				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
-				var ghIssue, suggestion, docLink string
-
-				switch typeName {
-				case "xml":
-					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/1043"
-					suggestion = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
-					docLink = XML_DATATYPE_DOC_LINK
-				case "xid":
-					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/15638"
-					suggestion = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
-					docLink = XID_DATATYPE_DOC_LINK
-				case "geometry", "geography", "box2d", "box3d", "topogeometry":
-					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/11323"
-					suggestion = ""
-					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
-				default:
-					ghIssue = "https://github.com/yugabyte/yb-voyager/issues/1731"
-					suggestion = ""
-					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
-				}
-				reportCase(fpath, reason, ghIssue, suggestion,
-					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
-			} else if objectType == TABLE && isUnsupportedDatatypeInLive {
-				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
-				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
-				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
-					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
-			} else if objectType == TABLE && isUnsupportedDatatypeInLiveWithFFOrFB {
-				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
-				reportTypeName := fullTypeName
-				if isArrayType { // For Array cases to make it clear in issue
-					reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
-				}
-				//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT columns as unsupported with live migration with ff/fb
-				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB, reportTypeName, colName)
-				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
-					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
-			}
-		}
-	}
-}
 func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
 	typeName := ""
 	typeSchemaName := ""

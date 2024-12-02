@@ -45,8 +45,8 @@ func (p *ParserIssueDetector) NewTableIssueDetector() *TableIssueDetector {
 	return &TableIssueDetector{
 		primaryConsInAlter:                   p.primaryConsInAlter,
 		columnsWithUnsupportedIndexDatatypes: p.columnsWithUnsupportedIndexDatatypes,
-		compositeTypes:                       p.compositeTypes,
-		enumTypes:                            p.enumTypes,
+		compositeTypes:                       p.CompositeTypes,
+		enumTypes:                            p.EnumTypes,
 	}
 }
 
@@ -283,7 +283,7 @@ type IndexIssueDetector struct {
 func (p *ParserIssueDetector) NewIndexIssueDetector() *IndexIssueDetector {
 	return &IndexIssueDetector{
 		columnsWithUnsupportedIndexDatatypes: p.columnsWithUnsupportedIndexDatatypes,
-		compositeTypes:                       p.compositeTypes,
+		compositeTypes:                       p.CompositeTypes,
 	}
 }
 
@@ -605,8 +605,8 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 		return p.NewPolicyIssueDetector(), nil
 	case *queryparser.Trigger:
 		return p.NewTriggerIssueDetector(), nil
-    case *queryparser.ForeignTable:
-        return p.NewForeignTableIssueDetector(), nil
+	case *queryparser.ForeignTable:
+		return p.NewForeignTableIssueDetector(), nil
 	default:
 		return p.NewNoOpIssueDetector(), nil
 	}

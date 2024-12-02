@@ -1070,7 +1070,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	if source.DBType != POSTGRESQL {
 		return nil, nil
 	}
-	parserIssueDetector := queryissue.NewParserIssueDetector()
+	// parserIssueDetector := queryissue.NewParserIssueDetector()
 	query := fmt.Sprintf("SELECT DISTINCT query from %s", migassessment.DB_QUERIES_SUMMARY)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
@@ -1181,9 +1181,9 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
 
 		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFForFBUnsupportedDatatypes, typeName)
-		isUDTDatatype := utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType)
+		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.CompositeTypes, allColumnsDataTypes[i].DataType)
 		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                              //if type is array
-		isEnumDatatype := utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
+		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.EnumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
 		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
 

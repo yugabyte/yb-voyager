@@ -45,11 +45,11 @@ type ParserIssueDetector struct {
 	/*
 		list of composite types with fully qualified typename in the exported schema
 	*/
-	compositeTypes []string
+	CompositeTypes []string
 	/*
 		list of enum types with fully qualified typename in the exported schema
 	*/
-	enumTypes []string
+	EnumTypes []string
 
 	partitionTablesMap map[string]bool
 
@@ -62,8 +62,8 @@ type ParserIssueDetector struct {
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
 		columnsWithUnsupportedIndexDatatypes: make(map[string]map[string]string),
-		compositeTypes:                       make([]string, 0),
-		enumTypes:                            make([]string, 0),
+		CompositeTypes:                       make([]string, 0),
+		EnumTypes:                            make([]string, 0),
 		partitionTablesMap:                   make(map[string]bool),
 		primaryConsInAlter:                   make(map[string]*queryparser.AlterTable),
 	}
@@ -216,7 +216,7 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 
 		for _, col := range table.Columns {
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
-			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
+			isUDTType := slices.Contains(p.CompositeTypes, col.GetFullTypeName())
 			switch true {
 			case col.IsArrayType:
 				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
@@ -240,9 +240,9 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 	case *queryparser.CreateType:
 		typeObj, _ := ddlObj.(*queryparser.CreateType)
 		if typeObj.IsEnum {
-			p.enumTypes = append(p.enumTypes, typeObj.GetObjectName())
+			p.EnumTypes = append(p.EnumTypes, typeObj.GetObjectName())
 		} else {
-			p.compositeTypes = append(p.compositeTypes, typeObj.GetObjectName())
+			p.CompositeTypes = append(p.CompositeTypes, typeObj.GetObjectName())
 		}
 	}
 	return nil
