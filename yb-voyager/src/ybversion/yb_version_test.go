@@ -14,9 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package version
+package ybversion
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,8 +28,8 @@ import (
 
 func TestValidNewYBVersion(t *testing.T) {
 	validVersionStrings := []string{
-		"2024.1.1",
-		"2.20",
+		"2024.1.1.0",
+		"2.20.7.0",
 		"2.21.2.1",
 	}
 	for _, v := range validVersionStrings {
@@ -38,8 +42,9 @@ func TestInvalidNewYBVersion(t *testing.T) {
 	invalidVersionStrings := []string{
 		"abc.def",        // has to be numbers
 		"2024.0.1-1",     // has to be in supported series
-		"2024",           // has to have at least 2 segments
-		"2024.1.1.1.1.1", // max 4 segments
+		"2024",           // has to have 4 segments
+		"2.20.7",         // has to have 4 segments
+		"2024.1.1.1.1.1", // exactly 4 segments
 	}
 	for _, v := range invalidVersionStrings {
 		_, err := NewYBVersion(v)
@@ -49,8 +54,8 @@ func TestInvalidNewYBVersion(t *testing.T) {
 
 func TestStableReleaseType(t *testing.T) {
 	stableVersionStrings := []string{
-		"2024.1.1",
-		"2024.1",
+		"2024.1.1.0",
+		"2024.1.0.0",
 		"2024.1.1.1",
 	}
 	for _, v := range stableVersionStrings {
@@ -61,8 +66,8 @@ func TestStableReleaseType(t *testing.T) {
 
 func TestPreviewReleaseType(t *testing.T) {
 	previewVersionStrings := []string{
-		"2.21.1",
-		"2.21",
+		"2.21.1.0",
+		"2.21.1.1",
 	}
 	for _, v := range previewVersionStrings {
 		ybVersion, _ := NewYBVersion(v)
@@ -72,8 +77,8 @@ func TestPreviewReleaseType(t *testing.T) {
 
 func TestStableOldReleaseType(t *testing.T) {
 	stableOldVersionStrings := []string{
-		"2.20.1",
-		"2.20",
+		"2.20.1.0",
+		"2.20.0.0",
 	}
 	for _, v := range stableOldVersionStrings {
 		ybVersion, _ := NewYBVersion(v)
@@ -81,42 +86,36 @@ func TestStableOldReleaseType(t *testing.T) {
 	}
 }
 
-func TestVersionPrefixGreaterThanOrEqual(t *testing.T) {
-	versionsToCompare := [][]string{
-		{"2024.1.1", "2024.1.0"},
-		{"2024.1", "2024.1.4.0"}, //prefix 2024.1 == 2024.1
+func TestLatestStable(t *testing.T) {
+	type Release struct {
+		Name string `json:"name"`
 	}
-	for _, v := range versionsToCompare {
-		v1, err := NewYBVersion(v[0])
-		assert.NoError(t, err)
-		v2, err := NewYBVersion(v[1])
-		assert.NoError(t, err)
-		greaterThan, err := v1.CommonPrefixGreaterThanOrEqual(v2)
-		assert.NoError(t, err)
-		assert.True(t, greaterThan, "%s >= %s", v[0], v[1])
-	}
-}
 
-func TestVersionPrefixLessThan(t *testing.T) {
-	versionsToCompare := [][]string{
-		{"2024.1.0", "2024.1.2"},
-		{"2.21.1", "2.21.7"},
-		{"2.20.1", "2.20.7"},
-	}
-	for _, v := range versionsToCompare {
-		v1, err := NewYBVersion(v[0])
-		assert.NoError(t, err)
-		v2, err := NewYBVersion(v[1])
-		assert.NoError(t, err)
-		lessThan, err := v1.CommonPrefixLessThan(v2)
-		assert.NoError(t, err)
-		assert.True(t, lessThan, "%s < %s", v[0], v[1])
-	}
-}
+	url := "https://api.github.com/repos/yugabyte/yugabyte-db/releases"
+	response, err := http.Get(url)
+	assert.NoErrorf(t, err, "could not access URL:%q", url)
+	defer response.Body.Close()
+	assert.Equal(t, 200, response.StatusCode)
 
-func TestComparingDifferentSeriesThrowsError(t *testing.T) {
-	v1, _ := NewYBVersion("2024.1.1")
-	v2, _ := NewYBVersion("2.21.1")
-	_, err := v1.CompareCommonPrefix(v2)
-	assert.Error(t, err)
+	body, err := io.ReadAll(response.Body)
+	assert.NoError(t, err, "could not read contents of response %q")
+	var releases []Release
+	err = json.Unmarshal(body, &releases)
+	assert.NoErrorf(t, err, "could not unmarshal response %q", string(body))
+	assert.NotEmpty(t, releases, "no releases found")
+
+	for _, r := range releases {
+		// sample -  v2.20.7.1 (Released October 16, 2024)
+		releaseName := r.Name
+		releaseName = strings.Split(releaseName, " ")[0]
+		if releaseName[0] == 'v' {
+			releaseName = releaseName[1:]
+		}
+		releaseName = strings.Trim(releaseName, " ")
+		rVersion, err := NewYBVersion(releaseName)
+		assert.NoErrorf(t, err, "could not create version %q", releaseName)
+		if rVersion.ReleaseType() == STABLE {
+			assert.True(t, LatestStable.GreaterThanOrEqual(rVersion), "%s is not greater than %s", LatestStable, rVersion)
+		}
+	}
 }

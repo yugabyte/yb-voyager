@@ -55,7 +55,7 @@ var exportDataStatusCmd = &cobra.Command{
 			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
-		err = InitNameRegistry(exportDir, SOURCE_DB_EXPORTER_ROLE, nil, nil, nil, nil, false)
+		err = InitNameRegistry(exportDir, namereg.SOURCE_DB_EXPORTER_STATUS_ROLE, nil, nil, nil, nil, false)
 		if err != nil {
 			utils.ErrExit("initializing name registry: %v", err)
 		}
@@ -69,7 +69,9 @@ var exportDataStatusCmd = &cobra.Command{
 		}
 		useDebezium = msr.IsSnapshotExportedViaDebezium()
 
-
+		if msr.SourceDBConf == nil {
+			utils.ErrExit("export data has not started yet. Try running after export has started")
+		}
 		source = *msr.SourceDBConf
 		sqlname.SourceDBType = source.DBType
 		leafPartitions := getLeafPartitionsFromRootTable()
@@ -162,7 +164,7 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartiti
 func getDisplayName(nt sqlname.NameTuple, partitions []string, isTableListSet bool) string {
 	displayTableName := nt.ForMinOutput()
 	//Changing the display of the partition tables in case table-list is set because there can be case where user has passed a subset of leaft tables in the list
-	if source.DBType == POSTGRESQL && partitions != nil  && isTableListSet {
+	if source.DBType == POSTGRESQL && partitions != nil && isTableListSet {
 		slices.Sort(partitions)
 		partitions := strings.Join(partitions, ", ")
 		displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
