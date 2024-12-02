@@ -102,14 +102,9 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 			e.g CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
 			stmt:{create_stmt:{relation:{schemaname:"public" relname:"tbl_unlogged" inh:true relpersistence:"u" location:19}
 		*/
-		IsUnlogged:    createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
-		IsPartitioned: createTableNode.CreateStmt.GetPartspec() != nil,
-		/*
-			CREATE TABLE Test(id int, name text) inherits(test_parent);
-			stmts:{stmt:{create_stmt:{relation:{relname:"test" inh:true relpersistence:"p" location:13} table_elts:{column_def:{colname:"id" ....
-			inh_relations:{range_var:{relname:"test_parent" inh:true relpersistence:"p" location:46}} oncommit:ONCOMMIT_NOOP}} stmt_len:58}
-		*/
-		IsInherited:      createTableNode.CreateStmt.GetInhRelations() != nil,
+		IsUnlogged:       createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
+		IsPartitioned:    createTableNode.CreateStmt.GetPartspec() != nil,
+		IsInherited:      p.checkInheritance(createTableNode),
 		GeneratedColumns: make([]string, 0),
 		Constraints:      make([]TableConstraint, 0),
 		PartitionColumns: make([]string, 0),
@@ -211,6 +206,25 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 	}
 
 	return table, nil
+}
+
+func (p *TableParser) checkInheritance(createTableNode *pg_query.Node_CreateStmt) bool {
+	/*
+		CREATE TABLE Test(id int, name text) inherits(test_parent);
+		stmts:{stmt:{create_stmt:{relation:{relname:"test" inh:true relpersistence:"p" location:13} table_elts:{column_def:{colname:"id" ....
+		inh_relations:{range_var:{relname:"test_parent" inh:true relpersistence:"p" location:46}} oncommit:ONCOMMIT_NOOP}} stmt_len:58}
+
+		CREATE TABLE accounts_list_partitioned_p_northwest PARTITION OF accounts_list_partitioned FOR VALUES IN ('OR', 'WA');
+		version:160001 stmts:{stmt:{create_stmt:{relation:{relname:"accounts_list_partitioned_p_northwest" inh:true relpersistence:"p" location:14}
+		inh_relations:{range_var:{relname:"accounts_list_partitioned" inh:true relpersistence:"p" location:65}} partbound:{strategy:"l" listdatums:{a_const:{sval:{sval:"OR"} location:106}}
+		listdatums:{a_const:{sval:{sval:"WA"} location:112}} location:102} oncommit:ONCOMMIT_NOOP}}
+	*/
+	inheritsRel := createTableNode.CreateStmt.GetInhRelations()
+	if inheritsRel != nil {
+		isPartitionOf := createTableNode.CreateStmt.GetPartbound() != nil
+		return !isPartitionOf
+	}
+	return false
 }
 
 func (p *TableParser) parseColumnsFromExclusions(list []*pg_query.Node) []string {
