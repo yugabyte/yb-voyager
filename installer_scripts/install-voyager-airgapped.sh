@@ -232,7 +232,7 @@ check_perl_module_version() {
         return 1
     else
         echo "Error: Unknown requirement type '$requirement_type' for $module_name."
-        exit
+        exit 1
     fi
 }
 
