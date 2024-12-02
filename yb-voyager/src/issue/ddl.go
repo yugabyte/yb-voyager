@@ -211,7 +211,7 @@ var constraintTriggerIssue = Issue{
 
 func NewConstraintTriggerIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
 	details := map[string]interface{}{}
-	//for CONSTRAINT TRIGGER we don't have separate object type TODO: fix   
+	//for CONSTRAINT TRIGGER we don't have separate object type TODO: fix
 	if objectType == "TRIGGER" {
 		details["INCREASE_INVALID_COUNT"] = false
 	}

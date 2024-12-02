@@ -33,6 +33,8 @@ type DDLIssueDetector interface {
 	DetectIssues(queryparser.DDLObject) ([]issue.IssueInstance, error)
 }
 
+//=============TABLE ISSUE DETECTOR ===========================
+
 // TableIssueDetector handles detection of table-related issues
 type TableIssueDetector struct {
 	primaryConsInAlter                   map[string]*queryparser.AlterTable
@@ -241,6 +243,8 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 	}
 }
 
+//=============FOREIGN TABLE ISSUE DETECTOR ===========================
+
 //ForeignTableIssueDetector handles detection Foreign table issues
 
 type ForeignTableIssueDetector struct{}
@@ -273,6 +277,8 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 	return issues, nil
 
 }
+
+//=============INDEX ISSUE DETECTOR ===========================
 
 // IndexIssueDetector handles detection of index-related issues
 type IndexIssueDetector struct {
@@ -317,23 +323,12 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 	//GinVariations
 	if index.AccessMethod == GIN_ACCESS_METHOD {
 		if len(index.Params) > 1 {
-			/*
-			   e.g. CREATE INDEX idx_name ON public.test USING gin (data, data2);
-			   stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p"
-			   location:125} access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-			   index_params:{index_elem:{name:"data2" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_location:81 stmt_len:81
-			*/
 			issues = append(issues, issue.NewMultiColumnGinIndexIssue(
 				issue.INDEX_OBJECT_TYPE,
 				index.GetObjectName(),
 				"",
 			))
 		} else {
-			/*
-			   e.g. CREATE INDEX idx_name ON public.test USING gin (data DESC);
-			   stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p" location:44}
-			   access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DESC nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:80
-			*/
 			//In case only one Param is there
 			param := index.Params[0]
 			if param.SortByOrder != queryparser.DEFAULT_SORTING_ORDER {
@@ -347,18 +342,6 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 	}
 
 	//Index on complex datatypes
-	/*
-		e.g.
-		1. CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
-		stmt:{index_stmt:{idxname:"tsvector_idx"  relation:{schemaname:"public"  relname:"documents"  inh:true  relpersistence:"p"  location:510}  access_method:"btree"
-		index_params:{index_elem:{name:"title_tsvector"  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}  index_params:{index_elem:{name:"id"
-		ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:479  stmt_len:69
-
-		2. CREATE INDEX idx_json ON public.test_json ((data::jsonb));
-		stmt:{index_stmt:{idxname:"idx_json"  relation:{schemaname:"public"  relname:"test_json"  inh:true  relpersistence:"p"  location:703}  access_method:"btree"
-		index_params:{index_elem:{expr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"data"}}  location:722}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1
-		location:728}  location:726}}  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:676  stmt_len:59
-	*/
 	/*
 	   cases covered
 	       1. normal index on column with these types
@@ -411,6 +394,8 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 
 	return issues, nil
 }
+
+//=============ALTER TABLE ISSUE DETECTOR ===========================
 
 // AlterTableIssueDetector handles detection of alter table-related issues
 type AlterTableIssueDetector struct {
@@ -513,6 +498,8 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 	return issues, nil
 }
 
+//=============POLICY ISSUE DETECTOR ===========================
+
 // PolicyIssueDetector handles detection of Create policy issues
 type PolicyIssueDetector struct{}
 
@@ -536,6 +523,8 @@ func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.I
 	}
 	return issues, nil
 }
+
+//=============TRIGGER ISSUE DETECTOR ===========================
 
 // TriggerIssueDetector handles detection of Create Trigger issues
 type TriggerIssueDetector struct {
@@ -581,6 +570,8 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issu
 
 	return issues, nil
 }
+
+//=============NO-OP ISSUE DETECTOR ===========================
 
 // Need to handle all the cases for which we don't have any issues detector
 type NoOpIssueDetector struct{}

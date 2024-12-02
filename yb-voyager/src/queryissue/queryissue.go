@@ -171,67 +171,6 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]issue.IssueInsta
 	return nil, nil
 }
 
-// parseTree, err := queryparser.Parse(query)
-// if err != nil {
-// 	return nil, fmt.Errorf("error parsing query: %w", err)
-// }
-// var issues []issue.IssueInstance
-// if queryparser.IsCreateTable(parseTree) {
-// 	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-
-// 	//GENERATED COLUMNS
-// 	generatedColumns := queryparser.GetGeneratedColumns(parseTree)
-// 	if len(generatedColumns) > 0 {
-// 		issues = append(issues, issue.NewGeneratedColumnsIssue(objType, objName, query, generatedColumns))
-// 	}
-
-// 	if queryparser.IsUnloggedTable(parseTree) {
-// 		issues = append(issues, issue.NewUnloggedTableIssue(objType, objName, query))
-// 	}
-// }
-
-// if queryparser.IsAlterTable(parseTree) {
-// 	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-
-// 	alterTableSubType := queryparser.GetAlterTableType(parseTree)
-// 	switch alterTableSubType {
-// 	case queryparser.SET_OPTIONS:
-// 		if queryparser.HaveSetAttributes(parseTree) {
-// 			issues = append(issues, issue.NewSetAttributeIssue(objType, objName, query))
-// 		}
-// 	case queryparser.ADD_CONSTRAINT:
-// 		if queryparser.HaveStorageOptions(parseTree) {
-// 			issues = append(issues, issue.NewStorageParameterIssue(objType, objName, query))
-// 		}
-// 	case queryparser.DISABLE_RULE:
-// 		ruleName := queryparser.GetRuleNameInAlterTable(parseTree)
-// 		issues = append(issues, issue.NewDisableRuleIssue(objType, objName, query, ruleName))
-// 	case queryparser.CLUSTER_ON:
-// 		/*
-// 			e.g. ALTER TABLE example CLUSTER ON idx;
-// 			stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13}
-// 			cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
-
-// 		*/
-// 		issues = append(issues, issue.NewClusterONIssue(objType, objName, query))
-
-// 	}
-// }
-
-// if queryparser.IsCreateIndex(parseTree) {
-// 	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-
-// 	indexAccessMethod := queryparser.GetIndexAccessMethod(parseTree)
-// 	if slices.Contains(UnsupportedIndexMethods, indexAccessMethod) {
-// 		issues = append(issues, issue.NewUnsupportedIndexMethodIssue(objType, objName, query, indexAccessMethod))
-// 	}
-
-// 	if queryparser.HaveStorageOptions(parseTree) {
-// 		issues = append(issues, issue.NewStorageParameterIssue(objType, objName, query))
-// 	}
-
-// }
-
 func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 	ddlObj, err := queryparser.ParseDDL(query)
 	if err != nil {

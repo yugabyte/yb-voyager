@@ -35,6 +35,8 @@ type DDLObject interface {
 	GetSchemaName() string
 }
 
+//=========== TABLE PARSER ================================
+
 // TableParser handles parsing CREATE TABLE statements
 type TableParser struct{}
 
@@ -43,6 +45,29 @@ func NewTableParser() *TableParser {
 }
 
 /*
+e.g. CREATE TABLE "Test"(
+
+		id int,
+		room_id int,
+		time_range tsrange,
+		room_id1 int,
+		time_range1 tsrange
+		EXCLUDE USING gist (room_id WITH =, time_range WITH &&),
+		EXCLUDE USING gist (room_id1 WITH =, time_range1 WITH &&)
+	);
+
+create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:...table_elts:{constraint:{contype:CONSTR_EXCLUSION
+location:226 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+items:{list:{items:{string:{sval:"="}}}}}} exclusions:{list:{items:{index_elem:{name:"time_range" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+items:{list:{items:{string:{sval:"&&"}}}}}} access_method:"gist"}} table_elts:{constraint:{contype:CONSTR_EXCLUSION location:282 exclusions:{list:
+{items:{index_elem:{name:"room_id1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"="}}}}}}
+exclusions:{list:{items:{index_elem:{name:"time_range1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"&&"}}}}}}
+access_method:"gist"}} oncommit:ONCOMMIT_NOOP}} stmt_len:365}
+
+here we are iterating over all the table_elts - table elements and which are comma separated column info in
+the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def
+is nil.
+
 e.g. In case if PRIMARY KEY is included in column definition
 
 	 CREATE TABLE example2 (
@@ -71,8 +96,12 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 	}
 
 	table := &Table{
-		SchemaName:       createTableNode.CreateStmt.Relation.Schemaname,
-		TableName:        createTableNode.CreateStmt.Relation.Relname,
+		SchemaName: createTableNode.CreateStmt.Relation.Schemaname,
+		TableName:  createTableNode.CreateStmt.Relation.Relname,
+		/*
+			e.g CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
+			stmt:{create_stmt:{relation:{schemaname:"public" relname:"tbl_unlogged" inh:true relpersistence:"u" location:19}
+		*/
 		IsUnlogged:       createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
 		IsPartitioned:    createTableNode.CreateStmt.GetPartspec() != nil,
 		GeneratedColumns: make([]string, 0),
@@ -90,6 +119,17 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
 			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+			/*
+				e.g. CREATE TABLE test_xml_type(id int, data xml);
+				relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
+				type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} typemod:-1 location:32}
+				is_local:true location:29}} table_elts:{column_def:{colname:"data" type_name:{names:{string:{sval:"xml"}}
+				typemod:-1 location:42} is_local:true location:37}} oncommit:ONCOMMIT_NOOP}}
+
+				here checking the type of each column as type definition can be a list names for types which are native e.g. int
+				it has type names - [pg_catalog, int4] both to determine but for complex types like text,json or xml etc. if doesn't have
+				info about pg_catalog. so checking the 0th only in case XML/XID to determine the type and report
+			*/
 			table.Columns = append(table.Columns, TableColumn{
 				ColumnName:  colName,
 				TypeName:    typeName,
@@ -102,6 +142,18 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 				for idx, c := range constraints {
 					constraint := c.GetConstraint()
 					if slices.Contains(deferrableConstraintsList, constraint.Contype) {
+						/*
+								e.g. create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
+
+								create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}
+								table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
+								typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}}
+								constraints:{constraint:{contype:CONSTR_ATTR_DEFERRABLE  location:45}}  location:31}}  ....
+
+							here checking the case where this clause is in column definition so iterating over each column_def and in that
+							constraint type has deferrable or not and also it should not be a foreign constraint as Deferrable on FKs are
+							supported.
+						*/
 						if idx > 0 {
 							lastConstraint := table.Constraints[len(table.Constraints)-1]
 							lastConstraint.IsDeferrable = true
@@ -114,10 +166,20 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 			}
 
 		} else if element.GetConstraint() != nil {
+			/*
+				e.g. create table uniquen_def_test1(id int, c1 int, UNIQUE(id) DEFERRABLE INITIALLY DEFERRED);
+					{create_stmt:{relation:{relname:"unique_def_test1"  inh:true  relpersistence:"p"  location:80}  table_elts:{column_def:{colname:"id"
+					type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
+					table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
+
+					here checking the case where this constraint is at the at the end as a constraint only, so checking deferrable field in constraint
+					in case of its not a FK.
+			*/
 			constraint := element.GetConstraint()
 			conType := element.GetConstraint().Contype
 			columns := parseColumnsFromKeys(constraint.GetKeys())
 			if conType == EXCLUSION_CONSTR_TYPE {
+				//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
 				exclusions := constraint.GetExclusions()
 				//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
 				//items:{list:{items:{string:{sval:"="}}}}}}
@@ -171,223 +233,6 @@ func (p *TableParser) isGeneratedColumn(colDef *pg_query.ColumnDef) bool {
 	return false
 }
 
-type ForeignTableParser struct{}
-
-func NewForeignTableParser() *ForeignTableParser {
-	return &ForeignTableParser{}
-}
-
-func (f *ForeignTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
-	foreignTableNode, ok := getForeignTableStmtNode(parseTree)
-	if !ok {
-		return nil, fmt.Errorf("not a CREATE FOREIGN TABLE statement")
-	}
-	baseStmt := foreignTableNode.CreateForeignTableStmt.BaseStmt
-	relation := baseStmt.Relation
-	table := Table{
-		TableName:  relation.GetRelname(),
-		SchemaName: relation.GetSchemaname(),
-		//Not populating rest info
-	}
-	for _, element := range baseStmt.TableElts {
-		if element.GetColumnDef() != nil {
-			colName := element.GetColumnDef().GetColname()
-
-			typeNames := element.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
-			table.Columns = append(table.Columns, TableColumn{
-				ColumnName:  colName,
-				TypeName:    typeName,
-				TypeSchema:  typeSchemaName,
-				IsArrayType: len(element.GetColumnDef().GetTypeName().GetArrayBounds()) > 0,
-			})
-		}
-	}
-	return &ForeignTable{
-		Table:      table,
-		ServerName: foreignTableNode.CreateForeignTableStmt.GetServername(),
-	}, nil
-
-}
-
-// IndexParser handles parsing CREATE INDEX statements
-type IndexParser struct{}
-
-func NewIndexParser() *IndexParser {
-	return &IndexParser{}
-}
-
-func (p *IndexParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
-	indexNode, ok := getCreateIndexStmtNode(parseTree)
-	if !ok {
-		return nil, fmt.Errorf("not a CREATE INDEX statement")
-	}
-
-	index := &Index{
-		SchemaName:        indexNode.IndexStmt.Relation.Schemaname,
-		IndexName:         indexNode.IndexStmt.Idxname,
-		TableName:         indexNode.IndexStmt.Relation.Relname,
-		AccessMethod:      indexNode.IndexStmt.AccessMethod,
-		NumStorageOptions: len(indexNode.IndexStmt.GetOptions()),
-		Params:            p.parseIndexParams(indexNode.IndexStmt.IndexParams),
-	}
-
-	return index, nil
-}
-
-func (p *IndexParser) parseIndexParams(params []*pg_query.Node) []IndexParam {
-	var indexParams []IndexParam
-	for _, i := range params {
-		ip := IndexParam{
-			SortByOrder:  i.GetIndexElem().Ordering,
-			ColName:      i.GetIndexElem().GetName(),
-			IsExpression: i.GetIndexElem().GetExpr() != nil,
-		}
-		if ip.IsExpression {
-			//For the expression index case to report in case casting to unsupported types #3
-			typeNames := i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
-			ip.ExprCastTypeName, ip.ExprCastTypeSchema = getTypeNameAndSchema(typeNames)
-		}
-		indexParams = append(indexParams, ip)
-	}
-	return indexParams
-}
-
-// AlterTableParser handles parsing ALTER TABLE statements
-type AlterTableParser struct{}
-
-func NewAlterTableParser() *AlterTableParser {
-	return &AlterTableParser{}
-}
-
-func (p *AlterTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
-	alterNode, ok := getAlterStmtNode(parseTree)
-	if !ok {
-		return nil, fmt.Errorf("not an ALTER TABLE statement")
-	}
-
-	alter := &AlterTable{
-		SchemaName: alterNode.AlterTableStmt.Relation.Schemaname,
-		TableName:  alterNode.AlterTableStmt.Relation.Relname,
-		AlterType:  alterNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype(),
-	}
-
-	// Parse specific alter command
-	cmd := alterNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	switch alter.AlterType {
-	case pg_query.AlterTableType_AT_SetOptions:
-		alter.NumSetAttributes = len(cmd.GetDef().GetList().GetItems())
-	case pg_query.AlterTableType_AT_AddConstraint:
-		alter.NumStorageOptions = len(cmd.GetDef().GetConstraint().GetOptions())
-		/*
-		   e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
-		   cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
-		   here again same checking the definition of the alter stmt if it has constraint and checking its type
-		*/
-		constraint := cmd.GetDef().GetConstraint()
-		alter.ConstraintType = constraint.Contype
-		alter.ConstraintName = constraint.Conname
-		alter.IsDeferrable = constraint.Deferrable
-		alter.ConstraintColumns = parseColumnsFromKeys(constraint.GetKeys())
-
-	case pg_query.AlterTableType_AT_DisableRule:
-		alter.RuleName = cmd.Name
-	}
-
-	return alter, nil
-}
-
-// PolicyParser handles parsing CREATE POLICY statements
-type PolicyParser struct{}
-
-func NewPolicyParser() *PolicyParser {
-	return &PolicyParser{}
-}
-
-func (p *PolicyParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
-	policyNode, ok := getPolicyStmtNode(parseTree)
-	if !ok {
-		return nil, fmt.Errorf("not a CREATE POLICY statement")
-	}
-
-	policy := &Policy{
-		PolicyName: policyNode.CreatePolicyStmt.GetPolicyName(),
-		SchemaName: policyNode.CreatePolicyStmt.GetTable().GetSchemaname(),
-		TableName:  policyNode.CreatePolicyStmt.GetTable().GetRelname(),
-		RoleNames:  make([]string, 0),
-	}
-	roles := policyNode.CreatePolicyStmt.GetRoles()
-	/*
-		e.g. CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);
-		stmt:{create_policy_stmt:{policy_name:"p" table:{relname:"tbl1" inh:true relpersistence:"p" location:20} cmd_name:"all"
-		permissive:true roles:{role_spec:{roletype:ROLESPEC_CSTRING rolename:"regress_rls_eve" location:28}} roles:{role_spec:
-		{roletype:ROLESPEC_CSTRING rolename:"regress_rls_frank" location:45}} qual:{a_const:{boolval:{boolval:true} location:70}}}}
-		stmt_len:75
-
-		here role_spec of each roles is managing the roles related information in a POLICY DDL if any, so we can just check if there is
-		a role name available in it which means there is a role associated with this DDL. Hence report it.
-
-	*/
-	for _, role := range roles {
-		roleName := role.GetRoleSpec().GetRolename() // only in case there is role associated with a policy it will error out in schema migration
-		if roleName != "" {
-			//this means there is some role or grants used in this Policy, so detecting it
-			policy.RoleNames = append(policy.RoleNames, roleName)
-		}
-	}
-	return policy, nil
-}
-
-// TriggerParser handles parsing CREATE Trigger statements
-type TriggerParser struct{}
-
-func NewTriggerParser() *TriggerParser {
-	return &TriggerParser{}
-}
-
-/*
-e.g.CREATE CONSTRAINT TRIGGER some_trig
-
-	AFTER DELETE ON xyz_schema.abc
-	DEFERRABLE INITIALLY DEFERRED
-	FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();
-
-create_trig_stmt:{isconstraint:true trigname:"some_trig" relation:{schemaname:"xyz_schema" relname:"abc" inh:true relpersistence:"p"
-location:56} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} row:true events:8 deferrable:true initdeferred:true}}
-stmt_len:160}
-
-e.g. CREATE TRIGGER projects_loose_fk_trigger
-
-	AFTER DELETE ON public.projects
-	REFERENCING OLD TABLE AS old_table
-	FOR EACH STATEMENT EXECUTE FUNCTION xyz_schema.some_trig();
-
-stmt:{create_trig_stmt:{trigname:"projects_loose_fk_trigger" relation:{schemaname:"public" relname:"projects" inh:true
-relpersistence:"p" location:58} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} events:8
-transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len:167}
-*/
-func (t *TriggerParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
-	triggerNode, ok := getCreateTriggerStmtNode(parseTree)
-	if !ok {
-		return nil, fmt.Errorf("not a CREATE TRIGGER statement")
-	}
-
-	trigger := &Trigger{
-		SchemaName:  triggerNode.CreateTrigStmt.Relation.Schemaname,
-		TableName:   triggerNode.CreateTrigStmt.Relation.Relname,
-		TriggerName: triggerNode.CreateTrigStmt.Trigname,
-
-		IsConstraint:           triggerNode.CreateTrigStmt.Isconstraint,
-		NumTransitionRelations: len(triggerNode.CreateTrigStmt.GetTransitionRels()),
-		Timing:                 triggerNode.CreateTrigStmt.Timing,
-		Events:                 triggerNode.CreateTrigStmt.Events,
-		ForEachRow:             triggerNode.CreateTrigStmt.Row,
-	}
-
-	return trigger, nil
-}
-
-// DDL Objects
 type Table struct {
 	SchemaName            string
 	TableName             string
@@ -478,6 +323,47 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 	t.Constraints = append(t.Constraints, tc)
 }
 
+//===========FOREIGN TABLE PARSER ================================
+
+type ForeignTableParser struct{}
+
+func NewForeignTableParser() *ForeignTableParser {
+	return &ForeignTableParser{}
+}
+
+func (f *ForeignTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	foreignTableNode, ok := getForeignTableStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE FOREIGN TABLE statement")
+	}
+	baseStmt := foreignTableNode.CreateForeignTableStmt.BaseStmt
+	relation := baseStmt.Relation
+	table := Table{
+		TableName:  relation.GetRelname(),
+		SchemaName: relation.GetSchemaname(),
+		//Not populating rest info
+	}
+	for _, element := range baseStmt.TableElts {
+		if element.GetColumnDef() != nil {
+			colName := element.GetColumnDef().GetColname()
+
+			typeNames := element.GetColumnDef().GetTypeName().GetNames()
+			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+			table.Columns = append(table.Columns, TableColumn{
+				ColumnName:  colName,
+				TypeName:    typeName,
+				TypeSchema:  typeSchemaName,
+				IsArrayType: len(element.GetColumnDef().GetTypeName().GetArrayBounds()) > 0,
+			})
+		}
+	}
+	return &ForeignTable{
+		Table:      table,
+		ServerName: foreignTableNode.CreateForeignTableStmt.GetServername(),
+	}, nil
+
+}
+
 type ForeignTable struct {
 	Table
 	ServerName string
@@ -487,6 +373,70 @@ func (f *ForeignTable) GetObjectName() string {
 	return lo.Ternary(f.SchemaName != "", f.SchemaName+"."+f.TableName, f.TableName)
 }
 func (f *ForeignTable) GetSchemaName() string { return f.SchemaName }
+
+//===========INDEX PARSER ================================
+
+// IndexParser handles parsing CREATE INDEX statements
+type IndexParser struct{}
+
+func NewIndexParser() *IndexParser {
+	return &IndexParser{}
+}
+
+func (p *IndexParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	indexNode, ok := getCreateIndexStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE INDEX statement")
+	}
+
+	index := &Index{
+		SchemaName:   indexNode.IndexStmt.Relation.Schemaname,
+		IndexName:    indexNode.IndexStmt.Idxname,
+		TableName:    indexNode.IndexStmt.Relation.Relname,
+		AccessMethod: indexNode.IndexStmt.AccessMethod,
+		/*
+			e.g. CREATE INDEX idx on table_name(id) with (fillfactor='70');
+			index_stmt:{idxname:"idx" relation:{relname:"table_name" inh:true relpersistence:"p" location:21} access_method:"btree"
+			index_params:{index_elem:{name:"id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+			options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}} ...
+			here again similar to ALTER table Storage parameters options is the high level field in for WITH options.
+		*/
+		NumStorageOptions: len(indexNode.IndexStmt.GetOptions()),
+		Params:            p.parseIndexParams(indexNode.IndexStmt.IndexParams),
+	}
+
+	return index, nil
+}
+
+func (p *IndexParser) parseIndexParams(params []*pg_query.Node) []IndexParam {
+	/*
+		e.g.
+		1. CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
+		stmt:{index_stmt:{idxname:"tsvector_idx"  relation:{schemaname:"public"  relname:"documents"  inh:true  relpersistence:"p"  location:510}  access_method:"btree"
+		index_params:{index_elem:{name:"title_tsvector"  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}  index_params:{index_elem:{name:"id"
+		ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:479  stmt_len:69
+
+		2. CREATE INDEX idx_json ON public.test_json ((data::jsonb));
+		stmt:{index_stmt:{idxname:"idx_json"  relation:{schemaname:"public"  relname:"test_json"  inh:true  relpersistence:"p"  location:703}  access_method:"btree"
+		index_params:{index_elem:{expr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"data"}}  location:722}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1
+		location:728}  location:726}}  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:676  stmt_len:59
+	*/
+	var indexParams []IndexParam
+	for _, i := range params {
+		ip := IndexParam{
+			SortByOrder:  i.GetIndexElem().Ordering,
+			ColName:      i.GetIndexElem().GetName(),
+			IsExpression: i.GetIndexElem().GetExpr() != nil,
+		}
+		if ip.IsExpression {
+			//For the expression index case to report in case casting to unsupported types #3
+			typeNames := i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
+			ip.ExprCastTypeName, ip.ExprCastTypeSchema = getTypeNameAndSchema(typeNames)
+		}
+		indexParams = append(indexParams, ip)
+	}
+	return indexParams
+}
 
 type Index struct {
 	SchemaName        string
@@ -520,6 +470,86 @@ func (i *Index) GetTableName() string {
 	return lo.Ternary(i.SchemaName != "", fmt.Sprintf("%s.%s", i.SchemaName, i.TableName), i.TableName)
 }
 
+//===========ALTER TABLE PARSER ================================
+
+// AlterTableParser handles parsing ALTER TABLE statements
+type AlterTableParser struct{}
+
+func NewAlterTableParser() *AlterTableParser {
+	return &AlterTableParser{}
+}
+
+func (p *AlterTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	alterNode, ok := getAlterStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not an ALTER TABLE statement")
+	}
+
+	alter := &AlterTable{
+		SchemaName: alterNode.AlterTableStmt.Relation.Schemaname,
+		TableName:  alterNode.AlterTableStmt.Relation.Relname,
+		AlterType:  alterNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype(),
+	}
+
+	// Parse specific alter command
+	cmd := alterNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
+	switch alter.AlterType {
+	case pg_query.AlterTableType_AT_SetOptions:
+		/*
+			e.g. alter table test_1 alter column col1 set (attribute_option=value);
+			cmds:{alter_table_cmd:{subtype:AT_SetOptions name:"col1" def:{list:{items:{def_elem:{defname:"attribute_option"
+			arg:{type_name:{names:{string:{sval:"value"}} typemod:-1 location:263}} defaction:DEFELEM_UNSPEC location:246}}}}...
+
+			for set attribute issue we will the type of alter setting the options and in the 'def' definition field which has the
+			information of the type, we will check if there is any list which will only present in case there is syntax like <SubTYPE> (...)
+		*/
+		alter.NumSetAttributes = len(cmd.GetDef().GetList().GetItems())
+	case pg_query.AlterTableType_AT_AddConstraint:
+		alter.NumStorageOptions = len(cmd.GetDef().GetConstraint().GetOptions())
+		/*
+			e.g.
+				ALTER TABLE example2
+					ADD CONSTRAINT example2_pkey PRIMARY KEY (id);
+				tmts:{stmt:{alter_table_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:693}
+				cmds:{alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_PRIMARY  conname:"example2_pkey"
+				location:710  keys:{string:{sval:"id"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}  stmt_location:679  stmt_len:72}
+
+			e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
+			cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
+			here again same checking the definition of the alter stmt if it has constraint and checking its type
+
+			e.g. ALTER TABLE ONLY public.users ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;
+			alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_UNIQUE  conname:"users_email_key"
+			deferrable:true  location:196  keys:{string:{sval:"email"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}
+
+			similar to CREATE table 2nd case where constraint is at the end of column definitions mentioning the constraint only
+			so here as well while adding constraint checking the type of constraint and the deferrable field of it.
+		*/
+		constraint := cmd.GetDef().GetConstraint()
+		alter.ConstraintType = constraint.Contype
+		alter.ConstraintName = constraint.Conname
+		alter.IsDeferrable = constraint.Deferrable
+		alter.ConstraintColumns = parseColumnsFromKeys(constraint.GetKeys())
+
+	case pg_query.AlterTableType_AT_DisableRule:
+		/*
+			e.g. ALTER TABLE example DISABLE example_rule;
+			cmds:{alter_table_cmd:{subtype:AT_DisableRule name:"example_rule" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
+			checking the subType is sufficient in this case
+		*/
+		alter.RuleName = cmd.Name
+		//case CLUSTER ON
+		/*
+			e.g. ALTER TABLE example CLUSTER ON idx;
+			stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13}
+			cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
+
+		*/
+	}
+
+	return alter, nil
+}
+
 type AlterTable struct {
 	Query             string
 	SchemaName        string
@@ -545,6 +575,49 @@ func (a *AlterTable) AddPrimaryKeyOrUniqueCons() bool {
 	return a.ConstraintType == PRIMARY_CONSTR_TYPE || a.ConstraintType == UNIQUE_CONSTR_TYPE
 }
 
+//===========POLICY PARSER ================================
+
+// PolicyParser handles parsing CREATE POLICY statements
+type PolicyParser struct{}
+
+func NewPolicyParser() *PolicyParser {
+	return &PolicyParser{}
+}
+
+func (p *PolicyParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	policyNode, ok := getPolicyStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE POLICY statement")
+	}
+
+	policy := &Policy{
+		PolicyName: policyNode.CreatePolicyStmt.GetPolicyName(),
+		SchemaName: policyNode.CreatePolicyStmt.GetTable().GetSchemaname(),
+		TableName:  policyNode.CreatePolicyStmt.GetTable().GetRelname(),
+		RoleNames:  make([]string, 0),
+	}
+	roles := policyNode.CreatePolicyStmt.GetRoles()
+	/*
+		e.g. CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);
+		stmt:{create_policy_stmt:{policy_name:"p" table:{relname:"tbl1" inh:true relpersistence:"p" location:20} cmd_name:"all"
+		permissive:true roles:{role_spec:{roletype:ROLESPEC_CSTRING rolename:"regress_rls_eve" location:28}} roles:{role_spec:
+		{roletype:ROLESPEC_CSTRING rolename:"regress_rls_frank" location:45}} qual:{a_const:{boolval:{boolval:true} location:70}}}}
+		stmt_len:75
+
+		here role_spec of each roles is managing the roles related information in a POLICY DDL if any, so we can just check if there is
+		a role name available in it which means there is a role associated with this DDL. Hence report it.
+
+	*/
+	for _, role := range roles {
+		roleName := role.GetRoleSpec().GetRolename() // only in case there is role associated with a policy it will error out in schema migration
+		if roleName != "" {
+			//this means there is some role or grants used in this Policy, so detecting it
+			policy.RoleNames = append(policy.RoleNames, roleName)
+		}
+	}
+	return policy, nil
+}
+
 type Policy struct {
 	SchemaName string
 	TableName  string
@@ -557,6 +630,57 @@ func (p *Policy) GetObjectName() string {
 	return fmt.Sprintf("%s ON %s", p.PolicyName, qualifiedTable)
 }
 func (p *Policy) GetSchemaName() string { return p.SchemaName }
+
+//=====================TRIGGER PARSER ==================
+
+// TriggerParser handles parsing CREATE Trigger statements
+type TriggerParser struct{}
+
+func NewTriggerParser() *TriggerParser {
+	return &TriggerParser{}
+}
+
+/*
+e.g.CREATE CONSTRAINT TRIGGER some_trig
+
+	AFTER DELETE ON xyz_schema.abc
+	DEFERRABLE INITIALLY DEFERRED
+	FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();
+
+create_trig_stmt:{isconstraint:true trigname:"some_trig" relation:{schemaname:"xyz_schema" relname:"abc" inh:true relpersistence:"p"
+location:56} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} row:true events:8 deferrable:true initdeferred:true}}
+stmt_len:160}
+
+e.g. CREATE TRIGGER projects_loose_fk_trigger
+
+	AFTER DELETE ON public.projects
+	REFERENCING OLD TABLE AS old_table
+	FOR EACH STATEMENT EXECUTE FUNCTION xyz_schema.some_trig();
+
+stmt:{create_trig_stmt:{trigname:"projects_loose_fk_trigger" relation:{schemaname:"public" relname:"projects" inh:true
+relpersistence:"p" location:58} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} events:8
+transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len:167}
+*/
+func (t *TriggerParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	triggerNode, ok := getCreateTriggerStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE TRIGGER statement")
+	}
+
+	trigger := &Trigger{
+		SchemaName:  triggerNode.CreateTrigStmt.Relation.Schemaname,
+		TableName:   triggerNode.CreateTrigStmt.Relation.Relname,
+		TriggerName: triggerNode.CreateTrigStmt.Trigname,
+
+		IsConstraint:           triggerNode.CreateTrigStmt.Isconstraint,
+		NumTransitionRelations: len(triggerNode.CreateTrigStmt.GetTransitionRels()),
+		Timing:                 triggerNode.CreateTrigStmt.Timing,
+		Events:                 triggerNode.CreateTrigStmt.Events,
+		ForEachRow:             triggerNode.CreateTrigStmt.Row,
+	}
+
+	return trigger, nil
+}
 
 type Trigger struct {
 	SchemaName             string
@@ -607,6 +731,8 @@ func (t *Trigger) IsBeforeRowTrigger() bool {
 	return t.ForEachRow && isSecondBitSet
 }
 
+// ========================TYPE PARSER======================
+
 type TypeParser struct{}
 
 func NewTypeParser() *TypeParser {
@@ -650,6 +776,8 @@ func (c *CreateType) GetObjectName() string {
 	return lo.Ternary(c.SchemaName != "", fmt.Sprintf("%s.%s", c.SchemaName, c.TypeName), c.TypeName)
 }
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
+
+//=============================No-Op PARSER ==================
 
 //No op parser for objects we don't have parser yet
 
