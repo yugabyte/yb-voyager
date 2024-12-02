@@ -277,6 +277,15 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+	ddlParser, err := queryparser.GetDDLParser(parseTree)
+	if err != nil {
+		return nil, fmt.Errorf("error getting a ddl parser: %w", err)
+	}
+	_, ok := ddlParser.(*queryparser.NoOpParser)
+	if !ok {
+		//Skip all the DDLs we are detecting issues on in the DDLIssueDetector
+		return nil, nil
+	}
 	var result []issue.IssueInstance
 	var unsupportedConstructs []string
 	visited := make(map[protoreflect.Message]bool)

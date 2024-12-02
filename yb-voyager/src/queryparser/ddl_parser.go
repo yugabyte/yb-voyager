@@ -798,6 +798,66 @@ func (c *CreateType) GetObjectName() string {
 }
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
+//===========================VIEW PARSER===================
+
+type ViewParser struct{}
+
+func NewViewParser() *ViewParser {
+	return &ViewParser{}
+}
+
+func (v *ViewParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	viewNode, ok := getCreateViewNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE VIEW statement")
+	}
+	view := View{
+		SchemaName: viewNode.ViewStmt.View.Schemaname,
+		ViewName:   viewNode.ViewStmt.View.Relname,
+	}
+	return &view, nil
+}
+
+type View struct {
+	SchemaName string
+	ViewName   string
+}
+
+func (v *View) GetObjectName() string {
+	return lo.Ternary(v.SchemaName != "", fmt.Sprintf("%s.%s", v.SchemaName, v.ViewName), v.ViewName)
+}
+func (v *View) GetSchemaName() string { return v.SchemaName }
+
+//===========================MVIEW PARSER===================
+
+type MViewParser struct{}
+
+func NewMViewParser() *MViewParser {
+	return &MViewParser{}
+}
+
+func (mv *MViewParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	mviewNode, ok := getCreateTableAsStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE VIEW statement")
+	}
+	mview := MView{
+		SchemaName: mviewNode.CreateTableAsStmt.Into.Rel.Schemaname,
+		ViewName:   mviewNode.CreateTableAsStmt.Into.Rel.Relname,
+	}
+	return &mview, nil
+}
+
+type MView struct {
+	SchemaName string
+	ViewName   string
+}
+
+func (mv *MView) GetObjectName() string {
+	return lo.Ternary(mv.SchemaName != "", fmt.Sprintf("%s.%s", mv.SchemaName, mv.ViewName), mv.ViewName)
+}
+func (mv *MView) GetSchemaName() string { return mv.SchemaName }
+
 //=============================No-Op PARSER ==================
 
 //No op parser for objects we don't have parser yet
@@ -836,6 +896,10 @@ func GetDDLParser(parseTree *pg_query.ParseResult) (DDLParser, error) {
 		return NewTypeParser(), nil
 	case IsCreateForeign(parseTree):
 		return NewForeignTableParser(), nil
+	case IsViewObject(parseTree):
+		return NewViewParser(), nil
+	case IsMviewObject(parseTree):
+		return NewMViewParser(), nil
 	default:
 		return NewNoOpParser(), nil
 	}
