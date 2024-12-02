@@ -20,16 +20,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 func TestIssueFixedInStable(t *testing.T) {
-	fixedVersion, err := version.NewYBVersion("2024.1.1.0")
+	fixedVersion, err := ybversion.NewYBVersion("2024.1.1.0")
 	assert.NoError(t, err)
 	issue := Issue{
 		Type: ADVISORY_LOCKS,
-		MinimumVersionsFixedIn: map[string]*version.YBVersion{
-			version.SERIES_2024_1: fixedVersion,
+		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2024_1: fixedVersion,
 		},
 	}
 
@@ -39,7 +39,7 @@ func TestIssueFixedInStable(t *testing.T) {
 		"2024.1.0.0": false,
 	}
 	for v, expected := range versionsToCheck {
-		ybVersion, err := version.NewYBVersion(v)
+		ybVersion, err := ybversion.NewYBVersion(v)
 		assert.NoError(t, err)
 
 		fixed, err := issue.IsFixedIn(ybVersion)
@@ -49,12 +49,12 @@ func TestIssueFixedInStable(t *testing.T) {
 }
 
 func TestIssueFixedInPreview(t *testing.T) {
-	fixedVersion, err := version.NewYBVersion("2.21.4.5")
+	fixedVersion, err := ybversion.NewYBVersion("2.21.4.5")
 	assert.NoError(t, err)
 	issue := Issue{
 		Type: ADVISORY_LOCKS,
-		MinimumVersionsFixedIn: map[string]*version.YBVersion{
-			version.SERIES_2_21: fixedVersion,
+		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2_21: fixedVersion,
 		},
 	}
 
@@ -64,7 +64,7 @@ func TestIssueFixedInPreview(t *testing.T) {
 		"2.21.4.1": false,
 	}
 	for v, expected := range versionsToCheck {
-		ybVersion, err := version.NewYBVersion(v)
+		ybVersion, err := ybversion.NewYBVersion(v)
 		assert.NoError(t, err)
 
 		fixed, err := issue.IsFixedIn(ybVersion)
@@ -74,16 +74,16 @@ func TestIssueFixedInPreview(t *testing.T) {
 }
 
 func TestIssueFixedInStableOld(t *testing.T) {
-	fixedVersionStableOld, err := version.NewYBVersion("2.20.7.1")
+	fixedVersionStableOld, err := ybversion.NewYBVersion("2.20.7.1")
 	assert.NoError(t, err)
-	fixedVersionStable, err := version.NewYBVersion("2024.1.1.1")
+	fixedVersionStable, err := ybversion.NewYBVersion("2024.1.1.1")
 	assert.NoError(t, err)
 
 	issue := Issue{
 		Type: ADVISORY_LOCKS,
-		MinimumVersionsFixedIn: map[string]*version.YBVersion{
-			version.SERIES_2024_1: fixedVersionStable,
-			version.SERIES_2_20:   fixedVersionStableOld,
+		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+			ybversion.SERIES_2024_1: fixedVersionStable,
+			ybversion.SERIES_2_20:   fixedVersionStableOld,
 		},
 	}
 
@@ -96,7 +96,7 @@ func TestIssueFixedInStableOld(t *testing.T) {
 		"2024.1.1.0": false,
 	}
 	for v, expected := range versionsToCheck {
-		ybVersion, err := version.NewYBVersion(v)
+		ybVersion, err := ybversion.NewYBVersion(v)
 		assert.NoError(t, err)
 
 		fixed, err := issue.IsFixedIn(ybVersion)
@@ -113,7 +113,7 @@ func TestIssueFixedFalseWhenMinimumNotSpecified(t *testing.T) {
 	versionsToCheck := []string{"2024.1.0.0", "2.20.7.4", "2.21.1.1"}
 
 	for _, v := range versionsToCheck {
-		ybVersion, err := version.NewYBVersion(v)
+		ybVersion, err := ybversion.NewYBVersion(v)
 		assert.NoError(t, err)
 
 		fixed, err := issue.IsFixedIn(ybVersion)

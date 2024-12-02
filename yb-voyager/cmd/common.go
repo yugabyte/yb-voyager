@@ -59,7 +59,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var (
@@ -67,7 +67,7 @@ var (
 	PARENT_COMMAND_USAGE   = "Parent command. Refer to the sub-commands for usage help."
 	startTime              time.Time
 	targetDbVersionStrFlag string
-	targetDbVersion        *version.YBVersion
+	targetDbVersion        *ybversion.YBVersion
 )
 
 func PrintElapsedDuration() {

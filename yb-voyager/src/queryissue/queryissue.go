@@ -25,7 +25,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type ParserIssueDetector struct {
@@ -37,7 +37,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{}
 }
 
-func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.IssueInstance, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.IssueInstance, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
 	var filteredIssues []issue.IssueInstance
 	for _, i := range issues {
 		fixed, err := i.IsFixedIn(targetDbVersion)
@@ -51,7 +51,7 @@ func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.
 	return filteredIssues, nil
 }
 
-func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
 	issues, err := p.getAllIssues(query)
 	if err != nil {
 		return issues, err
@@ -120,7 +120,7 @@ func (p *ParserIssueDetector) getAllIssues(query string) ([]issue.IssueInstance,
 	return issues, nil
 }
 
-func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *version.YBVersion) ([]issue.IssueInstance, error) {
+func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
 	issues, err := p.getDMLIssues(query)
 	if err != nil {
 		return issues, err

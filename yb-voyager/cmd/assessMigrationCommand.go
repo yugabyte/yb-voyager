@@ -44,7 +44,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var (
@@ -293,7 +293,7 @@ func init() {
 	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
-		fmt.Sprintf("Target YugabyteDB version to assess migration for. Defaults to latest stable version (%s)", version.LatestStable.String()))
+		fmt.Sprintf("Target YugabyteDB version to assess migration for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
 	assessMigrationCmd.Flags().MarkHidden("target-db-version")
 }
 
@@ -1413,21 +1413,21 @@ func validateAssessmentMetadataDirFlag() {
 
 func validateAndSetTargetDbVersionFlag() error {
 	if targetDbVersionStrFlag == "" {
-		targetDbVersion = version.LatestStable
+		targetDbVersion = ybversion.LatestStable
 		utils.PrintAndLog("Defaulting to latest stable YugabyteDB version: %s", targetDbVersion)
 		return nil
 	}
 	var err error
-	targetDbVersion, err = version.NewYBVersion(targetDbVersionStrFlag)
+	targetDbVersion, err = ybversion.NewYBVersion(targetDbVersionStrFlag)
 
-	if err == nil || !errors.Is(err, version.ErrUnsupportedSeries) {
+	if err == nil || !errors.Is(err, ybversion.ErrUnsupportedSeries) {
 		return err
 	}
 
 	// error is ErrUnsupportedSeries
 	utils.PrintAndLog("%v", err)
-	if utils.AskPrompt("Do you want to continue with the latest stable YugabyteDB version:", version.LatestStable.String()) {
-		targetDbVersion = version.LatestStable
+	if utils.AskPrompt("Do you want to continue with the latest stable YugabyteDB version:", ybversion.LatestStable.String()) {
+		targetDbVersion = ybversion.LatestStable
 		return nil
 	} else {
 		utils.ErrExit("Aborting..")
