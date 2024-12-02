@@ -41,7 +41,7 @@ fi
 if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
     export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_live"}
 elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
-    export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME}_live"}
+    export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_live"} && export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
 else
     echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
     exit 1
@@ -142,7 +142,7 @@ main() {
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
-	export_data --export-type "snapshot-and-changes" || { 
+	export_data --export-type "snapshot-and-changes" --log-level debug || { 
 		tail_log_file "yb-voyager-export-data.log"
 		tail_log_file "debezium-source_db_exporter.log"
 		exit 1
