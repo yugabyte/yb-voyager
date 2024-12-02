@@ -190,7 +190,7 @@ install_perl_module() {
     # Verification of the installed module
     check_perl_module_version "$module_name" "$requirement_type" "$required_version" "false" 
     if [[ $? -ne 0 ]]; then
-        exit
+        exit 1
     fi
 }
 
