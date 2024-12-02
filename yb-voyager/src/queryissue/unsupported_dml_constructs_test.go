@@ -564,7 +564,7 @@ RETURNING id,
 	}
 }
 
-func TestObjectsCollector(t *testing.T) {
+func TestObjectCollector(t *testing.T) {
 	tests := []struct {
 		Sql             string
 		ExpectedObjects []string
@@ -592,8 +592,8 @@ func TestObjectsCollector(t *testing.T) {
 		},
 		{
 			Sql:             `SELECT c.name, SUM(o.amount) AS total_spent FROM sales.customers c JOIN finance.orders o ON c.id = o.customer_id GROUP BY c.name HAVING SUM(o.amount) > 1000`,
-			ExpectedObjects: []string{"sales.customers", "finance.orders"},
-			ExpectedSchemas: []string{"sales", "finance"},
+			ExpectedObjects: []string{"sales.customers", "finance.orders", "sum"},
+			ExpectedSchemas: []string{"sales", "finance", ""},
 		},
 		{
 			Sql:             `SELECT name FROM hr.employees WHERE department_id IN (SELECT id FROM public.departments WHERE location_id IN (SELECT id FROM eng.locations WHERE country = 'USA'))`,
@@ -608,8 +608,8 @@ func TestObjectsCollector(t *testing.T) {
 		{
 			Sql: `CREATE VIEW analytics.top_customers AS
 					SELECT user_id, COUNT(*) as order_count	FROM public.orders GROUP BY user_id HAVING COUNT(*) > 10;`,
-			ExpectedObjects: []string{"analytics.top_customers", "public.orders"},
-			ExpectedSchemas: []string{"analytics", "public"},
+			ExpectedObjects: []string{"analytics.top_customers", "public.orders", "count"},
+			ExpectedSchemas: []string{"analytics", "public", ""},
 		},
 		{
 			Sql: `WITH user_orders AS (
@@ -624,7 +624,7 @@ func TestObjectsCollector(t *testing.T) {
 				)
 				SELECT p.name, COUNT(oi.product_id) FROM products p
 				JOIN order_items oi ON p.id = oi.product_id GROUP BY p.name;`,
-			ExpectedObjects: []string{"users", "orders", "order_items", "user_orders", "products"},
+			ExpectedObjects: []string{"users", "orders", "order_items", "user_orders", "products", "count"},
 			ExpectedSchemas: []string{""},
 		},
 		{
@@ -643,8 +643,13 @@ func TestObjectsCollector(t *testing.T) {
 		},
 		{
 			Sql:             `SELECT pg_advisory_unlock_shared(100);`,
-			ExpectedObjects: []string{}, // nothing collected
-			ExpectedSchemas: []string{},
+			ExpectedObjects: []string{"pg_advisory_unlock_shared"},
+			ExpectedSchemas: []string{""},
+		},
+		{
+			Sql:             `SELECT xpath_exists('/employee/name', '<employee><name>John</name></employee>'::xml)`,
+			ExpectedObjects: []string{"xpath_exists"},
+			ExpectedSchemas: []string{""},
 		},
 	}
 
@@ -663,8 +668,90 @@ func TestObjectsCollector(t *testing.T) {
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 
-		collectedObjects := objectsCollector.GetObjects()
-		collectedSchemas := objectsCollector.GetSchemaList()
+		collectedObjects := objectsCollector.getObjects()
+		collectedSchemas := objectsCollector.getSchemaList()
+
+		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
+			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
+		assert.ElementsMatch(t, tc.ExpectedSchemas, collectedSchemas,
+			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
+	}
+}
+
+// test focussed on collecting function names from DMLs
+func TestObjectCollector2(t *testing.T) {
+	tests := []struct {
+		Sql             string
+		ExpectedObjects []string
+		ExpectedSchemas []string
+	}{
+		{
+			Sql:             `SELECT finance.calculate_tax(amount) AS tax, name FROM sales.transactions;`,
+			ExpectedObjects: []string{"finance.calculate_tax", "sales.transactions"},
+			ExpectedSchemas: []string{"finance", "sales"},
+		},
+		{
+			Sql:             `SELECT hr.get_employee_details(e.id) FROM hr.employees e;`,
+			ExpectedObjects: []string{"hr.get_employee_details", "hr.employees"},
+			ExpectedSchemas: []string{"hr"},
+		},
+		{
+			Sql:             `Select now();`,
+			ExpectedObjects: []string{"now"},
+			ExpectedSchemas: []string{""},
+		},
+		{ // nested functions
+			Sql:             `SELECT finance.calculate_bonus(sum(salary)) FROM hr.employees;`,
+			ExpectedObjects: []string{"finance.calculate_bonus", "sum", "hr.employees"},
+			ExpectedSchemas: []string{"finance", "", "hr"},
+		},
+		{ // functions as arguments in expressions
+			Sql: `SELECT e.name, CASE
+					WHEN e.salary > finance.calculate_bonus(e.salary) THEN 'High'
+					ELSE 'Low'
+				END AS salary_grade
+				FROM hr.employees e;`,
+			ExpectedObjects: []string{"finance.calculate_bonus", "hr.employees"},
+			ExpectedSchemas: []string{"finance", "hr"},
+		},
+		{
+			Sql:             `CREATE SEQUENCE finance.invoice_seq START 1000;`,
+			ExpectedObjects: []string{"finance.invoice_seq"},
+			ExpectedSchemas: []string{"finance"},
+		},
+		{
+			Sql: `SELECT department,
+						MAX(CASE WHEN month = 'January' THEN sales ELSE 0 END) AS January_Sales,
+						MAX(CASE WHEN month = 'February' THEN sales ELSE 0 END) AS February_Sales
+					FROM sales_data
+					GROUP BY department;`,
+			ExpectedObjects: []string{"max", "sales_data"},
+			ExpectedSchemas: []string{""},
+		},
+		{ // quoted mixed case
+			Sql:             `SELECT * FROM "SALES_DATA"."Order_Details";`,
+			ExpectedObjects: []string{"SALES_DATA.Order_Details"},
+			ExpectedSchemas: []string{"SALES_DATA"},
+		},
+	}
+
+	for _, tc := range tests {
+		parseResult, err := queryparser.Parse(tc.Sql)
+		assert.NoError(t, err)
+
+		objectsCollector := NewObjectCollector()
+		processor := func(msg protoreflect.Message) error {
+			objectsCollector.Collect(msg)
+			return nil
+		}
+
+		visited := make(map[protoreflect.Message]bool)
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+
+		collectedObjects := objectsCollector.getObjects()
+		collectedSchemas := objectsCollector.getSchemaList()
 
 		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
 			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))

@@ -31,8 +31,8 @@ func Parse(query string) (*pg_query.ParseResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	// fmt.Printf("\n\nquery: %s...\n", query[0:min(20, len(query)-1)])
-	// fmt.Printf("parse tree: %v\n", tree)
+	log.Debugf("query: %s\n", query)
+	log.Debugf("parse tree: %v\n", tree)
 	return tree, nil
 }
 

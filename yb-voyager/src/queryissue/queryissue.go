@@ -21,14 +21,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -210,9 +208,10 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 		return result, fmt.Errorf("error traversing parse tree message: %w", err)
 	}
 
-	collectedSchemaList := objectCollector.GetSchemaList()
+	collectedSchemaList := objectCollector.getSchemaList()
+	log.Infof("collected schema list %v(len=%d) for query [%s]", collectedSchemaList, len(collectedSchemaList), query)
 	if !p.considerQuery(collectedSchemaList) {
-		utils.PrintAndLog("ignoring query due to difference in collected schema list %v(len=%d) vs source schema list %v(len=%d)",
+		log.Infof("ignoring query due to difference in collected schema list %v(len=%d) vs source schema list %v(len=%d)",
 			collectedSchemaList, len(collectedSchemaList), p.SourceSchemaList, len(p.SourceSchemaList))
 		return nil, nil
 	}
@@ -237,28 +236,34 @@ Queries to ignore:
 Queries to consider:
 - Collected schemas subset of source schema list
 - Collected schemas contains some from source schema list and some extras
+
+Caveats:
+There can be a lot of false positives.
+For example: standard sql functions like sum(), count() won't be qualified(pg_catalog) in queries generally.
+Making the schema unknown for that object, resulting in query consider
 */
 func (p *ParserIssueDetector) considerQuery(collectedSchemaList []string) bool {
-	fmt.Printf("[before] collected schema: %v\n", collectedSchemaList)
+	// filtering out pg_catalog schema, since it doesn't impact query consideration decision
 	collectedSchemaList = lo.Filter(collectedSchemaList, func(item string, _ int) bool {
 		return item != "pg_catalog"
 	})
 
-	fmt.Printf("[after] collected schema: %v\n", collectedSchemaList)
-	consider := false
+	// fallback in case: unable to collect objects or there are no object(s) in the query
+	if len(collectedSchemaList) == 0 {
+		return true
+	}
+
 	// empty schemaname indicates presence of unqualified objectnames in query
 	if slices.Contains(collectedSchemaList, "") {
-		color.Red("considering due to empty schema\n")
-		consider = true
+		log.Debug("considering due to empty schema\n")
+		return true
 	}
 
 	for _, collectedSchema := range collectedSchemaList {
 		if slices.Contains(p.SourceSchemaList, collectedSchema) {
-			color.Red("considering due to '%s' schema\n", collectedSchema)
-			consider = true
-			break
+			log.Debugf("considering due to '%s' schema\n", collectedSchema)
+			return true
 		}
 	}
-
-	return consider
+	return false
 }

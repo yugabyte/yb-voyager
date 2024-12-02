@@ -37,7 +37,7 @@ func NewObjectCollector() *ObjectCollector {
 }
 
 /*
-Collect processes a node and extracts object names based on node type.
+Collect processes a node and extracts object names based on node type (ignore standard SQL functions like count(), sum() etc).
 Cases covered:
 1. SELECT queries - schema name can be with table/functions
 2. Insert/Update/Delete queries
@@ -76,35 +76,34 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 			c.addObject(objectName)
 		}
 
-		// TODO for function names - need to filter out the standard sql functions(like sum(), count()) during comparison
-		// Extract function names
-		// case queryparser.PG_QUERY_FUNCCALL_NODE:
-		// 	schemaName, functionName := queryparser.GetFuncNameFromFuncCall(msg)
-		// 	if functionName == "" {
-		// 		break
-		// 	}
+	// Extract function names
+	case queryparser.PG_QUERY_FUNCCALL_NODE:
+		schemaName, functionName := queryparser.GetFuncNameFromFuncCall(msg)
+		if functionName == "" {
+			break
+		}
 
-		// 	objectName := functionName
-		// 	if schemaName != "" {
-		// 		objectName = fmt.Sprintf("%s.%s", schemaName, functionName)
-		// 	}
-		// 	fmt.Printf("[Funccall] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
-		// 	c.addObject(objectName)
+		objectName := functionName
+		if schemaName != "" {
+			objectName = fmt.Sprintf("%s.%s", schemaName, functionName)
+		}
+		log.Debugf("[Funccall] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
+		c.addObject(objectName)
 
-		// Extract function names used in FROM clauses
-		// case queryparser.PG_QUERY_RANGEFUNCTION:
-		// 	funcExprMsg := queryparser.GetMessageField(msg, "funcexpr")
-		// 	if funcExprMsg != nil {
-		// 		schemaName, functionName := queryparser.GetFunctionName(funcExprMsg)
-		// 		if functionName != "" {
-		// 			objectName := functionName
-		// 			if schemaName != "" {
-		// 				objectName = fmt.Sprintf("%s.%s", schemaName, functionName)
-		// 			}
-		// 			fmt.Printf("[RangeFunc] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
-		// 			c.addObject(objectName)
-		// 		}
-		// 	}
+	// Extract function names used in FROM clauses
+	case queryparser.PG_QUERY_RANGEFUNCTION:
+		funcExprMsg := queryparser.GetMessageField(msg, "funcexpr")
+		if funcExprMsg != nil {
+			schemaName, functionName := queryparser.GetFunctionName(funcExprMsg)
+			if functionName != "" {
+				objectName := functionName
+				if schemaName != "" {
+					objectName = fmt.Sprintf("%s.%s", schemaName, functionName)
+				}
+				log.Debugf("[RangeFunc] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
+				c.addObject(objectName)
+			}
+		}
 
 		// Add more cases as needed for other message types
 	}
@@ -117,8 +116,8 @@ func (c *ObjectCollector) addObject(objectName string) {
 	}
 }
 
-// GetObjects returns a slice of collected unique object names.
-func (c *ObjectCollector) GetObjects() []string {
+// getObjects returns a slice of collected unique object names.
+func (c *ObjectCollector) getObjects() []string {
 	objects := make([]string, 0, len(c.objectSet))
 	for obj, present := range c.objectSet {
 		if present {
@@ -128,13 +127,13 @@ func (c *ObjectCollector) GetObjects() []string {
 	return objects
 }
 
-func (c *ObjectCollector) GetSchemaList() []string {
+func (c *ObjectCollector) getSchemaList() []string {
 	var schemaList []string
 	for obj := range c.objectSet {
 		splits := strings.Split(obj, ".")
-		if len(splits) < 2 {
+		if len(splits) == 1 {
 			schemaList = append(schemaList, "")
-		} else {
+		} else if len(splits) == 2 {
 			schemaList = append(schemaList, splits[0])
 		}
 	}
