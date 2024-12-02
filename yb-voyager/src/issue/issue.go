@@ -17,7 +17,7 @@ limitations under the License.
 package issue
 
 import (
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/version"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type Issue struct {
@@ -27,10 +27,10 @@ type Issue struct {
 	Suggestion             string
 	GH                     string
 	DocsLink               string
-	MinimumVersionsFixedIn map[string]*version.YBVersion // key: series (2024.1, 2.21, etc)
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion // key: series (2024.1, 2.21, etc)
 }
 
-func (i Issue) IsFixedIn(v *version.YBVersion) (bool, error) {
+func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	minVersionFixedInSeries, ok := i.MinimumVersionsFixedIn[v.Series()]
 	if !ok {
 		return false, nil
