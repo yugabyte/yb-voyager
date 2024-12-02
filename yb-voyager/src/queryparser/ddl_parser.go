@@ -419,6 +419,10 @@ type TableConstraint struct {
 	Columns        []string
 }
 
+func (c *TableConstraint) IsPrimaryKeyORUniqueConstraint() bool {
+	return c.ConstraintType == PRIMARY_CONSTR_TYPE || c.ConstraintType == UNIQUE_CONSTR_TYPE
+}
+
 func (t *TableConstraint) generateConstraintName(tableName string) string {
 	suffix := ""
 	//Deferrable is only applicable to following constraint

@@ -96,7 +96,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 				))
 			}
 
-			if c.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE || c.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+			if c.IsPrimaryKeyORUniqueConstraint() {
 				for _, col := range c.Columns {
 					unsupportedColumnsForTable, ok := d.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
 					if !ok {
