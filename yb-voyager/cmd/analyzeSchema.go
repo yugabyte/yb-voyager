@@ -336,29 +336,26 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			continue
 		}
 		if queryparser.IsCreateIndex(parseTree) {
-			//TODO : error hanfling
 			indexParser, err := queryparser.GetDDLParser(parseTree)
 			if err != nil {
-				continue
+				utils.ErrExit("error getting ddl parser for stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
 			}
 			obj, err := indexParser.Parse(parseTree)
 			if err != nil {
-				continue
+				utils.ErrExit("error parsing stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
 			}
 			indexObj, _ := obj.(*queryparser.Index)
-			if indexObj.AccessMethod == "gin" {
+			if indexObj.AccessMethod == queryissue.GIN_ACCESS_METHOD {
 				summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 			}
 		}
 		err = parserIssueDetector.ParseRequiredDDLs(sqlStmtInfo.formattedStmt)
 		if err != nil {
-			log.Infof("error parsing query-%s: %v ", err)
-			continue
+			utils.ErrExit("error parsing stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
 		if err != nil {
-			log.Infof("error getting ddl issues for query-%s: %v ", err)
-			continue
+			utils.ErrExit("error getting ddl issues for stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		for _, i := range ddlIssues {
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
