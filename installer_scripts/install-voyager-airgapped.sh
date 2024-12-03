@@ -150,8 +150,12 @@ install_perl_module() {
     local requirement_type="$2"
     local required_version="$3"
     local package="$4"
-    
-    echo "Installing module $module_name..."
+
+    # Check if the module is already installed and meets the version requirements
+    check_perl_module_version "$module_name" "$requirement_type" "$required_version" "true"
+    if [[ $? -eq 0 ]]; then
+        return
+    fi
     
     # Extract the package
     tar -xzvf "$package" 1>&2 || { echo "Error: Failed to extract $package"; exit 1; }
@@ -183,34 +187,55 @@ install_perl_module() {
     # Return to the original directory
     cd ..
     
-    # Verification and version check
-    installed_version=$(perl -M"$module_name" -e 'print $'"$module_name"'::VERSION' 2> /dev/null)
-    
-    if [[ -z "$installed_version" ]]; then
-        echo "Error: $module_name could not be loaded or found."
+    # Verification of the installed module
+    check_perl_module_version "$module_name" "$requirement_type" "$required_version" "false" 
+    if [[ $? -ne 0 ]]; then
         exit 1
+    fi
+}
+
+check_perl_module_version() {
+    local module_name="$1"
+    local requirement_type="$2"
+    local required_version="$3"
+    local check_only="$4"  # If "true", suppress error messages and exit silently
+
+    # Get installed version
+    local installed_version
+    installed_version=$(perl -M"$module_name" -e 'print $'"$module_name"'::VERSION' 2> /dev/null)
+
+    if [[ -z "$installed_version" ]]; then
+        if [[ "$check_only" != "true" ]]; then
+            echo "Error: $module_name could not be loaded or found."
+        fi
+        return 1
     fi
 
     # Version comparison based on requirement type
     if [[ "$requirement_type" == "min" ]]; then
         # Check if installed version is at least the required version
-        if [[ $(echo -e "$installed_version\n$required_version" | sort -V | head -n1) != "$required_version" ]]; then
-            echo "Error: Installed version of $module_name ($installed_version) does not meet the minimum required version ($required_version)."
-            exit 1
+        if [[ $(echo -e "$installed_version\n$required_version" | sort -V | head -n1) == "$required_version" ]]; then
+            return 0
         fi
+        if [[ "$check_only" != "true" ]]; then
+            echo "Error: Installed version of $module_name ($installed_version) does not meet the minimum required version ($required_version)."
+        fi
+        return 1
     elif [[ "$requirement_type" == "exact" ]]; then
         # Check if installed version matches the required version exactly
-        if [[ "$installed_version" != "$required_version" ]]; then
-            echo "Error: Installed version of $module_name ($installed_version) does not match the exact required version ($required_version)."
-            exit 1
+        if [[ "$installed_version" == "$required_version" ]]; then
+            return 0  
         fi
+        if [[ "$check_only" != "true" ]]; then
+            echo "Error: Installed version of $module_name ($installed_version) does not match the exact required version ($required_version)."
+        fi
+        return 1
     else
         echo "Error: Unknown requirement type '$requirement_type' for $module_name."
         exit 1
     fi
-    
-    echo ""
 }
+
 
 check_binutils_version() {
 	min_required_version='2.25'
@@ -428,9 +453,6 @@ centos_main() {
         echo ""
         echo -e "\e[33mYum packages:\e[0m"
         print_dependencies "${centos_yum_package_requirements[@]}"
-        echo ""
-        echo -e "\e[33mCPAN modules:\e[0m"
-        print_dependencies "${cpan_modules_requirements[@]}"
         print_steps_to_install_oic_on_centos
         exit 0
     fi
@@ -609,9 +631,6 @@ ubuntu_main() {
         echo ""
         echo -e "\e[33mApt packages:\e[0m"
         print_dependencies "${ubuntu_apt_package_requirements[@]}"
-        echo ""
-        echo -e "\e[33mCPAN modules:\e[0m"
-        print_dependencies "${cpan_modules_requirements[@]}"
         print_steps_to_install_oic_on_ubuntu
         exit 0
     fi
