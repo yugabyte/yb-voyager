@@ -217,7 +217,12 @@ main() {
 	import_schema --post-snapshot-import true --refresh-mviews true
 	
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false'
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false' || {
+			tail_log_file "yb-voyager-import-data-to-target.log"
+			tail_log_file "yb-voyager-export-data-from-source.log"
+			tail_log_file "yb-voyager-import-data-to-source-replica.log"
+			exit 1
+		}
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
