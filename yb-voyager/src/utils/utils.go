@@ -232,9 +232,9 @@ func PrintIfTrue(message string, args ...bool) {
 	fmt.Printf("%s", message)
 }
 
-func GetObjectNameListFromReport(report SchemaReport, objType string) []string {
+func GetObjectNameListFromReport(summary SchemaSummary, objType string) []string {
 	var objectList []string
-	for _, dbObject := range report.SchemaSummary.DBObjects {
+	for _, dbObject := range summary.DBObjects {
 		if dbObject.ObjectType == objType {
 			rawObjectList := strings.Trim(dbObject.ObjectNames, ", ")
 			objectList = strings.Split(rawObjectList, ", ")
