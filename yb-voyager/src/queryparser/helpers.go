@@ -338,8 +338,8 @@ func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List 
 	return nil
 }
 
-// GetQualifiedName extracts the schema and object name from a list.
-func GetQualifiedName(nameList protoreflect.List) (string, string) {
+// GetSchemaAndObjectName extracts the schema and object name from a list.
+func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 	var schemaName, objectName string
 
 	if nameList.Len() == 1 {

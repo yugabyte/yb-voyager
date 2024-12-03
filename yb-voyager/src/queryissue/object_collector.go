@@ -105,13 +105,7 @@ func (c *ObjectCollector) addObject(objectName string) {
 
 // getObjects returns a slice of collected unique object names.
 func (c *ObjectCollector) getObjects() []string {
-	objects := make([]string, 0, len(c.objectSet))
-	for obj, present := range c.objectSet {
-		if present {
-			objects = append(objects, obj)
-		}
-	}
-	return objects
+	return lo.Keys(c.objectSet)
 }
 
 func (c *ObjectCollector) getSchemaList() []string {

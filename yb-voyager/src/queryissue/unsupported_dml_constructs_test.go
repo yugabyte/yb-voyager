@@ -766,35 +766,54 @@ func TestObjectCollector2(t *testing.T) {
 }
 
 func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
-	combinationSqls := []string{
-		`WITH LockedEmployees AS (
-    SELECT *, pg_advisory_lock(xmin) AS lock_acquired
-    FROM employees
-    WHERE pg_try_advisory_lock(xmin) IS TRUE
-)
-SELECT xmlelement(name "EmployeeData", xmlagg(
-    xmlelement(name "Employee", xmlattributes(id AS "ID"),
-    xmlforest(name AS "Name", xmin AS "TransactionID", xmax AS "ModifiedID"))))
-FROM LockedEmployees
-WHERE xmax IS NOT NULL;`,
-		`WITH Data AS (
-    SELECT id, name, xmin, xmax,
-           pg_try_advisory_lock(id) AS lock_status,
-           xmlelement(name "info", xmlforest(name as "name", xmin as "transaction_start", xmax as "transaction_end")) as xml_info
-    FROM projects
-    WHERE xmin > 100 AND xmax < 500
-)
-SELECT x.id, x.xml_info
-FROM Data x
-WHERE x.lock_status IS TRUE;`,
-		`UPDATE employees
-SET salary = salary * 1.1
-WHERE pg_try_advisory_xact_lock(ctid) IS TRUE AND department = 'Engineering'
-RETURNING id,
-          xmlelement(name "UpdatedEmployee",
-                     xmlattributes(id AS "ID"),
-                     xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
+	tests := []struct {
+		Sql             string
+		ExpectedObjects []string
+		ExpectedSchemas []string
+	}{
+		{
+			Sql: `WITH LockedEmployees AS (
+					SELECT *, pg_advisory_lock(xmin) AS lock_acquired
+					FROM public.employees
+					WHERE pg_try_advisory_lock(xmin) IS TRUE
+				)
+				SELECT xmlelement(name "EmployeeData", xmlagg(
+					xmlelement(name "Employee", xmlattributes(id AS "ID"),
+					xmlforest(name AS "Name", xmin AS "TransactionID", xmax AS "ModifiedID"))))
+				FROM LockedEmployees
+				WHERE xmax IS NOT NULL;`,
+			/*
+				Limitation: xmlelement, xmlforest etc are present under xml_expr node in parse tree, not funccall node
+				hence not detected here due to limited functionality of objectCollector.Collect()
+			*/
+			ExpectedObjects: []string{"pg_advisory_lock", "public.employees", "pg_try_advisory_lock", "xmlagg", "lockedemployees"},
+			ExpectedSchemas: []string{"public", ""},
+		},
+		{
+			Sql: `WITH Data AS (
+					SELECT id, name, xmin, xmax,
+						pg_try_advisory_lock(id) AS lock_status,
+						xmlelement(name "info", xmlforest(name as "name", xmin as "transaction_start", xmax as "transaction_end")) as xml_info
+					FROM projects
+					WHERE xmin > 100 AND xmax < 500
+				)
+				SELECT x.id, x.xml_info
+				FROM Data x
+				WHERE x.lock_status IS TRUE;`,
+			ExpectedObjects: []string{"pg_try_advisory_lock", "projects", "data"},
+			ExpectedSchemas: []string{""},
+		},
+		{
+			Sql: `UPDATE s1.employees
+					SET salary = salary * 1.1
+					WHERE pg_try_advisory_xact_lock(ctid) IS TRUE AND department = 'Engineering'
+					RETURNING id, xmlelement(name "UpdatedEmployee", xmlattributes(id AS "ID"),
+						xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
+			ExpectedObjects: []string{"s1.employees", "pg_try_advisory_xact_lock"},
+			ExpectedSchemas: []string{"s1", ""},
+		},
 	}
+
 	expectedConstructs := []string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}
 
 	detectors := []UnsupportedConstructDetector{
@@ -802,8 +821,8 @@ RETURNING id,
 		NewColumnRefDetector(),
 		NewXmlExprDetector(),
 	}
-	for _, sql := range combinationSqls {
-		parseResult, err := queryparser.Parse(sql)
+	for _, tc := range tests {
+		parseResult, err := queryparser.Parse(tc.Sql)
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
@@ -828,5 +847,13 @@ RETURNING id,
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
+
+		collectedObjects := objectCollector.getObjects()
+		collectedSchemas := objectCollector.getSchemaList()
+
+		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
+			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
+		assert.ElementsMatch(t, tc.ExpectedSchemas, collectedSchemas,
+			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
 	}
 }
