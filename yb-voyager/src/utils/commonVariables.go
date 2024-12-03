@@ -108,8 +108,30 @@ type Issue struct {
 	Suggestion             string                          `json:"Suggestion"`
 	GH                     string                          `json:"GH"`
 	DocsLink               string                          `json:"DocsLink,omitempty"`
-	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
 }
+
+// func (i Issue) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+
+// 	tokens := []xml.Token{start}
+
+// 	for key, value := range s {
+// 		t := xml.StartElement{Name: xml.Name{"", key}}
+// 		tokens = append(tokens, t, xml.CharData(value), xml.EndElement{t.Name})
+// 	}
+
+// 	tokens = append(tokens, xml.EndElement{start.Name})
+
+// 	for _, t := range tokens {
+// 		err := e.EncodeToken(t)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	// flush to ensure tokens are written
+// 	return e.Flush()
+// }
 
 func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	if i.MinimumVersionsFixedIn == nil {
