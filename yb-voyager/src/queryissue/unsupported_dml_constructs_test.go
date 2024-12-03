@@ -783,8 +783,8 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 				FROM LockedEmployees
 				WHERE xmax IS NOT NULL;`,
 			/*
-				Limitation: xmlelement, xmlforest etc are present under xml_expr node in parse tree, not funccall node
-				hence not detected here due to limited functionality of objectCollector.Collect()
+				Limitation: limited coverage provided by objectCollector.Collect() right now. Might not detect some cases.
+				xmlelement, xmlforest etc are present under xml_expr node in parse tree not funccall node.
 			*/
 			ExpectedObjects: []string{"pg_advisory_lock", "public.employees", "pg_try_advisory_lock", "xmlagg", "lockedemployees"},
 			ExpectedSchemas: []string{"public", ""},

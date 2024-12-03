@@ -39,7 +39,7 @@ func NewObjectCollector() *ObjectCollector {
 /*
 Collect processes a node and extracts object names based on node type (ignore standard SQL functions like count(), sum() etc).
 Cases covered:
-1. SELECT queries - schema name can be with table/functions
+1. SELECT queries - collect table/function object in it
 2. Insert/Update/Delete queries
 3. TODO: cover DDLs
 
