@@ -218,7 +218,7 @@ main() {
 	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false' || {
-			tail_log_file "yb-voyager-import-data-to-target.log"
+			tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "yb-voyager-export-data-from-source.log"
 			tail_log_file "yb-voyager-import-data-to-source-replica.log"
 			exit 1
