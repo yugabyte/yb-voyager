@@ -879,6 +879,7 @@ normalize_json() {
         if type == "object" then
             .ObjectNames? |= (if type == "string" then split(", ") | sort | join(", ") else . end) |
             .VoyagerVersion? = "IGNORED" |
+			.TargetDBVersion? = "IGNORED" |
             .DbVersion? = "IGNORED" |
             .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
@@ -893,7 +894,7 @@ normalize_json() {
     )' "$input_file" > "$temp_file"
 
     # Remove unwanted lines
-    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file"
+    sed -i "" '/Review and manually import.*uncategorized.sql/d' "$temp_file"
 
     # Move cleaned file to output
     mv "$temp_file" "$output_file"
