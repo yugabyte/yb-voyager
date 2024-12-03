@@ -1003,10 +1003,10 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 		FeatureName: "Index on complex datatypes",
 		DisplayDDL:  false,
 		Objects:     []ObjectInfo{},
-		MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-			ybversion.SERIES_2024_1: ybversion.V2024_1_4_0,
-			ybversion.SERIES_2_23:   ybversion.V2_23_5_0,
-		},
+		// MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		// 	ybversion.SERIES_2024_1: ybversion.V2024_1_4_0,
+		// 	ybversion.SERIES_2_23:   ybversion.V2_23_5_0,
+		// },
 	}
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array")             // adding it here only as we know issue form analyze will come with type
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "user_defined_type") // adding it here as we UDTs will come with this type.
