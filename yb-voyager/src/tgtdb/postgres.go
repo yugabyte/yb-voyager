@@ -246,6 +246,11 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 	return nil
 }
 
+func (pg *TargetPostgreSQL) CloseConnPool() error {
+	pg.connPool.CloseConnectionPool()
+	return nil
+}
+
 func (pg *TargetPostgreSQL) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
 	totalCores, _ := fetchCores([]*TargetConf{pg.tconf})
 	return &callhome.TargetDBDetails{

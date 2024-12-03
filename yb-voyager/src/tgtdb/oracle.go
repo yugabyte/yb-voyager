@@ -554,6 +554,10 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	return nil
 }
 
+func (tdb *TargetOracleDB) CloseConnPool() error {
+	return nil
+}
+
 func (tdb *TargetOracleDB) PrepareForStreaming() {}
 
 func (tdb *TargetOracleDB) getConnectionUri(tconf *TargetConf) string {

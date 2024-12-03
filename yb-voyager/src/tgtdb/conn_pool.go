@@ -92,6 +92,15 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	return pool
 }
 
+func (pool *ConnectionPool) CloseConnectionPool() {
+	for i := 0; i < pool.params.NumConnections; i++ {
+		c := <-pool.idleConns
+		if c != nil {
+			c.Close(context.Background())
+		}
+	}
+}
+
 func (pool *ConnectionPool) GetNumConnections() int {
 	return pool.size
 }

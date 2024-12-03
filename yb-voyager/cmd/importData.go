@@ -512,6 +512,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
+	defer tdb.CloseConnPool()
 
 	var adaptiveParallelismStarted bool
 	if tconf.EnableYBAdaptiveParallelism {

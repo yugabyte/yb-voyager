@@ -32,6 +32,7 @@ type TargetDB interface {
 	Init() error
 	Finalize()
 	InitConnPool() error
+	CloseConnPool() error
 	PrepareForStreaming()
 	GetVersion() string
 	CreateVoyagerSchema() error

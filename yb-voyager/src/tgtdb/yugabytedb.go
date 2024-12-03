@@ -246,6 +246,11 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	return nil
 }
 
+func (yb *TargetYugabyteDB) CloseConnPool() error {
+	yb.connPool.CloseConnectionPool()
+	return nil
+}
+
 func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
 	query := "SELECT schema_name FROM information_schema.schemata"
 	rows, err := yb.Query(query)
