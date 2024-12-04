@@ -18,6 +18,7 @@ package queryissue
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
