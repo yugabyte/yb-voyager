@@ -1,0 +1,37 @@
+### Describe the changes in this pull request
+
+
+### Describe if there are any user-facing changes
+<!--
+Clarify any changes to the user experience. For instance,
+  1. Were there any changes to the command line? 
+  2. Were there any changes to the configuration?
+  3. Has the installation process changed? 
+  4. Were there any changes to the reports? 
+-->
+
+### How was this pull request tested?
+<!--
+Mention if the existing tests were enough
+Mention the new unit tests added 
+Was any manual testing needed? If yes, is there a need to add integration tests for that?
+-->
+
+### Does your PR have changes that can cause upgrade issues? 
+| Component        | Breaking changes? |
+| :----------------------------------------------: | :-----------: |
+| MetaDB                                                    |  Yes/No |
+| Name registry json                                        |  Yes/No |
+| Data File Descriptor Json                                 |  Yes/No |
+| Export Snapshot Status Json                               |  Yes/No |
+| Import Data State                                         |  Yes/No |
+| Export Status Json                                        |  Yes/No |
+| Data .sql files of tables                                 |  Yes/No |
+| Export and import data queue                              |  Yes/No |
+| Schema Dump                                               |  Yes/No |
+| AssessmentDB                                              |  Yes/No |
+| Sizing DB                                                 |  Yes/No |
+| Migration Assessment Report Json                          |  Yes/No |
+| Callhome Json                                             |  Yes/No |
+| YugabyteD Tables                                          |  Yes/No |
+| TargetDB Metadata Tables                                  |  Yes/No |
