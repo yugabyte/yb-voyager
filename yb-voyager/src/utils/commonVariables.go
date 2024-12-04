@@ -98,6 +98,7 @@ type DBObject struct {
 	Details      string `json:"Details,omitempty"`
 }
 
+// TODO: support MinimumVersionsFixedIn in xml
 type Issue struct {
 	IssueType              string                          `json:"IssueType"`
 	ObjectType             string                          `json:"ObjectType"`
@@ -110,28 +111,6 @@ type Issue struct {
 	DocsLink               string                          `json:"DocsLink,omitempty"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
 }
-
-// func (i Issue) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-
-// 	tokens := []xml.Token{start}
-
-// 	for key, value := range s {
-// 		t := xml.StartElement{Name: xml.Name{"", key}}
-// 		tokens = append(tokens, t, xml.CharData(value), xml.EndElement{t.Name})
-// 	}
-
-// 	tokens = append(tokens, xml.EndElement{start.Name})
-
-// 	for _, t := range tokens {
-// 		err := e.EncodeToken(t)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	// flush to ensure tokens are written
-// 	return e.Flush()
-// }
 
 func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	if i.MinimumVersionsFixedIn == nil {

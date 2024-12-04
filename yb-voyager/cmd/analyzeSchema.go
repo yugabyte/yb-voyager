@@ -265,12 +265,6 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 		issue.DocsLink = docsLink
 	}
 
-	// just for testing
-	// issue.MinimumVersionsFixedIn = map[string]*ybversion.YBVersion{
-	// 	ybversion.SERIES_2024_1: ybversion.V2024_1_4_0,
-	// 	ybversion.SERIES_2_23:   ybversion.V2_23_5_0,
-	// }
-
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
 
@@ -2127,17 +2121,13 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 
 		// Ideally all filtering of issues should happen in queryissue pkg layer,
 		// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
-		var filteredIssues []utils.Issue
-		for _, i := range schemaAnalysisReport.Issues {
+		schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.Issue, index int) bool {
 			fixed, err := i.IsFixedIn(targetDbVersion)
 			if err != nil {
 				utils.ErrExit("checking if issue %v is supported: %v", i, err)
 			}
-			if !fixed {
-				filteredIssues = append(filteredIssues, i)
-			}
-		}
-		schemaAnalysisReport.Issues = filteredIssues
+			return !fixed
+		})
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
