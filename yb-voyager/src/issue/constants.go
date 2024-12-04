@@ -18,9 +18,11 @@ package issue
 
 // Types
 const (
-	ADVISORY_LOCKS                                  = "ADVISORY_LOCKS"
-	SYSTEM_COLUMNS                                  = "SYSTEM_COLUMNS"
-	XML_FUNCTIONS                                   = "XML_FUNCTIONS"
+	ADVISORY_LOCKS = "ADVISORY_LOCKS"
+	SYSTEM_COLUMNS = "SYSTEM_COLUMNS"
+	XML_FUNCTIONS  = "XML_FUNCTIONS"
+
+	REFERENCED_TYPE_DECLARATION                     = "REFERENCED_TYPE_DECLARATION"
 	STORED_GENERATED_COLUMNS                        = "STORED_GENERATED_COLUMNS"
 	UNLOGGED_TABLE                                  = "UNLOGGED_TABLE"
 	UNSUPPORTED_INDEX_METHOD                        = "UNSUPPORTED_INDEX_METHOD"

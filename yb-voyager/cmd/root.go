@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -63,6 +64,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		currentCommand = cmd.CommandPath()
+
 		if !shouldRunPersistentPreRun(cmd) {
 			return
 		}
@@ -87,6 +89,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
 
+			// Initialize the metaDB variable only if the metaDB is already created. For example, resumption of a command.
 			metaDB = initMetaDB(bulkAssessmentDir)
 			if perfProfile {
 				go startPprofServer()
@@ -114,9 +117,15 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
 
+			if shouldRunExportDirInitialisedCheck(cmd) {
+				checkExportDirInitialised()
+			}
+
 			if callhome.SendDiagnostics {
 				go sendCallhomePayloadAtIntervals()
 			}
+
+			// Initialize the metaDB variable only if the metaDB is already created. For example, resumption of a command.
 			if metaDBIsCreated(exportDir) {
 				metaDB = initMetaDB(exportDir)
 			}
@@ -146,6 +155,18 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 	},
 }
 
+func shouldRunExportDirInitialisedCheck(cmd *cobra.Command) bool {
+	return slices.Contains(exportDirInitialisedCheckNeededList, cmd.CommandPath())
+}
+
+func checkExportDirInitialised() {
+	// Check to ensure that this is not the first command in the migration process
+	isMetaDBPresent := metaDBIsCreated(exportDir)
+	if !isMetaDBPresent {
+		utils.ErrExit("Migration has not started yet. Run the commands in the order specified in the documentation: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/"))
+	}
+}
+
 func startPprofServer() {
 	// Server for pprof
 	err := http.ListenAndServe("localhost:6060", nil)
@@ -159,6 +180,18 @@ func startPprofServer() {
 		3. use the following command to start a web ui for the profile data-
 			go tool pprof -http=[<client_machine_ip>:<port>] http://localhost:6060/debug/pprof/profile
 	*/
+}
+
+var exportDirInitialisedCheckNeededList = []string{
+	"yb-voyager import data status",
+	"yb-voyager export data status",
+	"yb-voyager cutover status",
+	"yb-voyager get data-migration-report",
+	"yb-voyager archive changes",
+	"yb-voyager end migration",
+	"yb-voyager initiate cutover to source",
+	"yb-voyager initiate cutover to source-replica",
+	"yb-voyager initiate cutover to target",
 }
 
 var noLockNeededList = []string{

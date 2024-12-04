@@ -19,6 +19,7 @@ package queryissue
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -143,6 +144,12 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]issue.IssueInsta
 			issues = append(issues, issuesInQuery...)
 		}
 
+		percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
+		if err != nil {
+			return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
+		}
+		issues = append(issues, percentTypeSyntaxIssues...)
+
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
 			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
@@ -265,6 +272,36 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]issue.IssueInstance,
 	for i := range issues {
 		if issues[i].SqlStatement == "" {
 			issues[i].SqlStatement = query
+		}
+	}
+	return issues, nil
+}
+
+func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]issue.IssueInstance, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing the query-%s: %v", query, err)
+	}
+
+	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+	typeNames, err := queryparser.GetAllTypeNamesInPlpgSQLStmt(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting type names in PLPGSQL: %v", err)
+	}
+
+	/*
+		Caveats of GetAllTypeNamesInPlpgSQLStmt():
+			1. Not returning typename for variables in function parameter from this function (in correct in json as UNKNOWN), for that using the GetTypeNamesFromFuncParameters()
+			2. Not returning the return type from this function (not available in json), for that using the GetReturnTypeOfFunc()
+	*/
+	if queryparser.IsFunctionObject(parseTree) {
+		typeNames = append(typeNames, queryparser.GetReturnTypeOfFunc(parseTree))
+	}
+	typeNames = append(typeNames, queryparser.GetFuncParametersTypeNames(parseTree)...)
+	var issues []issue.IssueInstance
+	for _, typeName := range typeNames {
+		if strings.HasSuffix(typeName, "%TYPE") {
+			issues = append(issues, issue.NewPercentTypeSyntaxIssue(objType, objName, typeName)) // TODO: confirm
 		}
 	}
 	return issues, nil

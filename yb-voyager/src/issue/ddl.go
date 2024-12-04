@@ -432,3 +432,16 @@ var inheritanceIssue = Issue{
 func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
 	return newIssueInstance(inheritanceIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+var percentTypeSyntax = Issue{
+	Type:     REFERENCED_TYPE_DECLARATION,
+	TypeName: "Referenced type declaration of variables",
+	TypeDescription: "",
+	Suggestion: "Fix the syntax to include the actual type name instead of referencing the type of a column",
+	GH: "https://github.com/yugabyte/yugabyte-db/issues/23619",
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+}
+
+func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+	return newIssueInstance(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
