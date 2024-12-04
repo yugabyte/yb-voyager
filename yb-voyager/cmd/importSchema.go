@@ -225,8 +225,14 @@ func importSchema() error {
 		dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 	}
 
-	if flagPostSnapshotImport && flagRefreshMViews {
-		refreshMViews(conn)
+	if flagPostSnapshotImport {
+		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
+		if err != nil {
+			return err
+		}
+		if flagRefreshMViews {
+			refreshMViews(conn)
+		}
 	} else {
 		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
