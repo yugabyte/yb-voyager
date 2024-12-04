@@ -158,6 +158,10 @@
 			"Objects": []
 		},
 		{
+			"FeatureName": "Primary / Unique key constraints on complex datatypes",
+			"Objects": []
+		},
+		{
 			"FeatureName": "Index on complex datatypes",
 			"Objects": []
 		},

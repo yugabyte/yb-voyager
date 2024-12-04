@@ -25,7 +25,7 @@
             "Reason": "INDEX on column 'cidr' not yet supported",
             "SqlStatement": "CREATE index idx1 on combined_tbl (c);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -35,7 +35,7 @@
             "Reason": "INDEX on column 'circle' not yet supported",
             "SqlStatement": "CREATE index idx2 on combined_tbl (ci);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -45,7 +45,7 @@
             "Reason": "INDEX on column 'box' not yet supported",
             "SqlStatement": "CREATE index idx3 on combined_tbl (b);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -55,7 +55,7 @@
             "Reason": "INDEX on column 'json' not yet supported",
             "SqlStatement": "CREATE index idx4 on combined_tbl (j);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -65,7 +65,7 @@
             "Reason": "INDEX on column 'line' not yet supported",
             "SqlStatement": "CREATE index idx5 on combined_tbl (l);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -75,7 +75,7 @@
             "Reason": "INDEX on column 'lseg' not yet supported",
             "SqlStatement": "CREATE index idx6 on combined_tbl (ls);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -85,7 +85,7 @@
             "Reason": "INDEX on column 'macaddr' not yet supported",
             "SqlStatement": "CREATE index idx7 on combined_tbl (maddr);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -95,7 +95,7 @@
             "Reason": "INDEX on column 'macaddr8' not yet supported",
             "SqlStatement": "CREATE index idx8 on combined_tbl (maddr8);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -105,7 +105,7 @@
             "Reason": "INDEX on column 'point' not yet supported",
             "SqlStatement": "CREATE index idx9 on combined_tbl (p);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -115,7 +115,7 @@
             "Reason": "INDEX on column 'pg_lsn' not yet supported",
             "SqlStatement": "CREATE index idx10 on combined_tbl (lsn);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -125,7 +125,7 @@
             "Reason": "INDEX on column 'path' not yet supported",
             "SqlStatement": "CREATE index idx11 on combined_tbl (p1);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -135,7 +135,7 @@
             "Reason": "INDEX on column 'polygon' not yet supported",
             "SqlStatement": "CREATE index idx12 on combined_tbl (p2);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -145,7 +145,7 @@
             "Reason": "INDEX on column 'txid_snapshot' not yet supported",
             "SqlStatement": "CREATE index idx13 on combined_tbl (id1);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -155,7 +155,7 @@
             "Reason": "INDEX on column 'bit' not yet supported",
             "SqlStatement": "CREATE INDEX idx14 on combined_tbl (bitt);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -165,7 +165,7 @@
             "Reason": "INDEX on column 'varbit' not yet supported",
             "SqlStatement": "CREATE INDEX idx15 on combined_tbl (bittv);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -235,7 +235,7 @@
             "Reason": "INDEX on column 'user_defined_type' not yet supported",
             "SqlStatement": "CREATE INDEX idx_udt on test_udt(home_address);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -245,7 +245,7 @@
             "Reason": "INDEX on column 'user_defined_type' not yet supported",
             "SqlStatement": "CREATE INDEX idx_udt1 on test_udt(home_address1);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -255,7 +255,7 @@
             "Reason": "INDEX on column 'user_defined_type' not yet supported",
             "SqlStatement": "CREATE INDEX \"idx\u0026_enum2\" on test_udt((some_field::non_public.enum_test));",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -647,12 +647,163 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx1 ON combined_tbl1",
+            "Reason": "INDEX on column 'daterange' not yet supported",
+            "SqlStatement": "CREATE INDEX idx1 on combined_tbl1 (d);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx2 ON combined_tbl1",
+            "Reason": "INDEX on column 'tsrange' not yet supported",
+            "SqlStatement": "CREATE INDEX idx2 on combined_tbl1 (t);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx3 ON combined_tbl1",
+            "Reason": "INDEX on column 'tstzrange' not yet supported",
+            "SqlStatement": "CREATE INDEX idx3 on combined_tbl1 (tz);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx4 ON combined_tbl1",
+            "Reason": "INDEX on column 'numrange' not yet supported",
+            "SqlStatement": "CREATE INDEX idx4 on combined_tbl1 (n);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx5 ON combined_tbl1",
+            "Reason": "INDEX on column 'int4range' not yet supported",
+            "SqlStatement": "CREATE INDEX idx5 on combined_tbl1 (i4);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx6 ON combined_tbl1",
+            "Reason": "INDEX on column 'int8range' not yet supported",
+            "SqlStatement": "CREATE INDEX idx6 on combined_tbl1 (i8);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "test_interval",
-            "Reason": "PRIMARY KEY containing column of type 'INTERVAL' not yet supported.",
+            "ObjectName": "combined_tbl, constraint: combined_tbl_j_key",
+            "Reason": "Primary key and Unique constraint on column 'json' not yet supported",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl, constraint: pk",
+            "Reason": "Primary key and Unique constraint on column 'macaddr8' not yet supported",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl, constraint: combined_tbl_unique",
+            "Reason": "Primary key and Unique constraint on column 'bit' not yet supported",
+            "SqlStatement": "ALTER TABLE combined_tbl\n\t\tADD CONSTRAINT combined_tbl_unique UNIQUE(id, bitt);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1, constraint: combined_tbl1_i4_key",
+            "Reason": "Primary key and Unique constraint on column 'int4range' not yet supported",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1, constraint: combined_tbl1_id_t_n_pkey",
+            "Reason": "Primary key and Unique constraint on column 'tsrange' not yet supported",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1, constraint: combined_tbl1_id_t_n_pkey",
+            "Reason": "Primary key and Unique constraint on column 'numrange' not yet supported",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1, constraint: combined_tbl1_unique",
+            "Reason": "Primary key and Unique constraint on column 'daterange' not yet supported",
+            "SqlStatement": "ALTER TABLE combined_tbl1\n\t\tADD CONSTRAINT combined_tbl1_unique UNIQUE(id, d);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx7 ON combined_tbl1",
+            "Reason": "INDEX on column 'interval' not yet supported",
+            "SqlStatement": "CREATE INDEX idx7  on combined_tbl1 (inym);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx8 ON combined_tbl1",
+            "Reason": "INDEX on column 'interval' not yet supported",
+            "SqlStatement": "CREATE INDEX idx8  on combined_tbl1 (inds);",
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "test_interval, constraint: test_interval_frequency_pkey",
+            "Reason": "Primary key and Unique constraint on column 'interval' not yet supported",
             "SqlStatement": "create table test_interval(\n    frequency interval primary key,\n\tcol1 int\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1397"
+            "Suggestion": "Refer to the docs link for the workaround",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
             "IssueType": "unsupported_features",
@@ -737,7 +888,7 @@
             "Reason": "INDEX on column 'tsvector' not yet supported",
             "SqlStatement": "CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -747,7 +898,7 @@
             "Reason": "INDEX on column 'tsquery' not yet supported",
             "SqlStatement": "CREATE INDEX tsquery_idx ON public.ts_query_table (query);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -757,7 +908,7 @@
             "Reason": "INDEX on column 'citext' not yet supported",
             "SqlStatement": "CREATE INDEX idx_citext ON public.citext_type USING btree (data);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -767,7 +918,7 @@
             "Reason": "INDEX on column 'inet' not yet supported",
             "SqlStatement": "CREATE INDEX idx_inet ON public.inet_type USING btree (data);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -777,7 +928,7 @@
             "Reason": "INDEX on column 'jsonb' not yet supported",
             "SqlStatement": "CREATE INDEX idx_json ON public.test_jsonb (data);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -787,7 +938,7 @@
             "Reason": "INDEX on column 'jsonb' not yet supported",
             "SqlStatement": "CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb));",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -797,7 +948,7 @@
             "Reason": "INDEX on column 'array' not yet supported",
             "SqlStatement": "create index idx_array on public.documents (list_of_sections);",
             "Suggestion": "Refer to the docs link for the workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/9698",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
         },
         {
@@ -901,7 +1052,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype - pg_lsn on column - lsn",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb"
@@ -911,7 +1062,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype - txid_snapshot on column - id1",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb"
@@ -951,7 +1102,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype for Live migration - circle on column - ci",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
@@ -961,7 +1112,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype for Live migration - box on column - b",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
@@ -971,7 +1122,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype for Live migration - line on column - l",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
@@ -981,7 +1132,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype for Live migration - lseg on column - ls",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
@@ -991,7 +1142,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype for Live migration - point on column - p",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
@@ -1001,7 +1152,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype for Live migration - path on column - p1",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
@@ -1011,7 +1162,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "combined_tbl",
             "Reason": "Unsupported datatype for Live migration - polygon on column - p2",
-            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15)\n);",
+            "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"

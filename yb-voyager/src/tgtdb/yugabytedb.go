@@ -33,7 +33,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -77,6 +79,12 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 
 	res, err := yb.db.Exec(query)
 	if err != nil {
+		var pgErr *pgconn5.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Hint != "" || pgErr.Detail != "" {
+				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, yb.tconf.Host, err, pgErr.Hint, pgErr.Detail)
+			}
+		}
 		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
 	}
 	rowsAffected, err = res.RowsAffected()
@@ -395,6 +403,19 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 	}
 	log.Infof("non empty tables: %v", result)
 	return result
+}
+
+func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
+	tableNames := lo.Map(tables, func(nt sqlname.NameTuple, _ int) string {
+		return nt.ForUserQuery()
+	})
+	commaSeparatedTableNames := strings.Join(tableNames, ", ")
+	query := fmt.Sprintf("TRUNCATE TABLE %s", commaSeparatedTableNames)
+	_, err := yb.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {

@@ -41,6 +41,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type summaryInfo struct {
@@ -173,7 +174,6 @@ var (
 	likeRegex                 = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
 	inheritRegex              = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
 	withOidsRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
-	intvlRegex                = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
 	anydataRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyData", anything)
 	anydatasetRegex           = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyDataSet", anything)
 	anyTypeRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyType", anything)
@@ -238,6 +238,7 @@ const (
 	POLICY_ROLE_ISSUE                              = "Policy require roles to be created."
 	VIEW_CHECK_OPTION_ISSUE                        = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 	ISSUE_INDEX_WITH_COMPLEX_DATATYPES             = `INDEX on column '%s' not yet supported`
+	ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES  = `Primary key and Unique constraint on column '%s' not yet supported`
 	ISSUE_UNLOGGED_TABLE                           = "UNLOGGED tables are not supported yet."
 	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
@@ -392,9 +393,11 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
 			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
 			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
+			reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode, sqlStmtInfo, fpath)
 			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
 		}
 		if isAlterTable {
+			reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode, sqlStmtInfo, fpath)
 			reportAlterAddPKOnPartition(alterTableNode, sqlStmtInfo, fpath)
 			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
 			reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
@@ -675,6 +678,13 @@ var UnsupportedIndexDatatypes = []string{
 	"cidr",
 	"bit",    // for BIT (n)
 	"varbit", // for BIT varying (n)
+	"daterange",
+	"tsrange",
+	"tstzrange",
+	"numrange",
+	"int4range",
+	"int8range",
+	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
 	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
 	//Need to understand if there is other method or way available in PG to have these index key [TODO]
 	"circle",
@@ -687,6 +697,107 @@ var UnsupportedIndexDatatypes = []string{
 	"polygon",
 	"txid_snapshot",
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
+}
+
+func reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
+	tableName := alterTableNode.AlterTableStmt.Relation.Relname
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
+	unsupportedColumnsForTable, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
+	if !ok {
+		return
+	}
+	if alterCmd.GetSubtype() != pg_query.AlterTableType_AT_AddConstraint {
+		return
+	}
+	if !slices.Contains([]pg_query.ConstrType{pg_query.ConstrType_CONSTR_PRIMARY, pg_query.ConstrType_CONSTR_UNIQUE},
+		alterCmd.GetDef().GetConstraint().GetContype()) {
+		return
+	}
+	columns := alterCmd.GetDef().GetConstraint().GetKeys()
+	for _, col := range columns {
+		colName := col.GetString_().Sval
+		typeName, ok := unsupportedColumnsForTable[colName]
+		if ok {
+			displayName := fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, alterCmd.GetDef().GetConstraint().GetConname())
+			reportCase(fpath, fmt.Sprintf(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
+				"Refer to the docs link for the workaround", "TABLE", displayName, sqlStmtInfo.formattedStmt,
+				UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
+			return
+		}
+	}
+}
+
+func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
+	schemaName := createTableNode.CreateStmt.Relation.Schemaname
+	tableName := createTableNode.CreateStmt.Relation.Relname
+	columns := createTableNode.CreateStmt.TableElts
+	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+	unsupportedColumnsForTable, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
+	if !ok {
+		return
+	}
+	reportConstraintIfrequired := func(con *pg_query.Constraint, colNames []string, typeName string) {
+		conType := con.GetContype()
+		if !slices.Contains([]pg_query.ConstrType{pg_query.ConstrType_CONSTR_PRIMARY, pg_query.ConstrType_CONSTR_UNIQUE}, conType) {
+			return
+		}
+		generatedConName := generateConstraintName(conType, fullyQualifiedName, colNames)
+		specifiedConstraintName := con.GetConname()
+		conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
+		//report the PK / Unique constraint in CREATE TABLE on this column
+		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
+		reportCase(fpath, fmt.Sprintf(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
+			"Refer to the docs link for the workaround", "TABLE", fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt,
+			UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
+
+	}
+	for _, column := range columns {
+		if column.GetColumnDef() != nil {
+			/*
+				e.g. create table unique_def_test(id int, d daterange UNIQUE, c1 int);
+				create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}...
+				table_elts:{column_def:{colname:"d"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
+				typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}} ....
+
+				here checking the case where this clause is in column definition so iterating over each column_def and in that
+				constraint type is UNIQUE/ PK reporting that
+				supported.
+			*/
+			colName := column.GetColumnDef().GetColname()
+			typeName, ok := unsupportedColumnsForTable[colName]
+			if !ok {
+				continue
+			}
+			constraints := column.GetColumnDef().GetConstraints()
+			for _, c := range constraints {
+				reportConstraintIfrequired(c.GetConstraint(), []string{colName}, typeName)
+			}
+		} else if column.GetConstraint() != nil {
+			/*
+				e.g. create table uniquen_def_test1(id int, c1 citext, CONSTRAINT pk PRIMARY KEY(id, c));
+				{create_stmt:{relation:{relname:"unique_def_test1"  inh:true  relpersistence:"p"  location:80}  table_elts:{column_def:{colname:"id"
+				type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
+				table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
+
+				here checking the case where this UK/ PK is at the end of column definition as a separate constraint
+			*/
+			keys := column.GetConstraint().GetKeys()
+			columns := []string{}
+			for _, k := range keys {
+				colName := k.GetString_().Sval
+				columns = append(columns, colName)
+			}
+			for _, c := range columns {
+				typeName, ok := unsupportedColumnsForTable[c]
+				if !ok {
+					continue
+				}
+				reportConstraintIfrequired(column.GetConstraint(), columns, typeName)
+			}
+		}
+	}
 }
 
 func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_CreateStmt) {
@@ -738,14 +849,18 @@ func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_Cr
 			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
 			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
 			colName := column.GetColumnDef().GetColname()
-			if len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0 {
+			isArrayType := len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0
+			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, typeName)
+			isUDTType := slices.Contains(compositeTypes, fullTypeName)
+			switch true {
+			case isArrayType:
 				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
 				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
 				if !ok {
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
 				}
 				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "array"
-			} else if slices.Contains(UnsupportedIndexDatatypes, typeName) || slices.Contains(compositeTypes, fullTypeName) {
+			case isUnsupportedType || isUDTType:
 				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
 				if !ok {
 					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
@@ -798,7 +913,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		typeName, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName]
 		if ok {
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
@@ -810,7 +925,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
 			//In case casting is happening for an array type
 			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/25003",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
@@ -820,7 +935,7 @@ func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_I
 			if slices.Contains(compositeTypes, fullCastTypeName) {
 				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type")
 			}
-			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/9698",
+			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/25003",
 				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
 				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
 			return
@@ -1451,10 +1566,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "OIDs are not supported for user tables.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10273", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if tbl := intvlRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "PRIMARY KEY containing column of type 'INTERVAL' not yet supported.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1397", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
 		} else if tbl := alterOfRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE OF not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
@@ -1590,7 +1701,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		issues, err := parserIssueDetector.GetIssues(sqlInfoStmt.formattedStmt)
+		issues, err := parserIssueDetector.GetAllIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
 		if err != nil {
 			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
@@ -2206,6 +2317,10 @@ var analyzeSchemaCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validOutputFormats := []string{"html", "json", "txt", "xml"}
 		validateReportOutputFormat(validOutputFormats, analyzeSchemaReportFormat)
+		err := validateAndSetTargetDbVersionFlag()
+		if err != nil {
+			utils.ErrExit("%v", err)
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -2218,6 +2333,10 @@ func init() {
 	registerCommonGlobalFlags(analyzeSchemaCmd)
 	analyzeSchemaCmd.PersistentFlags().StringVar(&analyzeSchemaReportFormat, "output-format", "",
 		"format in which report can be generated: ('html', 'txt', 'json', 'xml'). If not provided, reports will be generated in both 'json' and 'html' formats by default.")
+
+	analyzeSchemaCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
+		fmt.Sprintf("Target YugabyteDB version to analyze schema for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
+	analyzeSchemaCmd.Flags().MarkHidden("target-db-version")
 }
 
 func validateReportOutputFormat(validOutputFormats []string, format string) {

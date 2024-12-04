@@ -24,12 +24,16 @@ import (
 )
 
 const (
-	PG_QUERY_NODE_NODE      = "pg_query.Node"
-	PG_QUERY_STRING_NODE    = "pg_query.String"
-	PG_QUERY_ASTAR_NODE     = "pg_query.A_Star"
-	PG_QUERY_XMLEXPR_NODE   = "pg_query.XmlExpr"
-	PG_QUERY_FUNCCALL_NODE  = "pg_query.FuncCall"
-	PG_QUERY_COLUMNREF_NODE = "pg_query.ColumnRef"
+	PG_QUERY_NODE_NODE           = "pg_query.Node"
+	PG_QUERY_STRING_NODE         = "pg_query.String"
+	PG_QUERY_ASTAR_NODE          = "pg_query.A_Star"
+	PG_QUERY_ACONST_NODE         = "pg_query.A_Const"
+	PG_QUERY_TYPECAST_NODE       = "pg_query.TypeCast"
+	PG_QUERY_XMLEXPR_NODE        = "pg_query.XmlExpr"
+	PG_QUERY_FUNCCALL_NODE       = "pg_query.FuncCall"
+	PG_QUERY_COLUMNREF_NODE      = "pg_query.ColumnRef"
+	PG_QUERY_RANGETABLEFUNC_NODE = "pg_query.RangeTableFunc"
+	PG_QUERY_PARAMREF_NODE       = "pg_query.ParamRef"
 )
 
 // function type for processing nodes during traversal
@@ -112,7 +116,7 @@ func TraverseParseTree(msg protoreflect.Message, visited map[protoreflect.Messag
 
 	// Reference Oneof - https://protobuf.dev/programming-guides/proto3/#oneof
 	if nodeType == PG_QUERY_NODE_NODE {
-		nodeField := msg.WhichOneof(msg.Descriptor().Oneofs().ByName("node"))
+		nodeField := getOneofActiveField(msg, "node")
 		if nodeField != nil {
 			value := msg.Get(nodeField)
 			if value.IsValid() {

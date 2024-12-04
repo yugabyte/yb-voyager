@@ -102,7 +102,7 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 			ExportedRowCountSnapshot: int64(0),
 		}
 		if source.DBType == POSTGRESQL {
-			//for Postgresql rename the table leaf table names to root table 
+			//for Postgresql rename the table leaf table names to root table
 			renamedTable, isRenamed := renameTableIfRequired(key)
 			if isRenamed {
 				exportSnapshotStatus.Tables[key].TableName = renamedTable
@@ -203,7 +203,11 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
-		actualRowCount := source.DB().GetTableRowCount(tableMetadata.TableName)
+		actualRowCount, err := source.DB().GetTableRowCount(tableMetadata.TableName)
+		if err != nil {
+			log.Warnf("could not get actual row count for table=%s: %v", tableMetadata.TableName, err)
+			return
+		}
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.ForUserQuery())
 		pbr.SetTotalRowCount(actualRowCount, false)

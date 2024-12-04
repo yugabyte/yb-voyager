@@ -81,6 +81,7 @@ type Config struct {
 var baseConfigTemplate = `
 debezium.format.value=connect
 debezium.format.key=connect
+quarkus.http.port=%d
 quarkus.log.console.json=false
 quarkus.log.level=%s
 `
@@ -295,10 +296,19 @@ func (c *Config) String() string {
 	} else {
 		log.Infof("QUEUE_SEGMENT_MAX_BYTES: %d", queueSegmentMaxBytes)
 	}
+
+	quarkusLogPort, err := utils.GetFreePort()
+	if err != nil {
+		log.Warnf("failed to get a free port for quarkus http server, falling back to 8080: %v", err)
+		quarkusLogPort = 8080
+	}
+	log.Infof("using port number %d for quarkus http server", quarkusLogPort)
+
 	var conf string
 	switch c.SourceDBType {
 	case "postgresql":
 		conf = fmt.Sprintf(postgresConfigTemplate,
+			quarkusLogPort,
 			c.LogLevel,
 			c.Username,
 			c.SnapshotMode,
@@ -332,6 +342,7 @@ func (c *Config) String() string {
 	case "yugabytedb":
 		if !c.UseYBgRPCConnector {
 			conf = fmt.Sprintf(yugabyteLogicalReplicationConfigTemplate,
+				quarkusLogPort,
 				c.LogLevel,
 				c.Username,
 				"never",
@@ -359,6 +370,7 @@ func (c *Config) String() string {
 			}
 		} else {
 			conf = fmt.Sprintf(yugabyteConfigTemplate,
+				quarkusLogPort,
 				c.LogLevel,
 				c.Username,
 				"never",
@@ -391,6 +403,7 @@ func (c *Config) String() string {
 		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
+			quarkusLogPort,
 			c.LogLevel,
 			c.Username,
 			c.SnapshotMode,
@@ -422,6 +435,7 @@ func (c *Config) String() string {
 
 	case "mysql":
 		conf = fmt.Sprintf(mysqlConfigTemplate,
+			quarkusLogPort,
 			c.LogLevel,
 			c.Username,
 			c.SnapshotMode,

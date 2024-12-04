@@ -626,6 +626,10 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported"
 		},
 		{
+			"FeatureName": "Primary / Unique key constraints on complex datatypes",
+			"Objects": []
+		},
+		{
 			"FeatureName": "Index on complex datatypes",
 			"Objects": [
 				{

@@ -239,9 +239,8 @@ func exportData() bool {
 		utils.ErrExit("schema %q does not exist", source.Schema)
 	}
 
-	// Check if source DB has required permissions for export data
 	if source.RunGuardrailsChecks {
-		checkExportDataPermissions()
+		checkIfSchemasHaveUsagePermissions()
 	}
 
 	clearMigrationStateIfRequired()
@@ -257,7 +256,16 @@ func exportData() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var partitionsToRootTableMap map[string]string
-	partitionsToRootTableMap, finalTableList, tablesColumnList := getFinalTableColumnList()
+	// get initial table list
+	partitionsToRootTableMap, finalTableList := getInitialTableList()
+
+	// Check if source DB has required permissions for export data
+	if source.RunGuardrailsChecks {
+		checkExportDataPermissions(finalTableList)
+	}
+
+	// finalize table list and column list
+	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList)
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
@@ -340,10 +348,6 @@ func exportData() bool {
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
 			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
-			err := source.DB().ValidateTablesReadyForLiveMigration(finalTableList)
-			if err != nil {
-				utils.ErrExit("error: validate if tables are ready for live migration: %v", err)
-			}
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
 				if err != nil {
@@ -437,7 +441,7 @@ func exportData() bool {
 	}
 }
 
-func checkExportDataPermissions() {
+func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 	// If source is PostgreSQL or YB, check if the number of existing replicaton slots is less than the max allowed
 	if (source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType)) ||
 		(source.DBType == YUGABYTEDB && !bool(useYBgRPCConnector)) {
@@ -455,7 +459,7 @@ func checkExportDataPermissions() {
 		}
 	}
 
-	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
+	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
 	if err != nil {
 		utils.ErrExit("get missing export data permissions: %v", err)
 	}
@@ -480,6 +484,24 @@ func checkExportDataPermissions() {
 	} else {
 		// TODO: Print this message on the console too once the code is stable
 		log.Info("All required permissions are present for the source database.")
+	}
+}
+
+func checkIfSchemasHaveUsagePermissions() {
+	schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
+	if err != nil {
+		utils.ErrExit("get schemas missing usage permissions: %v", err)
+	}
+	if len(schemasMissingUsage) > 0 {
+		utils.PrintAndLog("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
+
+		var link string
+		if changeStreamingIsEnabled(exportType) {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
+		} else {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+		}
+		utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString(link))
 	}
 }
 
@@ -713,10 +735,10 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	}
 }
 
-func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	var tableList []sqlname.NameTuple
 	// store table list after filtering unsupported or unnecessary tables
-	var finalTableList, skippedTableList []sqlname.NameTuple
+	var finalTableList []sqlname.NameTuple
 	tableListFromDB := source.DB().GetAllTableNames()
 	var err error
 	var fullTableList []sqlname.NameTuple
@@ -766,11 +788,23 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 			}
 		})
 	}
+	var partitionsToRootTableMap map[string]string
+	isTableListSet := source.TableList != ""
+	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList, isTableListSet)
+	if err != nil {
+		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
+	}
+
+	return partitionsToRootTableMap, finalTableList
+}
+
+func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
-	log.Infof("initial all tables table list for data export: %v", tableList)
+	log.Infof("initial all tables table list for data export: %v", finalTableList)
 
+	var skippedTableList []sqlname.NameTuple
 	if !changeStreamingIsEnabled(exportType) {
 		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
@@ -785,13 +819,6 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
 			return table.ForMinOutput()
 		}))
-	}
-
-	var partitionsToRootTableMap map[string]string
-	isTableListSet := source.TableList != ""
-	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList, isTableListSet)
-	if err != nil {
-		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
 	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
@@ -823,7 +850,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	return partitionsToRootTableMap, finalTableList, tablesColumnList
+	return finalTableList, tablesColumnList
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
@@ -1027,7 +1054,6 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		return result
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-	var unqualifiedTables []string
 	var unknownTableNames []string
 	for _, pattern := range tableList {
 		tables := findPatternMatchingTables(pattern)
@@ -1035,9 +1061,6 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 			unknownTableNames = append(unknownTableNames, pattern)
 		}
 		result = append(result, tables...)
-	}
-	if len(unqualifiedTables) > 0 {
-		utils.ErrExit("Qualify following table names %v in the %s list with schema name", unqualifiedTables, listName)
 	}
 	if len(unknownTableNames) > 0 {
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)

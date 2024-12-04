@@ -45,6 +45,7 @@ var (
 	exportDir                          string
 	schemaDir                          string
 	startClean                         utils.BoolStr
+	truncateTables                     utils.BoolStr
 	lockFile                           *lockfile.Lockfile
 	migrationUUID                      uuid.UUID
 	perfProfile                        utils.BoolStr
