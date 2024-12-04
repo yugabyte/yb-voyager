@@ -18,8 +18,6 @@ package queryissue
 
 import (
 	"fmt"
-	"slices"
-	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -31,15 +29,12 @@ import (
 )
 
 type ParserIssueDetector struct {
-	SourceSchemaList []string
 	// TODO: Add fields here
 	// e.g. store composite types, etc. for future processing.
 }
 
-func NewParserIssueDetector(schemaList string) *ParserIssueDetector {
-	return &ParserIssueDetector{
-		SourceSchemaList: strings.Split(schemaList, "|"),
-	}
+func NewParserIssueDetector() *ParserIssueDetector {
+	return &ParserIssueDetector{}
 }
 
 func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.IssueInstance, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
@@ -175,6 +170,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+
 	var result []issue.IssueInstance
 	var unsupportedConstructs []string
 	visited := make(map[protoreflect.Message]bool)
@@ -184,8 +180,6 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 		NewXmlExprDetector(),
 		NewRangeTableFuncDetector(),
 	}
-
-	objectCollector := NewObjectCollector()
 
 	processor := func(msg protoreflect.Message) error {
 		for _, detector := range detectors {
@@ -197,8 +191,6 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 			}
 			unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 		}
-
-		objectCollector.Collect(msg)
 		return nil
 	}
 
@@ -206,14 +198,6 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 	err = queryparser.TraverseParseTree(parseTreeProtoMsg, visited, processor)
 	if err != nil {
 		return result, fmt.Errorf("error traversing parse tree message: %w", err)
-	}
-
-	collectedSchemaList := objectCollector.getSchemaList()
-	log.Infof("collected schema list %v(len=%d) for query [%s]", collectedSchemaList, len(collectedSchemaList), query)
-	if !p.considerQuery(collectedSchemaList) {
-		log.Infof("ignoring query due to difference in collected schema list %v(len=%d) vs source schema list %v(len=%d)",
-			collectedSchemaList, len(collectedSchemaList), p.SourceSchemaList, len(p.SourceSchemaList))
-		return nil, nil
 	}
 
 	for _, unsupportedConstruct := range unsupportedConstructs {
@@ -227,43 +211,4 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 		}
 	}
 	return result, nil
-}
-
-/*
-Queries to ignore:
-- Collected schemas is totally different than source schema list, not containing ""
-
-Queries to consider:
-- Collected schemas subset of source schema list
-- Collected schemas contains some from source schema list and some extras
-
-Caveats:
-There can be a lot of false positives.
-For example: standard sql functions like sum(), count() won't be qualified(pg_catalog) in queries generally.
-Making the schema unknown for that object, resulting in query consider
-*/
-func (p *ParserIssueDetector) considerQuery(collectedSchemaList []string) bool {
-	// filtering out pg_catalog schema, since it doesn't impact query consideration decision
-	collectedSchemaList = lo.Filter(collectedSchemaList, func(item string, _ int) bool {
-		return item != "pg_catalog"
-	})
-
-	// fallback in case: unable to collect objects or there are no object(s) in the query
-	if len(collectedSchemaList) == 0 {
-		return true
-	}
-
-	// empty schemaname indicates presence of unqualified objectnames in query
-	if slices.Contains(collectedSchemaList, "") {
-		log.Debug("considering due to empty schema\n")
-		return true
-	}
-
-	for _, collectedSchema := range collectedSchemaList {
-		if slices.Contains(p.SourceSchemaList, collectedSchema) {
-			log.Debugf("considering due to '%s' schema\n", collectedSchema)
-			return true
-		}
-	}
-	return false
 }

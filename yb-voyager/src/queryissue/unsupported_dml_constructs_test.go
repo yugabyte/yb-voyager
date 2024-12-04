@@ -657,7 +657,7 @@ func TestObjectCollector(t *testing.T) {
 		parseResult, err := queryparser.Parse(tc.Sql)
 		assert.NoError(t, err)
 
-		objectsCollector := NewObjectCollector()
+		objectsCollector := queryparser.NewObjectCollector()
 		processor := func(msg protoreflect.Message) error {
 			objectsCollector.Collect(msg)
 			return nil
@@ -668,8 +668,8 @@ func TestObjectCollector(t *testing.T) {
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 
-		collectedObjects := objectsCollector.getObjects()
-		collectedSchemas := objectsCollector.getSchemaList()
+		collectedObjects := objectsCollector.GetObjects()
+		collectedSchemas := objectsCollector.GetSchemaList()
 
 		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
 			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
@@ -744,7 +744,7 @@ func TestObjectCollector2(t *testing.T) {
 		parseResult, err := queryparser.Parse(tc.Sql)
 		assert.NoError(t, err)
 
-		objectsCollector := NewObjectCollector()
+		objectsCollector := queryparser.NewObjectCollector()
 		processor := func(msg protoreflect.Message) error {
 			objectsCollector.Collect(msg)
 			return nil
@@ -755,8 +755,8 @@ func TestObjectCollector2(t *testing.T) {
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 
-		collectedObjects := objectsCollector.getObjects()
-		collectedSchemas := objectsCollector.getSchemaList()
+		collectedObjects := objectsCollector.GetObjects()
+		collectedSchemas := objectsCollector.GetSchemaList()
 
 		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
 			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
@@ -828,7 +828,7 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		visited := make(map[protoreflect.Message]bool)
 		unsupportedConstructs := []string{}
 
-		objectCollector := NewObjectCollector()
+		objectCollector := queryparser.NewObjectCollector()
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
 				log.Debugf("running detector %T", detector)
@@ -848,8 +848,8 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		assert.NoError(t, err)
 		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
 
-		collectedObjects := objectCollector.getObjects()
-		collectedSchemas := objectCollector.getSchemaList()
+		collectedObjects := objectCollector.GetObjects()
+		collectedSchemas := objectCollector.GetSchemaList()
 
 		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
 			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))

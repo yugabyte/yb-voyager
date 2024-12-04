@@ -210,3 +210,23 @@ func IsScalarKind(kind protoreflect.Kind) bool {
 		protoreflect.BoolKind, protoreflect.StringKind, protoreflect.BytesKind, protoreflect.EnumKind}
 	return slices.Contains(listOfScalarKinds, kind)
 }
+
+func GetSchemaUsed(query string) ([]string, error) {
+	parseTree, err := Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query: %w", err)
+	}
+
+	msg := GetProtoMessageFromParseTree(parseTree)
+	visited := make(map[protoreflect.Message]bool)
+	objectCollector := NewObjectCollector()
+	err = TraverseParseTree(msg, visited, func(msg protoreflect.Message) error {
+		objectCollector.Collect(msg)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("traversing parse tree: %w", err)
+	}
+
+	return objectCollector.GetSchemaList(), nil
+}

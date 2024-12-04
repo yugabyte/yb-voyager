@@ -13,15 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package queryissue
+package queryparser
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -37,58 +35,48 @@ func NewObjectCollector() *ObjectCollector {
 }
 
 /*
-Collect processes a node and extracts object names based on node type (ignore standard SQL functions like count(), sum() etc).
+Collect processes a given node and extracts object names based on node type.
 Cases covered:
-1. SELECT queries - collect table/function object in it
-2. Insert/Update/Delete queries
-3. TODO: cover DDLs
+1. [DML] SELECT queries - collect table/function object in it
+2. [DML]Insert/Update/Delete queries
+3. TODO: Coverage for DDLs (right now it worked with some cases like CREATE VIEW and CREATE SEQUENCE, but need to ensure all cases are covered)
 
-Since Collect() will be called for each node so just the collection at concerned leaf node is enough
+Collect() should be called from TraverseParseTree() to get all the objects in the parse tree of a stmt
 */
 func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 	if msg == nil || !msg.IsValid() {
 		return
 	}
 
-	nodeType := queryparser.GetMsgFullName(msg)
+	nodeType := GetMsgFullName(msg)
 	switch nodeType {
 	// Extract table or view names in FROM clauses
-	case queryparser.PG_QUERY_RANGEVAR_NODE:
-		schemaName := queryparser.GetStringField(msg, "schemaname")
-		relName := queryparser.GetStringField(msg, "relname")
-		objectName := relName
-		if schemaName != "" {
-			objectName = fmt.Sprintf("%s.%s", schemaName, relName)
-		}
+	case PG_QUERY_RANGEVAR_NODE:
+		schemaName := GetStringField(msg, "schemaname")
+		relName := GetStringField(msg, "relname")
+		objectName := lo.Ternary(schemaName != "", schemaName+"."+relName, relName)
 		log.Debugf("[RangeVar] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
 		c.addObject(objectName)
 
 	// Extract target table names from DML statements
-	case queryparser.PG_QUERY_INSERTSTMT_NODE, queryparser.PG_QUERY_UPDATESTMT_NODE, queryparser.PG_QUERY_DELETESTMT_NODE:
-		relationMsg := queryparser.GetMessageField(msg, "relation")
+	case PG_QUERY_INSERTSTMT_NODE, PG_QUERY_UPDATESTMT_NODE, PG_QUERY_DELETESTMT_NODE:
+		relationMsg := GetMessageField(msg, "relation")
 		if relationMsg != nil {
-			schemaName := queryparser.GetStringField(relationMsg, "schemaname")
-			relName := queryparser.GetStringField(relationMsg, "relname")
-
-			objectName := relName
-			if schemaName != "" {
-				objectName = fmt.Sprintf("%s.%s", schemaName, relName)
-			}
+			schemaName := GetStringField(relationMsg, "schemaname")
+			relName := GetStringField(relationMsg, "relname")
+			objectName := lo.Ternary(schemaName != "", schemaName+"."+relName, relName)
 			log.Debugf("[IUD] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
 			c.addObject(objectName)
 		}
 
 	// Extract function names
-	case queryparser.PG_QUERY_FUNCCALL_NODE:
-		schemaName, functionName := queryparser.GetFuncNameFromFuncCall(msg)
+	case PG_QUERY_FUNCCALL_NODE:
+		schemaName, functionName := GetFuncNameFromFuncCall(msg)
 		if functionName == "" {
-			break
+			return
 		}
 
-		objectName := functionName
-		if schemaName != "" {
-			objectName = fmt.Sprintf("%s.%s", schemaName, functionName)
-		}
+		objectName := lo.Ternary(schemaName != "", schemaName+"."+functionName, functionName)
 		log.Debugf("[Funccall] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
 		c.addObject(objectName)
 
@@ -99,16 +87,17 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 // addObject adds an object name to the collector if it's not already present.
 func (c *ObjectCollector) addObject(objectName string) {
 	if _, exists := c.objectSet[objectName]; !exists {
+		log.Debugf("adding object to object collector set: %s")
 		c.objectSet[objectName] = true
 	}
 }
 
-// getObjects returns a slice of collected unique object names.
-func (c *ObjectCollector) getObjects() []string {
+// GetObjects returns a slice of collected unique object names.
+func (c *ObjectCollector) GetObjects() []string {
 	return lo.Keys(c.objectSet)
 }
 
-func (c *ObjectCollector) getSchemaList() []string {
+func (c *ObjectCollector) GetSchemaList() []string {
 	var schemaList []string
 	for obj := range c.objectSet {
 		splits := strings.Split(obj, ".")

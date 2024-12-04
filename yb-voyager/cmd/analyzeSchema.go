@@ -129,10 +129,11 @@ var (
 	schemaAnalysisReport      utils.SchemaReport
 	partitionTablesMap        = make(map[string]bool)
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
-	primaryConsInAlter = make(map[string]*sqlInfo)
-	summaryMap         = make(map[string]*summaryInfo)
-	multiRegex         = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
-	dollarQuoteRegex   = regexp.MustCompile(`(\$.*\$)`)
+	primaryConsInAlter  = make(map[string]*sqlInfo)
+	summaryMap          = make(map[string]*summaryInfo)
+	parserIssueDetector = queryissue.NewParserIssueDetector()
+	multiRegex          = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
+	dollarQuoteRegex    = regexp.MustCompile(`(\$.*\$)`)
 	/*
 		this will contain the information in this format:
 		public.table1 -> {
@@ -1699,7 +1700,6 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string, schemaList stri
 }
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, schemaList string) {
-	parserIssueDetector := queryissue.NewParserIssueDetector(schemaList)
 	for _, sqlInfoStmt := range sqlInfoArr {
 		issues, err := parserIssueDetector.GetAllIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
 		if err != nil {
