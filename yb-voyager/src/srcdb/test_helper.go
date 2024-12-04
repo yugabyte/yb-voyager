@@ -30,11 +30,17 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testcontainersself "github.com/yugabyte/yb-voyager/yb-voyager/testcontainers/containers"
 	"gotest.tools/assert"
 )
 
 type TestDB struct {
 	Container testcontainers.Container
+	*Source
+}
+
+type TestDB2 struct {
+	testcontainersself.TestContainer
 	*Source
 }
 

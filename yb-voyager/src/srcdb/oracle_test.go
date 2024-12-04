@@ -26,7 +26,7 @@ func TestOracleGetAllTableNames(t *testing.T) {
 	sqlname.SourceDBType = "oracle"
 
 	// Test GetAllTableNames
-	actualTables := oracleTestDB.DB().GetAllTableNames()
+	actualTables := testOracleSource.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("YBVOYAGER", "foo"),
 		sqlname.NewSourceName("YBVOYAGER", "bar"),
@@ -48,7 +48,7 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	tableList := []sqlname.NameTuple{
 		{CurrentName: objectName},
 	}
-	uniqueKeys, err := oracleTestDB.DB().GetTableToUniqueKeyColumnsMap(tableList)
+	uniqueKeys, err := testOracleSource.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 }
 
 func TestOracleGetNonPKTables(t *testing.T) {
-	actualTables, err := oracleTestDB.DB().GetNonPKTables()
+	actualTables, err := testOracleSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
 	expectedTables := []string{`YBVOYAGER."NON_PK1"`, `YBVOYAGER."NON_PK2"`}

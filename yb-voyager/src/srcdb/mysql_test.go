@@ -26,7 +26,7 @@ func TestMysqlGetAllTableNames(t *testing.T) {
 	sqlname.SourceDBType = "mysql"
 
 	// Test GetAllTableNames
-	actualTables := mysqlTestDB.DB().GetAllTableNames()
+	actualTables := testMySQLSource.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("dms", "foo"),
 		sqlname.NewSourceName("dms", "bar"),
@@ -42,7 +42,7 @@ func TestMysqlGetAllTableNames(t *testing.T) {
 }
 
 func TestMySQLGetNonPKTables(t *testing.T) {
-	actualTables, err := mysqlTestDB.Source.DB().GetNonPKTables()
+	actualTables, err := testMySQLSource.Source.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
 	expectedTables := []string{"dms.non_pk1", "dms.non_pk2"}

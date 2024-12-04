@@ -20,18 +20,18 @@ import (
 	"os"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
-
 	_ "github.com/godror/godror"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/testcontainers/containers"
 )
 
 var (
-	postgresTestDB *TestDB
-	oracleTestDB   *TestDB
-	mysqlTestDB    *TestDB
-	yugabyteTestDB *TestDB
+	testPostgresSource   *TestDB2
+	testOracleSource     *TestDB
+	testMySQLSource      *TestDB
+	testYugabyteDBSource *TestDB
 )
 
 func TestMain(m *testing.M) {
@@ -40,6 +40,12 @@ func TestMain(m *testing.M) {
 
 	var err error
 	// setting source db type, version and defaults
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		DBVersion: "11",
+		User:      "ybvoyager",
+		Password:  "postgres",
+		Schema:    "public",
+	})
 	pgSource := &Source{
 		DBType:    "postgresql",
 		DBVersion: "11",
@@ -49,6 +55,7 @@ func TestMain(m *testing.M) {
 		Port:      5432,
 		Schema:    "public",
 	}
+
 	oracleSource := &Source{
 		DBType:    "oracle",
 		DBVersion: "21",
@@ -77,29 +84,49 @@ func TestMain(m *testing.M) {
 		Schema:    "public",
 	}
 
-	postgresTestDB, err = StartTestDB(ctx, pgSource)
+	// postgresTestDB, err = StartTestDB(ctx, pgSource)
+	// if err != nil {
+	// 	utils.ErrExit("Failed to start testDB: %v", err)
+	// }
+	// defer StopTestDB(ctx, postgresTestDB)
+	err = postgresContainer.Start(ctx)
 	if err != nil {
-		utils.ErrExit("Failed to start testDB: %v", err)
+		utils.ErrExit("Failed to start postgres container: %v", err)
 	}
-	defer StopTestDB(ctx, postgresTestDB)
+	defer postgresContainer.Terminate(ctx)
 
-	oracleTestDB, err = StartTestDB(ctx, oracleSource)
+	pgSource.Host, pgSource.Port, err = postgresContainer.GetHostPort()
 	if err != nil {
-		utils.ErrExit("Failed to start testDB: %v", err)
+		utils.ErrExit("Failed to get host port for postgres container: %v", err)
 	}
-	defer StopTestDB(ctx, oracleTestDB)
+	log.Infof("fetched container host=%s, port=%d", pgSource.Host, pgSource.Port)
+	err = pgSource.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to postgres database: %w", err)
+	}
+	defer pgSource.DB().Disconnect()
+	testPostgresSource = &TestDB2{
+		TestContainer: postgresContainer,
+		Source:        pgSource,
+	}
 
-	mysqlTestDB, err = StartTestDB(ctx, mysqlSource)
+	testOracleSource, err = StartTestDB(ctx, oracleSource)
 	if err != nil {
 		utils.ErrExit("Failed to start testDB: %v", err)
 	}
-	defer StopTestDB(ctx, mysqlTestDB)
+	defer StopTestDB(ctx, testOracleSource)
 
-	yugabyteTestDB, err = StartTestDB(ctx, ybSource)
+	testMySQLSource, err = StartTestDB(ctx, mysqlSource)
 	if err != nil {
 		utils.ErrExit("Failed to start testDB: %v", err)
 	}
-	defer StopTestDB(ctx, yugabyteTestDB)
+	defer StopTestDB(ctx, testMySQLSource)
+
+	testYugabyteDBSource, err = StartTestDB(ctx, ybSource)
+	if err != nil {
+		utils.ErrExit("Failed to start testDB: %v", err)
+	}
+	defer StopTestDB(ctx, testYugabyteDBSource)
 
 	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
