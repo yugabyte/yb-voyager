@@ -45,15 +45,6 @@ func init() {
 }
 
 func checkAndReportCutoverStatus() {
-	// Check to ensure that this is not the first command in the migration process
-	isMetaDBPresent, err := IsMetaDBPresent(exportDir)
-	if err != nil {
-		utils.ErrExit("Error checking if metaDB is present: %v", err)
-	}
-	if !isMetaDBPresent {
-		utils.ErrExit("Migration has not started yet. Run the commands in the order specified in the documentation: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/"))
-	}
-
 	status := getCutoverStatus()
 	fmt.Printf("cutover to target status: ")
 	switch status {

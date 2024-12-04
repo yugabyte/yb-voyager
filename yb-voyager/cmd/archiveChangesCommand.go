@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -54,15 +53,6 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	}
 	if moveDestination == "" && !deleteSegments {
 		utils.ErrExit("one of the --move-to and --delete-changes-without-archiving must be set")
-	}
-
-	// Check to ensure that this is not the first command in the migration process
-	isMetaDBPresent, err := IsMetaDBPresent(exportDir)
-	if err != nil {
-		utils.ErrExit("Error checking if metaDB is present: %v", err)
-	}
-	if !isMetaDBPresent {
-		utils.ErrExit("Migration has not started yet. Run the commands in the order specified in the documentation: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/"))
 	}
 
 	// Check to ensure that export data with live migration is running

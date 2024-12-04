@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/dustin/go-humanize"
-	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -58,15 +57,6 @@ var endMigrationCmd = &cobra.Command{
 }
 
 func endMigrationCommandFn(cmd *cobra.Command, args []string) {
-	// Check to ensure that this is not the first command in the migration process
-	isMetaDBPresent, err := IsMetaDBPresent(exportDir)
-	if err != nil {
-		utils.ErrExit("Error checking if metaDB is present: %v", err)
-	}
-	if !isMetaDBPresent {
-		utils.ErrExit("Migration has not started yet. Run the commands in the order specified in the documentation: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/"))
-	}
-
 	if utils.AskPrompt("Migration can't be resumed or continued after this.", "Are you sure you want to end the migration") {
 		log.Info("ending the migration")
 	} else {

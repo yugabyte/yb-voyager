@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -27,16 +26,7 @@ var cutoverToSourceReplicaCmd = &cobra.Command{
 	Long:  `Initiate cutover to source-replica DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		// Check to ensure that this is not the first command in the migration process
-		isMetaDBPresent, err := IsMetaDBPresent(exportDir)
-		if err != nil {
-			utils.ErrExit("Error checking if metaDB is present: %v", err)
-		}
-		if !isMetaDBPresent {
-			utils.ErrExit("Migration has not started yet. Run the commands in the order specified in the documentation: %s", color.BlueString("https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/"))
-		}
-
-		err = InitiateCutover("source-replica", false, true)
+		err := InitiateCutover("source-replica", false, true)
 		if err != nil {
 			utils.ErrExit("failed to initiate fallforward: %v", err)
 		}

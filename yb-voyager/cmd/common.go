@@ -466,19 +466,6 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	metaDB = initMetaDB(exportDir)
 }
 
-func IsMetaDBPresent(exportDir string) (bool, error) {
-	// Check the directory for the presence of the migration status record
-	metaDBPath := metadb.GetMetaDBPath(exportDir)
-	_, err := os.Stat(metaDBPath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
 func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	err := metadb.CreateAndInitMetaDBIfRequired(migrationExportDir)
 	if err != nil {
