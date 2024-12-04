@@ -32,7 +32,6 @@ var cutoverToTargetCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
-
 		metaDB, err = metadb.NewMetaDB(exportDir)
 		if err != nil {
 			utils.ErrExit("Failed to initialize meta db: %s", err)
