@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -21,7 +22,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate DBObject Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(utils.DBObject{}), reflect.TypeOf(excpectedDBObject), "DBObject")
+		testutils.CompareStructs(t, reflect.TypeOf(utils.DBObject{}), reflect.TypeOf(excpectedDBObject), "DBObject")
 	})
 
 	// Define the expected structure for utils.SchemaSummary
@@ -35,7 +36,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate SchemaSummary Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(utils.SchemaSummary{}), reflect.TypeOf(expectedSchemaSummary), "SchemaSummary")
+		testutils.CompareStructs(t, reflect.TypeOf(utils.SchemaSummary{}), reflect.TypeOf(expectedSchemaSummary), "SchemaSummary")
 	})
 
 	// Define the expected structure for migassessment.SizingRecommendation
@@ -53,7 +54,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 	}{}
 
 	t.Run("Check SizingRecommendation structure", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(migassessment.SizingRecommendation{}), reflect.TypeOf(expectedSizingRecommendation), "SizingRecommendation")
+		testutils.CompareStructs(t, reflect.TypeOf(migassessment.SizingRecommendation{}), reflect.TypeOf(expectedSizingRecommendation), "SizingRecommendation")
 	})
 
 	// Define the expected structure for utils.TableColumnsDataTypes
@@ -65,7 +66,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 	}{}
 
 	t.Run("Check TableColumnsDataTypes structure", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(utils.TableColumnsDataTypes{}), reflect.TypeOf(expectedTableColumnsDataTypes), "TableColumnsDataTypes")
+		testutils.CompareStructs(t, reflect.TypeOf(utils.TableColumnsDataTypes{}), reflect.TypeOf(expectedTableColumnsDataTypes), "TableColumnsDataTypes")
 	})
 
 	// Define the expected structure for UnsupportedFeature
@@ -78,7 +79,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 	}{}
 
 	t.Run("Check UnsupportedFeature structure", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(UnsupportedFeature{}), reflect.TypeOf(expectedUnsupportedFeature), "UnsupportedFeature")
+		testutils.CompareStructs(t, reflect.TypeOf(UnsupportedFeature{}), reflect.TypeOf(expectedUnsupportedFeature), "UnsupportedFeature")
 	})
 
 	// Define the expected structure for utils.UnsupportedQueryConstruct
@@ -89,7 +90,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 	}{}
 
 	t.Run("Check UnsupportedQueryConstruct structure", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(utils.UnsupportedQueryConstruct{}), reflect.TypeOf(expectedUnsupportedQueryConstruct), "UnsupportedQueryConstruct")
+		testutils.CompareStructs(t, reflect.TypeOf(utils.UnsupportedQueryConstruct{}), reflect.TypeOf(expectedUnsupportedQueryConstruct), "UnsupportedQueryConstruct")
 	})
 
 	// Define the expected structure for migassessment.TableIndexStats
@@ -109,7 +110,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 	}{}
 
 	t.Run("Check TableIndexStats structure", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(migassessment.TableIndexStats{}), reflect.TypeOf(expectedTableIndexStats), "TableIndexStats")
+		testutils.CompareStructs(t, reflect.TypeOf(migassessment.TableIndexStats{}), reflect.TypeOf(expectedTableIndexStats), "TableIndexStats")
 	})
 
 	// Define the expected structure for AssessmentReport
@@ -130,7 +131,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 	}{}
 
 	t.Run("Check AssessmentReport structure", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(AssessmentReport{}), reflect.TypeOf(expectedAssessmentReport), "AssessmentReport")
+		testutils.CompareStructs(t, reflect.TypeOf(AssessmentReport{}), reflect.TypeOf(expectedAssessmentReport), "AssessmentReport")
 	})
 }
 
@@ -383,7 +384,7 @@ func TestAssessmentReportJson(t *testing.T) {
 }`
 
 	t.Run("Check AssessmentReport JSON", func(t *testing.T) {
-		utils.CompareJson(t, reportPath, expectedJSON, reportDir)
+		testutils.CompareJson(t, reportPath, expectedJSON, reportDir)
 	})
 }
 

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -24,11 +24,11 @@ func TestExportSnapshotStatusStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate TableExportStatus Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
+		testutils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
 	})
 
 	t.Run("Validate ExportSnapshotStatus Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(ExportSnapshotStatus{}), reflect.TypeOf(expectedExportSnapshotStatus), "ExportSnapshotStatus")
+		testutils.CompareStructs(t, reflect.TypeOf(ExportSnapshotStatus{}), reflect.TypeOf(expectedExportSnapshotStatus), "ExportSnapshotStatus")
 	})
 }
 
@@ -72,7 +72,7 @@ func TestExportSnapshotStatusJson(t *testing.T) {
 }`
 
 	// Compare the JSON representation of the sample ExportSnapshotStatus instance
-	utils.CompareJson(t, exportDir+"/metainfo/export_snapshot_status.json", expectedExportSnapshotStatusJSON, exportDir)
+	testutils.CompareJson(t, exportDir+"/metainfo/export_snapshot_status.json", expectedExportSnapshotStatusJSON, exportDir)
 
 	// Clean up the export directory
 	err = os.RemoveAll(exportDir)

@@ -8,14 +8,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 )
 
 func TestCreateVoyagerSchemaPG(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a YugabyteDB container
-	pgContainer, err := utils.StartPostgresContainer(ctx)
+	pgContainer, err := testutils.StartPostgresContainer(ctx)
 	assert.NoError(t, err, "Failed to start YugabyteDB container")
 	defer pgContainer.Terminate(ctx)
 
@@ -32,7 +32,7 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = utils.WaitForPGYBDBConnection(db)
+	err = testutils.WaitForPGYBDBConnection(db)
 	assert.NoError(t, err)
 
 	// Initialize the TargetYugabyteDB instance
@@ -44,158 +44,44 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 	err = pg.CreateVoyagerSchema()
 	assert.NoError(t, err, "CreateVoyagerSchema failed")
 
-	expectedTables := map[string][]utils.ColumnPropertiesPG{
+	expectedTables := map[string]map[string]testutils.ColumnPropertiesPG{
 		BATCH_METADATA_TABLE_NAME: {
-			{
-				Name:       "migration_uuid",
-				DataType:   "uuid",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "data_file_name",
-				DataType:   "character varying",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "batch_number",
-				DataType:   "integer",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "schema_name",
-				DataType:   "character varying",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "table_name",
-				DataType:   "character varying",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "rows_imported",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
+			"migration_uuid": {DataType: "uuid", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"data_file_name": {DataType: "character varying", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"batch_number":   {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"schema_name":    {DataType: "character varying", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"table_name":     {DataType: "character varying", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"rows_imported":  {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
 		},
 		EVENT_CHANNELS_METADATA_TABLE_NAME: {
-			{
-				Name:       "migration_uuid",
-				DataType:   "uuid",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "channel_no",
-				DataType:   "integer",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "last_applied_vsn",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "num_inserts",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "num_deletes",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "num_updates",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
+			"migration_uuid":   {DataType: "uuid", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"channel_no":       {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"last_applied_vsn": {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"num_inserts":      {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"num_deletes":      {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"num_updates":      {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
 		},
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME: {
-			{
-				Name:       "migration_uuid",
-				DataType:   "uuid",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "table_name",
-				DataType:   "character varying",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "channel_no",
-				DataType:   "integer",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "total_events",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "num_inserts",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "num_deletes",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "num_updates",
-				DataType:   "bigint",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
+			"migration_uuid": {DataType: "uuid", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"table_name":     {DataType: "character varying", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"channel_no":     {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"total_events":   {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"num_inserts":    {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"num_deletes":    {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"num_updates":    {DataType: "bigint", IsNullable: "YES", Default: nil, IsPrimary: false},
 		},
 	}
 
 	// Validate the schema and tables
 	t.Run("Check all the expected tables and no extra tables", func(t *testing.T) {
-		utils.CheckTableExistencePG(t, db, BATCH_METADATA_TABLE_SCHEMA, expectedTables)
+		testutils.CheckTableExistencePG(t, db, BATCH_METADATA_TABLE_SCHEMA, expectedTables)
 	})
 
 	// Validate columns for each table
 	for tableName, expectedColumns := range expectedTables {
 		t.Run(fmt.Sprintf("Check columns for %s table", tableName), func(t *testing.T) {
 			table := strings.Split(tableName, ".")[1]
-			utils.CheckTableStructurePG(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
+			testutils.CheckTableStructurePG(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
 		})
 	}
 }

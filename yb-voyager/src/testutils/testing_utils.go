@@ -1,4 +1,4 @@
-package utils
+package testutils
 
 import (
 	"context"
@@ -25,11 +25,10 @@ type ColumnPropertiesSqlite struct {
 
 // Column represents a column's expected metadata
 type ColumnPropertiesPG struct {
-	Name       string
 	DataType   string
+	IsPrimary  bool
 	IsNullable string
 	Default    interface{}
-	IsPrimary  bool
 }
 
 // CompareStructs compares two struct types and reports any mismatches.
@@ -160,7 +159,7 @@ func CheckTableStructureSqlite(db *sql.DB, tableName string, expectedColumns map
 }
 
 // Helper function to check table structure
-func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expectedColumns []ColumnPropertiesPG) {
+func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expectedColumns map[string]ColumnPropertiesPG) {
 	queryColumns := `
 		SELECT column_name, data_type, is_nullable, column_default
 		FROM information_schema.columns
@@ -174,31 +173,32 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 
 	actualColumns := make(map[string]ColumnPropertiesPG)
 	for rows.Next() {
+		var colName string
 		var col ColumnPropertiesPG
-		err := rows.Scan(&col.Name, &col.DataType, &col.IsNullable, &col.Default)
+		err := rows.Scan(&colName, &col.DataType, &col.IsNullable, &col.Default)
 		if err != nil {
 			t.Fatalf("Failed to scan column metadata: %v", err)
 		}
-		actualColumns[col.Name] = col
+		actualColumns[colName] = col
 	}
 
 	// Compare columns
-	for _, expected := range expectedColumns {
-		actual, found := actualColumns[expected.Name]
+	for colName, expectedProps := range expectedColumns {
+		actual, found := actualColumns[colName]
 		if !found {
-			t.Errorf("Missing expected column in table %s.%s: %s.\nThere is some breaking change!", schema, table, expected.Name)
+			t.Errorf("Missing expected column in table %s.%s: %s.\nThere is some breaking change!", schema, table, colName)
 			continue
 		}
-		if actual.DataType != expected.DataType || actual.IsNullable != expected.IsNullable {
-			t.Errorf("Column mismatch in table %s.%s: \nexpected %+v, \ngot %+v.\nThere is some breaking change!", schema, table, expected, actual)
+		if actual.DataType != expectedProps.DataType || actual.IsNullable != expectedProps.IsNullable {
+			t.Errorf("Column mismatch in table %s.%s: \nexpected %+v, \ngot %+v.\nThere is some breaking change!", schema, table, expectedProps, actual)
 		}
 	}
 
 	// Check for extra columns
 	for actualName := range actualColumns {
 		found := false
-		for _, expected := range expectedColumns {
-			if actualName == expected.Name {
+		for expectedName, _ := range expectedColumns {
+			if actualName == expectedName {
 				found = true
 				break
 			}
@@ -212,7 +212,7 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 	checkPrimaryKeyOfTablePG(t, db, schema, table, expectedColumns)
 }
 
-func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, expectedColumns []ColumnPropertiesPG) {
+func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, expectedColumns map[string]ColumnPropertiesPG) {
 	// Validate primary keys
 	queryPrimaryKeys := `
     SELECT conrelid::regclass AS table_name, 
@@ -248,10 +248,10 @@ func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, ex
 	}
 
 	// Check if the primary key columns match the expected primary key columns
-	for _, expected := range expectedColumns {
-		if expected.IsPrimary {
-			if _, found := primaryKeyColumns[expected.Name]; !found {
-				t.Errorf("Missing expected primary key column in table %s.%s: %s.\nThere is some breaking change!", schema, table, expected.Name)
+	for expectedName, expectedParams := range expectedColumns {
+		if expectedParams.IsPrimary {
+			if _, found := primaryKeyColumns[expectedName]; !found {
+				t.Errorf("Missing expected primary key column in table %s.%s: %s.\nThere is some breaking change!", schema, table, expectedName)
 			}
 		}
 	}
@@ -259,8 +259,8 @@ func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, ex
 	// Check if there are any extra primary key columns
 	for col := range primaryKeyColumns {
 		found := false
-		for _, expected := range expectedColumns {
-			if expected.Name == col && expected.IsPrimary {
+		for expectedName, expectedParams := range expectedColumns {
+			if expectedName == col && expectedParams.IsPrimary {
 				found = true
 				break
 			}
@@ -325,7 +325,7 @@ func CheckTableExistenceSqlite(t *testing.T, db *sql.DB, expectedTables map[stri
 }
 
 // validateSchema validates the schema, tables, and columns
-func CheckTableExistencePG(t *testing.T, db *sql.DB, schema string, expectedTables map[string][]ColumnPropertiesPG) {
+func CheckTableExistencePG(t *testing.T, db *sql.DB, schema string, expectedTables map[string]map[string]ColumnPropertiesPG) {
 	// Check all tables in the schema
 	queryTables := `SELECT table_schema || '.' || table_name AS qualified_table_name
 	FROM information_schema.tables

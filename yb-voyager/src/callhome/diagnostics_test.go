@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 )
 
 func TestCallhomeStructs(t *testing.T) {
@@ -25,7 +25,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate Payload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(Payload{}), reflect.TypeOf(expectedPayload), "Payload")
+		testutils.CompareStructs(t, reflect.TypeOf(Payload{}), reflect.TypeOf(expectedPayload), "Payload")
 	})
 
 	// Define the expected structure for SourceDBDetails
@@ -38,7 +38,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate SourceDBDetails Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(SourceDBDetails{}), reflect.TypeOf(expectedSourceDBDetails), "SourceDBDetails")
+		testutils.CompareStructs(t, reflect.TypeOf(SourceDBDetails{}), reflect.TypeOf(expectedSourceDBDetails), "SourceDBDetails")
 	})
 
 	// Define the expected structure for TargetDBDetails
@@ -50,7 +50,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate TargetDBDetails Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(TargetDBDetails{}), reflect.TypeOf(expectedTargetDBDetails), "TargetDBDetails")
+		testutils.CompareStructs(t, reflect.TypeOf(TargetDBDetails{}), reflect.TypeOf(expectedTargetDBDetails), "TargetDBDetails")
 	})
 
 	// Define the expected structure for UnsupportedFeature
@@ -62,7 +62,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate UnsupportedFeature Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(UnsupportedFeature{}), reflect.TypeOf(expectedUnsupportedFeature), "UnsupportedFeature")
+		testutils.CompareStructs(t, reflect.TypeOf(UnsupportedFeature{}), reflect.TypeOf(expectedUnsupportedFeature), "UnsupportedFeature")
 	})
 
 	// Define the expected structure for AssessMigrationPhasePayload
@@ -82,7 +82,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate AssessMigrationPhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(AssessMigrationPhasePayload{}), reflect.TypeOf(expectedAssessMigrationPhasePayload), "AssessMigrationPhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(AssessMigrationPhasePayload{}), reflect.TypeOf(expectedAssessMigrationPhasePayload), "AssessMigrationPhasePayload")
 	})
 
 	// Define the expected structure for AssessMigrationBulkPhasePayload
@@ -91,7 +91,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate AssessMigrationBulkPhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(AssessMigrationBulkPhasePayload{}), reflect.TypeOf(expectedAssessMigrationBulkPhasePayload), "AssessMigrationBulkPhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(AssessMigrationBulkPhasePayload{}), reflect.TypeOf(expectedAssessMigrationBulkPhasePayload), "AssessMigrationBulkPhasePayload")
 	})
 
 	// Define the expected structure for ObjectSizingStats
@@ -104,7 +104,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate ObjectSizingStats Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(ObjectSizingStats{}), reflect.TypeOf(expectedObjectSizingStats), "ObjectSizingStats")
+		testutils.CompareStructs(t, reflect.TypeOf(ObjectSizingStats{}), reflect.TypeOf(expectedObjectSizingStats), "ObjectSizingStats")
 	})
 
 	// Define the expected structure for ExportSchemaPhasePayload
@@ -116,7 +116,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate ExportSchemaPhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(ExportSchemaPhasePayload{}), reflect.TypeOf(expectedExportSchemaPhasePayload), "ExportSchemaPhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(ExportSchemaPhasePayload{}), reflect.TypeOf(expectedExportSchemaPhasePayload), "ExportSchemaPhasePayload")
 	})
 
 	// Define the expected structure for AnalyzePhasePayload
@@ -126,7 +126,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate AnalyzePhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(AnalyzePhasePayload{}), reflect.TypeOf(expectedAnalyzePhasePayload), "AnalyzePhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(AnalyzePhasePayload{}), reflect.TypeOf(expectedAnalyzePhasePayload), "AnalyzePhasePayload")
 	})
 
 	// Define the expected structure for ExportDataPhasePayload
@@ -143,7 +143,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate ExportDataPhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(ExportDataPhasePayload{}), reflect.TypeOf(expectedExportDataPhasePayload), "ExportDataPhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(ExportDataPhasePayload{}), reflect.TypeOf(expectedExportDataPhasePayload), "ExportDataPhasePayload")
 	})
 
 	// Define the expected structure for ImportSchemaPhasePayload
@@ -158,7 +158,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate ImportSchemaPhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(ImportSchemaPhasePayload{}), reflect.TypeOf(expectedImportSchemaPhasePayload), "ImportSchemaPhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(ImportSchemaPhasePayload{}), reflect.TypeOf(expectedImportSchemaPhasePayload), "ImportSchemaPhasePayload")
 	})
 
 	// Define the expected structure for ImportDataPhasePayload
@@ -175,7 +175,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate ImportDataPhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(ImportDataPhasePayload{}), reflect.TypeOf(expectedImportDataPhasePayload), "ImportDataPhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(ImportDataPhasePayload{}), reflect.TypeOf(expectedImportDataPhasePayload), "ImportDataPhasePayload")
 	})
 
 	// Define the expected structure for ImportDataFilePhasePayload
@@ -189,7 +189,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate ImportDataFilePhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(ImportDataFilePhasePayload{}), reflect.TypeOf(expectedImportDataFilePhasePayload), "ImportDataFilePhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(ImportDataFilePhasePayload{}), reflect.TypeOf(expectedImportDataFilePhasePayload), "ImportDataFilePhasePayload")
 	})
 
 	// Define the expected structure for DataFileParameters
@@ -203,7 +203,7 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate DataFileParameters Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(DataFileParameters{}), reflect.TypeOf(expectedDataFileParameters), "DataFileParameters")
+		testutils.CompareStructs(t, reflect.TypeOf(DataFileParameters{}), reflect.TypeOf(expectedDataFileParameters), "DataFileParameters")
 	})
 
 	// Define the expected structure for EndMigrationPhasePayload
@@ -215,6 +215,6 @@ func TestCallhomeStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate EndMigrationPhasePayload Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(EndMigrationPhasePayload{}), reflect.TypeOf(expectedEndMigrationPhasePayload), "EndMigrationPhasePayload")
+		testutils.CompareStructs(t, reflect.TypeOf(EndMigrationPhasePayload{}), reflect.TypeOf(expectedEndMigrationPhasePayload), "EndMigrationPhasePayload")
 	})
 }

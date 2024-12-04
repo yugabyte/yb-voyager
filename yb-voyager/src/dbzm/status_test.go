@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 )
 
 func TestExportStatusStructs(t *testing.T) {
@@ -26,11 +26,11 @@ func TestExportStatusStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate TableExportStatus Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
+		testutils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
 	})
 
 	t.Run("Validate ExportStatus Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(ExportStatus{}), reflect.TypeOf(expectedExportStatus), "ExportStatus")
+		testutils.CompareStructs(t, reflect.TypeOf(ExportStatus{}), reflect.TypeOf(expectedExportStatus), "ExportStatus")
 	})
 }
 

@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 )
 
 func TestInitAssessmentDB(t *testing.T) {
-	expectedTables := map[string]map[string]utils.ColumnPropertiesSqlite{
+	expectedTables := map[string]map[string]testutils.ColumnPropertiesSqlite{
 		TABLE_INDEX_IOPS: {
 			"schema_name":      {Type: "TEXT", PrimaryKey: 1},
 			"object_name":      {Type: "TEXT", PrimaryKey: 2},
@@ -101,7 +101,7 @@ func TestInitAssessmentDB(t *testing.T) {
 
 	// Verify the existence of each table and no extra tables
 	t.Run("Check table existence and no extra tables", func(t *testing.T) {
-		err := utils.CheckTableExistenceSqlite(t, db, expectedTables)
+		err := testutils.CheckTableExistenceSqlite(t, db, expectedTables)
 		if err != nil {
 			t.Errorf("Table existence mismatch: %v", err)
 		}
@@ -110,7 +110,7 @@ func TestInitAssessmentDB(t *testing.T) {
 	// Verify the structure of each table
 	for table, expectedColumns := range expectedTables {
 		t.Run(fmt.Sprintf("Check structure of %s table", table), func(t *testing.T) {
-			err := utils.CheckTableStructureSqlite(db, table, expectedColumns)
+			err := testutils.CheckTableStructureSqlite(db, table, expectedColumns)
 			if err != nil {
 				t.Errorf("Table %s structure mismatch: %v", table, err)
 			}

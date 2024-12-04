@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 )
 
 func TestDescriptorStructs(t *testing.T) {
@@ -31,11 +31,11 @@ func TestDescriptorStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate FileEntry Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(FileEntry{}), reflect.TypeOf(expectedFileEntry), "FileEntry")
+		testutils.CompareStructs(t, reflect.TypeOf(FileEntry{}), reflect.TypeOf(expectedFileEntry), "FileEntry")
 	})
 
 	t.Run("Validate Descriptor Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(Descriptor{}), reflect.TypeOf(expectedDescriptor), "Descriptor")
+		testutils.CompareStructs(t, reflect.TypeOf(Descriptor{}), reflect.TypeOf(expectedDescriptor), "Descriptor")
 	})
 }
 
@@ -99,5 +99,5 @@ func TestDescriptorJson(t *testing.T) {
 }`
 
 	// Compare the output JSON with the expected JSON
-	utils.CompareJson(t, outputFilePath, expectedJSON, exportDir)
+	testutils.CompareJson(t, outputFilePath, expectedJSON, exportDir)
 }

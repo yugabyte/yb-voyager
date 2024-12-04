@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 )
 
 // Test the initMetaDB function
 func TestInitMetaDB(t *testing.T) {
 	// Define the expected columns and their types for each table
-	expectedTables := map[string]map[string]utils.ColumnPropertiesSqlite{
+	expectedTables := map[string]map[string]testutils.ColumnPropertiesSqlite{
 		QUEUE_SEGMENT_META_TABLE_NAME: {
 			"segment_no":                             {Type: "INTEGER", PrimaryKey: 1},
 			"file_path":                              {Type: "TEXT"},
@@ -76,7 +76,7 @@ func TestInitMetaDB(t *testing.T) {
 
 	// Verify the existence of each table and no extra tables
 	t.Run("Check table existence and no extra tables", func(t *testing.T) {
-		err := utils.CheckTableExistenceSqlite(t, db, expectedTables)
+		err := testutils.CheckTableExistenceSqlite(t, db, expectedTables)
 		if err != nil {
 			t.Errorf("Table existence mismatch: %v", err)
 		}
@@ -85,7 +85,7 @@ func TestInitMetaDB(t *testing.T) {
 	// Verify the structure of each table
 	for table, expectedColumns := range expectedTables {
 		t.Run(fmt.Sprintf("Check structure of %s table", table), func(t *testing.T) {
-			err := utils.CheckTableStructureSqlite(db, table, expectedColumns)
+			err := testutils.CheckTableStructureSqlite(db, table, expectedColumns)
 			if err != nil {
 				t.Errorf("Table %s structure mismatch: %v", table, err)
 			}

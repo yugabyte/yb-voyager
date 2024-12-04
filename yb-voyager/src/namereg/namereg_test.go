@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -582,11 +582,11 @@ func TestNameRegistryStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate NameRegistryParams Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(NameRegistryParams{}), reflect.TypeOf(expectedNameRegistryParams), "NameRegistryParams")
+		testutils.CompareStructs(t, reflect.TypeOf(NameRegistryParams{}), reflect.TypeOf(expectedNameRegistryParams), "NameRegistryParams")
 	})
 
 	t.Run("Validate NameRegistry Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(NameRegistry{}), reflect.TypeOf(expectedNameRegistry), "NameRegistry")
+		testutils.CompareStructs(t, reflect.TypeOf(NameRegistry{}), reflect.TypeOf(expectedNameRegistry), "NameRegistry")
 	})
 }
 
@@ -662,5 +662,5 @@ func TestNameRegistryJson(t *testing.T) {
 	}, "\n")
 
 	// Read the JSON file and compare it with the expected JSON
-	utils.CompareJson(t, outputFilePath, expectedJSON, exportDir)
+	testutils.CompareJson(t, outputFilePath, expectedJSON, exportDir)
 }

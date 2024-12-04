@@ -16,14 +16,14 @@ import (
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/stretchr/testify/assert"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 )
 
 func TestDatabaseTablesYugabyteD(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a YugabyteDB container
-	ybContainer, err := utils.StartYugabyteDBContainer(ctx)
+	ybContainer, err := testutils.StartYugabyteDBContainer(ctx)
 	assert.NoError(t, err, "Failed to start YugabyteDB container")
 	defer ybContainer.Terminate(ctx)
 
@@ -40,7 +40,7 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = utils.WaitForPGYBDBConnection(db)
+	err = testutils.WaitForPGYBDBConnection(db)
 	assert.NoError(t, err)
 	// Export the database connection string to env variable YUGABYTED_DB_CONN_STRING
 	err = os.Setenv("YUGABYTED_DB_CONN_STRING", dsn)
@@ -56,184 +56,46 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 	err = controlPlane.setupDatabase()
 	assert.NoError(t, err, "Failed to setup YugabyteDB database")
 
-	expectedTables := map[string][]utils.ColumnPropertiesPG{
+	expectedTables := map[string]map[string]testutils.ColumnPropertiesPG{
 		QUALIFIED_YUGABYTED_METADATA_TABLE_NAME: {
-			{
-				Name:       "migration_uuid",
-				DataType:   "uuid",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "migration_phase",
-				DataType:   "integer",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "invocation_sequence",
-				DataType:   "integer",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "migration_dir",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "database_name",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "schema_name",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "payload",
-				DataType:   "text",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "complexity",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "db_type",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "status",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "invocation_timestamp",
-				DataType:   "timestamp with time zone",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "host_ip",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "port",
-				DataType:   "integer",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "db_version",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "voyager_info",
-				DataType:   "character varying",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
+			"migration_uuid":       {DataType: "uuid", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"migration_phase":      {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"invocation_sequence":  {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"migration_dir":        {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"database_name":        {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"schema_name":          {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"payload":              {DataType: "text", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"complexity":           {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"db_type":              {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"status":               {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"invocation_timestamp": {DataType: "timestamp with time zone", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"host_ip":              {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"port":                 {DataType: "integer", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"db_version":           {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"voyager_info":         {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
 		},
 		YUGABYTED_TABLE_METRICS_TABLE_NAME: {
-			{
-				Name:       "migration_uuid",
-				DataType:   "uuid",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "table_name",
-				DataType:   "character varying",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "schema_name",
-				DataType:   "character varying",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "migration_phase",
-				DataType:   "integer",
-				IsNullable: "NO",
-				Default:    nil,
-				IsPrimary:  true,
-			},
-			{
-				Name:       "status",
-				DataType:   "integer",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "count_live_rows",
-				DataType:   "integer",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "count_total_rows",
-				DataType:   "integer",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
-			{
-				Name:       "invocation_timestamp",
-				DataType:   "timestamp with time zone",
-				IsNullable: "YES",
-				Default:    nil,
-				IsPrimary:  false,
-			},
+			"migration_uuid":       {DataType: "uuid", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"table_name":           {DataType: "character varying", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"schema_name":          {DataType: "character varying", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"migration_phase":      {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
+			"status":               {DataType: "integer", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"count_live_rows":      {DataType: "integer", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"count_total_rows":     {DataType: "integer", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"invocation_timestamp": {DataType: "timestamp with time zone", IsNullable: "YES", Default: nil, IsPrimary: false},
 		},
 	}
 
 	// Validate the schema and tables
 	t.Run("Check all the expected tables and no extra tables", func(t *testing.T) {
-		utils.CheckTableExistencePG(t, db, VISUALIZER_METADATA_SCHEMA, expectedTables)
+		testutils.CheckTableExistencePG(t, db, VISUALIZER_METADATA_SCHEMA, expectedTables)
 	})
 
 	// Validate columns for each table
 	for tableName, expectedColumns := range expectedTables {
 		t.Run(fmt.Sprintf("Check columns for %s table", tableName), func(t *testing.T) {
 			table := strings.Split(tableName, ".")[1]
-			utils.CheckTableStructurePG(t, db, VISUALIZER_METADATA_SCHEMA, table, expectedColumns)
+			testutils.CheckTableStructurePG(t, db, VISUALIZER_METADATA_SCHEMA, table, expectedColumns)
 		})
 	}
 }
@@ -249,7 +111,7 @@ func TestYugabyteDStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate VoyagerInstance Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(controlPlane.VoyagerInstance{}), reflect.TypeOf(expectedVoyagerInstance), "VoyagerInstance")
+		testutils.CompareStructs(t, reflect.TypeOf(controlPlane.VoyagerInstance{}), reflect.TypeOf(expectedVoyagerInstance), "VoyagerInstance")
 	})
 
 	expectedMigrationEvent := struct {
@@ -270,7 +132,7 @@ func TestYugabyteDStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate MigrationEvent Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(MigrationEvent{}), reflect.TypeOf(expectedMigrationEvent), "MigrationEvent")
+		testutils.CompareStructs(t, reflect.TypeOf(MigrationEvent{}), reflect.TypeOf(expectedMigrationEvent), "MigrationEvent")
 	})
 
 	expectedVisualizerTableMetrics := struct {
@@ -285,7 +147,7 @@ func TestYugabyteDStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate VisualizerTableMetrics Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(VisualizerTableMetrics{}), reflect.TypeOf(expectedVisualizerTableMetrics), "VisualizerTableMetrics")
+		testutils.CompareStructs(t, reflect.TypeOf(VisualizerTableMetrics{}), reflect.TypeOf(expectedVisualizerTableMetrics), "VisualizerTableMetrics")
 	})
 
 	expectedYugabyteD := struct {
@@ -301,6 +163,6 @@ func TestYugabyteDStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate YugabyteD Struct Definition", func(t *testing.T) {
-		utils.CompareStructs(t, reflect.TypeOf(&YugabyteD{}).Elem(), reflect.TypeOf(&expectedYugabyteD).Elem(), "YugabyteD")
+		testutils.CompareStructs(t, reflect.TypeOf(&YugabyteD{}).Elem(), reflect.TypeOf(&expectedYugabyteD).Elem(), "YugabyteD")
 	})
 }
