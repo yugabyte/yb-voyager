@@ -115,16 +115,9 @@ func shouldSkipDDL(stmt string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error checking whether stmt is to add not valid constraint: %v", stmt, err)
 	}
-	if skipReplicaIdentity {
-		//skipping DDLS like ALTER TABLE ... REPLICA IDENTITY .. as this is not supported in YB
-		log.Infof("Skipping DDL: %s", stmt)
-		return true, nil
-	}
-	if isNotValid && !bool(flagPostSnapshotImport) {
-		//Skipping the ALTER TABLE ... ADD CONSTRAINT ... NOT VALID DDLs in import schema without post-snapshot-import flag
-		return true, nil
-	}
-	if bool(flagPostSnapshotImport) && !isNotValid {
+	if (isNotValid && !bool(flagPostSnapshotImport)) || // Skipping NOT VALID CONSTRAINT in import schema without post-snapshot-mode
+		(bool(flagPostSnapshotImport) && !isNotValid) || // Skipping other TABLE DDLs in post-snapshot-import mode
+		skipReplicaIdentity { // Skip ALTER REPLICA IDENTITY always
 		return true, nil
 	}
 	return false, nil
