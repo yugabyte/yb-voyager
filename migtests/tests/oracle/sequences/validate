@@ -23,7 +23,7 @@ EXPECTED_ROW_COUNT = {
 	'identity_demo_generated_always_start_with': 1,        
 	'identity_demo_generated_by_def_st_with_inc_by': 3,        
 	'identity_demo_generated_by_def_start_with': 3,        
-	# 'identity_demo_with_null': 2,
+	'identity_demo_with_null': 2,
 	'case_sensitive_always': 2
 }
 
@@ -34,7 +34,7 @@ EXPECTED_TABLE_SUM = {
 	'identity_demo_generated_always_start_with': 101,        
 	'identity_demo_generated_by_def_st_with_inc_by': 115,        
 	'identity_demo_generated_by_def_start_with': 205,        
-	# 'identity_demo_with_null': 3,
+	'identity_demo_with_null': 3,
 	'case_sensitive_always': 3
 }
 
@@ -45,7 +45,7 @@ EXPECTED_TABLE_SUM_AFTER_INSERT = {
 	'identity_demo_generated_always_start_with': 223,        
 	'identity_demo_generated_by_def_st_with_inc_by': 2241,        
 	'identity_demo_generated_by_def_start_with': 327,        
-	# 'identity_demo_with_null': 25,
+	'identity_demo_with_null': 25,
 	'case_sensitive_always': 25
 }
 
@@ -57,7 +57,7 @@ if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 	'identity_demo_generated_always_start_with': 203,        
 	'identity_demo_generated_by_def_st_with_inc_by': 322,        
 	'identity_demo_generated_by_def_start_with': 308,        
-	# 'identity_demo_with_null': 6,
+	'identity_demo_with_null': 6,
 	'case_sensitive_always': 6
 }
 
