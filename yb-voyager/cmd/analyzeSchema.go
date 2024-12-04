@@ -325,7 +325,7 @@ func addSummaryDetailsForIndexes() {
 
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
-		parseTree, err := queryparser.Parse(sqlStmtInfo.stmt)
+		_, err := queryparser.Parse(sqlStmtInfo.stmt)
 		if err != nil { //if the Stmt is not already report by any of the regexes
 			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
 				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX, err.Error())
@@ -334,23 +334,12 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			}
 			continue
 		}
-		if queryparser.IsCreateIndex(parseTree) {
-			indexProcessor, err := queryparser.GetDDLProcessor(parseTree)
-			if err != nil {
-				utils.ErrExit("error getting ddl parser for stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
-			}
-			obj, err := indexProcessor.Process(parseTree)
-			if err != nil {
-				utils.ErrExit("error parsing stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
-			}
-			indexObj, _ := obj.(*queryparser.Index)
-			if indexObj.AccessMethod == queryissue.GIN_ACCESS_METHOD {
-				summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
-			}
-		}
 		err = parserIssueDetector.ParseRequiredDDLs(sqlStmtInfo.formattedStmt)
 		if err != nil {
 			utils.ErrExit("error parsing stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
+		}
+		if parserIssueDetector.IsGinIndexPresentInSchema {
+			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
 		if err != nil {

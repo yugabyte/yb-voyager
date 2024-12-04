@@ -56,6 +56,9 @@ type ParserIssueDetector struct {
 
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
+
+	//Boolean to check if there are any Gin indexes
+	IsGinIndexPresentInSchema bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -66,6 +69,15 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		partitionTablesMap:                   make(map[string]bool),
 		primaryConsInAlter:                   make(map[string]*queryparser.AlterTable),
 	}
+}
+
+func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	issues, err := p.getAllIssues(query)
+	if err != nil {
+		return issues, err
+	}
+
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
 }
 
 func (p *ParserIssueDetector) getAllIssues(query string) ([]issue.IssueInstance, error) {
@@ -97,15 +109,6 @@ func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.
 		}
 	}
 	return filteredIssues, nil
-}
-
-func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
-	issues, err := p.getAllIssues(query)
-	if err != nil {
-		return issues, err
-	}
-
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
 }
 
 func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
@@ -220,6 +223,11 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 			p.EnumTypes = append(p.EnumTypes, typeObj.GetObjectName())
 		} else {
 			p.CompositeTypes = append(p.CompositeTypes, typeObj.GetObjectName())
+		}
+	case *queryparser.Index:
+		index, _ := ddlObj.(*queryparser.Index)
+		if index.AccessMethod == GIN_ACCESS_METHOD {
+			p.IsGinIndexPresentInSchema = true
 		}
 	}
 	return nil
