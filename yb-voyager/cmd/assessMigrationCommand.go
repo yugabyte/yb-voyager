@@ -883,7 +883,7 @@ func generateAssessmentReport() (err error) {
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
-	schemaAnalysisReport := analyzeSchemaInternal(&source)
+	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
 	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 	assessmentReport.SchemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION

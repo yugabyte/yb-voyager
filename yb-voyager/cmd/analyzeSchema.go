@@ -2089,7 +2089,7 @@ var funcMap = template.FuncMap{
 }
 
 // add info to the 'reportStruct' variable and return
-func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
+func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.SchemaReport {
 	/*
 		NOTE: Don't create local var with name 'schemaAnalysisReport' since global one
 		is used across all the internal functions called by analyzeSchemaInternal()
@@ -2098,44 +2098,47 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 	schemaAnalysisReport = utils.SchemaReport{}
 	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
 	initializeSummaryMap()
-	for _, objType := range sourceObjList {
-		var sqlInfoArr []sqlInfo
-		filePath := utils.GetObjectFilePath(schemaDir, objType)
-		if objType != "INDEX" {
-			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
-		} else {
-			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
-			otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
-			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
-			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
-			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
-		}
-		if objType == "EXTENSION" {
-			checkExtensions(sqlInfoArr, filePath)
-		}
-		if objType == "FOREIGN TABLE" {
-			checkForeignTable(sqlInfoArr, filePath)
-		}
-		checker(sqlInfoArr, filePath, objType)
 
-		if objType == "CONVERSION" {
-			checkConversions(sqlInfoArr, filePath)
-		}
-	}
+	if detectIssues {
+		for _, objType := range sourceObjList {
+			var sqlInfoArr []sqlInfo
+			filePath := utils.GetObjectFilePath(schemaDir, objType)
+			if objType != "INDEX" {
+				sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
+			} else {
+				sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
+				otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
+				sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
+				otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
+				sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
+			}
+			if objType == "EXTENSION" {
+				checkExtensions(sqlInfoArr, filePath)
+			}
+			if objType == "FOREIGN TABLE" {
+				checkForeignTable(sqlInfoArr, filePath)
+			}
+			checker(sqlInfoArr, filePath, objType)
 
-	// Ideally all filtering of issues should happen in queryissue pkg layer,
-	// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
-	var filteredIssues []utils.Issue
-	for _, i := range schemaAnalysisReport.Issues {
-		fixed, err := i.IsFixedIn(targetDbVersion)
-		if err != nil {
-			utils.ErrExit("checking if issue %v is supported: %v", i, err)
+			if objType == "CONVERSION" {
+				checkConversions(sqlInfoArr, filePath)
+			}
 		}
-		if !fixed {
-			filteredIssues = append(filteredIssues, i)
+
+		// Ideally all filtering of issues should happen in queryissue pkg layer,
+		// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
+		var filteredIssues []utils.Issue
+		for _, i := range schemaAnalysisReport.Issues {
+			fixed, err := i.IsFixedIn(targetDbVersion)
+			if err != nil {
+				utils.ErrExit("checking if issue %v is supported: %v", i, err)
+			}
+			if !fixed {
+				filteredIssues = append(filteredIssues, i)
+			}
 		}
+		schemaAnalysisReport.Issues = filteredIssues
 	}
-	schemaAnalysisReport.Issues = filteredIssues
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
@@ -2191,7 +2194,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("analyze schema : load migration status record: %s", err)
 	}
-	analyzeSchemaInternal(msr.SourceDBConf)
+	analyzeSchemaInternal(msr.SourceDBConf, true)
 
 	if analyzeSchemaReportFormat != "" {
 		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)
