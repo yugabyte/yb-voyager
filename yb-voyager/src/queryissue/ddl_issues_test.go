@@ -42,7 +42,7 @@ func testXMLFunctionIssue(t *testing.T) {
 	assert.ErrorContains(t, err, "unsupported XML feature")
 }
 
-func TestIssuesInAllVersions(t *testing.T) {
+func TestDDLIssuesInAllVersions(t *testing.T) {
 	for _, version := range versions {
 		var err error
 		ctx := context.Background()

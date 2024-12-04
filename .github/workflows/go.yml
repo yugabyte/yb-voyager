@@ -26,7 +26,14 @@ jobs:
     - name: Test
       run: |
         cd yb-voyager
-        go test -v ./...
+        go test -v  -skip 'TestDDLIssuesInAllVersions' ./... 
+    
+    - name: Test Issues Against all YB Versions
+      env: 
+        YB_VERSIONS: '2024.1.3.0-b105,2.21.1.0-b271'
+      run: |
+        cd yb-voyager
+        go test -v -run '^TestDDLIssuesInAllVersions$' ./...
         
     - name: Vet
       run: |
