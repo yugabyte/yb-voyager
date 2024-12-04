@@ -138,6 +138,11 @@ func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]issue.
 		return nil, fmt.Errorf("error getting type names in PLPGSQL: %v", err)
 	}
 
+	/*
+		Caveats of GetAllTypeNamesInPlpgSQLStmt():
+			1. Not returning typename for variables in function parameter from this function (in correct in json as UNKNOWN), for that using the GetTypeNamesFromFuncParameters()
+			2. Not returning the return type from this function (not available in json), for that using the GetReturnTypeOfFunc()
+	*/
 	if queryparser.IsFunctionObject(parseTree) {
 		typeNames = append(typeNames, queryparser.GetReturnTypeOfFunc(parseTree))
 	}
