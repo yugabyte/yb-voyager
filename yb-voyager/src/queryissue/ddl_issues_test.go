@@ -43,6 +43,12 @@ func testXMLFunctionIssue(t *testing.T) {
 }
 
 func TestDDLIssuesInAllVersions(t *testing.T) {
+	versionsToTest := os.Getenv("YB_VERSIONS")
+	if versionsToTest == "" {
+		panic("YB_VERSIONS env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105,2.23.1.0-b220 for example")
+	}
+	versions = strings.Split(versionsToTest, ",")
+
 	for _, version := range versions {
 		var err error
 		ctx := context.Background()
@@ -59,12 +65,4 @@ func TestDDLIssuesInAllVersions(t *testing.T) {
 
 		yugabytedbContainer.Terminate(context.Background())
 	}
-}
-
-func init() {
-	versionsToTest := os.Getenv("YB_VERSIONS")
-	if versionsToTest == "" {
-		panic("YB_VERSIONS env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105,2.23.1.0-b220 for example")
-	}
-	versions = strings.Split(versionsToTest, ",")
 }
