@@ -1066,3 +1066,25 @@ resolve_and_install_dependencies() {
         echo "No unmet dependencies found."
     fi
 }
+
+verify_voyager_version() {
+    local expected_version="$1"
+    local actual_version
+
+    actual_version=$(yb-voyager version 2>/dev/null | grep -m1 '^VERSION=' | cut -d'=' -f2)
+
+    # Handle the special case where expected_version is "local"
+    if [[ "$expected_version" == "local" && "$actual_version" == "main" ]]; then
+        echo "Success: yb-voyager version matches the expected condition (installation: local, version: main)."
+        return 0
+    fi
+
+    # General case for matching versions
+    if [[ "$actual_version" == "$expected_version" ]]; then
+        echo "Success: yb-voyager version matches the expected version ($expected_version)."
+        return 0
+    else
+        echo "Error: yb-voyager version mismatch. Expected: $expected_version, Got: ${actual_version:-'Unknown'}."
+        return 1
+    fi
+}

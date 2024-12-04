@@ -19,7 +19,8 @@ export TEST_TYPE_DIR="${TESTS_DIR}/upgrade-tests/${TEST_TYPE}"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
-export LAST_BREAKING_RELEASE=${LAST_BREAKING_RELEASE:-"1.8.5-0"}
+export LAST_BREAKING_RELEASE=${LAST_BREAKING_RELEASE:-"1.8.5"}
+export RELEASE_TO_UPGRADE_TO=${RELEASE_TO_UPGRADE_TO:-"local"}
 
 # Load environment configurations
 if [ $3 != "" ]; then
@@ -68,27 +69,17 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-
     sudo rm -rf $(which yb-voyager)
     # Install older version of yb-voyager
     step "Installing Voyager version ${LAST_BREAKING_RELEASE}."
-    wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
-    sudo apt-get install ./yb-apt-repo_1.0.0_all.deb -y
-    sudo apt-get clean
-    sudo apt-get update
-    sudo apt install -y postgresql-common
-    echo | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
-    sudo apt-get install ora2pg=23.2-yb.2 -y
-    sudo apt-get remove -y "yb-voyager=${LAST_BREAKING_RELEASE}"
-    install_output=$(sudo apt-get install -y "yb-voyager=${LAST_BREAKING_RELEASE}" 2>&1) || {
-        echo "Initial installation failed. Parsing errors to resolve dependencies..."
-        resolve_and_install_dependencies "$install_output"
-    echo "Retrying Installation"
-    sudo apt-get install -y "yb-voyager=${LAST_BREAKING_RELEASE}"
-    }
+
+    yes | ${REPO_ROOT}/installer_scripts/install-yb-voyager --version ${LAST_BREAKING_RELEASE}
+
     source ~/.bashrc
     step "Check Voyager version."
+
     yb-voyager version
+    verify_voyager_version ${LAST_BREAKING_RELEASE}
 
     step "Grant permissions."
     grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
@@ -96,21 +87,14 @@ main() {
     # Run before steps
     run_script "${TEST_TYPE_DIR}/before"
 
-    # Upgrade yb-voyager
-    # Can only test once the release is done. Testing with local build until then
-    # step "Upgrading Voyager."
-    # sudo apt-get upgrade -y yb-voyager
-
-    sudo rm -rf $(which yb-voyager)
-    cd ${REPO_ROOT}/yb-voyager
-    go build
-    sudo mv yb-voyager /usr/bin/yb-voyager
+    yes | ${REPO_ROOT}/installer_scripts/install-yb-voyager --version ${RELEASE_TO_UPGRADE_TO}
     source ~/.bashrc
 
     pushd ${TEST_DIR}
 
     step "Check Voyager version after upgrade."
     yb-voyager version
+    verify_voyager_version ${RELEASE_TO_UPGRADE_TO}
 
     # Run after steps
     run_script "${TEST_TYPE_DIR}/after"
