@@ -9,13 +9,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/testcontainers"
 )
 
 func TestCreateVoyagerSchemaYB(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a YugabyteDB container
-	ybContainer, err := testutils.StartYugabyteDBContainer(ctx)
+	ybContainer, err := testcontainers.StartDBContainer(ctx, testcontainers.YUGABYTEDB)
 	assert.NoError(t, err, "Failed to start YugabyteDB container")
 	defer ybContainer.Terminate(ctx)
 
@@ -32,7 +33,7 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = testutils.WaitForPGYBDBConnection(db)
+	err = testcontainers.WaitForPGYBDBConnection(db)
 	assert.NoError(t, err)
 
 	// Initialize the TargetYugabyteDB instance

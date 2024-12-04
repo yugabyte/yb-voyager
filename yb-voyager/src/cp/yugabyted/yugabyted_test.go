@@ -17,13 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/testcontainers"
 )
 
 func TestDatabaseTablesYugabyteD(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a YugabyteDB container
-	ybContainer, err := testutils.StartYugabyteDBContainer(ctx)
+	ybContainer, err := testcontainers.StartDBContainer(ctx, testcontainers.YUGABYTEDB)
 	assert.NoError(t, err, "Failed to start YugabyteDB container")
 	defer ybContainer.Terminate(ctx)
 
@@ -40,7 +41,7 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = testutils.WaitForPGYBDBConnection(db)
+	err = testcontainers.WaitForPGYBDBConnection(db)
 	assert.NoError(t, err)
 	// Export the database connection string to env variable YUGABYTED_DB_CONN_STRING
 	err = os.Setenv("YUGABYTED_DB_CONN_STRING", dsn)

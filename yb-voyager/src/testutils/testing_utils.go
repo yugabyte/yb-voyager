@@ -1,19 +1,15 @@
 package testutils
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 type ColumnPropertiesSqlite struct {
@@ -358,51 +354,4 @@ func CheckTableExistencePG(t *testing.T, db *sql.DB, schema string, expectedTabl
 			t.Errorf("Unexpected table found: %s", actualTable)
 		}
 	}
-}
-
-func StartPostgresContainer(ctx context.Context) (testcontainers.Container, error) {
-	// Create a PostgreSQL TestContainer
-	req := testcontainers.ContainerRequest{
-		Image:        "postgres:latest", // Use the latest PostgreSQL image
-		ExposedPorts: []string{"5432/tcp"},
-		Env: map[string]string{
-			"POSTGRES_USER":     "testuser",     // Set PostgreSQL username
-			"POSTGRES_PASSWORD": "testpassword", // Set PostgreSQL password
-			"POSTGRES_DB":       "testdb",       // Set PostgreSQL database name
-		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(30 * 1e9), // Wait for PostgreSQL to be ready
-	}
-
-	// Start the container
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-}
-
-func StartYugabyteDBContainer(ctx context.Context) (testcontainers.Container, error) {
-	// Create a YugabyteDB TestContainer
-	req := testcontainers.ContainerRequest{
-		Image:        "yugabytedb/yugabyte:latest",
-		ExposedPorts: []string{"5433/tcp"},
-		WaitingFor:   wait.ForListeningPort("5433/tcp"),
-		Cmd:          []string{"bin/yugabyted", "start", "--daemon=false"},
-	}
-
-	// Start the container
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-}
-
-// waitForDBConnection waits until the database is ready for connections.
-func WaitForPGYBDBConnection(db *sql.DB) error {
-	for i := 0; i < 12; i++ {
-		if err := db.Ping(); err == nil {
-			return nil
-		}
-		time.Sleep(5 * time.Second)
-	}
-	return fmt.Errorf("database did not become ready in time")
 }
