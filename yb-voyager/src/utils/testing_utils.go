@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -33,13 +34,8 @@ type ColumnPropertiesPG struct {
 
 // CompareStructs compares two struct types and reports any mismatches.
 func CompareStructs(t *testing.T, actual, expected reflect.Type, structName string) {
-	if actual.Kind() != reflect.Struct || expected.Kind() != reflect.Struct {
-		t.Fatalf("Both %s and expected type must be structs. There is some breaking change!", structName)
-	}
-
-	if actual.NumField() != expected.NumField() {
-		t.Errorf("%s: Number of fields mismatch. Got %d, expected %d. There is some breaking change!", structName, actual.NumField(), expected.NumField())
-	}
+	assert.Equal(t, reflect.Struct, actual.Kind(), "%s: Actual type must be a struct. There is some breaking change!", structName)
+	assert.Equal(t, reflect.Struct, expected.Kind(), "%s: Expected type must be a struct. There is some breaking change!", structName)
 
 	for i := 0; i < max(actual.NumField(), expected.NumField()); i++ {
 		var actualField, expectedField reflect.StructField
@@ -54,22 +50,14 @@ func CompareStructs(t *testing.T, actual, expected reflect.Type, structName stri
 			expectedExists = true
 		}
 
-		// Compare field names
-		if actualExists && expectedExists && actualField.Name != expectedField.Name {
-			t.Errorf("%s: Field name mismatch at position %d. Got %s, expected %s. There is some breaking change!", structName, i, actualField.Name, expectedField.Name)
+		// Assert field names match
+		if actualExists && expectedExists {
+			assert.Equal(t, expectedField.Name, actualField.Name, "%s: Field name mismatch at position %d. There is some breaking change!", structName, i)
+			assert.Equal(t, expectedField.Type.String(), actualField.Type.String(), "%s: Field type mismatch for field %s. There is some breaking change!", structName, expectedField.Name)
+			assert.Equal(t, expectedField.Tag, actualField.Tag, "%s: Field tag mismatch for field %s. There is some breaking change!", structName, expectedField.Name)
 		}
 
-		// Compare field types
-		if actualExists && expectedExists && actualField.Type != expectedField.Type {
-			t.Errorf("%s: Field type mismatch for %s. Got %s, expected %s. There is some breaking change!", structName, actualField.Name, actualField.Type, expectedField.Type)
-		}
-
-		// Compare tags
-		if actualExists && expectedExists && actualField.Tag != expectedField.Tag {
-			t.Errorf("%s: Field tag mismatch for %s. Got %s, expected %s. There is some breaking change!", structName, actualField.Name, actualField.Tag, expectedField.Tag)
-		}
-
-		// Report missing fields
+		// Report missing or extra fields
 		if !actualExists && expectedExists {
 			t.Errorf("%s: Missing field %s of type %s. There is some breaking change!", structName, expectedField.Name, expectedField.Type)
 		}
@@ -91,6 +79,9 @@ func CompareJson(t *testing.T, outputFilePath string, expectedJSON string, expor
 	if diff := cmp.Diff(expectedJSON, string(outputBytes)); diff != "" {
 		t.Errorf("JSON file mismatch (-expected +actual):\n%s", diff)
 	}
+
+	// Can be used if we don't want to compare pretty printed JSON
+	// assert.JSONEqf(t, expectedJSON, string(outputBytes), "JSON file mismatch. There is some breaking change!")
 
 	// Remove the test directory
 	if err := os.RemoveAll(exportDir); err != nil {
