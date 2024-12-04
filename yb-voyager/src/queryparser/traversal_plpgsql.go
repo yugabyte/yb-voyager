@@ -348,7 +348,7 @@ func GetAllTypeNamesInPlpgSQLStmt(query string) ([]string, error) {
 			case PLPGSQL_VAR:
 				typeName, err := getTypeNameFromPlpgSQLVar(val)
 				if err != nil {
-					log.Errorf("error in getting typename from PLPGSQL_VAR(%v): %v", val, err)
+					log.Errorf("not able to get typename from PLPGSQL_VAR(%v): %v", val, err)
 					continue
 				}
 				typeNames = append(typeNames, typeName)
