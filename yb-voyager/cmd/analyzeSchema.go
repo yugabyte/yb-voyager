@@ -1684,7 +1684,7 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 }
 
 // Checks whether the script, fpath, can be migrated to YB
-func checker(sqlInfoArr []sqlInfo, fpath string, objType string, schemaList string) {
+func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	if !utils.FileOrFolderExists(fpath) {
 		return
 	}
@@ -1694,12 +1694,12 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string, schemaList stri
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
-		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType, schemaList)
+		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
 	}
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 }
 
-func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, schemaList string) {
+func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
 		issues, err := parserIssueDetector.GetAllIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
 		if err != nil {
@@ -2111,7 +2111,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 		if objType == "FOREIGN TABLE" {
 			checkForeignTable(sqlInfoArr, filePath)
 		}
-		checker(sqlInfoArr, filePath, objType, sourceDBConf.Schema)
+		checker(sqlInfoArr, filePath, objType)
 
 		if objType == "CONVERSION" {
 			checkConversions(sqlInfoArr, filePath)
