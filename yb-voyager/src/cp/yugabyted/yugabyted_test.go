@@ -56,7 +56,7 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 	err = controlPlane.setupDatabase()
 	assert.NoError(t, err, "Failed to setup YugabyteDB database")
 
-	expectedTables := map[string][]utils.ColumnPropertiesPGYB{
+	expectedTables := map[string][]utils.ColumnPropertiesPG{
 		QUALIFIED_YUGABYTED_METADATA_TABLE_NAME: {
 			{
 				Name:       "migration_uuid",
@@ -226,14 +226,14 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 
 	// Validate the schema and tables
 	t.Run("Check all the expected tables and no extra tables", func(t *testing.T) {
-		utils.CheckTableExistencePGYB(t, db, VISUALIZER_METADATA_SCHEMA, expectedTables)
+		utils.CheckTableExistencePG(t, db, VISUALIZER_METADATA_SCHEMA, expectedTables)
 	})
 
 	// Validate columns for each table
 	for tableName, expectedColumns := range expectedTables {
 		t.Run(fmt.Sprintf("Check columns for %s table", tableName), func(t *testing.T) {
 			table := strings.Split(tableName, ".")[1]
-			utils.CheckTableStructurePGYB(t, db, VISUALIZER_METADATA_SCHEMA, table, expectedColumns)
+			utils.CheckTableStructurePG(t, db, VISUALIZER_METADATA_SCHEMA, table, expectedColumns)
 		})
 	}
 }

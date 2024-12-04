@@ -44,7 +44,7 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 	err = pg.CreateVoyagerSchema()
 	assert.NoError(t, err, "CreateVoyagerSchema failed")
 
-	expectedTables := map[string][]utils.ColumnPropertiesPGYB{
+	expectedTables := map[string][]utils.ColumnPropertiesPG{
 		BATCH_METADATA_TABLE_NAME: {
 			{
 				Name:       "migration_uuid",
@@ -188,14 +188,14 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 
 	// Validate the schema and tables
 	t.Run("Check all the expected tables and no extra tables", func(t *testing.T) {
-		utils.CheckTableExistencePGYB(t, db, BATCH_METADATA_TABLE_SCHEMA, expectedTables)
+		utils.CheckTableExistencePG(t, db, BATCH_METADATA_TABLE_SCHEMA, expectedTables)
 	})
 
 	// Validate columns for each table
 	for tableName, expectedColumns := range expectedTables {
 		t.Run(fmt.Sprintf("Check columns for %s table", tableName), func(t *testing.T) {
 			table := strings.Split(tableName, ".")[1]
-			utils.CheckTableStructurePGYB(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
+			utils.CheckTableStructurePG(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
 		})
 	}
 }

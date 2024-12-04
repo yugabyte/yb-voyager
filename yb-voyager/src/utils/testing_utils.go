@@ -23,7 +23,7 @@ type ColumnPropertiesSqlite struct {
 }
 
 // Column represents a column's expected metadata
-type ColumnPropertiesPGYB struct {
+type ColumnPropertiesPG struct {
 	Name       string
 	DataType   string
 	IsNullable string
@@ -169,7 +169,7 @@ func CheckTableStructureSqlite(db *sql.DB, tableName string, expectedColumns map
 }
 
 // Helper function to check table structure
-func CheckTableStructurePGYB(t *testing.T, db *sql.DB, schema, table string, expectedColumns []ColumnPropertiesPGYB) {
+func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expectedColumns []ColumnPropertiesPG) {
 	queryColumns := `
 		SELECT column_name, data_type, is_nullable, column_default
 		FROM information_schema.columns
@@ -181,9 +181,9 @@ func CheckTableStructurePGYB(t *testing.T, db *sql.DB, schema, table string, exp
 	}
 	defer rows.Close()
 
-	actualColumns := make(map[string]ColumnPropertiesPGYB)
+	actualColumns := make(map[string]ColumnPropertiesPG)
 	for rows.Next() {
-		var col ColumnPropertiesPGYB
+		var col ColumnPropertiesPG
 		err := rows.Scan(&col.Name, &col.DataType, &col.IsNullable, &col.Default)
 		if err != nil {
 			t.Fatalf("Failed to scan column metadata: %v", err)
@@ -218,10 +218,10 @@ func CheckTableStructurePGYB(t *testing.T, db *sql.DB, schema, table string, exp
 	}
 
 	// Check primary keys
-	checkPrimaryKeyOfTablePGYB(t, db, schema, table, expectedColumns)
+	checkPrimaryKeyOfTablePG(t, db, schema, table, expectedColumns)
 }
 
-func checkPrimaryKeyOfTablePGYB(t *testing.T, db *sql.DB, schema, table string, expectedColumns []ColumnPropertiesPGYB) {
+func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, expectedColumns []ColumnPropertiesPG) {
 	// Validate primary keys
 	queryPrimaryKeys := `
     SELECT conrelid::regclass AS table_name, 
@@ -250,7 +250,7 @@ func checkPrimaryKeyOfTablePGYB(t *testing.T, db *sql.DB, schema, table string, 
 		}
 
 		// Parse the columns from the constraint definition (e.g., "PRIMARY KEY (col1, col2, ...)")
-		columns := parsePrimaryKeyColumnsPGYB(constraintDef)
+		columns := parsePrimaryKeyColumnsPG(constraintDef)
 		for _, col := range columns {
 			primaryKeyColumns[col] = true
 		}
@@ -281,7 +281,7 @@ func checkPrimaryKeyOfTablePGYB(t *testing.T, db *sql.DB, schema, table string, 
 }
 
 // Helper function to parse primary key columns from the constraint definition
-func parsePrimaryKeyColumnsPGYB(constraintDef string) []string {
+func parsePrimaryKeyColumnsPG(constraintDef string) []string {
 	// Remove "PRIMARY KEY (" and ")"
 	constraintDef = strings.TrimPrefix(constraintDef, "PRIMARY KEY (")
 	constraintDef = strings.TrimSuffix(constraintDef, ")")
@@ -334,7 +334,7 @@ func CheckTableExistenceSqlite(t *testing.T, db *sql.DB, expectedTables map[stri
 }
 
 // validateSchema validates the schema, tables, and columns
-func CheckTableExistencePGYB(t *testing.T, db *sql.DB, schema string, expectedTables map[string][]ColumnPropertiesPGYB) {
+func CheckTableExistencePG(t *testing.T, db *sql.DB, schema string, expectedTables map[string][]ColumnPropertiesPG) {
 	// Check all tables in the schema
 	queryTables := `SELECT table_schema || '.' || table_name AS qualified_table_name
 	FROM information_schema.tables
