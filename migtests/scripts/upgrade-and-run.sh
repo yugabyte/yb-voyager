@@ -69,7 +69,13 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-    sudo rm -rf $(which yb-voyager)
+
+    LOG_FILE="/tmp/install-yb-voyager.log"
+    # Delete the log file if it exists
+    if [ -e "$LOG_FILE" ]; then
+        echo "Log file exists. Deleting it."
+        sudo rm -f "$LOG_FILE" || { echo "Failed to delete $LOG_FILE"; exit 1; }
+    fi
     # Install older version of yb-voyager
     step "Installing Voyager version ${LAST_BREAKING_RELEASE}."
 
