@@ -2093,19 +2093,19 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
 	initializeSummaryMap()
 
-	if detectIssues {
-		for _, objType := range sourceObjList {
-			var sqlInfoArr []sqlInfo
-			filePath := utils.GetObjectFilePath(schemaDir, objType)
-			if objType != "INDEX" {
-				sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
-			} else {
-				sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
-				otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
-				sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
-				otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
-				sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
-			}
+	for _, objType := range sourceObjList {
+		var sqlInfoArr []sqlInfo
+		filePath := utils.GetObjectFilePath(schemaDir, objType)
+		if objType != "INDEX" {
+			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
+		} else {
+			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
+			otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
+			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
+			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
+			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
+		}
+		if detectIssues {
 			if objType == "EXTENSION" {
 				checkExtensions(sqlInfoArr, filePath)
 			}
@@ -2117,17 +2117,17 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 			if objType == "CONVERSION" {
 				checkConversions(sqlInfoArr, filePath)
 			}
-		}
 
-		// Ideally all filtering of issues should happen in queryissue pkg layer,
-		// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
-		schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.Issue, index int) bool {
-			fixed, err := i.IsFixedIn(targetDbVersion)
-			if err != nil {
-				utils.ErrExit("checking if issue %v is supported: %v", i, err)
-			}
-			return !fixed
-		})
+			// Ideally all filtering of issues should happen in queryissue pkg layer,
+			// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
+			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.Issue, index int) bool {
+				fixed, err := i.IsFixedIn(targetDbVersion)
+				if err != nil {
+					utils.ErrExit("checking if issue %v is supported: %v", i, err)
+				}
+				return !fixed
+			})
+		}
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
