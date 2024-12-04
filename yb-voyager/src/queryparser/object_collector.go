@@ -87,7 +87,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 // addObject adds an object name to the collector if it's not already present.
 func (c *ObjectCollector) addObject(objectName string) {
 	if _, exists := c.objectSet[objectName]; !exists {
-		log.Debugf("adding object to object collector set: %s")
+		log.Debugf("adding object to object collector set: %s", objectName)
 		c.objectSet[objectName] = true
 	}
 }

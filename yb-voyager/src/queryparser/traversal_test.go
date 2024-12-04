@@ -196,6 +196,20 @@ func TestObjectCollector2(t *testing.T) {
 			ExpectedObjects: []string{"myfunc", "analytics.calculate_metrics"},
 			ExpectedSchemas: []string{"", "analytics"},
 		},
+		{
+			Sql: `COPY (SELECT id, xmlagg(xmlparse(document xml_column)) AS combined_xml
+					FROM my_table
+						GROUP BY id)
+					TO '/path/to/file.csv' WITH CSV;`,
+			ExpectedObjects: []string{"xmlagg", "my_table"},
+			ExpectedSchemas: []string{""},
+		},
+		{
+			Sql: `COPY (SELECT ctid, xmin, id, data FROM schema_name.my_table) 
+							TO '/path/to/file_with_system_columns.csv' WITH CSV;`,
+			ExpectedObjects: []string{"schema_name.my_table"},
+			ExpectedSchemas: []string{"schema_name"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -222,3 +236,10 @@ func TestObjectCollector2(t *testing.T) {
 			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
 	}
 }
+
+/*
+
+
+	COPY (SELECT ctid, xmin, id, data FROM schema_name.my_table)
+	TO '/path/to/file_with_system_columns.csv' WITH CSV;
+*/
