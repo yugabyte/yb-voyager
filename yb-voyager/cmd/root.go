@@ -189,9 +189,9 @@ var exportDirInitialisedCheckNeededList = []string{
 	"yb-voyager get data-migration-report",
 	"yb-voyager archive changes",
 	"yb-voyager end migration",
-	"yb-voyager cutover to source",
-	"yb-voyager cutover to source-replica",
-	"yb-voyager cutover to target",
+	"yb-voyager initiate cutover to source",
+	"yb-voyager initiate cutover to source-replica",
+	"yb-voyager initiate cutover to target",
 }
 
 var noLockNeededList = []string{
