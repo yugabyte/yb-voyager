@@ -25,23 +25,32 @@ import (
 )
 
 // Base parser interface
-type DDLParser interface {
-	Parse(*pg_query.ParseResult) (DDLObject, error)
+/*
+Whenever adding a new DDL type to prasing for detecting issues, need to extend this DDLProcessor
+with the Process() function to adding logic to get the required information out from the parseTree of that DDL
+and store it in a DDLObject struct
+*/
+type DDLProcessor interface {
+	Process(*pg_query.ParseResult) (DDLObject, error)
 }
 
 // Base DDL object interface
+/*
+Whenever adding a new DDL type, You need to extend this DDLObject struct to be extended for that object type
+with the required for storing the information which should have these required function also extended for the objeect Name and schema name
+*/
 type DDLObject interface {
 	GetObjectName() string
 	GetSchemaName() string
 }
 
-//=========== TABLE PARSER ================================
+//=========== TABLE PROCESSOR ================================
 
-// TableParser handles parsing CREATE TABLE statements
-type TableParser struct{}
+// TableProcessor handles parsing CREATE TABLE statements
+type TableProcessor struct{}
 
-func NewTableParser() *TableParser {
-	return &TableParser{}
+func NewTableProcessor() *TableProcessor {
+	return &TableProcessor{}
 }
 
 /*
@@ -89,7 +98,7 @@ type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  
 location:98  keys:{string:{sval:"id"}} keys:{string:{sval:"country_code"}}}}  partspec:{strategy:PARTITION_STRATEGY_RANGE
 part_params:{partition_elem:{name:"country_code" location:150}}  part_params:{partition_elem:{name:"record_type"  ...
 */
-func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	createTableNode, ok := getCreateTableStmtNode(parseTree)
 	if !ok {
 		return nil, fmt.Errorf("not a CREATE TABLE statement")
@@ -104,7 +113,7 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 		*/
 		IsUnlogged:       createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
 		IsPartitioned:    createTableNode.CreateStmt.GetPartspec() != nil,
-		IsInherited:      p.checkInheritance(createTableNode),
+		IsInherited:      tableProcessor.checkInheritance(createTableNode),
 		GeneratedColumns: make([]string, 0),
 		Constraints:      make([]TableConstraint, 0),
 		PartitionColumns: make([]string, 0),
@@ -113,7 +122,7 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 	// Parse columns and their properties
 	for _, element := range createTableNode.CreateStmt.TableElts {
 		if element.GetColumnDef() != nil {
-			if p.isGeneratedColumn(element.GetColumnDef()) {
+			if tableProcessor.isGeneratedColumn(element.GetColumnDef()) {
 				table.GeneratedColumns = append(table.GeneratedColumns, element.GetColumnDef().Colname)
 			}
 			colName := element.GetColumnDef().GetColname()
@@ -135,7 +144,7 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 				ColumnName:  colName,
 				TypeName:    typeName,
 				TypeSchema:  typeSchemaName,
-				IsArrayType: len(element.GetColumnDef().GetTypeName().GetArrayBounds()) > 0,
+				IsArrayType: isArrayType(element.GetColumnDef().GetTypeName()),
 			})
 
 			constraints := element.GetColumnDef().GetConstraints()
@@ -184,7 +193,7 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 				exclusions := constraint.GetExclusions()
 				//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
 				//items:{list:{items:{string:{sval:"="}}}}}}
-				columns = p.parseColumnsFromExclusions(exclusions)
+				columns = tableProcessor.parseColumnsFromExclusions(exclusions)
 			}
 			table.addConstraint(conType, columns, constraint.Conname, constraint.Deferrable)
 
@@ -208,7 +217,7 @@ func (p *TableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 	return table, nil
 }
 
-func (p *TableParser) checkInheritance(createTableNode *pg_query.Node_CreateStmt) bool {
+func (tableProcessor *TableProcessor) checkInheritance(createTableNode *pg_query.Node_CreateStmt) bool {
 	/*
 		CREATE TABLE Test(id int, name text) inherits(test_parent);
 		stmts:{stmt:{create_stmt:{relation:{relname:"test" inh:true relpersistence:"p" location:13} table_elts:{column_def:{colname:"id" ....
@@ -227,7 +236,7 @@ func (p *TableParser) checkInheritance(createTableNode *pg_query.Node_CreateStmt
 	return false
 }
 
-func (p *TableParser) parseColumnsFromExclusions(list []*pg_query.Node) []string {
+func (tableProcessor *TableProcessor) parseColumnsFromExclusions(list []*pg_query.Node) []string {
 	var res []string
 	for _, k := range list {
 		res = append(res, k.GetList().GetItems()[0].GetIndexElem().Name) // every first element of items in exclusions will be col name
@@ -244,7 +253,7 @@ func parseColumnsFromKeys(keys []*pg_query.Node) []string {
 
 }
 
-func (p *TableParser) isGeneratedColumn(colDef *pg_query.ColumnDef) bool {
+func (tableProcessor *TableProcessor) isGeneratedColumn(colDef *pg_query.ColumnDef) bool {
 	for _, constraint := range colDef.Constraints {
 		if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
 			return true
@@ -289,11 +298,11 @@ func (c *TableConstraint) IsPrimaryKeyORUniqueConstraint() bool {
 	return c.ConstraintType == PRIMARY_CONSTR_TYPE || c.ConstraintType == UNIQUE_CONSTR_TYPE
 }
 
-func (t *TableConstraint) generateConstraintName(tableName string) string {
+func (c *TableConstraint) generateConstraintName(tableName string) string {
 	suffix := ""
 	//Deferrable is only applicable to following constraint
 	//https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Currently%2C%20only%20UNIQUE%2C%20PRIMARY%20KEY%2C%20EXCLUDE%2C%20and%20REFERENCES
-	switch t.ConstraintType {
+	switch c.ConstraintType {
 	case pg_query.ConstrType_CONSTR_UNIQUE:
 		suffix = "_key"
 	case pg_query.ConstrType_CONSTR_PRIMARY:
@@ -304,7 +313,7 @@ func (t *TableConstraint) generateConstraintName(tableName string) string {
 		suffix = "_fkey"
 	}
 
-	return fmt.Sprintf("%s_%s%s", tableName, strings.Join(t.Columns, "_"), suffix)
+	return fmt.Sprintf("%s_%s%s", tableName, strings.Join(c.Columns, "_"), suffix)
 }
 
 func (t *Table) GetObjectName() string {
@@ -344,15 +353,15 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 	t.Constraints = append(t.Constraints, tc)
 }
 
-//===========FOREIGN TABLE PARSER ================================
+//===========FOREIGN TABLE PROCESSOR ================================
 
-type ForeignTableParser struct{}
+type ForeignTableProcessor struct{}
 
-func NewForeignTableParser() *ForeignTableParser {
-	return &ForeignTableParser{}
+func NewForeignTableProcessor() *ForeignTableProcessor {
+	return &ForeignTableProcessor{}
 }
 
-func (f *ForeignTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (ftProcessor *ForeignTableProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	foreignTableNode, ok := getForeignTableStmtNode(parseTree)
 	if !ok {
 		return nil, fmt.Errorf("not a CREATE FOREIGN TABLE statement")
@@ -374,7 +383,7 @@ func (f *ForeignTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, 
 				ColumnName:  colName,
 				TypeName:    typeName,
 				TypeSchema:  typeSchemaName,
-				IsArrayType: len(element.GetColumnDef().GetTypeName().GetArrayBounds()) > 0,
+				IsArrayType: isArrayType(element.GetColumnDef().GetTypeName()),
 			})
 		}
 	}
@@ -395,16 +404,16 @@ func (f *ForeignTable) GetObjectName() string {
 }
 func (f *ForeignTable) GetSchemaName() string { return f.SchemaName }
 
-//===========INDEX PARSER ================================
+//===========INDEX PROCESSOR ================================
 
-// IndexParser handles parsing CREATE INDEX statements
-type IndexParser struct{}
+// IndexProcessor handles parsing CREATE INDEX statements
+type IndexProcessor struct{}
 
-func NewIndexParser() *IndexParser {
-	return &IndexParser{}
+func NewIndexProcessor() *IndexProcessor {
+	return &IndexProcessor{}
 }
 
-func (p *IndexParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (indexProcessor *IndexProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	indexNode, ok := getCreateIndexStmtNode(parseTree)
 	if !ok {
 		return nil, fmt.Errorf("not a CREATE INDEX statement")
@@ -423,13 +432,13 @@ func (p *IndexParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) 
 			here again similar to ALTER table Storage parameters options is the high level field in for WITH options.
 		*/
 		NumStorageOptions: len(indexNode.IndexStmt.GetOptions()),
-		Params:            p.parseIndexParams(indexNode.IndexStmt.IndexParams),
+		Params:            indexProcessor.parseIndexParams(indexNode.IndexStmt.IndexParams),
 	}
 
 	return index, nil
 }
 
-func (p *IndexParser) parseIndexParams(params []*pg_query.Node) []IndexParam {
+func (indexProcessor *IndexProcessor) parseIndexParams(params []*pg_query.Node) []IndexParam {
 	/*
 		e.g.
 		1. CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
@@ -453,6 +462,7 @@ func (p *IndexParser) parseIndexParams(params []*pg_query.Node) []IndexParam {
 			//For the expression index case to report in case casting to unsupported types #3
 			typeNames := i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
 			ip.ExprCastTypeName, ip.ExprCastTypeSchema = getTypeNameAndSchema(typeNames)
+			ip.IsExprCastArrayType = isArrayType(i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName())
 		}
 		indexParams = append(indexParams, ip)
 	}
@@ -478,8 +488,8 @@ type IndexParam struct {
 	//Add more fields
 }
 
-func (ip *IndexParam) GetFullExprCastTypeName() string {
-	return lo.Ternary(ip.ExprCastTypeSchema != "", ip.ExprCastTypeSchema+"."+ip.ExprCastTypeName, ip.ExprCastTypeName)
+func (indexParam *IndexParam) GetFullExprCastTypeName() string {
+	return lo.Ternary(indexParam.ExprCastTypeSchema != "", indexParam.ExprCastTypeSchema+"."+indexParam.ExprCastTypeName, indexParam.ExprCastTypeName)
 }
 
 func (i *Index) GetObjectName() string {
@@ -491,16 +501,16 @@ func (i *Index) GetTableName() string {
 	return lo.Ternary(i.SchemaName != "", fmt.Sprintf("%s.%s", i.SchemaName, i.TableName), i.TableName)
 }
 
-//===========ALTER TABLE PARSER ================================
+//===========ALTER TABLE PROCESSOR ================================
 
-// AlterTableParser handles parsing ALTER TABLE statements
-type AlterTableParser struct{}
+// AlterTableProcessor handles parsing ALTER TABLE statements
+type AlterTableProcessor struct{}
 
-func NewAlterTableParser() *AlterTableParser {
-	return &AlterTableParser{}
+func NewAlterTableProcessor() *AlterTableProcessor {
+	return &AlterTableProcessor{}
 }
 
-func (p *AlterTableParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	alterNode, ok := getAlterStmtNode(parseTree)
 	if !ok {
 		return nil, fmt.Errorf("not an ALTER TABLE statement")
@@ -596,16 +606,16 @@ func (a *AlterTable) AddPrimaryKeyOrUniqueCons() bool {
 	return a.ConstraintType == PRIMARY_CONSTR_TYPE || a.ConstraintType == UNIQUE_CONSTR_TYPE
 }
 
-//===========POLICY PARSER ================================
+//===========POLICY PROCESSOR ================================
 
-// PolicyParser handles parsing CREATE POLICY statements
-type PolicyParser struct{}
+// PolicyProcessor handles parsing CREATE POLICY statements
+type PolicyProcessor struct{}
 
-func NewPolicyParser() *PolicyParser {
-	return &PolicyParser{}
+func NewPolicyProcessor() *PolicyProcessor {
+	return &PolicyProcessor{}
 }
 
-func (p *PolicyParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (policyProcessor *PolicyProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	policyNode, ok := getPolicyStmtNode(parseTree)
 	if !ok {
 		return nil, fmt.Errorf("not a CREATE POLICY statement")
@@ -652,13 +662,13 @@ func (p *Policy) GetObjectName() string {
 }
 func (p *Policy) GetSchemaName() string { return p.SchemaName }
 
-//=====================TRIGGER PARSER ==================
+//=====================TRIGGER PROCESSOR ==================
 
-// TriggerParser handles parsing CREATE Trigger statements
-type TriggerParser struct{}
+// TriggerProcessor handles parsing CREATE Trigger statements
+type TriggerProcessor struct{}
 
-func NewTriggerParser() *TriggerParser {
-	return &TriggerParser{}
+func NewTriggerProcessor() *TriggerProcessor {
+	return &TriggerProcessor{}
 }
 
 /*
@@ -682,7 +692,7 @@ stmt:{create_trig_stmt:{trigname:"projects_loose_fk_trigger" relation:{schemanam
 relpersistence:"p" location:58} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} events:8
 transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len:167}
 */
-func (t *TriggerParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (triggerProcessor *TriggerProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	triggerNode, ok := getCreateTriggerStmtNode(parseTree)
 	if !ok {
 		return nil, fmt.Errorf("not a CREATE TRIGGER statement")
@@ -752,15 +762,15 @@ func (t *Trigger) IsBeforeRowTrigger() bool {
 	return t.ForEachRow && isSecondBitSet
 }
 
-// ========================TYPE PARSER======================
+// ========================TYPE PROCESSOR======================
 
-type TypeParser struct{}
+type TypeProcessor struct{}
 
-func NewTypeParser() *TypeParser {
-	return &TypeParser{}
+func NewTypeProcessor() *TypeProcessor {
+	return &TypeProcessor{}
 }
 
-func (t *TypeParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	compositeNode, isComposite := getCompositeTypeStmtNode(parseTree)
 	enumNode, isEnum := getEnumTypeStmtNode(parseTree)
 
@@ -798,15 +808,15 @@ func (c *CreateType) GetObjectName() string {
 }
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
-//===========================VIEW PARSER===================
+//===========================VIEW PROCESSOR===================
 
-type ViewParser struct{}
+type ViewProcessor struct{}
 
-func NewViewParser() *ViewParser {
-	return &ViewParser{}
+func NewViewProcessor() *ViewProcessor {
+	return &ViewProcessor{}
 }
 
-func (v *ViewParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	viewNode, ok := getCreateViewNode(parseTree)
 	if !ok {
 		return nil, fmt.Errorf("not a CREATE VIEW statement")
@@ -828,15 +838,15 @@ func (v *View) GetObjectName() string {
 }
 func (v *View) GetSchemaName() string { return v.SchemaName }
 
-//===========================MVIEW PARSER===================
+//===========================MVIEW PROCESSOR===================
 
-type MViewParser struct{}
+type MViewProcessor struct{}
 
-func NewMViewParser() *MViewParser {
-	return &MViewParser{}
+func NewMViewProcessor() *MViewProcessor {
+	return &MViewProcessor{}
 }
 
-func (mv *MViewParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (mv *MViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	mviewNode, ok := getCreateTableAsStmtNode(parseTree)
 	if !ok {
 		return nil, fmt.Errorf("not a CREATE VIEW statement")
@@ -858,14 +868,14 @@ func (mv *MView) GetObjectName() string {
 }
 func (mv *MView) GetSchemaName() string { return mv.SchemaName }
 
-//=============================No-Op PARSER ==================
+//=============================No-Op PROCESSOR ==================
 
-//No op parser for objects we don't have parser yet
+//No op Processor for objects we don't have Processor yet
 
-type NoOpParser struct{}
+type NoOpProcessor struct{}
 
-func NewNoOpParser() *NoOpParser {
-	return &NoOpParser{}
+func NewNoOpProcessor() *NoOpProcessor {
+	return &NoOpProcessor{}
 }
 
 type Object struct {
@@ -876,32 +886,32 @@ type Object struct {
 func (o *Object) GetObjectName() string { return o.ObjectName }
 func (o *Object) GetSchemaName() string { return o.SchemaName }
 
-func (g *NoOpParser) Parse(parseTree *pg_query.ParseResult) (DDLObject, error) {
+func (n *NoOpProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	return &Object{}, nil
 }
 
-func GetDDLParser(parseTree *pg_query.ParseResult) (DDLParser, error) {
+func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 	switch {
 	case IsCreateTable(parseTree):
-		return NewTableParser(), nil
+		return NewTableProcessor(), nil
 	case IsCreateIndex(parseTree):
-		return NewIndexParser(), nil
+		return NewIndexProcessor(), nil
 	case IsAlterTable(parseTree):
-		return NewAlterTableParser(), nil
+		return NewAlterTableProcessor(), nil
 	case IsCreatePolicy(parseTree):
-		return NewPolicyParser(), nil
+		return NewPolicyProcessor(), nil
 	case IsCreateTrigger(parseTree):
-		return NewTriggerParser(), nil
+		return NewTriggerProcessor(), nil
 	case IsCreateType(parseTree):
-		return NewTypeParser(), nil
+		return NewTypeProcessor(), nil
 	case IsCreateForeign(parseTree):
-		return NewForeignTableParser(), nil
+		return NewForeignTableProcessor(), nil
 	case IsViewObject(parseTree):
-		return NewViewParser(), nil
+		return NewViewProcessor(), nil
 	case IsMviewObject(parseTree):
-		return NewMViewParser(), nil
+		return NewMViewProcessor(), nil
 	default:
-		return NewNoOpParser(), nil
+		return NewNoOpProcessor(), nil
 	}
 }
 
@@ -923,3 +933,5 @@ var deferrableConstraintsList = []pg_query.ConstrType{
 	pg_query.ConstrType_CONSTR_ATTR_DEFERRED,
 	pg_query.ConstrType_CONSTR_ATTR_IMMEDIATE,
 }
+
+

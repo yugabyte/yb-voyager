@@ -19,6 +19,7 @@ package queryissue
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -56,6 +57,9 @@ type ParserIssueDetector struct {
 
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
+
+	//Boolean to check if there are any Gin indexes
+	IsGinIndexPresentInSchema bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -66,6 +70,15 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		partitionTablesMap:                   make(map[string]bool),
 		primaryConsInAlter:                   make(map[string]*queryparser.AlterTable),
 	}
+}
+
+func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
+	issues, err := p.getAllIssues(query)
+	if err != nil {
+		return issues, err
+	}
+
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
 }
 
 func (p *ParserIssueDetector) getAllIssues(query string) ([]issue.IssueInstance, error) {
@@ -97,15 +110,6 @@ func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []issue.
 		}
 	}
 	return filteredIssues, nil
-}
-
-func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
-	issues, err := p.getAllIssues(query)
-	if err != nil {
-		return issues, err
-	}
-
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
 }
 
 func (p *ParserIssueDetector) GetAllPLPGSQLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
@@ -140,6 +144,12 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]issue.IssueInsta
 			issues = append(issues, issuesInQuery...)
 		}
 
+		percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
+		if err != nil {
+			return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
+		}
+		issues = append(issues, percentTypeSyntaxIssues...)
+
 		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
 			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
 			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
@@ -172,7 +182,7 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]issue.IssueInsta
 }
 
 func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
-	ddlObj, err := queryparser.ParseDDL(query)
+	ddlObj, err := queryparser.ParseAndProcessDDL(query)
 	if err != nil {
 		return fmt.Errorf("error parsing DDL: %w", err)
 	}
@@ -221,6 +231,11 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 		} else {
 			p.CompositeTypes = append(p.CompositeTypes, typeObj.GetObjectName())
 		}
+	case *queryparser.Index:
+		index, _ := ddlObj.(*queryparser.Index)
+		if index.AccessMethod == GIN_ACCESS_METHOD {
+			p.IsGinIndexPresentInSchema = true
+		}
 	}
 	return nil
 }
@@ -237,7 +252,7 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 
 func (p *ParserIssueDetector) getDDLIssues(query string) ([]issue.IssueInstance, error) {
 	// Parse the query into a DDL object
-	ddlObj, err := queryparser.ParseDDL(query)
+	ddlObj, err := queryparser.ParseAndProcessDDL(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing DDL: %w", err)
 	}
@@ -262,6 +277,36 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]issue.IssueInstance,
 	return issues, nil
 }
 
+func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]issue.IssueInstance, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing the query-%s: %v", query, err)
+	}
+
+	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+	typeNames, err := queryparser.GetAllTypeNamesInPlpgSQLStmt(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting type names in PLPGSQL: %v", err)
+	}
+
+	/*
+		Caveats of GetAllTypeNamesInPlpgSQLStmt():
+			1. Not returning typename for variables in function parameter from this function (in correct in json as UNKNOWN), for that using the GetTypeNamesFromFuncParameters()
+			2. Not returning the return type from this function (not available in json), for that using the GetReturnTypeOfFunc()
+	*/
+	if queryparser.IsFunctionObject(parseTree) {
+		typeNames = append(typeNames, queryparser.GetReturnTypeOfFunc(parseTree))
+	}
+	typeNames = append(typeNames, queryparser.GetFuncParametersTypeNames(parseTree)...)
+	var issues []issue.IssueInstance
+	for _, typeName := range typeNames {
+		if strings.HasSuffix(typeName, "%TYPE") {
+			issues = append(issues, issue.NewPercentTypeSyntaxIssue(objType, objName, typeName)) // TODO: confirm
+		}
+	}
+	return issues, nil
+}
+
 func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
 	issues, err := p.getDMLIssues(query)
 	if err != nil {
@@ -277,14 +322,14 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
-	ddlParser, err := queryparser.GetDDLParser(parseTree)
+	ddlParser, err := queryparser.GetDDLProcessor(parseTree)
 	if err != nil {
 		return nil, fmt.Errorf("error getting a ddl parser: %w", err)
 	}
-	_, ok := ddlParser.(*queryparser.NoOpParser)
+	_, ok := ddlParser.(*queryparser.NoOpProcessor)
 	if !ok {
 		//Skip all the DDLs we are detecting issues on in the DDLIssueDetector
-		//Not Full-proof as we don't have all DDL types but atleast we will skip all the types we know currently 
+		//Not Full-proof as we don't have all DDL types but atleast we will skip all the types we know currently
 		//and if anything is detected from this we will get to know
 		return nil, nil
 	}

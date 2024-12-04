@@ -55,6 +55,15 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("one of the --move-to and --delete-changes-without-archiving must be set")
 	}
 
+	// Check to ensure that export data with live migration is running
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Error getting migration status record: %v", err)
+	}
+	if !msr.ExportDataSourceDebeziumStarted {
+		utils.ErrExit("The streaming phase of export data has not started yet. This command can only be run after the streaming phase begins.")
+	}
+
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ArchivingEnabled = true
 	})
