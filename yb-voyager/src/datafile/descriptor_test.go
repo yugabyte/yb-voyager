@@ -30,11 +30,11 @@ func TestDescriptorStructs(t *testing.T) {
 		TableNameToExportedColumns map[string][]string `json:"TableNameToExportedColumns"`
 	}{}
 
-	t.Run("Check FileEntry structure", func(t *testing.T) {
+	t.Run("Validate FileEntry Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(FileEntry{}), reflect.TypeOf(expectedFileEntry), "FileEntry")
 	})
 
-	t.Run("Check Descriptor structure", func(t *testing.T) {
+	t.Run("Validate Descriptor Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(Descriptor{}), reflect.TypeOf(expectedDescriptor), "Descriptor")
 	})
 }

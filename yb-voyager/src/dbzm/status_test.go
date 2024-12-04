@@ -25,11 +25,11 @@ func TestExportStatusStructs(t *testing.T) {
 		Sequences map[string]int64    `json:"sequences"`
 	}{}
 
-	t.Run("Check TableExportStatus structure", func(t *testing.T) {
+	t.Run("Validate TableExportStatus Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
 	})
 
-	t.Run("Check ExportStatus structure", func(t *testing.T) {
+	t.Run("Validate ExportStatus Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(ExportStatus{}), reflect.TypeOf(expectedExportStatus), "ExportStatus")
 	})
 }

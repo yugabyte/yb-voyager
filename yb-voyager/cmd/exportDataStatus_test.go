@@ -23,11 +23,11 @@ func TestExportSnapshotStatusStructs(t *testing.T) {
 		Tables map[string]*TableExportStatus `json:"tables"`
 	}{}
 
-	t.Run("Check TableExportStatus structure", func(t *testing.T) {
+	t.Run("Validate TableExportStatus Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
 	})
 
-	t.Run("Check ExportSnapshotStatus structure", func(t *testing.T) {
+	t.Run("Validate ExportSnapshotStatus Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(ExportSnapshotStatus{}), reflect.TypeOf(expectedExportSnapshotStatus), "ExportSnapshotStatus")
 	})
 }

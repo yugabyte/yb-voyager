@@ -248,7 +248,7 @@ func TestYugabyteDStructs(t *testing.T) {
 		ExportDirectory    string
 	}{}
 
-	t.Run("Check VoyagerInstance structure", func(t *testing.T) {
+	t.Run("Validate VoyagerInstance Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(controlPlane.VoyagerInstance{}), reflect.TypeOf(expectedVoyagerInstance), "VoyagerInstance")
 	})
 
@@ -269,7 +269,7 @@ func TestYugabyteDStructs(t *testing.T) {
 		InvocationTimestamp string    `json:"invocation_timestamp"`
 	}{}
 
-	t.Run("Check MigrationEvent structure", func(t *testing.T) {
+	t.Run("Validate MigrationEvent Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(MigrationEvent{}), reflect.TypeOf(expectedMigrationEvent), "MigrationEvent")
 	})
 
@@ -284,7 +284,7 @@ func TestYugabyteDStructs(t *testing.T) {
 		InvocationTimestamp string    `json:"invocation_timestamp"`
 	}{}
 
-	t.Run("Check VisualizerTableMetrics structure", func(t *testing.T) {
+	t.Run("Validate VisualizerTableMetrics Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(VisualizerTableMetrics{}), reflect.TypeOf(expectedVisualizerTableMetrics), "VisualizerTableMetrics")
 	})
 
@@ -300,7 +300,7 @@ func TestYugabyteDStructs(t *testing.T) {
 		latestInvocationSequence int
 	}{}
 
-	t.Run("Check YugabyteD structure", func(t *testing.T) {
+	t.Run("Validate YugabyteD Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(&YugabyteD{}).Elem(), reflect.TypeOf(&expectedYugabyteD).Elem(), "YugabyteD")
 	})
 }

@@ -24,7 +24,7 @@ func TestCallhomeStructs(t *testing.T) {
 		Status           string    `json:"status"`
 	}{}
 
-	t.Run("Check Payload structure", func(t *testing.T) {
+	t.Run("Validate Payload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(Payload{}), reflect.TypeOf(expectedPayload), "Payload")
 	})
 
@@ -37,7 +37,7 @@ func TestCallhomeStructs(t *testing.T) {
 		Role      string `json:"role,omitempty"`
 	}{}
 
-	t.Run("Check SourceDBDetails structure", func(t *testing.T) {
+	t.Run("Validate SourceDBDetails Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(SourceDBDetails{}), reflect.TypeOf(expectedSourceDBDetails), "SourceDBDetails")
 	})
 
@@ -49,7 +49,7 @@ func TestCallhomeStructs(t *testing.T) {
 		Cores     int    `json:"total_cores"`
 	}{}
 
-	t.Run("Check TargetDBDetails structure", func(t *testing.T) {
+	t.Run("Validate TargetDBDetails Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(TargetDBDetails{}), reflect.TypeOf(expectedTargetDBDetails), "TargetDBDetails")
 	})
 
@@ -61,7 +61,7 @@ func TestCallhomeStructs(t *testing.T) {
 		TotalOccurrences int      `json:"TotalOccurrences"`
 	}{}
 
-	t.Run("Check UnsupportedFeature structure", func(t *testing.T) {
+	t.Run("Validate UnsupportedFeature Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(UnsupportedFeature{}), reflect.TypeOf(expectedUnsupportedFeature), "UnsupportedFeature")
 	})
 
@@ -81,7 +81,7 @@ func TestCallhomeStructs(t *testing.T) {
 		IopsInterval               int64  `json:"iops_interval"`
 	}{}
 
-	t.Run("Check AssessMigrationPhasePayload structure", func(t *testing.T) {
+	t.Run("Validate AssessMigrationPhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(AssessMigrationPhasePayload{}), reflect.TypeOf(expectedAssessMigrationPhasePayload), "AssessMigrationPhasePayload")
 	})
 
@@ -90,7 +90,7 @@ func TestCallhomeStructs(t *testing.T) {
 		FleetConfigCount int `json:"fleet_config_count"`
 	}{}
 
-	t.Run("Check AssessMigrationBulkPhasePayload structure", func(t *testing.T) {
+	t.Run("Validate AssessMigrationBulkPhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(AssessMigrationBulkPhasePayload{}), reflect.TypeOf(expectedAssessMigrationBulkPhasePayload), "AssessMigrationBulkPhasePayload")
 	})
 
@@ -103,7 +103,7 @@ func TestCallhomeStructs(t *testing.T) {
 		SizeInBytes     int64  `json:"size_in_bytes"`
 	}{}
 
-	t.Run("Check ObjectSizingStats structure", func(t *testing.T) {
+	t.Run("Validate ObjectSizingStats Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(ObjectSizingStats{}), reflect.TypeOf(expectedObjectSizingStats), "ObjectSizingStats")
 	})
 
@@ -115,7 +115,7 @@ func TestCallhomeStructs(t *testing.T) {
 		CommentsOnObjects      bool `json:"comments_on_objects"`
 	}{}
 
-	t.Run("Check ExportSchemaPhasePayload structure", func(t *testing.T) {
+	t.Run("Validate ExportSchemaPhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(ExportSchemaPhasePayload{}), reflect.TypeOf(expectedExportSchemaPhasePayload), "ExportSchemaPhasePayload")
 	})
 
@@ -125,7 +125,7 @@ func TestCallhomeStructs(t *testing.T) {
 		DatabaseObjects string `json:"database_objects"`
 	}{}
 
-	t.Run("Check AnalyzePhasePayload structure", func(t *testing.T) {
+	t.Run("Validate AnalyzePhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(AnalyzePhasePayload{}), reflect.TypeOf(expectedAnalyzePhasePayload), "AnalyzePhasePayload")
 	})
 
@@ -142,7 +142,7 @@ func TestCallhomeStructs(t *testing.T) {
 		LiveWorkflowType        string `json:"live_workflow_type,omitempty"`
 	}{}
 
-	t.Run("Check ExportDataPhasePayload structure", func(t *testing.T) {
+	t.Run("Validate ExportDataPhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(ExportDataPhasePayload{}), reflect.TypeOf(expectedExportDataPhasePayload), "ExportDataPhasePayload")
 	})
 
@@ -157,7 +157,7 @@ func TestCallhomeStructs(t *testing.T) {
 		StartClean         bool `json:"start_clean"`
 	}{}
 
-	t.Run("Check ImportSchemaPhasePayload structure", func(t *testing.T) {
+	t.Run("Validate ImportSchemaPhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(ImportSchemaPhasePayload{}), reflect.TypeOf(expectedImportSchemaPhasePayload), "ImportSchemaPhasePayload")
 	})
 
@@ -174,7 +174,7 @@ func TestCallhomeStructs(t *testing.T) {
 		EnableUpsert        bool   `json:"enable_upsert"`
 	}{}
 
-	t.Run("Check ImportDataPhasePayload structure", func(t *testing.T) {
+	t.Run("Validate ImportDataPhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(ImportDataPhasePayload{}), reflect.TypeOf(expectedImportDataPhasePayload), "ImportDataPhasePayload")
 	})
 
@@ -188,7 +188,7 @@ func TestCallhomeStructs(t *testing.T) {
 		DataFileParameters string `json:"data_file_parameters"`
 	}{}
 
-	t.Run("Check ImportDataFilePhasePayload structure", func(t *testing.T) {
+	t.Run("Validate ImportDataFilePhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(ImportDataFilePhasePayload{}), reflect.TypeOf(expectedImportDataFilePhasePayload), "ImportDataFilePhasePayload")
 	})
 
@@ -202,7 +202,7 @@ func TestCallhomeStructs(t *testing.T) {
 		NullString string `json:"NullString,omitempty"`
 	}{}
 
-	t.Run("Check DataFileParameters structure", func(t *testing.T) {
+	t.Run("Validate DataFileParameters Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(DataFileParameters{}), reflect.TypeOf(expectedDataFileParameters), "DataFileParameters")
 	})
 
@@ -214,7 +214,7 @@ func TestCallhomeStructs(t *testing.T) {
 		SaveMigrationReports bool `json:"save_migration_reports"`
 	}{}
 
-	t.Run("Check EndMigrationPhasePayload structure", func(t *testing.T) {
+	t.Run("Validate EndMigrationPhasePayload Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(EndMigrationPhasePayload{}), reflect.TypeOf(expectedEndMigrationPhasePayload), "EndMigrationPhasePayload")
 	})
 }

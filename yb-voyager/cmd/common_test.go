@@ -20,7 +20,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 		Details      string `json:"Details,omitempty"`
 	}{}
 
-	t.Run("Check DBObject structure", func(t *testing.T) {
+	t.Run("Validate DBObject Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(utils.DBObject{}), reflect.TypeOf(excpectedDBObject), "DBObject")
 	})
 
@@ -34,7 +34,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 		DBObjects   []utils.DBObject `json:"DatabaseObjects"`
 	}{}
 
-	t.Run("Check SchemaSummary structure", func(t *testing.T) {
+	t.Run("Validate SchemaSummary Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(utils.SchemaSummary{}), reflect.TypeOf(expectedSchemaSummary), "SchemaSummary")
 	})
 

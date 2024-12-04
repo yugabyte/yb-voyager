@@ -581,11 +581,11 @@ func TestNameRegistryStructs(t *testing.T) {
 		params                           NameRegistryParams
 	}{}
 
-	t.Run("Check NameRegistryParams structure", func(t *testing.T) {
+	t.Run("Validate NameRegistryParams Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(NameRegistryParams{}), reflect.TypeOf(expectedNameRegistryParams), "NameRegistryParams")
 	})
 
-	t.Run("Check NameRegistry structure", func(t *testing.T) {
+	t.Run("Validate NameRegistry Struct Definition", func(t *testing.T) {
 		utils.CompareStructs(t, reflect.TypeOf(NameRegistry{}), reflect.TypeOf(expectedNameRegistry), "NameRegistry")
 	})
 }
