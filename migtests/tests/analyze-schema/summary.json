@@ -36,15 +36,15 @@
             },
             {
                 "ObjectType": "FUNCTION",
-                "TotalCount": 1,
-                "InvalidCount": 1,
-                "ObjectNames": "create_and_populate_tables"
+                "TotalCount": 7,
+                "InvalidCount": 7,
+                "ObjectNames": "create_and_populate_tables, public.get_employeee_salary, get_employee_details, calculate_tax, log_salary_change, list_high_earners, copy_high_earners"
             },
             {
                 "ObjectType": "PROCEDURE",
-                "TotalCount": 6,
-                "InvalidCount": 4,
-                "ObjectNames": "foo, foo1, sp_createnachabatch, test, test1, add_employee"
+                "TotalCount": 8,
+                "InvalidCount": 6,
+                "ObjectNames": "foo, foo1, sp_createnachabatch, test, get_employee_details_proc, test1, add_employee, update_salary"
             },
             {
                 "ObjectType": "VIEW",

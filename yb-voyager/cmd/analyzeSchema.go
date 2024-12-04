@@ -1724,6 +1724,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 		DocsLink:     issueInstance.DocsLink,
 		FilePath:     fileName,
 		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,
+		Suggestion:   issueInstance.Suggestion,
+		GH:           issueInstance.GH,
 	}
 }
 

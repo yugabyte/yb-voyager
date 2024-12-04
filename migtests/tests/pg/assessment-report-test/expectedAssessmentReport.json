@@ -55,10 +55,9 @@
 			},
 			{
 				"ObjectType": "FUNCTION",
-				"TotalCount": 9,
-				"InvalidCount": 2,
-				"ObjectNames": "public.process_order, schema2.process_order, public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.total"
-			},
+				"TotalCount": 10,
+				"InvalidCount": 3,
+				"ObjectNames": "public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
 			{
 				"ObjectType": "AGGREGATE",
 				"TotalCount": 2,
@@ -67,9 +66,9 @@
 			},
 			{
 				"ObjectType": "PROCEDURE",
-				"TotalCount": 2,
-				"InvalidCount": 0,
-				"ObjectNames": "public.tt_insert_data, schema2.tt_insert_data"
+				"TotalCount": 3,
+				"InvalidCount": 1,
+				"ObjectNames": "public.tt_insert_data, public.update_combined_tbl_data, schema2.tt_insert_data"
 			},
 			{
 				"ObjectType": "VIEW",
@@ -2130,6 +2129,22 @@
 		}
 	],
 	"UnsupportedPlPgSqlObjects": [
+		{
+			"FeatureName": "Referenced type declaration of variables",
+			"Objects": [
+				{
+					"ObjectType": "FUNCTION",
+					"ObjectName": "public.process_combined_tbl",
+					"SqlStatement": "public.combined_tbl.maddr%TYPE"
+				},
+				{
+					"ObjectType": "PROCEDURE",
+					"ObjectName": "public.update_combined_tbl_data",
+					"SqlStatement": "public.combined_tbl.maddr%TYPE"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+		},
 		{
 			"FeatureName": "Advisory Locks",
 			"Objects": [
