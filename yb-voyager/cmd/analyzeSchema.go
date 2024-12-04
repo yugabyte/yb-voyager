@@ -335,11 +335,11 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			continue
 		}
 		if queryparser.IsCreateIndex(parseTree) {
-			indexParser, err := queryparser.GetDDLParser(parseTree)
+			indexProcessor, err := queryparser.GetDDLProcessor(parseTree)
 			if err != nil {
 				utils.ErrExit("error getting ddl parser for stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
 			}
-			obj, err := indexParser.Parse(parseTree)
+			obj, err := indexProcessor.Process(parseTree)
 			if err != nil {
 				utils.ErrExit("error parsing stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
 			}

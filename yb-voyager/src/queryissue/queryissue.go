@@ -172,7 +172,7 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]issue.IssueInsta
 }
 
 func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
-	ddlObj, err := queryparser.ParseDDL(query)
+	ddlObj, err := queryparser.ParseAndProcessDDL(query)
 	if err != nil {
 		return fmt.Errorf("error parsing DDL: %w", err)
 	}
@@ -237,7 +237,7 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 
 func (p *ParserIssueDetector) getDDLIssues(query string) ([]issue.IssueInstance, error) {
 	// Parse the query into a DDL object
-	ddlObj, err := queryparser.ParseDDL(query)
+	ddlObj, err := queryparser.ParseAndProcessDDL(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing DDL: %w", err)
 	}
