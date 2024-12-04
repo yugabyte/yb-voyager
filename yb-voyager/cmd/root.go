@@ -118,7 +118,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			log.Infof("Start time: %s\n", startTime)
 
 			if shouldRunExportDirInitialisedCheck(cmd) {
-				isExportDirInitialised()
+				checkExportDirInitialised()
 			}
 
 			if callhome.SendDiagnostics {
@@ -159,7 +159,7 @@ func shouldRunExportDirInitialisedCheck(cmd *cobra.Command) bool {
 	return slices.Contains(exportDirInitialisedCheckNeededList, cmd.CommandPath())
 }
 
-func isExportDirInitialised() {
+func checkExportDirInitialised() {
 	// Check to ensure that this is not the first command in the migration process
 	isMetaDBPresent := metaDBIsCreated(exportDir)
 	if !isMetaDBPresent {
