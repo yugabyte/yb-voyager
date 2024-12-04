@@ -45,7 +45,7 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 	// Export the database connection string to env variable YUGABYTED_DB_CONN_STRING
 	err = os.Setenv("YUGABYTED_DB_CONN_STRING", dsn)
 
-	exportDir := "./yugabyted_export_dir"
+	exportDir := os.TempDir() + "/yugabyted"
 	controlPlane := New(exportDir)
 	controlPlane.eventChan = make(chan MigrationEvent, 100)
 	controlPlane.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)

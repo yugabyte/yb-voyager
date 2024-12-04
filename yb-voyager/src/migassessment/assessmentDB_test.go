@@ -75,7 +75,7 @@ func TestInitAssessmentDB(t *testing.T) {
 	}
 
 	// Create a temporary SQLite database file for testing
-	tempFile, err := os.CreateTemp(".", "test_assessment_db_*.db")
+	tempFile, err := os.CreateTemp(os.TempDir(), "test_assessment_db_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temporary file: %v", err)
 	}

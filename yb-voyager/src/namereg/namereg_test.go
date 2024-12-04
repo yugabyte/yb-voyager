@@ -591,7 +591,7 @@ func TestNameRegistryStructs(t *testing.T) {
 }
 
 func TestNameRegistryJson(t *testing.T) {
-	exportDir := "./test_export_dir/"
+	exportDir := os.TempDir() + "/namereg"
 	outputFilePath := filepath.Join(exportDir, "test_dummy_name_registry.json")
 
 	// Create a sample NameRegistry instance

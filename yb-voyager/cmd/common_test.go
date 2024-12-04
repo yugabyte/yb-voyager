@@ -135,7 +135,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 }
 
 func TestAssessmentReportJson(t *testing.T) {
-	reportDir := "./test_report_dir/"
+	reportDir := os.TempDir() + "/assessment_report_test"
 	reportPath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 
 	assessmentReport = AssessmentReport{

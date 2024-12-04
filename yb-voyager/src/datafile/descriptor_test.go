@@ -41,7 +41,7 @@ func TestDescriptorStructs(t *testing.T) {
 
 func TestDescriptorJson(t *testing.T) {
 	// Set up the temporary export directory
-	exportDir := "/tmp/test_export_dir/"
+	exportDir := os.TempDir() + "/descriptor_test"
 	outputFilePath := exportDir + DESCRIPTOR_PATH
 
 	// Create a sample Descriptor instance

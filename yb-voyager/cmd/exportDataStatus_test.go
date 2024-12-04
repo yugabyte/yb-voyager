@@ -43,7 +43,7 @@ func TestExportSnapshotStatusJson(t *testing.T) {
 		nameTuple2,
 	}
 
-	exportDir = "./test_export_dir/"
+	exportDir = os.TempDir() + "/export_snapshot_status_test"
 
 	// Make export directory
 	err := os.MkdirAll(exportDir+"/metainfo", 0755)
