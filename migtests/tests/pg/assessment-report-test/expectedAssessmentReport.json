@@ -2184,7 +2184,8 @@
 					"SqlStatement": "public.combined_tbl.maddr%TYPE"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Advisory Locks",
