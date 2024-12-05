@@ -10,6 +10,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 func TestAssessmentReportStructs(t *testing.T) {
@@ -71,20 +72,22 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate UnsupportedFeature Struct Definition",
 			actualType: reflect.TypeOf(UnsupportedFeature{}),
 			expectedType: struct {
-				FeatureName        string       `json:"FeatureName"`
-				Objects            []ObjectInfo `json:"Objects"`
-				DisplayDDL         bool         `json:"-"`
-				DocsLink           string       `json:"DocsLink,omitempty"`
-				FeatureDescription string       `json:"FeatureDescription,omitempty"`
+				FeatureName            string                          `json:"FeatureName"`
+				Objects                []ObjectInfo                    `json:"Objects"`
+				DisplayDDL             bool                            `json:"-"`
+				DocsLink               string                          `json:"DocsLink,omitempty"`
+				FeatureDescription     string                          `json:"FeatureDescription,omitempty"`
+				MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
 			}{},
 		},
 		{
 			name:       "Validate UnsupportedQueryConstruct Struct Definition",
 			actualType: reflect.TypeOf(utils.UnsupportedQueryConstruct{}),
 			expectedType: struct {
-				ConstructTypeName string
-				Query             string
-				DocsLink          string
+				ConstructTypeName      string
+				Query                  string
+				DocsLink               string
+				MinimumVersionsFixedIn map[string]*ybversion.YBVersion
 			}{},
 		},
 		{
@@ -110,6 +113,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 			actualType: reflect.TypeOf(AssessmentReport{}),
 			expectedType: struct {
 				VoyagerVersion             string                                `json:"VoyagerVersion"`
+				TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
 				MigrationComplexity        string                                `json:"MigrationComplexity"`
 				SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
 				Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
@@ -137,8 +141,14 @@ func TestAssessmentReportJson(t *testing.T) {
 	reportDir := filepath.Join(os.TempDir(), "assessment_report_test")
 	reportPath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 
+	newYbVersion, err := ybversion.NewYBVersion("2024.1.1.1")
+	if err != nil {
+		t.Fatalf("Failed to create new YBVersion: %v", err)
+	}
+
 	assessmentReport = AssessmentReport{
 		VoyagerVersion:      "v1.0.0",
+		TargetDBVersion:     newYbVersion,
 		MigrationComplexity: "High",
 		SchemaSummary: utils.SchemaSummary{
 			Description: "Test Schema Summary",
@@ -188,17 +198,19 @@ func TestAssessmentReportJson(t *testing.T) {
 						SqlStatement: "test_sql",
 					},
 				},
-				DisplayDDL:         true,
-				DocsLink:           "https://test.com",
-				FeatureDescription: "Test feature description",
+				DisplayDDL:             true,
+				DocsLink:               "https://test.com",
+				FeatureDescription:     "Test feature description",
+				MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{"2024.1.1": newYbVersion},
 			},
 		},
 		UnsupportedFeaturesDesc: "Test unsupported features",
 		UnsupportedQueryConstructs: []utils.UnsupportedQueryConstruct{
 			{
-				ConstructTypeName: "test_construct",
-				Query:             "test_query",
-				DocsLink:          "https://test.com",
+				ConstructTypeName:      "test_construct",
+				Query:                  "test_query",
+				DocsLink:               "https://test.com",
+				MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{"2024.1.1": newYbVersion},
 			},
 		},
 		UnsupportedPlPgSqlObjects: []UnsupportedFeature{
@@ -211,9 +223,10 @@ func TestAssessmentReportJson(t *testing.T) {
 						SqlStatement: "test_sql",
 					},
 				},
-				DisplayDDL:         true,
-				DocsLink:           "https://test.com",
-				FeatureDescription: "Test feature description",
+				DisplayDDL:             true,
+				DocsLink:               "https://test.com",
+				FeatureDescription:     "Test feature description",
+				MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{"2024.1.1": newYbVersion},
 			},
 		},
 		MigrationCaveats: []UnsupportedFeature{
@@ -226,9 +239,10 @@ func TestAssessmentReportJson(t *testing.T) {
 						SqlStatement: "test_sql",
 					},
 				},
-				DisplayDDL:         true,
-				DocsLink:           "https://test.com",
-				FeatureDescription: "Test feature description",
+				DisplayDDL:             true,
+				DocsLink:               "https://test.com",
+				FeatureDescription:     "Test feature description",
+				MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{"2024.1.1": newYbVersion},
 			},
 		},
 		TableIndexStats: &[]migassessment.TableIndexStats{
@@ -251,7 +265,7 @@ func TestAssessmentReportJson(t *testing.T) {
 	}
 
 	// Make the report directory
-	err := os.MkdirAll(reportDir, 0755)
+	err = os.MkdirAll(reportDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create report directory: %v", err)
 	}
@@ -273,6 +287,7 @@ func TestAssessmentReportJson(t *testing.T) {
 	// expected JSON
 	expectedJSON := `{
 	"VoyagerVersion": "v1.0.0",
+	"TargetDBVersion": "2024.1.1.1",
 	"MigrationComplexity": "High",
 	"SchemaSummary": {
 		"Description": "Test Schema Summary",
@@ -329,7 +344,10 @@ func TestAssessmentReportJson(t *testing.T) {
 				}
 			],
 			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description"
+			"FeatureDescription": "Test feature description",
+			"MinimumVersionsFixedIn": {
+				"2024.1.1": "2024.1.1.1"
+			}
 		}
 	],
 	"UnsupportedFeaturesDesc": "Test unsupported features",
@@ -337,7 +355,10 @@ func TestAssessmentReportJson(t *testing.T) {
 		{
 			"ConstructTypeName": "test_construct",
 			"Query": "test_query",
-			"DocsLink": "https://test.com"
+			"DocsLink": "https://test.com",
+			"MinimumVersionsFixedIn": {
+				"2024.1.1": "2024.1.1.1"
+			}
 		}
 	],
 	"UnsupportedPlPgSqlObjects": [
@@ -351,7 +372,10 @@ func TestAssessmentReportJson(t *testing.T) {
 				}
 			],
 			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description"
+			"FeatureDescription": "Test feature description",
+			"MinimumVersionsFixedIn": {
+				"2024.1.1": "2024.1.1.1"
+			}
 		}
 	],
 	"MigrationCaveats": [
@@ -365,7 +389,10 @@ func TestAssessmentReportJson(t *testing.T) {
 				}
 			],
 			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description"
+			"FeatureDescription": "Test feature description",
+			"MinimumVersionsFixedIn": {
+				"2024.1.1": "2024.1.1.1"
+			}
 		}
 	],
 	"TableIndexStats": [
