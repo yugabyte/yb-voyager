@@ -310,7 +310,7 @@
 
         <h2>Unsupported PL/pgSQL objects</h2>
         {{ if .UnsupportedPlPgSqlObjects}}
-            <p>Source schema objects having unsupported statements in PLPGSQL code block: </p>
+            <p>Source schema objects having unsupported statements in PL/pgSQL code block: </p>
             <table>
                 <tr>
                     <th>Feature Name</th>
