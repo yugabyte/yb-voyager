@@ -30,17 +30,18 @@ const (
 	XML_FUNCTIONS_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xml-functions-is-not-yet-supported"
 )
 
+func GetMsgFullName(msg protoreflect.Message) string {
+	return string(msg.Descriptor().FullName())
+}
+
 // Sample example: {func_call:{funcname:{string:{sval:"pg_advisory_lock"}}
-func GetFuncNameFromFuncCall(funcCallNode protoreflect.Message) string {
+func GetFuncNameFromFuncCall(funcCallNode protoreflect.Message) (string, string) {
 	if GetMsgFullName(funcCallNode) != PG_QUERY_FUNCCALL_NODE {
-		return ""
+		return "", ""
 	}
 
-	funcnameField := funcCallNode.Get(funcCallNode.Descriptor().Fields().ByName("funcname"))
-	funcnameList := funcnameField.List()
+	funcnameList := GetListField(funcCallNode, "funcname")
 	var names []string
-
-	// TODO: simplification to directly access last item of funcnameList
 	for i := 0; i < funcnameList.Len(); i++ {
 		item := funcnameList.Get(i)
 		name := GetStringValueFromNode(item.Message())
@@ -48,23 +49,23 @@ func GetFuncNameFromFuncCall(funcCallNode protoreflect.Message) string {
 			names = append(names, name)
 		}
 	}
+
 	if len(names) == 0 {
-		return ""
+		return "", ""
+	} else if len(names) == 1 {
+		return "", names[0]
 	}
-	return names[len(names)-1] // ignoring schema_name
+	return names[0], names[1]
 }
 
 // Sample example:: {column_ref:{fields:{string:{sval:"xmax"}}
-func GetColNameFromColumnRef(columnRefNode protoreflect.Message) string {
+func GetColNameFromColumnRef(columnRefNode protoreflect.Message) (string, string) {
 	if GetMsgFullName(columnRefNode) != PG_QUERY_COLUMNREF_NODE {
-		return ""
+		return "", ""
 	}
 
-	fields := columnRefNode.Get(columnRefNode.Descriptor().Fields().ByName("fields"))
-	fieldsList := fields.List()
+	fieldsList := GetListField(columnRefNode, "fields")
 	var names []string
-
-	// TODO: simplification to directly access last item of fieldsList
 	for i := 0; i < fieldsList.Len(); i++ {
 		item := fieldsList.Get(i)
 		name := GetStringValueFromNode(item.Message())
@@ -72,10 +73,13 @@ func GetColNameFromColumnRef(columnRefNode protoreflect.Message) string {
 			names = append(names, name)
 		}
 	}
+
 	if len(names) == 0 {
-		return ""
+		return "", ""
+	} else if len(names) == 1 {
+		return "", names[0]
 	}
-	return names[len(names)-1] // ignoring schema_name
+	return names[0], names[1]
 }
 
 // Sample example:: {column_ref:{fields:{string:{sval:"s"}}  fields:{string:{sval:"tableoid"}}  location:7}
@@ -100,13 +104,13 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 	switch nodeType {
 	// Represents a simple string literal in a query, such as names or values directly provided in the SQL text.
 	case PG_QUERY_STRING_NODE:
-		return extractStringField(node, "sval")
+		return GetStringField(node, "sval")
 	// Represents a constant value in SQL expressions, often used for literal values like strings, numbers, or keywords.
 	case PG_QUERY_ACONST_NODE:
-		return extractAConstString(node)
+		return getStringFromAConstMsg(node)
 	// Represents a type casting operation in SQL, where a value is explicitly converted from one type to another using a cast expression.
 	case PG_QUERY_TYPECAST_NODE:
-		return traverseAndExtractAConst(node, "arg")
+		return getStringFromTypeCastMsg(node, "arg")
 	// Represents the asterisk '*' used in SQL to denote the selection of all columns in a table. Example: SELECT * FROM employees;
 	case PG_QUERY_ASTAR_NODE:
 		return ""
@@ -115,49 +119,22 @@ func GetStringValueFromNode(nodeMsg protoreflect.Message) string {
 	}
 }
 
-// extractStringField safely extracts a string field from a node
-// Sample example:: {column_ref:{fields:{string:{sval:"s"}}  fields:{string:{sval:"tableoid"}}  location:7}
-func extractStringField(node protoreflect.Message, fieldName string) string {
-	strField := node.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
-	if strField == nil || !node.Has(strField) {
-		return ""
-	}
-	return node.Get(strField).String()
-}
-
-// extractAConstString extracts the string from an 'A_Const' node's 'sval' field
+// getStringFromAConstMsg extracts the string from an 'A_Const' node's 'sval' field
 // Sample example:: rowexpr:{a_const:{sval:{sval:"//Product"}  location:124}}
-func extractAConstString(aConstMsg protoreflect.Message) string {
-	// Extract the 'sval' field from 'A_Const'
-	svalField := aConstMsg.Descriptor().Fields().ByName("sval")
-	if svalField == nil || !aConstMsg.Has(svalField) {
+func getStringFromAConstMsg(aConstMsg protoreflect.Message) string {
+	svalMsg := GetMessageField(aConstMsg, "sval")
+	if svalMsg == nil {
 		return ""
 	}
 
-	svalMsg := aConstMsg.Get(svalField).Message()
-	if svalMsg == nil || !svalMsg.IsValid() {
-		return ""
-	}
-
-	// Ensure svalMsg is of type 'pg_query.String'
-	if svalMsg.Descriptor().FullName() != "pg_query.String" {
-		return ""
-	}
-
-	// Extract the actual string value from 'pg_query.String'
-	return extractStringField(svalMsg, "sval")
+	return GetStringField(svalMsg, "sval")
 }
 
-// traverseAndExtractAConst traverses to a specified field and extracts the 'A_Const' string value
+// getStringFromTypeCastMsg traverses to a specified field and extracts the 'A_Const' string value
 // Sample example:: rowexpr:{type_cast:{arg:{a_const:{sval:{sval:"/order/item"}
-func traverseAndExtractAConst(nodeMsg protoreflect.Message, fieldName string) string {
-	field := nodeMsg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
-	if field == nil || !nodeMsg.Has(field) {
-		return ""
-	}
-
-	childMsg := nodeMsg.Get(field).Message()
-	if childMsg == nil || !childMsg.IsValid() {
+func getStringFromTypeCastMsg(nodeMsg protoreflect.Message, fieldName string) string {
+	childMsg := GetMessageField(nodeMsg, fieldName)
+	if childMsg == nil {
 		return ""
 	}
 
@@ -281,10 +258,6 @@ func IsXPathExprForXmlTable(expression string) bool {
 	return strings.HasPrefix(expression, "/") || strings.HasPrefix(expression, "//")
 }
 
-func GetMsgFullName(msg protoreflect.Message) string {
-	return string(msg.Descriptor().FullName())
-}
-
 // IsParameterPlaceholder checks if the given node represents a parameter placeholder like $1
 func IsParameterPlaceholder(nodeMsg protoreflect.Message) bool {
 	if nodeMsg == nil || !nodeMsg.IsValid() {
@@ -333,4 +306,47 @@ func getOneofActiveField(msg protoreflect.Message, oneofName string) protoreflec
 
 	// Determine which field within the oneof is set
 	return msg.WhichOneof(oneofDescriptor)
+}
+
+// == Generic helper functions ==
+
+// GetStringField retrieves a string field from a message.
+// Sample example:: {column_ref:{fields:{string:{sval:"s"}}  fields:{string:{sval:"tableoid"}}  location:7}
+func GetStringField(msg protoreflect.Message, fieldName string) string {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).String()
+	}
+	return ""
+}
+
+// GetMessageField retrieves a message field from a message.
+func GetMessageField(msg protoreflect.Message, fieldName string) protoreflect.Message {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Message()
+	}
+	return nil
+}
+
+// GetListField retrieves a list field from a message.
+func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).List()
+	}
+	return nil
+}
+
+// GetSchemaAndObjectName extracts the schema and object name from a list.
+func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
+	var schemaName, objectName string
+
+	if nameList.Len() == 1 {
+		objectName = GetStringField(nameList.Get(0).Message(), "string")
+	} else if nameList.Len() == 2 {
+		schemaName = GetStringField(nameList.Get(0).Message(), "string")
+		objectName = GetStringField(nameList.Get(1).Message(), "string")
+	}
+	return schemaName, objectName
 }

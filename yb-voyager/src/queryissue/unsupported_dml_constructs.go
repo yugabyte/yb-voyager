@@ -28,7 +28,8 @@ const (
 	XML_FUNCTIONS  = "XML Functions"
 )
 
-// To Add a new unsupported query construct implement this interface
+// To Add a new unsupported query construct implement this interface for all possible nodes for that construct
+// each detector will work on specific type of node
 type UnsupportedConstructDetector interface {
 	Detect(msg protoreflect.Message) ([]string, error)
 }
@@ -58,7 +59,7 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) ([]string, error) {
 		return nil, nil
 	}
 
-	funcName := queryparser.GetFuncNameFromFuncCall(msg)
+	_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
 	log.Debugf("fetched function name from %s node: %q", queryparser.PG_QUERY_FUNCCALL_NODE, funcName)
 	if constructType, isUnsupported := d.unsupportedFuncs[funcName]; isUnsupported {
 		log.Debugf("detected unsupported function %q in msg - %+v", funcName, msg)
@@ -88,7 +89,7 @@ func (d *ColumnRefDetector) Detect(msg protoreflect.Message) ([]string, error) {
 		return nil, nil
 	}
 
-	colName := queryparser.GetColNameFromColumnRef(msg)
+	_, colName := queryparser.GetColNameFromColumnRef(msg)
 	log.Debugf("fetched column name from %s node: %q", queryparser.PG_QUERY_COLUMNREF_NODE, colName)
 	if constructType, isUnsupported := d.unsupportedColumns[colName]; isUnsupported {
 		log.Debugf("detected unsupported system column %q in msg - %+v", colName, msg)

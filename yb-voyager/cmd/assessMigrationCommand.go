@@ -42,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -1158,6 +1159,19 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	for i := 0; i < len(executedQueries); i++ {
 		query := executedQueries[i]
 		log.Debugf("fetching unsupported query constructs for query - [%s]", query)
+		collectedSchemaList, err := queryparser.GetSchemaUsed(query)
+		if err != nil { // no need to error out if failed to get schemas for a query
+			log.Errorf("failed to get schemas used for query [%s]: %v", query, err)
+			continue
+		}
+
+		log.Infof("collected schema list %v(len=%d) for query [%s]", collectedSchemaList, len(collectedSchemaList), query)
+		if !considerQueryForIssueDetection(collectedSchemaList) {
+			log.Infof("ignoring query due to difference in collected schema list %v(len=%d) vs source schema list %v(len=%d)",
+				collectedSchemaList, len(collectedSchemaList), source.GetSchemaList(), len(source.GetSchemaList()))
+			continue
+		}
+
 		issues, err := parserIssueDetector.GetDMLIssues(query, targetDbVersion)
 		if err != nil {
 			log.Errorf("failed while trying to fetch query issues in query - [%s]: %v",
@@ -1173,7 +1187,6 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			}
 			result = append(result, uqc)
 		}
-
 	}
 
 	// sort the slice to group same constructType in html and json reports
@@ -1263,6 +1276,47 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	}
 
 	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
+}
+
+/*
+Queries to ignore:
+- Collected schemas is totally different than source schema list, not containing ""
+
+Queries to consider:
+- Collected schemas subset of source schema list
+- Collected schemas contains some from source schema list and some extras
+
+Caveats:
+There can be a lot of false positives.
+For example: standard sql functions like sum(), count() won't be qualified(pg_catalog) in queries generally.
+Making the schema unknown for that object, resulting in query consider
+*/
+func considerQueryForIssueDetection(collectedSchemaList []string) bool {
+	// filtering out pg_catalog schema, since it doesn't impact query consideration decision
+	collectedSchemaList = lo.Filter(collectedSchemaList, func(item string, _ int) bool {
+		return item != "pg_catalog"
+	})
+
+	sourceSchemaList := strings.Split(source.Schema, "|")
+
+	// fallback in case: unable to collect objects or there are no object(s) in the query
+	if len(collectedSchemaList) == 0 {
+		return true
+	}
+
+	// empty schemaname indicates presence of unqualified objectnames in query
+	if slices.Contains(collectedSchemaList, "") {
+		log.Debug("considering due to empty schema\n")
+		return true
+	}
+
+	for _, collectedSchema := range collectedSchemaList {
+		if slices.Contains(sourceSchemaList, collectedSchema) {
+			log.Debugf("considering due to '%s' schema\n", collectedSchema)
+			return true
+		}
+	}
+	return false
 }
 
 const (

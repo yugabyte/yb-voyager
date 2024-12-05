@@ -83,6 +83,10 @@ func (s *Source) GetOracleHome() string {
 	}
 }
 
+func (s *Source) GetSchemaList() []string {
+	return strings.Split(s.Schema, "|")
+}
+
 func (s *Source) IsOracleCDBSetup() bool {
 	return (s.CDBName != "" || s.CDBTNSAlias != "" || s.CDBSid != "")
 }

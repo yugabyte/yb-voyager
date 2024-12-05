@@ -32,8 +32,14 @@ const (
 	PG_QUERY_XMLEXPR_NODE        = "pg_query.XmlExpr"
 	PG_QUERY_FUNCCALL_NODE       = "pg_query.FuncCall"
 	PG_QUERY_COLUMNREF_NODE      = "pg_query.ColumnRef"
+	PG_QUERY_RANGEFUNCTION_NODE  = "pg_query.RangeFunction"
+	PG_QUERY_RANGEVAR_NODE       = "pg_query.RangeVar"
 	PG_QUERY_RANGETABLEFUNC_NODE = "pg_query.RangeTableFunc"
 	PG_QUERY_PARAMREF_NODE       = "pg_query.ParamRef"
+
+	PG_QUERY_INSERTSTMT_NODE = "pg_query.InsertStmt"
+	PG_QUERY_UPDATESTMT_NODE = "pg_query.UpdateStmt"
+	PG_QUERY_DELETESTMT_NODE = "pg_query.DeleteStmt"
 )
 
 // function type for processing nodes during traversal
@@ -203,4 +209,24 @@ func IsScalarKind(kind protoreflect.Kind) bool {
 		protoreflect.FloatKind, protoreflect.DoubleKind,
 		protoreflect.BoolKind, protoreflect.StringKind, protoreflect.BytesKind, protoreflect.EnumKind}
 	return slices.Contains(listOfScalarKinds, kind)
+}
+
+func GetSchemaUsed(query string) ([]string, error) {
+	parseTree, err := Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query: %w", err)
+	}
+
+	msg := GetProtoMessageFromParseTree(parseTree)
+	visited := make(map[protoreflect.Message]bool)
+	objectCollector := NewObjectCollector()
+	err = TraverseParseTree(msg, visited, func(msg protoreflect.Message) error {
+		objectCollector.Collect(msg)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("traversing parse tree: %w", err)
+	}
+
+	return objectCollector.GetSchemaList(), nil
 }
