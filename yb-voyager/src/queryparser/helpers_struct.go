@@ -216,42 +216,6 @@ func getForeignTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_Cr
 	return node, ok
 }
 
-func IsAlterTable(parseTree *pg_query.ParseResult) bool {
-	_, isAlter := getAlterStmtNode(parseTree)
-	return isAlter
-}
-
-func IsCreateIndex(parseTree *pg_query.ParseResult) bool {
-	_, isCreateIndex := getCreateIndexStmtNode(parseTree)
-	return isCreateIndex
-}
-
-func IsCreateTable(parseTree *pg_query.ParseResult) bool {
-	_, IsCreateTable := getCreateTableStmtNode(parseTree)
-	return IsCreateTable
-}
-
-func IsCreatePolicy(parseTree *pg_query.ParseResult) bool {
-	_, isCreatePolicy := getPolicyStmtNode(parseTree)
-	return isCreatePolicy
-}
-
-func IsCreateTrigger(parseTree *pg_query.ParseResult) bool {
-	_, isCreateTrig := getCreateTriggerStmtNode(parseTree)
-	return isCreateTrig
-}
-
-func IsCreateType(parseTree *pg_query.ParseResult) bool {
-	_, isComposite := getCompositeTypeStmtNode(parseTree)
-	_, isEnum := getEnumTypeStmtNode(parseTree)
-	return isComposite || isEnum
-}
-
-func IsCreateForeign(parseTree *pg_query.ParseResult) bool {
-	_, isForeignTable := getForeignTableStmtNode(parseTree)
-	return isForeignTable
-}
-
 func IsFunctionObject(parseTree *pg_query.ParseResult) bool {
 	funcNode, ok := getCreateFuncStmtNode(parseTree)
 	if !ok {

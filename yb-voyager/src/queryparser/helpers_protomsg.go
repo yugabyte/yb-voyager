@@ -334,3 +334,11 @@ func getOneofActiveField(msg protoreflect.Message, oneofName string) protoreflec
 	// Determine which field within the oneof is set
 	return msg.WhichOneof(oneofDescriptor)
 }
+
+func GetStatementType(msg protoreflect.Message) string {
+	nodeMsg := getOneofActiveField(msg, "node")
+	if nodeMsg == nil {
+		return ""
+	}
+	return string(nodeMsg.Message().FullName())
+}
