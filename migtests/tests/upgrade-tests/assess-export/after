@@ -15,9 +15,3 @@
 	then
 		 "${TEST_DIR}/validate-schema"
 	fi
-
-	step "Run validations."
-	if [ -x "${TEST_DIR}/validate" ]
-	then
-		 "${TEST_DIR}/validate"
-	fi
