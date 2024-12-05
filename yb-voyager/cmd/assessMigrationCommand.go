@@ -967,7 +967,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	for _, indexMethod := range unsupportedIndexMethods {
+	for _, indexMethod := range queryissue.UnsupportedIndexMethods {
 		displayIndexMethod := strings.ToUpper(indexMethod)
 		feature := fmt.Sprintf("%s indexes", displayIndexMethod)
 		reason := fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, displayIndexMethod)
@@ -986,7 +986,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXCLUSION_CONSTRAINT_FEATURE, EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, UnsupportedIndexDatatypes))
+	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, queryissue.UnsupportedIndexDatatypes))
 
 	pkOrUkConstraintIssuePrefix := strings.Split(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, "%s")[0]
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE, pkOrUkConstraintIssuePrefix, schemaAnalysisReport, false, ""))
@@ -1127,7 +1127,6 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	if source.DBType != POSTGRESQL {
 		return nil, nil
 	}
-	parserIssueDetector := queryissue.NewParserIssueDetector()
 	query := fmt.Sprintf("SELECT DISTINCT query from %s", migassessment.DB_QUERIES_SUMMARY)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
@@ -1250,9 +1249,9 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
 
 		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFForFBUnsupportedDatatypes, typeName)
-		isUDTDatatype := utils.ContainsAnyStringFromSlice(compositeTypes, allColumnsDataTypes[i].DataType)
-		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                              //if type is array
-		isEnumDatatype := utils.ContainsAnyStringFromSlice(enumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
+		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetCompositeTypes(), allColumnsDataTypes[i].DataType)
+		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
+		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
 		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
 

@@ -53,3 +53,43 @@ var unsupportedXmlFunctions = []string{
 	*/
 	"xmlconcat2", "xmlvalidate", "xml_in", "xml_out", "xml_recv", "xml_send", // System XML I/O
 }
+
+var UnsupportedIndexMethods = []string{
+	"gist",
+	"brin",
+	"spgist",
+}
+
+// Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)
+var UnsupportedIndexDatatypes = []string{
+	"citext",
+	"tsvector",
+	"tsquery",
+	"jsonb",
+	"inet",
+	"json",
+	"macaddr",
+	"macaddr8",
+	"cidr",
+	"bit",    // for BIT (n)
+	"varbit", // for BIT varying (n)
+	"daterange",
+	"tsrange",
+	"tstzrange",
+	"numrange",
+	"int4range",
+	"int8range",
+	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
+	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
+	//Need to understand if there is other method or way available in PG to have these index key [TODO]
+	"circle",
+	"box",
+	"line",
+	"lseg",
+	"point",
+	"pg_lsn",
+	"path",
+	"polygon",
+	"txid_snapshot",
+	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
+}

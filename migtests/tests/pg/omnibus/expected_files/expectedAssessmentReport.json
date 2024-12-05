@@ -601,16 +601,16 @@
 			"FeatureName": "Storage parameters in DDLs",
 			"Objects": [
 				{
-					"ObjectName": "gin_idx",
-					"SqlStatement": "CREATE INDEX gin_idx ON idx_ex.films USING gin (to_tsvector('english'::regconfig, title)) WITH (fastupdate=off); "
+					"ObjectName": "gin_idx ON idx_ex.films",
+					"SqlStatement": "CREATE INDEX gin_idx ON idx_ex.films USING gin (to_tsvector('english'::regconfig, title)) WITH (fastupdate=off);"
 				},
 				{
-					"ObjectName": "title_idx",
-					"SqlStatement": "CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfactor='70'); "
+					"ObjectName": "title_idx ON idx_ex.films",
+					"SqlStatement": "CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfactor='70');"
 				},
 				{
-					"ObjectName": "title_idx_with_duplicates",
-					"SqlStatement": "CREATE INDEX title_idx_with_duplicates ON idx_ex.films USING btree (title) WITH (deduplicate_items=off); "
+					"ObjectName": "title_idx_with_duplicates ON idx_ex.films",
+					"SqlStatement": "CREATE INDEX title_idx_with_duplicates ON idx_ex.films USING btree (title) WITH (deduplicate_items=off);"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
@@ -5538,7 +5538,7 @@
 			"Objects": [
 				{
 					"ObjectName": "foreign_db_example.technically_doesnt_exist",
-					"SqlStatement": "CREATE FOREIGN TABLE foreign_db_example.technically_doesnt_exist (     id integer,     uses_type foreign_db_example.example_type,     _uses_type foreign_db_example.example_type GENERATED ALWAYS AS (uses_type) STORED,     positive_number foreign_db_example.positive_number,     _positive_number foreign_db_example.positive_number GENERATED ALWAYS AS (positive_number) STORED,     CONSTRAINT imaginary_table_id_gt_1 CHECK ((id \u003e 1)) ) SERVER technically_this_server; "
+					"SqlStatement": "CREATE FOREIGN TABLE foreign_db_example.technically_doesnt_exist (     id integer,     uses_type foreign_db_example.example_type,     _uses_type foreign_db_example.example_type GENERATED ALWAYS AS (uses_type) STORED,     positive_number foreign_db_example.positive_number,     _positive_number foreign_db_example.positive_number GENERATED ALWAYS AS (positive_number) STORED,     CONSTRAINT imaginary_table_id_gt_1 CHECK ((id \u003e 1)) ) SERVER technically_this_server;"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",

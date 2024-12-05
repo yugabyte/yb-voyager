@@ -229,11 +229,11 @@
 			"Objects": [
 				{
 					"ObjectName": "public.f_c",
-					"SqlStatement": "CREATE FOREIGN TABLE public.f_c (     i integer NOT NULL,     t integer,     x text ) SERVER p10 OPTIONS (     table_name 'c' ); "
+					"SqlStatement": "CREATE FOREIGN TABLE public.f_c (     i integer NOT NULL,     t integer,     x text ) SERVER p10 OPTIONS (     table_name 'c' );"
 				},
 				{
 					"ObjectName": "public.f_t",
-					"SqlStatement": "CREATE FOREIGN TABLE public.f_t (     i integer NOT NULL,     ts timestamp(0) with time zone DEFAULT now(),     j json,     t text,     e public.myenum,     c public.mycomposit ) SERVER p10 OPTIONS (     table_name 't' ); "
+					"SqlStatement": "CREATE FOREIGN TABLE public.f_t (     i integer NOT NULL,     ts timestamp(0) with time zone DEFAULT now(),     j json,     t text,     e public.myenum,     c public.mycomposit ) SERVER p10 OPTIONS (     table_name 't' );"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
