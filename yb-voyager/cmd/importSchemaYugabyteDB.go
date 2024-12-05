@@ -51,9 +51,13 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 }
 
 func isNotValidConstraint(stmt string) (bool, error) {
-	ddlObj, err := queryparser.ParseAndProcessDDL(stmt)
+	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
-		return false, fmt.Errorf("error in parsing and process DDL[%s]:%v", stmt, err)
+		return false, fmt.Errorf("error parsing the ddl[%s]: %v", stmt, err)
+	}
+	ddlObj, err := queryparser.ProcessDDL(parseTree)
+	if err != nil {
+		return false, fmt.Errorf("error in process DDL[%s]:%v", stmt, err)
 	}
 	alter, ok := ddlObj.(*queryparser.AlterTable)
 	if !ok {
