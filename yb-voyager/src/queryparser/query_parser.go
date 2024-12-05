@@ -17,6 +17,7 @@ package queryparser
 
 import (
 	"fmt"
+	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
@@ -64,7 +65,6 @@ func DeparseSelectStmt(selectStmt *pg_query.SelectStmt) (string, error) {
 func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
 }
-
 
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
@@ -163,4 +163,77 @@ func getCreateViewNode(parseTree *pg_query.ParseResult) (*pg_query.Node_ViewStmt
 func getCreateFuncStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateFunctionStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateFunctionStmt)
 	return node, ok
+}
+
+func IsFunctionObject(parseTree *pg_query.ParseResult) bool {
+	funcNode, ok := getCreateFuncStmtNode(parseTree)
+	if !ok {
+		return false
+	}
+	return !funcNode.CreateFunctionStmt.IsProcedure
+}
+
+/*
+return type ex-
+CREATE OR REPLACE FUNCTION public.process_combined_tbl(
+
+	...
+
+)
+RETURNS public.combined_tbl.maddr%TYPE AS
+return_type:{names:{string:{sval:"public"}}  names:{string:{sval:"combined_tbl"}}  names:{string:{sval:"maddr"}}
+pct_type:true  typemod:-1  location:226}
+*/
+func GetReturnTypeOfFunc(parseTree *pg_query.ParseResult) string {
+	funcNode, _ := getCreateFuncStmtNode(parseTree)
+	returnType := funcNode.CreateFunctionStmt.GetReturnType()
+	return convertParserTypeNameToString(returnType)
+}
+
+func getQualifiedTypeName(typeNames []*pg_query.Node) string {
+	var typeNameStrings []string
+	for _, n := range typeNames {
+		typeNameStrings = append(typeNameStrings, n.GetString_().Sval)
+	}
+	return strings.Join(typeNameStrings, ".")
+}
+
+func convertParserTypeNameToString(typeVar *pg_query.TypeName) string {
+	typeNames := typeVar.GetNames()
+	finalTypeName := getQualifiedTypeName(typeNames) // type name can qualified table_name.column in case of %TYPE
+	if typeVar.PctType {                             // %TYPE declaration, so adding %TYPE for using it further
+		return finalTypeName + "%TYPE"
+	}
+	return finalTypeName
+}
+
+/*
+function ex -
+CREATE OR REPLACE FUNCTION public.process_combined_tbl(
+
+	    p_id int,
+	    p_c public.combined_tbl.c%TYPE,
+	    p_bitt public.combined_tbl.bitt%TYPE,
+		..
+
+)
+parseTree-
+parameters:{function_parameter:{name:"p_id"  arg_type:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1  location:66}
+mode:FUNC_PARAM_DEFAULT}}  parameters:{function_parameter:{name:"p_c"  arg_type:{names:{string:{sval:"public"}}  names:{string:{sval:"combined_tbl"}}
+names:{string:{sval:"c"}}  pct_type:true  typemod:-1  location:87}  mode:FUNC_PARAM_DEFAULT}}  parameters:{function_parameter:{name:"p_bitt"
+arg_type:{names:{string:{sval:"public"}}  names:{string:{sval:"combined_tbl"}}  names:{string:{sval:"bitt"}}  pct_type:true  typemod:-1
+location:136}  mode:FUNC_PARAM_DEFAULT}}
+*/
+func GetFuncParametersTypeNames(parseTree *pg_query.ParseResult) []string {
+	funcNode, _ := getCreateFuncStmtNode(parseTree)
+	parameters := funcNode.CreateFunctionStmt.GetParameters()
+	var paramTypeNames []string
+	for _, param := range parameters {
+		funcParam, ok := param.Node.(*pg_query.Node_FunctionParameter)
+		if ok {
+			paramType := funcParam.FunctionParameter.ArgType
+			paramTypeNames = append(paramTypeNames, convertParserTypeNameToString(paramType))
+		}
+	}
+	return paramTypeNames
 }

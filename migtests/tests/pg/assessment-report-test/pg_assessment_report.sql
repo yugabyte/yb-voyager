@@ -294,3 +294,56 @@ END;
 $$ LANGUAGE plpgsql;
 
 select process_order(1);
+
+-- In PG migration from pg_dump the function parameters and return will never have the %TYPE syntax, instead they have the actual type in the DDLs
+-- e.g. for the below function this will be the export one `CREATE FUNCTION public.process_combined_tbl(p_id integer, p_c cidr, p_bitt bit, p_inds3 interval) RETURNS macaddr`
+CREATE OR REPLACE FUNCTION public.process_combined_tbl(
+    p_id public.combined_tbl.id%TYPE,        
+    p_c public.combined_tbl.c%TYPE,          
+    p_bitt public.combined_tbl.bitt%TYPE,    
+    p_inds3 public.combined_tbl.inds3%TYPE  
+)
+RETURNS public.combined_tbl.maddr%TYPE AS  
+$$
+DECLARE
+    v_maddr public.combined_tbl.maddr%TYPE;   
+BEGIN
+    -- Example logic: Assigning local variable using passed-in parameter
+    v_maddr := p_c::text;  -- Example conversion (cidr to macaddr), just for illustration
+
+    -- Processing the passed parameters
+    RAISE NOTICE 'Processing: ID = %, CIDR = %, BIT = %, Interval = %, MAC = %',
+        p_id, p_c, p_bitt, p_inds3, v_maddr;
+
+    -- Returning a value of the macaddr type (this could be more meaningful logic)
+    RETURN v_maddr;  -- Returning a macaddr value
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE public.update_combined_tbl_data(
+    p_id public.combined_tbl.id%TYPE,           
+    p_c public.combined_tbl.c%TYPE,             
+    p_bitt public.combined_tbl.bitt%TYPE,       
+    p_d public.combined_tbl.d%TYPE              
+)
+AS
+$$
+DECLARE
+    v_new_mac public.combined_tbl.maddr%TYPE;   
+BEGIN
+    -- Example: Using a local variable to store a macaddr value (for illustration)
+    v_new_mac := '00:14:22:01:23:45'::macaddr;
+
+    -- Updating the table with provided parameters
+    UPDATE public.combined_tbl
+    SET 
+        c = p_c,              -- Updating cidr type column
+        bitt = p_bitt,        -- Updating bit column
+        d = p_d,              -- Updating daterange column
+        maddr = v_new_mac     -- Using the local macaddr variable in update
+    WHERE id = p_id;
+
+    RAISE NOTICE 'Updated record with ID: %, CIDR: %, BIT: %, Date range: %', 
+        p_id, p_c, p_bitt, p_d;
+END;
+$$ LANGUAGE plpgsql;
