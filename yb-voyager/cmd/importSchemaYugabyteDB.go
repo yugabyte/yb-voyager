@@ -115,13 +115,17 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 func shouldSkipDDL(stmt string) (bool, error) {
 	skipReplicaIdentity := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
+	if skipReplicaIdentity {
+		return true, nil
+	}
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
 		return false, fmt.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
 	}
-	if (isNotValid && !bool(flagPostSnapshotImport)) || // Skipping NOT VALID CONSTRAINT in import schema without post-snapshot-mode
-		(bool(flagPostSnapshotImport) && !isNotValid) || // Skipping other TABLE DDLs in post-snapshot-import mode
-		skipReplicaIdentity { // Skip ALTER REPLICA IDENTITY always
+	skipNotValidWithoutPostImport := isNotValid && !bool(flagPostSnapshotImport)
+	skipOtherDDLsWithPostImport := (bool(flagPostSnapshotImport) && !isNotValid)
+	if skipNotValidWithoutPostImport || // Skipping NOT VALID CONSTRAINT in import schema without post-snapshot-mode
+		skipOtherDDLsWithPostImport { // Skipping other TABLE DDLs than the NOT VALID in post-snapshot-import mode
 		return true, nil
 	}
 	return false, nil
