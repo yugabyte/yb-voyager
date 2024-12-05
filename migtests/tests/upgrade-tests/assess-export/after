@@ -6,6 +6,12 @@
 	analyze_schema
 	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
+	step "Fix schema."
+	if [ -x "${TEST_DIR}/fix-schema" ]
+	then
+		 "${TEST_DIR}/fix-schema"
+	fi
+
 	step "Import schema."
 	import_schema --continue-on-error true
 	run_ysql ${TARGET_DB_NAME} "\dt"
