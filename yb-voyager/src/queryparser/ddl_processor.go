@@ -808,9 +808,69 @@ func (c *CreateType) GetObjectName() string {
 }
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
+//===========================VIEW PROCESSOR===================
+
+type ViewProcessor struct{}
+
+func NewViewProcessor() *ViewProcessor {
+	return &ViewProcessor{}
+}
+
+func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	viewNode, ok := getCreateViewNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE VIEW statement")
+	}
+	view := View{
+		SchemaName: viewNode.ViewStmt.View.Schemaname,
+		ViewName:   viewNode.ViewStmt.View.Relname,
+	}
+	return &view, nil
+}
+
+type View struct {
+	SchemaName string
+	ViewName   string
+}
+
+func (v *View) GetObjectName() string {
+	return lo.Ternary(v.SchemaName != "", fmt.Sprintf("%s.%s", v.SchemaName, v.ViewName), v.ViewName)
+}
+func (v *View) GetSchemaName() string { return v.SchemaName }
+
+//===========================MVIEW PROCESSOR===================
+
+type MViewProcessor struct{}
+
+func NewMViewProcessor() *MViewProcessor {
+	return &MViewProcessor{}
+}
+
+func (mv *MViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	mviewNode, ok := getCreateTableAsStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE VIEW statement")
+	}
+	mview := MView{
+		SchemaName: mviewNode.CreateTableAsStmt.Into.Rel.Schemaname,
+		ViewName:   mviewNode.CreateTableAsStmt.Into.Rel.Relname,
+	}
+	return &mview, nil
+}
+
+type MView struct {
+	SchemaName string
+	ViewName   string
+}
+
+func (mv *MView) GetObjectName() string {
+	return lo.Ternary(mv.SchemaName != "", fmt.Sprintf("%s.%s", mv.SchemaName, mv.ViewName), mv.ViewName)
+}
+func (mv *MView) GetSchemaName() string { return mv.SchemaName }
+
 //=============================No-Op PROCESSOR ==================
 
-//No op parser for objects we don't have parser yet
+//No op Processor for objects we don't have Processor yet
 
 type NoOpProcessor struct{}
 
@@ -847,30 +907,40 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 		return NewTypeProcessor(), nil
 	case PG_QUERY_FOREIGN_TABLE_STMT:
 		return NewForeignTableProcessor(), nil
+	case PG_QUERY_VIEW_STMT:
+		return NewViewProcessor(), nil
+	case PG_QUERY_CREATE_TABLE_AS_STMT:
+		if IsMviewObject(parseTree) {
+			return NewMViewProcessor(), nil
+		} else {
+			return NewNoOpProcessor(), nil
+		}
 	default:
 		return NewNoOpProcessor(), nil
 	}
 }
 
 const (
-	ADD_CONSTRAINT               = pg_query.AlterTableType_AT_AddConstraint
-	SET_OPTIONS                  = pg_query.AlterTableType_AT_SetOptions
-	DISABLE_RULE                 = pg_query.AlterTableType_AT_DisableRule
-	CLUSTER_ON                   = pg_query.AlterTableType_AT_ClusterOn
-	EXCLUSION_CONSTR_TYPE        = pg_query.ConstrType_CONSTR_EXCLUSION
-	FOREIGN_CONSTR_TYPE          = pg_query.ConstrType_CONSTR_FOREIGN
-	DEFAULT_SORTING_ORDER        = pg_query.SortByDir_SORTBY_DEFAULT
-	PRIMARY_CONSTR_TYPE          = pg_query.ConstrType_CONSTR_PRIMARY
-	UNIQUE_CONSTR_TYPE           = pg_query.ConstrType_CONSTR_UNIQUE
-	LIST_PARTITION               = pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST
-	PG_QUERY_CREATE_STMT         = "pg_query.CreateStmt"
-	PG_QUERY_INDEX_STMT          = "pg_query.IndexStmt"
-	PG_QUERY_ALTER_TABLE_STMT    = "pg_query.AlterTableStmt"
-	PG_QUERY_POLICY_STMT         = "pg_query.CreatePolicyStmt"
-	PG_QUERY_CREATE_TRIG_STMT    = "pg_query.CreateTrigStmt"
-	PG_QUERY_COMPOSITE_TYPE_STMT = "pg_query.CompositeTypeStmt"
-	PG_QUERY_ENUM_TYPE_STMT      = "pg_query.CreateEnumStmt"
-	PG_QUERY_FOREIGN_TABLE_STMT  = "pg_query.CreateForeignTableStmt"
+	ADD_CONSTRAINT                = pg_query.AlterTableType_AT_AddConstraint
+	SET_OPTIONS                   = pg_query.AlterTableType_AT_SetOptions
+	DISABLE_RULE                  = pg_query.AlterTableType_AT_DisableRule
+	CLUSTER_ON                    = pg_query.AlterTableType_AT_ClusterOn
+	EXCLUSION_CONSTR_TYPE         = pg_query.ConstrType_CONSTR_EXCLUSION
+	FOREIGN_CONSTR_TYPE           = pg_query.ConstrType_CONSTR_FOREIGN
+	DEFAULT_SORTING_ORDER         = pg_query.SortByDir_SORTBY_DEFAULT
+	PRIMARY_CONSTR_TYPE           = pg_query.ConstrType_CONSTR_PRIMARY
+	UNIQUE_CONSTR_TYPE            = pg_query.ConstrType_CONSTR_UNIQUE
+	LIST_PARTITION                = pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST
+	PG_QUERY_CREATE_STMT          = "pg_query.CreateStmt"
+	PG_QUERY_INDEX_STMT           = "pg_query.IndexStmt"
+	PG_QUERY_ALTER_TABLE_STMT     = "pg_query.AlterTableStmt"
+	PG_QUERY_POLICY_STMT          = "pg_query.CreatePolicyStmt"
+	PG_QUERY_CREATE_TRIG_STMT     = "pg_query.CreateTrigStmt"
+	PG_QUERY_COMPOSITE_TYPE_STMT  = "pg_query.CompositeTypeStmt"
+	PG_QUERY_ENUM_TYPE_STMT       = "pg_query.CreateEnumStmt"
+	PG_QUERY_FOREIGN_TABLE_STMT   = "pg_query.CreateForeignTableStmt"
+	PG_QUERY_VIEW_STMT            = "pg_query.ViewStmt"
+	PG_QUERY_CREATE_TABLE_AS_STMT = "pg_query.CreateTableAsStmt"
 )
 
 var deferrableConstraintsList = []pg_query.ConstrType{

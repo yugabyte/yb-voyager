@@ -537,6 +537,22 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issu
 	return issues, nil
 }
 
+// ==============VIEW ISSUE DETECTOR ======================
+
+type ViewIssueDetector struct{}
+
+func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+	return nil, nil
+}
+
+// ==============MVIEW ISSUE DETECTOR ======================
+
+type MViewIssueDetector struct{}
+
+func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+	return nil, nil
+}
+
 //=============NO-OP ISSUE DETECTOR ===========================
 
 // Need to handle all the cases for which we don't have any issues detector
@@ -568,6 +584,10 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 		}, nil
 	case *queryparser.ForeignTable:
 		return &ForeignTableIssueDetector{}, nil
+    case *queryparser.View:
+		return &ViewIssueDetector{}, nil
+	case *queryparser.MView:
+		return &MViewIssueDetector{}, nil
 	default:
 		return &NoOpIssueDetector{}, nil
 	}
