@@ -288,3 +288,15 @@ func GetFuncParametersTypeNames(parseTree *pg_query.ParseResult) []string {
 	}
 	return paramTypeNames
 }
+
+
+func IsDDL(parseTree *pg_query.ParseResult) (bool, error) {
+	ddlParser, err := GetDDLProcessor(parseTree)
+	if err != nil {
+		return false, fmt.Errorf("error getting a ddl parser: %w", err)
+	}
+	_, ok := ddlParser.(*NoOpProcessor)
+	//Considering all the DDLs we have a Processor for as of now.
+	//Not Full-proof as we don't have all DDL types but atleast we will skip all the types we know currently
+	return !ok, nil
+}
