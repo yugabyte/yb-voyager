@@ -555,11 +555,17 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 
 			similar to CREATE table 2nd case where constraint is at the end of column definitions mentioning the constraint only
 			so here as well while adding constraint checking the type of constraint and the deferrable field of it.
+
+			ALTER TABLE test ADD CONSTRAINT chk check (id<>'') NOT VALID;
+			stmts:{stmt:...subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_CHECK conname:"chk" location:22
+			raw_expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{column_ref:{fields:{string:{sval:"id"}} location:43}} rexpr:{a_const:{sval:{}
+			location:47}} location:45}} skip_validation:true}} behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:60}
 		*/
 		constraint := cmd.GetDef().GetConstraint()
 		alter.ConstraintType = constraint.Contype
 		alter.ConstraintName = constraint.Conname
 		alter.IsDeferrable = constraint.Deferrable
+		alter.ConstraintNotValid = constraint.SkipValidation // this is set for the NOT VALID clause
 		alter.ConstraintColumns = parseColumnsFromKeys(constraint.GetKeys())
 
 	case pg_query.AlterTableType_AT_DisableRule:
@@ -590,10 +596,11 @@ type AlterTable struct {
 	NumSetAttributes  int
 	NumStorageOptions int
 	//In case AlterType - ADD_CONSTRAINT
-	ConstraintType    pg_query.ConstrType
-	ConstraintName    string
-	IsDeferrable      bool
-	ConstraintColumns []string
+	ConstraintType     pg_query.ConstrType
+	ConstraintName     string
+	ConstraintNotValid bool
+	IsDeferrable       bool
+	ConstraintColumns  []string
 }
 
 func (a *AlterTable) GetObjectName() string {
@@ -604,6 +611,10 @@ func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
 
 func (a *AlterTable) AddPrimaryKeyOrUniqueCons() bool {
 	return a.ConstraintType == PRIMARY_CONSTR_TYPE || a.ConstraintType == UNIQUE_CONSTR_TYPE
+}
+
+func (a *AlterTable) IsAddConstraintType() bool {
+	return a.AlterType == pg_query.AlterTableType_AT_AddConstraint
 }
 
 //===========POLICY PROCESSOR ================================
