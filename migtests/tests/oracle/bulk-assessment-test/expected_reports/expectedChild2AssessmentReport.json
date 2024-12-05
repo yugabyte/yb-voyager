@@ -108,23 +108,28 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "Compound Triggers",
-			"Objects": []
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Unsupported Indexes",
-			"Objects": null
+			"Objects": null,
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Virtual Columns",
-			"Objects": null
+			"Objects": null,
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Inherited Types",
-			"Objects": null
+			"Objects": null,
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Unsupported Partitioning Methods",
-			"Objects": null
+			"Objects": null,
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",

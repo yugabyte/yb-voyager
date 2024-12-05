@@ -63,7 +63,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -74,7 +75,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -85,7 +87,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -96,7 +99,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -107,7 +111,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -118,7 +123,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -129,7 +135,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -140,7 +147,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -151,7 +159,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -162,7 +171,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -173,7 +183,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -184,7 +195,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -195,7 +207,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -206,7 +219,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -217,7 +231,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -228,7 +243,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -239,7 +255,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -250,7 +267,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -261,7 +279,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -272,7 +291,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -283,7 +303,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -294,7 +315,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -305,7 +327,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -316,7 +339,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -327,7 +351,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -338,7 +363,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -349,7 +375,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -360,7 +387,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -371,7 +399,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -382,7 +411,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -393,7 +423,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -404,7 +435,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -415,7 +447,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -426,7 +459,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -437,7 +471,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -448,7 +483,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -459,7 +495,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -470,7 +507,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -481,7 +519,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -492,7 +531,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -503,7 +543,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -514,7 +555,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -525,7 +567,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -536,7 +579,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -547,7 +591,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -558,7 +603,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -569,7 +615,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -580,7 +627,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -591,7 +639,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -602,7 +651,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -613,7 +663,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -624,7 +675,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -635,7 +687,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -646,7 +699,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -657,7 +711,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -668,7 +723,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -679,7 +735,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -690,7 +747,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -701,7 +759,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -712,7 +771,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -723,7 +783,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -734,7 +795,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -745,7 +807,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -756,7 +819,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -767,7 +831,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -778,7 +843,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -789,7 +855,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -800,7 +867,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -811,7 +879,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -822,7 +891,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -833,7 +903,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -844,7 +915,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -855,7 +927,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -866,7 +939,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -877,7 +951,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -888,7 +963,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -899,7 +975,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -910,7 +987,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -921,7 +999,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -932,7 +1011,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -943,7 +1023,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -954,7 +1035,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -965,7 +1047,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -976,7 +1059,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -987,7 +1071,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -998,7 +1083,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1009,7 +1095,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1020,7 +1107,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1031,7 +1119,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1042,7 +1131,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1053,7 +1143,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1064,7 +1155,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1075,7 +1167,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1086,7 +1179,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1097,7 +1191,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1108,7 +1203,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1119,7 +1215,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1130,7 +1227,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1141,7 +1239,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1152,7 +1251,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1163,7 +1263,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1174,7 +1275,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1185,7 +1287,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1196,7 +1299,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1207,7 +1311,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1218,7 +1323,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/functions/function.sql",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         }
     ]
 }

@@ -120,7 +120,8 @@
 					"ObjectName": "trg_simple_insert",
 					"SqlStatement": "CREATE TRIGGER trg_simple_insert\n\tCOMPOUND INSERT ON simple_table FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_trg_simple_insert();"
 				}
-			]
+			],
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Unsupported Indexes",
@@ -145,7 +146,8 @@
 					"ObjectName": "Index Name: PK_IOT_TABLE, Index Type=IOT - TOP INDEX",
 					"SqlStatement": ""
 				}
-			]
+			],
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Virtual Columns",
@@ -158,7 +160,8 @@
 					"ObjectName": "GENERATED_COLUMN_TABLE.TOTAL_PRICE",
 					"SqlStatement": ""
 				}
-			]
+			],
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Inherited Types",
@@ -167,7 +170,8 @@
 					"ObjectName": "SIMPLE_CAR_TYPE",
 					"SqlStatement": ""
 				}
-			]
+			],
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Unsupported Partitioning Methods",
@@ -180,7 +184,8 @@
 					"ObjectName": "Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION",
 					"SqlStatement": ""
 				}
-			]
+			],
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",

@@ -31,6 +31,9 @@ type Issue struct {
 }
 
 func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
+	if i.MinimumVersionsFixedIn == nil {
+		return false, nil
+	}
 	minVersionFixedInSeries, ok := i.MinimumVersionsFixedIn[v.Series()]
 	if !ok {
 		return false, nil

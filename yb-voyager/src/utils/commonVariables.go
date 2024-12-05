@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 const (
@@ -73,10 +74,11 @@ var WaitChannel = make(chan int)
 // ================== Schema Report ==============================
 
 type SchemaReport struct {
-	VoyagerVersion      string        `json:"VoyagerVersion"`
-	MigrationComplexity string        `json:"MigrationComplexity"`
-	SchemaSummary       SchemaSummary `json:"Summary"`
-	Issues              []Issue       `json:"Issues"`
+	VoyagerVersion      string               `json:"VoyagerVersion"`
+	TargetDBVersion     *ybversion.YBVersion `json:"TargetDBVersion"`
+	MigrationComplexity string               `json:"MigrationComplexity"`
+	SchemaSummary       SchemaSummary        `json:"Summary"`
+	Issues              []Issue              `json:"Issues"`
 }
 
 type SchemaSummary struct {
@@ -96,16 +98,29 @@ type DBObject struct {
 	Details      string `json:"Details,omitempty"`
 }
 
+// TODO: support MinimumVersionsFixedIn in xml
 type Issue struct {
-	IssueType    string `json:"IssueType"`
-	ObjectType   string `json:"ObjectType"`
-	ObjectName   string `json:"ObjectName"`
-	Reason       string `json:"Reason"`
-	SqlStatement string `json:"SqlStatement,omitempty"`
-	FilePath     string `json:"FilePath"`
-	Suggestion   string `json:"Suggestion"`
-	GH           string `json:"GH"`
-	DocsLink     string `json:"DocsLink,omitempty"`
+	IssueType              string                          `json:"IssueType"`
+	ObjectType             string                          `json:"ObjectType"`
+	ObjectName             string                          `json:"ObjectName"`
+	Reason                 string                          `json:"Reason"`
+	SqlStatement           string                          `json:"SqlStatement,omitempty"`
+	FilePath               string                          `json:"FilePath"`
+	Suggestion             string                          `json:"Suggestion"`
+	GH                     string                          `json:"GH"`
+	DocsLink               string                          `json:"DocsLink,omitempty"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
+}
+
+func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
+	if i.MinimumVersionsFixedIn == nil {
+		return false, nil
+	}
+	minVersionFixedInSeries, ok := i.MinimumVersionsFixedIn[v.Series()]
+	if !ok {
+		return false, nil
+	}
+	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
 }
 
 type IndexInfo struct {
@@ -124,9 +139,10 @@ type TableColumnsDataTypes struct {
 }
 
 type UnsupportedQueryConstruct struct {
-	ConstructTypeName string
-	Query             string
-	DocsLink          string
+	ConstructTypeName      string
+	Query                  string
+	DocsLink               string
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion // key: series (2024.1, 2.21, etc)
 }
 
 // ================== Segment ==============================

@@ -95,6 +95,9 @@ func TestLatestStable(t *testing.T) {
 	response, err := http.Get(url)
 	assert.NoErrorf(t, err, "could not access URL:%q", url)
 	defer response.Body.Close()
+	if response.StatusCode == 403 {
+		t.Skip("skipping test; rate limit exceeded")
+	}
 	assert.Equal(t, 200, response.StatusCode)
 
 	body, err := io.ReadAll(response.Body)

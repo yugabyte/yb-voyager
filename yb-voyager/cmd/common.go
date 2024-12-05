@@ -1164,6 +1164,7 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
 type AssessmentReport struct {
 	VoyagerVersion             string                                `json:"VoyagerVersion"`
+	TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
 	MigrationComplexity        string                                `json:"MigrationComplexity"`
 	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
 	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
@@ -1179,11 +1180,12 @@ type AssessmentReport struct {
 }
 
 type UnsupportedFeature struct {
-	FeatureName        string       `json:"FeatureName"`
-	Objects            []ObjectInfo `json:"Objects"`
-	DisplayDDL         bool         `json:"-"` // just used by html format to display the DDL for some feature and object names for other
-	DocsLink           string       `json:"DocsLink,omitempty"`
-	FeatureDescription string       `json:"FeatureDescription,omitempty"`
+	FeatureName            string                          `json:"FeatureName"`
+	Objects                []ObjectInfo                    `json:"Objects"`
+	DisplayDDL             bool                            `json:"-"` // just used by html format to display the DDL for some feature and object names for other
+	DocsLink               string                          `json:"DocsLink,omitempty"`
+	FeatureDescription     string                          `json:"FeatureDescription,omitempty"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 }
 
 type ObjectInfo struct {

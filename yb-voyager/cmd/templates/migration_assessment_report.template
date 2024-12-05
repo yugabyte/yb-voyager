@@ -88,6 +88,8 @@
         <p><strong>Database Version:</strong> {{.}}</p>
         {{end}}
 
+        <p><strong>Target YB Version:</strong> {{.TargetDBVersion}} </p>
+
         {{if eq .MigrationComplexity "NOT AVAILABLE"}}
         <!-- Do nothing -->
         {{else}} 
@@ -197,6 +199,10 @@
                 {{ $hasUnsupportedFeatures = true }}
                 {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
                     <h4>{{.FeatureName}}</h4>
+                    {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                    {{ if $supporterVerStr }}
+                    <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                    {{ end }}
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -206,6 +212,10 @@
                     </div>
                 {{else}}
                     <h4>{{.FeatureName}}</h4>
+                    {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                    {{ if $supporterVerStr }}
+                    <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                    {{ end }}
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -247,15 +257,18 @@
                 </tr>
                 {{ $currentType := "" }}
                 {{ $docsLink := "" }}
+                {{ $supporterVerStr := "" }}
                 {{ range $i, $construct := .UnsupportedQueryConstructs }}
                     {{ if ne $construct.ConstructTypeName $currentType }}
                         {{ if ne $currentType "" }}
                                 </ul>
                             </div>
                         </td>
-                        <td>
+                        <td>{{ if $supporterVerStr }}
+                            Supported in Versions: {{ $supporterVerStr }}
+                            {{ end }}
                             {{ if $docsLink }}
-                                <a href="{{ $docsLink }}" target="_blank">Link</a>
+                                <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
                             {{ else }}
                                 N/A
                             {{ end }}
@@ -263,6 +276,7 @@
                         </tr>
                         {{ end }}
                         {{ $docsLink = $construct.DocsLink }}
+                        {{ $supporterVerStr = getSupportedVersionString $construct.MinimumVersionsFixedIn }}
                         <tr>
                             <td><strong>{{ $construct.ConstructTypeName }}</strong></td>
                             <td>
@@ -278,8 +292,11 @@
                     </div>
                 </td>
                 <td>
+                    {{ if $supporterVerStr }}
+                    Supported in Versions: {{ $supporterVerStr }} <br>
+                    {{ end }}
                     {{ if $docsLink }}
-                        <a href="{{ $docsLink }}" target="_blank">Link</a>
+                        <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
                     {{ else }}
                         Not Available
                     {{ end }}

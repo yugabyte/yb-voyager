@@ -9,6 +9,7 @@ Voyager Version               : {{ .VoyagerVersion }}
 Database Name                 : {{ .SchemaSummary.DBName }}
 Schema Name(s)                : {{ join .SchemaSummary.SchemaNames ", " }}
 DB Version                    : {{ .SchemaSummary.DBVersion }}
+Target DB Version             : {{ .TargetDBVersion }}
 {{if eq .MigrationComplexity "NOT AVAILABLE"}} 
 {{else}} 
 Migration Complexity          : {{ .MigrationComplexity }}
@@ -38,6 +39,10 @@ Issues
   - Suggestion      : {{ .Suggestion }} {{ end }}{{ if .GH }}
   - Github Issue    : {{ .GH }}{{ end }}{{ if .DocsLink }}
   - Docs Link       : {{ .DocsLink }}{{ end }}
+{{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+{{ if $supporterVerStr }}
+  - Fixed in Versions: {{ $supporterVerStr }}
+{{ end }}
 {{ end }}{{ else }}
 No issues found.{{ end }}
 

@@ -1,5 +1,6 @@
 {
 	"VoyagerVersion": "IGNORED",
+	"TargetDBVersion": "IGNORED",
 	"MigrationComplexity": "HIGH",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
@@ -283,8 +284,9 @@
 					"SqlStatement": "CREATE INDEX idx_point_data ON schema2.mixed_data_types_table1 USING gist (point_data);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "BRIN indexes",
 			"Objects": [
@@ -293,8 +295,9 @@
 					"SqlStatement": "CREATE INDEX idx_box_data_brin ON public.mixed_data_types_table1 USING brin (box_data);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "SPGIST indexes",
 			"Objects": [
@@ -303,8 +306,9 @@
 					"SqlStatement": "CREATE INDEX idx_box_data_spgist ON schema2.mixed_data_types_table1 USING spgist (box_data);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Constraint triggers",
 			"Objects": [
@@ -317,8 +321,9 @@
 					"SqlStatement": "CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint AFTER UPDATE ON schema2.orders2 NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN ((((new.status)::text = 'shipped'::text) AND (new.shipped_date IS NULL))) EXECUTE FUNCTION schema2.prevent_update_shipped_without_date();"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Inherited tables",
 			"Objects": [
@@ -331,8 +336,9 @@
 					"SqlStatement": "CREATE TABLE schema2.child_table (\n    specific_column1 date\n)\nINHERITS (schema2.parent_table);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Tables with stored generated columns",
 			"Objects": [
@@ -345,28 +351,34 @@
 					"SqlStatement": "CREATE TABLE schema2.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,\n    department character varying(50)\n);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Conversion objects",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Gin indexes on multi-columns",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Setting attribute=value on column",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Disabling rule on table",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "REFERENCING clause for triggers",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
 			"Objects": [
@@ -375,20 +387,24 @@
 					"SqlStatement": "CREATE TRIGGER before_sales_region_insert_update BEFORE INSERT OR UPDATE ON public.sales_region FOR EACH ROW EXECUTE FUNCTION public.check_sales_region();"
 				}
 			],
-			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables"
+			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Clustering table on index",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Storage parameters in DDLs",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Extensions",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Exclusion constraints",
 			"Objects": [
@@ -397,8 +413,9 @@
 					"SqlStatement": "ALTER TABLE ONLY public.test_exclude_basic\n    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Deferrable constraints",
 			"Objects": [
@@ -411,8 +428,9 @@
 					"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "View with check option",
 			"Objects": [
@@ -425,8 +443,9 @@
 					"SqlStatement": "CREATE VIEW schema2.sales_employees AS\n SELECT employees2.id,\n    employees2.first_name,\n    employees2.last_name,\n    employees2.full_name\n   FROM schema2.employees2\n  WHERE ((employees2.department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Index on complex datatypes",
 			"Objects": [
@@ -495,8 +514,9 @@
 					"SqlStatement": "CREATE INDEX idx9 ON public.combined_tbl USING btree (inds3);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Primary / Unique key constraints on complex datatypes",
 			"Objects": [
@@ -513,8 +533,9 @@
 					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_pkey PRIMARY KEY (id, arr_enum);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Unlogged tables",
 			"Objects": [
@@ -527,7 +548,8 @@
 					"SqlStatement": "CREATE UNLOGGED TABLE schema2.tbl_unlogged (\n    id integer,\n    val text\n);"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -1948,13 +1970,15 @@
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
-			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported."
-		},
+			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Foreign tables",
 			"Objects": [],
-			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work."
-		},
+			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Policies",
 			"Objects": [
@@ -1968,8 +1992,9 @@
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
-			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema."
-		},
+			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Unsupported Data Types for Live Migration",
 			"Objects": [
@@ -2015,8 +2040,9 @@
 				}
 			],
 			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"FeatureDescription": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
-		},
+			"FeatureDescription": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
 			"Objects": [
@@ -2058,74 +2084,88 @@
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
+			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedQueryConstructs": [
 		{
 			"ConstructTypeName": "Advisory Locks",
 			"Query": "SELECT pg_advisory_xact_lock($1,$2)",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "Advisory Locks",
 			"Query": "SELECT pg_advisory_unlock($1,$2)",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "Advisory Locks",
 			"Query": "SELECT pg_advisory_unlock_all()",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "Advisory Locks",
 			"Query": "SELECT pg_advisory_lock($1,$2)",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "System Columns",
 			"Query": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM employees2",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT xmlparse(document $1) as xmldata",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT table_to_xml($1, $2, $3, $4)",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT xmlforest(first_name AS element1, last_name AS element2) FROM employees2",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT xmlelement(name root, xmlelement(name child, $1))",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT xml_is_well_formed($1)",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT\n    s.section_name,\n    b.title,\n    b.author\nFROM\n    library_nested l,\n    XMLTABLE(\n        $1\n        PASSING l.lib_data\n        COLUMNS\n            section_name TEXT PATH $2,\n            books XML PATH $3\n    ) AS s,\n    XMLTABLE(\n        $4\n        PASSING s.books\n        COLUMNS\n            title TEXT PATH $5,\n            author TEXT PATH $6\n) AS b",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT\n    o.order_id,\n    items.product,\n    items.quantity::INT\nFROM\n    orders_lateral o\n    CROSS JOIN LATERAL XMLTABLE(\n        $1\n        PASSING o.order_details\n        COLUMNS\n            product TEXT PATH $2,\n            quantity TEXT PATH $3\n) AS items",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"ConstructTypeName": "XML Functions",
 			"Query": "SELECT *\nFROM xmltable(\n    $1\n    PASSING $2\n    COLUMNS \n        name TEXT PATH $3\n)",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedPlPgSqlObjects": [
@@ -2143,7 +2183,8 @@
 					"SqlStatement": "public.combined_tbl.maddr%TYPE"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Advisory Locks",
@@ -2164,8 +2205,9 @@
 					"SqlStatement": "SELECT ordersentry.order_id, ordersentry.customer_name, ordersentry.product_name, ordersentry.quantity, ordersentry.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name), xmlelement(name \"Quantity\", ordersentry.quantity), xmlelement(name \"TotalPrice\", ordersentry.price * ordersentry.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(ordersentry.customer_name || ordersentry.product_name)::bigint) AS lock_acquired, ordersentry.ctid AS row_ctid, ordersentry.xmin AS transaction_id FROM public.ordersentry"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "XML Functions",
 			"Objects": [
@@ -2175,8 +2217,9 @@
 					"SqlStatement": "SELECT ordersentry.order_id, ordersentry.customer_name, ordersentry.product_name, ordersentry.quantity, ordersentry.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name), xmlelement(name \"Quantity\", ordersentry.quantity), xmlelement(name \"TotalPrice\", ordersentry.price * ordersentry.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(ordersentry.customer_name || ordersentry.product_name)::bigint) AS lock_acquired, ordersentry.ctid AS row_ctid, ordersentry.xmin AS transaction_id FROM public.ordersentry"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "System Columns",
 			"Objects": [
@@ -2186,7 +2229,8 @@
 					"SqlStatement": "SELECT ordersentry.order_id, ordersentry.customer_name, ordersentry.product_name, ordersentry.quantity, ordersentry.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name), xmlelement(name \"Quantity\", ordersentry.quantity), xmlelement(name \"TotalPrice\", ordersentry.price * ordersentry.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(ordersentry.customer_name || ordersentry.product_name)::bigint) AS lock_acquired, ordersentry.ctid AS row_ctid, ordersentry.xmin AS transaction_id FROM public.ordersentry"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+			"MinimumVersionsFixedIn": null
 		}
 	]
 }

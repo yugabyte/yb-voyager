@@ -7,7 +7,8 @@
             "SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -16,7 +17,8 @@
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
             "SqlStatement": "CREATE MATERIALIZED VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
             "Suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -26,7 +28,8 @@
             "SqlStatement": "CREATE index idx1 on combined_tbl (c);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -36,7 +39,8 @@
             "SqlStatement": "CREATE index idx2 on combined_tbl (ci);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -46,7 +50,8 @@
             "SqlStatement": "CREATE index idx3 on combined_tbl (b);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -56,7 +61,8 @@
             "SqlStatement": "CREATE index idx4 on combined_tbl (j);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -66,7 +72,8 @@
             "SqlStatement": "CREATE index idx5 on combined_tbl (l);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -76,7 +83,8 @@
             "SqlStatement": "CREATE index idx6 on combined_tbl (ls);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -86,7 +94,8 @@
             "SqlStatement": "CREATE index idx7 on combined_tbl (maddr);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -96,7 +105,8 @@
             "SqlStatement": "CREATE index idx8 on combined_tbl (maddr8);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -106,7 +116,8 @@
             "SqlStatement": "CREATE index idx9 on combined_tbl (p);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -116,7 +127,8 @@
             "SqlStatement": "CREATE index idx10 on combined_tbl (lsn);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -126,7 +138,8 @@
             "SqlStatement": "CREATE index idx11 on combined_tbl (p1);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -136,7 +149,8 @@
             "SqlStatement": "CREATE index idx12 on combined_tbl (p2);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -146,7 +160,8 @@
             "SqlStatement": "CREATE index idx13 on combined_tbl (id1);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -156,7 +171,8 @@
             "SqlStatement": "CREATE INDEX idx14 on combined_tbl (bitt);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -166,7 +182,8 @@
             "SqlStatement": "CREATE INDEX idx15 on combined_tbl (bittv);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -176,7 +193,8 @@
             "SqlStatement": "CREATE TABLE public.documents (\n    id integer NOT NULL,\n    title_tsvector tsvector,\n    content_tsvector tsvector,\n\tlist_of_sections text[]\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -186,7 +204,8 @@
             "SqlStatement": "CREATE TABLE public.documents (\n    id integer NOT NULL,\n    title_tsvector tsvector,\n    content_tsvector tsvector,\n\tlist_of_sections text[]\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -196,7 +215,8 @@
             "SqlStatement": "CREATE TABLE public.ts_query_table (\n    id int generated by default as identity,\n    query tsquery\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -206,7 +226,8 @@
             "SqlStatement": "CREATE TABLE test_udt (\n\temployee_id SERIAL PRIMARY KEY,\n\temployee_name VARCHAR(100),\n\thome_address address_type,\n\tsome_field enum_test,\n\thome_address1 non_public.address_type1\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -216,7 +237,8 @@
             "SqlStatement": "CREATE TABLE test_arr_enum (\n\tid int,\n\tarr text[],\n\tarr_enum enum_test[]\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -226,7 +248,8 @@
             "SqlStatement": "CREATE TABLE test_udt (\n\temployee_id SERIAL PRIMARY KEY,\n\temployee_name VARCHAR(100),\n\thome_address address_type,\n\tsome_field enum_test,\n\thome_address1 non_public.address_type1\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -236,7 +259,8 @@
             "SqlStatement": "CREATE INDEX idx_udt on test_udt(home_address);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -246,7 +270,8 @@
             "SqlStatement": "CREATE INDEX idx_udt1 on test_udt(home_address1);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -256,7 +281,8 @@
             "SqlStatement": "CREATE INDEX \"idx\u0026_enum2\" on test_udt((some_field::non_public.enum_test));",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -266,7 +292,8 @@
             "SqlStatement": "CREATE INDEX abc ON public.example USING btree (new_id) WITH (fillfactor='70'); ",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
             "Suggestion": "Remove the storage parameters from the DDL",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -276,7 +303,8 @@
             "SqlStatement": "CREATE INDEX abc ON schema2.example USING btree (new_id) WITH (fillfactor='70'); ",
             "Suggestion": "Remove the storage parameters from the DDL",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -286,7 +314,8 @@
             "SqlStatement": "CREATE OR REPLACE PROCEDURE foo (p_id integer) AS $body$\nBEGIN\n    drop temporary table if exists temp;\n    create temporary table temp(id int, name text);\n    insert into temp(id,name) select id,p_name from bar where p_id=id;\n    select name from temp;\nend;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#drop-temporary-table-statements-are-not-supported",
             "Suggestion": "remove \"temporary\" and change it to \"drop table\"",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/705"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/705",
+            "MinimumVersionsFixedIn": null
         }, 
         {
             "IssueType": "unsupported_features",
@@ -296,7 +325,8 @@
             "SqlStatement": "CREATE TABLE sales (\n\tcust_id bigint NOT NULL,\n\tname varchar(40),\n\tstore_id varchar(20) NOT NULL,\n\tbill_no bigint NOT NULL,\n\tbill_date timestamp NOT NULL,\n\tamount decimal(8,2) NOT NULL,\n\tPRIMARY KEY (bill_date)\n) PARTITION BY RANGE (extract(year from date(bill_date))) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
             "Suggestion": "Remove the Constriant from the table definition",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/698",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -306,7 +336,8 @@
             "SqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (extract(epoch from date(from_date))) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
             "Suggestion": "Remove the Constriant from the table definition",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/698",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -315,7 +346,8 @@
             "Reason": "ALTER VIEW not supported yet.",
             "SqlStatement": "ALTER VIEW view_name TO select * from test;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1131"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1131",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -324,7 +356,8 @@
             "Reason": "Unsupported PG syntax - 'syntax error at or near \"TO\"'",
             "SqlStatement": "ALTER VIEW view_name TO select * from test;",
             "Suggestion": "Fix the schema as per PG syntax",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1625"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1625",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -333,7 +366,8 @@
             "Reason": "ALTER TABLE OF not supported yet.",
             "SqlStatement": "Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -343,7 +377,8 @@
             "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -353,7 +388,8 @@
             "SqlStatement": "CREATE TABLE test_2 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -363,7 +399,8 @@
             "SqlStatement": "CREATE TABLE test_2 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
             "Suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -373,7 +410,8 @@
             "SqlStatement": "CREATE TABLE test_5 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY RANGE (country_code, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -383,7 +421,8 @@
             "SqlStatement": "CREATE TABLE test_6 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (country_code, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -393,7 +432,8 @@
             "SqlStatement": "CREATE TABLE test_7 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (descriptions, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -403,7 +443,8 @@
             "SqlStatement": "CREATE TABLE test_8 (\n\torder_id bigint NOT NULL,\n\torder_date timestamp,\n\torder_mode varchar(8),\n\tcustomer_id integer,\n\torder_mode smallint,\n\torder_total double precision,\n\tsales_rep_id integer,\n\tpromotion_id integer,\n\tPRIMARY KEY (order_id,order_mode,customer_id,order_total,sales_rep_id)\n) PARTITION BY RANGE (promotion_id, order_date, sales_rep_id) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -413,7 +454,8 @@
             "SqlStatement": "CREATE TABLE test_non_pk_multi_column_list (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
             "Suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -423,7 +465,8 @@
             "SqlStatement": "CREATE TABLE test_non_pk_multi_column_list (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
             "Suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -433,7 +476,8 @@
             "SqlStatement": "CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;",
             "Suggestion": "Remove it from the exported schema",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10866",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#create-or-alter-conversion-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#create-or-alter-conversion-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -443,7 +487,8 @@
             "SqlStatement": "ALTER CONVERSION myconv rename to my_conv_1;",
             "Suggestion": "Remove it from the exported schema",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#create-or-alter-conversion-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#create-or-alter-conversion-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -453,7 +498,8 @@
             "SqlStatement": "CREATE INDEX idx_name1 ON table_name USING spgist (col1);",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -463,7 +509,8 @@
             "SqlStatement": "CREATE INDEX idx_name3 ON schema_name.table_name USING gin (col1,col2,col3);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gin-indexes-on-multiple-columns-are-not-supported",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10652"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10652",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -473,7 +520,8 @@
             "SqlStatement": "CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);",
             "Suggestion": "Remove UNLOGGED keyword to make it work",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1129/",
-            "DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported"
+            "DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -483,7 +531,8 @@
             "SqlStatement": "CREATE VIEW v1 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH CHECK OPTION;",
             "Suggestion": "Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -493,7 +542,8 @@
             "SqlStatement": "CREATE VIEW v2 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH LOCAL CHECK OPTION;",
             "Suggestion": "Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -502,7 +552,8 @@
             "Reason": "DROP multiple objects not supported yet.",
             "SqlStatement": "DROP COLLATION IF EXISTS coll1,coll2,coll3;",
             "Suggestion": "DROP COLLATION coll1;DROP COLLATION coll2;DROP COLLATION coll3;",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -511,7 +562,8 @@
             "Reason": "DROP multiple objects not supported yet.",
             "SqlStatement": "DROP INDEX idx1,idx2,idx3;",
             "Suggestion": "DROP INDEX idx1;DROP INDEX idx2;DROP INDEX idx3;",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -520,7 +572,8 @@
             "Reason": "DROP multiple objects not supported yet.",
             "SqlStatement": "DROP VIEW IF EXISTS view1,view2,view3;",
             "Suggestion": "DROP VIEW view1;DROP VIEW view2;DROP VIEW view3;",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -529,7 +582,8 @@
             "Reason": "DROP multiple objects not supported yet.",
             "SqlStatement": "DROP SEQUENCE seq1_tbl,seq2_tbl,seq3_tbl;",
             "Suggestion": "DROP SEQUENCE seq1_tbl;DROP SEQUENCE seq2_tbl;DROP SEQUENCE seq3_tbl;",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -538,7 +592,8 @@
             "Reason": "DROP INDEX CONCURRENTLY not supported yet",
             "SqlStatement": "DROP INDEX CONCURRENTLY sales_quantity_index;",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/22717"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/22717",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -548,7 +603,8 @@
             "SqlStatement": "CREATE TRIGGER before_insert_or_delete_row_trigger\nBEFORE INSERT OR DELETE ON public.range_columns_partition_test\nFOR EACH ROW\nEXECUTE FUNCTION handle_insert_or_delete();",
             "Suggestion": "Create the triggers on individual partitions.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24830",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -558,7 +614,8 @@
             "SqlStatement": "CREATE TRIGGER transfer_insert\n    AFTER INSERT ON transfer\n    REFERENCING NEW TABLE AS inserted\n    FOR EACH STATEMENT\n    EXECUTE FUNCTION check_transfer_balances_to_zero();",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668",
-            "DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers"
+            "DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -568,7 +625,8 @@
             "SqlStatement": "CREATE CONSTRAINT TRIGGER some_trig\n   AFTER DELETE ON xyz_schema.abc\n   DEFERRABLE INITIALLY DEFERRED\n   FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();",
             "Suggestion": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1709"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1709",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -577,7 +635,8 @@
             "Reason": "CREATE ACCESS METHOD is not supported.",
             "SqlStatement": "CREATE ACCESS METHOD heptree TYPE INDEX HANDLER heptree_handler;",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10693"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10693",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -586,7 +645,8 @@
             "Reason": "REINDEX is not supported.",
             "SqlStatement": "REINDEX TABLE my_table;",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10267"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10267",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -596,7 +656,8 @@
             "SqlStatement": "CREATE TABLE public.employees4 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -606,7 +667,8 @@
             "SqlStatement": "CREATE TABLE order_details (\n    detail_id integer NOT NULL,\n    quantity integer,\n    price_per_unit numeric,\n    amount numeric GENERATED ALWAYS AS (((quantity)::numeric * price_per_unit)) STORED\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -615,7 +677,8 @@
             "Reason": "LIKE clause not supported yet.",
             "SqlStatement": "CREATE TABLE table_xyz\n  (LIKE xyz INCLUDING DEFAULTS INCLUDING CONSTRAINTS);",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -624,7 +687,8 @@
             "Reason": "LIKE ALL is not supported yet.",
             "SqlStatement": "CREATE TABLE table_abc\n  (LIKE abc INCLUDING ALL);",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10697"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10697",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -634,7 +698,8 @@
             "SqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -643,7 +708,8 @@
             "Reason": "OIDs are not supported for user tables.",
             "SqlStatement": "Create table table_test (col1 text, col2 int) with (OIDS = TRUE);",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10273"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10273",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -653,7 +719,8 @@
             "SqlStatement": "CREATE INDEX idx1 on combined_tbl1 (d);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -663,7 +730,8 @@
             "SqlStatement": "CREATE INDEX idx2 on combined_tbl1 (t);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -673,7 +741,8 @@
             "SqlStatement": "CREATE INDEX idx3 on combined_tbl1 (tz);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -683,7 +752,8 @@
             "SqlStatement": "CREATE INDEX idx4 on combined_tbl1 (n);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -693,7 +763,8 @@
             "SqlStatement": "CREATE INDEX idx5 on combined_tbl1 (i4);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -703,7 +774,8 @@
             "SqlStatement": "CREATE INDEX idx6 on combined_tbl1 (i8);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -713,7 +785,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -723,7 +796,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -733,7 +807,8 @@
             "SqlStatement": "ALTER TABLE combined_tbl\n\t\tADD CONSTRAINT combined_tbl_unique UNIQUE(id, bitt);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -743,7 +818,8 @@
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -753,7 +829,8 @@
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -763,7 +840,8 @@
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -773,7 +851,8 @@
             "SqlStatement": "ALTER TABLE combined_tbl1\n\t\tADD CONSTRAINT combined_tbl1_unique UNIQUE(id, d);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -783,7 +862,8 @@
             "SqlStatement": "CREATE INDEX idx7  on combined_tbl1 (inym);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -793,7 +873,8 @@
             "SqlStatement": "CREATE INDEX idx8  on combined_tbl1 (inds);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -803,7 +884,8 @@
             "SqlStatement": "create table test_interval(\n    frequency interval primary key,\n\tcol1 int\n);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -812,7 +894,8 @@
             "Reason": "ALTER TABLE SET SCHEMA not supported yet.",
             "SqlStatement": "ALTER TABLE oldschema.tbl_name SET SCHEMA newschema;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/3947"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/3947",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -821,7 +904,8 @@
             "Reason": "CREATE SCHEMA with elements not supported yet.",
             "SqlStatement": "CREATE SCHEMA hollywood\n    CREATE TABLE films (title text, release date, awards text[])\n    CREATE VIEW winners AS\n        SELECT title, release FROM films WHERE awards IS NOT NULL;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10865"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10865",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -830,7 +914,8 @@
             "Reason": "ALTER TABLE ALTER column SET STATISTICS not supported yet.",
             "SqlStatement": "alter table table_name alter column column_name set statistics 100;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -839,7 +924,8 @@
             "Reason": "ALTER TABLE ALTER column SET STORAGE not supported yet.",
             "SqlStatement": "alter table test alter column col set STORAGE EXTERNAL;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -849,7 +935,8 @@
             "SqlStatement": "alter table test_1 alter column col1 set (attribute_option=value);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
             "Suggestion": "Remove it from the exported schema",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -859,7 +946,8 @@
             "SqlStatement": "alter table test DISABLE RULE example_rule;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
             "Suggestion": "Remove this and the rule 'example_rule' from the exported schema to be not enabled on the table.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -869,7 +957,8 @@
             "SqlStatement": "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor='70');",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
             "Suggestion": "Remove the storage parameters from the DDL",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -879,7 +968,8 @@
             "SqlStatement": "alter table abc cluster on xyz;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
             "Suggestion": "Remove it from the exported schema.",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -889,7 +979,8 @@
             "SqlStatement": "CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -899,7 +990,8 @@
             "SqlStatement": "CREATE INDEX tsquery_idx ON public.ts_query_table (query);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -909,7 +1001,8 @@
             "SqlStatement": "CREATE INDEX idx_citext ON public.citext_type USING btree (data);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -919,7 +1012,8 @@
             "SqlStatement": "CREATE INDEX idx_inet ON public.inet_type USING btree (data);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -929,7 +1023,8 @@
             "SqlStatement": "CREATE INDEX idx_json ON public.test_jsonb (data);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -939,7 +1034,8 @@
             "SqlStatement": "CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb));",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -949,7 +1045,8 @@
             "SqlStatement": "create index idx_array on public.documents (list_of_sections);",
             "Suggestion": "Refer to the docs link for the workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -958,7 +1055,8 @@
             "Reason": "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
             "SqlStatement": "alter table test SET WITHOUT CLUSTER;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -967,7 +1065,8 @@
             "Reason": "ALTER INDEX SET not supported yet.",
             "SqlStatement": "ALTER INDEX abc set TABLESPACE new_tbl;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -976,7 +1075,8 @@
             "Reason": "ALTER TABLE INHERIT not supported yet.",
             "SqlStatement": "alter table test_3 INHERIT test_2;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -985,7 +1085,8 @@
             "Reason": "ALTER TABLE VALIDATE CONSTRAINT not supported yet.",
             "SqlStatement": "ALTER TABLE distributors VALIDATE CONSTRAINT distfk;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -995,7 +1096,8 @@
             "SqlStatement": "ALTER TABLE abc\nADD CONSTRAINT cnstr_id\n UNIQUE (id)\nDEFERRABLE;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
             "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1005,7 +1107,8 @@
             "SqlStatement": "ALTER TABLE ONLY public.users\n    ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
             "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1015,7 +1118,8 @@
             "SqlStatement": "create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
             "Suggestion": "Remove these constraints from the exported schema and make the necessary changes to the application before pointing it to target",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1025,7 +1129,8 @@
             "SqlStatement": "create table unique_def_test1(id int, c1 int, UNIQUE(id)  DEFERRABLE INITIALLY DEFERRED);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
             "Suggestion": "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1709",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -1035,7 +1140,8 @@
             "SqlStatement": "CREATE TABLE test_xml_type(id int, data xml);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -1045,7 +1151,8 @@
             "SqlStatement": "CREATE TABLE test_xid_type(id int, data xid);",
             "Suggestion": "Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/15638",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -1055,7 +1162,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -1065,7 +1173,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -1075,7 +1184,8 @@
             "SqlStatement": "CREATE TABLE public.locations (\n    id integer NOT NULL,\n    name character varying(100),\n    geom geometry(Point,4326)\n );",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/11323",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1085,7 +1195,8 @@
             "SqlStatement": "CREATE FOREIGN TABLE public.locations (     id integer NOT NULL,     name character varying(100),     geom geometry(Point,4326)  ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_locations' ); ",
             "Suggestion": "SERVER 'remote_server', and USER MAPPING should be created manually on the target to create and use the foreign table",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -1095,7 +1206,8 @@
             "SqlStatement": "CREATE FOREIGN TABLE public.locations (\n    id integer NOT NULL,\n    name character varying(100),\n    geom geometry(Point,4326)\n ) SERVER remote_server\nOPTIONS (\n    schema_name 'public',\n    table_name 'remote_locations'\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/11323",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1105,7 +1217,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1115,7 +1228,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1125,7 +1239,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1135,7 +1250,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1145,7 +1261,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1155,7 +1272,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1165,7 +1283,8 @@
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1175,7 +1294,8 @@
             "SqlStatement": "ALTER TABLE ONLY public.meeting\n    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
             "Suggestion": "Refer docs link for details on possible workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1185,7 +1305,8 @@
             "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
             "Suggestion": "Refer docs link for details on possible workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1195,7 +1316,8 @@
             "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
             "Suggestion": "Refer docs link for details on possible workaround",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1205,7 +1327,8 @@
             "SqlStatement": "ALTER TABLE ONLY public.range_columns_partition_test\n    ADD CONSTRAINT range_columns_partition_test_pkey PRIMARY KEY (a, b);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10074"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10074",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1214,7 +1337,8 @@
             "Reason": "Primary key constraints are not supported on foreign tables.",
             "SqlStatement": "CREATE FOREIGN TABLE tbl_p(\n\tid int PRIMARY KEY\n) SERVER remote_server\nOPTIONS (\n    schema_name 'public',\n    table_name 'remote_table'\n);",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10698"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10698",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1223,7 +1347,8 @@
             "Reason": "COMPOUND TRIGGER not supported in YugabyteDB.",
             "SqlStatement": "CREATE TRIGGER emp_trig\n\tCOMPOUND INSERT ON emp FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_emp_trig();",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1543"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1543",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1232,7 +1357,8 @@
             "Reason": "ALTER TYPE not supported yet.",
             "SqlStatement": "ALTER TYPE colors ADD VALUE 'orange' AFTER 'red';",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1241,7 +1367,8 @@
             "Reason": "ALTER TYPE not supported yet.",
             "SqlStatement": "ALTER TYPE compfoo ADD ATTRIBUTE f3 int;",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1250,7 +1377,8 @@
             "Reason": "AnyData datatype doesn't have a mapping in YugabyteDB",
             "SqlStatement": "CREATE TABLE anydata_test (\n\tid numeric,\n\tcontent ANYDATA\n) ;",
             "Suggestion": "Remove the column with AnyData datatype or change it to a relevant supported datatype",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1541",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1259,7 +1387,8 @@
             "Reason": "AnyDataSet datatype doesn't have a mapping in YugabyteDB",
             "SqlStatement": "CREATE TABLE anydataset_test (\n\tid numeric,\n\tcontent ANYDATASET\n) ;",
             "Suggestion": "Remove the column with AnyDataSet datatype or change it to a relevant supported datatype",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1541",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1268,7 +1397,8 @@
             "Reason": "AnyType datatype doesn't have a mapping in YugabyteDB",
             "SqlStatement": "CREATE TABLE anytype_test (\n\tid numeric,\n\tcontent ANYTYPE\n) ;",
             "Suggestion": "Remove the column with AnyType datatype or change it to a relevant supported datatype",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1541",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1277,7 +1407,8 @@
             "Reason": "URIType datatype doesn't have a mapping in YugabyteDB",
             "SqlStatement": "CREATE TABLE uritype_test (\n\tid numeric,\n\tcontent URITYPE\n) ;",
             "Suggestion": "Remove the column with URIType datatype or change it to a relevant supported datatype",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1541"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1541",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1286,7 +1417,8 @@
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
             "SqlStatement": "CREATE OR REPLACE view test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
             "Suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1295,7 +1427,8 @@
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
             "SqlStatement": "CREATE OR REPLACE PROCEDURE foo1 (p_id integer) AS $body$\nBEGIN\n    create temporary table temp(id int, agg bigint);\n    insert into temp(id,agg) select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg FROM test1\n    select agg from temp;\nend;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
             "Suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1304,7 +1437,8 @@
             "Reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
             "SqlStatement": "CREATE TRIGGER test\n    INSTEAD OF INSERT on test for each ROW\n    EXECUTE PROCEDURE JSON_ARRAYAGG(trunc(b, 2) order by t desc);",
             "Suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1542",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1314,7 +1448,8 @@
             "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
             "Suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1324,7 +1459,8 @@
             "SqlStatement": "CREATE TABLE sales_data (\n        sales_id numeric NOT NULL,\n        sales_date timestamp,\n        sales_amount numeric,\n        PRIMARY KEY (sales_id)\n) PARTITION BY RANGE (sales_date) ;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
             "Suggestion": "Add all Partition columns to Primary Key",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1334,7 +1470,8 @@
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS aws_commons WITH SCHEMA public;",
             "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1538",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1344,7 +1481,8 @@
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS plperl WITH SCHEMA pg_catalog;",
             "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1538",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1354,7 +1492,8 @@
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS hstore_plperl WITH SCHEMA public;",
             "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1538"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1538",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1363,7 +1502,8 @@
             "Reason": "This FETCH clause might not be supported yet",
             "SqlStatement": "CREATE OR REPLACE PROCEDURE test () AS $body$\nDECLARE\n    cur CURSOR FOR SELECT column_name FROM table_name;\n    row RECORD;\nBEGIN\n    OPEN cur;\n    FETCH PRIOR FROM cur INTO row;\n    CLOSE cur;\nEND;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
             "Suggestion": "Please verify the DDL on your YugabyteDB version before proceeding",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514"
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/6514",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1373,7 +1513,8 @@
             "SqlStatement": "CREATE FOREIGN TABLE tbl_p( \tid int PRIMARY KEY ) SERVER remote_server OPTIONS (     schema_name 'public',     table_name 'remote_table' ); ",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
             "Suggestion": "SERVER 'remote_server', and USER MAPPING should be created manually on the target to create and use the foreign table",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1627"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -1383,7 +1524,8 @@
             "SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1393,7 +1535,8 @@
             "SqlStatement": "CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);",
             "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -1403,7 +1546,8 @@
             "SqlStatement": "CREATE POLICY p1 ON z1 TO regress_rls_group1 USING (a % 2 = 0);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1655"
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1413,7 +1557,8 @@
             "SqlStatement": "SELECT pg_advisory_lock(sender_id);",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1423,7 +1568,8 @@
             "SqlStatement": "SELECT pg_advisory_lock(receiver_id);",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1433,7 +1579,8 @@
             "SqlStatement": "SELECT pg_advisory_unlock(sender_id);",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1443,7 +1590,8 @@
             "SqlStatement": "SELECT pg_advisory_unlock(receiver_id);",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1453,7 +1601,8 @@
             "SqlStatement": "SELECT pg_advisory_unlock(sender_id);",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1463,7 +1612,8 @@
             "SqlStatement": "SELECT pg_advisory_unlock(receiver_id);",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1473,7 +1623,8 @@
             "SqlStatement": "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1483,7 +1634,8 @@
             "SqlStatement": "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1493,7 +1645,8 @@
             "SqlStatement": "SELECT id, first_name FROM employees WHERE pg_try_advisory_lock(300) IS TRUE;",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1503,7 +1656,8 @@
             "SqlStatement": "SELECT e.id, e.name,\n            ROW_NUMBER() OVER (ORDER BY e.ctid) AS row_num\n        FROM employees e;",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1513,7 +1667,8 @@
             "SqlStatement": "SELECT e.id, x.employee_xml\n        FROM employees e\n        JOIN (\n            SELECT xmlelement(name \"employee\", xmlattributes(e.id AS \"id\"), e.name) AS employee_xml\n            FROM employees e\n        ) x ON x.employee_xml IS NOT NULL\n        WHERE xmlexists('//employee[name=\"John Doe\"]' PASSING BY REF x.employee_xml);",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1523,7 +1678,8 @@
             "SqlStatement": "SELECT e.id,\n            CASE\n                WHEN e.salary \u003e 100000 THEN pg_advisory_lock(e.id)\n                ELSE pg_advisory_unlock(e.id)\n            END AS lock_status\n        FROM employees e;",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1533,7 +1689,8 @@
             "SqlStatement": "SELECT sample_data.id, sample_data.name, sample_data.description, xmlforest(sample_data.name AS name, sample_data.description AS description) AS xml_data, pg_try_advisory_lock(sample_data.id::bigint) AS lock_acquired, sample_data.ctid AS row_ctid, sample_data.xmin AS xmin_value FROM public.sample_data",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1543,7 +1700,8 @@
             "SqlStatement": "SELECT sample_data.id, sample_data.name, sample_data.description, xmlforest(sample_data.name AS name, sample_data.description AS description) AS xml_data, pg_try_advisory_lock(sample_data.id::bigint) AS lock_acquired, sample_data.ctid AS row_ctid, sample_data.xmin AS xmin_value FROM public.sample_data",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1553,7 +1711,8 @@
             "SqlStatement": "SELECT sample_data.id, sample_data.name, sample_data.description, xmlforest(sample_data.name AS name, sample_data.description AS description) AS xml_data, pg_try_advisory_lock(sample_data.id::bigint) AS lock_acquired, sample_data.ctid AS row_ctid, sample_data.xmin AS xmin_value FROM public.sample_data",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1563,7 +1722,8 @@
             "SqlStatement": "SELECT orders.order_id, orders.customer_name, orders.product_name, orders.quantity, orders.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name), xmlelement(name \"Quantity\", orders.quantity), xmlelement(name \"TotalPrice\", orders.price * orders.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(orders.customer_name || orders.product_name)::bigint) AS lock_acquired, orders.ctid AS row_ctid, orders.xmin AS transaction_id FROM public.orders",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1573,7 +1733,8 @@
             "SqlStatement": "SELECT orders.order_id, orders.customer_name, orders.product_name, orders.quantity, orders.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name), xmlelement(name \"Quantity\", orders.quantity), xmlelement(name \"TotalPrice\", orders.price * orders.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(orders.customer_name || orders.product_name)::bigint) AS lock_acquired, orders.ctid AS row_ctid, orders.xmin AS transaction_id FROM public.orders",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1583,7 +1744,8 @@
             "SqlStatement": "SELECT orders.order_id, orders.customer_name, orders.product_name, orders.quantity, orders.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name), xmlelement(name \"Quantity\", orders.quantity), xmlelement(name \"TotalPrice\", orders.price * orders.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", orders.customer_name), xmlelement(name \"Product\", orders.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(orders.customer_name || orders.product_name)::bigint) AS lock_acquired, orders.ctid AS row_ctid, orders.xmin AS transaction_id FROM public.orders",
             "Suggestion": "",
             "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1593,7 +1755,8 @@
             "SqlStatement": "employees.salary%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1603,7 +1766,8 @@
             "SqlStatement": "employees.tax_rate%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1613,7 +1777,8 @@
             "SqlStatement": "employees.salary%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1623,7 +1788,8 @@
             "SqlStatement": "employees.salary%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1633,7 +1799,8 @@
             "SqlStatement": "employees.name%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1643,7 +1810,8 @@
             "SqlStatement": "employees.id%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1653,7 +1821,8 @@
             "SqlStatement": "employees.name%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1663,7 +1832,8 @@
             "SqlStatement": "employees.salary%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1673,7 +1843,8 @@
             "SqlStatement": "employees.salary%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1683,7 +1854,8 @@
             "SqlStatement": "employees.salary%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1693,7 +1865,8 @@
             "SqlStatement": "employees.name%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1703,7 +1876,8 @@
             "SqlStatement": "employees.id%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1713,7 +1887,8 @@
             "SqlStatement": "employees.salary%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_plpgsql_objects",
@@ -1723,6 +1898,7 @@
             "SqlStatement": "public.employees.name%TYPE",
             "Suggestion": "Fix the syntax to include the actual type name instead of referencing the type of a column",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+            "MinimumVersionsFixedIn": null
         }
 ]

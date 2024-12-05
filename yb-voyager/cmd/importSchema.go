@@ -411,7 +411,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 	schemaAnalysisReport := analyzeSchemaInternal(
 		&srcdb.Source{
 			DBType: sourceDBType,
-		})
+		}, false)
 
 	switch sourceDBType {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database

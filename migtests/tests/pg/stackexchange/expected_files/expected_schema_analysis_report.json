@@ -51,7 +51,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -62,7 +63,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -73,7 +75,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -84,7 +87,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -95,7 +99,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -106,7 +111,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -117,7 +123,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -128,7 +135,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -139,7 +147,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -150,7 +159,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -161,7 +171,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -172,7 +183,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -183,7 +195,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -194,7 +207,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -205,7 +219,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -216,7 +231,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -227,7 +243,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -238,7 +255,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -249,7 +267,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -260,7 +279,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -271,7 +291,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -282,7 +303,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -293,7 +315,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -304,7 +327,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -315,7 +339,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -326,7 +351,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -337,7 +363,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -348,7 +375,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -359,7 +387,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -370,7 +399,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -381,7 +411,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -392,7 +423,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -403,7 +435,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -414,7 +447,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -425,7 +459,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -436,7 +471,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -447,7 +483,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -458,7 +495,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -469,7 +507,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -480,7 +519,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -491,7 +531,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -502,7 +543,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -513,7 +555,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -524,7 +567,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+            "MinimumVersionsFixedIn": null
         }
     ]
 }

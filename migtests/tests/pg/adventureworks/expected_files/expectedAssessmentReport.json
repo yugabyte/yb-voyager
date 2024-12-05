@@ -310,52 +310,64 @@
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "GIST indexes",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "BRIN indexes",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "SPGIST indexes",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Constraint triggers",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "REFERENCING clause for triggers",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Inherited tables",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Tables with stored generated columns",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Conversion objects",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Gin indexes on multi-columns",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Setting attribute=value on column",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Disabling rule on table",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Clustering table on index",
 			"Objects": [
@@ -632,39 +644,48 @@
 					"SqlStatement": "ALTER TABLE production.vproductanddescription CLUSTER ON ix_vproductanddescription;"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
-		},
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Storage parameters in DDLs",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Extensions",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Exclusion constraints",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Deferrable constraints",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "View with check option",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Primary / Unique key constraints on complex datatypes",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Index on complex datatypes",
-			"Objects": []
-		},
+			"Objects": [],
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Unlogged tables",
-			"Objects": []
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -1697,17 +1718,20 @@
 		{
 			"FeatureName": "Alter partitioned tables to add Primary Key",
 			"Objects": [],
-			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported."
-		},
+			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Foreign tables",
 			"Objects": [],
-			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work."
-		},
+			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
+		    "MinimumVersionsFixedIn": null
+        },
 		{
 			"FeatureName": "Policies",
 			"Objects": [],
-			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema."
+			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.",
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedQueryConstructs": null,
@@ -1756,7 +1780,8 @@
 					"SqlStatement": "SELECT store.businessentityid, store.name, unnest(xpath('/ns:StoreSurvey/ns:AnnualSales/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar::money AS \"AnnualSales\", unnest(xpath('/ns:StoreSurvey/ns:AnnualRevenue/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar::money AS \"AnnualRevenue\", unnest(xpath('/ns:StoreSurvey/ns:BankName/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar(50) AS \"BankName\", unnest(xpath('/ns:StoreSurvey/ns:BusinessType/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar(5) AS \"BusinessType\", unnest(xpath('/ns:StoreSurvey/ns:YearOpened/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar::int AS \"YearOpened\", unnest(xpath('/ns:StoreSurvey/ns:Specialty/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar(50) AS \"Specialty\", unnest(xpath('/ns:StoreSurvey/ns:SquareFeet/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar::int AS \"SquareFeet\", unnest(xpath('/ns:StoreSurvey/ns:Brands/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar(30) AS \"Brands\", unnest(xpath('/ns:StoreSurvey/ns:Internet/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar(30) AS \"Internet\", unnest(xpath('/ns:StoreSurvey/ns:NumberEmployees/text()'::text, store.demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[]))::varchar::int AS \"NumberEmployees\" FROM sales.store"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported"
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+			"MinimumVersionsFixedIn": null
 		}
 	]
 }
