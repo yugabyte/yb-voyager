@@ -609,10 +609,12 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
+		//Adding the MIGRATION_CAVEATS issueType of the utils.Issue for these issueInstances in MigrationCaveatsIssues
 		return strings.Contains(issueInstance.TypeName, i)
 	}):
 		issueType = MIGRATION_CAVEATS
 	case strings.HasPrefix(issueInstance.TypeName, UNSUPPORTED_DATATYPE):
+		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
 		issueType = UNSUPPORTED_DATATYPES
 	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
@@ -988,11 +990,12 @@ var funcMap = template.FuncMap{
 		}
 		return total
 	},
-	"split": split,
+	"split":                     split,
+	"getSupportedVersionString": getSupportedVersionString,
 }
 
 // add info to the 'reportStruct' variable and return
-func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
+func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.SchemaReport {
 	/*
 		NOTE: Don't create local var with name 'schemaAnalysisReport' since global one
 		is used across all the internal functions called by analyzeSchemaInternal()
@@ -1001,6 +1004,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 	schemaAnalysisReport = utils.SchemaReport{}
 	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
 	initializeSummaryMap()
+
 	for _, objType := range sourceObjList {
 		var sqlInfoArr []sqlInfo
 		filePath := utils.GetObjectFilePath(schemaDir, objType)
@@ -1013,18 +1017,31 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source) utils.SchemaReport {
 			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
 			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
 		}
-		if objType == "EXTENSION" {
-			checkExtensions(sqlInfoArr, filePath)
-		}
-		checker(sqlInfoArr, filePath, objType)
+		if detectIssues {
+			if objType == "EXTENSION" {
+				checkExtensions(sqlInfoArr, filePath)
+			}
+			checker(sqlInfoArr, filePath, objType)
 
-		if objType == "CONVERSION" {
-			checkConversions(sqlInfoArr, filePath)
+			if objType == "CONVERSION" {
+				checkConversions(sqlInfoArr, filePath)
+			}
+
+			// Ideally all filtering of issues should happen in queryissue pkg layer,
+			// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
+			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.Issue, index int) bool {
+				fixed, err := i.IsFixedIn(targetDbVersion)
+				if err != nil {
+					utils.ErrExit("checking if issue %v is supported: %v", i, err)
+				}
+				return !fixed
+			})
 		}
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
+	schemaAnalysisReport.TargetDBVersion = targetDbVersion
 	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaAnalysisReport
 }
@@ -1076,7 +1093,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("analyze schema : load migration status record: %s", err)
 	}
-	analyzeSchemaInternal(msr.SourceDBConf)
+	analyzeSchemaInternal(msr.SourceDBConf, true)
 
 	if analyzeSchemaReportFormat != "" {
 		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)

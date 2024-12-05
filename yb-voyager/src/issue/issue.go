@@ -31,9 +31,7 @@ type Issue struct {
 }
 
 func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
-	if v == nil {
-		//TODO: fix it properly with not running checker functions in analyzeSchemaInternal in case of import schema/data
-		//https://yugabyte.atlassian.net/browse/DB-14302
+	if i.MinimumVersionsFixedIn == nil {
 		return false, nil
 	}
 	minVersionFixedInSeries, ok := i.MinimumVersionsFixedIn[v.Series()]

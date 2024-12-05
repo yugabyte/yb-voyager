@@ -17,7 +17,6 @@ package queryissue
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 
 	"github.com/samber/lo"
@@ -561,9 +560,99 @@ RETURNING id,
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
+		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
+	}
+}
 
-		sort.Strings(unsupportedConstructs)
-		sort.Strings(expectedConstructs)
-		assert.Equal(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs")
+func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
+	tests := []struct {
+		Sql             string
+		ExpectedObjects []string
+		ExpectedSchemas []string
+	}{
+		{
+			Sql: `WITH LockedEmployees AS (
+					SELECT *, pg_advisory_lock(xmin) AS lock_acquired
+					FROM public.employees
+					WHERE pg_try_advisory_lock(xmin) IS TRUE
+				)
+				SELECT xmlelement(name "EmployeeData", xmlagg(
+					xmlelement(name "Employee", xmlattributes(id AS "ID"),
+					xmlforest(name AS "Name", xmin AS "TransactionID", xmax AS "ModifiedID"))))
+				FROM LockedEmployees
+				WHERE xmax IS NOT NULL;`,
+			/*
+				Limitation: limited coverage provided by objectCollector.Collect() right now. Might not detect some cases.
+				xmlelement, xmlforest etc are present under xml_expr node in parse tree not funccall node.
+			*/
+			ExpectedObjects: []string{"pg_advisory_lock", "public.employees", "pg_try_advisory_lock", "xmlagg", "lockedemployees"},
+			ExpectedSchemas: []string{"public", ""},
+		},
+		{
+			Sql: `WITH Data AS (
+					SELECT id, name, xmin, xmax,
+						pg_try_advisory_lock(id) AS lock_status,
+						xmlelement(name "info", xmlforest(name as "name", xmin as "transaction_start", xmax as "transaction_end")) as xml_info
+					FROM projects
+					WHERE xmin > 100 AND xmax < 500
+				)
+				SELECT x.id, x.xml_info
+				FROM Data x
+				WHERE x.lock_status IS TRUE;`,
+			ExpectedObjects: []string{"pg_try_advisory_lock", "projects", "data"},
+			ExpectedSchemas: []string{""},
+		},
+		{
+			Sql: `UPDATE s1.employees
+					SET salary = salary * 1.1
+					WHERE pg_try_advisory_xact_lock(ctid) IS TRUE AND department = 'Engineering'
+					RETURNING id, xmlelement(name "UpdatedEmployee", xmlattributes(id AS "ID"),
+						xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
+			ExpectedObjects: []string{"s1.employees", "pg_try_advisory_xact_lock"},
+			ExpectedSchemas: []string{"s1", ""},
+		},
+	}
+
+	expectedConstructs := []string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}
+
+	detectors := []UnsupportedConstructDetector{
+		NewFuncCallDetector(),
+		NewColumnRefDetector(),
+		NewXmlExprDetector(),
+	}
+	for _, tc := range tests {
+		parseResult, err := queryparser.Parse(tc.Sql)
+		assert.NoError(t, err)
+
+		visited := make(map[protoreflect.Message]bool)
+		unsupportedConstructs := []string{}
+
+		objectCollector := queryparser.NewObjectCollector()
+		processor := func(msg protoreflect.Message) error {
+			for _, detector := range detectors {
+				log.Debugf("running detector %T", detector)
+				constructs, err := detector.Detect(msg)
+				if err != nil {
+					log.Debugf("error in detector %T: %v", detector, err)
+					return fmt.Errorf("error in detectors %T: %w", detector, err)
+				}
+				unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
+			}
+			objectCollector.Collect(msg)
+			return nil
+		}
+
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
+
+		collectedObjects := objectCollector.GetObjects()
+		collectedSchemas := objectCollector.GetSchemaList()
+
+		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
+			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
+		assert.ElementsMatch(t, tc.ExpectedSchemas, collectedSchemas,
+			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
 	}
 }

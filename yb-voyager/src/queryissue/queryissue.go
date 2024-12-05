@@ -47,11 +47,11 @@ type ParserIssueDetector struct {
 	/*
 		list of composite types with fully qualified typename in the exported schema
 	*/
-	CompositeTypes []string
+	compositeTypes []string
 	/*
 		list of enum types with fully qualified typename in the exported schema
 	*/
-	EnumTypes []string
+	enumTypes []string
 
 	partitionTablesMap map[string]bool
 
@@ -65,11 +65,19 @@ type ParserIssueDetector struct {
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
 		columnsWithUnsupportedIndexDatatypes: make(map[string]map[string]string),
-		CompositeTypes:                       make([]string, 0),
-		EnumTypes:                            make([]string, 0),
+		compositeTypes:                       make([]string, 0),
+		enumTypes:                            make([]string, 0),
 		partitionTablesMap:                   make(map[string]bool),
 		primaryConsInAlter:                   make(map[string]*queryparser.AlterTable),
 	}
+}
+
+func (p *ParserIssueDetector) GetCompositeTypes() []string {
+	return p.compositeTypes
+}
+
+func (p *ParserIssueDetector) GetEnumTypes() []string {
+	return p.enumTypes
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]issue.IssueInstance, error) {
@@ -182,7 +190,11 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]issue.IssueInsta
 }
 
 func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
-	ddlObj, err := queryparser.ParseAndProcessDDL(query)
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return fmt.Errorf("error parsing a query: %v", err)
+	}
+	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
 		return fmt.Errorf("error parsing DDL: %w", err)
 	}
@@ -203,7 +215,7 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 
 		for _, col := range table.Columns {
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
-			isUDTType := slices.Contains(p.CompositeTypes, col.GetFullTypeName())
+			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
 			switch true {
 			case col.IsArrayType:
 				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
@@ -227,9 +239,9 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 	case *queryparser.CreateType:
 		typeObj, _ := ddlObj.(*queryparser.CreateType)
 		if typeObj.IsEnum {
-			p.EnumTypes = append(p.EnumTypes, typeObj.GetObjectName())
+			p.enumTypes = append(p.enumTypes, typeObj.GetObjectName())
 		} else {
-			p.CompositeTypes = append(p.CompositeTypes, typeObj.GetObjectName())
+			p.compositeTypes = append(p.compositeTypes, typeObj.GetObjectName())
 		}
 	case *queryparser.Index:
 		index, _ := ddlObj.(*queryparser.Index)
@@ -251,8 +263,12 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 }
 
 func (p *ParserIssueDetector) getDDLIssues(query string) ([]issue.IssueInstance, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing a query: %v", err)
+	}
 	// Parse the query into a DDL object
-	ddlObj, err := queryparser.ParseAndProcessDDL(query)
+	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing DDL: %w", err)
 	}
@@ -322,6 +338,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+
 	var result []issue.IssueInstance
 	var unsupportedConstructs []string
 	visited := make(map[protoreflect.Message]bool)

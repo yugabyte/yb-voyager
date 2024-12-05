@@ -842,20 +842,21 @@ func (n *NoOpProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 }
 
 func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
-	switch {
-	case IsCreateTable(parseTree):
+	stmtType := GetStatementType(parseTree.Stmts[0].Stmt.ProtoReflect())
+	switch stmtType {
+	case PG_QUERY_CREATE_STMT:
 		return NewTableProcessor(), nil
-	case IsCreateIndex(parseTree):
+	case PG_QUERY_INDEX_STMT:
 		return NewIndexProcessor(), nil
-	case IsAlterTable(parseTree):
+	case PG_QUERY_ALTER_TABLE_STMT:
 		return NewAlterTableProcessor(), nil
-	case IsCreatePolicy(parseTree):
+	case PG_QUERY_POLICY_STMT:
 		return NewPolicyProcessor(), nil
-	case IsCreateTrigger(parseTree):
+	case PG_QUERY_CREATE_TRIG_STMT:
 		return NewTriggerProcessor(), nil
-	case IsCreateType(parseTree):
+	case PG_QUERY_COMPOSITE_TYPE_STMT, PG_QUERY_ENUM_TYPE_STMT:
 		return NewTypeProcessor(), nil
-	case IsCreateForeign(parseTree):
+	case PG_QUERY_FOREIGN_TABLE_STMT:
 		return NewForeignTableProcessor(), nil
 	default:
 		return NewNoOpProcessor(), nil
@@ -863,16 +864,24 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 }
 
 const (
-	ADD_CONSTRAINT        = pg_query.AlterTableType_AT_AddConstraint
-	SET_OPTIONS           = pg_query.AlterTableType_AT_SetOptions
-	DISABLE_RULE          = pg_query.AlterTableType_AT_DisableRule
-	CLUSTER_ON            = pg_query.AlterTableType_AT_ClusterOn
-	EXCLUSION_CONSTR_TYPE = pg_query.ConstrType_CONSTR_EXCLUSION
-	FOREIGN_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_FOREIGN
-	DEFAULT_SORTING_ORDER = pg_query.SortByDir_SORTBY_DEFAULT
-	PRIMARY_CONSTR_TYPE   = pg_query.ConstrType_CONSTR_PRIMARY
-	UNIQUE_CONSTR_TYPE    = pg_query.ConstrType_CONSTR_UNIQUE
-	LIST_PARTITION        = pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST
+	ADD_CONSTRAINT               = pg_query.AlterTableType_AT_AddConstraint
+	SET_OPTIONS                  = pg_query.AlterTableType_AT_SetOptions
+	DISABLE_RULE                 = pg_query.AlterTableType_AT_DisableRule
+	CLUSTER_ON                   = pg_query.AlterTableType_AT_ClusterOn
+	EXCLUSION_CONSTR_TYPE        = pg_query.ConstrType_CONSTR_EXCLUSION
+	FOREIGN_CONSTR_TYPE          = pg_query.ConstrType_CONSTR_FOREIGN
+	DEFAULT_SORTING_ORDER        = pg_query.SortByDir_SORTBY_DEFAULT
+	PRIMARY_CONSTR_TYPE          = pg_query.ConstrType_CONSTR_PRIMARY
+	UNIQUE_CONSTR_TYPE           = pg_query.ConstrType_CONSTR_UNIQUE
+	LIST_PARTITION               = pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST
+	PG_QUERY_CREATE_STMT         = "pg_query.CreateStmt"
+	PG_QUERY_INDEX_STMT          = "pg_query.IndexStmt"
+	PG_QUERY_ALTER_TABLE_STMT    = "pg_query.AlterTableStmt"
+	PG_QUERY_POLICY_STMT         = "pg_query.CreatePolicyStmt"
+	PG_QUERY_CREATE_TRIG_STMT    = "pg_query.CreateTrigStmt"
+	PG_QUERY_COMPOSITE_TYPE_STMT = "pg_query.CompositeTypeStmt"
+	PG_QUERY_ENUM_TYPE_STMT      = "pg_query.CreateEnumStmt"
+	PG_QUERY_FOREIGN_TABLE_STMT  = "pg_query.CreateForeignTableStmt"
 )
 
 var deferrableConstraintsList = []pg_query.ConstrType{
