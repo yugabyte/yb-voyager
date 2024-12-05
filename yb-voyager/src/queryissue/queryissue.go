@@ -338,15 +338,12 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]issue.IssueInstance,
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
-	ddlParser, err := queryparser.GetDDLProcessor(parseTree)
+	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
-		return nil, fmt.Errorf("error getting a ddl parser: %w", err)
+		return nil, fmt.Errorf("error checking if query is a DDL: %v", err)
 	}
-	_, ok := ddlParser.(*queryparser.NoOpProcessor)
-	if !ok {
-		//Skip all the DDLs we are detecting issues on in the DDLIssueDetector
-		//Not Full-proof as we don't have all DDL types but atleast we will skip all the types we know currently
-		//and if anything is detected from this we will get to know
+	if isDDL {
+		//Skip all the DDLs coming to this function
 		return nil, nil
 	}
 	var result []issue.IssueInstance
