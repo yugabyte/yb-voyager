@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -31,38 +30,83 @@ var (
 	versions            = []string{}
 )
 
-func testXMLFunctionIssue(t *testing.T) {
+func getConn() (*pgx.Conn, error) {
 	ctx := context.Background()
 	connStr, err := yugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
-	assert.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+func testXMLFunctionIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
 	assert.NoError(t, err)
+
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, "SELECT xmlconcat('<abc/>', '<bar>foo</bar>')")
 	assert.ErrorContains(t, err, "unsupported XML feature")
 }
 
-func TestDDLIssuesInAllVersions(t *testing.T) {
-	versionsToTest := os.Getenv("YB_VERSIONS")
-	if versionsToTest == "" {
-		panic("YB_VERSIONS env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105,2.23.1.0-b220 for example")
-	}
-	versions = strings.Split(versionsToTest, ",")
+func testStoredGeneratedFunctionsIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
 
-	for _, version := range versions {
-		var err error
-		ctx := context.Background()
-		yugabytedbContainer, err = yugabytedb.Run(
-			ctx,
-			"yugabytedb/yugabyte:"+version,
-		)
-		assert.NoError(t, err)
-		defer yugabytedbContainer.Terminate(context.Background())
-		success := t.Run(fmt.Sprintf("%s-%s", "xml functions", version), func(t *testing.T) {
-			testXMLFunctionIssue(t)
-		})
-		assert.True(t, success)
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+		CREATE TABLE rectangles (
+		id SERIAL PRIMARY KEY,
+		length NUMERIC NOT NULL,
+		width NUMERIC NOT NULL,
+		area NUMERIC GENERATED ALWAYS AS (length * width) STORED
+	)`)
+	assert.ErrorContains(t, err, "syntax error")
+}
 
-		yugabytedbContainer.Terminate(context.Background())
+func testUnloggedTableIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, "CREATE UNLOGGED TABLE unlogged_table (a int)")
+	assert.ErrorContains(t, err, "UNLOGGED database object not supported yet")
+}
+
+func TestDDLIssuesInYBVersions(t *testing.T) {
+	ybVersion := os.Getenv("YB_VERSION")
+	if ybVersion == "" {
+		panic("YB_VERSION env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105 for example")
 	}
+
+	// spawn yugabytedb container
+	var err error
+	ctx := context.Background()
+	yugabytedbContainer, err = yugabytedb.Run(
+		ctx,
+		"yugabytedb/yugabyte:"+ybVersion,
+	)
+	assert.NoError(t, err)
+	defer yugabytedbContainer.Terminate(context.Background())
+
+	// run tests
+	var success bool
+	success = t.Run(fmt.Sprintf("%s-%s", "xml functions", ybVersion), testXMLFunctionIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "stored generated functions", ybVersion), testStoredGeneratedFunctionsIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "unlogged table", ybVersion), testUnloggedTableIssue)
+	assert.True(t, success)
+
+	yugabytedbContainer.Terminate(context.Background())
+
 }
