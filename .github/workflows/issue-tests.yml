@@ -8,7 +8,13 @@ on:
 
 jobs:
 
-  build:
+  test-issues-against-all-yb-versions:
+    strategy:
+      matrix:
+        version: [2.21.1.0-b271, 2024.1.1.0-b137, 2.20.5.0-b72]
+    env:
+      YB_VERSION: ${{ matrix.version }}
+
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
@@ -22,19 +28,9 @@ jobs:
       run: |
         cd yb-voyager
         go build -v ./...
-
-    - name: Test
+    
+    - name: Test Issues Against YB Version
       run: |
         cd yb-voyager
-        go test -v  -skip 'TestDDLIssuesInYBVersion' ./... 
+        go test -v -run '^TestDDLIssuesInYBVersion$' ./...
         
-    - name: Vet
-      run: |
-        cd yb-voyager
-        go vet ./...
-
-    - name: Run staticcheck
-      run: |
-        cd yb-voyager
-        go install honnef.co/go/tools/cmd/staticcheck@2024.1.1
-        staticcheck ./...

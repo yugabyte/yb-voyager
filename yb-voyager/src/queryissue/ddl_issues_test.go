@@ -80,7 +80,7 @@ func testUnloggedTableIssue(t *testing.T) {
 	assert.ErrorContains(t, err, "UNLOGGED database object not supported yet")
 }
 
-func TestDDLIssuesInYBVersions(t *testing.T) {
+func TestDDLIssuesInYBVersion(t *testing.T) {
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
 		panic("YB_VERSION env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105 for example")
