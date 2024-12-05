@@ -591,7 +591,7 @@ func TestNameRegistryStructs(t *testing.T) {
 }
 
 func TestNameRegistryJson(t *testing.T) {
-	exportDir := os.TempDir() + "/namereg"
+	exportDir := filepath.Join(os.TempDir(), "namereg")
 	outputFilePath := filepath.Join(exportDir, "test_dummy_name_registry.json")
 
 	// Create a sample NameRegistry instance
@@ -622,6 +622,13 @@ func TestNameRegistryJson(t *testing.T) {
 	if err := os.MkdirAll(exportDir, 0755); err != nil {
 		t.Fatalf("Failed to create export directory: %v", err)
 	}
+
+	// Clean up the export directory
+	defer func() {
+		if err := os.RemoveAll(exportDir); err != nil {
+			t.Fatalf("Failed to remove export directory: %v", err)
+		}
+	}()
 
 	// Marshal the NameRegistry instance to JSON
 	err := reg.save()

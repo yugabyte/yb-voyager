@@ -77,11 +77,6 @@ func CompareJson(t *testing.T, outputFilePath string, expectedJSON string, expor
 
 	// Can be used if we don't want to compare pretty printed JSON
 	// assert.JSONEqf(t, expectedJSON, string(outputBytes), "JSON file mismatch. There is some breaking change!")
-
-	// Remove the test directory
-	if err := os.RemoveAll(exportDir); err != nil {
-		t.Logf("Failed to remove test export directory: %v", err)
-	}
 }
 
 // Helper function to check table structure

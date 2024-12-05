@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -46,7 +47,17 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 	// Export the database connection string to env variable YUGABYTED_DB_CONN_STRING
 	err = os.Setenv("YUGABYTED_DB_CONN_STRING", dsn)
 
-	exportDir := os.TempDir() + "/yugabyted"
+	exportDir := filepath.Join(os.TempDir(), "yugabyted")
+
+	// Create a temporary export directory for testing
+	err = os.MkdirAll(exportDir, 0755)
+	assert.NoError(t, err, "Failed to create temporary export directory")
+	// Ensure the directory is removed after the test
+	defer func() {
+		err := os.RemoveAll(exportDir)
+		assert.NoError(t, err, "Failed to remove temporary export directory")
+	}()
+
 	controlPlane := New(exportDir)
 	controlPlane.eventChan = make(chan MigrationEvent, 100)
 	controlPlane.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)

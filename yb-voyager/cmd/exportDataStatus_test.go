@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -36,20 +37,28 @@ func TestExportSnapshotStatusJson(t *testing.T) {
 	// Create a table list of type []sqlname.NameTuple
 	o1 := sqlname.NewObjectName(POSTGRESQL, "public", "public", "table1")
 	o2 := sqlname.NewObjectName(POSTGRESQL, "public", "schema1", "table2")
-	nameTuple1 := sqlname.NameTuple{CurrentName: o1, SourceName: o1, TargetName: o1}
-	nameTuple2 := sqlname.NameTuple{CurrentName: o2, SourceName: o2, TargetName: o2}
 	tableList := []sqlname.NameTuple{
-		nameTuple1,
-		nameTuple2,
+		{CurrentName: o1, SourceName: o1, TargetName: o1},
+		{CurrentName: o2, SourceName: o2, TargetName: o2},
 	}
 
-	exportDir = os.TempDir() + "/export_snapshot_status_test"
+	exportDir = filepath.Join(os.TempDir(), "export_snapshot_status_test")
 
 	// Make export directory
-	err := os.MkdirAll(exportDir+"/metainfo", 0755)
+	err := os.MkdirAll(filepath.Join(exportDir, "metainfo"), 0755)
 	if err != nil {
 		t.Fatalf("failed to create export directory: %v", err)
 	}
+
+	// Clean up the export directory
+	defer func() {
+		err := os.RemoveAll(exportDir)
+		if err != nil {
+			t.Fatalf("failed to remove export directory: %v", err)
+		}
+	}()
+
+	outputFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 
 	// Call initializeExportTableMetadata to create the export_snapshot_status.json file
 	initializeExportTableMetadata(tableList)
@@ -72,8 +81,5 @@ func TestExportSnapshotStatusJson(t *testing.T) {
 }`
 
 	// Compare the JSON representation of the sample ExportSnapshotStatus instance
-	testutils.CompareJson(t, exportDir+"/metainfo/export_snapshot_status.json", expectedExportSnapshotStatusJSON, exportDir)
-
-	// Clean up the export directory
-	err = os.RemoveAll(exportDir)
+	testutils.CompareJson(t, outputFilePath, expectedExportSnapshotStatusJSON, exportDir)
 }

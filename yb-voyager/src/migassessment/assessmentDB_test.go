@@ -79,7 +79,13 @@ func TestInitAssessmentDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temporary file: %v", err)
 	}
-	defer os.Remove(tempFile.Name()) // Ensure the file is removed after the test
+	// Ensure the file is removed after the test
+	defer func() {
+		err := os.Remove(tempFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to remove temporary file: %v", err)
+		}
+	}()
 
 	GetSourceMetadataDBFilePath = func() string {
 		return tempFile.Name()

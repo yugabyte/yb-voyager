@@ -136,7 +136,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 }
 
 func TestAssessmentReportJson(t *testing.T) {
-	reportDir := os.TempDir() + "/assessment_report_test"
+	reportDir := filepath.Join(os.TempDir(), "assessment_report_test")
 	reportPath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 
 	assessmentReport = AssessmentReport{
@@ -257,6 +257,14 @@ func TestAssessmentReportJson(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create report directory: %v", err)
 	}
+
+	// Clean up the report directory
+	defer func() {
+		err := os.RemoveAll(reportDir)
+		if err != nil {
+			t.Fatalf("Failed to remove report directory: %v", err)
+		}
+	}()
 
 	// Write the assessment report to a JSON file
 	err = generateAssessmentReportJson(reportDir)
@@ -383,9 +391,8 @@ func TestAssessmentReportJson(t *testing.T) {
 	]
 }`
 
-	t.Run("Check AssessmentReport JSON", func(t *testing.T) {
-		testutils.CompareJson(t, reportPath, expectedJSON, reportDir)
-	})
+	testutils.CompareJson(t, reportPath, expectedJSON, reportDir)
+
 }
 
 func Int64Ptr(i int64) *int64 {

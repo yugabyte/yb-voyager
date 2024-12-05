@@ -2,6 +2,7 @@ package datafile
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -41,8 +42,8 @@ func TestDescriptorStructs(t *testing.T) {
 
 func TestDescriptorJson(t *testing.T) {
 	// Set up the temporary export directory
-	exportDir := os.TempDir() + "/descriptor_test"
-	outputFilePath := exportDir + DESCRIPTOR_PATH
+	exportDir := filepath.Join(os.TempDir(), "descriptor_test")
+	outputFilePath := filepath.Join(exportDir, DESCRIPTOR_PATH)
 
 	// Create a sample Descriptor instance
 	descriptor := Descriptor{
@@ -67,9 +68,16 @@ func TestDescriptorJson(t *testing.T) {
 	}
 
 	// Ensure the export directory exists
-	if err := os.MkdirAll(exportDir+"/metainfo", 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(exportDir, "metainfo"), 0755); err != nil {
 		t.Fatalf("Failed to create export directory: %v", err)
 	}
+
+	// Clean up the export directory
+	defer func() {
+		if err := os.RemoveAll(exportDir); err != nil {
+			t.Fatalf("Failed to remove export directory: %v", err)
+		}
+	}()
 
 	// Save the Descriptor to JSON
 	descriptor.Save()
