@@ -27,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -47,6 +48,25 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 		}
 	}
 	return nil
+}
+
+func isNotValidConstraint(stmt string) (bool, error) {
+	parseTree, err := queryparser.Parse(stmt)
+	if err != nil {
+		return false, fmt.Errorf("error parsing the ddl[%s]: %v", stmt, err)
+	}
+	ddlObj, err := queryparser.ProcessDDL(parseTree)
+	if err != nil {
+		return false, fmt.Errorf("error in process DDL[%s]:%v", stmt, err)
+	}
+	alter, ok := ddlObj.(*queryparser.AlterTable)
+	if !ok {
+		return false, nil
+	}
+	if alter.IsAddConstraintType() && alter.ConstraintNotValid {
+		return true, nil
+	}
+	return false, nil
 }
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) error {
@@ -74,10 +94,13 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 		if objType == "TABLE" {
 			stmt := strings.ToUpper(sqlInfo.stmt)
-			skip := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
+			// Check if the statement should be skipped
+			skip, err := shouldSkipDDL(stmt)
+			if err != nil {
+				return fmt.Errorf("error checking whether to skip DDL: %v", err)
+			}
 			if skip {
-				//skipping DDLS like ALTER TABLE ... REPLICA IDENTITY .. as this is not supported in YB
-				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
+				log.Infof("Skipping DDL: %s", stmt)
 				continue
 			}
 		}
@@ -88,6 +111,24 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		}
 	}
 	return nil
+}
+
+func shouldSkipDDL(stmt string) (bool, error) {
+	skipReplicaIdentity := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
+	if skipReplicaIdentity {
+		return true, nil
+	}
+	isNotValid, err := isNotValidConstraint(stmt)
+	if err != nil {
+		return false, fmt.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
+	}
+	skipNotValidWithoutPostImport := isNotValid && !bool(flagPostSnapshotImport)
+	skipOtherDDLsWithPostImport := (bool(flagPostSnapshotImport) && !isNotValid)
+	if skipNotValidWithoutPostImport || // Skipping NOT VALID CONSTRAINT in import schema without post-snapshot-mode
+		skipOtherDDLsWithPostImport { // Skipping other TABLE DDLs than the NOT VALID in post-snapshot-import mode
+		return true, nil
+	}
+	return false, nil
 }
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {

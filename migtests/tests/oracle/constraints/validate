@@ -30,7 +30,11 @@ QUERIES_CHECK = {
 		'code': "23505"
 	},
 	'CHECK_CONDITION': {
-		'query': "insert into public.check_test (id, first_name, last_name, age) values (7, 'Tom', 'Stewan', 15);",
+		'query': "insert into public.check_test (id, first_name, middle_name, last_name, age) values (7, 'Tom', 'gfh', 'Stewan', 15);",
+		'code': "23514"
+	},
+	'CHECK_CONDITION_NOT_VALID': {
+		'query': "insert into public.check_test (id, first_name, middle_name, last_name, age) values (7, 'Tom', 'null', 'Stewan', 25);",
 		'code': "23514"
 	},
 	'FORIEGN_CHECK': {

@@ -29,7 +29,11 @@ QUERIES_CHECK = {
 		'code': "23505"
 	},
 	'CHECK_CONDITION': {
-		'query': "insert into check_test (id, first_name, last_name, age) values (7, 'Tom', 'Stewan', 15);",
+		'query': "insert into check_test (id, first_name, middle_name, last_name, age) values (7, 'Tom', 'abc', 'Stewan', 15);",
+		'code': "23514"
+	},
+	'CHECK_CONDITION_NOT_VALID': {
+		'query': "insert into check_test (id, first_name, middle_name, last_name, age) values (7, 'Tom', '', 'Stewan', 52);",
 		'code': "23514"
 	},
 	'FOREIGN_CHECK': {
