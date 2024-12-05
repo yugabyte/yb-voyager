@@ -10,6 +10,18 @@
 	import_schema --continue-on-error true
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
+	if [ -f "${EXPORT_DIR}/schema/failed.sql" ]; then
+	    if [ -f "${TEST_DIR}/expected_files/expected_failed.sql" ]; then
+	        # Both files exist, proceed with comparison
+	        compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${TEST_DIR}/expected_files/expected_failed.sql"
+	    else
+	        # expected_failed.sql does not exist, error out
+	        echo "Error: unexpected failed.sql found."
+	        cat "${EXPORT_DIR}/schema/failed.sql"
+	        exit 1
+	    fi
+	fi
+
 	step "Run Schema validations."
 	if [ -x "${TEST_DIR}/validate-schema" ]
 	then

@@ -917,9 +917,16 @@ compare_sql_files() {
 
     # Compare the normalized files
     compare_files "$normalized_file1" "$normalized_file2"
-    
-    # Clean up temporary files
+
+    compare_status=$?
+
+	# Clean up temporary files
     rm "$normalized_file1" "$normalized_file2"
+
+    # Exit with the status from compare_files if there are differences
+    if [ $compare_status -ne 0 ]; then
+        exit $compare_status
+    fi
 }
 
 
