@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/docker/go-connections/nat"
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type PostgresContainer struct {
@@ -18,8 +20,24 @@ type PostgresContainer struct {
 }
 
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
-	// TODO: verify the docker images being used are the correct certified ones
+	if pg.container != nil {
+		utils.PrintAndLog("Postgres-%s container already running", pg.DBVersion)
+		return nil
+	}
+
+	// since these Start() can be called from anywhere so need a way to ensure that correct files(without needing abs path) are picked from project directories
+	tmpFile, err := os.CreateTemp(os.TempDir(), "postgresql_schema.sql")
+	if err != nil {
+		return fmt.Errorf("failed to create temp schema file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.Write(postgresInitSchemaFile); err != nil {
+		return fmt.Errorf("failed to write to temp schema file: %w", err)
+	}
+
 	req := testcontainers.ContainerRequest{
+		// TODO: verify the docker images being used are the correct/certified ones
 		Image:        fmt.Sprintf("postgres:%s", pg.DBVersion),
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
@@ -29,7 +47,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(1 * time.Minute),
 		Files: []testcontainers.ContainerFile{
 			{
-				HostFilePath:      "./test_schemas/postgresql_schema.sql",
+				HostFilePath:      tmpFile.Name(),
 				ContainerFilePath: "docker-entrypoint-initdb.d/postgresql_schema.sql",
 				FileMode:          0755,
 			},
@@ -42,17 +60,21 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	})
 
 	if err != nil {
-		reader, err := pg.container.Logs(ctx)
-		if err != nil {
-			fmt.Printf("failed to get container logs: %v", err)
+		if pg.container == nil {
+			return fmt.Errorf("failed to create test container for postgres: %w", err)
 		} else {
-			fmt.Println("=== Container Logs ===")
-			data, err := io.ReadAll(reader)
+			reader, err := pg.container.Logs(ctx)
 			if err != nil {
-				panic(err)
+				fmt.Printf("failed to get container logs: %v", err)
+			} else {
+				fmt.Println("=== Container Logs ===")
+				data, err := io.ReadAll(reader)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Printf("%s\n", string(data))
+				fmt.Println("=== End of Logs ===")
 			}
-			fmt.Printf("%s\n", string(data))
-			fmt.Println("=== End of Logs ===")
 		}
 	}
 
@@ -60,15 +82,22 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 }
 
 func (pg *PostgresContainer) Terminate(ctx context.Context) {
+	if pg == nil {
+		return
+	}
+
 	err := pg.container.Terminate(ctx)
 	if err != nil {
-		log.Errorf("faile to terminate postgres container: %v", err)
+		log.Errorf("failed to terminate postgres container: %v", err)
 	}
 }
 
 func (pg *PostgresContainer) GetHostPort() (string, int, error) {
-	ctx := context.Background()
+	if pg.container == nil {
+		return "", -1, fmt.Errorf("postgres container is not started: nil")
+	}
 
+	ctx := context.Background()
 	host, err := pg.container.Host(ctx)
 	if err != nil {
 		return "", -1, fmt.Errorf("failed to fetch host for postgres container: %w", err)
@@ -80,4 +109,8 @@ func (pg *PostgresContainer) GetHostPort() (string, int, error) {
 	}
 
 	return host, port.Int(), nil
+}
+
+func (pg *PostgresContainer) GetConfig() ContainerConfig {
+	return pg.ContainerConfig
 }

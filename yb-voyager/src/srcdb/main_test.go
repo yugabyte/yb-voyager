@@ -24,11 +24,16 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/testcontainers/containers"
+	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
+type TestDB struct {
+	testcontainers.TestContainer
+	*Source
+}
+
 var (
-	testPostgresSource   *TestDB2
+	testPostgresSource   *TestDB
 	testOracleSource     *TestDB
 	testMySQLSource      *TestDB
 	testYugabyteDBSource *TestDB
@@ -38,95 +43,118 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var err error
 	// setting source db type, version and defaults
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		DBVersion: "11",
-		User:      "ybvoyager",
-		Password:  "postgres",
-		Schema:    "public",
-	})
-	pgSource := &Source{
-		DBType:    "postgresql",
-		DBVersion: "11",
-		User:      "ybvoyager",
-		Password:  "postgres",
-		SSLMode:   "disable",
-		Port:      5432,
-		Schema:    "public",
-	}
-
-	oracleSource := &Source{
-		DBType:    "oracle",
-		DBVersion: "21",
-		User:      "ybvoyager",
-		Password:  "password",
-		Port:      1521,
-		DBName:    "DMS",
-		Schema:    "YBVOYAGER",
-	}
-	mysqlSource := &Source{
-		DBType:    "mysql",
-		DBVersion: "8.4",
-		User:      "ybvoyager",
-		Password:  "password",
-		Port:      3306,
-		DBName:    "dms",
-		SSLMode:   "disable",
-	}
-	ybSource := &Source{
-		DBType:    "yugabytedb",
-		DBVersion: "2.20.7.1-b10",
-		User:      "yugabyte",
-		Password:  "password",
-		SSLMode:   "disable",
-		Port:      5433,
-		Schema:    "public",
-	}
-
-	// postgresTestDB, err = StartTestDB(ctx, pgSource)
-	// if err != nil {
-	// 	utils.ErrExit("Failed to start testDB: %v", err)
-	// }
-	// defer StopTestDB(ctx, postgresTestDB)
-	err = postgresContainer.Start(ctx)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	// TODO: handle error
+	err := postgresContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
 	}
-	defer postgresContainer.Terminate(ctx)
-
-	pgSource.Host, pgSource.Port, err = postgresContainer.GetHostPort()
+	host, port, err := postgresContainer.GetHostPort()
 	if err != nil {
-		utils.ErrExit("Failed to get host port for postgres container: %v", err)
+		utils.ErrExit("%v", err)
 	}
-	log.Infof("fetched container host=%s, port=%d", pgSource.Host, pgSource.Port)
-	err = pgSource.DB().Connect()
+	testPostgresSource = &TestDB{
+		TestContainer: postgresContainer,
+		Source: &Source{
+			DBType:    "postgresql",
+			DBVersion: postgresContainer.GetConfig().DBVersion,
+			User:      postgresContainer.GetConfig().User,
+			Password:  postgresContainer.GetConfig().Password,
+			Schema:    postgresContainer.GetConfig().Schema,
+			Host:      host,
+			Port:      port,
+			SSLMode:   "disable",
+		},
+	}
+	err = testPostgresSource.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to postgres database: %w", err)
 	}
-	defer pgSource.DB().Disconnect()
-	testPostgresSource = &TestDB2{
-		TestContainer: postgresContainer,
-		Source:        pgSource,
+	defer testPostgresSource.DB().Disconnect()
+
+	oracleContainer := testcontainers.NewTestContainer("oracle", nil)
+	_ = oracleContainer.Start(ctx)
+	host, port, err = oracleContainer.GetHostPort()
+	if err != nil {
+		utils.ErrExit("%v", err)
+	}
+	testOracleSource = &TestDB{
+		TestContainer: oracleContainer,
+		Source: &Source{
+			DBType:    "oracle",
+			DBVersion: oracleContainer.GetConfig().DBVersion,
+			User:      oracleContainer.GetConfig().User,
+			Password:  oracleContainer.GetConfig().Password,
+			Schema:    oracleContainer.GetConfig().Schema,
+			DBName:    oracleContainer.GetConfig().DBName,
+			Host:      host,
+			Port:      port,
+		},
 	}
 
-	testOracleSource, err = StartTestDB(ctx, oracleSource)
+	err = testOracleSource.DB().Connect()
 	if err != nil {
-		utils.ErrExit("Failed to start testDB: %v", err)
+		utils.ErrExit("Failed to connect to oracle database: %w", err)
 	}
-	defer StopTestDB(ctx, testOracleSource)
+	defer testOracleSource.DB().Disconnect()
 
-	testMySQLSource, err = StartTestDB(ctx, mysqlSource)
+	mysqlContainer := testcontainers.NewTestContainer("mysql", nil)
+	_ = mysqlContainer.Start(ctx)
+	host, port, err = mysqlContainer.GetHostPort()
 	if err != nil {
-		utils.ErrExit("Failed to start testDB: %v", err)
+		utils.ErrExit("%v", err)
 	}
-	defer StopTestDB(ctx, testMySQLSource)
+	testMySQLSource = &TestDB{
+		TestContainer: mysqlContainer,
+		Source: &Source{
+			DBType:    "mysql",
+			DBVersion: mysqlContainer.GetConfig().DBVersion,
+			User:      mysqlContainer.GetConfig().User,
+			Password:  mysqlContainer.GetConfig().Password,
+			Schema:    mysqlContainer.GetConfig().Schema,
+			DBName:    mysqlContainer.GetConfig().DBName,
+			Host:      host,
+			Port:      port,
+			SSLMode:   "disable",
+		},
+	}
 
-	testYugabyteDBSource, err = StartTestDB(ctx, ybSource)
+	err = testMySQLSource.DB().Connect()
 	if err != nil {
-		utils.ErrExit("Failed to start testDB: %v", err)
+		utils.ErrExit("Failed to connect to mysql database: %w", err)
 	}
-	defer StopTestDB(ctx, testYugabyteDBSource)
+	defer testMySQLSource.DB().Disconnect()
+
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabytedbContainer.Start(ctx)
+	if err != nil {
+		utils.ErrExit("Failed to start yugabytedb container: %v", err)
+	}
+	host, port, err = yugabytedbContainer.GetHostPort()
+	if err != nil {
+		utils.ErrExit("%v", err)
+	}
+	testYugabyteDBSource = &TestDB{
+		TestContainer: yugabytedbContainer,
+		Source: &Source{
+			DBType:    "yugabytedb",
+			DBVersion: yugabytedbContainer.GetConfig().DBVersion,
+			User:      yugabytedbContainer.GetConfig().User,
+			Password:  yugabytedbContainer.GetConfig().Password,
+			Schema:    yugabytedbContainer.GetConfig().Schema,
+			DBName:    yugabytedbContainer.GetConfig().DBName,
+			Host:      host,
+			Port:      port,
+			SSLMode:   "disable",
+		},
+	}
+
+	err = testYugabyteDBSource.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to yugabytedb database: %w", err)
+	}
+	defer testYugabyteDBSource.DB().Disconnect()
 
 	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)

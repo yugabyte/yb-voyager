@@ -3,12 +3,14 @@ package testcontainers
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/docker/go-connections/nat"
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type YugabyteDBContainer struct {
@@ -17,6 +19,22 @@ type YugabyteDBContainer struct {
 }
 
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
+	if yb.container != nil {
+		utils.PrintAndLog("YugabyteDB-%s container already running", yb.DBVersion)
+		return nil
+	}
+
+	// since these Start() can be called from anywhere so need a way to ensure that correct files(without needing abs path) are picked from project directories
+	tmpFile, err := os.CreateTemp(os.TempDir(), "yugabytedb_schema.sql")
+	if err != nil {
+		return fmt.Errorf("failed to create temp schema file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.Write(yugabytedbInitSchemaFile); err != nil {
+		return fmt.Errorf("failed to write to temp schema file: %w", err)
+	}
+
 	// this will create a 1 Node RF-1 cluster
 	req := testcontainers.ContainerRequest{
 		Image:        fmt.Sprintf("yugabytedb/yugabyte:%s", yb.DBVersion),
@@ -34,7 +52,7 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 		),
 		Files: []testcontainers.ContainerFile{
 			{
-				HostFilePath:      "./test_schemas/yugabytedb_schema.sql",
+				HostFilePath:      tmpFile.Name(),
 				ContainerFilePath: "/home/yugabyte/initial-scripts/yugabytedb_schema.sql",
 				FileMode:          0755,
 			},
@@ -49,24 +67,35 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 }
 
 func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
+	if yb == nil {
+		return
+	}
+
 	err := yb.container.Terminate(ctx)
 	if err != nil {
-		log.Errorf("faile to terminate postgres container: %v", err)
+		log.Errorf("failed to terminate yugabytedb container: %v", err)
 	}
 }
 
 func (yb *YugabyteDBContainer) GetHostPort() (string, int, error) {
-	ctx := context.Background()
+	if yb.container == nil {
+		return "", -1, fmt.Errorf("yugabytedb container is not started: nil")
+	}
 
+	ctx := context.Background()
 	host, err := yb.container.Host(ctx)
 	if err != nil {
-		return "", -1, fmt.Errorf("failed to fetch host for postgres container: %w", err)
+		return "", -1, fmt.Errorf("failed to fetch host for yugabytedb container: %w", err)
 	}
 
 	port, err := yb.container.MappedPort(ctx, nat.Port(DEFAULT_YB_PORT))
 	if err != nil {
-		return "", -1, fmt.Errorf("failed to fetch mapped port for postgres container: %w", err)
+		return "", -1, fmt.Errorf("failed to fetch mapped port for yugabytedb container: %w", err)
 	}
 
 	return host, port.Int(), nil
+}
+
+func (yb *YugabyteDBContainer) GetConfig() ContainerConfig {
+	return yb.ContainerConfig
 }

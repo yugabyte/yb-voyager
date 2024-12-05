@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 	"gotest.tools/assert"
 )
 
@@ -144,7 +145,7 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	}
 	assert.Equal(t, len(expectedTables), len(actualTables), "Expected number of tables to match")
 
-	assertEqualSourceNameSlices(t, expectedTables, actualTables)
+	testutils.AssertEqualSourceNameSlices(t, expectedTables, actualTables)
 }
 
 func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
@@ -170,7 +171,7 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 			t.Errorf("Expected table %s not found in uniqueKeys", table)
 		}
 
-		assertEqualStringSlices(t, expectedColumns, actualColumns)
+		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
 	}
 }
 
@@ -179,5 +180,5 @@ func TestPostgresGetNonPKTables(t *testing.T) {
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
 	expectedTables := []string{`public."non_pk2"`, `public."non_pk1"`} // func returns table.Qualified.Quoted
-	assertEqualStringSlices(t, expectedTables, actualTables)
+	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }

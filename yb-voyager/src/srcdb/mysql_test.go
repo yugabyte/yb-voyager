@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 	"gotest.tools/assert"
 )
 
@@ -38,7 +39,7 @@ func TestMysqlGetAllTableNames(t *testing.T) {
 	}
 	assert.Equal(t, len(expectedTables), len(actualTables), "Expected number of tables to match")
 
-	assertEqualSourceNameSlices(t, expectedTables, actualTables)
+	testutils.AssertEqualSourceNameSlices(t, expectedTables, actualTables)
 }
 
 func TestMySQLGetNonPKTables(t *testing.T) {
@@ -47,5 +48,5 @@ func TestMySQLGetNonPKTables(t *testing.T) {
 
 	expectedTables := []string{"dms.non_pk1", "dms.non_pk2"}
 
-	assertEqualStringSlices(t, expectedTables, actualTables)
+	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }
