@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -129,32 +130,10 @@ var (
 	schemaAnalysisReport      utils.SchemaReport
 	partitionTablesMap        = make(map[string]bool)
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
-	primaryConsInAlter  = make(map[string]*sqlInfo)
 	summaryMap          = make(map[string]*summaryInfo)
 	parserIssueDetector = queryissue.NewParserIssueDetector()
 	multiRegex          = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex    = regexp.MustCompile(`(\$.*\$)`)
-	/*
-		this will contain the information in this format:
-		public.table1 -> {
-			column1: citext | jsonb | inet | tsquery | tsvector | array
-			...
-		}
-		schema2.table2 -> {
-			column3: citext | jsonb | inet | tsquery | tsvector | array
-			...
-		}
-		Here only those columns on tables are stored which have unsupported type for Index in YB
-	*/
-	columnsWithUnsupportedIndexDatatypes = make(map[string]map[string]string)
-	/*
-		list of composite types with fully qualified typename in the exported schema
-	*/
-	compositeTypes = make([]string, 0)
-	/*
-		list of enum types with fully qualified typename in the exported schema
-	*/
-	enumTypes = make([]string, 0)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
@@ -172,7 +151,6 @@ var (
 	idxConcRegex              = re("REINDEX", anything, capture(ident))
 	likeAllRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
 	likeRegex                 = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
-	inheritRegex              = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
 	withOidsRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
 	anydataRegex              = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyData", anything)
 	anydatasetRegex           = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyDataSet", anything)
@@ -345,31 +323,9 @@ func addSummaryDetailsForIndexes() {
 	}
 }
 
-func checkForeignTable(sqlInfoArr []sqlInfo, fpath string) {
-	for _, sqlStmtInfo := range sqlInfoArr {
-		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
-		if err != nil {
-			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
-		}
-		createForeignTableNode, isForeignTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
-		if isForeignTable {
-			baseStmt := createForeignTableNode.CreateForeignTableStmt.BaseStmt
-			relation := baseStmt.Relation
-			schemaName := relation.Schemaname
-			tableName := relation.Relname
-			serverName := createForeignTableNode.CreateForeignTableStmt.Servername
-			summaryMap["FOREIGN TABLE"].invalidCount[sqlStmtInfo.objName] = true
-			objName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-			reportCase(fpath, FOREIGN_TABLE_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1627",
-				fmt.Sprintf("SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table", serverName), "FOREIGN TABLE", objName, sqlStmtInfo.stmt, MIGRATION_CAVEATS, FOREIGN_TABLE_DOC_LINK)
-			reportUnsupportedDatatypes(relation, baseStmt.TableElts, sqlStmtInfo, fpath, "FOREIGN TABLE")
-		}
-	}
-}
-
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
-		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
+		_, err := queryparser.Parse(sqlStmtInfo.stmt)
 		if err != nil { //if the Stmt is not already report by any of the regexes
 			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
 				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX, err.Error())
@@ -378,1089 +334,20 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			}
 			continue
 		}
-		createTableNode, isCreateTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
-		alterTableNode, isAlterTable := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterTableStmt)
-		createIndexNode, isCreateIndex := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
-		createPolicyNode, isCreatePolicy := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreatePolicyStmt)
-		createCompositeTypeNode, isCreateCompositeType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CompositeTypeStmt)
-		createEnumTypeNode, isCreateEnumType := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
-		createTriggerNode, isCreateTrigger := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTrigStmt)
-
-		if objType == TABLE && isCreateTable {
-			reportPartitionsRelatedIssues(createTableNode, sqlStmtInfo, fpath)
-			reportGeneratedStoredColumnTables(createTableNode, sqlStmtInfo, fpath)
-			reportExclusionConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			reportDeferrableConstraintCreateTable(createTableNode, sqlStmtInfo, fpath)
-			reportUnsupportedDatatypes(createTableNode.CreateStmt.Relation, createTableNode.CreateStmt.TableElts, sqlStmtInfo, fpath, objType)
-			parseColumnsWithUnsupportedIndexDatatypes(createTableNode)
-			reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode, sqlStmtInfo, fpath)
-			reportUnloggedTable(createTableNode, sqlStmtInfo, fpath)
+		err = parserIssueDetector.ParseRequiredDDLs(sqlStmtInfo.formattedStmt)
+		if err != nil {
+			utils.ErrExit("error parsing stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
-		if isAlterTable {
-			reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode, sqlStmtInfo, fpath)
-			reportAlterAddPKOnPartition(alterTableNode, sqlStmtInfo, fpath)
-			reportAlterTableVariants(alterTableNode, sqlStmtInfo, fpath, objType)
-			reportExclusionConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
-			reportDeferrableConstraintAlterTable(alterTableNode, sqlStmtInfo, fpath)
+		if parserIssueDetector.IsGinIndexPresentInSchema {
+			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
-		if isCreateIndex {
-			reportIndexMethods(createIndexNode, sqlStmtInfo, fpath)
-			reportCreateIndexStorageParameter(createIndexNode, sqlStmtInfo, fpath)
-			reportUnsupportedIndexesOnComplexDatatypes(createIndexNode, sqlStmtInfo, fpath)
-			checkGinVariations(createIndexNode, sqlStmtInfo, fpath)
+		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
+		if err != nil {
+			utils.ErrExit("error getting ddl issues for stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
-
-		if isCreatePolicy {
-			reportPolicyRequireRolesOrGrants(createPolicyNode, sqlStmtInfo, fpath)
+		for _, i := range ddlIssues {
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
 		}
-
-		if isCreateTrigger {
-			reportUnsupportedTriggers(createTriggerNode, sqlStmtInfo, fpath)
-		}
-
-		if isCreateCompositeType {
-			//Adding the composite types (UDTs) in the list
-			/*
-				e.g. CREATE TYPE non_public."Address_type" AS (
-						street VARCHAR(100),
-						city VARCHAR(50),
-						state VARCHAR(50),
-						zip_code VARCHAR(10)
-					);
-				stmt:{composite_type_stmt:{typevar:{schemaname:"non_public"  relname:"Address_type"  relpersistence:"p"  location:14}  coldeflist:{column_def:{colname:"street"
-				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"varchar"}}  typmods:{a_const:{ival:{ival:100}  location:65}}  typemod:-1  location:57} ...
-
-				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
-			*/
-			typeName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetRelname()
-			typeSchemaName := createCompositeTypeNode.CompositeTypeStmt.Typevar.GetSchemaname()
-			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
-			compositeTypes = append(compositeTypes, fullTypeName)
-		}
-		if isCreateEnumType {
-			//Adding the composite types (UDTs) in the list
-			/*
-				e.g. CREATE TYPE decline_reason AS ENUM (
-						'duplicate_payment_method',
-						'server_failure'
-					);
-				stmt:{create_enum_stmt:{type_name:{string:{sval:"decline_reason"}} vals:{string:{sval:"duplicate_payment_method"}} vals:{string:{sval:"server_failure"}}}}
-				stmt_len:101}
-
-				Here the type name is required which is available in typevar->relname typevar->schemaname for qualified name
-			*/
-			typeNames := createEnumTypeNode.CreateEnumStmt.GetTypeName()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
-			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
-			enumTypes = append(enumTypes, fullTypeName)
-		}
-	}
-}
-
-func reportUnsupportedTriggers(createTriggerNode *pg_query.Node_CreateTrigStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTriggerNode.CreateTrigStmt.Relation.Schemaname
-	tableName := createTriggerNode.CreateTrigStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	trigName := createTriggerNode.CreateTrigStmt.Trigname
-	displayObjectName := fmt.Sprintf("%s ON %s", trigName, fullyQualifiedName)
-
-	/*
-		e.g.CREATE CONSTRAINT TRIGGER some_trig
-			AFTER DELETE ON xyz_schema.abc
-			DEFERRABLE INITIALLY DEFERRED
-			FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();
-		create_trig_stmt:{isconstraint:true trigname:"some_trig" relation:{schemaname:"xyz_schema" relname:"abc" inh:true relpersistence:"p"
-		location:56} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} row:true events:8 deferrable:true initdeferred:true}}
-		stmt_len:160}
-	*/
-	if createTriggerNode.CreateTrigStmt.Isconstraint {
-		reportCase(fpath, CONSTRAINT_TRIGGER_ISSUE_REASON,
-			"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", displayObjectName,
-			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, CONSTRAINT_TRIGGER_DOC_LINK)
-	}
-
-	/*
-		e.g. CREATE TRIGGER projects_loose_fk_trigger
-			AFTER DELETE ON public.projects
-			REFERENCING OLD TABLE AS old_table
-			FOR EACH STATEMENT EXECUTE FUNCTION xyz_schema.some_trig();
-		stmt:{create_trig_stmt:{trigname:"projects_loose_fk_trigger" relation:{schemaname:"public" relname:"projects" inh:true
-		relpersistence:"p" location:58} funcname:{string:{sval:"xyz_schema"}} funcname:{string:{sval:"some_trig"}} events:8
-		transition_rels:{trigger_transition:{name:"old_table" is_table:true}}}} stmt_len:167}
-	*/
-	if createTriggerNode.CreateTrigStmt.GetTransitionRels() != nil {
-		summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
-		reportCase(fpath, REFERENCING_CLAUSE_FOR_TRIGGERS,
-			"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
-			UNSUPPORTED_FEATURES, REFERENCING_CLAUSE_TRIGGER_DOC_LINK)
-	}
-
-	/*
-		e.g.CREATE TRIGGER after_insert_or_delete_trigger
-			BEFORE INSERT OR DELETE ON main_table
-			FOR EACH ROW
-			EXECUTE FUNCTION handle_insert_or_delete();
-		stmt:{create_trig_stmt:{trigname:"after_insert_or_delete_trigger" relation:{relname:"main_table" inh:true relpersistence:"p"
-		location:111} funcname:{string:{sval:"handle_insert_or_delete"}} row:true timing:2 events:12}} stmt_len:177}
-
-		here,
-		timing - bits of BEFORE/AFTER/INSTEAD
-		events - bits of "OR" INSERT/UPDATE/DELETE/TRUNCATE
-		row - FOR EACH ROW (true), FOR EACH STATEMENT (false)
-		refer - https://github.com/pganalyze/pg_query_go/blob/c3a818d346a927c18469460bb18acb397f4f4301/parser/include/postgres/catalog/pg_trigger_d.h#L49
-			TRIGGER_TYPE_BEFORE				(1 << 1)
-			TRIGGER_TYPE_INSERT				(1 << 2)
-			TRIGGER_TYPE_DELETE				(1 << 3)
-			TRIGGER_TYPE_UPDATE				(1 << 4)
-			TRIGGER_TYPE_TRUNCATE			(1 << 5)
-			TRIGGER_TYPE_INSTEAD			(1 << 6)
-	*/
-
-	timing := createTriggerNode.CreateTrigStmt.Timing
-	isSecondBitSet := timing&(1<<1) != 0
-	if isSecondBitSet && createTriggerNode.CreateTrigStmt.Row {
-		// BEFORE clause will have the bits in timing as 1<<1
-		// BEFORE and FOR EACH ROW on partitioned table is not supported in PG<=12
-		if partitionTablesMap[fullyQualifiedName] {
-			summaryMap["TRIGGER"].invalidCount[displayObjectName] = true
-			reportCase(fpath, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE,
-				"https://github.com/yugabyte/yugabyte-db/issues/24830", "Create the triggers on individual partitions.", "TRIGGER", displayObjectName, sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, BEFORE_ROW_TRIGGER_PARTITIONED_TABLE_DOC_LINK)
-		}
-	}
-
-}
-
-func reportAlterAddPKOnPartition(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-
-	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	/*
-			e.g.
-			ALTER TABLE example2
-		 		ADD CONSTRAINT example2_pkey PRIMARY KEY (id);
-			tmts:{stmt:{alter_table_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:693}
-			cmds:{alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_PRIMARY  conname:"example2_pkey"
-			location:710  keys:{string:{sval:"id"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}  stmt_location:679  stmt_len:72}
-
-	*/
-
-	constraint := alterCmd.GetDef().GetConstraint()
-
-	if constraint != nil && constraint.Contype == pg_query.ConstrType_CONSTR_PRIMARY {
-		if partitionTablesMap[fullyQualifiedName] {
-			reportCase(fpath, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-				"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
-		} else {
-			primaryConsInAlter[fullyQualifiedName] = &sqlStmtInfo
-		}
-	}
-}
-
-/*
-This functions reports multiple issues -
-1. Adding PK to Partitioned  Table (in cases where ALTER is before create)
-2. Expression partitions are not allowed if PK/UNIQUE columns are there is table
-3. List partition strategy is not allowed with multi-column partitions.
-4. Partition columns should all be included in Primary key set if any on table.
-*/
-func reportPartitionsRelatedIssues(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-
-	/*
-		e.g. In case if PRIMARY KEY is included in column definition
-		 CREATE TABLE example2 (
-		 	id numeric NOT NULL PRIMARY KEY,
-			country_code varchar(3),
-			record_type varchar(5)
-		) PARTITION BY RANGE (country_code, record_type) ;
-		stmts:{stmt:{create_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:193}  table_elts:{column_def:{colname:"id"
-		type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  typemod:-1  location:208}  is_local:true
-		constraints:{constraint:{contype:CONSTR_NOTNULL  location:216}}  constraints:{constraint:{contype:CONSTR_PRIMARY  location:225}}
-		location:205}}  ...  partspec:{strategy:PARTITION_STRATEGY_RANGE
-		part_params:{partition_elem:{name:"country_code"  location:310}}  part_params:{partition_elem:{name:"record_type"  location:324}}
-		location:290}  oncommit:ONCOMMIT_NOOP}}  stmt_location:178  stmt_len:159}
-
-		In case if PRIMARY KEY in column list CREATE TABLE example1 (..., PRIMARY KEY(id,country_code) ) PARTITION BY RANGE (country_code, record_type);
-		stmts:{stmt:{create_stmt:{relation:{relname:"example1"  inh:true  relpersistence:"p"  location:15}  table_elts:{column_def:{colname:"id"
-		type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}}  ... table_elts:{constraint:{contype:CONSTR_PRIMARY
-		location:98  keys:{string:{sval:"id"}} keys:{string:{sval:"country_code"}}}}  partspec:{strategy:PARTITION_STRATEGY_RANGE
-		part_params:{partition_elem:{name:"country_code" location:150}}  part_params:{partition_elem:{name:"record_type"  ...
-	*/
-	if createTableNode.CreateStmt.GetPartspec() == nil {
-		//If not partition table then no need to proceed
-		return
-	}
-
-	if primaryConsInAlter[fullyQualifiedName] != nil {
-		//reporting the ALTER TABLE ADD PK on partition table here in case the order is different if ALTER is before the CREATE
-		alterTableSqlInfo := primaryConsInAlter[fullyQualifiedName]
-		reportCase(alterTableSqlInfo.fileName, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-			"https://github.com/yugabyte/yugabyte-db/issues/10074", "", "TABLE", fullyQualifiedName, alterTableSqlInfo.formattedStmt, MIGRATION_CAVEATS, ADDING_PK_TO_PARTITIONED_TABLE_DOC_LINK)
-	}
-
-	partitionTablesMap[fullyQualifiedName] = true // marking the partition tables in the map
-
-	var primaryKeyColumns, partitionColumns, uniqueKeyColumns []string
-
-	for _, column := range columns {
-		if column.GetColumnDef() != nil { //In case PRIMARY KEY constraint is added with column definition
-			constraints := column.GetColumnDef().Constraints
-			for _, constraint := range constraints {
-				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_PRIMARY {
-					primaryKeyColumns = []string{column.GetColumnDef().Colname}
-				}
-				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_UNIQUE {
-					uniqueKeyColumns = append(uniqueKeyColumns, column.GetColumnDef().Colname)
-				}
-			}
-		} else if column.GetConstraint() != nil {
-			//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
-			for _, key := range column.GetConstraint().GetKeys() {
-				if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_PRIMARY {
-					primaryKeyColumns = append(primaryKeyColumns, key.GetString_().Sval)
-				} else if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_UNIQUE {
-					uniqueKeyColumns = append(uniqueKeyColumns, key.GetString_().Sval)
-				}
-			}
-		}
-	}
-
-	partitionElements := createTableNode.CreateStmt.GetPartspec().GetPartParams()
-
-	for _, partElem := range partitionElements {
-		if partElem.GetPartitionElem().GetExpr() != nil {
-			//Expression partitions
-			if len(primaryKeyColumns) > 0 || len(uniqueKeyColumns) > 0 {
-				summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-				reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
-					"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXPRESSION_PARTIITON_DOC_LINK)
-			}
-		} else {
-			partitionColumns = append(partitionColumns, partElem.GetPartitionElem().GetName())
-		}
-	}
-
-	if len(partitionColumns) > 1 && createTableNode.CreateStmt.GetPartspec().GetStrategy() == pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST {
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
-			"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, LIST_PARTIION_MULTI_COLUMN_DOC_LINK)
-	}
-
-	if len(primaryKeyColumns) == 0 { // no need to report in case of non-PK tables
-		return
-	}
-
-	partitionColumnsNotInPK, _ := lo.Difference(partitionColumns, primaryKeyColumns)
-	if len(partitionColumnsNotInPK) > 0 {
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, fmt.Sprintf("%s - (%s)", INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION, strings.Join(partitionColumnsNotInPK, ", ")),
-			"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, PARTITION_KEY_NOT_PK_DOC_LINK)
-	}
-
-}
-
-// Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)
-var UnsupportedIndexDatatypes = []string{
-	"citext",
-	"tsvector",
-	"tsquery",
-	"jsonb",
-	"inet",
-	"json",
-	"macaddr",
-	"macaddr8",
-	"cidr",
-	"bit",    // for BIT (n)
-	"varbit", // for BIT varying (n)
-	"daterange",
-	"tsrange",
-	"tstzrange",
-	"numrange",
-	"int4range",
-	"int8range",
-	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
-	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
-	//Need to understand if there is other method or way available in PG to have these index key [TODO]
-	"circle",
-	"box",
-	"line",
-	"lseg",
-	"point",
-	"pg_lsn",
-	"path",
-	"polygon",
-	"txid_snapshot",
-	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
-}
-
-func reportUnsupportedConstraintsOnComplexDatatypesInAlter(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	unsupportedColumnsForTable, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
-	if !ok {
-		return
-	}
-	if alterCmd.GetSubtype() != pg_query.AlterTableType_AT_AddConstraint {
-		return
-	}
-	if !slices.Contains([]pg_query.ConstrType{pg_query.ConstrType_CONSTR_PRIMARY, pg_query.ConstrType_CONSTR_UNIQUE},
-		alterCmd.GetDef().GetConstraint().GetContype()) {
-		return
-	}
-	columns := alterCmd.GetDef().GetConstraint().GetKeys()
-	for _, col := range columns {
-		colName := col.GetString_().Sval
-		typeName, ok := unsupportedColumnsForTable[colName]
-		if ok {
-			displayName := fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, alterCmd.GetDef().GetConstraint().GetConname())
-			reportCase(fpath, fmt.Sprintf(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
-				"Refer to the docs link for the workaround", "TABLE", displayName, sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
-			return
-		}
-	}
-}
-
-func reportUnsupportedConstraintsOnComplexDatatypesInCreate(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	unsupportedColumnsForTable, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
-	if !ok {
-		return
-	}
-	reportConstraintIfrequired := func(con *pg_query.Constraint, colNames []string, typeName string) {
-		conType := con.GetContype()
-		if !slices.Contains([]pg_query.ConstrType{pg_query.ConstrType_CONSTR_PRIMARY, pg_query.ConstrType_CONSTR_UNIQUE}, conType) {
-			return
-		}
-		generatedConName := generateConstraintName(conType, fullyQualifiedName, colNames)
-		specifiedConstraintName := con.GetConname()
-		conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-		//report the PK / Unique constraint in CREATE TABLE on this column
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, fmt.Sprintf(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
-			"Refer to the docs link for the workaround", "TABLE", fmt.Sprintf("%s, constraint: %s", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt,
-			UNSUPPORTED_FEATURES, PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE)
-
-	}
-	for _, column := range columns {
-		if column.GetColumnDef() != nil {
-			/*
-				e.g. create table unique_def_test(id int, d daterange UNIQUE, c1 int);
-				create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}...
-				table_elts:{column_def:{colname:"d"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
-				typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}} ....
-
-				here checking the case where this clause is in column definition so iterating over each column_def and in that
-				constraint type is UNIQUE/ PK reporting that
-				supported.
-			*/
-			colName := column.GetColumnDef().GetColname()
-			typeName, ok := unsupportedColumnsForTable[colName]
-			if !ok {
-				continue
-			}
-			constraints := column.GetColumnDef().GetConstraints()
-			for _, c := range constraints {
-				reportConstraintIfrequired(c.GetConstraint(), []string{colName}, typeName)
-			}
-		} else if column.GetConstraint() != nil {
-			/*
-				e.g. create table uniquen_def_test1(id int, c1 citext, CONSTRAINT pk PRIMARY KEY(id, c));
-				{create_stmt:{relation:{relname:"unique_def_test1"  inh:true  relpersistence:"p"  location:80}  table_elts:{column_def:{colname:"id"
-				type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
-				table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
-
-				here checking the case where this UK/ PK is at the end of column definition as a separate constraint
-			*/
-			keys := column.GetConstraint().GetKeys()
-			columns := []string{}
-			for _, k := range keys {
-				colName := k.GetString_().Sval
-				columns = append(columns, colName)
-			}
-			for _, c := range columns {
-				typeName, ok := unsupportedColumnsForTable[c]
-				if !ok {
-					continue
-				}
-				reportConstraintIfrequired(column.GetConstraint(), columns, typeName)
-			}
-		}
-	}
-}
-
-func parseColumnsWithUnsupportedIndexDatatypes(createTableNode *pg_query.Node_CreateStmt) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	for _, column := range columns {
-		/*
-			e.g. 1. CREATE TABLE public.citext_type (
-					id integer,
-					lists_of_data text[],
-					data public.citext
-				);
-				stmt:{create_stmt:{relation:{schemaname:"public"  relname:"citext_type"  inh:true  relpersistence:"p"  location:258}  table_elts:{column_def:{colname:"id"
-				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1  location:287}  is_local:true  location:284}}  table_elts:
-				{column_def:{colname:"lists_of_data"  type_name:{names:{string:{sval:"text"}}  typemod:-1  array_bounds:{integer:{ival:-1}}  location:315}  is_local:true
-				location:301}}  table_elts:{column_def:{colname:"data"  type_name:{names:{string:{sval:"public"}}  names:{string:{sval:"citext"}}  typemod:-1  location:333}
-				is_local:true  location:328}}  oncommit:ONCOMMIT_NOOP}}  stmt_location:244  stmt_len:108
-
-				2. CREATE TABLE public.ts_query_table (
-					id int generated by default as identity,
-					query tsquery
-				  );
-				stmt:{create_stmt:{relation:{schemaname:"public"  relname:"ts_query_table"  inh:true  relpersistence:"p"  location:211}  table_elts:{column_def:{colname:"id"
-				type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1  location:242}  is_local:true  constraints:{constraint:{contype:CONSTR_IDENTITY
-				location:246  generated_when:"d"}}  location:239}}  table_elts:{column_def:{colname:"query"  type_name:{names:{string:{sval:"tsquery"}}
-				typemod:-1  location:290}  is_local:true  location:284}}  oncommit:ONCOMMIT_NOOP}}  stmt_location:196  stmt_len:110
-
-				3. create table combined_tbl (
-					id int, c cidr, ci circle, b box, j json,
-					l line, ls lseg, maddr macaddr, maddr8 macaddr8, p point,
-					lsn pg_lsn, p1 path, p2 polygon, id1 txid_snapshot,
-					bitt bit (13), bittv bit varying(15), address non_public."Address_type"
-				);
-				stmt:{create_stmt:{relation:{relname:"combined_tbl" ... colname:"id" type_name:...names:{string:{sval:"int4"}}... column_def:{colname:"c" type_name:{names:{string:{sval:"cidr"}}
-				... column_def:{colname:"ci" type_name:{names:{string:{sval:"circle"}} ... column_def:{colname:"b"type_name:{names:{string:{sval:"box"}} ... column_def:{colname:"j" type_name:{names:{string:{sval:"json"}}
-				... column_def:{colname:"l" type_name:{names:{string:{sval:"line"}} ...column_def:{colname:"ls" type_name:{names:{string:{sval:"lseg"}} ...column_def:{colname:"maddr" type_name:{names:{string:{sval:"macaddr"}}
-				...column_def:{colname:"maddr8" type_name:{names:{string:{sval:"macaddr8"}}...column_def:{colname:"p" type_name:{names:{string:{sval:"point"}} ...column_def:{colname:"lsn" type_name:{names:{string:{sval:"pg_lsn"}}
-				...column_def:{colname:"p1" type_name:{names:{string:{sval:"path"}} .... column_def:{colname:"p2" type_name:{names:{string:{sval:"polygon"}} .... column_def:{colname:"id1" type_name:{names:{string:{sval:"txid_snapshot"}}
-				... column_def:{colname:"bitt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"bit"}} typmods:{a_const:{ival:{ival:13} location:241}} typemod:-1 location:236} is_local:true location:231}}
-				table_elts:{column_def:{colname:"bittv" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"varbit"}} typmods:{a_const:{ival:{ival:15} location:264}} typemod:-1 location:252} ... column_def:{colname:"address"
-				type_name:{names:{string:{sval:"non_public"}}  names:{string:{sval:"Address_type"}} is_local:true location:246}} oncommit:ONCOMMIT_NOOP}} stmt_location:51 stmt_len:217
-
-
-		*/
-		if column.GetColumnDef() != nil {
-			typeNames := column.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
-			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
-			colName := column.GetColumnDef().GetColname()
-			isArrayType := len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0
-			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, typeName)
-			isUDTType := slices.Contains(compositeTypes, fullTypeName)
-			switch true {
-			case isArrayType:
-				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
-				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
-				if !ok {
-					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
-				}
-				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "array"
-			case isUnsupportedType || isUDTType:
-				_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
-				if !ok {
-					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName] = make(map[string]string)
-				}
-				columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = typeName
-				if slices.Contains(compositeTypes, fullTypeName) { //For UDTs
-					columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName] = "user_defined_type"
-				}
-			}
-		}
-	}
-}
-
-func reportUnsupportedIndexesOnComplexDatatypes(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
-	indexName := createIndexNode.IndexStmt.GetIdxname()
-	relName := createIndexNode.IndexStmt.GetRelation()
-	schemaName := relName.GetSchemaname()
-	tableName := relName.GetRelname()
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
-	/*
-		e.g.
-		1. CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);
-		stmt:{index_stmt:{idxname:"tsvector_idx"  relation:{schemaname:"public"  relname:"documents"  inh:true  relpersistence:"p"  location:510}  access_method:"btree"
-		index_params:{index_elem:{name:"title_tsvector"  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}  index_params:{index_elem:{name:"id"
-		ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:479  stmt_len:69
-
-		2. CREATE INDEX idx_json ON public.test_json ((data::jsonb));
-		stmt:{index_stmt:{idxname:"idx_json"  relation:{schemaname:"public"  relname:"test_json"  inh:true  relpersistence:"p"  location:703}  access_method:"btree"
-		index_params:{index_elem:{expr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"data"}}  location:722}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1
-		location:728}  location:726}}  ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}  stmt_location:676  stmt_len:59
-	*/
-	if createIndexNode.IndexStmt.AccessMethod != "btree" {
-		return // Right now not reporting any other access method issues with such types.
-	}
-	_, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName]
-	if !ok {
-		return
-	}
-	for _, param := range createIndexNode.IndexStmt.GetIndexParams() {
-		/*
-			cases to cover
-				1. normal index on column with these types
-				2. expression index with  casting of unsupported column to supported types [No handling as such just to test as colName will not be there]
-				3. expression index with  casting to unsupported types
-				4. normal index on column with UDTs
-				5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
-		*/
-		colName := param.GetIndexElem().GetName()
-		typeName, ok := columnsWithUnsupportedIndexDatatypes[fullyQualifiedName][colName]
-		if ok {
-			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, typeName), "https://github.com/yugabyte/yugabyte-db/issues/25003",
-				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
-			return
-		}
-		//For the expression index case to report in case casting to unsupported types #3
-		typeNames := param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
-		castTypeName, castTypeSchemaName := getTypeNameAndSchema(typeNames)
-		fullCastTypeName := lo.Ternary(castTypeSchemaName != "", castTypeSchemaName+"."+castTypeName, castTypeName)
-		if len(param.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetArrayBounds()) > 0 {
-			//In case casting is happening for an array type
-			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reportCase(fpath, fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "array"), "https://github.com/yugabyte/yugabyte-db/issues/25003",
-				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
-			return
-		} else if slices.Contains(UnsupportedIndexDatatypes, castTypeName) || slices.Contains(compositeTypes, fullCastTypeName) {
-			summaryMap["INDEX"].invalidCount[displayObjName] = true
-			reason := fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, castTypeName)
-			if slices.Contains(compositeTypes, fullCastTypeName) {
-				reason = fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, "user_defined_type")
-			}
-			reportCase(fpath, reason, "https://github.com/yugabyte/yugabyte-db/issues/25003",
-				"Refer to the docs link for the workaround", "INDEX", displayObjName, sqlStmtInfo.formattedStmt,
-				UNSUPPORTED_FEATURES, INDEX_ON_UNSUPPORTED_TYPE)
-			return
-		}
-	}
-}
-
-var unsupportedIndexMethods = []string{
-	"gist",
-	"brin",
-	"spgist",
-}
-
-func reportIndexMethods(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
-	indexMethod := createIndexNode.IndexStmt.AccessMethod
-
-	if !slices.Contains(unsupportedIndexMethods, indexMethod) {
-		return
-	}
-
-	indexName := createIndexNode.IndexStmt.GetIdxname()
-	relName := createIndexNode.IndexStmt.GetRelation()
-	schemaName := relName.GetSchemaname()
-	tableName := relName.GetRelname()
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
-
-	summaryMap["INDEX"].invalidCount[displayObjName] = true
-
-	reportCase(fpath, fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, strings.ToUpper(indexMethod)),
-		"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", displayObjName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_INDEX_METHODS_DOC_LINK)
-}
-
-func reportUnloggedTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	/*
-		e.g CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
-		stmt:{create_stmt:{relation:{schemaname:"public" relname:"tbl_unlogged" inh:true relpersistence:"u" location:19}
-		table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}
-		typemod:-1 location:54} is_local:true location:51}} table_elts:{column_def:{colname:"val" type_name:{names:{string:{sval:"text"}}
-		typemod:-1 location:93} is_local:true location:89}} oncommit:ONCOMMIT_NOOP}} stmt_len:99
-		here, relpersistence is the information about the persistence of this table where u-> unlogged, p->persistent, t->temporary tables
-	*/
-	if createTableNode.CreateStmt.Relation.GetRelpersistence() == "u" {
-		reportCase(fpath, ISSUE_UNLOGGED_TABLE, "https://github.com/yugabyte/yugabyte-db/issues/1129/",
-			"Remove UNLOGGED keyword to make it work", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt,
-			UNSUPPORTED_FEATURES, UNLOGGED_TABLE_DOC_LINK)
-	}
-}
-
-// Checks Whether there is a GIN index
-/*
-Following type of SQL queries are being taken care of by this function -
-	1. CREATE INDEX index_name ON table_name USING gin(column1, column2 ...)
-	2. CREATE INDEX index_name ON table_name USING gin(column1 [ASC/DESC/HASH])
-*/
-func checkGinVariations(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
-	indexName := createIndexNode.IndexStmt.GetIdxname()
-	relName := createIndexNode.IndexStmt.GetRelation()
-	schemaName := relName.GetSchemaname()
-	tableName := relName.GetRelname()
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	displayObjectName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
-	if createIndexNode.IndexStmt.GetAccessMethod() != "gin" { // its always in lower
-		return
-	} else {
-		summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
-	}
-	/*
-		e.g. CREATE INDEX idx_name ON public.test USING gin (data, data2);
-		stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p"
-		location:125} access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		index_params:{index_elem:{name:"data2" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_location:81 stmt_len:81
-	*/
-	if len(createIndexNode.IndexStmt.GetIndexParams()) > 1 {
-		summaryMap["INDEX"].invalidCount[displayObjectName] = true
-		reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
-			"https://github.com/yugabyte/yugabyte-db/issues/10652", "", "INDEX", displayObjectName,
-			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_MULTI_COLUMN_DOC_LINK)
-		return
-	}
-	/*
-		e.g. CREATE INDEX idx_name ON public.test USING gin (data DESC);
-		stmt:{index_stmt:{idxname:"idx_name" relation:{schemaname:"public" relname:"test" inh:true relpersistence:"p" location:44}
-		access_method:"gin" index_params:{index_elem:{name:"data" ordering:SORTBY_DESC nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:80
-	*/
-	idxParam := createIndexNode.IndexStmt.GetIndexParams()[0] // taking only the first as already checking len > 1 above so should be fine
-	if idxParam.GetIndexElem().GetOrdering() != pg_query.SortByDir_SORTBY_DEFAULT {
-		summaryMap["INDEX"].invalidCount[displayObjectName] = true
-		reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
-			"https://github.com/yugabyte/yugabyte-db/issues/10653", "", "INDEX", displayObjectName,
-			sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GIN_INDEX_DIFFERENT_ISSUE_DOC_LINK)
-	}
-
-}
-
-func reportPolicyRequireRolesOrGrants(createPolicyNode *pg_query.Node_CreatePolicyStmt, sqlStmtInfo sqlInfo, fpath string) {
-	policyName := createPolicyNode.CreatePolicyStmt.GetPolicyName()
-	roles := createPolicyNode.CreatePolicyStmt.GetRoles()
-	relname := createPolicyNode.CreatePolicyStmt.GetTable()
-	schemaName := relname.Schemaname
-	tableName := relname.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	roleNames := make([]string, 0)
-	/*
-		e.g. CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);
-		stmt:{create_policy_stmt:{policy_name:"p" table:{relname:"tbl1" inh:true relpersistence:"p" location:20} cmd_name:"all"
-		permissive:true roles:{role_spec:{roletype:ROLESPEC_CSTRING rolename:"regress_rls_eve" location:28}} roles:{role_spec:
-		{roletype:ROLESPEC_CSTRING rolename:"regress_rls_frank" location:45}} qual:{a_const:{boolval:{boolval:true} location:70}}}}
-		stmt_len:75
-
-		here role_spec of each roles is managing the roles related information in a POLICY DDL if any, so we can just check if there is
-		a role name available in it which means there is a role associated with this DDL. Hence report it.
-
-	*/
-	for _, role := range roles {
-		roleName := role.GetRoleSpec().GetRolename() // only in case there is role associated with a policy it will error out in schema migration
-		if roleName != "" {
-			//this means there is some role or grants used in this Policy, so detecting it
-			roleNames = append(roleNames, roleName)
-		}
-	}
-	if len(roleNames) > 0 {
-		policyNameWithTable := fmt.Sprintf("%s ON %s", policyName, fullyQualifiedName)
-		summaryMap["POLICY"].invalidCount[policyNameWithTable] = true
-		reportCase(fpath, fmt.Sprintf("%s Users - (%s)", POLICY_ROLE_ISSUE, strings.Join(roleNames, ",")), "https://github.com/yugabyte/yb-voyager/issues/1655",
-			"Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
-			"POLICY", policyNameWithTable, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, POLICY_DOC_LINK)
-	}
-}
-
-func reportUnsupportedDatatypes(relation *pg_query.RangeVar, columns []*pg_query.Node, sqlStmtInfo sqlInfo, fpath string, objectType string) {
-	schemaName := relation.Schemaname
-	tableName := relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	for _, column := range columns {
-		/*
-			e.g. CREATE TABLE test_xml_type(id int, data xml);
-			relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
-			type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} typemod:-1 location:32}
-			is_local:true location:29}} table_elts:{column_def:{colname:"data" type_name:{names:{string:{sval:"xml"}}
-			typemod:-1 location:42} is_local:true location:37}} oncommit:ONCOMMIT_NOOP}}
-
-			here checking the type of each column as type definition can be a list names for types which are native e.g. int
-			it has type names - [pg_catalog, int4] both to determine but for complex types like text,json or xml etc. if doesn't have
-			info about pg_catalog. so checking the 0th only in case XML/XID to determine the type and report
-		*/
-		if column.GetColumnDef() != nil {
-			typeNames := column.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
-			fullTypeName := lo.Ternary(typeSchemaName != "", typeSchemaName+"."+typeName, typeName)
-			isArrayType := len(column.GetColumnDef().GetTypeName().GetArrayBounds()) > 0
-			colName := column.GetColumnDef().GetColname()
-
-			liveUnsupportedDatatypes := srcdb.GetPGLiveMigrationUnsupportedDatatypes()
-			liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
-
-			isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, typeName)
-			isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
-
-			isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, typeName)
-			isUDTDatatype := utils.ContainsAnyStringFromSlice(compositeTypes, fullTypeName) //if type is array
-			isEnumDatatype := utils.ContainsAnyStringFromSlice(enumTypes, fullTypeName)     //is ENUM type
-			isArrayOfEnumsDatatype := isArrayType && isEnumDatatype
-			isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
-
-			if isUnsupportedDatatype {
-				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE, typeName, colName)
-				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
-				var ghIssue, suggestion, docLink string
-
-				switch typeName {
-				case "xml":
-					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/1043"
-					suggestion = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
-					docLink = XML_DATATYPE_DOC_LINK
-				case "xid":
-					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/15638"
-					suggestion = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
-					docLink = XID_DATATYPE_DOC_LINK
-				case "geometry", "geography", "box2d", "box3d", "topogeometry":
-					ghIssue = "https://github.com/yugabyte/yugabyte-db/issues/11323"
-					suggestion = ""
-					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
-				default:
-					ghIssue = "https://github.com/yugabyte/yb-voyager/issues/1731"
-					suggestion = ""
-					docLink = UNSUPPORTED_DATATYPES_DOC_LINK
-				}
-				reportCase(fpath, reason, ghIssue, suggestion,
-					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_DATATYPES, docLink)
-			} else if objectType == TABLE && isUnsupportedDatatypeInLive {
-				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
-				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION, typeName, colName)
-				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
-					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
-			} else if objectType == TABLE && isUnsupportedDatatypeInLiveWithFFOrFB {
-				//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
-				reportTypeName := fullTypeName
-				if isArrayType { // For Array cases to make it clear in issue
-					reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
-				}
-				//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT columns as unsupported with live migration with ff/fb
-				reason := fmt.Sprintf("%s - %s on column - %s", UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB, reportTypeName, colName)
-				summaryMap[objectType].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1731", "",
-					objectType, fullyQualifiedName, sqlStmtInfo.formattedStmt, MIGRATION_CAVEATS, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK)
-			}
-		}
-	}
-}
-func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
-	typeName := ""
-	typeSchemaName := ""
-	if len(typeNames) > 0 {
-		typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-	}
-	if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-		typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-	}
-
-	return typeName, typeSchemaName
-}
-
-var deferrableConstraintsList = []pg_query.ConstrType{
-	pg_query.ConstrType_CONSTR_ATTR_DEFERRABLE,
-	pg_query.ConstrType_CONSTR_ATTR_DEFERRED,
-	pg_query.ConstrType_CONSTR_ATTR_IMMEDIATE,
-}
-
-func reportDeferrableConstraintCreateTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-
-	for _, column := range columns {
-		/*
-			e.g. create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
-			create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}
-			table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
-			typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}}
-			constraints:{constraint:{contype:CONSTR_ATTR_DEFERRABLE  location:45}}  location:31}}  ....
-
-			here checking the case where this clause is in column definition so iterating over each column_def and in that
-			constraint type has deferrable or not and also it should not be a foreign constraint as Deferrable on FKs are
-			supported.
-		*/
-		if column.GetColumnDef() != nil {
-			constraints := column.GetColumnDef().GetConstraints()
-			colName := column.GetColumnDef().GetColname()
-			if constraints != nil {
-				isDeferrable := false
-				var deferrableConstraintType pg_query.ConstrType
-				for idx, constraint := range constraints {
-					if slices.Contains(deferrableConstraintsList, constraint.GetConstraint().Contype) {
-						//Getting the constraint type before the DEFERRABLE clause as the clause is applicable to that constraint
-						if idx > 0 {
-							deferrableConstraintType = constraints[idx-1].GetConstraint().Contype
-						}
-						isDeferrable = true
-					}
-				}
-				if isDeferrable && deferrableConstraintType != pg_query.ConstrType_CONSTR_FOREIGN {
-					summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-					generatedConName := generateConstraintName(deferrableConstraintType, tableName, []string{colName})
-					specifiedConstraintName := column.GetConstraint().GetConname()
-					conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-					reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
-						"Remove these constraints from the exported schema and make the necessary changes to the application before pointing it to target",
-						"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
-				}
-			}
-		} else if column.GetConstraint() != nil {
-			/*
-				e.g. create table uniquen_def_test1(id int, c1 int, UNIQUE(id) DEFERRABLE INITIALLY DEFERRED);
-				{create_stmt:{relation:{relname:"unique_def_test1"  inh:true  relpersistence:"p"  location:80}  table_elts:{column_def:{colname:"id"
-				type_name:{....  names:{string:{sval:"int4"}}  typemod:-1  location:108}  is_local:true  location:105}}
-				table_elts:{constraint:{contype:CONSTR_UNIQUE  deferrable:true  initdeferred:true location:113  keys:{string:{sval:"id"}}}} ..
-
-				here checking the case where this constraint is at the at the end as a constraint only, so checking deferrable field in constraint
-				in case of its not a FK.
-			*/
-			colNames := getColumnNames(column.GetConstraint().GetKeys())
-			if column.GetConstraint().Deferrable && column.GetConstraint().Contype != pg_query.ConstrType_CONSTR_FOREIGN {
-				generatedConName := generateConstraintName(column.GetConstraint().Contype, tableName, colNames)
-				specifiedConstraintName := column.GetConstraint().GetConname()
-				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
-					"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-					"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
-			}
-		}
-	}
-}
-
-func generateConstraintName(conType pg_query.ConstrType, tableName string, columns []string) string {
-	suffix := ""
-	//Deferrable is only applicable to following constraint
-	//https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Currently%2C%20only%20UNIQUE%2C%20PRIMARY%20KEY%2C%20EXCLUDE%2C%20and%20REFERENCES
-	switch conType {
-	case pg_query.ConstrType_CONSTR_UNIQUE:
-		suffix = "_key"
-	case pg_query.ConstrType_CONSTR_PRIMARY:
-		suffix = "_pkey"
-	case pg_query.ConstrType_CONSTR_EXCLUSION:
-		suffix = "_excl"
-	case pg_query.ConstrType_CONSTR_FOREIGN:
-		suffix = "_fkey"
-	}
-
-	return fmt.Sprintf("%s_%s%s", tableName, strings.Join(columns, "_"), suffix)
-}
-
-func getColumnNames(keys []*pg_query.Node) []string {
-	var res []string
-	for _, k := range keys {
-		res = append(res, k.GetString_().Sval)
-	}
-	return res
-}
-
-func reportDeferrableConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-
-	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	/*
-		e.g. ALTER TABLE ONLY public.users ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;
-		alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_UNIQUE  conname:"users_email_key"
-		deferrable:true  location:196  keys:{string:{sval:"email"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}
-
-		similar to CREATE table 2nd case where constraint is at the end of column definitions mentioning the constraint only
-		so here as well while adding constraint checking the type of constraint and the deferrable field of it.
-	*/
-	constraint := alterCmd.GetDef().GetConstraint()
-	if constraint != nil && constraint.Deferrable && constraint.Contype != pg_query.ConstrType_CONSTR_FOREIGN {
-		conName := constraint.Conname
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, DEFERRABLE_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1709",
-			"Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-			"TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, DEFERRABLE_CONSTRAINT_DOC_LINK)
-	}
-}
-
-func reportExclusionConstraintCreateTable(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	/*
-		e.g. CREATE TABLE "Test"(
-				id int,
-				room_id int,
-				time_range tsrange,
-				room_id1 int,
-				time_range1 tsrange
-				EXCLUDE USING gist (room_id WITH =, time_range WITH &&),
-				EXCLUDE USING gist (room_id1 WITH =, time_range1 WITH &&)
-			);
-		create_stmt:{relation:{relname:"Test" inh:true relpersistence:"p" location:14} table_elts:...table_elts:{constraint:{contype:CONSTR_EXCLUSION
-		location:226 exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		items:{list:{items:{string:{sval:"="}}}}}} exclusions:{list:{items:{index_elem:{name:"time_range" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		items:{list:{items:{string:{sval:"&&"}}}}}} access_method:"gist"}} table_elts:{constraint:{contype:CONSTR_EXCLUSION location:282 exclusions:{list:
-		{items:{index_elem:{name:"room_id1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"="}}}}}}
-		exclusions:{list:{items:{index_elem:{name:"time_range1" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}} items:{list:{items:{string:{sval:"&&"}}}}}}
-		access_method:"gist"}} oncommit:ONCOMMIT_NOOP}} stmt_len:365}
-		here we are iterating over all the table_elts - table elements and which are comma separated column info in
-		the DDL so each column has column_def(column definition) in the parse tree but in case it is a constraint, the column_def
-		is nil.
-
-	*/
-	for _, column := range columns {
-		//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
-		if column.GetColumnDef() == nil && column.GetConstraint() != nil {
-			if column.GetConstraint().Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
-				colNames := getColumnNamesFromExclusions(column.GetConstraint().GetExclusions())
-				generatedConName := generateConstraintName(column.GetConstraint().Contype, tableName, colNames)
-				specifiedConstraintName := column.GetConstraint().GetConname()
-				conName := lo.Ternary(specifiedConstraintName == "", generatedConName, specifiedConstraintName)
-				summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-				reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-					"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
-			}
-		}
-	}
-}
-
-func getColumnNamesFromExclusions(keys []*pg_query.Node) []string {
-	var res []string
-	for _, k := range keys {
-		//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		//items:{list:{items:{string:{sval:"="}}}}}}
-		res = append(res, k.GetList().GetItems()[0].GetIndexElem().Name) // every first element of items in exclusions will be col name
-	}
-	return res
-}
-
-func reportCreateIndexStorageParameter(createIndexNode *pg_query.Node_IndexStmt, sqlStmtInfo sqlInfo, fpath string) {
-	indexName := createIndexNode.IndexStmt.GetIdxname()
-	relName := createIndexNode.IndexStmt.GetRelation()
-	schemaName := relName.GetSchemaname()
-	tableName := relName.GetRelname()
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	/*
-		e.g. CREATE INDEX idx on table_name(id) with (fillfactor='70');
-		index_stmt:{idxname:"idx" relation:{relname:"table_name" inh:true relpersistence:"p" location:21} access_method:"btree"
-		index_params:{index_elem:{name:"id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-		options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}} ...
-		here again similar to ALTER table Storage parameters options is the high level field in for WITH options.
-	*/
-	if len(createIndexNode.IndexStmt.GetOptions()) > 0 {
-		//YB doesn't support any storage parameters from PG yet refer -
-		//https://docs.yugabyte.com/preview/api/ysql/the-sql-language/statements/ddl_create_table/#storage-parameters-1
-		summaryMap["INDEX"].invalidCount[fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)] = true
-		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
-			"Remove the storage parameters from the DDL", "INDEX", indexName, sqlStmtInfo.stmt, UNSUPPORTED_FEATURES, STORAGE_PARAMETERS_DDL_STMT_DOC_LINK)
-	}
-}
-
-func reportAlterTableVariants(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string, objType string) {
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	// this will the list of items in the SET (attribute=value, ..)
-	/*
-		e.g. alter table test_1 alter column col1 set (attribute_option=value);
-		cmds:{alter_table_cmd:{subtype:AT_SetOptions name:"col1" def:{list:{items:{def_elem:{defname:"attribute_option"
-		arg:{type_name:{names:{string:{sval:"value"}} typemod:-1 location:263}} defaction:DEFELEM_UNSPEC location:246}}}}...
-		for set attribute issue we will the type of alter setting the options and in the 'def' definition field which has the
-		information of the type, we will check if there is any list which will only present in case there is syntax like <SubTYPE> (...)
-	*/
-	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_SetOptions &&
-		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetList().GetItems()) > 0 {
-		reportCase(fpath, ALTER_TABLE_SET_ATTRIBUTE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
-			"Remove it from the exported schema", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
-	}
-
-	/*
-		e.g. alter table test add constraint uk unique(id) with (fillfactor='70');
-		alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_UNIQUE conname:"asd" location:292
-		keys:{string:{sval:"id"}} options:{def_elem:{defname:"fillfactor" arg:{string:{sval:"70"}}...
-		Similarly here we are trying to get the constraint if any and then get the options field which is WITH options
-		in this case only so checking that for this case.
-	*/
-
-	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_AddConstraint &&
-		len(alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetDef().GetConstraint().GetOptions()) > 0 {
-		reportCase(fpath, STORAGE_PARAMETERS_DDL_STMT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/23467",
-			"Remove the storage parameters from the DDL", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, STORAGE_PARAMETERS_DDL_STMT_DOC_LINK)
-	}
-
-	/*
-		e.g. ALTER TABLE example DISABLE example_rule;
-		cmds:{alter_table_cmd:{subtype:AT_DisableRule name:"example_rule" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
-		checking the subType is sufficient in this case
-	*/
-	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_DisableRule {
-		ruleName := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetName()
-		reportCase(fpath, ALTER_TABLE_DISABLE_RULE_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/1124",
-			fmt.Sprintf("Remove this and the rule '%s' from the exported schema to be not enabled on the table.", ruleName), "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
-	}
-	/*
-		e.g. ALTER TABLE example CLUSTER ON idx;
-		stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13}
-		cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
-
-	*/
-	if alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype() == pg_query.AlterTableType_AT_ClusterOn {
-		reportCase(fpath, ALTER_TABLE_CLUSTER_ON_ISSUE,
-			"https://github.com/YugaByte/yugabyte-db/issues/1124", "Remove it from the exported schema.", "TABLE", fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, UNSUPPORTED_ALTER_VARIANTS_DOC_LINK)
-	}
-
-}
-
-func reportExclusionConstraintAlterTable(alterTableNode *pg_query.Node_AlterTableStmt, sqlStmtInfo sqlInfo, fpath string) {
-
-	schemaName := alterTableNode.AlterTableStmt.Relation.Schemaname
-	tableName := alterTableNode.AlterTableStmt.Relation.Relname
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	alterCmd := alterTableNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	/*
-		e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
-		cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
-		here again same checking the definition of the alter stmt if it has constraint and checking its type
-	*/
-	constraint := alterCmd.GetDef().GetConstraint()
-	if alterCmd.Subtype == pg_query.AlterTableType_AT_AddConstraint && constraint.Contype == pg_query.ConstrType_CONSTR_EXCLUSION {
-		// colNames := getColumnNamesFromExclusions(alterCmd.GetDef().GetConstraint().GetExclusions())
-		conName := constraint.Conname
-		summaryMap["TABLE"].invalidCount[fullyQualifiedName] = true
-		reportCase(fpath, EXCLUSION_CONSTRAINT_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/3944",
-			"Refer docs link for details on possible workaround", "TABLE", fmt.Sprintf("%s, constraint: (%s)", fullyQualifiedName, conName), sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, EXCLUSION_CONSTRAINT_DOC_LINK)
-	}
-}
-
-func reportGeneratedStoredColumnTables(createTableNode *pg_query.Node_CreateStmt, sqlStmtInfo sqlInfo, fpath string) {
-	schemaName := createTableNode.CreateStmt.Relation.Schemaname
-	tableName := createTableNode.CreateStmt.Relation.Relname
-	columns := createTableNode.CreateStmt.TableElts
-	var generatedColumns []string
-	for _, column := range columns {
-		//In case CREATE DDL has PRIMARY KEY(column_name) - it will be included in columns but won't have columnDef as its a constraint
-		if column.GetColumnDef() != nil {
-			constraints := column.GetColumnDef().Constraints
-			for _, constraint := range constraints {
-				if constraint.GetConstraint().Contype == pg_query.ConstrType_CONSTR_GENERATED {
-					generatedColumns = append(generatedColumns, column.GetColumnDef().Colname)
-				}
-			}
-		}
-	}
-	fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
-	if len(generatedColumns) > 0 {
-		summaryMap["TABLE"].invalidCount[sqlStmtInfo.objName] = true
-		reportCase(fpath, STORED_GENERATED_COLUMN_ISSUE_REASON+fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ",")),
-			"https://github.com/yugabyte/yugabyte-db/issues/10695",
-			"Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
-			TABLE, fullyQualifiedName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, GENERATED_STORED_COLUMN_DOC_LINK)
 	}
 }
 
@@ -1558,10 +445,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE clause not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-		} else if tbl := inheritRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, INHERITANCE_ISSUE_REASON,
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[4], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, INHERITANCE_DOC_LINK)
 		} else if tbl := withOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "OIDs are not supported for user tables.",
@@ -1693,37 +576,64 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
+	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
 		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
 	}
-	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
 }
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
-		issues, err := parserIssueDetector.GetAllIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
+		issues, err := parserIssueDetector.GetAllPLPGSQLIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
 		if err != nil {
 			log.Infof("error in getting the issues-%s: %v", sqlInfoStmt.formattedStmt, err)
 			continue
 		}
 		for _, issueInstance := range issues {
-			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath)
+			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath, true)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 		}
 	}
 
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string) utils.Issue {
-	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+var MigrationCaveatsIssues = []string{
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
+	FOREIGN_TABLE_ISSUE_REASON,
+	POLICY_ROLE_ISSUE,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
+}
+
+func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string, isPlPgSQLIssue bool) utils.Issue {
+	issueType := UNSUPPORTED_FEATURES
+	switch true {
+	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
+		//Adding the MIGRATION_CAVEATS issueType of the utils.Issue for these issueInstances in MigrationCaveatsIssues
+		return strings.Contains(issueInstance.TypeName, i)
+	}):
+		issueType = MIGRATION_CAVEATS
+	case strings.HasPrefix(issueInstance.TypeName, UNSUPPORTED_DATATYPE):
+		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
+		issueType = UNSUPPORTED_DATATYPES
+	case isPlPgSQLIssue:
+		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
+	}
+
+	//TODO: how to different between same issue on differnt obejct types like ALTER/INDEX for not adding it ot invalid count map
+	increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"]
+	if !ok || (increaseInvalidCount.(bool)) {
+		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	}
+
 	return utils.Issue{
 		ObjectType:   issueInstance.ObjectType,
 		ObjectName:   issueInstance.ObjectName,
 		Reason:       issueInstance.TypeName,
-		SqlStatement: issueInstance.SqlStatement, //Displaying the actual query in the PLPGSQL block that is problematic
+		SqlStatement: issueInstance.SqlStatement,
 		DocsLink:     issueInstance.DocsLink,
 		FilePath:     fileName,
-		IssueType:    UNSUPPORTED_PLPGSQL_OBEJCTS,
+		IssueType:    issueType,
 		Suggestion:   issueInstance.Suggestion,
 		GH:           issueInstance.GH,
 	}
@@ -2110,9 +1020,6 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 		if detectIssues {
 			if objType == "EXTENSION" {
 				checkExtensions(sqlInfoArr, filePath)
-			}
-			if objType == "FOREIGN TABLE" {
-				checkForeignTable(sqlInfoArr, filePath)
 			}
 			checker(sqlInfoArr, filePath, objType)
 
