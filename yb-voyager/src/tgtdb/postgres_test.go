@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"github.com/yugabyte/yb-voyager/yb-voyager/testcontainers"
+	"github.com/yugabyte/yb-voyager/yb-voyager/test"
 )
 
 func TestCreateVoyagerSchemaPG(t *testing.T) {

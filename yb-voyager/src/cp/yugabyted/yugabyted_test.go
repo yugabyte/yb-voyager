@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/testcontainers"
+	"github.com/yugabyte/yb-voyager/yb-voyager/test"
 )
 
 func TestYugabyteDTableSchema(t *testing.T) {
