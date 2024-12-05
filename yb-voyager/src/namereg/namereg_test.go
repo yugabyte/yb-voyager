@@ -556,38 +556,48 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 // Unit tests for breaking changes in NameRegistry.
 
 func TestNameRegistryStructs(t *testing.T) {
-	// Define the expected structure for NameRegistryParams
-	expectedNameRegistryParams := struct {
-		FilePath       string
-		Role           string
-		SourceDBType   string
-		SourceDBSchema string
-		SourceDBName   string
-		SDB            SourceDBInterface
-		TargetDBSchema string
-		YBDB           YBDBInterface
-	}{}
 
-	// Define the expected structure for NameRegistry
-	expectedNameRegistry := struct {
-		SourceDBType                     string
-		SourceDBSchemaNames              []string
-		DefaultSourceDBSchemaName        string
-		SourceDBTableNames               map[string][]string
-		YBSchemaNames                    []string
-		DefaultYBSchemaName              string
-		YBTableNames                     map[string][]string
-		DefaultSourceReplicaDBSchemaName string
-		params                           NameRegistryParams
-	}{}
+	tests := []struct {
+		name         string
+		actualType   reflect.Type
+		expectedType interface{}
+	}{
+		{
+			name:       "Validate NameRegistryParams Struct Definition",
+			actualType: reflect.TypeOf(NameRegistryParams{}),
+			expectedType: struct {
+				FilePath       string
+				Role           string
+				SourceDBType   string
+				SourceDBSchema string
+				SourceDBName   string
+				SDB            SourceDBInterface
+				TargetDBSchema string
+				YBDB           YBDBInterface
+			}{},
+		},
+		{
+			name:       "Validate NameRegistry Struct Definition",
+			actualType: reflect.TypeOf(NameRegistry{}),
+			expectedType: struct {
+				SourceDBType                     string
+				SourceDBSchemaNames              []string
+				DefaultSourceDBSchemaName        string
+				SourceDBTableNames               map[string][]string
+				YBSchemaNames                    []string
+				DefaultYBSchemaName              string
+				YBTableNames                     map[string][]string
+				DefaultSourceReplicaDBSchemaName string
+				params                           NameRegistryParams
+			}{},
+		},
+	}
 
-	t.Run("Validate NameRegistryParams Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(NameRegistryParams{}), reflect.TypeOf(expectedNameRegistryParams), "NameRegistryParams")
-	})
-
-	t.Run("Validate NameRegistry Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(NameRegistry{}), reflect.TypeOf(expectedNameRegistry), "NameRegistry")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testutils.CompareStructs(t, tt.actualType, reflect.TypeOf(tt.expectedType), tt.name)
+		})
+	}
 }
 
 func TestNameRegistryJson(t *testing.T) {

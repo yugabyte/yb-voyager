@@ -8,30 +8,39 @@ import (
 )
 
 func TestExportStatusStructs(t *testing.T) {
-	// Define the expected structure for TableExportStatus
-	expectedTableExportStatus := struct {
-		Sno                      int    `json:"sno"`
-		DatabaseName             string `json:"database_name"`
-		SchemaName               string `json:"schema_name"`
-		TableName                string `json:"table_name"`
-		FileName                 string `json:"file_name"`
-		ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
-	}{}
+	test := []struct {
+		name         string
+		actualType   reflect.Type
+		expectedType interface{}
+	}{
+		{
+			name:       "Validate TableExportStatus Struct Definition",
+			actualType: reflect.TypeOf(TableExportStatus{}),
+			expectedType: struct {
+				Sno                      int    `json:"sno"`
+				DatabaseName             string `json:"database_name"`
+				SchemaName               string `json:"schema_name"`
+				TableName                string `json:"table_name"`
+				FileName                 string `json:"file_name"`
+				ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
+			}{},
+		},
+		{
+			name:       "Validate ExportStatus Struct Definition",
+			actualType: reflect.TypeOf(ExportStatus{}),
+			expectedType: struct {
+				Mode      string              `json:"mode"`
+				Tables    []TableExportStatus `json:"tables"`
+				Sequences map[string]int64    `json:"sequences"`
+			}{},
+		},
+	}
 
-	// Define the expected structure for ExportStatus
-	expectedExportStatus := struct {
-		Mode      string              `json:"mode"`
-		Tables    []TableExportStatus `json:"tables"`
-		Sequences map[string]int64    `json:"sequences"`
-	}{}
-
-	t.Run("Validate TableExportStatus Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
-	})
-
-	t.Run("Validate ExportStatus Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(ExportStatus{}), reflect.TypeOf(expectedExportStatus), "ExportStatus")
-	})
+	for _, tt := range test {
+		t.Run(tt.name, func(t *testing.T) {
+			testutils.CompareStructs(t, tt.actualType, reflect.TypeOf(tt.expectedType), tt.name)
+		})
+	}
 }
 
 // TODO: Implement this test

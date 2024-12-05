@@ -11,26 +11,36 @@ import (
 )
 
 func TestExportSnapshotStatusStructs(t *testing.T) {
-	// Define the expected structure for TableExportStatus
-	expectedTableExportStatus := struct {
-		TableName                string `json:"table_name"`
-		FileName                 string `json:"file_name"`
-		Status                   string `json:"status"`
-		ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
-	}{}
 
-	// Define the expected structure for ExportSnapshotStatus
-	expectedExportSnapshotStatus := struct {
-		Tables map[string]*TableExportStatus `json:"tables"`
-	}{}
+	test := []struct {
+		name         string
+		actualType   reflect.Type
+		expectedType interface{}
+	}{
+		{
+			name:       "Validate TableExportStatus Struct Definition",
+			actualType: reflect.TypeOf(TableExportStatus{}),
+			expectedType: struct {
+				TableName                string `json:"table_name"`
+				FileName                 string `json:"file_name"`
+				Status                   string `json:"status"`
+				ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
+			}{},
+		},
+		{
+			name:       "Validate ExportSnapshotStatus Struct Definition",
+			actualType: reflect.TypeOf(ExportSnapshotStatus{}),
+			expectedType: struct {
+				Tables map[string]*TableExportStatus `json:"tables"`
+			}{},
+		},
+	}
 
-	t.Run("Validate TableExportStatus Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(TableExportStatus{}), reflect.TypeOf(expectedTableExportStatus), "TableExportStatus")
-	})
-
-	t.Run("Validate ExportSnapshotStatus Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(ExportSnapshotStatus{}), reflect.TypeOf(expectedExportSnapshotStatus), "ExportSnapshotStatus")
-	})
+	for _, tt := range test {
+		t.Run(tt.name, func(t *testing.T) {
+			testutils.CompareStructs(t, tt.actualType, reflect.TypeOf(tt.expectedType), tt.name)
+		})
+	}
 }
 
 func TestExportSnapshotStatusJson(t *testing.T) {
