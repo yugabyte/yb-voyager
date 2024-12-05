@@ -1,8 +1,8 @@
 --- How to use the script:
 -- Run the script with psql command line tool, passing the necessary parameters:
---- psql -h <host> -d <database> -U <username> -v voyager_user='<voyager_user>' -v schema_list='<schema_list>' -v is_live_migration=<is_live_migration> -v is_live_migration_fall_back=<is_live_migration_fall_back> -v replication_group='<replication_group>' -v original_owner_of_tables='<original_owner_of_tables>' -f <path_to_script> 
+--- psql -h <host> -d <database> -U <username> -v voyager_user='<voyager_user>' -v schema_list='<schema_list>' -v is_live_migration=<is_live_migration> -v is_live_migration_fall_back=<is_live_migration_fall_back> -v replication_group='<replication_group>' -f <path_to_script> 
 --- Example:
---- psql -h <host> -d <database> -U <username> -v voyager_user='ybvoyager' -v schema_list='schema1,public,schema2' -v is_live_migration=1 -v is_live_migration_fall_back=0 -v replication_group='replication_group' -v original_owner_of_tables='postgres' -f /home/ubuntu/yb-voyager-pg-grant-migration-permissions.sql
+--- psql -h <host> -d <database> -U <username> -v voyager_user='ybvoyager' -v schema_list='schema1,public,schema2' -v is_live_migration=1 -v is_live_migration_fall_back=0 -v replication_group='replication_group' -f /home/ubuntu/yb-voyager-pg-grant-migration-permissions.sql
 --- Parameters:
 --- <host>: The hostname of the PostgreSQL server.
 --- <database>: The name of the database to connect to.
@@ -12,7 +12,6 @@
 --- <is_live_migration>: A flag indicating if this is a live migration (1 for true, 0 for false). If set to 0 then the script will check for permissions for an offline migration.
 --- <is_live_migration_fall_back>: A flag indicating if this is a live migration with fallback (1 for true, 0 for false). If set to 0 then the script will detect permissions for live migration with fall-forward. Should only be set to 1 when is_live_migration is also set to 1. Does not need to be provided unless is_live_migration is set to 1.
 --- <replication_group>: The name of the replication group to be created. Not needed for offline migration.
---- <original_owner_of_tables>: The original owner of the tables to be added to the replication group. Not needed for offline migration.
 
 \echo ''
 \echo '--- Checking Variables ---'
@@ -41,7 +40,7 @@
     \q
 \endif
 
--- If live migration is enabled, then is_live_migration_fall_back, replication_group and original_owner_of_tables should be provided
+-- If live migration is enabled, then is_live_migration_fall_back, replication_group should be provided
 \if :is_live_migration
 
     -- Check if is_live_migration_fall_back is provided
@@ -57,14 +56,6 @@
         \echo 'Replication group is provided: ':replication_group
     \else
         \echo 'Error: replication_group flag is not provided!'
-        \q
-    \endif
-
-    -- Check if original_owner_of_tables is provided
-    \if :{?original_owner_of_tables}
-        \echo 'Original owner of tables is provided: ':original_owner_of_tables
-    \else
-        \echo 'Error: original_owner_of_tables flag is not provided!'
         \q
     \endif
 \endif
@@ -165,7 +156,31 @@ GRANT pg_read_all_stats to :voyager_user;
     -- Add the original owner of the tables to the group
     \echo ''
     \echo '--- Adding Original Owner to Replication Group ---'
-    GRANT :replication_group TO :original_owner_of_tables;
+    DO $$
+    DECLARE
+        tableowner TEXT;
+        schema_list TEXT[] := string_to_array(current_setting('myvars.schema_list'), ',');  -- Convert the schema list to an array
+        replication_group TEXT := current_setting('myvars.replication_group');  -- Get the replication group from settings
+    BEGIN
+        -- Generate the GRANT statements and execute them dynamically
+        FOR tableowner IN
+            SELECT DISTINCT t.tableowner
+            FROM pg_catalog.pg_tables t
+            WHERE t.schemaname = ANY (schema_list)  -- Use the schema_list variable
+            AND NOT EXISTS (
+                SELECT 1
+                FROM pg_roles r
+                WHERE r.rolname = t.tableowner
+                    AND pg_has_role(t.tableowner, replication_group, 'USAGE')  -- Use the replication_group variable
+            )
+        LOOP
+            -- Display the GRANT statement
+            RAISE NOTICE 'Granting role: GRANT % TO %;', replication_group, tableowner;
+
+            -- Execute the GRANT statement
+            EXECUTE format('GRANT %I TO %I;', replication_group, tableowner);
+        END LOOP;
+    END $$;
 
     -- Add the user ybvoyager to the replication group
     \echo ''
