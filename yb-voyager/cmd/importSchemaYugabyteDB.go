@@ -117,7 +117,7 @@ func shouldSkipDDL(stmt string) (bool, error) {
 	skipReplicaIdentity := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
-		return false, fmt.Errorf("error checking whether stmt is to add not valid constraint: %v", stmt, err)
+		return false, fmt.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
 	}
 	if (isNotValid && !bool(flagPostSnapshotImport)) || // Skipping NOT VALID CONSTRAINT in import schema without post-snapshot-mode
 		(bool(flagPostSnapshotImport) && !isNotValid) || // Skipping other TABLE DDLs in post-snapshot-import mode

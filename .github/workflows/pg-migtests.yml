@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: ['main', 'priyanshi/refactor-analyze']
+    branches: ['main']
 
 jobs:
   run-pg-migration-tests:
