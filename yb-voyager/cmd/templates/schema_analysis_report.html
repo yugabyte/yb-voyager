@@ -63,6 +63,7 @@
         <h3>Migration Information</h3>
         <table>
             <tr><th>Voyager Version</th><td>{{ .VoyagerVersion }}</td></tr>
+            <tr><th>Target DB Version</th><td>{{ .TargetDBVersion }}</td></tr>
             <tr><th>Database Name</th><td>{{ .SchemaSummary.DBName }}</td></tr>
             {{if .SchemaSummary.SchemaNames }}
                 <tr><th>Schema Name</th><td>{{ join .SchemaSummary.SchemaNames ", " }}</td></tr>
@@ -121,6 +122,10 @@
                     <li><strong>Reason:</strong> {{ $issue.Reason }}</li>
                     <li><strong>SQL Statement:</strong> <pre>{{ $issue.SqlStatement }}</pre></li>
                     <li><strong>File Path:</strong> {{ $issue.FilePath }}<a href='{{ $issue.FilePath }}'> [Preview]</a></li>
+                    {{ $supporterVerStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
+                    {{ if $supporterVerStr }}
+                    <li><strong>Fixed in Versions:</strong> {{ $supporterVerStr }}</li>
+                    {{ end }}
                     {{ if $issue.Suggestion }}
                     <li><strong>Suggestion:</strong> {{ $issue.Suggestion }}</li>
                     {{ end }}
