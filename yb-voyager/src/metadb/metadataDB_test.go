@@ -20,11 +20,11 @@ func TestInitMetaDB(t *testing.T) {
 			"size_committed":                         {Type: "INTEGER"},
 			"total_events":                           {Type: "INTEGER"},
 			"exporter_role":                          {Type: "TEXT"},
-			"imported_by_target_db_importer":         {Type: "INTEGER", Default: stringPointer("0")},
-			"imported_by_source_replica_db_importer": {Type: "INTEGER", Default: stringPointer("0")},
-			"imported_by_source_db_importer":         {Type: "INTEGER", Default: stringPointer("0")},
-			"archived":                               {Type: "INTEGER", Default: stringPointer("0")},
-			"deleted":                                {Type: "INTEGER", Default: stringPointer("0")},
+			"imported_by_target_db_importer":         {Type: "INTEGER", Default: sql.NullString{String: "0", Valid: true}},
+			"imported_by_source_replica_db_importer": {Type: "INTEGER", Default: sql.NullString{String: "0", Valid: true}},
+			"imported_by_source_db_importer":         {Type: "INTEGER", Default: sql.NullString{String: "0", Valid: true}},
+			"archived":                               {Type: "INTEGER", Default: sql.NullString{String: "0", Valid: true}},
+			"deleted":                                {Type: "INTEGER", Default: sql.NullString{String: "0", Valid: true}},
 			"archive_location":                       {Type: "TEXT"},
 		},
 		EXPORTED_EVENTS_STATS_TABLE_NAME: {
@@ -98,9 +98,4 @@ func TestInitMetaDB(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function to create a string pointer
-func stringPointer(s string) *string {
-	return &s
 }

@@ -21,19 +21,13 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/testcontainers"
 )
 
-func TestDatabaseTablesYugabyteD(t *testing.T) {
+func TestYugabyteDTableSchema(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a YugabyteDB container
-	ybContainer, err := testcontainers.StartDBContainer(ctx, testcontainers.YUGABYTEDB)
+	ybContainer, host, port, err := testcontainers.StartDBContainer(ctx, testcontainers.YUGABYTEDB)
 	assert.NoError(t, err, "Failed to start YugabyteDB container")
 	defer ybContainer.Terminate(ctx)
-
-	// Get the container's host and port
-	host, err := ybContainer.Host(ctx)
-	assert.NoError(t, err)
-	port, err := ybContainer.MappedPort(ctx, "5433")
-	assert.NoError(t, err)
 
 	// Connect to the database
 	dsn := fmt.Sprintf("host=%s port=%s user=yugabyte password=yugabyte dbname=yugabyte sslmode=disable", host, port.Port())
@@ -42,7 +36,7 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = testcontainers.WaitForPGYBDBConnection(db)
+	err = testcontainers.WaitForDBToBeReady(db)
 	assert.NoError(t, err)
 	// Export the database connection string to env variable YUGABYTED_DB_CONN_STRING
 	err = os.Setenv("YUGABYTED_DB_CONN_STRING", dsn)
@@ -70,31 +64,31 @@ func TestDatabaseTablesYugabyteD(t *testing.T) {
 
 	expectedTables := map[string]map[string]testutils.ColumnPropertiesPG{
 		QUALIFIED_YUGABYTED_METADATA_TABLE_NAME: {
-			"migration_uuid":       {DataType: "uuid", IsNullable: "NO", Default: nil, IsPrimary: true},
-			"migration_phase":      {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
-			"invocation_sequence":  {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
-			"migration_dir":        {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"database_name":        {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"schema_name":          {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"payload":              {DataType: "text", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"complexity":           {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"db_type":              {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"status":               {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"invocation_timestamp": {DataType: "timestamp with time zone", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"host_ip":              {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"port":                 {DataType: "integer", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"db_version":           {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"voyager_info":         {DataType: "character varying", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"migration_uuid":       {Type: "uuid", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"migration_phase":      {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"invocation_sequence":  {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"migration_dir":        {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"database_name":        {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"schema_name":          {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"payload":              {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"complexity":           {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"db_type":              {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"status":               {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"invocation_timestamp": {Type: "timestamp with time zone", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"host_ip":              {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"port":                 {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"db_version":           {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"voyager_info":         {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 		},
 		YUGABYTED_TABLE_METRICS_TABLE_NAME: {
-			"migration_uuid":       {DataType: "uuid", IsNullable: "NO", Default: nil, IsPrimary: true},
-			"table_name":           {DataType: "character varying", IsNullable: "NO", Default: nil, IsPrimary: true},
-			"schema_name":          {DataType: "character varying", IsNullable: "NO", Default: nil, IsPrimary: true},
-			"migration_phase":      {DataType: "integer", IsNullable: "NO", Default: nil, IsPrimary: true},
-			"status":               {DataType: "integer", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"count_live_rows":      {DataType: "integer", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"count_total_rows":     {DataType: "integer", IsNullable: "YES", Default: nil, IsPrimary: false},
-			"invocation_timestamp": {DataType: "timestamp with time zone", IsNullable: "YES", Default: nil, IsPrimary: false},
+			"migration_uuid":       {Type: "uuid", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"table_name":           {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"schema_name":          {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"migration_phase":      {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"status":               {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"count_live_rows":      {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"count_total_rows":     {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"invocation_timestamp": {Type: "timestamp with time zone", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 		},
 	}
 

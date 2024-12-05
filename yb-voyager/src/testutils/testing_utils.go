@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -13,18 +14,18 @@ import (
 )
 
 type ColumnPropertiesSqlite struct {
-	Type       string  // Data type (e.g., INTEGER, TEXT)
-	PrimaryKey int     // Whether it's a primary key values can be 0,1,2,3. If 1 then it is primary key. 2,3 etc. are used for composite primary key
-	NotNull    bool    // Whether the column has a NOT NULL constraint
-	Default    *string // Default value, if any (nil means no default)
+	Type       string         // Data type (e.g., INTEGER, TEXT)
+	PrimaryKey int            // Whether it's a primary key values can be 0,1,2,3. If 1 then it is primary key. 2,3 etc. are used for composite primary key
+	NotNull    bool           // Whether the column has a NOT NULL constraint
+	Default    sql.NullString // Default value, if any (nil means no default)
 }
 
 // Column represents a column's expected metadata
 type ColumnPropertiesPG struct {
-	DataType   string
+	Type       string
 	IsPrimary  bool
 	IsNullable string
-	Default    interface{}
+	Default    sql.NullString
 }
 
 // CompareStructs compares two struct types and reports any mismatches.
@@ -92,22 +93,16 @@ func CheckTableStructureSqlite(db *sql.DB, tableName string, expectedColumns map
 	actualColumns := make(map[string]ColumnPropertiesSqlite)
 	for rows.Next() {
 		var cid int
-		var name, ctype string
-		var notnull, pk int
-		var dflt_value sql.NullString // Default value can be NULL
-		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt_value, &pk); err != nil {
+		var name string
+		var cp ColumnPropertiesSqlite
+		if err := rows.Scan(&cid, &name, &cp.Type, &cp.NotNull, &cp.Default, &cp.PrimaryKey); err != nil {
 			return err
 		}
 		actualColumns[name] = ColumnPropertiesSqlite{
-			Type:       ctype,
-			PrimaryKey: pk,
-			NotNull:    notnull == 1,
-			Default: func() *string { // Inline function to set the Default field conditionally
-				if dflt_value.Valid {
-					return &dflt_value.String
-				}
-				return nil
-			}(),
+			Type:       cp.Type,
+			PrimaryKey: cp.PrimaryKey,
+			NotNull:    cp.NotNull,
+			Default:    cp.Default,
 		}
 	}
 
@@ -134,7 +129,7 @@ func CheckTableStructureSqlite(db *sql.DB, tableName string, expectedColumns map
 		}
 
 		// Check default value
-		if (expectedProps.Default == nil && actualProps.Default != nil) || (expectedProps.Default != nil && (actualProps.Default == nil || *expectedProps.Default != *actualProps.Default)) {
+		if (expectedProps.Default.Valid && !actualProps.Default.Valid) || (!expectedProps.Default.Valid && actualProps.Default.Valid) || (expectedProps.Default.Valid && actualProps.Default.Valid && expectedProps.Default.String != actualProps.Default.String) {
 			return fmt.Errorf("table %s column %s: expected default value %v, got %v. There is some breaking change!", tableName, colName, expectedProps.Default, actualProps.Default)
 		}
 	}
@@ -166,7 +161,7 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 	for rows.Next() {
 		var colName string
 		var col ColumnPropertiesPG
-		err := rows.Scan(&colName, &col.DataType, &col.IsNullable, &col.Default)
+		err := rows.Scan(&colName, &col.Type, &col.IsNullable, &col.Default)
 		if err != nil {
 			t.Fatalf("Failed to scan column metadata: %v", err)
 		}
@@ -180,7 +175,7 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 			t.Errorf("Missing expected column in table %s.%s: %s.\nThere is some breaking change!", schema, table, colName)
 			continue
 		}
-		if actual.DataType != expectedProps.DataType || actual.IsNullable != expectedProps.IsNullable {
+		if actual.Type != expectedProps.Type || actual.IsNullable != expectedProps.IsNullable || actual.Default != expectedProps.Default {
 			t.Errorf("Column mismatch in table %s.%s: \nexpected %+v, \ngot %+v.\nThere is some breaking change!", schema, table, expectedProps, actual)
 		}
 	}
@@ -211,7 +206,7 @@ func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, ex
            pg_get_constraintdef(oid)
     FROM   pg_constraint 
     WHERE  contype = 'p'  -- 'p' indicates primary key
-    AND    conrelid::regclass::text = $1  -- Use parameterized schema and table name
+    AND    conrelid::regclass::text = $1
     ORDER  BY conrelid::regclass::text, contype DESC;`
 
 	rows, err := db.Query(queryPrimaryKeys, fmt.Sprintf("%s.%s", schema, table))
@@ -264,12 +259,17 @@ func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, ex
 
 // Helper function to parse primary key columns from the constraint definition
 func parsePrimaryKeyColumnsPG(constraintDef string) []string {
-	// Remove "PRIMARY KEY (" and ")"
-	constraintDef = strings.TrimPrefix(constraintDef, "PRIMARY KEY (")
-	constraintDef = strings.TrimSuffix(constraintDef, ")")
+	// Define the regex pattern
+	re := regexp.MustCompile(`PRIMARY KEY\s*\((.*?)\)`)
 
-	// Split by commas to get column names
-	columns := strings.Split(constraintDef, ",")
+	// Extract the column list inside "PRIMARY KEY(...)"
+	matches := re.FindStringSubmatch(constraintDef)
+	if len(matches) < 2 {
+		return nil // Return nil if no match is found
+	}
+
+	// Split by commas to get individual column names
+	columns := strings.Split(matches[1], ",")
 	for i := range columns {
 		columns[i] = strings.TrimSpace(columns[i]) // Remove extra spaces around column names
 	}

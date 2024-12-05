@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -15,18 +16,18 @@ const (
 	YUGABYTEDB = "yugabytedb"
 )
 
-func StartDBContainer(ctx context.Context, dbType string) (testcontainers.Container, error) {
+func StartDBContainer(ctx context.Context, dbType string) (testcontainers.Container, string, nat.Port, error) {
 	switch dbType {
 	case POSTGRESQL:
 		return startPostgresContainer(ctx)
 	case YUGABYTEDB:
 		return startYugabyteDBContainer(ctx)
 	default:
-		return nil, fmt.Errorf("unsupported database type: %s", dbType)
+		return nil, "", "", fmt.Errorf("unsupported database type: %s", dbType)
 	}
 }
 
-func startPostgresContainer(ctx context.Context) (testcontainers.Container, error) {
+func startPostgresContainer(ctx context.Context) (container testcontainers.Container, host string, port nat.Port, err error) {
 	// Create a PostgreSQL TestContainer
 	req := testcontainers.ContainerRequest{
 		Image:        "postgres:latest", // Use the latest PostgreSQL image
@@ -40,13 +41,30 @@ func startPostgresContainer(ctx context.Context) (testcontainers.Container, erro
 	}
 
 	// Start the container
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	pgContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
+
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	// Get the container's host and port
+	host, err = pgContainer.Host(ctx)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	port, err = pgContainer.MappedPort(ctx, "5432")
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	return pgContainer, host, port, nil
 }
 
-func startYugabyteDBContainer(ctx context.Context) (testcontainers.Container, error) {
+func startYugabyteDBContainer(ctx context.Context) (container testcontainers.Container, host string, port nat.Port, err error) {
 	// Create a YugabyteDB TestContainer
 	req := testcontainers.ContainerRequest{
 		Image:        "yugabytedb/yugabyte:latest",
@@ -56,14 +74,30 @@ func startYugabyteDBContainer(ctx context.Context) (testcontainers.Container, er
 	}
 
 	// Start the container
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	ybContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	// Get the container's host and port
+	host, err = ybContainer.Host(ctx)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	port, err = ybContainer.MappedPort(ctx, "5433")
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	return ybContainer, host, port, nil
 }
 
 // waitForDBConnection waits until the database is ready for connections.
-func WaitForPGYBDBConnection(db *sql.DB) error {
+func WaitForDBToBeReady(db *sql.DB) error {
 	for i := 0; i < 12; i++ {
 		if err := db.Ping(); err == nil {
 			return nil
