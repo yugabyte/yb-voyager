@@ -1249,9 +1249,9 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
 
 		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFForFBUnsupportedDatatypes, typeName)
-		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.CompositeTypes, allColumnsDataTypes[i].DataType)
-		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                  //if type is array
-		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.EnumTypes, strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
+		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetCompositeTypes(), allColumnsDataTypes[i].DataType)
+		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
+		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
 		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
 

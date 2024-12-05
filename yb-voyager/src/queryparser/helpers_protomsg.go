@@ -313,8 +313,16 @@ func GetStatementType(msg protoreflect.Message) string {
 	if nodeMsg == nil {
 		return ""
 	}
-	return string(nodeMsg.Message().FullName())
+
+	// Get the message corresponding to the set field
+	nodeValue := msg.Get(nodeMsg)
+	node := nodeValue.Message()
+	if node == nil || !node.IsValid() {
+		return ""
+	}
+	return GetMsgFullName(node)
 }
+
 // == Generic helper functions ==
 
 // GetStringField retrieves a string field from a message.

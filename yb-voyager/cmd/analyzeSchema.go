@@ -609,10 +609,12 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
+		//Adding the MIGRATION_CAVEATS issueType of the utils.Issue for these issueInstances in MigrationCaveatsIssues
 		return strings.Contains(issueInstance.TypeName, i)
 	}):
 		issueType = MIGRATION_CAVEATS
 	case strings.HasPrefix(issueInstance.TypeName, UNSUPPORTED_DATATYPE):
+		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
 		issueType = UNSUPPORTED_DATATYPES
 	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
