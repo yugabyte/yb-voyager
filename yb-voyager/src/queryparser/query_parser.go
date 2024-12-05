@@ -31,11 +31,13 @@ func Parse(query string) (*pg_query.ParseResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("query: %s\n", query)
+	log.Debugf("parse tree: %v\n", tree)
 	return tree, nil
 }
 
 func ParsePLPGSQLToJson(query string) (string, error) {
-	log.Debugf("parsing the PLPGSQL to json query-%s", query)
+	log.Debugf("parsing the PLPGSQL to json query [%s]", query)
 	jsonString, err := pg_query.ParsePlPgSqlToJSON(query)
 	if err != nil {
 		return "", err
