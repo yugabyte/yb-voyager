@@ -37,19 +37,7 @@ type DDLIssueDetector interface {
 
 // TableIssueDetector handles detection of table-related issues
 type TableIssueDetector struct {
-	primaryConsInAlter                   map[string]*queryparser.AlterTable
-	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
-	compositeTypes                       []string
-	enumTypes                            []string
-}
-
-func (p *ParserIssueDetector) NewTableIssueDetector() *TableIssueDetector {
-	return &TableIssueDetector{
-		primaryConsInAlter:                   p.primaryConsInAlter,
-		columnsWithUnsupportedIndexDatatypes: p.columnsWithUnsupportedIndexDatatypes,
-		compositeTypes:                       p.CompositeTypes,
-		enumTypes:                            p.EnumTypes,
-	}
+	ParserIssueDetector
 }
 
 func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
@@ -257,10 +245,6 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 
 type ForeignTableIssueDetector struct{}
 
-func (p *ParserIssueDetector) NewForeignTableIssueDetector() *ForeignTableIssueDetector {
-	return &ForeignTableIssueDetector{}
-}
-
 func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
 	foreignTable, ok := obj.(*queryparser.ForeignTable)
 	if !ok {
@@ -290,15 +274,7 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 
 // IndexIssueDetector handles detection of index-related issues
 type IndexIssueDetector struct {
-	compositeTypes                       []string
-	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
-}
-
-func (p *ParserIssueDetector) NewIndexIssueDetector() *IndexIssueDetector {
-	return &IndexIssueDetector{
-		columnsWithUnsupportedIndexDatatypes: p.columnsWithUnsupportedIndexDatatypes,
-		compositeTypes:                       p.CompositeTypes,
-	}
+	ParserIssueDetector
 }
 
 func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
@@ -407,15 +383,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 
 // AlterTableIssueDetector handles detection of alter table-related issues
 type AlterTableIssueDetector struct {
-	partitionTablesMap                   map[string]bool
-	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
-}
-
-func (p *ParserIssueDetector) NewAlterTableIssueDetector() *AlterTableIssueDetector {
-	return &AlterTableIssueDetector{
-		partitionTablesMap:                   p.partitionTablesMap,
-		columnsWithUnsupportedIndexDatatypes: p.columnsWithUnsupportedIndexDatatypes,
-	}
+	ParserIssueDetector
 }
 
 func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
@@ -511,10 +479,6 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 // PolicyIssueDetector handles detection of Create policy issues
 type PolicyIssueDetector struct{}
 
-func (p *ParserIssueDetector) NewPolicyIssueDetector() *PolicyIssueDetector {
-	return &PolicyIssueDetector{}
-}
-
 func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
 	policy, ok := obj.(*queryparser.Policy)
 	if !ok {
@@ -536,13 +500,7 @@ func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.I
 
 // TriggerIssueDetector handles detection of Create Trigger issues
 type TriggerIssueDetector struct {
-	partitionTablesMap map[string]bool
-}
-
-func (p *ParserIssueDetector) NewTriggerIssueDetector() *TriggerIssueDetector {
-	return &TriggerIssueDetector{
-		partitionTablesMap: p.partitionTablesMap,
-	}
+	ParserIssueDetector
 }
 
 func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
@@ -583,10 +541,6 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issu
 
 type ViewIssueDetector struct{}
 
-func (p *ParserIssueDetector) NewViewIssueDetector() *ViewIssueDetector {
-	return &ViewIssueDetector{}
-}
-
 func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
 	return nil, nil
 }
@@ -594,10 +548,6 @@ func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Iss
 // ==============MVIEW ISSUE DETECTOR ======================
 
 type MViewIssueDetector struct{}
-
-func (p *ParserIssueDetector) NewMViewIssueDetector() *MViewIssueDetector {
-	return &MViewIssueDetector{}
-}
 
 func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
 	return nil, nil
@@ -608,10 +558,6 @@ func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 // Need to handle all the cases for which we don't have any issues detector
 type NoOpIssueDetector struct{}
 
-func (p *ParserIssueDetector) NewNoOpIssueDetector() *NoOpIssueDetector {
-	return &NoOpIssueDetector{}
-}
-
 func (n *NoOpIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
 	return nil, nil
 }
@@ -619,23 +565,31 @@ func (n *NoOpIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Iss
 func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssueDetector, error) {
 	switch obj.(type) {
 	case *queryparser.Table:
-		return p.NewTableIssueDetector(), nil
+		return &TableIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
 	case *queryparser.Index:
-		return p.NewIndexIssueDetector(), nil
+		return &IndexIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
 	case *queryparser.AlterTable:
-		return p.NewAlterTableIssueDetector(), nil
+		return &AlterTableIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
 	case *queryparser.Policy:
-		return p.NewPolicyIssueDetector(), nil
+		return &PolicyIssueDetector{}, nil
 	case *queryparser.Trigger:
-		return p.NewTriggerIssueDetector(), nil
+		return &TriggerIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
 	case *queryparser.ForeignTable:
-		return p.NewForeignTableIssueDetector(), nil
-	case *queryparser.View:
-		return p.NewViewIssueDetector(), nil
+		return &ForeignTableIssueDetector{}, nil
+    case *queryparser.View:
+		return &ViewIssueDetector{}, nil
 	case *queryparser.MView:
-		return p.NewMViewIssueDetector(), nil
+		return &MViewIssueDetector{}, nil
 	default:
-		return p.NewNoOpIssueDetector(), nil
+		return &NoOpIssueDetector{}, nil
 	}
 }
 
