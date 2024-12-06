@@ -155,7 +155,7 @@ grant_permissions_for_live_migration_pg() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 }
 
 grant_permissions() {
@@ -676,7 +676,7 @@ setup_fallback_environment() {
 		run_sqlplus_as_sys ${SOURCE_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
 		elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
-		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 
 		disable_triggers_sql=$(mktemp)
         drop_constraints_sql=$(mktemp)
