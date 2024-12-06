@@ -107,6 +107,4 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "unlogged table", ybVersion), testUnloggedTableIssue)
 	assert.True(t, success)
 
-	yugabytedbContainer.Terminate(context.Background())
-
 }
