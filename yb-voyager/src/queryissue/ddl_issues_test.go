@@ -18,9 +18,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 )
@@ -86,15 +88,18 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 		panic("YB_VERSION env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105 for example")
 	}
 
-	// spawn yugabytedb container
-	var err error
-	ctx := context.Background()
-	yugabytedbContainer, err = yugabytedb.Run(
-		ctx,
-		"yugabytedb/yugabyte:"+ybVersion,
-	)
-	assert.NoError(t, err)
-	defer yugabytedbContainer.Terminate(context.Background())
+	doNotCreateYugaByteContainer := os.Getenv("DO_NOT_CREATE_YUGABYTE_CONTAINER")
+	if !lo.Contains([]string{"true", "t", "yes", "y"}, strings.ToLower(doNotCreateYugaByteContainer)) {
+		// spawn yugabytedb container
+		var err error
+		ctx := context.Background()
+		yugabytedbContainer, err = yugabytedb.Run(
+			ctx,
+			"yugabytedb/yugabyte:"+ybVersion,
+		)
+		assert.NoError(t, err)
+		defer yugabytedbContainer.Terminate(context.Background())
+	}
 
 	// run tests
 	var success bool
