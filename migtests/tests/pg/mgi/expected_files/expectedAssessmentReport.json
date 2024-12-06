@@ -13761,6 +13761,7 @@
 					"SqlStatement": "acc_accession.accID%TYPE"
 				}
 			],
+			"MinimumVersionsFixedIn": null,
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported"
 		}
 	]
