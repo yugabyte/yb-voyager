@@ -27,6 +27,7 @@ jobs:
 
     - name: Setup YugabyteDB
       run: |
+        # using s3 release instead of docker image to allow testing against un-released versions
         wget https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/${YB_VERSION}/yugabyte-${YB_VERSION}-centos-x86_64.tar.gz
         mkdir -p yugabyte-${YB_VERSION}
         tar -xvzf yugabyte-${YB_VERSION}-centos-x86_64.tar.gz -C yugabyte-${YB_VERSION} --strip-components=1
