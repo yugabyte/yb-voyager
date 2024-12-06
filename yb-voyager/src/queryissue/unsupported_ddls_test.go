@@ -188,7 +188,11 @@ func TestAllDDLIssues(t *testing.T) {
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(issueInstance issue.IssueInstance) bool {
-				return issueInstance.Equal(expectedIssue)
+				typeNameMatches := issueInstance.TypeName == expectedIssue.TypeName
+				queryMatches := issueInstance.SqlStatement == expectedIssue.SqlStatement
+				objectNameMatches := issueInstance.ObjectName == expectedIssue.ObjectName
+				objectTypeMatches := issueInstance.ObjectType == expectedIssue.ObjectType
+				return typeNameMatches && queryMatches && objectNameMatches && objectTypeMatches
 			})
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
