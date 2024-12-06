@@ -3,12 +3,16 @@ package namereg
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -377,7 +381,7 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 //=====================================================
 
 type dummySourceDB struct {
-	tableNames map[string][]string // schemaName -> tableNames
+	tableNames    map[string][]string // schemaName -> tableNames
 	sequenceNames map[string][]string // schemaName -> sequenceNames
 }
 
@@ -398,8 +402,8 @@ func (db *dummySourceDB) GetAllSequencesRaw(schemaName string) ([]string, error)
 }
 
 type dummyTargetDB struct {
-	tableNames map[string][]string // schemaName -> tableNames
-	sequenceNames map[string][]string // schemaName -> sequenceNames		
+	tableNames    map[string][]string // schemaName -> tableNames
+	sequenceNames map[string][]string // schemaName -> sequenceNames
 }
 
 func (db *dummyTargetDB) GetAllSchemaNamesRaw() ([]string, error) {
@@ -413,7 +417,6 @@ func (db *dummyTargetDB) GetAllTableNamesRaw(schemaName string) ([]string, error
 	}
 	return tableNames, nil
 }
-
 
 func (db *dummyTargetDB) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	sequenceNames, ok := db.sequenceNames[schemaName]
@@ -448,18 +451,18 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	}
 
 	sourceNamesMap := make(map[string][]string)
-	for k,v := range dummySdb.tableNames {
+	for k, v := range dummySdb.tableNames {
 		sourceNamesMap[k] = append(sourceNamesMap[k], v...)
 	}
-	for k,v := range dummySdb.sequenceNames {
+	for k, v := range dummySdb.sequenceNames {
 		sourceNamesMap[k] = append(sourceNamesMap[k], v...)
 	}
 
 	targetNamesMap := make(map[string][]string)
-	for k,v := range dummyTdb.tableNames {
+	for k, v := range dummyTdb.tableNames {
 		targetNamesMap[k] = append(targetNamesMap[k], v...)
 	}
-	for k,v := range dummyTdb.sequenceNames {
+	for k, v := range dummyTdb.sequenceNames {
 		targetNamesMap[k] = append(targetNamesMap[k], v...)
 	}
 
@@ -497,7 +500,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	seq1 := buildNameTuple(reg, "SAKILA", "SEQ1", "", "")
 	stup, err := reg.LookupTableName("SEQ1")
 	require.Nil(err)
-	assert.Equal(seq1, stup)	
+	assert.Equal(seq1, stup)
 
 	// When `export data` restarts, the registry should be reloaded from the file.
 	reg = newNameRegistry("")
@@ -548,4 +551,133 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	require.Nil(err)
 	assert.Equal(table1, ntup)
 	assert.Equal(`SAKILA_FF."TABLE1"`, table1.ForUserQuery())
+}
+
+// Unit tests for breaking changes in NameRegistry.
+
+func TestNameRegistryStructs(t *testing.T) {
+
+	tests := []struct {
+		name         string
+		actualType   reflect.Type
+		expectedType interface{}
+	}{
+		{
+			name:       "Validate NameRegistryParams Struct Definition",
+			actualType: reflect.TypeOf(NameRegistryParams{}),
+			expectedType: struct {
+				FilePath       string
+				Role           string
+				SourceDBType   string
+				SourceDBSchema string
+				SourceDBName   string
+				SDB            SourceDBInterface
+				TargetDBSchema string
+				YBDB           YBDBInterface
+			}{},
+		},
+		{
+			name:       "Validate NameRegistry Struct Definition",
+			actualType: reflect.TypeOf(NameRegistry{}),
+			expectedType: struct {
+				SourceDBType                     string
+				SourceDBSchemaNames              []string
+				DefaultSourceDBSchemaName        string
+				SourceDBTableNames               map[string][]string
+				YBSchemaNames                    []string
+				DefaultYBSchemaName              string
+				YBTableNames                     map[string][]string
+				DefaultSourceReplicaDBSchemaName string
+				params                           NameRegistryParams
+			}{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testutils.CompareStructs(t, tt.actualType, reflect.TypeOf(tt.expectedType), tt.name)
+		})
+	}
+}
+
+func TestNameRegistryJson(t *testing.T) {
+	exportDir := filepath.Join(os.TempDir(), "namereg")
+	outputFilePath := filepath.Join(exportDir, "test_dummy_name_registry.json")
+
+	// Create a sample NameRegistry instance
+	reg := &NameRegistry{
+		SourceDBType: ORACLE,
+		params: NameRegistryParams{
+			FilePath:       outputFilePath,
+			Role:           TARGET_DB_IMPORTER_ROLE,
+			SourceDBType:   ORACLE,
+			SourceDBSchema: "SAKILA",
+			SourceDBName:   "ORCLPDB1",
+			TargetDBSchema: "ybsakila",
+		},
+		SourceDBSchemaNames:       []string{"SAKILA"},
+		DefaultSourceDBSchemaName: "SAKILA",
+		SourceDBTableNames: map[string][]string{
+			"SAKILA": {"TABLE1", "TABLE2", "MixedCaps", "lower_caps"},
+		},
+		YBSchemaNames:       []string{"ybsakila"},
+		DefaultYBSchemaName: "ybsakila",
+		YBTableNames: map[string][]string{
+			"ybsakila": {"table1", "table2", "mixedcaps", "lower_caps"},
+		},
+		DefaultSourceReplicaDBSchemaName: "SAKILA_FF",
+	}
+
+	// Ensure the export directory exists
+	if err := os.MkdirAll(exportDir, 0755); err != nil {
+		t.Fatalf("Failed to create export directory: %v", err)
+	}
+
+	// Clean up the export directory
+	defer func() {
+		if err := os.RemoveAll(exportDir); err != nil {
+			t.Fatalf("Failed to remove export directory: %v", err)
+		}
+	}()
+
+	// Marshal the NameRegistry instance to JSON
+	err := reg.save()
+	if err != nil {
+		t.Fatalf("Failed to save NameRegistry to JSON: %v", err)
+	}
+
+	// TODO: Use a single string instead of a slice of strings for the expected JSON
+	expectedJSON := strings.Join([]string{
+		"{",
+		`  "SourceDBType": "oracle",`,
+		`  "SourceDBSchemaNames": [`,
+		`    "SAKILA"`,
+		"  ],",
+		`  "DefaultSourceDBSchemaName": "SAKILA",`,
+		`  "SourceDBTableNames": {`,
+		`    "SAKILA": [`,
+		`      "TABLE1",`,
+		`      "TABLE2",`,
+		`      "MixedCaps",`,
+		`      "lower_caps"`,
+		"    ]",
+		"  },",
+		`  "YBSchemaNames": [`,
+		`    "ybsakila"`,
+		"  ],",
+		`  "DefaultYBSchemaName": "ybsakila",`,
+		`  "YBTableNames": {`,
+		`    "ybsakila": [`,
+		`      "table1",`,
+		`      "table2",`,
+		`      "mixedcaps",`,
+		`      "lower_caps"`,
+		"    ]",
+		"  },",
+		`  "DefaultSourceReplicaDBSchemaName": "SAKILA_FF"`,
+		"}",
+	}, "\n")
+
+	// Read the JSON file and compare it with the expected JSON
+	testutils.CompareJson(t, outputFilePath, expectedJSON, exportDir)
 }

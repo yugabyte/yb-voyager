@@ -88,3 +88,89 @@ BEGIN
 
 END;
 $$;
+
+CREATE FUNCTION public.get_employeee_salary(emp_id integer) RETURNS numeric
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    emp_salary employees.salary%TYPE;  -- Declare a variable with the same type as employees.salary
+BEGIN
+    SELECT salary INTO emp_salary
+    FROM employees
+    WHERE employee_id = emp_id;
+    RETURN emp_salary;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION calculate_tax(salary_amount NUMERIC) RETURNS NUMERIC AS $$
+DECLARE
+    tax_rate employees.tax_rate%TYPE; -- Inherits type from employees.tax_rate column
+    tax_amount NUMERIC;
+BEGIN
+    -- Assign a value to the variable
+    SELECT tax_rate INTO tax_rate FROM employees WHERE id = 1;
+    
+    -- Use the variable in a calculation
+    tax_amount := salary_amount * tax_rate;
+    RETURN tax_amount;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_salary_change() RETURNS TRIGGER AS $$
+DECLARE
+    old_salary employees.salary%TYPE; -- Matches the type of the salary column
+    new_salary employees.salary%TYPE;
+BEGIN
+    old_salary := OLD.salary;
+    new_salary := NEW.salary;
+
+    IF new_salary <> old_salary THEN
+        INSERT INTO salary_log(employee_id, old_salary, new_salary, changed_at)
+        VALUES (NEW.id, old_salary, new_salary, now());
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER salary_update_trigger
+AFTER UPDATE OF salary ON employees
+FOR EACH ROW EXECUTE FUNCTION log_salary_change();
+
+CREATE OR REPLACE FUNCTION get_employee_details(emp_id employees.id%Type) 
+RETURNS public.employees.name%Type AS $$ 
+DECLARE
+    employee_name employees.name%TYPE;
+BEGIN
+    SELECT name INTO employee_name FROM employees WHERE id = emp_id;
+    RETURN employee_name;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION list_high_earners(threshold NUMERIC) RETURNS VOID AS $$
+DECLARE
+    emp_name employees.name%TYPE;
+    emp_salary employees.salary%TYPE;
+BEGIN
+    FOR emp_name, emp_salary IN 
+        SELECT name, salary FROM employees WHERE salary > threshold
+    LOOP
+        RAISE NOTICE 'Employee: %, Salary: %', emp_name, emp_salary;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION copy_high_earners(threshold NUMERIC) RETURNS VOID AS $$
+DECLARE
+    temp_salary employees.salary%TYPE;
+BEGIN
+    CREATE TEMP TABLE temp_high_earners AS
+    SELECT * FROM employees WHERE salary > threshold;
+
+    FOR temp_salary IN SELECT salary FROM temp_high_earners LOOP
+        RAISE NOTICE 'High earner salary: %', temp_salary;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;

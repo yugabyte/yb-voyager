@@ -65,22 +65,24 @@
             "ObjectType": "FOREIGN TABLE",
             "ObjectName": "public.f_c",
             "Reason": "Foreign tables require manual intervention.",
-            "SqlStatement": "CREATE FOREIGN TABLE public.f_c (     i integer NOT NULL,     t integer,     x text ) SERVER p10 OPTIONS (     table_name 'c' ); ",
+            "SqlStatement": "CREATE FOREIGN TABLE public.f_c (     i integer NOT NULL,     t integer,     x text ) SERVER p10 OPTIONS (     table_name 'c' );",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/tables/foreign_table.sql",
             "Suggestion": "SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
             "ObjectType": "FOREIGN TABLE",
             "ObjectName": "public.f_t",
             "Reason": "Foreign tables require manual intervention.",
-            "SqlStatement": "CREATE FOREIGN TABLE public.f_t (     i integer NOT NULL,     ts timestamp(0) with time zone DEFAULT now(),     j json,     t text,     e public.myenum,     c public.mycomposit ) SERVER p10 OPTIONS (     table_name 't' ); ",
+            "SqlStatement": "CREATE FOREIGN TABLE public.f_t (     i integer NOT NULL,     ts timestamp(0) with time zone DEFAULT now(),     j json,     t text,     e public.myenum,     c public.mycomposit ) SERVER p10 OPTIONS (     table_name 't' );",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/tables/foreign_table.sql",
             "Suggestion": "SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -91,7 +93,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         }
     ]
 }
