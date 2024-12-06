@@ -38,10 +38,10 @@ var generatedColumnsIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#generated-always-as-stored-type-column-is-not-supported",
 }
 
-func NewGeneratedColumnsIssue(objectType string, objectName string, sqlStatement string, generatedColumns []string) IssueInstance {
+func NewGeneratedColumnsIssue(objectType string, objectName string, sqlStatement string, generatedColumns []string) QueryIssue {
 	issue := generatedColumnsIssue
 	issue.TypeName = issue.TypeName + fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ","))
-	return newIssueInstance(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var unloggedTableIssue = issue.Issue{
@@ -52,13 +52,13 @@ var unloggedTableIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unlogged-table-is-not-supported",
 }
 
-func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
 	//for UNLOGGED TABLE as its not reported in the TABLE objects
 	if objectType == "TABLE" {
 		details["INCREASE_INVALID_COUNT"] = false
 	}
-	return newIssueInstance(unloggedTableIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(unloggedTableIssue, objectType, objectName, sqlStatement, details)
 }
 
 var unsupportedIndexMethodIssue = issue.Issue{
@@ -68,10 +68,10 @@ var unsupportedIndexMethodIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gist-brin-and-spgist-index-types-are-not-supported",
 }
 
-func NewUnsupportedIndexMethodIssue(objectType string, objectName string, sqlStatement string, indexAccessMethod string) IssueInstance {
+func NewUnsupportedIndexMethodIssue(objectType string, objectName string, sqlStatement string, indexAccessMethod string) QueryIssue {
 	issue := unsupportedIndexMethodIssue
 	issue.TypeName = fmt.Sprintf(unsupportedIndexMethodIssue.TypeName, strings.ToUpper(indexAccessMethod))
-	return newIssueInstance(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var storageParameterIssue = issue.Issue{
@@ -82,13 +82,13 @@ var storageParameterIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
 }
 
-func NewStorageParameterIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+func NewStorageParameterIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
 	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
 	if objectType == "TABLE" {
 		details["INCREASE_INVALID_COUNT"] = false
 	}
-	return newIssueInstance(storageParameterIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(storageParameterIssue, objectType, objectName, sqlStatement, details)
 }
 
 var setAttributeIssue = issue.Issue{
@@ -99,13 +99,13 @@ var setAttributeIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
-func NewSetAttributeIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+func NewSetAttributeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
 	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
 	if objectType == "TABLE" {
 		details["INCREASE_INVALID_COUNT"] = false
 	}
-	return newIssueInstance(setAttributeIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(setAttributeIssue, objectType, objectName, sqlStatement, details)
 }
 
 var clusterOnIssue = issue.Issue{
@@ -116,13 +116,13 @@ var clusterOnIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
-func NewClusterONIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
+func NewClusterONIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
 	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
 	if objectType == "TABLE" {
 		details["INCREASE_INVALID_COUNT"] = false
 	}
-	return newIssueInstance(clusterOnIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(clusterOnIssue, objectType, objectName, sqlStatement, details)
 }
 
 var disableRuleIssue = issue.Issue{
@@ -133,7 +133,7 @@ var disableRuleIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
-func NewDisableRuleIssue(objectType string, objectName string, sqlStatement string, ruleName string) IssueInstance {
+func NewDisableRuleIssue(objectType string, objectName string, sqlStatement string, ruleName string) QueryIssue {
 	details := map[string]interface{}{}
 	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
 	if objectType == "TABLE" {
@@ -141,7 +141,7 @@ func NewDisableRuleIssue(objectType string, objectName string, sqlStatement stri
 	}
 	issue := disableRuleIssue
 	issue.Suggestion = fmt.Sprintf(issue.Suggestion, ruleName)
-	return newIssueInstance(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var exclusionConstraintIssue = issue.Issue{
@@ -152,8 +152,8 @@ var exclusionConstraintIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#exclusion-constraints-is-not-supported",
 }
 
-func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(exclusionConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(exclusionConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var deferrableConstraintIssue = issue.Issue{
@@ -164,8 +164,8 @@ var deferrableConstraintIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
 }
 
-func NewDeferrableConstraintIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(deferrableConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewDeferrableConstraintIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(deferrableConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var multiColumnGinIndexIssue = issue.Issue{
@@ -175,8 +175,8 @@ var multiColumnGinIndexIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#gin-indexes-on-multiple-columns-are-not-supported",
 }
 
-func NewMultiColumnGinIndexIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(multiColumnGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewMultiColumnGinIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(multiColumnGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var orderedGinIndexIssue = issue.Issue{
@@ -186,8 +186,8 @@ var orderedGinIndexIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#issue-in-some-unsupported-cases-of-gin-indexes",
 }
 
-func NewOrderedGinIndexIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(orderedGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewOrderedGinIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(orderedGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var policyRoleIssue = issue.Issue{
@@ -198,10 +198,10 @@ var policyRoleIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#policies-on-users-in-source-require-manual-user-creation",
 }
 
-func NewPolicyRoleIssue(objectType string, objectName string, SqlStatement string, roles []string) IssueInstance {
+func NewPolicyRoleIssue(objectType string, objectName string, SqlStatement string, roles []string) QueryIssue {
 	issue := policyRoleIssue
 	issue.TypeName = fmt.Sprintf("%s Users - (%s)", issue.TypeName, strings.Join(roles, ","))
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var constraintTriggerIssue = issue.Issue{
@@ -211,13 +211,13 @@ var constraintTriggerIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#constraint-trigger-is-not-supported",
 }
 
-func NewConstraintTriggerIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
+func NewConstraintTriggerIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
 	//for CONSTRAINT TRIGGER we don't have separate object type TODO: fix
 	if objectType == "TRIGGER" {
 		details["INCREASE_INVALID_COUNT"] = false
 	}
-	return newIssueInstance(constraintTriggerIssue, objectType, objectName, SqlStatement, details)
+	return newQueryIssue(constraintTriggerIssue, objectType, objectName, SqlStatement, details)
 }
 
 var referencingClauseInTriggerIssue = issue.Issue{
@@ -227,8 +227,8 @@ var referencingClauseInTriggerIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#referencing-clause-for-triggers",
 }
 
-func NewReferencingClauseTrigIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
-	return newIssueInstance(referencingClauseInTriggerIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewReferencingClauseTrigIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(referencingClauseInTriggerIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
@@ -239,8 +239,8 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 	Suggestion: "Create the triggers on individual partitions.",
 }
 
-func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
-	return newIssueInstance(beforeRowTriggerOnPartitionTableIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(beforeRowTriggerOnPartitionTableIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var alterTableAddPKOnPartitionIssue = issue.Issue{
@@ -250,13 +250,13 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 	GH:       "https://github.com/yugabyte/yugabyte-db/issues/10074",
 }
 
-func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
+func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
 	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
 	if objectType == "TABLE" {
 		details["INCREASE_INVALID_COUNT"] = false
 	}
-	return newIssueInstance(alterTableAddPKOnPartitionIssue, objectType, objectName, SqlStatement, details)
+	return newQueryIssue(alterTableAddPKOnPartitionIssue, objectType, objectName, SqlStatement, details)
 }
 
 var expressionPartitionIssue = issue.Issue{
@@ -267,8 +267,8 @@ var expressionPartitionIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + MYSQL_PREFIX + "#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
 }
 
-func NewExpressionPartitionIssue(objectType string, objectName string, SqlStatement string) IssueInstance {
-	return newIssueInstance(expressionPartitionIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewExpressionPartitionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(expressionPartitionIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var multiColumnListPartition = issue.Issue{
@@ -279,8 +279,8 @@ var multiColumnListPartition = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + MYSQL_PREFIX + "#multi-column-partition-by-list-is-not-supported",
 }
 
-func NewMultiColumnListPartition(objectType string, objectName string, SqlStatement string) IssueInstance {
-	return newIssueInstance(multiColumnListPartition, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewMultiColumnListPartition(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(multiColumnListPartition, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var insufficientColumnsInPKForPartition = issue.Issue{
@@ -291,10 +291,10 @@ var insufficientColumnsInPKForPartition = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + ORACLE_PREFIX + "#partition-key-column-not-part-of-primary-key-columns",
 }
 
-func NewInsufficientColumnInPKForPartition(objectType string, objectName string, SqlStatement string, partitionColumnsNotInPK []string) IssueInstance {
+func NewInsufficientColumnInPKForPartition(objectType string, objectName string, SqlStatement string, partitionColumnsNotInPK []string) QueryIssue {
 	issue := insufficientColumnsInPKForPartition
 	issue.TypeName = fmt.Sprintf("%s - (%s)", issue.TypeName, strings.Join(partitionColumnsNotInPK, ", "))
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var xmlDatatypeIssue = issue.Issue{
@@ -305,10 +305,10 @@ var xmlDatatypeIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#data-ingestion-on-xml-data-type-is-not-supported",
 }
 
-func NewXMLDatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) IssueInstance {
+func NewXMLDatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
 	issue := xmlDatatypeIssue
 	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var xidDatatypeIssue = issue.Issue{
@@ -319,10 +319,10 @@ var xidDatatypeIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported",
 }
 
-func NewXIDDatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) IssueInstance {
+func NewXIDDatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
 	issue := xidDatatypeIssue
 	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var postgisDatatypeIssue = issue.Issue{
@@ -332,10 +332,10 @@ var postgisDatatypeIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb",
 }
 
-func NewPostGisDatatypeIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) IssueInstance {
+func NewPostGisDatatypeIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
 	issue := postgisDatatypeIssue
 	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesIssue = issue.Issue{
@@ -345,10 +345,10 @@ var unsupportedDatatypesIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb",
 }
 
-func NewUnsupportedDatatypesIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) IssueInstance {
+func NewUnsupportedDatatypesIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesIssue
 	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesForLiveMigrationIssue = issue.Issue{
@@ -358,10 +358,10 @@ var unsupportedDatatypesForLiveMigrationIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
-func NewUnsupportedDatatypesForLMIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) IssueInstance {
+func NewUnsupportedDatatypesForLMIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesForLiveMigrationIssue
 	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = issue.Issue{
@@ -371,10 +371,10 @@ var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
-func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) IssueInstance {
+func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesForLiveMigrationWithFFOrFBIssue
 	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
@@ -385,7 +385,7 @@ var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
-func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string, increaseInvalidCnt bool) IssueInstance {
+func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string, increaseInvalidCnt bool) QueryIssue {
 	details := map[string]interface{}{}
 	//for ALTER not increasing count, but for Create increasing TODO: fix
 	if !increaseInvalidCnt {
@@ -393,7 +393,7 @@ func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objec
 	}
 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
 	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, details)
 }
 
 var indexOnComplexDatatypesIssue = issue.Issue{
@@ -404,10 +404,10 @@ var indexOnComplexDatatypesIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported",
 }
 
-func NewIndexOnComplexDatatypesIssue(objectType string, objectName string, SqlStatement string, typeName string) IssueInstance {
+func NewIndexOnComplexDatatypesIssue(objectType string, objectName string, SqlStatement string, typeName string) QueryIssue {
 	issue := indexOnComplexDatatypesIssue
 	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var foreignTableIssue = issue.Issue{
@@ -418,10 +418,10 @@ var foreignTableIssue = issue.Issue{
 	DocsLink:   DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#foreign-table-in-the-source-database-requires-server-and-user-mapping",
 }
 
-func NewForeignTableIssue(objectType string, objectName string, SqlStatement string, serverName string) IssueInstance {
+func NewForeignTableIssue(objectType string, objectName string, SqlStatement string, serverName string) QueryIssue {
 	issue := foreignTableIssue
 	issue.Suggestion = fmt.Sprintf(issue.Suggestion, serverName)
-	return newIssueInstance(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var inheritanceIssue = issue.Issue{
@@ -431,8 +431,8 @@ var inheritanceIssue = issue.Issue{
 	DocsLink: DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#table-inheritance-is-not-supported",
 }
 
-func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(inheritanceIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(inheritanceIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var percentTypeSyntax = issue.Issue{
@@ -444,6 +444,6 @@ var percentTypeSyntax = issue.Issue{
 	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
 }
 
-func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

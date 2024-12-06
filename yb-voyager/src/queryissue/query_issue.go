@@ -23,7 +23,7 @@ package queryissue
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 
-type IssueInstance struct {
+type QueryIssue struct {
 	issue.Issue
 	ObjectType   string // TABLE, FUNCTION, DML_QUERY?
 	ObjectName   string // table name/function name/etc
@@ -31,8 +31,8 @@ type IssueInstance struct {
 	Details      map[string]interface{} // additional details about the issue
 }
 
-func newIssueInstance(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) IssueInstance {
-	return IssueInstance{
+func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) QueryIssue {
+	return QueryIssue{
 		Issue:        issue,
 		ObjectType:   objectType,
 		ObjectName:   objectName,

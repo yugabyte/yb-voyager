@@ -604,7 +604,7 @@ var MigrationCaveatsIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.IssueInstance, fileName string, isPlPgSQLIssue bool) utils.Issue {
+func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.Issue {
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {

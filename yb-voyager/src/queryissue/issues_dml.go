@@ -27,8 +27,8 @@ var advisoryLocksIssue = issue.Issue{
 	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
 }
 
-func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(advisoryLocksIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(advisoryLocksIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var systemColumnsIssue = issue.Issue{
@@ -40,8 +40,8 @@ var systemColumnsIssue = issue.Issue{
 	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
-func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(systemColumnsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(systemColumnsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var xmlFunctionsIssue = issue.Issue{
@@ -53,6 +53,6 @@ var xmlFunctionsIssue = issue.Issue{
 	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
 }
 
-func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

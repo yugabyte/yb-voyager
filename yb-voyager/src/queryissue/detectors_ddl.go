@@ -29,7 +29,7 @@ import (
 
 // DDLIssueDetector interface defines methods for detecting issues in DDL objects
 type DDLIssueDetector interface {
-	DetectIssues(queryparser.DDLObject) ([]IssueInstance, error)
+	DetectIssues(queryparser.DDLObject) ([]QueryIssue, error)
 }
 
 //=============TABLE ISSUE DETECTOR ===========================
@@ -39,13 +39,13 @@ type TableIssueDetector struct {
 	ParserIssueDetector
 }
 
-func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	table, ok := obj.(*queryparser.Table)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Table")
 	}
 
-	var issues []IssueInstance
+	var issues []QueryIssue
 
 	// Check for generated columns
 	if len(table.GeneratedColumns) > 0 {
@@ -203,7 +203,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueIns
 	return issues, nil
 }
 
-func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, objName string, issues *[]IssueInstance) {
+func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
 	switch col.TypeName {
 	case "xml":
 		*issues = append(*issues, NewXMLDatatypeIssue(
@@ -244,12 +244,12 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 
 type ForeignTableIssueDetector struct{}
 
-func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	foreignTable, ok := obj.(*queryparser.ForeignTable)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Foreign Table")
 	}
-	issues := make([]IssueInstance, 0)
+	issues := make([]QueryIssue, 0)
 
 	issues = append(issues, NewForeignTableIssue(
 		FOREIGN_TABLE_OBJECT_TYPE,
@@ -276,13 +276,13 @@ type IndexIssueDetector struct {
 	ParserIssueDetector
 }
 
-func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	index, ok := obj.(*queryparser.Index)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Index")
 	}
 
-	var issues []IssueInstance
+	var issues []QueryIssue
 
 	// Check for unsupported index methods
 	if slices.Contains(UnsupportedIndexMethods, index.AccessMethod) {
@@ -385,13 +385,13 @@ type AlterTableIssueDetector struct {
 	ParserIssueDetector
 }
 
-func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	alter, ok := obj.(*queryparser.AlterTable)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected AlterTable")
 	}
 
-	var issues []IssueInstance
+	var issues []QueryIssue
 
 	switch alter.AlterType {
 	case queryparser.SET_OPTIONS:
@@ -478,12 +478,12 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]I
 // PolicyIssueDetector handles detection of Create policy issues
 type PolicyIssueDetector struct{}
 
-func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	policy, ok := obj.(*queryparser.Policy)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Policy")
 	}
-	issues := make([]IssueInstance, 0)
+	issues := make([]QueryIssue, 0)
 	if len(policy.RoleNames) > 0 {
 		issues = append(issues, NewPolicyRoleIssue(
 			POLICY_OBJECT_TYPE,
@@ -502,12 +502,12 @@ type TriggerIssueDetector struct {
 	ParserIssueDetector
 }
 
-func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	trigger, ok := obj.(*queryparser.Trigger)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Trigger")
 	}
-	issues := make([]IssueInstance, 0)
+	issues := make([]QueryIssue, 0)
 
 	if trigger.IsConstraint {
 		issues = append(issues, NewConstraintTriggerIssue(
@@ -540,7 +540,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Issu
 
 type ViewIssueDetector struct{}
 
-func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	return nil, nil
 }
 
@@ -548,7 +548,7 @@ func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInst
 
 type MViewIssueDetector struct{}
 
-func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	return nil, nil
 }
 
@@ -557,7 +557,7 @@ func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueIns
 // Need to handle all the cases for which we don't have any issues detector
 type NoOpIssueDetector struct{}
 
-func (n *NoOpIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]IssueInstance, error) {
+func (n *NoOpIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	return nil, nil
 }
 
