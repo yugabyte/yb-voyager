@@ -27,10 +27,7 @@ import (
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
-type TestDB
-
-
-struct {
+type TestDB struct {
 	Container testcontainers.TestContainer
 	TargetDB
 }
