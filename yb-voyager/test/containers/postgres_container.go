@@ -43,6 +43,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		Env: map[string]string{
 			"POSTGRES_USER":     pg.User,
 			"POSTGRES_PASSWORD": pg.Password,
+			"POSTGRES_DB":       pg.DBName, // NOTE: PG image makes the database with same name as user if not specific
 		},
 		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(1 * time.Minute),
 		Files: []testcontainers.ContainerFile{
@@ -113,4 +114,14 @@ func (pg *PostgresContainer) GetHostPort() (string, int, error) {
 
 func (pg *PostgresContainer) GetConfig() ContainerConfig {
 	return pg.ContainerConfig
+}
+
+func (pg *PostgresContainer) GetConnectionString() string {
+	config := pg.GetConfig()
+	host, port, err := pg.GetHostPort()
+	if err != nil {
+		utils.ErrExit("failed to get host port for postgres connection string: %v", err)
+	}
+
+	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
 }

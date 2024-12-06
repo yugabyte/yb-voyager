@@ -34,7 +34,7 @@ func TestBasic(t *testing.T) {
 	connParams := &ConnectionParams{
 		NumConnections:    size,
 		NumMaxConnections: size,
-		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		ConnUriList:       []string{testYugabyteDBTarget.Container.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
 	pool := NewConnectionPool(connParams)
@@ -69,7 +69,7 @@ func TestIncreaseConnectionsUptoMax(t *testing.T) {
 	connParams := &ConnectionParams{
 		NumConnections:    size,
 		NumMaxConnections: maxSize,
-		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		ConnUriList:       []string{testYugabyteDBTarget.Container.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
 	pool := NewConnectionPool(connParams)
@@ -112,7 +112,7 @@ func TestDecreaseConnectionsUptoMin(t *testing.T) {
 	connParams := &ConnectionParams{
 		NumConnections:    size,
 		NumMaxConnections: maxSize,
-		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		ConnUriList:       []string{testYugabyteDBTarget.Container.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
 	pool := NewConnectionPool(connParams)
@@ -155,7 +155,7 @@ func TestUpdateConnectionsRandom(t *testing.T) {
 	connParams := &ConnectionParams{
 		NumConnections:    size,
 		NumMaxConnections: maxSize,
-		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		ConnUriList:       []string{testYugabyteDBTarget.Container.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
 	pool := NewConnectionPool(connParams)

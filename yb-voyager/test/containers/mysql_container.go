@@ -95,3 +95,7 @@ func (ms *MysqlContainer) GetHostPort() (string, int, error) {
 func (ms *MysqlContainer) GetConfig() ContainerConfig {
 	return ms.ContainerConfig
 }
+
+func (ms *MysqlContainer) GetConnectionString() string {
+	panic("GetConnectionString() not implemented yet for mysql")
+}

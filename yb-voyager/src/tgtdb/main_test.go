@@ -24,69 +24,114 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
+type TestDB
+
+
+struct {
+	Container testcontainers.TestContainer
+	TargetDB
+}
+
 var (
-	postgresTestDB *TestDB
-	oracleTestDB   *TestDB
-	yugabyteTestDB *TestDB
+	testPostgresTarget   *TestDB
+	testOracleTarget     *TestDB
+	testYugabyteDBTarget *TestDB
 )
 
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var err error
-	// setting target db type, version and defaults in tconf
-	pgTargetConf := &TargetConf{
-		TargetDBType: "postgresql",
-		DBVersion:    "11",
-		User:         "postgres",
-		Password:     "postgres",
-		SSLMode:      "disable",
-		Port:         5432,
-		Schema:       "public",
-		DBName:       "postgres",
-	}
-
-	oracleTargetConf := &TargetConf{
-		TargetDBType: "oracle",
-		DBVersion:    "21",
-		User:         "ybvoyager",
-		Password:     "password",
-		Port:         1521,
-		DBName:       "DMS",
-		Schema:       "YBVOYAGER",
-	}
-
-	ybTargetConf := &TargetConf{
-		TargetDBType: "yugabytedb",
-		DBVersion:    "2.20.7.1-b10",
-		User:         "yugabyte",
-		Password:     "password",
-		SSLMode:      "disable",
-		Port:         5433,
-		Schema:       "public",
-	}
-
-	postgresTestDB, err = StartTestDB(ctx, pgTargetConf)
+	// setting source db type, version and defaults
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(ctx)
 	if err != nil {
-		utils.ErrExit("Failed to start testDB: %v", err)
+		utils.ErrExit("Failed to start postgres container: %v", err)
 	}
-	defer StopTestDB(ctx, postgresTestDB)
-
-	oracleTestDB, err = StartTestDB(ctx, oracleTargetConf)
+	host, port, err := postgresContainer.GetHostPort()
 	if err != nil {
-		utils.ErrExit("Failed to start testDB: %v", err)
+		utils.ErrExit("%v", err)
 	}
-	defer StopTestDB(ctx, oracleTestDB)
+	testPostgresTarget = &TestDB{
+		Container: postgresContainer,
+		TargetDB: NewTargetDB(&TargetConf{
+			TargetDBType: "postgresql",
+			DBVersion:    postgresContainer.GetConfig().DBVersion,
+			User:         postgresContainer.GetConfig().User,
+			Password:     postgresContainer.GetConfig().Password,
+			Schema:       postgresContainer.GetConfig().Schema,
+			DBName:       postgresContainer.GetConfig().DBName,
+			Host:         host,
+			Port:         port,
+			SSLMode:      "disable",
+		}),
+	}
 
-	yugabyteTestDB, err = StartTestDB(ctx, ybTargetConf)
+	err = testPostgresTarget.Init()
 	if err != nil {
-		utils.ErrExit("Failed to start testDB: %v", err)
+		utils.ErrExit("Failed to connect to postgres database: %w", err)
 	}
-	defer StopTestDB(ctx, yugabyteTestDB)
+	defer testPostgresTarget.Finalize()
 
+	// oracleContainer := testcontainers.NewTestContainer("oracle", nil)
+	// _ = oracleContainer.Start(ctx)
+	// host, port, err = oracleContainer.GetHostPort()
+	// if err != nil {
+	// 	utils.ErrExit("%v", err)
+	// }
+	// testOracleTarget = &TestDB2{
+	// 	Container: oracleContainer,
+	// 	TargetDB: NewTargetDB(&TargetConf{
+	// 		TargetDBType: "oracle",
+	// 		DBVersion:    oracleContainer.GetConfig().DBVersion,
+	// 		User:         oracleContainer.GetConfig().User,
+	// 		Password:     oracleContainer.GetConfig().Password,
+	// 		Schema:       oracleContainer.GetConfig().Schema,
+	// 		DBName:       oracleContainer.GetConfig().DBName,
+	// 		Host:         host,
+	// 		Port:         port,
+	// 	}),
+	// }
+
+	// err = testOracleTarget.Init()
+	// if err != nil {
+	// 	utils.ErrExit("Failed to connect to oracle database: %w", err)
+	// }
+	// defer testOracleTarget.Finalize()
+
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabytedbContainer.Start(ctx)
+	if err != nil {
+		utils.ErrExit("Failed to start yugabytedb container: %v", err)
+	}
+	host, port, err = yugabytedbContainer.GetHostPort()
+	if err != nil {
+		utils.ErrExit("%v", err)
+	}
+	testYugabyteDBTarget = &TestDB{
+		Container: yugabytedbContainer,
+		TargetDB: NewTargetDB(&TargetConf{
+			TargetDBType: "yugabytedb",
+			DBVersion:    yugabytedbContainer.GetConfig().DBVersion,
+			User:         yugabytedbContainer.GetConfig().User,
+			Password:     yugabytedbContainer.GetConfig().Password,
+			Schema:       yugabytedbContainer.GetConfig().Schema,
+			DBName:       yugabytedbContainer.GetConfig().DBName,
+			Host:         host,
+			Port:         port,
+		}),
+	}
+
+	err = testYugabyteDBTarget.Init()
+	if err != nil {
+		utils.ErrExit("Failed to connect to yugabytedb database: %w", err)
+	}
+	defer testYugabyteDBTarget.Finalize()
+
+	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
 
 	exitCode := m.Run()

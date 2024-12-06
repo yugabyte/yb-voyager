@@ -21,6 +21,7 @@ type TestContainer interface {
 	Terminate(ctx context.Context)
 	GetHostPort() (string, int, error)
 	GetConfig() ContainerConfig
+	GetConnectionString() string
 	/*
 		TODOs
 			// Function to run sql script for a specific test case
@@ -113,12 +114,14 @@ func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerCon
 		config.Password = lo.Ternary(config.Password == "", "passsword", config.Password)
 		config.DBVersion = lo.Ternary(config.DBVersion == "", "11", config.DBVersion)
 		config.Schema = lo.Ternary(config.Schema == "", "public", config.Schema)
+		config.DBName = lo.Ternary(config.DBName == "", "postgres", config.DBName)
 
 	case YUGABYTEDB:
 		config.User = lo.Ternary(config.User == "", "yugabyte", config.User) // ybdb docker doesn't create specified user
 		config.Password = lo.Ternary(config.Password == "", "passsword", config.Password)
 		config.DBVersion = lo.Ternary(config.DBVersion == "", "2.20.7.1-b10", config.DBVersion)
 		config.Schema = lo.Ternary(config.Schema == "", "public", config.Schema)
+		config.DBName = lo.Ternary(config.DBName == "", "yugabyte", config.DBName)
 
 	case ORACLE:
 		config.User = lo.Ternary(config.User == "", "ybvoyager", config.User)

@@ -4,11 +4,13 @@ CREATE TABLE public.foo (
         id INT PRIMARY KEY,
         name VARCHAR
 );
+INSERT into public.foo values (1, 'abc'), (2, 'xyz');
 
 CREATE TABLE public.bar (
         id INT PRIMARY KEY,
         name VARCHAR
 );
+INSERT into public.bar values (1, 'abc'), (2, 'xyz');
 
 CREATE TABLE public.unique_table (
         id SERIAL PRIMARY KEY,

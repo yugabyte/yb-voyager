@@ -96,3 +96,7 @@ func (ora *OracleContainer) GetHostPort() (string, int, error) {
 func (ora *OracleContainer) GetConfig() ContainerConfig {
 	return ora.ContainerConfig
 }
+
+func (ora *OracleContainer) GetConnectionString() string {
+	panic("GetConnectionString() not implemented yet for oracle")
+}

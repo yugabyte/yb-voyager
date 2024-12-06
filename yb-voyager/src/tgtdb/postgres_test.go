@@ -16,34 +16,24 @@ limitations under the License.
 package tgtdb
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"github.com/yugabyte/yb-voyager/yb-voyager/test"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestCreateVoyagerSchemaPG(t *testing.T) {
-	ctx := context.Background()
-
-	// Start a PostgreSQL container
-	pgContainer, host, port, err := testcontainers.StartDBContainer(ctx, testcontainers.POSTGRESQL)
-	assert.NoError(t, err, "Failed to start PostgreSQL container")
-	defer pgContainer.Terminate(ctx)
-
-	// Connect to the database
-	dsn := fmt.Sprintf("host=%s port=%s user=testuser password=testpassword dbname=testdb sslmode=disable", host, port.Port())
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", testPostgresTarget.Container.GetConnectionString())
 	assert.NoError(t, err)
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = testcontainers.WaitForDBToBeReady(db)
+	err = testutils.WaitForDBToBeReady(db)
 	assert.NoError(t, err)
 
 	// Initialize the TargetYugabyteDB instance
@@ -113,7 +103,7 @@ func TestPostgresGetNonEmptyTables(t *testing.T) {
 		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "bar")},
 	}
 
-	actualTables := postgresTestDB.GetNonEmptyTables(tables)
+	actualTables := testPostgresTarget.GetNonEmptyTables(tables)
 	fmt.Printf("non empty tables: %+v\n", actualTables)
-	assertEqualNameTuplesSlice(t, expectedTables, actualTables)
+	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
 }

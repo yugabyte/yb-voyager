@@ -99,3 +99,13 @@ func (yb *YugabyteDBContainer) GetHostPort() (string, int, error) {
 func (yb *YugabyteDBContainer) GetConfig() ContainerConfig {
 	return yb.ContainerConfig
 }
+
+func (yb *YugabyteDBContainer) GetConnectionString() string {
+	config := yb.GetConfig()
+	host, port, err := yb.GetHostPort()
+	if err != nil {
+		utils.ErrExit("failed to get host port for yugabytedb connection string: %v", err)
+	}
+
+	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
+}
