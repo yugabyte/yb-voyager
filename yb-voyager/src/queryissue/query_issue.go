@@ -14,6 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+This package has all logic related to detecting issues in queries (DDL or DML).
+Entry point is ParserIssueDetector, which makes use queryparser pkg to parse
+the query and multiple detectors to figure out issues in the parseTree.
+*/
 package queryissue
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
