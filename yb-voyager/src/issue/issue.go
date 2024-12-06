@@ -40,21 +40,3 @@ func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	}
 	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
 }
-
-type IssueInstance struct {
-	Issue
-	ObjectType   string // TABLE, FUNCTION, DML_QUERY?
-	ObjectName   string // table name/function name/etc
-	SqlStatement string
-	Details      map[string]interface{} // additional details about the issue
-}
-
-func newIssueInstance(issue Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) IssueInstance {
-	return IssueInstance{
-		Issue:        issue,
-		ObjectType:   objectType,
-		ObjectName:   objectName,
-		SqlStatement: sqlStatement,
-		Details:      details,
-	}
-}
