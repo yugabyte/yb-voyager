@@ -18,26 +18,32 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 )
 
 var (
 	yugabytedbContainer *yugabytedb.Container
+	yugabytedbConnStr   string
 	versions            = []string{}
 )
 
 func getConn() (*pgx.Conn, error) {
 	ctx := context.Background()
-	connStr, err := yugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		return nil, err
+	var connStr string
+	var err error
+	if yugabytedbConnStr != "" {
+		connStr = yugabytedbConnStr
+	} else {
+		connStr, err = yugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	conn, err := pgx.Connect(ctx, connStr)
 	if err != nil {
 		return nil, err
@@ -88,8 +94,8 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 		panic("YB_VERSION env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105 for example")
 	}
 
-	doNotCreateYugaByteContainer := os.Getenv("DO_NOT_CREATE_YUGABYTE_CONTAINER")
-	if !lo.Contains([]string{"true", "t", "yes", "y"}, strings.ToLower(doNotCreateYugaByteContainer)) {
+	yugabytedbConnStr = os.Getenv("YB_CONN_STR")
+	if yugabytedbConnStr == "" {
 		// spawn yugabytedb container
 		var err error
 		ctx := context.Background()
