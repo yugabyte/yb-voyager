@@ -37,6 +37,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/tebeka/atexit v0.3.0
 	github.com/testcontainers/testcontainers-go v0.34.0
+	github.com/testcontainers/testcontainers-go/modules/yugabytedb v0.34.0
 	github.com/vbauerster/mpb/v8 v8.4.0
 	gocloud.dev v0.29.0
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
