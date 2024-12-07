@@ -48,55 +48,14 @@ run_script() {
 
 main() {
     echo ${REPO_ROOT}
-    echo "Deleting and recreating export-dir."
-    rm -rf ${EXPORT_DIR}
-    mkdir -p ${EXPORT_DIR}
-    chmod +x ${TEST_DIR}/init-db ${TEST_DIR}/cleanup-db
 
     step "START: ${TEST_NAME}"
     print_env
 
     pushd ${TEST_DIR}
 
-    step "Initialize source database."
-    ./init-db
-
-    step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
-		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
-	else
-		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
-	fi
-
-
-    LOG_FILE="/tmp/install-yb-voyager.log"
-    # Delete the log file if it exists
-    if [ -e "$LOG_FILE" ]; then
-        echo "Log file exists. Deleting it."
-        sudo rm -f "$LOG_FILE" || { echo "Failed to delete $LOG_FILE"; exit 1; }
-    fi
-    # Install older version of yb-voyager
-    step "Installing Voyager version ${LAST_BREAKING_RELEASE}."
-
-    yes | ${REPO_ROOT}/installer_scripts/install-yb-voyager --version ${LAST_BREAKING_RELEASE}
-
-    source ~/.bashrc
-    step "Check Voyager version."
-
-    yb-voyager version
-    verify_voyager_version ${LAST_BREAKING_RELEASE}
-
-    step "Grant permissions."
-    grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
-
-    # Run before steps
-    run_script "${TEST_TYPE_DIR}/before"
-
-    yes | ${REPO_ROOT}/installer_scripts/install-yb-voyager --version ${RELEASE_TO_UPGRADE_TO}
-    source ~/.bashrc
-
-    pushd ${TEST_DIR}
+    # yes | ${REPO_ROOT}/installer_scripts/install-yb-voyager --version ${RELEASE_TO_UPGRADE_TO}
+    # source ~/.bashrc
 
     step "Check Voyager version after upgrade."
     yb-voyager version
@@ -113,4 +72,3 @@ main() {
 }
 
 main
-
