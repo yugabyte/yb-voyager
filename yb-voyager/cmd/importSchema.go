@@ -225,8 +225,14 @@ func importSchema() error {
 		dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 	}
 
-	if flagPostSnapshotImport && flagRefreshMViews {
-		refreshMViews(conn)
+	if flagPostSnapshotImport {
+		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
+		if err != nil {
+			return err
+		}
+		if flagRefreshMViews {
+			refreshMViews(conn)
+		}
 	} else {
 		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
@@ -411,7 +417,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 	schemaAnalysisReport := analyzeSchemaInternal(
 		&srcdb.Source{
 			DBType: sourceDBType,
-		})
+		}, false)
 
 	switch sourceDBType {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database

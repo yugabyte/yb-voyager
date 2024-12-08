@@ -58,7 +58,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
             "Suggestion": "Refer docs link for details on possible workaround",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -69,7 +70,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         }
     ]
 }

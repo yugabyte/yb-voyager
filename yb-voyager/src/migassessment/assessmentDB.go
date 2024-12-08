@@ -59,7 +59,7 @@ type TableIndexStats struct {
 	SizeInBytes     *int64  `json:"SizeInBytes"`
 }
 
-func GetSourceMetadataDBFilePath() string {
+var GetSourceMetadataDBFilePath = func() string {
 	return filepath.Join(AssessmentDir, "dbs", "assessment.db")
 }
 
