@@ -18,7 +18,6 @@ export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_offline_export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
@@ -37,6 +36,10 @@ fi
 
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 
+export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_offline_export-dir"}
+if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
+  EXPORT_DIR="${EXPORT_DIR}_ssl"
+fi
 
 if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
     export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_offline"}

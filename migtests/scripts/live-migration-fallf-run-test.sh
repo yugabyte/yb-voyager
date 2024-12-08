@@ -19,7 +19,6 @@ export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_fallf_export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
@@ -30,6 +29,11 @@ if [ -f "${TEST_DIR}/live_env.sh" ]; then
     source "${TEST_DIR}/live_env.sh"
 else
     source "${TEST_DIR}/env.sh"
+fi
+
+export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_fallf_export-dir"}
+if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
+  EXPORT_DIR="${EXPORT_DIR}_ssl"
 fi
 
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
