@@ -88,6 +88,21 @@ func testUnloggedTableIssue(t *testing.T) {
 	assert.ErrorContains(t, err, "UNLOGGED database object not supported yet")
 }
 
+func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE orders2 (
+	order_id bigint NOT NULL,
+	order_date timestamp
+	) PARTITION BY RANGE (order_date);
+	ALTER TABLE orders2 ADD PRIMARY KEY (order_id,order_date)`)
+	assert.ErrorContains(t, err, "changing primary key of a partitioned table is not yet implemented")
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
@@ -116,6 +131,9 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "unlogged table", ybVersion), testUnloggedTableIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "alter table add PK on partition", ybVersion), testAlterTableAddPKOnPartitionIssue)
 	assert.True(t, success)
 
 }
