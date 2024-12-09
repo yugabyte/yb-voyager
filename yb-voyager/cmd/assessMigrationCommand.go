@@ -526,13 +526,14 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 	for _, unsupportedFeature := range ar.UnsupportedFeatures {
 		for _, object := range unsupportedFeature.Objects {
 			issues = append(issues, AssessmentIssuePayload{
-				Type:               FEATURE,
-				TypeDescription:    FEATURE_ISSUE_TYPE_DESCRIPTION,
-				Subtype:            unsupportedFeature.FeatureName,
-				SubtypeDescription: unsupportedFeature.FeatureDescription, // TODO: test payload once we add desc for unsupported features
-				ObjectName:         object.ObjectName,
-				SqlStatement:       object.SqlStatement,
-				DocsLink:           unsupportedFeature.DocsLink,
+				Type:                   FEATURE,
+				TypeDescription:        FEATURE_ISSUE_TYPE_DESCRIPTION,
+				Subtype:                unsupportedFeature.FeatureName,
+				SubtypeDescription:     unsupportedFeature.FeatureDescription, // TODO: test payload once we add desc for unsupported features
+				ObjectName:             object.ObjectName,
+				SqlStatement:           object.SqlStatement,
+				DocsLink:               unsupportedFeature.DocsLink,
+				MinimumVersionsFixedIn: unsupportedFeature.MinimumVersionsFixedIn,
 			})
 		}
 	}
@@ -540,37 +541,40 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 	for _, migrationCaveat := range ar.MigrationCaveats {
 		for _, object := range migrationCaveat.Objects {
 			issues = append(issues, AssessmentIssuePayload{
-				Type:               MIGRATION_CAVEATS,
-				TypeDescription:    MIGRATION_CAVEATS_TYPE_DESCRIPTION,
-				Subtype:            migrationCaveat.FeatureName,
-				SubtypeDescription: migrationCaveat.FeatureDescription,
-				ObjectName:         object.ObjectName,
-				SqlStatement:       object.SqlStatement,
-				DocsLink:           migrationCaveat.DocsLink,
+				Type:                   MIGRATION_CAVEATS,
+				TypeDescription:        MIGRATION_CAVEATS_TYPE_DESCRIPTION,
+				Subtype:                migrationCaveat.FeatureName,
+				SubtypeDescription:     migrationCaveat.FeatureDescription,
+				ObjectName:             object.ObjectName,
+				SqlStatement:           object.SqlStatement,
+				DocsLink:               migrationCaveat.DocsLink,
+				MinimumVersionsFixedIn: migrationCaveat.MinimumVersionsFixedIn,
 			})
 		}
 	}
 
 	for _, uqc := range ar.UnsupportedQueryConstructs {
 		issues = append(issues, AssessmentIssuePayload{
-			Type:            QUERY_CONSTRUCT,
-			TypeDescription: UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
-			Subtype:         uqc.ConstructTypeName,
-			SqlStatement:    uqc.Query,
-			DocsLink:        uqc.DocsLink,
+			Type:                   QUERY_CONSTRUCT,
+			TypeDescription:        UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
+			Subtype:                uqc.ConstructTypeName,
+			SqlStatement:           uqc.Query,
+			DocsLink:               uqc.DocsLink,
+			MinimumVersionsFixedIn: uqc.MinimumVersionsFixedIn,
 		})
 	}
 
 	for _, plpgsqlObjects := range ar.UnsupportedPlPgSqlObjects {
 		for _, object := range plpgsqlObjects.Objects {
 			issues = append(issues, AssessmentIssuePayload{
-				Type:               PLPGSQL_OBJECT,
-				TypeDescription:    UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
-				Subtype:            plpgsqlObjects.FeatureName,
-				SubtypeDescription: plpgsqlObjects.FeatureDescription,
-				ObjectName:         object.ObjectName,
-				SqlStatement:       object.SqlStatement,
-				DocsLink:           plpgsqlObjects.DocsLink,
+				Type:                   PLPGSQL_OBJECT,
+				TypeDescription:        UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
+				Subtype:                plpgsqlObjects.FeatureName,
+				SubtypeDescription:     plpgsqlObjects.FeatureDescription,
+				ObjectName:             object.ObjectName,
+				SqlStatement:           object.SqlStatement,
+				DocsLink:               plpgsqlObjects.DocsLink,
+				MinimumVersionsFixedIn: plpgsqlObjects.MinimumVersionsFixedIn,
 			})
 		}
 	}
