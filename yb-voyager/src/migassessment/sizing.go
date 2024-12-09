@@ -132,23 +132,27 @@ const (
 	SHARDED   = "sharded"
 )
 
-func getExperimentDBPath() string {
-	return filepath.Join(AssessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
+func getExperimentDBPath(assessmentDir string) string {
+	if AssessmentDir == "" {
+		return filepath.Join(assessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
+	} else {
+		return filepath.Join(AssessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
+	}
 }
 
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
 
-func SizingAssessment() error {
+func SizingAssessment(assessmentDir string) error {
 
 	log.Infof("loading metadata files for sharding assessment")
-	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata(GetSourceMetadataDBFilePath())
+	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata(assessmentDir)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to load source metadata: %v", err)
 		return fmt.Errorf("failed to load source metadata: %w", err)
 	}
 
-	experimentDB, err := createConnectionToExperimentData()
+	experimentDB, err := createConnectionToExperimentData(assessmentDir)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to connect to experiment data: %v", err)
 		return fmt.Errorf("failed to connect to experiment data: %w", err)
@@ -850,7 +854,15 @@ Returns:
 	[]SourceDBMetadata: all index objects from source db
 	float64: total size of source db
 */
-func loadSourceMetadata(filePath string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+func loadSourceMetadata(assessmentDir string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+	filePath := GetSourceMetadataDBFilePath()
+	if AssessmentDir == "" {
+		filePath = filepath.Join(assessmentDir, filePath)
+	} else {
+		filePath = filepath.Join(AssessmentDir, filePath)
+	}
+
+	fmt.Println("source db file to connect to: ", filePath)
 	SourceMetaDB, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
@@ -1419,8 +1431,8 @@ func getListOfIndexesAlongWithObjects(tableList []SourceDBMetadata,
 	return indexesAndObject, cumulativeIndexCount
 }
 
-func createConnectionToExperimentData() (*sql.DB, error) {
-	filePath, err := getExperimentFile()
+func createConnectionToExperimentData(assessmentDir string) (*sql.DB, error) {
+	filePath, err := getExperimentFile(assessmentDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get experiment file: %w", err)
 	}
@@ -1431,10 +1443,10 @@ func createConnectionToExperimentData() (*sql.DB, error) {
 	return DbConnection, nil
 }
 
-func getExperimentFile() (string, error) {
+func getExperimentFile(assessmentDir string) (string, error) {
 	fetchedFromRemote := false
 	if PREFER_REMOTE_EXPERIMENT_DB && checkInternetAccess() {
-		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo()
+		existsOnRemote, err := checkAndDownloadFileExistsOnRemoteRepo(assessmentDir)
 		if err != nil {
 			return "", err
 		}
@@ -1443,16 +1455,16 @@ func getExperimentFile() (string, error) {
 		}
 	}
 	if !fetchedFromRemote {
-		err := os.WriteFile(getExperimentDBPath(), experimentData20240, 0644)
+		err := os.WriteFile(getExperimentDBPath(assessmentDir), experimentData20240, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to write experiment data file: %w", err)
 		}
 	}
 
-	return getExperimentDBPath(), nil
+	return getExperimentDBPath(assessmentDir), nil
 }
 
-func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
+func checkAndDownloadFileExistsOnRemoteRepo(assessmentDir string) (bool, error) {
 	// check if the file exists on remote github repository using the raw link
 	remotePath := GITHUB_RAW_LINK + "/" + EXPERIMENT_DATA_FILENAME
 	resp, err := http.Get(remotePath)
@@ -1469,7 +1481,7 @@ func checkAndDownloadFileExistsOnRemoteRepo() (bool, error) {
 		return false, nil
 	}
 
-	downloadPath := getExperimentDBPath()
+	downloadPath := getExperimentDBPath(assessmentDir)
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, fmt.Errorf("failed to read response body: %w", err)

@@ -31,7 +31,6 @@ import (
 	"syscall"
 	"text/template"
 
-	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -304,92 +303,93 @@ func assessMigration() (err error) {
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
-	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	/*
+		checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
+		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
-	err = retrieveMigrationUUID()
-	if err != nil {
-		return fmt.Errorf("failed to get migration UUID: %w", err)
-	}
-
-	assessmentDir := filepath.Join(exportDir, "assessment")
-	migassessment.AssessmentDir = assessmentDir
-	migassessment.SourceDBType = source.DBType
-
-	if source.Password == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		err = retrieveMigrationUUID()
 		if err != nil {
-			return fmt.Errorf("failed to get source DB password: %w", err)
-		}
-	}
-
-	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
-		err := source.DB().Connect()
-		if err != nil {
-			utils.ErrExit("error connecting source db: %v", err)
+			return fmt.Errorf("failed to get migration UUID: %w", err)
 		}
 
-		// We will require source db connection for the below checks
-		// Check if required binaries are installed.
-		if source.RunGuardrailsChecks {
-			binaryCheckIssues, err := checkDependenciesForExport()
+		assessmentDir := filepath.Join(exportDir, "assessment")
+		migassessment.AssessmentDir = assessmentDir
+		migassessment.SourceDBType = source.DBType
+
+		if source.Password == "" {
+			source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 			if err != nil {
-				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
-			} else if len(binaryCheckIssues) > 0 {
-				return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
+				return fmt.Errorf("failed to get source DB password: %w", err)
 			}
 		}
 
-		res := source.DB().CheckSchemaExists()
-		if !res {
-			return fmt.Errorf("schema %q does not exist", source.Schema)
-		}
-
-		// Check if source db has permissions to assess migration
-		if source.RunGuardrailsChecks {
-			checkIfSchemasHaveUsagePermissions()
-			missingPerms, err := source.DB().GetMissingAssessMigrationPermissions()
+		if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+			err := source.DB().Connect()
 			if err != nil {
-				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+				utils.ErrExit("error connecting source db: %v", err)
 			}
-			if len(missingPerms) > 0 {
-				color.Red("\nPermissions missing in the source database for assess migration:\n")
-				output := strings.Join(missingPerms, "\n")
-				utils.PrintAndLog("%s\n\n", output)
 
-				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-				fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
-
-				reply := utils.AskPrompt("\nDo you want to continue anyway")
-				if !reply {
-					return fmt.Errorf("grant the required permissions and try again")
+			// We will require source db connection for the below checks
+			// Check if required binaries are installed.
+			if source.RunGuardrailsChecks {
+				binaryCheckIssues, err := checkDependenciesForExport()
+				if err != nil {
+					return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
+				} else if len(binaryCheckIssues) > 0 {
+					return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 				}
 			}
+
+			res := source.DB().CheckSchemaExists()
+			if !res {
+				return fmt.Errorf("schema %q does not exist", source.Schema)
+			}
+
+			// Check if source db has permissions to assess migration
+			if source.RunGuardrailsChecks {
+				checkIfSchemasHaveUsagePermissions()
+				missingPerms, err := source.DB().GetMissingAssessMigrationPermissions()
+				if err != nil {
+					return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+				}
+				if len(missingPerms) > 0 {
+					color.Red("\nPermissions missing in the source database for assess migration:\n")
+					output := strings.Join(missingPerms, "\n")
+					utils.PrintAndLog("%s\n\n", output)
+
+					link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+					fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
+
+					reply := utils.AskPrompt("\nDo you want to continue anyway")
+					if !reply {
+						return fmt.Errorf("grant the required permissions and try again")
+					}
+				}
+			}
+
+			fetchSourceInfo()
+
+			source.DB().Disconnect()
 		}
 
-		fetchSourceInfo()
+		startEvent := createMigrationAssessmentStartedEvent()
+		controlPlane.MigrationAssessmentStarted(startEvent)
 
-		source.DB().Disconnect()
-	}
+		initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
-	startEvent := createMigrationAssessmentStartedEvent()
-	controlPlane.MigrationAssessmentStarted(startEvent)
+		err = gatherAssessmentMetadata()
+		if err != nil {
+			return fmt.Errorf("failed to gather assessment metadata: %w", err)
+		}
 
-	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
+		parseExportedSchemaFileForAssessmentIfRequired()
 
-	err = gatherAssessmentMetadata()
-	if err != nil {
-		return fmt.Errorf("failed to gather assessment metadata: %w", err)
-	}
+		err = populateMetadataCSVIntoAssessmentDB()
+		if err != nil {
+			return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
+		}*/
 
-	parseExportedSchemaFileForAssessmentIfRequired()
-
-	err = populateMetadataCSVIntoAssessmentDB()
-	if err != nil {
-		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
-	}
-
-	err = runAssessment()
+	err = runAssessment(filepath.Join(exportDir, "assessment"))
 	if err != nil {
 		utils.PrintAndLog("failed to run assessment: %v", err)
 	}
@@ -402,10 +402,10 @@ func assessMigration() (err error) {
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
-	err = SetMigrationAssessmentDoneInMSR()
+	/*err = SetMigrationAssessmentDoneInMSR()
 	if err != nil {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
-	}
+	}*/
 	return nil
 }
 
@@ -576,10 +576,9 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 	return issues
 }
 
-func runAssessment() error {
+func runAssessment(assessmentDir string) error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-
-	err := migassessment.SizingAssessment()
+	err := migassessment.SizingAssessment(assessmentDir)
 	if err != nil {
 		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
 		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
@@ -834,7 +833,7 @@ func generateAssessmentReport() (err error) {
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	assessmentReport.TargetDBVersion = targetDbVersion
 
-	err = getAssessmentReportContentFromAnalyzeSchema()
+	/*err = getAssessmentReportContentFromAnalyzeSchema()
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report content from analyze schema: %w", err)
 	}
@@ -864,10 +863,10 @@ func generateAssessmentReport() (err error) {
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
-	}
+	}*/
 
 	addNotesToAssessmentReport()
-	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
+	//addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
