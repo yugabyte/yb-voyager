@@ -1218,7 +1218,8 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	}
 
 	analyzePayload := callhome.AnalyzePhasePayload{
-		Issues: callhome.MarshalledJsonString(callhomeIssues),
+		TargetDbVersion: schemaAnalysisReport.TargetDBVersion.String(),
+		Issues:          callhome.MarshalledJsonString(callhomeIssues),
 		DatabaseObjects: callhome.MarshalledJsonString(lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
 			return dbObject
