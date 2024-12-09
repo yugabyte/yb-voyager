@@ -833,6 +833,7 @@ func CleanupChildProcesses() {
 		}
 	}
 	PrintElapsedDuration()
+	utils.PrintAndLog("cleaned up child processes, returning...")
 }
 
 // this function wait for process to exit after signalling it to stop
@@ -1542,6 +1543,7 @@ func PackAndSendCallhomePayloadOnExit() {
 	case importDataFileCmd.CommandPath():
 		packAndSendImportDataFilePayload(EXIT)
 	}
+	utils.PrintAndLog("returning from PackAndSendCallhomePayloadOnExit() ...")
 }
 
 func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDataPhasePayload) {

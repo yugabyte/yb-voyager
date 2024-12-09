@@ -390,7 +390,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		}
 		progressTracker.UpdateProgress(status)
 		if !snapshotComplete {
-			snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker)
+			snapshotComplete, err = checkAndHandleSnapshotComplete(ctx, config, status, progressTracker)
 			if err != nil {
 				return fmt.Errorf("failed to check if snapshot is complete: %w", err)
 			}
@@ -407,7 +407,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		if err != nil {
 			return fmt.Errorf("failed to read export status: %w", err)
 		}
-		snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker)
+		snapshotComplete, err = checkAndHandleSnapshotComplete(ctx, config, status, progressTracker)
 		if !snapshotComplete || err != nil {
 			return fmt.Errorf("snapshot was not completed: %w", err)
 		}
@@ -417,7 +417,9 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 	return nil
 }
 
-func reportStreamingProgress() {
+func reportStreamingProgress(ctx context.Context) {
+	utils.WaitGroup.Add(1)
+	defer utils.WaitGroup.Done()
 	tableWriter := uilive.New()
 	headerWriter := tableWriter.Newline()
 	separatorWriter := tableWriter.Newline()
@@ -427,47 +429,61 @@ func reportStreamingProgress() {
 	row4Writer := tableWriter.Newline()
 	footerWriter := tableWriter.Newline()
 	tableWriter.Start()
+	// defer tableWriter.Stop()
+	defer fmt.Printf("returning from streamingprogress uilive\n")
 	for {
-		fmt.Fprint(tableWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		fmt.Fprint(headerWriter, color.GreenString("| %-40s | %30s |\n", "Metric", "Value"))
-		fmt.Fprint(separatorWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		fmt.Fprint(row1Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events", strconv.FormatInt(totalEventCount, 10)))
-		fmt.Fprint(row2Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events (Current Run)", strconv.FormatInt(totalEventCountRun, 10)))
-		fmt.Fprint(row3Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
-		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
-		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		tableWriter.Flush()
-		time.Sleep(10 * time.Second)
-	}
-}
-
-func calculateStreamingProgress() {
-	var err error
-	for {
-		totalEventCount, totalEventCountRun, err = metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
-		if err != nil {
-			utils.ErrExit("failed to get total exported count from metadb: %w", err)
-		}
-
-		throughputInLast3Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
-		if err != nil {
-			utils.ErrExit("failed to get export rate from metadb: %w", err)
-		}
-		throughputInLast10Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 10)
-		if err != nil {
-			utils.ErrExit("failed to get export rate from metadb: %w", err)
-		}
-		if disablePb && callhome.SendDiagnostics {
-			// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
-			time.Sleep(12 * time.Minute)
-		} else {
+		select {
+		case <-ctx.Done():
+			utils.PrintAndLog("cancel context called, returning reportStreamingProgress()...")
+			tableWriter.Stop()
+			return
+		default:
+			fmt.Fprint(tableWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
+			fmt.Fprint(headerWriter, color.GreenString("| %-40s | %30s |\n", "Metric", "Value"))
+			fmt.Fprint(separatorWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
+			fmt.Fprint(row1Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events", strconv.FormatInt(totalEventCount, 10)))
+			fmt.Fprint(row2Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events (Current Run)", strconv.FormatInt(totalEventCountRun, 10)))
+			fmt.Fprint(row3Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
+			fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
+			fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
+			tableWriter.Flush()
 			time.Sleep(10 * time.Second)
 		}
 	}
-
 }
 
-func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
+func calculateStreamingProgress(ctx context.Context) {
+	var err error
+	for {
+		select {
+		case <-ctx.Done():
+			utils.PrintAndLog("cancel context called, returning calculateStreamingProgress()...")
+			return
+		default:
+			totalEventCount, totalEventCountRun, err = metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
+			if err != nil {
+				utils.ErrExit("failed to get total exported count from metadb: %w", err)
+			}
+
+			throughputInLast3Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
+			if err != nil {
+				utils.ErrExit("failed to get export rate from metadb: %w", err)
+			}
+			throughputInLast10Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 10)
+			if err != nil {
+				utils.ErrExit("failed to get export rate from metadb: %w", err)
+			}
+			if disablePb && callhome.SendDiagnostics {
+				// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
+				time.Sleep(12 * time.Minute)
+			} else {
+				time.Sleep(10 * time.Second)
+			}
+		}
+	}
+}
+
+func checkAndHandleSnapshotComplete(ctx context.Context, config *dbzm.Config, status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
@@ -519,10 +535,10 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 		}
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb || callhome.SendDiagnostics {
-			go calculateStreamingProgress()
+			go calculateStreamingProgress(ctx)
 		}
 		if !disablePb {
-			go reportStreamingProgress()
+			go reportStreamingProgress(ctx)
 		}
 	}
 	return true, nil
