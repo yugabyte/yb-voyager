@@ -104,7 +104,7 @@ type UnsupportedFeature struct {
 }
 
 type AssessMigrationPhasePayload struct {
-	TargetDbVersion            *ybversion.YBVersion `json:"target_db_version"`
+	TargetDBVersion            *ybversion.YBVersion `json:"target_db_version"`
 	MigrationComplexity        string               `json:"migration_complexity"`
 	UnsupportedFeatures        string               `json:"unsupported_features"`
 	UnsupportedDatatypes       string               `json:"unsupported_datatypes"`
@@ -141,7 +141,7 @@ type ExportSchemaPhasePayload struct {
 // SHOULD NOT REMOVE THESE TWO (issues, database_objects) FIELDS of AnalyzePhasePayload as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L563
 type AnalyzePhasePayload struct {
-	TargetDbVersion *ybversion.YBVersion `json:"target_db_version"`
+	TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
 	Issues          string               `json:"issues"`
 	DatabaseObjects string               `json:"database_objects"`
 }

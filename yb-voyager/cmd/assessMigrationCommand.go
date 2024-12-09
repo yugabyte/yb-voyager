@@ -163,7 +163,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	})
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		TargetDbVersion:     assessmentReport.TargetDBVersion,
+		TargetDBVersion:     assessmentReport.TargetDBVersion,
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			var objects []string
@@ -474,7 +474,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	payload := AssessMigrationPayload{
 		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
 		VoyagerVersion:      assessmentReport.VoyagerVersion,
-		TargetDbVersion:     assessmentReport.TargetDBVersion,
+		TargetDBVersion:     assessmentReport.TargetDBVersion,
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		SchemaSummary:       assessmentReport.SchemaSummary,
 		AssessmentIssues:    assessmentIssues,
