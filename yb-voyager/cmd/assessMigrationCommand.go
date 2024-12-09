@@ -473,6 +473,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	payload := AssessMigrationPayload{
 		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
 		VoyagerVersion:      assessmentReport.VoyagerVersion,
+		TargetDbVersion:     assessmentReport.TargetDBVersion.String(),
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		SchemaSummary:       assessmentReport.SchemaSummary,
 		AssessmentIssues:    assessmentIssues,

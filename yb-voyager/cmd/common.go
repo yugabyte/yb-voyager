@@ -1224,6 +1224,7 @@ type AssessMigrationDBConfig struct {
 type AssessMigrationPayload struct {
 	PayloadVersion        string
 	VoyagerVersion        string
+	TargetDbVersion       string
 	MigrationComplexity   string
 	SchemaSummary         utils.SchemaSummary
 	AssessmentIssues      []AssessmentIssuePayload
