@@ -627,15 +627,16 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 	}
 
 	return utils.Issue{
-		ObjectType:   issueInstance.ObjectType,
-		ObjectName:   issueInstance.ObjectName,
-		Reason:       issueInstance.TypeName,
-		SqlStatement: issueInstance.SqlStatement,
-		DocsLink:     issueInstance.DocsLink,
-		FilePath:     fileName,
-		IssueType:    issueType,
-		Suggestion:   issueInstance.Suggestion,
-		GH:           issueInstance.GH,
+		ObjectType:             issueInstance.ObjectType,
+		ObjectName:             issueInstance.ObjectName,
+		Reason:                 issueInstance.TypeName,
+		SqlStatement:           issueInstance.SqlStatement,
+		DocsLink:               issueInstance.DocsLink,
+		FilePath:               fileName,
+		IssueType:              issueType,
+		Suggestion:             issueInstance.Suggestion,
+		GH:                     issueInstance.GH,
+		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
 	}
 }
 
