@@ -163,6 +163,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	})
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
+		TargetDbVersion:     assessmentReport.TargetDBVersion.String(),
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			var objects []string

@@ -103,6 +103,7 @@ type UnsupportedFeature struct {
 }
 
 type AssessMigrationPhasePayload struct {
+	TargetDbVersion            string `json:"target_db_version"`
 	MigrationComplexity        string `json:"migration_complexity"`
 	UnsupportedFeatures        string `json:"unsupported_features"`
 	UnsupportedDatatypes       string `json:"unsupported_datatypes"`
