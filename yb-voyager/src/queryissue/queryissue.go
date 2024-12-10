@@ -265,14 +265,15 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]issue.IssueInstance,
 		return nil, fmt.Errorf("error detecting issues: %w", err)
 	}
 
-	if _, ok := ddlObj.(*queryparser.Object); ok { // In case the DDL doesn't have any processor skip checking generic issues
-		return issues, nil
-	}
 	// Add the original query to each issue
 	for i := range issues {
 		if issues[i].SqlStatement == "" {
 			issues[i].SqlStatement = query
 		}
+	}
+
+	if _, ok := ddlObj.(*queryparser.Object); ok { // In case the DDL doesn't have any processor skip checking generic issues
+		return issues, nil
 	}
 
 	genericIssues, err := p.genericIssues(query)
