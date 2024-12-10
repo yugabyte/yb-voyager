@@ -22,15 +22,14 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // DDLIssueDetector interface defines methods for detecting issues in DDL objects
 type DDLIssueDetector interface {
-	DetectIssues(queryparser.DDLObject) ([]issue.IssueInstance, error)
+	DetectIssues(queryparser.DDLObject) ([]QueryIssue, error)
 }
 
 //=============TABLE ISSUE DETECTOR ===========================
@@ -40,17 +39,17 @@ type TableIssueDetector struct {
 	ParserIssueDetector
 }
 
-func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	table, ok := obj.(*queryparser.Table)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Table")
 	}
 
-	var issues []issue.IssueInstance
+	var issues []QueryIssue
 
 	// Check for generated columns
 	if len(table.GeneratedColumns) > 0 {
-		issues = append(issues, issue.NewGeneratedColumnsIssue(
+		issues = append(issues, NewGeneratedColumnsIssue(
 			obj.GetObjectType(),
 			table.GetObjectName(),
 			"", // query string
@@ -60,7 +59,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 
 	// Check for unlogged table
 	if table.IsUnlogged {
-		issues = append(issues, issue.NewUnloggedTableIssue(
+		issues = append(issues, NewUnloggedTableIssue(
 			obj.GetObjectType(),
 			table.GetObjectName(),
 			"", // query string
@@ -68,7 +67,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 	}
 
 	if table.IsInherited {
-		issues = append(issues, issue.NewInheritanceIssue(
+		issues = append(issues, NewInheritanceIssue(
 			obj.GetObjectType(),
 			table.GetObjectName(),
 			"",
@@ -79,7 +78,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 
 		for _, c := range table.Constraints {
 			if c.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
-				issues = append(issues, issue.NewExclusionConstraintIssue(
+				issues = append(issues, NewExclusionConstraintIssue(
 					obj.GetObjectType(),
 					fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
 					"",
@@ -87,7 +86,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 			}
 
 			if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
-				issues = append(issues, issue.NewDeferrableConstraintIssue(
+				issues = append(issues, NewDeferrableConstraintIssue(
 					obj.GetObjectType(),
 					fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
 					"",
@@ -105,7 +104,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 					if !ok {
 						continue
 					}
-					issues = append(issues, issue.NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
+					issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
 						obj.GetObjectType(),
 						fmt.Sprintf("%s, constraint: %s", table.GetObjectName(), c.ConstraintName),
 						"",
@@ -132,7 +131,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		if isUnsupportedDatatype {
 			reportUnsupportedDatatypes(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLive {
-			issues = append(issues, issue.NewUnsupportedDatatypesForLMIssue(
+			issues = append(issues, NewUnsupportedDatatypesForLMIssue(
 				obj.GetObjectType(),
 				table.GetObjectName(),
 				"",
@@ -145,7 +144,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 			if col.IsArrayType { // For Array cases to make it clear in issue
 				reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
 			}
-			issues = append(issues, issue.NewUnsupportedDatatypesForLMWithFFOrFBIssue(
+			issues = append(issues, NewUnsupportedDatatypesForLMWithFFOrFBIssue(
 				obj.GetObjectType(),
 				table.GetObjectName(),
 				"",
@@ -165,7 +164,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		*/
 		alterAddPk := d.primaryConsInAlter[table.GetObjectName()]
 		if alterAddPk != nil {
-			issues = append(issues, issue.NewAlterTableAddPKOnPartiionIssue(
+			issues = append(issues, NewAlterTableAddPKOnPartiionIssue(
 				obj.GetObjectType(),
 				table.GetObjectName(),
 				alterAddPk.Query,
@@ -175,7 +174,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		uniqueKeyColumns := table.UniqueKeyColumns()
 
 		if table.IsExpressionPartition && (len(primaryKeyColumns) > 0 || len(uniqueKeyColumns) > 0) {
-			issues = append(issues, issue.NewExpressionPartitionIssue(
+			issues = append(issues, NewExpressionPartitionIssue(
 				obj.GetObjectType(),
 				table.GetObjectName(),
 				"",
@@ -184,7 +183,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 
 		if table.PartitionStrategy == queryparser.LIST_PARTITION &&
 			len(table.PartitionColumns) > 1 {
-			issues = append(issues, issue.NewMultiColumnListPartition(
+			issues = append(issues, NewMultiColumnListPartition(
 				obj.GetObjectType(),
 				table.GetObjectName(),
 				"",
@@ -192,7 +191,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 		}
 		partitionColumnsNotInPK, _ := lo.Difference(table.PartitionColumns, primaryKeyColumns)
 		if len(primaryKeyColumns) > 0 && len(partitionColumnsNotInPK) > 0 {
-			issues = append(issues, issue.NewInsufficientColumnInPKForPartition(
+			issues = append(issues, NewInsufficientColumnInPKForPartition(
 				obj.GetObjectType(),
 				table.GetObjectName(),
 				"",
@@ -204,24 +203,24 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 	return issues, nil
 }
 
-func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, objName string, issues *[]issue.IssueInstance) {
+func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
 	switch col.TypeName {
 	case "xml":
-		*issues = append(*issues, issue.NewXMLDatatypeIssue(
+		*issues = append(*issues, NewXMLDatatypeIssue(
 			objType,
 			objName,
 			"",
 			col.ColumnName,
 		))
 	case "xid":
-		*issues = append(*issues, issue.NewXIDDatatypeIssue(
+		*issues = append(*issues, NewXIDDatatypeIssue(
 			objType,
 			objName,
 			"",
 			col.ColumnName,
 		))
 	case "geometry", "geography", "box2d", "box3d", "topogeometry":
-		*issues = append(*issues, issue.NewPostGisDatatypeIssue(
+		*issues = append(*issues, NewPostGisDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -229,7 +228,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			col.ColumnName,
 		))
 	default:
-		*issues = append(*issues, issue.NewUnsupportedDatatypesIssue(
+		*issues = append(*issues, NewUnsupportedDatatypesIssue(
 			objType,
 			objName,
 			"",
@@ -245,14 +244,14 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 
 type ForeignTableIssueDetector struct{}
 
-func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	foreignTable, ok := obj.(*queryparser.ForeignTable)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Foreign Table")
 	}
-	issues := make([]issue.IssueInstance, 0)
+	issues := make([]QueryIssue, 0)
 
-	issues = append(issues, issue.NewForeignTableIssue(
+	issues = append(issues, NewForeignTableIssue(
 		obj.GetObjectType(),
 		foreignTable.GetObjectName(),
 		"",
@@ -277,17 +276,17 @@ type IndexIssueDetector struct {
 	ParserIssueDetector
 }
 
-func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	index, ok := obj.(*queryparser.Index)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Index")
 	}
 
-	var issues []issue.IssueInstance
+	var issues []QueryIssue
 
 	// Check for unsupported index methods
 	if slices.Contains(UnsupportedIndexMethods, index.AccessMethod) {
-		issues = append(issues, issue.NewUnsupportedIndexMethodIssue(
+		issues = append(issues, NewUnsupportedIndexMethodIssue(
 			obj.GetObjectType(),
 			index.GetObjectName(),
 			"", // query string
@@ -297,7 +296,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 
 	// Check for storage parameters
 	if index.NumStorageOptions > 0 {
-		issues = append(issues, issue.NewStorageParameterIssue(
+		issues = append(issues, NewStorageParameterIssue(
 			obj.GetObjectType(),
 			index.GetObjectName(),
 			"", // query string
@@ -307,7 +306,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 	//GinVariations
 	if index.AccessMethod == GIN_ACCESS_METHOD {
 		if len(index.Params) > 1 {
-			issues = append(issues, issue.NewMultiColumnGinIndexIssue(
+			issues = append(issues, NewMultiColumnGinIndexIssue(
 				obj.GetObjectType(),
 				index.GetObjectName(),
 				"",
@@ -316,7 +315,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 			//In case only one Param is there
 			param := index.Params[0]
 			if param.SortByOrder != queryparser.DEFAULT_SORTING_ORDER {
-				issues = append(issues, issue.NewOrderedGinIndexIssue(
+				issues = append(issues, NewOrderedGinIndexIssue(
 					obj.GetObjectType(),
 					index.GetObjectName(),
 					"",
@@ -341,7 +340,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
 				isUDTType := slices.Contains(d.compositeTypes, param.GetFullExprCastTypeName())
 				if param.IsExprCastArrayType {
-					issues = append(issues, issue.NewIndexOnComplexDatatypesIssue(
+					issues = append(issues, NewIndexOnComplexDatatypesIssue(
 						obj.GetObjectType(),
 						index.GetObjectName(),
 						"",
@@ -352,7 +351,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 					if isUDTType {
 						reportTypeName = "user_defined_type"
 					}
-					issues = append(issues, issue.NewIndexOnComplexDatatypesIssue(
+					issues = append(issues, NewIndexOnComplexDatatypesIssue(
 						obj.GetObjectType(),
 						index.GetObjectName(),
 						"",
@@ -366,7 +365,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 				if !ok {
 					continue
 				}
-				issues = append(issues, issue.NewIndexOnComplexDatatypesIssue(
+				issues = append(issues, NewIndexOnComplexDatatypesIssue(
 					obj.GetObjectType(),
 					index.GetObjectName(),
 					"",
@@ -386,18 +385,18 @@ type AlterTableIssueDetector struct {
 	ParserIssueDetector
 }
 
-func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	alter, ok := obj.(*queryparser.AlterTable)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected AlterTable")
 	}
 
-	var issues []issue.IssueInstance
+	var issues []QueryIssue
 
 	switch alter.AlterType {
 	case queryparser.SET_OPTIONS:
 		if alter.NumSetAttributes > 0 {
-			issues = append(issues, issue.NewSetAttributeIssue(
+			issues = append(issues, NewSetAttributeIssue(
 				obj.GetObjectType(),
 				alter.GetObjectName(),
 				"", // query string
@@ -405,21 +404,21 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 		}
 	case queryparser.ADD_CONSTRAINT:
 		if alter.NumStorageOptions > 0 {
-			issues = append(issues, issue.NewStorageParameterIssue(
+			issues = append(issues, NewStorageParameterIssue(
 				obj.GetObjectType(),
 				alter.GetObjectName(),
 				"", // query string
 			))
 		}
 		if alter.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
-			issues = append(issues, issue.NewExclusionConstraintIssue(
+			issues = append(issues, NewExclusionConstraintIssue(
 				obj.GetObjectType(),
 				fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
 				"",
 			))
 		}
 		if alter.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && alter.IsDeferrable {
-			issues = append(issues, issue.NewDeferrableConstraintIssue(
+			issues = append(issues, NewDeferrableConstraintIssue(
 				obj.GetObjectType(),
 				fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
 				"",
@@ -428,7 +427,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&
 			aid.partitionTablesMap[alter.GetObjectName()] {
-			issues = append(issues, issue.NewAlterTableAddPKOnPartiionIssue(
+			issues = append(issues, NewAlterTableAddPKOnPartiionIssue(
 				obj.GetObjectType(),
 				alter.GetObjectName(),
 				"",
@@ -446,7 +445,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 				if !ok {
 					continue
 				}
-				issues = append(issues, issue.NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
+				issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
 					obj.GetObjectType(),
 					fmt.Sprintf("%s, constraint: %s", alter.GetObjectName(), alter.ConstraintName),
 					"",
@@ -457,14 +456,14 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 
 		}
 	case queryparser.DISABLE_RULE:
-		issues = append(issues, issue.NewDisableRuleIssue(
+		issues = append(issues, NewDisableRuleIssue(
 			obj.GetObjectType(),
 			alter.GetObjectName(),
 			"", // query string
 			alter.RuleName,
 		))
 	case queryparser.CLUSTER_ON:
-		issues = append(issues, issue.NewClusterONIssue(
+		issues = append(issues, NewClusterONIssue(
 			obj.GetObjectType(),
 			alter.GetObjectName(),
 			"", // query string
@@ -479,14 +478,14 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]i
 // PolicyIssueDetector handles detection of Create policy issues
 type PolicyIssueDetector struct{}
 
-func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	policy, ok := obj.(*queryparser.Policy)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Policy")
 	}
-	issues := make([]issue.IssueInstance, 0)
+	issues := make([]QueryIssue, 0)
 	if len(policy.RoleNames) > 0 {
-		issues = append(issues, issue.NewPolicyRoleIssue(
+		issues = append(issues, NewPolicyRoleIssue(
 			obj.GetObjectType(),
 			policy.GetObjectName(),
 			"",
@@ -503,15 +502,15 @@ type TriggerIssueDetector struct {
 	ParserIssueDetector
 }
 
-func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	trigger, ok := obj.(*queryparser.Trigger)
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Trigger")
 	}
-	issues := make([]issue.IssueInstance, 0)
+	issues := make([]QueryIssue, 0)
 
 	if trigger.IsConstraint {
-		issues = append(issues, issue.NewConstraintTriggerIssue(
+		issues = append(issues, NewConstraintTriggerIssue(
 			obj.GetObjectType(),
 			trigger.GetObjectName(),
 			"",
@@ -519,7 +518,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issu
 	}
 
 	if trigger.NumTransitionRelations > 0 {
-		issues = append(issues, issue.NewReferencingClauseTrigIssue(
+		issues = append(issues, NewReferencingClauseTrigIssue(
 			obj.GetObjectType(),
 			trigger.GetObjectName(),
 			"",
@@ -527,7 +526,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issu
 	}
 
 	if trigger.IsBeforeRowTrigger() && tid.partitionTablesMap[trigger.GetTableName()] {
-		issues = append(issues, issue.NewBeforeRowOnPartitionTableIssue(
+		issues = append(issues, NewBeforeRowOnPartitionTableIssue(
 			obj.GetObjectType(),
 			trigger.GetObjectName(),
 			"",
@@ -541,7 +540,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issu
 
 type ViewIssueDetector struct{}
 
-func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	return nil, nil
 }
 
@@ -549,7 +548,7 @@ func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Iss
 
 type MViewIssueDetector struct{}
 
-func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	return nil, nil
 }
 
@@ -558,7 +557,7 @@ func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.Is
 // Need to handle all the cases for which we don't have any issues detector
 type NoOpIssueDetector struct{}
 
-func (n *NoOpIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]issue.IssueInstance, error) {
+func (n *NoOpIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	return nil, nil
 }
 
@@ -584,7 +583,7 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 		}, nil
 	case *queryparser.ForeignTable:
 		return &ForeignTableIssueDetector{}, nil
-    case *queryparser.View:
+	case *queryparser.View:
 		return &ViewIssueDetector{}, nil
 	case *queryparser.MView:
 		return &MViewIssueDetector{}, nil

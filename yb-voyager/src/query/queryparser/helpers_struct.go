@@ -21,12 +21,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
-
-func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
-	return parseTree.Stmts[0].Stmt.ProtoReflect()
-}
 
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
@@ -253,7 +248,6 @@ func GetFuncParametersTypeNames(parseTree *pg_query.ParseResult) []string {
 	}
 	return paramTypeNames
 }
-
 
 func IsDDL(parseTree *pg_query.ParseResult) (bool, error) {
 	ddlParser, err := GetDDLProcessor(parseTree)

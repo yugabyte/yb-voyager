@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package issue
+package queryissue
 
-var advisoryLocksIssue = Issue{
+import "github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+
+var advisoryLocksIssue = issue.Issue{
 	Type:            ADVISORY_LOCKS,
 	TypeName:        "Advisory Locks",
 	TypeDescription: "",
@@ -25,11 +27,11 @@ var advisoryLocksIssue = Issue{
 	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
 }
 
-func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(advisoryLocksIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(advisoryLocksIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var systemColumnsIssue = Issue{
+var systemColumnsIssue = issue.Issue{
 	Type:            SYSTEM_COLUMNS,
 	TypeName:        "System Columns",
 	TypeDescription: "",
@@ -38,11 +40,11 @@ var systemColumnsIssue = Issue{
 	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
-func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(systemColumnsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(systemColumnsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var xmlFunctionsIssue = Issue{
+var xmlFunctionsIssue = issue.Issue{
 	Type:            XML_FUNCTIONS,
 	TypeName:        "XML Functions",
 	TypeDescription: "",
@@ -51,6 +53,6 @@ var xmlFunctionsIssue = Issue{
 	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
 }
 
-func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) IssueInstance {
-	return newIssueInstance(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
