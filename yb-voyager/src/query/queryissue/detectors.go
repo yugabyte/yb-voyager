@@ -19,13 +19,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
 const (
-	ADVISORY_LOCKS = "Advisory Locks"
-	SYSTEM_COLUMNS = "System Columns"
-	XML_FUNCTIONS  = "XML Functions"
+	ADVISORY_LOCKS_NAME = "Advisory Locks"
+	SYSTEM_COLUMNS_NAME = "System Columns"
+	XML_FUNCTIONS_NAME  = "XML Functions"
 )
 
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
@@ -42,10 +42,10 @@ type FuncCallDetector struct {
 func NewFuncCallDetector() *FuncCallDetector {
 	unsupportedFuncs := make(map[string]string)
 	for _, fname := range unsupportedAdvLockFuncs {
-		unsupportedFuncs[fname] = ADVISORY_LOCKS
+		unsupportedFuncs[fname] = ADVISORY_LOCKS_NAME
 	}
 	for _, fname := range unsupportedXmlFunctions {
-		unsupportedFuncs[fname] = XML_FUNCTIONS
+		unsupportedFuncs[fname] = XML_FUNCTIONS_NAME
 	}
 
 	return &FuncCallDetector{
@@ -75,7 +75,7 @@ type ColumnRefDetector struct {
 func NewColumnRefDetector() *ColumnRefDetector {
 	unsupportedColumns := make(map[string]string)
 	for _, colName := range unsupportedSysCols {
-		unsupportedColumns[colName] = SYSTEM_COLUMNS
+		unsupportedColumns[colName] = SYSTEM_COLUMNS_NAME
 	}
 
 	return &ColumnRefDetector{
@@ -108,7 +108,7 @@ func NewXmlExprDetector() *XmlExprDetector {
 func (d *XmlExprDetector) Detect(msg protoreflect.Message) ([]string, error) {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_XMLEXPR_NODE {
 		log.Debug("detected xml expression")
-		return []string{XML_FUNCTIONS}, nil
+		return []string{XML_FUNCTIONS_NAME}, nil
 	}
 	return nil, nil
 }
@@ -136,7 +136,7 @@ func NewRangeTableFuncDetector() *RangeTableFuncDetector {
 func (d *RangeTableFuncDetector) Detect(msg protoreflect.Message) ([]string, error) {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_RANGETABLEFUNC_NODE {
 		if queryparser.IsXMLTable(msg) {
-			return []string{XML_FUNCTIONS}, nil
+			return []string{XML_FUNCTIONS_NAME}, nil
 		}
 	}
 	return nil, nil
