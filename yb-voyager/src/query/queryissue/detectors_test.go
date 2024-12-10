@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
 func TestFuncCallDetector(t *testing.T) {
@@ -96,7 +96,7 @@ func TestFuncCallDetector(t *testing.T) {
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.Contains(t, unsupportedConstructs, ADVISORY_LOCKS, "Advisory Locks not detected in SQL: %s", sql)
+		assert.Contains(t, unsupportedConstructs, ADVISORY_LOCKS_NAME, "Advisory Locks not detected in SQL: %s", sql)
 	}
 }
 
@@ -161,7 +161,7 @@ func TestColumnRefDetector(t *testing.T) {
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.Contains(t, unsupportedConstructs, SYSTEM_COLUMNS, "System Columns not detected in SQL: %s", sql)
+		assert.Contains(t, unsupportedConstructs, SYSTEM_COLUMNS_NAME, "System Columns not detected in SQL: %s", sql)
 	}
 }
 
@@ -345,7 +345,7 @@ func TestRangeTableFuncDetector(t *testing.T) {
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS, "XML Functions not detected in SQL: %s", sql)
+		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS_NAME, "XML Functions not detected in SQL: %s", sql)
 	}
 }
 
@@ -495,7 +495,7 @@ WHERE id = 1;`,
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 		// The detector should detect XML Functions in these queries
-		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS, "XML Functions not detected in SQL: %s", sql)
+		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS_NAME, "XML Functions not detected in SQL: %s", sql)
 	}
 }
 
@@ -530,7 +530,7 @@ RETURNING id,
                      xmlattributes(id AS "ID"),
                      xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
 	}
-	expectedConstructs := []string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}
+	expectedConstructs := []string{ADVISORY_LOCKS_NAME, SYSTEM_COLUMNS_NAME, XML_FUNCTIONS_NAME}
 
 	detectors := []UnsupportedConstructDetector{
 		NewFuncCallDetector(),
@@ -613,7 +613,7 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		},
 	}
 
-	expectedConstructs := []string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}
+	expectedConstructs := []string{ADVISORY_LOCKS_NAME, SYSTEM_COLUMNS_NAME, XML_FUNCTIONS_NAME}
 
 	detectors := []UnsupportedConstructDetector{
 		NewFuncCallDetector(),

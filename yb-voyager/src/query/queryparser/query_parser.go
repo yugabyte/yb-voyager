@@ -13,6 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+/*
+This package contains all the logic related to parsing a query string, and extracting details out of it.
+We mainly use the pg_query_go library to help with this.
+
+The main functions in this package are:
+1. Use pg_query_go to parse the query string into a ParseResult (i.e. a parseTree)
+2. Traverse and process each protobufMessage node of the ParseTree.
+3. For PLPGSQL, convert the PLPGSQL to JSON; get all the statements out of the PLPGSQL block.
+we can put all the parser related logic (the parsing, the parsing of plpgsql to json, the traversal through the proto messages, the traversal through the nested plpgsql json, adding clauses to statements, etc
+*/
 package queryparser
 
 import (

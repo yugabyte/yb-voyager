@@ -18,6 +18,7 @@ package queryparser
 import (
 	"strings"
 
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -29,6 +30,10 @@ const (
 	SYSTEM_COLUMNS_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#system-columns-is-not-yet-supported"
 	XML_FUNCTIONS_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xml-functions-is-not-yet-supported"
 )
+
+func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
+	return parseTree.Stmts[0].Stmt.ProtoReflect()
+}
 
 func GetMsgFullName(msg protoreflect.Message) string {
 	return string(msg.Descriptor().FullName())
