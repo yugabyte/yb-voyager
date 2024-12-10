@@ -94,11 +94,15 @@ func (p *ParserIssueDetector) getAllIssues(query string) ([]issue.IssueInstance,
 	if err != nil {
 		return nil, fmt.Errorf("error getting plpgsql issues: %v", err)
 	}
+	dmlIssues, err := p.genericIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting generic issues: %v", err)
+	}
 	ddlIssues, err := p.getDDLIssues(query)
 	if err != nil {
 		return nil, fmt.Errorf("error getting ddl issues: %v", err)
 	}
-	issues := lo.Flatten([][]issue.IssueInstance{plpgsqlIssues, ddlIssues})
+	issues := lo.Flatten([][]issue.IssueInstance{plpgsqlIssues, dmlIssues, ddlIssues})
 	return issues, nil
 }
 
@@ -130,59 +134,40 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]issue.IssueInsta
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+
+	if !queryparser.IsPLPGSQLObject(parseTree) {
+		return nil, nil
+	}
 	//TODO handle this in DDLPARSER, DDLIssueDetector
-	if queryparser.IsPLPGSQLObject(parseTree) {
-		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
-		if err != nil {
-			return nil, fmt.Errorf("error getting all the queries from query: %w", err)
-		}
-		var issues []issue.IssueInstance
-		for _, plpgsqlQuery := range plpgsqlQueries {
-			issuesInQuery, err := p.getAllIssues(plpgsqlQuery)
-			if err != nil {
-				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
-				log.Errorf("error getting issues in query-%s: %v", query, err)
-				continue
-			}
-			issues = append(issues, issuesInQuery...)
-		}
-
-		percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
-		if err != nil {
-			return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
-		}
-		issues = append(issues, percentTypeSyntaxIssues...)
-
-		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
-			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
-			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-			i.ObjectType = objType
-			i.ObjectName = objName
-			return i
-		}), nil
+	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+	plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting all the queries from query: %w", err)
 	}
-	//Handle the Mview/View DDL's Select stmt issues
-	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
-		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-		selectStmtQuery, err := queryparser.GetSelectStmtQueryFromViewOrMView(parseTree)
+	var issues []issue.IssueInstance
+	for _, plpgsqlQuery := range plpgsqlQueries {
+		issuesInQuery, err := p.getAllIssues(plpgsqlQuery)
 		if err != nil {
-			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
+			//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
+			log.Errorf("error getting issues in query-%s: %v", query, err)
+			continue
 		}
-		issues, err := p.genericIssues(selectStmtQuery)
-		if err != nil {
-			return nil, err
-		}
-
-		return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
-			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
-			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-			i.ObjectType = objType
-			i.ObjectName = objName
-			return i
-		}), nil
+		issues = append(issues, issuesInQuery...)
 	}
-	return nil, nil
+
+	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
+	}
+	issues = append(issues, percentTypeSyntaxIssues...)
+
+	return lo.Map(issues, func(i issue.IssueInstance, _ int) issue.IssueInstance {
+		//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+		//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+		i.ObjectType = objType
+		i.ObjectName = objName
+		return i
+	}), nil
 }
 
 func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
@@ -280,16 +265,14 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]issue.IssueInstance,
 		return nil, fmt.Errorf("error detecting issues: %w", err)
 	}
 
+	if _, ok := ddlObj.(*queryparser.Object); ok { // In case the DDL doesn't have any processor skip checking generic issues
+		return issues, nil
+	}
 	// Add the original query to each issue
 	for i := range issues {
 		if issues[i].SqlStatement == "" {
 			issues[i].SqlStatement = query
 		}
-	}
-
-	if ddlObj.GetObjectType() == queryparser.MVIEW_OBJECT_TYPE || ddlObj.GetObjectType() == queryparser.VIEW_OBJECT_TYPE {
-		//Already reporting these generic issues in plpgsql section on MVIEW/VIEW
-		return issues, nil
 	}
 
 	genericIssues, err := p.genericIssues(query)
