@@ -65,6 +65,8 @@ jobs:
           sudo apt install python3-psycopg2
           sudo apt-get install -y postgresql-14-postgis postgresql-14-postgis-3
           sudo apt install -y postgresql-14-postgis-scripts
+          docker restart ${{ job.services.postgres.id }}
+          sleep 10
 
       - name: Run installer script to setup voyager
         run: |
