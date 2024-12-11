@@ -21,7 +21,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -124,56 +123,56 @@ $$ LANGUAGE plpgsql;`
 func TestAllDDLIssues(t *testing.T) {
 	requiredDDLs := []string{stmt12}
 	parserIssueDetector := NewParserIssueDetector()
-	stmtsWithExpectedIssues := map[string][]issue.IssueInstance{
-		stmt1: []issue.IssueInstance{
-			issue.NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "public.emp1.salary%TYPE"),
-			issue.NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "employees.name%TYPE"),
-			issue.NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "employees.salary%TYPE"),
-			issue.NewClusterONIssue("FUNCTION", "list_high_earners", "ALTER TABLE employees CLUSTER ON idx;"),
-			issue.NewAdvisoryLocksIssue("FUNCTION", "list_high_earners", "SELECT pg_advisory_unlock(sender_id);"),
-			issue.NewAdvisoryLocksIssue("FUNCTION", "list_high_earners", "SELECT pg_advisory_unlock(receiver_id);"),
-			issue.NewXmlFunctionsIssue("FUNCTION", "list_high_earners", "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;"),
-			issue.NewSystemColumnsIssue("FUNCTION", "list_high_earners", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		stmt1: []QueryIssue{
+			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "public.emp1.salary%TYPE"),
+			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "employees.name%TYPE"),
+			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "employees.salary%TYPE"),
+			NewClusterONIssue("FUNCTION", "list_high_earners", "ALTER TABLE employees CLUSTER ON idx;"),
+			NewAdvisoryLocksIssue("FUNCTION", "list_high_earners", "SELECT pg_advisory_unlock(sender_id);"),
+			NewAdvisoryLocksIssue("FUNCTION", "list_high_earners", "SELECT pg_advisory_unlock(receiver_id);"),
+			NewXmlFunctionsIssue("FUNCTION", "list_high_earners", "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;"),
+			NewSystemColumnsIssue("FUNCTION", "list_high_earners", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
 		},
-		stmt2: []issue.IssueInstance{
-			issue.NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
-			issue.NewStorageParameterIssue("FUNCTION", "process_order", "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor=70);"),
-			issue.NewUnloggedTableIssue("FUNCTION", "process_order", "CREATE UNLOGGED TABLE tbl_unlog (id int, val text);"),
-			issue.NewMultiColumnGinIndexIssue("FUNCTION", "process_order", "CREATE INDEX idx_example ON example_table USING gin(name, name1);"),
-			issue.NewUnsupportedIndexMethodIssue("FUNCTION", "process_order", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);", "gist"),
-			issue.NewAdvisoryLocksIssue("FUNCTION", "process_order", "SELECT pg_advisory_unlock(orderid);"),
+		stmt2: []QueryIssue{
+			NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
+			NewStorageParameterIssue("FUNCTION", "process_order", "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor=70);"),
+			NewUnloggedTableIssue("FUNCTION", "process_order", "CREATE UNLOGGED TABLE tbl_unlog (id int, val text);"),
+			NewMultiColumnGinIndexIssue("FUNCTION", "process_order", "CREATE INDEX idx_example ON example_table USING gin(name, name1);"),
+			NewUnsupportedIndexMethodIssue("FUNCTION", "process_order", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);", "gist"),
+			NewAdvisoryLocksIssue("FUNCTION", "process_order", "SELECT pg_advisory_unlock(orderid);"),
 		},
-		stmt3: []issue.IssueInstance{
-			issue.NewStorageParameterIssue("INDEX", "abc ON public.example", stmt3),
+		stmt3: []QueryIssue{
+			NewStorageParameterIssue("INDEX", "abc ON public.example", stmt3),
 		},
-		stmt4: []issue.IssueInstance{
-			issue.NewDisableRuleIssue("TABLE", "public.example", stmt4, "example_rule"),
+		stmt4: []QueryIssue{
+			NewDisableRuleIssue("TABLE", "public.example", stmt4, "example_rule"),
 		},
-		stmt5: []issue.IssueInstance{
-			issue.NewDeferrableConstraintIssue("TABLE", "abc, constraint: (cnstr_id)", stmt5),
+		stmt5: []QueryIssue{
+			NewDeferrableConstraintIssue("TABLE", "abc, constraint: (cnstr_id)", stmt5),
 		},
-		stmt6: []issue.IssueInstance{
-			issue.NewAdvisoryLocksIssue("DML_QUERY", "", stmt6),
+		stmt6: []QueryIssue{
+			NewAdvisoryLocksIssue("DML_QUERY", "", stmt6),
 		},
-		stmt7: []issue.IssueInstance{
-			issue.NewSystemColumnsIssue("DML_QUERY", "", stmt7),
+		stmt7: []QueryIssue{
+			NewSystemColumnsIssue("DML_QUERY", "", stmt7),
 		},
-		stmt8: []issue.IssueInstance{
-			issue.NewXmlFunctionsIssue("DML_QUERY", "", stmt8),
+		stmt8: []QueryIssue{
+			NewXmlFunctionsIssue("DML_QUERY", "", stmt8),
 		},
-		stmt9: []issue.IssueInstance{
-			issue.NewGeneratedColumnsIssue("TABLE", "order_details", stmt9, []string{"amount"}),
+		stmt9: []QueryIssue{
+			NewGeneratedColumnsIssue("TABLE", "order_details", stmt9, []string{"amount"}),
 		},
-		stmt10: []issue.IssueInstance{
-			issue.NewMultiColumnListPartition("TABLE", "test_non_pk_multi_column_list", stmt10),
-			issue.NewInsufficientColumnInPKForPartition("TABLE", "test_non_pk_multi_column_list", stmt10, []string{"country_code", "record_type"}),
+		stmt10: []QueryIssue{
+			NewMultiColumnListPartition("TABLE", "test_non_pk_multi_column_list", stmt10),
+			NewInsufficientColumnInPKForPartition("TABLE", "test_non_pk_multi_column_list", stmt10, []string{"country_code", "record_type"}),
 		},
-		stmt11: []issue.IssueInstance{
-			issue.NewExclusionConstraintIssue("TABLE", "Test, constraint: (Test_room_id_time_range_excl)", stmt11),
-			issue.NewExclusionConstraintIssue("TABLE", "Test, constraint: (no_time_overlap_constr)", stmt11),
+		stmt11: []QueryIssue{
+			NewExclusionConstraintIssue("TABLE", "Test, constraint: (Test_room_id_time_range_excl)", stmt11),
+			NewExclusionConstraintIssue("TABLE", "Test, constraint: (no_time_overlap_constr)", stmt11),
 		},
-		stmt13: []issue.IssueInstance{
-			issue.NewIndexOnComplexDatatypesIssue("INDEX", "idx_on_daterange ON test_dt", stmt13, "daterange"),
+		stmt13: []QueryIssue{
+			NewIndexOnComplexDatatypesIssue("INDEX", "idx_on_daterange ON test_dt", stmt13, "daterange"),
 		},
 	}
 
@@ -187,11 +186,11 @@ func TestAllDDLIssues(t *testing.T) {
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
-			found := slices.ContainsFunc(issues, func(issueInstance issue.IssueInstance) bool {
-				typeNameMatches := issueInstance.TypeName == expectedIssue.TypeName
-				queryMatches := issueInstance.SqlStatement == expectedIssue.SqlStatement
-				objectNameMatches := issueInstance.ObjectName == expectedIssue.ObjectName
-				objectTypeMatches := issueInstance.ObjectType == expectedIssue.ObjectType
+			found := slices.ContainsFunc(issues, func(QueryIssue QueryIssue) bool {
+				typeNameMatches := QueryIssue.TypeName == expectedIssue.TypeName
+				queryMatches := QueryIssue.SqlStatement == expectedIssue.SqlStatement
+				objectNameMatches := QueryIssue.ObjectName == expectedIssue.ObjectName
+				objectTypeMatches := QueryIssue.ObjectType == expectedIssue.ObjectType
 				return typeNameMatches && queryMatches && objectNameMatches && objectTypeMatches
 			})
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
