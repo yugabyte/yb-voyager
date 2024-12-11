@@ -18,18 +18,20 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var (
 	yugabytedbContainer *yugabytedb.Container
 	yugabytedbConnStr   string
-	versions            = []string{}
+	testYbVersion       *ybversion.YBVersion
 )
 
 func getConn() (*pgx.Conn, error) {
@@ -51,6 +53,12 @@ func getConn() (*pgx.Conn, error) {
 	}
 
 	return conn, nil
+}
+
+func fatalIfError(t *testing.T, err error) {
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
 }
 
 func getConnWithNoticeHandler(noticeHandler func(*pgconn.PgConn, *pgconn.Notice)) (*pgx.Conn, error) {
@@ -129,6 +137,9 @@ func testUnloggedTableIssue(t *testing.T) {
 }
 
 func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
+	isFixed, err := alterTableAddPKOnPartitionIssue.IsFixedIn(testYbVersion)
+	fatalIfError(t, err)
+
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
@@ -140,14 +151,24 @@ func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
 	order_date timestamp
 	) PARTITION BY RANGE (order_date);
 	ALTER TABLE orders2 ADD PRIMARY KEY (order_id,order_date)`)
-	assert.ErrorContains(t, err, "changing primary key of a partitioned table is not yet implemented")
+
+	if isFixed {
+		assert.NoError(t, err)
+	} else {
+		assert.ErrorContains(t, err, "changing primary key of a partitioned table is not yet implemented")
+	}
 }
 
 func TestDDLIssuesInYBVersion(t *testing.T) {
+	var err error
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
 		panic("YB_VERSION env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105 for example")
 	}
+
+	ybVersionWithoutBuild := strings.Split(ybVersion, "-")[0]
+	testYbVersion, err = ybversion.NewYBVersion(ybVersionWithoutBuild)
+	fatalIfError(t, err)
 
 	yugabytedbConnStr = os.Getenv("YB_CONN_STR")
 	if yugabytedbConnStr == "" {
