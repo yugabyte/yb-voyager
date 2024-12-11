@@ -1320,17 +1320,6 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "public.range_columns_partition_test",
-            "Reason": "Adding primary key to a partitioned table is not supported yet.",
-            "SqlStatement": "ALTER TABLE ONLY public.range_columns_partition_test\n    ADD CONSTRAINT range_columns_partition_test_pkey PRIMARY KEY (a, b);",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10074",
-            "MinimumVersionsFixedIn": null
-        },
-        {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "tbl_p",
