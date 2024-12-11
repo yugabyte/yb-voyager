@@ -30,19 +30,19 @@ import (
 )
 
 var (
-	yugabytedbContainer *yugabytedb.Container
-	yugabytedbConnStr   string
-	testYbVersion       *ybversion.YBVersion
+	testYugabytedbContainer *yugabytedb.Container
+	testYugabytedbConnStr   string
+	testYbVersion           *ybversion.YBVersion
 )
 
 func getConn() (*pgx.Conn, error) {
 	ctx := context.Background()
 	var connStr string
 	var err error
-	if yugabytedbConnStr != "" {
-		connStr = yugabytedbConnStr
+	if testYugabytedbConnStr != "" {
+		connStr = testYugabytedbConnStr
 	} else {
-		connStr, err = yugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
+		connStr, err = testYugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
 		if err != nil {
 			return nil, err
 		}
@@ -62,8 +62,8 @@ func fatalIfError(t *testing.T, err error) {
 	}
 }
 
-func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue, ybv *ybversion.YBVersion) {
-	isFixed, err := issue.IsFixedIn(ybv)
+func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue) {
+	isFixed, err := issue.IsFixedIn(testYbVersion)
 	fatalIfError(t, err)
 
 	if isFixed {
@@ -77,10 +77,10 @@ func getConnWithNoticeHandler(noticeHandler func(*pgconn.PgConn, *pgconn.Notice)
 	ctx := context.Background()
 	var connStr string
 	var err error
-	if yugabytedbConnStr != "" {
-		connStr = yugabytedbConnStr
+	if testYugabytedbConnStr != "" {
+		connStr = testYugabytedbConnStr
 	} else {
-		connStr, err = yugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
+		connStr, err = testYugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +161,7 @@ func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
 	) PARTITION BY RANGE (order_date);
 	ALTER TABLE orders2 ADD PRIMARY KEY (order_id,order_date)`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "changing primary key of a partitioned table is not yet implemented", alterTableAddPKOnPartitionIssue, testYbVersion)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "changing primary key of a partitioned table is not yet implemented", alterTableAddPKOnPartitionIssue)
 }
 
 func TestDDLIssuesInYBVersion(t *testing.T) {
@@ -175,17 +175,17 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	testYbVersion, err = ybversion.NewYBVersion(ybVersionWithoutBuild)
 	fatalIfError(t, err)
 
-	yugabytedbConnStr = os.Getenv("YB_CONN_STR")
-	if yugabytedbConnStr == "" {
+	testYugabytedbConnStr = os.Getenv("YB_CONN_STR")
+	if testYugabytedbConnStr == "" {
 		// spawn yugabytedb container
 		var err error
 		ctx := context.Background()
-		yugabytedbContainer, err = yugabytedb.Run(
+		testYugabytedbContainer, err = yugabytedb.Run(
 			ctx,
 			"yugabytedb/yugabyte:"+ybVersion,
 		)
 		assert.NoError(t, err)
-		defer yugabytedbContainer.Terminate(context.Background())
+		defer testYugabytedbContainer.Terminate(context.Background())
 	}
 
 	// run tests
