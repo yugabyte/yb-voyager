@@ -52,7 +52,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: "Enable postgres with wal_level as logical"
+      - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
           docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-14-postgis postgresql-14-postgis-3"
@@ -64,10 +64,6 @@ jobs:
           sudo apt install -y python3
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
-          sudo apt-get install -y postgresql-14-postgis postgresql-14-postgis-3
-          sudo apt install -y postgresql-14-postgis-scripts
-          docker restart ${{ job.services.postgres.id }}
-          sleep 10
 
       - name: Run installer script to setup voyager
         run: |
