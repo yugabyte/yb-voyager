@@ -1959,17 +1959,7 @@
 	"MigrationCaveats": [
 		{
 			"FeatureName": "Alter partitioned tables to add Primary Key",
-			"Objects": [
-				{
-					"ObjectName": "public.sales_region",
-					"SqlStatement": "ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
-				},
-				{
-					"ObjectName": "schema2.sales_region",
-					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
+			"Objects": [],
 			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
 		    "MinimumVersionsFixedIn": null
         },
