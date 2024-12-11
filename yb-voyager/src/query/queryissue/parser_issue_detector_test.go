@@ -118,9 +118,43 @@ $$ LANGUAGE plpgsql;`
 );`
 	stmt12 = `CREATE TABLE test_dt (id int, d daterange);`
 	stmt13 = `CREATE INDEX idx_on_daterange on test_dt (d);`
+	stmt14 = `CREATE MATERIALIZED VIEW public.sample_data_view AS
+ SELECT sample_data.id,
+    sample_data.name,
+    sample_data.description,
+    XMLFOREST(sample_data.name AS name, sample_data.description AS description) AS xml_data,
+    pg_try_advisory_lock((sample_data.id)::bigint) AS lock_acquired,
+    sample_data.ctid AS row_ctid,
+    sample_data.xmin AS xmin_value
+   FROM public.sample_data
+  WITH NO DATA;`
+	stmt15 = `CREATE VIEW public.orders_view AS
+ SELECT orders.order_id,
+    orders.customer_name,
+    orders.product_name,
+    orders.quantity,
+    orders.price,
+    XMLELEMENT(NAME "OrderDetails", XMLELEMENT(NAME "Customer", orders.customer_name), XMLELEMENT(NAME "Product", orders.product_name), XMLELEMENT(NAME "Quantity", orders.quantity), XMLELEMENT(NAME "TotalPrice", (orders.price * (orders.quantity)::numeric))) AS order_xml,
+    XMLCONCAT(XMLELEMENT(NAME "Customer", orders.customer_name), XMLELEMENT(NAME "Product", orders.product_name)) AS summary_xml,
+    pg_try_advisory_lock((hashtext((orders.customer_name || orders.product_name)))::bigint) AS lock_acquired,
+    orders.ctid AS row_ctid,
+    orders.xmin AS transaction_id
+   FROM public.orders
+   WITH LOCAL CHECK OPTION;`
+	stmt16 = `CREATE TABLE public.xml_data_example (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+	d daterange Unique,
+    description XML DEFAULT xmlparse(document '<product><name>Default Product</name><price>100.00</price><category>Electronics</category></product>'),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+) PARTITION BY LIST(id, name);`
+	stmt17 = `ALTER TABLE invoices
+ADD CONSTRAINT valid_invoice_structure
+CHECK (xpath_exists('/invoice/customer', data));`
+	stmt18 = `CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));`
 )
 
-func TestAllDDLIssues(t *testing.T) {
+func TestAllIssues(t *testing.T) {
 	requiredDDLs := []string{stmt12}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
@@ -197,4 +231,55 @@ func TestAllDDLIssues(t *testing.T) {
 		}
 	}
 
+}
+
+func TestDDLIssues(t *testing.T) {
+	requiredDDLs := []string{stmt16}
+	parserIssueDetector := NewParserIssueDetector()
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		stmt14: []QueryIssue{
+			NewAdvisoryLocksIssue("MVIEW", "public.sample_data_view", stmt14),
+			NewSystemColumnsIssue("MVIEW", "public.sample_data_view", stmt14),
+			NewXmlFunctionsIssue("MVIEW", "public.sample_data_view", stmt14),
+		},
+		stmt15: []QueryIssue{
+			NewAdvisoryLocksIssue("VIEW", "public.orders_view", stmt15),
+			NewSystemColumnsIssue("VIEW", "public.orders_view", stmt15),
+			NewXmlFunctionsIssue("VIEW", "public.orders_view", stmt15),
+			//TODO: Add CHECK OPTION issue when we move it from regex to parser logic
+		},
+		stmt16: []QueryIssue{
+			NewXmlFunctionsIssue("TABLE", "public.xml_data_example", stmt16),
+			NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue("TABLE", "public.xml_data_example, constraint: (xml_data_example_d_key)", stmt16, "daterange", true),
+			NewMultiColumnListPartition("TABLE", "public.xml_data_example", stmt16),
+			NewInsufficientColumnInPKForPartition("TABLE", "public.xml_data_example", stmt16, []string{"name"}),
+			NewXMLDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "description"),
+		},
+		stmt17: []QueryIssue{
+			NewXmlFunctionsIssue("TABLE", "invoices", stmt17),
+		},
+		stmt18: []QueryIssue{
+			NewXmlFunctionsIssue("INDEX", "idx_invoices ON invoices", stmt18),
+		},
+	}
+	for _, stmt := range requiredDDLs {
+		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
+	}
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(QueryIssue QueryIssue) bool {
+				typeNameMatches := QueryIssue.TypeName == expectedIssue.TypeName
+				queryMatches := QueryIssue.SqlStatement == expectedIssue.SqlStatement
+				objectNameMatches := QueryIssue.ObjectName == expectedIssue.ObjectName
+				objectTypeMatches := QueryIssue.ObjectType == expectedIssue.ObjectType
+				return typeNameMatches && queryMatches && objectNameMatches && objectTypeMatches
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
 }
