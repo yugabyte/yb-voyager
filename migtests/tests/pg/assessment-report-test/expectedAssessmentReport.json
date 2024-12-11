@@ -1959,6 +1959,12 @@
 	"Notes": null,
 	"MigrationCaveats": [
 		{
+			"FeatureName": "Alter partitioned tables to add Primary Key",
+			"Objects": [],
+			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
+		    "MinimumVersionsFixedIn": null
+        },
+		{
 			"FeatureName": "Foreign tables",
 			"Objects": [],
 			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
