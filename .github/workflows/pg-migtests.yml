@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-22.04
     services:
       postgres:
-        image: postgres:13
+        image: postgres:14
         env:
           POSTGRES_PASSWORD: secret
         # Set health checks to wait until postgres has started
