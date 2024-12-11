@@ -59,7 +59,7 @@ jobs:
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
-      - name: Install python3, psycopg2 and postgis
+      - name: Install python3 and psycopg2
         run: |
           sudo apt install -y python3
           sudo apt install -y libpq-dev
