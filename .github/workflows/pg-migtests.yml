@@ -63,7 +63,8 @@ jobs:
           sudo apt install -y python3
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
-          sudo apt install postgresql-14-postgis-scripts -y
+          sudo apt-get install -y postgresql-14-postgis postgresql-14-postgis-3
+          sudo apt install -y postgresql-14-postgis-scripts
 
       - name: Run installer script to setup voyager
         run: |
