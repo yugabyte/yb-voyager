@@ -350,7 +350,7 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 		Columns:        columns,
 		IsDeferrable:   deferrable,
 	}
-	generatedConName := tc.generateConstraintName(t.GetObjectName())
+	generatedConName := tc.generateConstraintName(t.TableName)
 	conName := lo.Ternary(specifiedConName == "", generatedConName, specifiedConName)
 	tc.ConstraintName = conName
 	t.Constraints = append(t.Constraints, tc)

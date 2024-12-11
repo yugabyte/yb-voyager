@@ -802,7 +802,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "combined_tbl, constraint: combined_tbl_j_key",
+            "ObjectName": "combined_tbl, constraint: (combined_tbl_j_key)",
             "Reason": "Primary key and Unique constraint on column 'json' not yet supported",
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
@@ -813,7 +813,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "combined_tbl, constraint: pk",
+            "ObjectName": "combined_tbl, constraint: (pk)",
             "Reason": "Primary key and Unique constraint on column 'macaddr8' not yet supported",
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
@@ -824,7 +824,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "combined_tbl, constraint: combined_tbl_unique",
+            "ObjectName": "combined_tbl, constraint: (combined_tbl_unique)",
             "Reason": "Primary key and Unique constraint on column 'bit' not yet supported",
             "SqlStatement": "ALTER TABLE combined_tbl\n\t\tADD CONSTRAINT combined_tbl_unique UNIQUE(id, bitt);",
             "Suggestion": "Refer to the docs link for the workaround",
@@ -835,7 +835,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "combined_tbl1, constraint: combined_tbl1_i4_key",
+            "ObjectName": "combined_tbl1, constraint: (combined_tbl1_i4_key)",
             "Reason": "Primary key and Unique constraint on column 'int4range' not yet supported",
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
@@ -846,7 +846,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "combined_tbl1, constraint: combined_tbl1_id_t_n_pkey",
+            "ObjectName": "combined_tbl1, constraint: (combined_tbl1_id_t_n_pkey)",
             "Reason": "Primary key and Unique constraint on column 'tsrange' not yet supported",
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
@@ -857,7 +857,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "combined_tbl1, constraint: combined_tbl1_id_t_n_pkey",
+            "ObjectName": "combined_tbl1, constraint: (combined_tbl1_id_t_n_pkey)",
             "Reason": "Primary key and Unique constraint on column 'numrange' not yet supported",
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
             "Suggestion": "Refer to the docs link for the workaround",
@@ -868,7 +868,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "combined_tbl1, constraint: combined_tbl1_unique",
+            "ObjectName": "combined_tbl1, constraint: (combined_tbl1_unique)",
             "Reason": "Primary key and Unique constraint on column 'daterange' not yet supported",
             "SqlStatement": "ALTER TABLE combined_tbl1\n\t\tADD CONSTRAINT combined_tbl1_unique UNIQUE(id, d);",
             "Suggestion": "Refer to the docs link for the workaround",
@@ -901,7 +901,7 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
-            "ObjectName": "test_interval, constraint: test_interval_frequency_pkey",
+            "ObjectName": "test_interval, constraint: (test_interval_frequency_pkey)",
             "Reason": "Primary key and Unique constraint on column 'interval' not yet supported",
             "SqlStatement": "create table test_interval(\n    frequency interval primary key,\n\tcol1 int\n);",
             "Suggestion": "Refer to the docs link for the workaround",

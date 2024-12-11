@@ -106,7 +106,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					}
 					issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
 						obj.GetObjectType(),
-						fmt.Sprintf("%s, constraint: %s", table.GetObjectName(), c.ConstraintName),
+						fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
 						"",
 						typeName,
 						true,
@@ -447,7 +447,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				}
 				issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
 					obj.GetObjectType(),
-					fmt.Sprintf("%s, constraint: %s", alter.GetObjectName(), alter.ConstraintName),
+					fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
 					"",
 					typeName,
 					false,

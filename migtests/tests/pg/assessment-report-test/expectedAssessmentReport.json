@@ -522,15 +522,15 @@
 			"FeatureName": "Primary / Unique key constraints on complex datatypes",
 			"Objects": [
 				{
-					"ObjectName": "public.combined_tbl, constraint: combined_tbl_bittv_key",
+					"ObjectName": "public.combined_tbl, constraint: (combined_tbl_bittv_key)",
 					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_bittv_key UNIQUE (bittv);"
 				},
 				{
-					"ObjectName": "public.combined_tbl, constraint: uk",
+					"ObjectName": "public.combined_tbl, constraint: (uk)",
 					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT uk UNIQUE (lsn);"
 				},
 				{
-					"ObjectName": "public.combined_tbl, constraint: combined_tbl_pkey",
+					"ObjectName": "public.combined_tbl, constraint: (combined_tbl_pkey)",
 					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_pkey PRIMARY KEY (id, arr_enum);"
 				}
 			],
