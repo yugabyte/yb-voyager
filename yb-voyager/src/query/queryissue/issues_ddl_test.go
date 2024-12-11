@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -58,6 +59,17 @@ func getConn() (*pgx.Conn, error) {
 func fatalIfError(t *testing.T, err error) {
 	if err != nil {
 		t.Fatalf("error: %v", err)
+	}
+}
+
+func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, err error, expectedError string, issue issue.Issue, ybv *ybversion.YBVersion) {
+	isFixed, err := issue.IsFixedIn(ybv)
+	fatalIfError(t, err)
+
+	if isFixed {
+		assert.NoError(t, err)
+	} else {
+		assert.ErrorContains(t, err, expectedError)
 	}
 }
 
@@ -137,9 +149,6 @@ func testUnloggedTableIssue(t *testing.T) {
 }
 
 func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
-	isFixed, err := alterTableAddPKOnPartitionIssue.IsFixedIn(testYbVersion)
-	fatalIfError(t, err)
-
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
@@ -152,11 +161,7 @@ func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
 	) PARTITION BY RANGE (order_date);
 	ALTER TABLE orders2 ADD PRIMARY KEY (order_id,order_date)`)
 
-	if isFixed {
-		assert.NoError(t, err)
-	} else {
-		assert.ErrorContains(t, err, "changing primary key of a partitioned table is not yet implemented")
-	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "changing primary key of a partitioned table is not yet implemented", alterTableAddPKOnPartitionIssue, testYbVersion)
 }
 
 func TestDDLIssuesInYBVersion(t *testing.T) {
