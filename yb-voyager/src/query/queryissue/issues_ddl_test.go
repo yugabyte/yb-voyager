@@ -62,14 +62,14 @@ func fatalIfError(t *testing.T, err error) {
 	}
 }
 
-func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, err error, expectedError string, issue issue.Issue, ybv *ybversion.YBVersion) {
+func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue, ybv *ybversion.YBVersion) {
 	isFixed, err := issue.IsFixedIn(ybv)
 	fatalIfError(t, err)
 
 	if isFixed {
-		assert.NoError(t, err)
+		assert.NoError(t, execErr)
 	} else {
-		assert.ErrorContains(t, err, expectedError)
+		assert.ErrorContains(t, execErr, expectedError)
 	}
 }
 
