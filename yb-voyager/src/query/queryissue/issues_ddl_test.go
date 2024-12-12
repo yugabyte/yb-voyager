@@ -221,6 +221,26 @@ func testDisableRuleIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE DISABLE RULE not supported yet", disableRuleIssue)
 }
 
+func testStorageParameterIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE public.example (
+    name         text,
+    email        text,
+    new_id       integer NOT NULL,
+    id2          integer NOT NULL,
+    CONSTRAINT example_name_check CHECK ((char_length(name) > 3))
+	);
+	
+	ALTER TABLE ONLY public.example
+    ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor = 70);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unrecognized parameter", storageParameterIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -266,6 +286,9 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "disable rule", ybVersion), testDisableRuleIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "storage parameter", ybVersion), testStorageParameterIssue)
 	assert.True(t, success)
 
 }
