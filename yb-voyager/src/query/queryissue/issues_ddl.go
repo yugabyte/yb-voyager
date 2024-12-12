@@ -47,10 +47,6 @@ var unloggedTableIssue = issue.Issue{
 
 func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	//for UNLOGGED TABLE as its not reported in the TABLE objects
-	if objectType == "TABLE" {
-		details["INCREASE_INVALID_COUNT"] = false
-	}
 	return newQueryIssue(unloggedTableIssue, objectType, objectName, sqlStatement, details)
 }
 
@@ -77,10 +73,6 @@ var storageParameterIssue = issue.Issue{
 
 func NewStorageParameterIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
-	if objectType == "TABLE" {
-		details["INCREASE_INVALID_COUNT"] = false
-	}
 	return newQueryIssue(storageParameterIssue, objectType, objectName, sqlStatement, details)
 }
 
@@ -94,10 +86,6 @@ var setAttributeIssue = issue.Issue{
 
 func NewSetAttributeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
-	if objectType == "TABLE" {
-		details["INCREASE_INVALID_COUNT"] = false
-	}
 	return newQueryIssue(setAttributeIssue, objectType, objectName, sqlStatement, details)
 }
 
@@ -111,10 +99,6 @@ var clusterOnIssue = issue.Issue{
 
 func NewClusterONIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
-	if objectType == "TABLE" {
-		details["INCREASE_INVALID_COUNT"] = false
-	}
 	return newQueryIssue(clusterOnIssue, objectType, objectName, sqlStatement, details)
 }
 
@@ -128,10 +112,6 @@ var disableRuleIssue = issue.Issue{
 
 func NewDisableRuleIssue(objectType string, objectName string, sqlStatement string, ruleName string) QueryIssue {
 	details := map[string]interface{}{}
-	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
-	if objectType == "TABLE" {
-		details["INCREASE_INVALID_COUNT"] = false
-	}
 	issue := disableRuleIssue
 	issue.Suggestion = fmt.Sprintf(issue.Suggestion, ruleName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
@@ -145,8 +125,11 @@ var exclusionConstraintIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
 }
 
-func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(exclusionConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatement string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		"ConstraintName": constraintName,
+	}
+	return newQueryIssue(exclusionConstraintIssue, objectType, objectName, sqlStatement, details)
 }
 
 var deferrableConstraintIssue = issue.Issue{
@@ -157,8 +140,11 @@ var deferrableConstraintIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
 }
 
-func NewDeferrableConstraintIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(deferrableConstraintIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewDeferrableConstraintIssue(objectType string, objectName string, sqlStatement string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		"ConstraintName": constraintName,
+	}
+	return newQueryIssue(deferrableConstraintIssue, objectType, objectName, sqlStatement, details)
 }
 
 var multiColumnGinIndexIssue = issue.Issue{
@@ -206,10 +192,6 @@ var constraintTriggerIssue = issue.Issue{
 
 func NewConstraintTriggerIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	//for CONSTRAINT TRIGGER we don't have separate object type TODO: fix
-	if objectType == "TRIGGER" {
-		details["INCREASE_INVALID_COUNT"] = false
-	}
 	return newQueryIssue(constraintTriggerIssue, objectType, objectName, SqlStatement, details)
 }
 
@@ -245,10 +227,6 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 
 func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	//for ALTER AND INDEX both  same struct now how to differentiate which one to not
-	if objectType == "TABLE" {
-		details["INCREASE_INVALID_COUNT"] = false
-	}
 	return newQueryIssue(alterTableAddPKOnPartitionIssue, objectType, objectName, SqlStatement, details)
 }
 
@@ -378,11 +356,9 @@ var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
-func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string, increaseInvalidCnt bool) QueryIssue {
-	details := map[string]interface{}{}
-	//for ALTER not increasing count, but for Create increasing TODO: fix
-	if !increaseInvalidCnt {
-		details["INCREASE_INVALID_COUNT"] = false
+func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		"ConstraintName": constraintName,
 	}
 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
 	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
