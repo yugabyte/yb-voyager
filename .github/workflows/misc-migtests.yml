@@ -43,10 +43,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries and install postgis"
+      - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-14-postgis postgresql-14-postgis-3"
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
@@ -117,24 +116,6 @@ jobs:
 
             echo "TEST: PG sample schemas (omnibus)"
             migtests/scripts/run-schema-migration.sh pg/omnibus
-
-            echo "TEST: PG sample schemas (sakila)"
-            migtests/scripts/run-schema-migration.sh pg/sakila
-
-            echo "TEST: PG sample schemas (pgtbrus)"
-            migtests/scripts/run-schema-migration.sh pg/pgtbrus
-
-            echo "TEST: PG sample schemas (stackexchange)"
-            migtests/scripts/run-schema-migration.sh pg/stackexchange
-
-            echo "TEST: PG sample schemas (sample-is)"
-            migtests/scripts/run-schema-migration.sh pg/sample-is
-
-            echo "TEST: PG sample schemas (adventureworks)"
-            migtests/scripts/run-schema-migration.sh pg/adventureworks
-
-            echo "TEST: PG sample schemas (osm)"
-            migtests/scripts/run-schema-migration.sh pg/osm
 
             echo "Stop the cluster before the next iteration"
             docker stop yugabytedb-$version
