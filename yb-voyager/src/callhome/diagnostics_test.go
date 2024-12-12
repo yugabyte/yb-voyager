@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 func TestCallhomeStructs(t *testing.T) {
@@ -67,18 +68,19 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AssessMigrationPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationPhasePayload{}),
 			expectedType: struct {
-				MigrationComplexity        string `json:"migration_complexity"`
-				UnsupportedFeatures        string `json:"unsupported_features"`
-				UnsupportedDatatypes       string `json:"unsupported_datatypes"`
-				UnsupportedQueryConstructs string `json:"unsupported_query_constructs"`
-				MigrationCaveats           string `json:"migration_caveats"`
-				UnsupportedPlPgSqlObjects  string `json:"unsupported_plpgsql_objects"`
-				Error                      string `json:"error,omitempty"`
-				TableSizingStats           string `json:"table_sizing_stats"`
-				IndexSizingStats           string `json:"index_sizing_stats"`
-				SchemaSummary              string `json:"schema_summary"`
-				SourceConnectivity         bool   `json:"source_connectivity"`
-				IopsInterval               int64  `json:"iops_interval"`
+				TargetDBVersion            *ybversion.YBVersion `json:"target_db_version"`
+				MigrationComplexity        string               `json:"migration_complexity"`
+				UnsupportedFeatures        string               `json:"unsupported_features"`
+				UnsupportedDatatypes       string               `json:"unsupported_datatypes"`
+				UnsupportedQueryConstructs string               `json:"unsupported_query_constructs"`
+				MigrationCaveats           string               `json:"migration_caveats"`
+				UnsupportedPlPgSqlObjects  string               `json:"unsupported_plpgsql_objects"`
+				Error                      string               `json:"error,omitempty"`
+				TableSizingStats           string               `json:"table_sizing_stats"`
+				IndexSizingStats           string               `json:"index_sizing_stats"`
+				SchemaSummary              string               `json:"schema_summary"`
+				SourceConnectivity         bool                 `json:"source_connectivity"`
+				IopsInterval               int64                `json:"iops_interval"`
 			}{},
 		},
 		{
@@ -113,8 +115,9 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AnalyzePhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AnalyzePhasePayload{}),
 			expectedType: struct {
-				Issues          string `json:"issues"`
-				DatabaseObjects string `json:"database_objects"`
+				TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
+				Issues          string               `json:"issues"`
+				DatabaseObjects string               `json:"database_objects"`
 			}{},
 		},
 		{

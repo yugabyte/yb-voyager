@@ -626,15 +626,16 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	}
 
 	return utils.Issue{
-		ObjectType:   issueInstance.ObjectType,
-		ObjectName:   issueInstance.ObjectName,
-		Reason:       issueInstance.TypeName,
-		SqlStatement: issueInstance.SqlStatement,
-		DocsLink:     issueInstance.DocsLink,
-		FilePath:     fileName,
-		IssueType:    issueType,
-		Suggestion:   issueInstance.Suggestion,
-		GH:           issueInstance.GH,
+		ObjectType:             issueInstance.ObjectType,
+		ObjectName:             issueInstance.ObjectName,
+		Reason:                 issueInstance.TypeName,
+		SqlStatement:           issueInstance.SqlStatement,
+		DocsLink:               issueInstance.DocsLink,
+		FilePath:               fileName,
+		IssueType:              issueType,
+		Suggestion:             issueInstance.Suggestion,
+		GH:                     issueInstance.GH,
+		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
 	}
 }
 
@@ -1217,7 +1218,8 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	}
 
 	analyzePayload := callhome.AnalyzePhasePayload{
-		Issues: callhome.MarshalledJsonString(callhomeIssues),
+		TargetDBVersion: schemaAnalysisReport.TargetDBVersion,
+		Issues:          callhome.MarshalledJsonString(callhomeIssues),
 		DatabaseObjects: callhome.MarshalledJsonString(lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
 			return dbObject

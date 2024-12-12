@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 // call-home json formats
@@ -103,18 +104,19 @@ type UnsupportedFeature struct {
 }
 
 type AssessMigrationPhasePayload struct {
-	MigrationComplexity        string `json:"migration_complexity"`
-	UnsupportedFeatures        string `json:"unsupported_features"`
-	UnsupportedDatatypes       string `json:"unsupported_datatypes"`
-	UnsupportedQueryConstructs string `json:"unsupported_query_constructs"`
-	MigrationCaveats           string `json:"migration_caveats"`
-	UnsupportedPlPgSqlObjects  string `json:"unsupported_plpgsql_objects"`
-	Error                      string `json:"error,omitempty"` // Removed it for now, TODO
-	TableSizingStats           string `json:"table_sizing_stats"`
-	IndexSizingStats           string `json:"index_sizing_stats"`
-	SchemaSummary              string `json:"schema_summary"`
-	SourceConnectivity         bool   `json:"source_connectivity"`
-	IopsInterval               int64  `json:"iops_interval"`
+	TargetDBVersion            *ybversion.YBVersion `json:"target_db_version"`
+	MigrationComplexity        string               `json:"migration_complexity"`
+	UnsupportedFeatures        string               `json:"unsupported_features"`
+	UnsupportedDatatypes       string               `json:"unsupported_datatypes"`
+	UnsupportedQueryConstructs string               `json:"unsupported_query_constructs"`
+	MigrationCaveats           string               `json:"migration_caveats"`
+	UnsupportedPlPgSqlObjects  string               `json:"unsupported_plpgsql_objects"`
+	Error                      string               `json:"error,omitempty"` // Removed it for now, TODO
+	TableSizingStats           string               `json:"table_sizing_stats"`
+	IndexSizingStats           string               `json:"index_sizing_stats"`
+	SchemaSummary              string               `json:"schema_summary"`
+	SourceConnectivity         bool                 `json:"source_connectivity"`
+	IopsInterval               int64                `json:"iops_interval"`
 }
 
 type AssessMigrationBulkPhasePayload struct {
@@ -139,8 +141,9 @@ type ExportSchemaPhasePayload struct {
 // SHOULD NOT REMOVE THESE TWO (issues, database_objects) FIELDS of AnalyzePhasePayload as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L563
 type AnalyzePhasePayload struct {
-	Issues          string `json:"issues"`
-	DatabaseObjects string `json:"database_objects"`
+	TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
+	Issues          string               `json:"issues"`
+	DatabaseObjects string               `json:"database_objects"`
 }
 type ExportDataPhasePayload struct {
 	ParallelJobs            int64  `json:"parallel_jobs"`
