@@ -108,14 +108,14 @@ jobs:
             echo "127.0.0.1    yb-master-n1" | sudo tee -a /etc/hosts
             psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
+            echo "TEST: PG sample schemas (omnibus)"
+            migtests/scripts/run-schema-migration.sh pg/omnibus
+
             echo "Setup the gcp credentials"
             migtests/scripts/gcs/create_gcs_credentials_file
 
             echo "TEST: import-data-file"
             migtests/tests/import-file/run-import-file-test
-
-            echo "TEST: PG sample schemas (omnibus)"
-            migtests/scripts/run-schema-migration.sh pg/omnibus
 
             echo "Stop the cluster before the next iteration"
             docker stop yugabytedb-$version
