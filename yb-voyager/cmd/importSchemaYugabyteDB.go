@@ -23,7 +23,11 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/jackc/pgx/v4"
+	// "github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -33,6 +37,7 @@ import (
 
 var deferredSqlStmts []sqlInfo
 var finalFailedSqlStmts []string
+var notice *pgconn.Notice
 
 func importSchemaInternal(exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) error {
@@ -114,6 +119,9 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 }
 
 func shouldSkipDDL(stmt string) (bool, error) {
+	if strings.Contains(stmt, "SET CLIENT_MIN_MESSAGES") {
+		return true, nil
+	}
 	skipReplicaIdentity := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
 	if skipReplicaIdentity {
 		return true, nil
@@ -133,6 +141,7 @@ func shouldSkipDDL(stmt string) (bool, error) {
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
 	var err error
+	var stmtNotice *pgconn.Notice
 	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
 		if retryCount > 0 { // Not the first iteration.
@@ -149,9 +158,15 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				return fmt.Errorf("before index creation: %w", err)
 			}
 		}
-		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
+		// notice, err := (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
+		stmtNotice, err = execStmtAndGetNotice(*conn, sqlInfo.formattedStmt)
 		if err == nil {
-			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
+			noticeMsg := ""
+			if stmtNotice != nil {
+				noticeMsg = stmtNotice.Message
+			}
+			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType),
+				noticeMsg)
 			return nil
 		}
 
@@ -203,7 +218,12 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		if missingRequiredSchemaObject(err) {
 			// Do nothing for deferred case
 		} else {
-			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
+			noticeMsg := ""
+			if stmtNotice != nil {
+				noticeMsg = stmtNotice.Message
+			}
+			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType),
+				noticeMsg)
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
 			if tconf.ContinueOnError {
 				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
@@ -242,9 +262,15 @@ func importDeferredStatements() {
 		beforeDeferredSqlCount := len(deferredSqlStmts)
 		var failedSqlStmtInIthIteration []string
 		for j := 0; j < len(deferredSqlStmts); j++ {
-			_, err = conn.Exec(context.Background(), deferredSqlStmts[j].formattedStmt)
+			var stmtNotice *pgconn.Notice
+			stmtNotice, err = execStmtAndGetNotice(conn, deferredSqlStmts[j].formattedStmt)
+			// _, err = conn.Exec(context.Background(), deferredSqlStmts[j].formattedStmt)
 			if err == nil {
 				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt))
+				noticeMsg := lo.Ternary(stmtNotice != nil, stmtNotice.Message, "")
+				if noticeMsg != "" {
+					fmt.Printf(color.YellowString("NOTICE: %s\n", noticeMsg))
+				}
 				// removing successfully executed SQL
 				deferredSqlStmts = append(deferredSqlStmts[:j], deferredSqlStmts[j+1:]...)
 				break
@@ -310,4 +336,148 @@ func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 		finalImportObjectList = append(finalImportObjectList, []string{"UNIQUE INDEX"}...)
 	}
 	return finalImportObjectList
+}
+
+func getInvalidIndexes(conn **pgx.Conn) (map[string]bool, error) {
+	var result = make(map[string]bool)
+	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
+	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
+
+	rows, err := (*conn).Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("querying invalid indexes: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var fullyQualifiedIndexName string
+		err := rows.Scan(&fullyQualifiedIndexName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
+		}
+		// if schema is not provided by catalog table, then it is public schema
+		if !strings.Contains(fullyQualifiedIndexName, ".") {
+			fullyQualifiedIndexName = fmt.Sprintf("public.%s", fullyQualifiedIndexName)
+		}
+		result[fullyQualifiedIndexName] = true
+	}
+	return result, nil
+}
+
+// TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
+func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
+	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
+		return nil
+	}
+
+	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
+	if err != nil {
+		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
+	}
+	if invalidTargetIndexesCache == nil {
+		invalidTargetIndexesCache, err = getInvalidIndexes(conn)
+		if err != nil {
+			return fmt.Errorf("failed to fetch invalid indexes: %w", err)
+		}
+	}
+
+	// check index valid or not
+	if invalidTargetIndexesCache[fullyQualifiedObjName] {
+		log.Infof("index %q already exists but in invalid state, dropping it", fullyQualifiedObjName)
+		err = dropIdx(*conn, fullyQualifiedObjName)
+		if err != nil {
+			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
+		}
+	}
+
+	// print the index name as index creation takes time and user can see the progress
+	color.Yellow("creating index %s ...", fullyQualifiedObjName)
+	return nil
+}
+
+func dropIdx(conn *pgx.Conn, idxName string) error {
+	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
+	log.Infof("Dropping index: %q", dropIdxQuery)
+	_, err := conn.Exec(context.Background(), dropIdxQuery)
+	if err != nil {
+		return fmt.Errorf("failed to drop index %q: %w", idxName, err)
+	}
+	return nil
+}
+
+func newTargetConn() *pgx.Conn {
+	noticeHandler := func(conn *pgconn.PgConn, n *pgconn.Notice) {
+		// panic("notice")
+		// fmt.Printf("NOTICE! %v\n", n)
+		// utils.PrintAndLog("NOTICE! %v\n", n)
+		notice = n
+	}
+	errExit := func(err error) {
+		if err != nil {
+			utils.WaitChannel <- 1
+			<-utils.WaitChannel
+			utils.ErrExit("connect to target db: %s", err)
+		}
+	}
+
+	conf, err := pgx.ParseConfig(tconf.GetConnectionUri())
+	errExit(err)
+
+	conf.OnNotice = noticeHandler
+
+	// conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
+	conn, err := pgx.ConnectConfig(context.Background(), conf)
+	errExit(err)
+
+	// conn.Config().OnNotice = noticeHandler
+
+	setTargetSchema(conn)
+
+	if sourceDBType == ORACLE && enableOrafce {
+		setOrafceSearchPath(conn)
+	}
+
+	return conn
+}
+
+// TODO: Eventually get rid of this function in favour of TargetYugabyteDB.setTargetSchema().
+func setTargetSchema(conn *pgx.Conn) {
+	if sourceDBType == POSTGRESQL || tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
+		// For PG, schema name is already included in the object name.
+		// No need to set schema if importing in the default schema.
+		return
+	}
+	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", tconf.Schema)
+	var cntSchemaName int
+
+	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
+	} else if cntSchemaName == 0 {
+		utils.ErrExit("schema '%s' does not exist in target", tconf.Schema)
+	}
+
+	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
+	_, err := conn.Exec(context.Background(), setSchemaQuery)
+	if err != nil {
+		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, tconf.Host, err)
+	}
+}
+
+func setOrafceSearchPath(conn *pgx.Conn) {
+	// append oracle schema in the search_path for orafce
+	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
+	_, err := conn.Exec(context.Background(), updateSearchPath)
+	if err != nil {
+		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+	}
+}
+
+func execStmtAndGetNotice(conn *pgx.Conn, stmt string) (*pgconn.Notice, error) {
+	// utils.PrintAndLog("EXECUTING :[%s]\n", stmt)
+	// utils.PrintAndLog("conn.Onnotice = %v", conn.Config().OnNotice)
+	notice = nil // reset notice.
+	// utils.PrintAndLog("[reset]notice=%v\n", notice)
+	_, err := conn.Exec(context.Background(), stmt)
+	// utils.PrintAndLog("notice=%v\n", notice)
+	return notice, err
 }
