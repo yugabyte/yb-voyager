@@ -245,7 +245,6 @@ func exportData() bool {
 
 	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
-	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)

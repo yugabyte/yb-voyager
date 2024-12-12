@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -717,4 +718,19 @@ func GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion string) (string,
 		return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
 	}
 	return msrVoyagerFinalVersion, nil
+}
+
+// Return list of missing tools from the provided list of tools
+func CheckTools(tools ...string) []string {
+	var missingTools []string
+	for _, tool := range tools {
+		execPath, err := exec.LookPath(tool)
+		if err != nil {
+			missingTools = append(missingTools, fmt.Sprintf("%s", tool))
+		} else {
+			log.Infof("Found %s at %s", tool, execPath)
+		}
+	}
+
+	return missingTools
 }
