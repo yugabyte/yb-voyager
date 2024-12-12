@@ -205,6 +205,22 @@ func testClusterOnIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE CLUSTER not supported yet", clusterOnIssue)
 }
 
+func testDisableRuleIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	create table trule (a int);
+
+	create rule trule_rule as on update to trule do instead nothing;
+
+	ALTER TABLE trule DISABLE RULE trule_rule`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE DISABLE RULE not supported yet", disableRuleIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -247,6 +263,9 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "cluster on", ybVersion), testClusterOnIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "disable rule", ybVersion), testDisableRuleIssue)
 	assert.True(t, success)
 
 }
