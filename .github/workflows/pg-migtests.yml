@@ -1,4 +1,4 @@
-name: "PG 14: Migration Tests"
+name: "PG 13: Migration Tests"
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-22.04
     services:
       postgres:
-        image: postgres:14
+        image: postgres:13
         env:
           POSTGRES_PASSWORD: secret
         # Set health checks to wait until postgres has started
@@ -52,10 +52,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: "Enable postgres with wal_level as logical and install postgis"
+      - name: "Enable postgres with wal_level as logical"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-14-postgis postgresql-14-postgis-3"
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
@@ -106,34 +105,6 @@ jobs:
           echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
           echo "127.0.0.1 yb-master-n1" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
-
-      - name: "TEST: PG sample schemas (omnibus)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/omnibus
-
-      - name: "TEST: PG sample schemas (sakila)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/sakila
-
-      - name: "TEST: PG sample schemas (pgtbrus)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/pgtbrus
-
-      - name: "TEST: PG sample schemas (stackexchange)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/stackexchange
-
-      - name: "TEST: PG sample schemas (sample-is)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/sample-is
-
-      - name: "TEST: PG sample schemas (adventureworks)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/adventureworks
-
-      - name: "TEST: PG sample schemas (osm)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/osm
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}

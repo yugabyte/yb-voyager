@@ -12,7 +12,7 @@ jobs:
     
     services:
         postgres:
-          image: postgres:13
+          image: postgres:14
           env:
             POSTGRES_PASSWORD: secret
           # Set health checks to wait until postgres has started
@@ -43,9 +43,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries"
+      - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-14-postgis postgresql-14-postgis-3"
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
@@ -72,6 +73,34 @@ jobs:
 
       - name: "TEST: Assessment Report Test"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
+
+      - name: "TEST: PG sample schemas (omnibus)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/omnibus
+
+      - name: "TEST: PG sample schemas (sakila)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/sakila
+
+      - name: "TEST: PG sample schemas (pgtbrus)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/pgtbrus
+
+      - name: "TEST: PG sample schemas (stackexchange)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/stackexchange
+
+      - name: "TEST: PG sample schemas (sample-is)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/sample-is
+
+      - name: "TEST: PG sample schemas (adventureworks)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/adventureworks
+
+      - name: "TEST: PG sample schemas (osm)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/osm
 
       - name: "TEST: analyze-schema"
         if: ${{ !cancelled() }}
