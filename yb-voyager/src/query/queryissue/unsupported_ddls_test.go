@@ -137,7 +137,6 @@ func TestAllDDLIssues(t *testing.T) {
 		stmt2: []QueryIssue{
 			NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
 			NewStorageParameterIssue("FUNCTION", "process_order", "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor=70);"),
-			NewUnloggedTableIssue("FUNCTION", "process_order", "CREATE UNLOGGED TABLE tbl_unlog (id int, val text);"),
 			NewMultiColumnGinIndexIssue("FUNCTION", "process_order", "CREATE INDEX idx_example ON example_table USING gin(name, name1);"),
 			NewUnsupportedIndexMethodIssue("FUNCTION", "process_order", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);", "gist"),
 			NewAdvisoryLocksIssue("FUNCTION", "process_order", "SELECT pg_advisory_unlock(orderid);"),
@@ -197,4 +196,19 @@ func TestAllDDLIssues(t *testing.T) {
 		}
 	}
 
+}
+
+func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
+	stmt := "CREATE UNLOGGED TABLE tbl_unlog (id int, val text);"
+	parserIssueDetector := NewParserIssueDetector()
+
+	// Not reported by default
+	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+	fatalIfError(t, err)
+	assert.Equal(t, 0, len(issues))
+
+	// older version should report the issue
+	issues, err = parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_1_0_0)
+	fatalIfError(t, err)
+	assert.Equal(t, 1, len(issues))
 }
