@@ -23,12 +23,9 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/samber/lo"
-
-	// "github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
-
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -99,14 +96,13 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		}
 
 		if objType == "TABLE" {
-			stmt := strings.ToUpper(sqlInfo.stmt)
 			// Check if the statement should be skipped
-			skip, err := shouldSkipDDL(stmt)
+			skip, err := shouldSkipDDL(sqlInfo.stmt)
 			if err != nil {
-				return fmt.Errorf("error checking whether to skip DDL: %v", err)
+				return fmt.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
 			}
 			if skip {
-				log.Infof("Skipping DDL: %s", stmt)
+				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
 				continue
 			}
 		}
@@ -120,6 +116,10 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 }
 
 func shouldSkipDDL(stmt string) (bool, error) {
+	stmt = strings.ToUpper(stmt)
+
+	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
+	// NOTICE severity as well (which is the default), hence skipping this.
 	if strings.Contains(stmt, "SET CLIENT_MIN_MESSAGES") {
 		return true, nil
 	}
@@ -260,7 +260,7 @@ func importDeferredStatements() {
 				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt))
 				noticeMsg := getNoticeMessage(stmtNotice)
 				if noticeMsg != "" {
-					fmt.Printf(color.YellowString("NOTICE: %s\n", noticeMsg))
+					fmt.Printf(color.YellowString("%s\n", noticeMsg))
 				}
 				// removing successfully executed SQL
 				deferredSqlStmts = append(deferredSqlStmts[:j], deferredSqlStmts[j+1:]...)
@@ -397,15 +397,26 @@ func dropIdx(conn *pgx.Conn, idxName string) error {
 }
 
 func newTargetConn() *pgx.Conn {
+	// save notice in global variable
 	noticeHandler := func(conn *pgconn.PgConn, n *pgconn.Notice) {
+		// ALTER TABLE .. ADD PRIMARY KEY throws the following notice in YugabyteDB.
+		// unlogged=# ALTER TABLE ONLY public.ul     ADD CONSTRAINT ul_pkey PRIMARY KEY (id);
+		// NOTICE:  table rewrite may lead to inconsistencies
+		// DETAIL:  Concurrent DMLs may not be reflected in the new table.
+		// HINT:  See https://github.com/yugabyte/yugabyte-db/issues/19860. Set 'ysql_suppress_unsafe_alter_notice' yb-tserver gflag to true to suppress this notice.
+
+		// We ignore this notice because:
+		// 1. This is an empty table at the time at which we are importing the schema
+		//    and there is no concurrent DMLs
+		// 2. This would unnecessarily clutter the output with NOTICES for every table,
+		//    and scare the user
 		noticesToIgnore := []string{
 			"table rewrite may lead to inconsistencies",
 		}
-		// panic("notice")
-		// fmt.Printf("NOTICE! %v\n", n)
-		// utils.PrintAndLog("NOTICE! %v\n", n)
+
 		if n != nil {
 			if lo.Contains(noticesToIgnore, n.Message) {
+				notice = nil
 				return
 			}
 		}
@@ -421,14 +432,10 @@ func newTargetConn() *pgx.Conn {
 
 	conf, err := pgx.ParseConfig(tconf.GetConnectionUri())
 	errExit(err)
-
 	conf.OnNotice = noticeHandler
 
-	// conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	conn, err := pgx.ConnectConfig(context.Background(), conf)
 	errExit(err)
-
-	// conn.Config().OnNotice = noticeHandler
 
 	setTargetSchema(conn)
 
@@ -479,11 +486,7 @@ func setOrafceSearchPath(conn *pgx.Conn) {
 }
 
 func execStmtAndGetNotice(conn *pgx.Conn, stmt string) (*pgconn.Notice, error) {
-	// utils.PrintAndLog("EXECUTING :[%s]\n", stmt)
-	// utils.PrintAndLog("conn.Onnotice = %v", conn.Config().OnNotice)
 	notice = nil // reset notice.
-	// utils.PrintAndLog("[reset]notice=%v\n", notice)
 	_, err := conn.Exec(context.Background(), stmt)
-	// utils.PrintAndLog("notice=%v\n", notice)
 	return notice, err
 }
