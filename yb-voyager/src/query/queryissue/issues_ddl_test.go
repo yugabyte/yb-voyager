@@ -128,7 +128,6 @@ func testStoredGeneratedFunctionsIssue(t *testing.T) {
 func testUnloggedTableIssue(t *testing.T) {
 	noticeFound := false
 	noticeHandler := func(conn *pgconn.PgConn, notice *pgconn.Notice) {
-		assert.Nil(t, notice)
 		if notice != nil && notice.Message != "" {
 			assert.Equal(t, "unlogged option is currently ignored in YugabyteDB, all non-temp tables will be logged", notice.Message)
 			noticeFound = true
