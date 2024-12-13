@@ -19,6 +19,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -154,6 +156,13 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	stmt18 = `CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));`
 )
 
+func modifyiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
+	return lo.Map(issues, func(i QueryIssue, _ int) QueryIssue {
+		i.ObjectType = objType
+		i.ObjectName = objName
+		return i
+	})
+}
 func TestAllIssues(t *testing.T) {
 	requiredDDLs := []string{stmt12}
 	parserIssueDetector := NewParserIssueDetector()
@@ -162,19 +171,19 @@ func TestAllIssues(t *testing.T) {
 			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "public.emp1.salary%TYPE"),
 			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "employees.name%TYPE"),
 			NewPercentTypeSyntaxIssue("FUNCTION", "list_high_earners", "employees.salary%TYPE"),
-			NewClusterONIssue("FUNCTION", "list_high_earners", "ALTER TABLE employees CLUSTER ON idx;"),
-			NewAdvisoryLocksIssue("FUNCTION", "list_high_earners", "SELECT pg_advisory_unlock(sender_id);"),
-			NewAdvisoryLocksIssue("FUNCTION", "list_high_earners", "SELECT pg_advisory_unlock(receiver_id);"),
-			NewXmlFunctionsIssue("FUNCTION", "list_high_earners", "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;"),
-			NewSystemColumnsIssue("FUNCTION", "list_high_earners", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
+			NewClusterONIssue("TABLE", "employees", "ALTER TABLE employees CLUSTER ON idx;"),
+			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(sender_id);"),
+			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(receiver_id);"),
+			NewXmlFunctionsIssue("DML_QUERY", "", "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;"),
+			NewSystemColumnsIssue("DML_QUERY", "", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
 		},
 		stmt2: []QueryIssue{
 			NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
-			NewStorageParameterIssue("FUNCTION", "process_order", "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor=70);"),
-			NewUnloggedTableIssue("FUNCTION", "process_order", "CREATE UNLOGGED TABLE tbl_unlog (id int, val text);"),
-			NewMultiColumnGinIndexIssue("FUNCTION", "process_order", "CREATE INDEX idx_example ON example_table USING gin(name, name1);"),
-			NewUnsupportedIndexMethodIssue("FUNCTION", "process_order", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);", "gist"),
-			NewAdvisoryLocksIssue("FUNCTION", "process_order", "SELECT pg_advisory_unlock(orderid);"),
+			NewStorageParameterIssue("TABLE", "public.example", "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor=70);"),
+			NewUnloggedTableIssue("TABLE", "tbl_unlog", "CREATE UNLOGGED TABLE tbl_unlog (id int, val text);"),
+			NewMultiColumnGinIndexIssue("INDEX", "idx_example ON example_table", "CREATE INDEX idx_example ON example_table USING gin(name, name1);"),
+			NewUnsupportedIndexMethodIssue("INDEX", "idx_example ON schema1.example_table", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);", "gist"),
+			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(orderid);"),
 		},
 		stmt3: []QueryIssue{
 			NewStorageParameterIssue("INDEX", "abc ON public.example", stmt3),
@@ -210,6 +219,11 @@ func TestAllIssues(t *testing.T) {
 		},
 	}
 
+	//Should modify it in similar way we do it actual code as the particular DDL issue in plpgsql can have different Details map on the basis of objectType
+	stmtsWithExpectedIssues[stmt1] = modifyiedIssuesforPLPGSQL(stmtsWithExpectedIssues[stmt1], "FUNCTION", "list_high_earners")
+
+	stmtsWithExpectedIssues[stmt2] = modifyiedIssuesforPLPGSQL(stmtsWithExpectedIssues[stmt2], "FUNCTION", "process_order")
+
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseRequiredDDLs(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
@@ -220,12 +234,8 @@ func TestAllIssues(t *testing.T) {
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
-			found := slices.ContainsFunc(issues, func(QueryIssue QueryIssue) bool {
-				typeNameMatches := QueryIssue.TypeName == expectedIssue.TypeName
-				queryMatches := QueryIssue.SqlStatement == expectedIssue.SqlStatement
-				objectNameMatches := QueryIssue.ObjectName == expectedIssue.ObjectName
-				objectTypeMatches := QueryIssue.ObjectType == expectedIssue.ObjectType
-				return typeNameMatches && queryMatches && objectNameMatches && objectTypeMatches
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
 			})
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
@@ -272,12 +282,8 @@ func TestDDLIssues(t *testing.T) {
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
-			found := slices.ContainsFunc(issues, func(QueryIssue QueryIssue) bool {
-				typeNameMatches := QueryIssue.TypeName == expectedIssue.TypeName
-				queryMatches := QueryIssue.SqlStatement == expectedIssue.SqlStatement
-				objectNameMatches := QueryIssue.ObjectName == expectedIssue.ObjectName
-				objectTypeMatches := QueryIssue.ObjectType == expectedIssue.ObjectType
-				return typeNameMatches && queryMatches && objectNameMatches && objectTypeMatches
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
 			})
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}

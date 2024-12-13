@@ -274,6 +274,11 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		return issues, nil
 	}
 
+	/*
+	For detecting these generic issues (Advisory locks, XML functions and System columns as of now) on DDL example - 
+	CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));
+	We need to call it on DDLs as well
+	*/
 	genericIssues, err := p.genericIssues(query)
 	if err != nil {
 		return nil, fmt.Errorf("error getting generic issues: %w", err)
@@ -319,6 +324,15 @@ func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]QueryI
 }
 
 func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
+	issues, err := p.getDMLIssues(query)
+	if err != nil {
+		return issues, err
+	}
+
+	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
@@ -335,10 +349,9 @@ func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybvers
 	if err != nil {
 		return issues, err
 	}
-
-	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+	return issues, err
 }
-
+ 
 func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
