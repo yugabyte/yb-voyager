@@ -41,6 +41,7 @@ with the required for storing the information which should have these required f
 */
 type DDLObject interface {
 	GetObjectName() string
+	GetObjectType() string
 	GetSchemaName() string
 }
 
@@ -322,6 +323,8 @@ func (t *Table) GetObjectName() string {
 }
 func (t *Table) GetSchemaName() string { return t.SchemaName }
 
+func (t *Table) GetObjectType() string { return TABLE_OBJECT_TYPE }
+
 func (t *Table) PrimaryKeyColumns() []string {
 	for _, c := range t.Constraints {
 		if c.ConstraintType == PRIMARY_CONSTR_TYPE {
@@ -347,7 +350,7 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 		Columns:        columns,
 		IsDeferrable:   deferrable,
 	}
-	generatedConName := tc.generateConstraintName(t.GetObjectName())
+	generatedConName := tc.generateConstraintName(t.TableName)
 	conName := lo.Ternary(specifiedConName == "", generatedConName, specifiedConName)
 	tc.ConstraintName = conName
 	t.Constraints = append(t.Constraints, tc)
@@ -403,6 +406,8 @@ func (f *ForeignTable) GetObjectName() string {
 	return lo.Ternary(f.SchemaName != "", f.SchemaName+"."+f.TableName, f.TableName)
 }
 func (f *ForeignTable) GetSchemaName() string { return f.SchemaName }
+
+func (t *ForeignTable) GetObjectType() string { return FOREIGN_TABLE_OBJECT_TYPE }
 
 //===========INDEX PROCESSOR ================================
 
@@ -500,6 +505,8 @@ func (i *Index) GetSchemaName() string { return i.SchemaName }
 func (i *Index) GetTableName() string {
 	return lo.Ternary(i.SchemaName != "", fmt.Sprintf("%s.%s", i.SchemaName, i.TableName), i.TableName)
 }
+
+func (i *Index) GetObjectType() string { return INDEX_OBJECT_TYPE }
 
 //===========ALTER TABLE PROCESSOR ================================
 
@@ -609,6 +616,8 @@ func (a *AlterTable) GetObjectName() string {
 }
 func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
 
+func (a *AlterTable) GetObjectType() string { return TABLE_OBJECT_TYPE }
+
 func (a *AlterTable) AddPrimaryKeyOrUniqueCons() bool {
 	return a.ConstraintType == PRIMARY_CONSTR_TYPE || a.ConstraintType == UNIQUE_CONSTR_TYPE
 }
@@ -672,6 +681,8 @@ func (p *Policy) GetObjectName() string {
 	return fmt.Sprintf("%s ON %s", p.PolicyName, qualifiedTable)
 }
 func (p *Policy) GetSchemaName() string { return p.SchemaName }
+
+func (p *Policy) GetObjectType() string { return POLICY_OBJECT_TYPE }
 
 //=====================TRIGGER PROCESSOR ==================
 
@@ -744,6 +755,8 @@ func (t *Trigger) GetTableName() string {
 }
 
 func (t *Trigger) GetSchemaName() string { return t.SchemaName }
+
+func (t *Trigger) GetObjectType() string { return TRIGGER_OBJECT_TYPE }
 
 /*
 e.g.CREATE TRIGGER after_insert_or_delete_trigger
@@ -819,6 +832,8 @@ func (c *CreateType) GetObjectName() string {
 }
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
+func (c *CreateType) GetObjectType() string { return TYPE_OBJECT_TYPE }
+
 //===========================VIEW PROCESSOR===================
 
 type ViewProcessor struct{}
@@ -848,6 +863,8 @@ func (v *View) GetObjectName() string {
 	return lo.Ternary(v.SchemaName != "", fmt.Sprintf("%s.%s", v.SchemaName, v.ViewName), v.ViewName)
 }
 func (v *View) GetSchemaName() string { return v.SchemaName }
+
+func (v *View) GetObjectType() string { return VIEW_OBJECT_TYPE }
 
 //===========================MVIEW PROCESSOR===================
 
@@ -879,6 +896,8 @@ func (mv *MView) GetObjectName() string {
 }
 func (mv *MView) GetSchemaName() string { return mv.SchemaName }
 
+func (mv *MView) GetObjectType() string { return MVIEW_OBJECT_TYPE }
+
 //=============================No-Op PROCESSOR ==================
 
 //No op Processor for objects we don't have Processor yet
@@ -896,6 +915,7 @@ type Object struct {
 
 func (o *Object) GetObjectName() string { return o.ObjectName }
 func (o *Object) GetSchemaName() string { return o.SchemaName }
+func (o *Object) GetObjectType() string { return "OBJECT" }
 
 func (n *NoOpProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	return &Object{}, nil
@@ -932,6 +952,16 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 }
 
 const (
+	TABLE_OBJECT_TYPE             = "TABLE"
+	TYPE_OBJECT_TYPE              = "TYPE"
+	VIEW_OBJECT_TYPE              = "VIEW"
+	MVIEW_OBJECT_TYPE             = "MVIEW"
+	FOREIGN_TABLE_OBJECT_TYPE     = "FOREIGN TABLE"
+	FUNCTION_OBJECT_TYPE          = "FUNCTION"
+	PROCEDURE_OBJECT_TYPE         = "PROCEDURE"
+	INDEX_OBJECT_TYPE             = "INDEX"
+	POLICY_OBJECT_TYPE            = "POLICY"
+	TRIGGER_OBJECT_TYPE           = "TRIGGER"
 	ADD_CONSTRAINT                = pg_query.AlterTableType_AT_AddConstraint
 	SET_OPTIONS                   = pg_query.AlterTableType_AT_SetOptions
 	DISABLE_RULE                  = pg_query.AlterTableType_AT_DisableRule

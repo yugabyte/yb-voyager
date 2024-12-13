@@ -93,10 +93,9 @@ func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting plpgsql issues: %v", err)
 	}
-
 	dmlIssues, err := p.getDMLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting dml issues: %v", err)
+		return nil, fmt.Errorf("error getting generic issues: %v", err)
 	}
 	ddlIssues, err := p.getDDLIssues(query)
 	if err != nil {
@@ -133,59 +132,40 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	if err != nil {
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
+
+	if !queryparser.IsPLPGSQLObject(parseTree) {
+		return nil, nil
+	}
 	//TODO handle this in DDLPARSER, DDLIssueDetector
-	if queryparser.IsPLPGSQLObject(parseTree) {
-		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-		plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
-		if err != nil {
-			return nil, fmt.Errorf("error getting all the queries from query: %w", err)
-		}
-		var issues []QueryIssue
-		for _, plpgsqlQuery := range plpgsqlQueries {
-			issuesInQuery, err := p.getAllIssues(plpgsqlQuery)
-			if err != nil {
-				//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
-				log.Errorf("error getting issues in query-%s: %v", query, err)
-				continue
-			}
-			issues = append(issues, issuesInQuery...)
-		}
-
-		percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
-		if err != nil {
-			return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
-		}
-		issues = append(issues, percentTypeSyntaxIssues...)
-
-		return lo.Map(issues, func(i QueryIssue, _ int) QueryIssue {
-			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
-			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-			i.ObjectType = objType
-			i.ObjectName = objName
-			return i
-		}), nil
+	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
+	plpgsqlQueries, err := queryparser.GetAllPLPGSQLStatements(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting all the queries from query: %w", err)
 	}
-	//Handle the Mview/View DDL's Select stmt issues
-	if queryparser.IsViewObject(parseTree) || queryparser.IsMviewObject(parseTree) {
-		objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
-		selectStmtQuery, err := queryparser.GetSelectStmtQueryFromViewOrMView(parseTree)
+	var issues []QueryIssue
+	for _, plpgsqlQuery := range plpgsqlQueries {
+		issuesInQuery, err := p.getAllIssues(plpgsqlQuery)
 		if err != nil {
-			return nil, fmt.Errorf("error deparsing a select stmt: %v", err)
+			//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
+			log.Errorf("error getting issues in query-%s: %v", query, err)
+			continue
 		}
-		issues, err := p.getDMLIssues(selectStmtQuery)
-		if err != nil {
-			return nil, err
-		}
-
-		return lo.Map(issues, func(i QueryIssue, _ int) QueryIssue {
-			//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
-			//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
-			i.ObjectType = objType
-			i.ObjectName = objName
-			return i
-		}), nil
+		issues = append(issues, issuesInQuery...)
 	}
-	return nil, nil
+
+	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
+	}
+	issues = append(issues, percentTypeSyntaxIssues...)
+
+	return lo.Map(issues, func(i QueryIssue, _ int) QueryIssue {
+		//Replacing the objectType and objectName to the original ObjectType and ObjectName of the PLPGSQL object
+		//e.g. replacing the DML_QUERY and "" to FUNCTION and <func_name>
+		i.ObjectType = objType
+		i.ObjectName = objName
+		return i
+	}), nil
 }
 
 func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
@@ -266,6 +246,13 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing a query: %v", err)
 	}
+	isDDL, err := queryparser.IsDDL(parseTree)
+	if err != nil {
+		return nil, fmt.Errorf("error checking if query is ddl: %w", err)
+	}
+	if !isDDL {
+		return nil, nil
+	}
 	// Parse the query into a DDL object
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
@@ -288,6 +275,23 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		if issues[i].SqlStatement == "" {
 			issues[i].SqlStatement = query
 		}
+	}
+
+	/*
+		For detecting these generic issues (Advisory locks, XML functions and System columns as of now) on DDL example -
+		CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));
+		We need to call it on DDLs as well
+	*/
+	genericIssues, err := p.genericIssues(query)
+	if err != nil {
+		return nil, fmt.Errorf("error getting generic issues: %w", err)
+	}
+
+	for _, i := range genericIssues {
+		//In case of genericIssues we don't populate the proper obj type and obj name
+		i.ObjectType = ddlObj.GetObjectType()
+		i.ObjectName = ddlObj.GetObjectName()
+		issues = append(issues, i)
 	}
 	return issues, nil
 }
@@ -331,7 +335,6 @@ func (p *ParserIssueDetector) GetDMLIssues(query string, targetDbVersion *ybvers
 	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
 }
 
-// TODO: in future when we will DDL issues detection here we need `GetDDLIssues`
 func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
@@ -344,6 +347,18 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {
 	if isDDL {
 		//Skip all the DDLs coming to this function
 		return nil, nil
+	}
+	issues, err := p.genericIssues(query)
+	if err != nil {
+		return issues, err
+	}
+	return issues, err
+}
+
+func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) {
+	parseTree, err := queryparser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
 	var result []QueryIssue
 	var unsupportedConstructs []string

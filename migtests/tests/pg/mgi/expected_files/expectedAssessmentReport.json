@@ -247,6 +247,21 @@
 	"UnsupportedDataTypes": null,
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": [
+        {
+			"FeatureName": "Advisory Locks",
+			"Objects":[],
+			"MinimumVersionsFixedIn":null
+		},
+		{
+			"FeatureName":"System Columns",
+			"Objects":[],
+			"MinimumVersionsFixedIn":null
+		},
+		{
+			"FeatureName": "XML Functions",
+			"Objects": [],
+"MinimumVersionsFixedIn":null
+		},
 		{
 			"FeatureName": "GIST indexes",
 			"Objects": [],
