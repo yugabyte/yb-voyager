@@ -453,6 +453,7 @@ func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 		if noticeMsg != "" {
 			fmt.Printf(color.YellowString("%s\n", noticeMsg))
+			log.Infof("notice for %q: %s", GetSqlStmtToPrint(stmt), noticeMsg)
 		}
 	}
 }
