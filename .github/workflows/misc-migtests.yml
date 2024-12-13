@@ -12,7 +12,7 @@ jobs:
     
     services:
         postgres:
-          image: postgres:13
+          image: postgres:14
           env:
             POSTGRES_PASSWORD: secret
           # Set health checks to wait until postgres has started
@@ -107,6 +107,9 @@ jobs:
             echo "127.0.0.1    yb-tserver-n1" | sudo tee -a /etc/hosts
             echo "127.0.0.1    yb-master-n1" | sudo tee -a /etc/hosts
             psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+
+            echo "TEST: PG sample schemas (omnibus)"
+            migtests/scripts/run-schema-migration.sh pg/omnibus
 
             echo "Setup the gcp credentials"
             migtests/scripts/gcs/create_gcs_credentials_file
