@@ -539,16 +539,7 @@
         },
 		{
 			"FeatureName": "Unlogged tables",
-			"Objects": [
-				{
-					"ObjectName": "public.tbl_unlogged",
-					"SqlStatement": "CREATE UNLOGGED TABLE public.tbl_unlogged (\n    id integer,\n    val text\n);"
-				},
-				{
-					"ObjectName": "schema2.tbl_unlogged",
-					"SqlStatement": "CREATE UNLOGGED TABLE schema2.tbl_unlogged (\n    id integer,\n    val text\n);"
-				}
-			],
+			"Objects": [],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
 			"MinimumVersionsFixedIn": null
 		}
