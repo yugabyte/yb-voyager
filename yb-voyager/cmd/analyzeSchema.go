@@ -35,10 +35,9 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -605,7 +604,7 @@ var MigrationCaveatsIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileName string, isPlPgSQLIssue bool) utils.Issue {
+func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.Issue {
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
@@ -627,15 +626,16 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance issue.IssueInstance, fileN
 	}
 
 	return utils.Issue{
-		ObjectType:   issueInstance.ObjectType,
-		ObjectName:   issueInstance.ObjectName,
-		Reason:       issueInstance.TypeName,
-		SqlStatement: issueInstance.SqlStatement,
-		DocsLink:     issueInstance.DocsLink,
-		FilePath:     fileName,
-		IssueType:    issueType,
-		Suggestion:   issueInstance.Suggestion,
-		GH:           issueInstance.GH,
+		ObjectType:             issueInstance.ObjectType,
+		ObjectName:             issueInstance.ObjectName,
+		Reason:                 issueInstance.TypeName,
+		SqlStatement:           issueInstance.SqlStatement,
+		DocsLink:               issueInstance.DocsLink,
+		FilePath:               fileName,
+		IssueType:              issueType,
+		Suggestion:             issueInstance.Suggestion,
+		GH:                     issueInstance.GH,
+		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
 	}
 }
 
@@ -1218,7 +1218,8 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	}
 
 	analyzePayload := callhome.AnalyzePhasePayload{
-		Issues: callhome.MarshalledJsonString(callhomeIssues),
+		TargetDBVersion: schemaAnalysisReport.TargetDBVersion,
+		Issues:          callhome.MarshalledJsonString(callhomeIssues),
 		DatabaseObjects: callhome.MarshalledJsonString(lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
 			return dbObject
