@@ -540,7 +540,6 @@
 		{
 			"FeatureName": "Unlogged tables",
 			"Objects": [],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
 			"MinimumVersionsFixedIn": null
 		}
 	],
