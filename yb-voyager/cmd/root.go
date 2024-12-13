@@ -183,7 +183,13 @@ func startPprofServer() {
 }
 
 var exportDirInitialisedCheckNeededList = []string{
+	"yb-voyager analyze-schema",
+	"yb-voyager import data",
+	"yb-voyager import data to target",
+	"yb-voyager import data to source",
+	"yb-voyager import data to source-replica",
 	"yb-voyager import data status",
+	"yb-voyager export data from target",
 	"yb-voyager export data status",
 	"yb-voyager cutover status",
 	"yb-voyager get data-migration-report",
