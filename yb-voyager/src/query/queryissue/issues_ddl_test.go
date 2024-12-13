@@ -164,6 +164,84 @@ func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "changing primary key of a partitioned table is not yet implemented", alterTableAddPKOnPartitionIssue)
 }
 
+func testSetAttributeIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE public.event_search (
+    event_id text,
+    room_id text,
+    sender text,
+    key text,
+    vector tsvector,
+    origin_server_ts bigint,
+    stream_ordering bigint
+	);
+	ALTER TABLE ONLY public.event_search ALTER COLUMN room_id SET (n_distinct=-0.01)`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE ALTER column not supported yet", setAttributeIssue)
+}
+
+func testClusterOnIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE test(ID INT PRIMARY KEY NOT NULL,
+	Name TEXT NOT NULL,
+	Age INT NOT NULL,
+	Address CHAR(50), 
+	Salary REAL);
+
+	CREATE UNIQUE INDEX test_age_salary ON public.test USING btree (age ASC NULLS LAST, salary ASC NULLS LAST);
+
+	ALTER TABLE public.test CLUSTER ON test_age_salary`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE CLUSTER not supported yet", clusterOnIssue)
+}
+
+func testDisableRuleIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	create table trule (a int);
+
+	create rule trule_rule as on update to trule do instead nothing;
+
+	ALTER TABLE trule DISABLE RULE trule_rule`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE DISABLE RULE not supported yet", disableRuleIssue)
+}
+
+func testStorageParameterIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE public.example (
+	name         text,
+	email        text,
+	new_id       integer NOT NULL,
+	id2          integer NOT NULL,
+	CONSTRAINT example_name_check CHECK ((char_length(name) > 3))
+	);
+
+	ALTER TABLE ONLY public.example
+	ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor = 70);`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unrecognized parameter", storageParameterIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -200,6 +278,18 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "alter table add PK on partition", ybVersion), testAlterTableAddPKOnPartitionIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "set attribute", ybVersion), testSetAttributeIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "cluster on", ybVersion), testClusterOnIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "disable rule", ybVersion), testDisableRuleIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "storage parameter", ybVersion), testStorageParameterIssue)
 	assert.True(t, success)
 
 }
