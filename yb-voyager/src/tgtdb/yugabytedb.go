@@ -1409,10 +1409,13 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
 		return isProperUser, nil
 	}
 
+	//This rolsuper is set to true in the pg_roles if a user is super user
 	isSuperUserquery := "SELECT rolsuper FROM pg_roles WHERE rolname=current_user"
 
 	isSuperUser, err := runQueryAndCheckPrivilege(isSuperUserquery)
-
+	if err != nil {
+		return false, fmt.Errorf("error checking super user privilege: %w", err)
+	}
 	if isSuperUser {
 		return true, nil
 	}
@@ -1431,6 +1434,9 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
     END AS is_yb_superuser;`
 
 	isYBSuperUser, err := runQueryAndCheckPrivilege(isYbSuperUserQuery)
+	if err != nil {
+		return false, fmt.Errorf("error checking yb_superuser privilege: %w", err)
+	}
 
 	return isYBSuperUser, nil
 }
