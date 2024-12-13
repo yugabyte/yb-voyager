@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
@@ -73,32 +72,6 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	}
 }
 
-func getConnWithNoticeHandler(noticeHandler func(*pgconn.PgConn, *pgconn.Notice)) (*pgx.Conn, error) {
-	ctx := context.Background()
-	var connStr string
-	var err error
-	if testYugabytedbConnStr != "" {
-		connStr = testYugabytedbConnStr
-	} else {
-		connStr, err = testYugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	conf, err := pgx.ParseConfig(connStr)
-	if err != nil {
-		return nil, err
-	}
-	conf.OnNotice = noticeHandler
-	conn, err := pgx.ConnectConfig(ctx, conf)
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
-}
-
 func testXMLFunctionIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -126,26 +99,14 @@ func testStoredGeneratedFunctionsIssue(t *testing.T) {
 }
 
 func testUnloggedTableIssue(t *testing.T) {
-	noticeFound := false
-	noticeHandler := func(conn *pgconn.PgConn, notice *pgconn.Notice) {
-		if notice != nil && notice.Message != "" {
-			assert.Equal(t, "unlogged option is currently ignored in YugabyteDB, all non-temp tables will be logged", notice.Message)
-			noticeFound = true
-		}
-	}
 	ctx := context.Background()
-	conn, err := getConnWithNoticeHandler(noticeHandler)
+	conn, err := getConn()
 	assert.NoError(t, err)
 
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, "CREATE UNLOGGED TABLE unlogged_table (a int)")
-	// in 2024.2, UNLOGGED no longer throws an error, just a notice
-	if noticeFound {
-		return
-	} else {
-		assert.ErrorContains(t, err, "UNLOGGED database object not supported yet")
-	}
 
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "UNLOGGED database object not supported yet", unloggedTableIssue)
 }
 
 func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
