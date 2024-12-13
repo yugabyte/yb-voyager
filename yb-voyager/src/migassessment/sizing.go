@@ -128,8 +128,9 @@ const (
 	PREFER_REMOTE_EXPERIMENT_DB     = false
 	COLOCATED_MAX_INDEXES_THRESHOLD = 2
 	// COLOCATED / SHARDED Object types
-	COLOCATED = "colocated"
-	SHARDED   = "sharded"
+	COLOCATED                            = "colocated"
+	SHARDED                              = "sharded"
+	SOURCE_METADATA_OBJECTS_TYPES_TO_USE = "('table', 'index', 'materialized view')"
 )
 
 func getExperimentDBPath() string {
@@ -1239,8 +1240,9 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 			   size_in_bytes,
 			   column_count 
 		FROM %v 
+		WHERE object_type IN %v
 		ORDER BY IFNULL(size_in_bytes, 0) ASC
-	`, GetTableIndexStatName())
+	`, GetTableIndexStatName(), SOURCE_METADATA_OBJECTS_TYPES_TO_USE)
 	rows, err := sourceDB.Query(query)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
