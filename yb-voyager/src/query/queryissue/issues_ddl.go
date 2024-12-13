@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var generatedColumnsIssue = issue.Issue{
@@ -241,6 +242,11 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 	TypeName: "Adding primary key to a partitioned table is not supported yet.",
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
 	GH:       "https://github.com/yugabyte/yugabyte-db/issues/10074",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2024_1: ybversion.V2024_1_0_0,
+		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
+		ybversion.SERIES_2_23:   ybversion.V2_23_0_0,
+	},
 }
 
 func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
