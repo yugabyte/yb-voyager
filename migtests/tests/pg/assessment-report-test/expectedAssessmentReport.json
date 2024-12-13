@@ -1947,7 +1947,9 @@
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null,
+	"Notes": [
+		"There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported."
+	],
 	"MigrationCaveats": [
 		{
 			"FeatureName": "Alter partitioned tables to add Primary Key",
