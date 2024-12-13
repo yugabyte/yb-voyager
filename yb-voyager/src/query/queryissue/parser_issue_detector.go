@@ -93,7 +93,7 @@ func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting plpgsql issues: %v", err)
 	}
-	dmlIssues, err := p.genericIssues(query)
+	dmlIssues, err := p.getDMLIssues(query)
 	if err != nil {
 		return nil, fmt.Errorf("error getting generic issues: %v", err)
 	}
@@ -246,6 +246,13 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing a query: %v", err)
 	}
+	isDDL, err := queryparser.IsDDL(parseTree)
+	if err != nil {
+		return nil, fmt.Errorf("error checking if query is ddl: %w", err)
+	}
+	if !isDDL {
+		return nil, nil
+	}
 	// Parse the query into a DDL object
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
@@ -270,14 +277,10 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		}
 	}
 
-	if _, ok := ddlObj.(*queryparser.Object); ok { // In case the DDL doesn't have any processor skip checking generic issues
-		return issues, nil
-	}
-
 	/*
-	For detecting these generic issues (Advisory locks, XML functions and System columns as of now) on DDL example - 
-	CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));
-	We need to call it on DDLs as well
+		For detecting these generic issues (Advisory locks, XML functions and System columns as of now) on DDL example -
+		CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));
+		We need to call it on DDLs as well
 	*/
 	genericIssues, err := p.genericIssues(query)
 	if err != nil {
@@ -351,7 +354,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {
 	}
 	return issues, err
 }
- 
+
 func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
