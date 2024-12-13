@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/samber/lo"
+
 	// "github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 
@@ -396,9 +398,17 @@ func dropIdx(conn *pgx.Conn, idxName string) error {
 
 func newTargetConn() *pgx.Conn {
 	noticeHandler := func(conn *pgconn.PgConn, n *pgconn.Notice) {
+		noticesToIgnore := []string{
+			"table rewrite may lead to inconsistencies",
+		}
 		// panic("notice")
 		// fmt.Printf("NOTICE! %v\n", n)
 		// utils.PrintAndLog("NOTICE! %v\n", n)
+		if n != nil {
+			if lo.Contains(noticesToIgnore, n.Message) {
+				return
+			}
+		}
 		notice = n
 	}
 	errExit := func(err error) {
