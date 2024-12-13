@@ -951,6 +951,9 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 	var minVersionsFixedInSet bool
 
 	for _, issue := range schemaAnalysisReport.Issues {
+		if !slices.Contains([]string{UNSUPPORTED_FEATURES, MIGRATION_CAVEATS}, issue.IssueType) {
+			continue
+		}
 		if strings.Contains(issue.Reason, issueReason) {
 			objectInfo := ObjectInfo{
 				ObjectName:   issue.ObjectName,
@@ -1000,6 +1003,9 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, ISSUE_UNLOGGED_TABLE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, REFERENCING_CLAUSE_FOR_TRIGGERS, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Advisory Locks", "Advisory Locks", schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("XML Functions", "XML Functions", schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("System Columns", "System Columns", schemaAnalysisReport, false, ""))
 
 	return unsupportedFeatures, nil
 }
