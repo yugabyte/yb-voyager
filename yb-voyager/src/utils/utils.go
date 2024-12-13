@@ -452,7 +452,7 @@ func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 	if !setOrSelectStmt {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 		if noticeMsg != "" {
-			fmt.Printf(color.YellowString("NOTICE: %s\n", noticeMsg))
+			fmt.Printf(color.YellowString("%s\n", noticeMsg))
 		}
 	}
 }

@@ -27,7 +27,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -158,15 +157,10 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				return fmt.Errorf("before index creation: %w", err)
 			}
 		}
-		// notice, err := (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		stmtNotice, err = execStmtAndGetNotice(*conn, sqlInfo.formattedStmt)
 		if err == nil {
-			noticeMsg := ""
-			if stmtNotice != nil {
-				noticeMsg = stmtNotice.Message
-			}
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType),
-				noticeMsg)
+				getNoticeMessage(stmtNotice))
 			return nil
 		}
 
@@ -218,12 +212,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		if missingRequiredSchemaObject(err) {
 			// Do nothing for deferred case
 		} else {
-			noticeMsg := ""
-			if stmtNotice != nil {
-				noticeMsg = stmtNotice.Message
-			}
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType),
-				noticeMsg)
+				getNoticeMessage(stmtNotice))
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
 			if tconf.ContinueOnError {
 				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
@@ -264,10 +254,9 @@ func importDeferredStatements() {
 		for j := 0; j < len(deferredSqlStmts); j++ {
 			var stmtNotice *pgconn.Notice
 			stmtNotice, err = execStmtAndGetNotice(conn, deferredSqlStmts[j].formattedStmt)
-			// _, err = conn.Exec(context.Background(), deferredSqlStmts[j].formattedStmt)
 			if err == nil {
 				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt))
-				noticeMsg := lo.Ternary(stmtNotice != nil, stmtNotice.Message, "")
+				noticeMsg := getNoticeMessage(stmtNotice)
 				if noticeMsg != "" {
 					fmt.Printf(color.YellowString("NOTICE: %s\n", noticeMsg))
 				}
@@ -438,6 +427,13 @@ func newTargetConn() *pgx.Conn {
 	}
 
 	return conn
+}
+
+func getNoticeMessage(n *pgconn.Notice) string {
+	if n == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s: %s", n.Severity, n.Message)
 }
 
 // TODO: Eventually get rid of this function in favour of TargetYugabyteDB.setTargetSchema().
