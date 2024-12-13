@@ -260,7 +260,7 @@ func importDeferredStatements() {
 				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt))
 				noticeMsg := getNoticeMessage(stmtNotice)
 				if noticeMsg != "" {
-					fmt.Printf(color.YellowString("%s\n", noticeMsg))
+					utils.PrintAndLog(color.YellowString("%s\n", noticeMsg))
 				}
 				// removing successfully executed SQL
 				deferredSqlStmts = append(deferredSqlStmts[:j], deferredSqlStmts[j+1:]...)
