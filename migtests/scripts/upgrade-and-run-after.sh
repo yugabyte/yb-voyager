@@ -18,9 +18,6 @@ export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_TYPE_DIR="${TESTS_DIR}/upgrade-tests/${TEST_TYPE}"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
-if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
-   EXPORT_DIR="${EXPORT_DIR}_ssl"
-fi
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 export LAST_BREAKING_RELEASE=${LAST_BREAKING_RELEASE:-"1.8.5"}
 export RELEASE_TO_UPGRADE_TO=${RELEASE_TO_UPGRADE_TO:-"local"}
@@ -38,6 +35,10 @@ fi
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
+
+if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
+   EXPORT_DIR="${EXPORT_DIR}_ssl"
+fi
 
 run_script() {
     local script_file=$1
