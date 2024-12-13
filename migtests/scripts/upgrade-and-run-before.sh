@@ -37,7 +37,9 @@ source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
 
 if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
-   EXPORT_DIR="${EXPORT_DIR}_ssl"
+   export EXPORT_DIR="${EXPORT_DIR}_ssl"
+   export SOURCE_DB_NAME="${SOURCE_DB_NAME}_ssl"
+   export TARGET_DB_NAME="${TARGET_DB_NAME}_ssl"
 fi
 
 run_script() {
