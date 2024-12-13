@@ -19,6 +19,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -211,4 +212,5 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	issues, err = parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_1_0_0)
 	fatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
+	assert.True(t, cmp.Equal(issues[0], NewUnloggedTableIssue("TABLE", "tbl_unlog", stmt)))
 }
