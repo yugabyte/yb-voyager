@@ -479,7 +479,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 }
 
 func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
-	checkSchemaExistQuery := fmt.Sprintf("SELECT schema_name FROM information_schema.schemata WHERE schema_name = '%s'", targetSchema)
+	checkSchemaExistQuery := fmt.Sprintf("select nspname from pg_namespace n where n.nspname = '%s'", targetSchema)
 
 	var fetchedSchema string
 	err := conn.QueryRow(context.Background(), checkSchemaExistQuery).Scan(&fetchedSchema)
