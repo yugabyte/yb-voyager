@@ -197,13 +197,17 @@ func (tdb *TargetOracleDB) TruncateTables(tables []sqlname.NameTuple) error {
 	tableNames := lo.Map(tables, func(nt sqlname.NameTuple, _ int) string {
 		return nt.ForUserQuery()
 	})
+	var errors []error
 
 	for _, tableName := range tableNames {
 		query := fmt.Sprintf("TRUNCATE TABLE %s", tableName)
 		_, err := tdb.Exec(query)
 		if err != nil {
-			return fmt.Errorf("truncate table %q: %w", tableName, err)
+			errors = append(errors, fmt.Errorf("truncate table %q: %w", tableName, err))
 		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("truncate tables: %v", errors)
 	}
 	return nil
 }
