@@ -35,6 +35,9 @@ import (
 
 var deferredSqlStmts []sqlInfo
 var finalFailedSqlStmts []string
+
+// The client message (NOTICE/WARNING) from psql is stored in this global variable.
+// as part of the noticeHandler function for every query executed.
 var notice *pgconn.Notice
 
 func importSchemaInternal(exportDir string, importObjectList []string,
