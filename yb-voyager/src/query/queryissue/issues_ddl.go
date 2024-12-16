@@ -44,6 +44,9 @@ var unloggedTableIssue = issue.Issue{
 	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1129/",
 	Suggestion: "Remove UNLOGGED keyword to make it work",
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
+	},
 }
 
 func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
