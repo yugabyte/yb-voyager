@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -29,7 +28,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/jackc/pgx/v4"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -1216,65 +1214,6 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	}
 }
 
-func newTargetConn() *pgx.Conn {
-	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
-	if err != nil {
-		utils.WaitChannel <- 1
-		<-utils.WaitChannel
-		utils.ErrExit("connect to target db: %s", err)
-	}
-
-	setTargetSchema(conn)
-
-	if sourceDBType == ORACLE && enableOrafce {
-		setOrafceSearchPath(conn)
-	}
-
-	return conn
-}
-
-// TODO: Eventually get rid of this function in favour of TargetYugabyteDB.setTargetSchema().
-func setTargetSchema(conn *pgx.Conn) {
-	if sourceDBType == POSTGRESQL || tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
-		// For PG, schema name is already included in the object name.
-		// No need to set schema if importing in the default schema.
-		return
-	}
-	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", tconf.Schema)
-	var cntSchemaName int
-
-	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", tconf.Schema)
-	}
-
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
-	_, err := conn.Exec(context.Background(), setSchemaQuery)
-	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, tconf.Host, err)
-	}
-}
-
-func dropIdx(conn *pgx.Conn, idxName string) error {
-	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
-	log.Infof("Dropping index: %q", dropIdxQuery)
-	_, err := conn.Exec(context.Background(), dropIdxQuery)
-	if err != nil {
-		return fmt.Errorf("failed to drop index %q: %w", idxName, err)
-	}
-	return nil
-}
-
-func setOrafceSearchPath(conn *pgx.Conn) {
-	// append oracle schema in the search_path for orafce
-	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
-	_, err := conn.Exec(context.Background(), updateSearchPath)
-	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
-	}
-}
-
 func getIndexName(sqlQuery string, indexName string) (string, error) {
 	// Return the index name itself if it is aleady qualified with schema name
 	if len(strings.Split(indexName, ".")) == 2 {
@@ -1290,63 +1229,6 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
-}
-
-// TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
-func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
-	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
-		return nil
-	}
-
-	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
-	if err != nil {
-		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
-	}
-	if invalidTargetIndexesCache == nil {
-		invalidTargetIndexesCache, err = getInvalidIndexes(conn)
-		if err != nil {
-			return fmt.Errorf("failed to fetch invalid indexes: %w", err)
-		}
-	}
-
-	// check index valid or not
-	if invalidTargetIndexesCache[fullyQualifiedObjName] {
-		log.Infof("index %q already exists but in invalid state, dropping it", fullyQualifiedObjName)
-		err = dropIdx(*conn, fullyQualifiedObjName)
-		if err != nil {
-			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
-		}
-	}
-
-	// print the index name as index creation takes time and user can see the progress
-	color.Yellow("creating index %s ...", fullyQualifiedObjName)
-	return nil
-}
-
-func getInvalidIndexes(conn **pgx.Conn) (map[string]bool, error) {
-	var result = make(map[string]bool)
-	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
-	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
-
-	rows, err := (*conn).Query(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("querying invalid indexes: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var fullyQualifiedIndexName string
-		err := rows.Scan(&fullyQualifiedIndexName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
-		}
-		// if schema is not provided by catalog table, then it is public schema
-		if !strings.Contains(fullyQualifiedIndexName, ".") {
-			fullyQualifiedIndexName = fmt.Sprintf("public.%s", fullyQualifiedIndexName)
-		}
-		result[fullyQualifiedIndexName] = true
-	}
-	return result, nil
 }
 
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
