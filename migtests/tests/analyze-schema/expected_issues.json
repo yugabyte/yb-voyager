@@ -1910,15 +1910,5 @@
             "Suggestion": "Large objects are not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25318",
             "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TRIGGER",
-            "ObjectName": "t_raster ON image",
-            "Reason": "Large Objects",
-            "SqlStatement": "CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image\n    FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);",
-            "Suggestion": "Large objects are not yet supported in YugabyteDB, no workaround available right now",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25318",
-            "MinimumVersionsFixedIn": null
         }
 ]

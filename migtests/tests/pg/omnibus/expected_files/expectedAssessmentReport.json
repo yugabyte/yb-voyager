@@ -530,6 +530,11 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
+			"FeatureName": "Large Objects",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"FeatureName": "Constraint triggers",
 			"Objects": [],
 		    "MinimumVersionsFixedIn": null

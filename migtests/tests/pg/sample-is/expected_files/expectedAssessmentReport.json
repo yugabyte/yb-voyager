@@ -122,6 +122,11 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
+			"FeatureName": "Large Objects",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"FeatureName": "Conversion objects",
 			"Objects": [],
 		    "MinimumVersionsFixedIn": null

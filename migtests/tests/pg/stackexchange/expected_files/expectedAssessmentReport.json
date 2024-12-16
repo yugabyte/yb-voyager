@@ -379,6 +379,11 @@
 			"FeatureName": "Unlogged tables",
 			"Objects": [],
 			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Large Objects",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
