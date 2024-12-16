@@ -1006,6 +1006,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Advisory Locks", "Advisory Locks", schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("XML Functions", "XML Functions", schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("System Columns", "System Columns", schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Large Objects", "Large Objects", schemaAnalysisReport, false, ""))
 
 	return unsupportedFeatures, nil
 }

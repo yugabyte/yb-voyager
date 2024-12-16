@@ -405,6 +405,8 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 			result = append(result, NewSystemColumnsIssue(DML_QUERY_OBJECT_TYPE, "", query))
 		case XML_FUNCTIONS_NAME:
 			result = append(result, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", query))
+		case LARGE_OBJECTS:
+			result = append(result, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", query))
 		}
 	}
 	return result, nil

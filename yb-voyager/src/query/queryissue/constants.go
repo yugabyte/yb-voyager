@@ -52,6 +52,9 @@ const (
 	INDEX_ON_COMPLEX_DATATYPE                       = "INDEX_ON_COMPLEX_DATATYPE"
 	FOREIGN_TABLE                                   = "FOREIGN_TABLE"
 	INHERITANCE                                     = "INHERITANCE"
+
+	LARGE_OBJECT_DATATYPE = "LARGE_OBJECT_DATATYPE"
+	LARGE_OBJECTS         = "LARGE_OBJECTS"
 )
 
 // Object types

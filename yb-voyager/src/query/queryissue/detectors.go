@@ -48,6 +48,9 @@ func NewFuncCallDetector() *FuncCallDetector {
 		unsupportedFuncs[fname] = XML_FUNCTIONS_NAME
 	}
 
+	for _, fname := range unsupportedLargeObjectFunctions {
+		unsupportedFuncs[fname] = LARGE_OBJECTS
+	}
 	return &FuncCallDetector{
 		unsupportedFuncs: unsupportedFuncs,
 	}
