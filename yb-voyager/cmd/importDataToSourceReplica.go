@@ -79,7 +79,7 @@ If any table on source-replica database is non-empty, it prompts whether you wan
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files without upsert mode.
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
 
-	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
+	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on source replica DB before importing data. Only applicable along with --start-clean true (default false)")
 
 }
 
