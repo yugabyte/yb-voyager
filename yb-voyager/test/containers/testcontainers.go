@@ -79,6 +79,7 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 		panic(fmt.Sprintf("unsupported db type '%q' for creating test container\n", dbType))
 	}
 
+	containerRegistry[containerName] = testContainer
 	return testContainer
 }
 
