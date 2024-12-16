@@ -67,6 +67,8 @@ type ConnectionPool struct {
 	// counter pendingConnsToClose, and close the connections asynchronously.
 	pendingConnsToClose     int
 	pendingConnsToCloseLock sync.Mutex
+
+	openConns map[*pgx.Conn]bool
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
@@ -78,6 +80,7 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 		disableThrottling:         false,
 		size:                      params.NumConnections,
 		pendingConnsToClose:       0,
+		openConns:                 make(map[*pgx.Conn]bool),
 	}
 	for i := 0; i < params.NumMaxConnections; i++ {
 		pool.idleConns <- nil
@@ -174,12 +177,7 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 
 		retry, err = fn(conn)
 		if err != nil {
-			// On err, drop the connection and clear the prepared statement cache.
-			conn.Close(context.Background())
-			pool.Lock()
-			// assuming PID will still be available
-			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
-			pool.Unlock()
+			pool.closeConnection(conn)
 
 			pool.pendingConnsToCloseLock.Lock()
 			if pool.pendingConnsToClose > 0 {
@@ -250,7 +248,21 @@ func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {
 			}
 		}
 	}
+	pool.Lock()
+	pool.openConns[conn] = true
+	pool.Unlock()
+
 	return conn, err
+}
+
+func (pool *ConnectionPool) closeConnection(conn *pgx.Conn) {
+	// drop the connection and clear the prepared statement cache.
+	conn.Close(context.Background())
+	pool.Lock()
+	// assuming PID will still be available
+	delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
+	delete(pool.openConns, conn)
+	pool.Unlock()
 }
 
 func (pool *ConnectionPool) connect(uri string) (*pgx.Conn, error) {
@@ -300,4 +312,17 @@ func (pool *ConnectionPool) initSession(conn *pgx.Conn) error {
 		}
 	}
 	return nil
+}
+
+func (pool *ConnectionPool) Close() {
+	pool.Lock()
+	defer pool.Unlock()
+	for conn := range pool.openConns {
+		if conn != nil {
+			err := conn.Close(context.Background())
+			if err != nil {
+				log.Errorf("closing connection: %v", err)
+			}
+		}
+	}
 }
