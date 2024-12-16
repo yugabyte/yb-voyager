@@ -369,24 +369,24 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
 	var result []QueryIssue
-	var unsupportedConstructs []string
+	// var unsupportedConstructs []string
 	visited := make(map[protoreflect.Message]bool)
 	detectors := []UnsupportedConstructDetector{
-		NewFuncCallDetector(),
-		NewColumnRefDetector(),
-		NewXmlExprDetector(),
-		NewRangeTableFuncDetector(),
+		NewFuncCallDetector(query),
+		NewColumnRefDetector(query),
+		NewXmlExprDetector(query),
+		NewRangeTableFuncDetector(query),
 	}
 
 	processor := func(msg protoreflect.Message) error {
 		for _, detector := range detectors {
 			log.Debugf("running detector %T", detector)
-			constructs, err := detector.Detect(msg)
+			err := detector.Detect(msg)
 			if err != nil {
 				log.Debugf("error in detector %T: %v", detector, err)
 				return fmt.Errorf("error in detectors %T: %w", detector, err)
 			}
-			unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
+			// unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 		}
 		return nil
 	}
@@ -397,15 +397,20 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		return result, fmt.Errorf("error traversing parse tree message: %w", err)
 	}
 
-	for _, unsupportedConstruct := range unsupportedConstructs {
-		switch unsupportedConstruct {
-		case ADVISORY_LOCKS_NAME:
-			result = append(result, NewAdvisoryLocksIssue(DML_QUERY_OBJECT_TYPE, "", query))
-		case SYSTEM_COLUMNS_NAME:
-			result = append(result, NewSystemColumnsIssue(DML_QUERY_OBJECT_TYPE, "", query))
-		case XML_FUNCTIONS_NAME:
-			result = append(result, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", query))
-		}
+	for _, detector := range detectors {
+		issues := detector.GetIssues()
+		result = append(result, issues...)
 	}
+
+	// for _, unsupportedConstruct := range unsupportedConstructs {
+	// 	switch unsupportedConstruct {
+	// 	case ADVISORY_LOCKS_NAME:
+	// 		result = append(result, NewAdvisoryLocksIssue(DML_QUERY_OBJECT_TYPE, "", query))
+	// 	case SYSTEM_COLUMNS_NAME:
+	// 		result = append(result, NewSystemColumnsIssue(DML_QUERY_OBJECT_TYPE, "", query))
+	// 	case XML_FUNCTIONS_NAME:
+	// 		result = append(result, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", query))
+	// 	}
+	// }
 	return result, nil
 }
