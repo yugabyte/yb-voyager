@@ -259,7 +259,7 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt16: []QueryIssue{
 			NewXmlFunctionsIssue("TABLE", "public.xml_data_example", stmt16),
-			NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue("TABLE", "public.xml_data_example, constraint: (xml_data_example_d_key)", stmt16, "daterange", true),
+			NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue("TABLE", "public.xml_data_example", stmt16, "daterange", "xml_data_example_d_key"),
 			NewMultiColumnListPartition("TABLE", "public.xml_data_example", stmt16),
 			NewInsufficientColumnInPKForPartition("TABLE", "public.xml_data_example", stmt16, []string{"name"}),
 			NewXMLDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "description"),
