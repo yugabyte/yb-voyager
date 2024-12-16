@@ -607,6 +607,8 @@ var MigrationCaveatsIssues = []string{
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.Issue {
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
+	case isPlPgSQLIssue:
+		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
 		//Adding the MIGRATION_CAVEATS issueType of the utils.Issue for these issueInstances in MigrationCaveatsIssues
 		return strings.Contains(issueInstance.TypeName, i)
@@ -615,8 +617,6 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	case strings.HasPrefix(issueInstance.TypeName, UNSUPPORTED_DATATYPE):
 		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
 		issueType = UNSUPPORTED_DATATYPES
-	case isPlPgSQLIssue:
-		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
 	}
 
 	//TODO: how to different between same issue on differnt obejct types like ALTER/INDEX for not adding it ot invalid count map
