@@ -38,3 +38,6 @@ CREATE TRIGGER before_insert_or_delete_row_trigger
 BEFORE INSERT OR DELETE ON public.test_non_partition_before
 FOR EACH ROW
 EXECUTE FUNCTION handle_insert_or_delete();
+
+CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image
+    FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);
