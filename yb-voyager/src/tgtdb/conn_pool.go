@@ -314,15 +314,20 @@ func (pool *ConnectionPool) initSession(conn *pgx.Conn) error {
 	return nil
 }
 
-func (pool *ConnectionPool) Close() {
+func (pool *ConnectionPool) Close() error {
+	var errors []error
 	pool.Lock()
 	defer pool.Unlock()
 	for conn := range pool.openConns {
 		if conn != nil {
 			err := conn.Close(context.Background())
 			if err != nil {
-				log.Errorf("closing connection: %v", err)
+				errors = append(errors, err)
 			}
 		}
 	}
+	if len(errors) > 0 {
+		return fmt.Errorf("closing connections: %v", errors)
+	}
+	return nil
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -494,6 +495,7 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("initializing target db: %v", err)
 	}
 	defer tdb.Finalize()
+	atexit.Register(tdb.Finalize)
 	err = tdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
 		utils.ErrExit("clearing migration state from target db: %v", err)
@@ -624,6 +626,7 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("initializing source-replica db: %v", err)
 	}
 	defer sourceReplicaDB.Finalize()
+	atexit.Register(sourceReplicaDB.Finalize)
 	err = sourceReplicaDB.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
 		utils.ErrExit("clearing migration state from source-replica db: %v", err)
@@ -651,6 +654,7 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("initializing source db: %v", err)
 	}
 	defer fbdb.Finalize()
+	atexit.Register(fbdb.Finalize)
 	err = fbdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
 		utils.ErrExit("clearing migration state from source db: %v", err)

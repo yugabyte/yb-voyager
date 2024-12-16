@@ -23,6 +23,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
@@ -79,6 +80,7 @@ var importDataFileCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
+		atexit.Register(tdb.Finalize)
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, bool(startClean))
 		if err != nil {

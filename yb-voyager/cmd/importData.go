@@ -34,6 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
@@ -128,6 +129,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
+	atexit.Register(tdb.Finalize)
 
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {

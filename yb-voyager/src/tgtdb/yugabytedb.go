@@ -131,6 +131,10 @@ func (yb *TargetYugabyteDB) Init() error {
 
 func (yb *TargetYugabyteDB) Finalize() {
 	yb.disconnect()
+	err := yb.connPool.Close()
+	if err != nil {
+		log.Errorf("closing connection pool: %v", err)
+	}
 }
 
 func (yb *TargetYugabyteDB) reconnect() error {

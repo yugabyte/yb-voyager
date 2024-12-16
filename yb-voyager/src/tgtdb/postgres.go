@@ -135,6 +135,10 @@ func (pg *TargetPostgreSQL) Init() error {
 
 func (pg *TargetPostgreSQL) Finalize() {
 	pg.disconnect()
+	err := pg.connPool.Close()
+	if err != nil {
+		log.Errorf("closing connection pool: %v", err)
+	}
 }
 
 func (pg *TargetPostgreSQL) reconnect() error {

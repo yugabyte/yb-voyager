@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -356,6 +357,7 @@ func getImportedEventsMap(dbType string, tableNameTups []sqlname.NameTuple, targ
 		return nil, fmt.Errorf("failed to initialize the target DB: %w", err)
 	}
 	defer tdb.Finalize()
+	atexit.Register(tdb.Finalize)
 	state := NewImportDataState(exportDir)
 	tableNameTupToEventsCounter, err := state.GetImportedEventsStatsForTableList(tableNameTups, migrationUUID)
 	if err != nil {
