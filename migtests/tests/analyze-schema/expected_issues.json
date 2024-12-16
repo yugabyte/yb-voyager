@@ -536,17 +536,6 @@
         },
         {
             "IssueType": "unsupported_features",
-            "ObjectType": "TABLE",
-            "ObjectName": "tbl_unlogged",
-            "Reason": "UNLOGGED tables are not supported yet.",
-            "SqlStatement": "CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);",
-            "Suggestion": "Remove UNLOGGED keyword to make it work",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1129/",
-            "DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "v1",
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",

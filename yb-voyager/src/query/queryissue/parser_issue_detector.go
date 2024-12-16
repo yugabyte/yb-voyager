@@ -59,6 +59,10 @@ type ParserIssueDetector struct {
 
 	//Boolean to check if there are any Gin indexes
 	IsGinIndexPresentInSchema bool
+
+	// Boolean to check if there are any unlogged tables that were filtered
+	// out because they are fixed as per the target db version
+	IsUnloggedTablesIssueFiltered bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -113,6 +117,10 @@ func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []QueryI
 		}
 		if !fixed {
 			filteredIssues = append(filteredIssues, i)
+		} else {
+			if i.Issue.Type == UNLOGGED_TABLE {
+				p.IsUnloggedTablesIssueFiltered = true
+			}
 		}
 	}
 	return filteredIssues, nil

@@ -538,17 +538,7 @@
         },
 		{
 			"FeatureName": "Unlogged tables",
-			"Objects": [
-				{
-					"ObjectName": "public.tbl_unlogged",
-					"SqlStatement": "CREATE UNLOGGED TABLE public.tbl_unlogged (\n    id integer,\n    val text\n);"
-				},
-				{
-					"ObjectName": "schema2.tbl_unlogged",
-					"SqlStatement": "CREATE UNLOGGED TABLE schema2.tbl_unlogged (\n    id integer,\n    val text\n);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
+			"Objects": [],
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1988,7 +1978,9 @@
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null,
+	"Notes": [
+		"There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported."
+	],
 	"MigrationCaveats": [
 		{
 			"FeatureName": "Alter partitioned tables to add Primary Key",
