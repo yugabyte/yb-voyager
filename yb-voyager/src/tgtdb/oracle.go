@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -193,7 +194,18 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlna
 }
 
 func (tdb *TargetOracleDB) TruncateTables(tables []sqlname.NameTuple) error {
-	return fmt.Errorf("truncate tables not implemented for oracle")
+	tableNames := lo.Map(tables, func(nt sqlname.NameTuple, _ int) string {
+		return nt.ForUserQuery()
+	})
+
+	for _, tableName := range tableNames {
+		query := fmt.Sprintf("TRUNCATE TABLE %s", tableName)
+		_, err := tdb.Exec(query)
+		if err != nil {
+			return fmt.Errorf("truncate table %q: %w", tableName, err)
+		}
+	}
+	return nil
 }
 
 func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
