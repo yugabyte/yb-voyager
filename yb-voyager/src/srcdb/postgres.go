@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/vars"
 )
 
 const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
@@ -1154,6 +1155,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 	}
 
 	if result != "" {
+		vars.PgssEnabledForAssessment = false
 		combinedResult = append(combinedResult, result)
 	}
 	return combinedResult, nil
