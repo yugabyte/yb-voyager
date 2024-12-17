@@ -21,31 +21,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/samber/lo"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
-
-func DeparseSelectStmt(selectStmt *pg_query.SelectStmt) (string, error) {
-	if selectStmt != nil {
-		parseResult := &pg_query.ParseResult{
-			Stmts: []*pg_query.RawStmt{
-				{
-					Stmt: &pg_query.Node{
-						Node: &pg_query.Node_SelectStmt{SelectStmt: selectStmt},
-					},
-				},
-			},
-		}
-
-		// Deparse the SelectStmt to get the string representation
-		selectSQL, err := pg_query.Deparse(parseResult)
-		return selectSQL, err
-	}
-	return "", nil
-}
-
-func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
-	return parseTree.Stmts[0].Stmt.ProtoReflect()
-}
 
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
@@ -61,22 +37,6 @@ func IsViewObject(parseTree *pg_query.ParseResult) bool {
 func IsMviewObject(parseTree *pg_query.ParseResult) bool {
 	createAsNode, isCreateAsStmt := getCreateTableAsStmtNode(parseTree) //for MVIEW case
 	return isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
-}
-
-func GetSelectStmtQueryFromViewOrMView(parseTree *pg_query.ParseResult) (string, error) {
-	viewNode, isViewStmt := getCreateViewNode(parseTree)
-	createAsNode, _ := getCreateTableAsStmtNode(parseTree) //For MVIEW case
-	var selectStmt *pg_query.SelectStmt
-	if isViewStmt {
-		selectStmt = viewNode.ViewStmt.GetQuery().GetSelectStmt()
-	} else {
-		selectStmt = createAsNode.CreateTableAsStmt.GetQuery().GetSelectStmt()
-	}
-	selectStmtQuery, err := DeparseSelectStmt(selectStmt)
-	if err != nil {
-		return "", fmt.Errorf("deparsing the select stmt: %v", err)
-	}
-	return selectStmtQuery, nil
 }
 
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {
@@ -288,7 +248,6 @@ func GetFuncParametersTypeNames(parseTree *pg_query.ParseResult) []string {
 	}
 	return paramTypeNames
 }
-
 
 func IsDDL(parseTree *pg_query.ParseResult) (bool, error) {
 	ddlParser, err := GetDDLProcessor(parseTree)

@@ -376,3 +376,10 @@ CREATE TABLE public.locations (
     name character varying(100),
     geom geometry(Point,4326)
  );
+
+ CREATE TABLE public.xml_data_example (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    description XML DEFAULT xmlparse(document '<product><name>Default Product</name><price>100.00</price><category>Electronics</category></product>'),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);

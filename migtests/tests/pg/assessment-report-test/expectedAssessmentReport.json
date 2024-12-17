@@ -522,15 +522,15 @@
 			"FeatureName": "Primary / Unique key constraints on complex datatypes",
 			"Objects": [
 				{
-					"ObjectName": "public.combined_tbl, constraint: combined_tbl_bittv_key",
+					"ObjectName": "public.combined_tbl, constraint: (combined_tbl_bittv_key)",
 					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_bittv_key UNIQUE (bittv);"
 				},
 				{
-					"ObjectName": "public.combined_tbl, constraint: uk",
+					"ObjectName": "public.combined_tbl, constraint: (uk)",
 					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT uk UNIQUE (lsn);"
 				},
 				{
-					"ObjectName": "public.combined_tbl, constraint: combined_tbl_pkey",
+					"ObjectName": "public.combined_tbl, constraint: (combined_tbl_pkey)",
 					"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_pkey PRIMARY KEY (id, arr_enum);"
 				}
 			],
@@ -539,19 +539,42 @@
         },
 		{
 			"FeatureName": "Unlogged tables",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "System Columns",
 			"Objects": [
 				{
-					"ObjectName": "public.tbl_unlogged",
-					"SqlStatement": "CREATE UNLOGGED TABLE public.tbl_unlogged (\n    id integer,\n    val text\n);"
-				},
-				{
-					"ObjectName": "schema2.tbl_unlogged",
-					"SqlStatement": "CREATE UNLOGGED TABLE schema2.tbl_unlogged (\n    id integer,\n    val text\n);"
+					"ObjectName": "public.ordersentry_view",
+					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT ordersentry.order_id,\n    ordersentry.customer_name,\n    ordersentry.product_name,\n    ordersentry.quantity,\n    ordersentry.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name), XMLELEMENT(NAME \"Quantity\", ordersentry.quantity), XMLELEMENT(NAME \"TotalPrice\", (ordersentry.price * (ordersentry.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((ordersentry.customer_name || ordersentry.product_name)))::bigint) AS lock_acquired,\n    ordersentry.ctid AS row_ctid,\n    ordersentry.xmin AS transaction_id\n   FROM public.ordersentry;"
 				}
 			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 			"MinimumVersionsFixedIn": null
-		}
+		},
+		{
+			"FeatureName": "XML Functions",
+			"Objects": [
+				{
+					"ObjectName": "public.ordersentry_view",
+					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT ordersentry.order_id,\n    ordersentry.customer_name,\n    ordersentry.product_name,\n    ordersentry.quantity,\n    ordersentry.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name), XMLELEMENT(NAME \"Quantity\", ordersentry.quantity), XMLELEMENT(NAME \"TotalPrice\", (ordersentry.price * (ordersentry.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((ordersentry.customer_name || ordersentry.product_name)))::bigint) AS lock_acquired,\n    ordersentry.ctid AS row_ctid,\n    ordersentry.xmin AS transaction_id\n   FROM public.ordersentry;"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+		    "MinimumVersionsFixedIn": null
+        },
+		{
+			"FeatureName": "Advisory Locks",
+			"Objects": [
+				{
+					"ObjectName": "public.ordersentry_view",
+					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT ordersentry.order_id,\n    ordersentry.customer_name,\n    ordersentry.product_name,\n    ordersentry.quantity,\n    ordersentry.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name), XMLELEMENT(NAME \"Quantity\", ordersentry.quantity), XMLELEMENT(NAME \"TotalPrice\", (ordersentry.price * (ordersentry.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((ordersentry.customer_name || ordersentry.product_name)))::bigint) AS lock_acquired,\n    ordersentry.ctid AS row_ctid,\n    ordersentry.xmin AS transaction_id\n   FROM public.ordersentry;"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+		    "MinimumVersionsFixedIn": null
+        }
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
@@ -1956,21 +1979,13 @@
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null,
+	"Notes": [
+		"There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported."
+	],
 	"MigrationCaveats": [
 		{
 			"FeatureName": "Alter partitioned tables to add Primary Key",
-			"Objects": [
-				{
-					"ObjectName": "public.sales_region",
-					"SqlStatement": "ALTER TABLE ONLY public.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
-				},
-				{
-					"ObjectName": "schema2.sales_region",
-					"SqlStatement": "ALTER TABLE ONLY schema2.sales_region\n    ADD CONSTRAINT sales_region_pkey PRIMARY KEY (id, region);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
+			"Objects": [],
 			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
 		    "MinimumVersionsFixedIn": null
         },
@@ -2199,39 +2214,10 @@
 					"ObjectType": "FUNCTION",
 					"ObjectName": "schema2.process_order",
 					"SqlStatement": "SELECT pg_advisory_unlock(orderid);"
-				},
-				{
-					"ObjectType": "VIEW",
-					"ObjectName": "public.ordersentry_view",
-					"SqlStatement": "SELECT ordersentry.order_id, ordersentry.customer_name, ordersentry.product_name, ordersentry.quantity, ordersentry.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name), xmlelement(name \"Quantity\", ordersentry.quantity), xmlelement(name \"TotalPrice\", ordersentry.price * ordersentry.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(ordersentry.customer_name || ordersentry.product_name)::bigint) AS lock_acquired, ordersentry.ctid AS row_ctid, ordersentry.xmin AS transaction_id FROM public.ordersentry"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
 		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "XML Functions",
-			"Objects": [
-				{
-					"ObjectType": "VIEW",
-					"ObjectName": "public.ordersentry_view",
-					"SqlStatement": "SELECT ordersentry.order_id, ordersentry.customer_name, ordersentry.product_name, ordersentry.quantity, ordersentry.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name), xmlelement(name \"Quantity\", ordersentry.quantity), xmlelement(name \"TotalPrice\", ordersentry.price * ordersentry.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(ordersentry.customer_name || ordersentry.product_name)::bigint) AS lock_acquired, ordersentry.ctid AS row_ctid, ordersentry.xmin AS transaction_id FROM public.ordersentry"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "System Columns",
-			"Objects": [
-				{
-					"ObjectType": "VIEW",
-					"ObjectName": "public.ordersentry_view",
-					"SqlStatement": "SELECT ordersentry.order_id, ordersentry.customer_name, ordersentry.product_name, ordersentry.quantity, ordersentry.price, xmlelement(name \"OrderDetails\", xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name), xmlelement(name \"Quantity\", ordersentry.quantity), xmlelement(name \"TotalPrice\", ordersentry.price * ordersentry.quantity::numeric)) AS order_xml, xmlconcat(xmlelement(name \"Customer\", ordersentry.customer_name), xmlelement(name \"Product\", ordersentry.product_name)) AS summary_xml, pg_try_advisory_lock(hashtext(ordersentry.customer_name || ordersentry.product_name)::bigint) AS lock_acquired, ordersentry.ctid AS row_ctid, ordersentry.xmin AS transaction_id FROM public.ordersentry"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-			"MinimumVersionsFixedIn": null
-		}
+        }
 	]
 }

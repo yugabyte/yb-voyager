@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -430,7 +431,8 @@ func GetRedactedURLs(urlList []string) []string {
 	for _, u := range urlList {
 		obj, err := url.Parse(u)
 		if err != nil {
-			ErrExit("invalid URL: %q", u)
+			log.Error("error redacting connection url: invalid connection URL")
+			fmt.Printf("error redacting connection url: invalid connection URL: %v", u)
 		}
 		result = append(result, obj.Redacted())
 	}
@@ -445,11 +447,15 @@ func GetSqlStmtToPrint(stmt string) string {
 	}
 }
 
-func PrintSqlStmtIfDDL(stmt string, fileName string) {
+func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 	setOrSelectStmt := strings.HasPrefix(strings.ToUpper(stmt), "SET ") ||
 		strings.HasPrefix(strings.ToUpper(stmt), "SELECT ")
 	if !setOrSelectStmt {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
+		if noticeMsg != "" {
+			fmt.Printf(color.YellowString("%s\n", noticeMsg))
+			log.Infof("notice for %q: %s", GetSqlStmtToPrint(stmt), noticeMsg)
+		}
 	}
 }
 

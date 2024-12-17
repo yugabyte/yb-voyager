@@ -10,7 +10,7 @@ jobs:
   run-pg-migration-tests:
     strategy:
       matrix:
-        version: [2.21.1.0-b271]
+        version: [2024.2.0.0-b145]
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}

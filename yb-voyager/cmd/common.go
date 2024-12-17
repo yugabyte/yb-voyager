@@ -480,14 +480,6 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
 
-	msr, err := metaDBInstance.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
-	}
-
-	msrVoyagerVersionString := msr.VoyagerVersion
-
-	detectVersionCompatibility(msrVoyagerVersionString, migrationExportDir)
 	return metaDBInstance
 }
 
@@ -522,6 +514,27 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 
 		if msrVoyagerVersion.LessThan(previousBreakingChangeVersion) {
 			versionCheckFailed = true
+		} else {
+			// If the export-dir was created using a version greater than or equal to the PREVIOUS_BREAKING_CHANGE_VERSION,
+			// then if the current voyager version does not match the export-dir version, then just print a note warning the user.
+			noteString := fmt.Sprintf(color.YellowString("Note: The export-dir %q was created using voyager version %q. "+
+				"The current version is %q."),
+				migrationExportDir, msrVoyagerVersionString, utils.YB_VOYAGER_VERSION)
+
+			if utils.YB_VOYAGER_VERSION == "main" {
+				// In this case we won't be able to convert the version using version.NewVersion() as "main" is not a valid version.
+				// Moreover, we know here that the msrVoyagerVersion is not "main" as we have already handled that case above.
+				// Therefore, the current version and the msrVoyagerVersion will not be equal.
+				utils.PrintAndLog("%s", noteString)
+			} else {
+				currentVersion, err := version.NewVersion(utils.YB_VOYAGER_VERSION)
+				if err != nil {
+					utils.ErrExit("could not create version from %q: %v", utils.YB_VOYAGER_VERSION, err)
+				}
+				if !currentVersion.Equal(msrVoyagerVersion) {
+					utils.PrintAndLog("%s", noteString)
+				}
+			}
 		}
 	}
 
@@ -1224,6 +1237,7 @@ type AssessMigrationDBConfig struct {
 type AssessMigrationPayload struct {
 	PayloadVersion        string
 	VoyagerVersion        string
+	TargetDBVersion       *ybversion.YBVersion
 	MigrationComplexity   string
 	SchemaSummary         utils.SchemaSummary
 	AssessmentIssues      []AssessmentIssuePayload
@@ -1235,13 +1249,14 @@ type AssessMigrationPayload struct {
 }
 
 type AssessmentIssuePayload struct {
-	Type               string `json:"Type"`               // Feature, DataType, MigrationCaveat, UQC
-	TypeDescription    string `json:"TypeDescription"`    // Based on AssessmentIssue type
-	Subtype            string `json:"Subtype"`            // GIN Indexes, Advisory Locks etc
-	SubtypeDescription string `json:"SubtypeDescription"` // description based on subtype
-	ObjectName         string `json:"ObjectName"`         // Fully qualified object name(empty if NA, eg UQC)
-	SqlStatement       string `json:"SqlStatement"`       // DDL or DML(UQC)
-	DocsLink           string `json:"DocsLink"`           // docs link based on the subtype
+	Type                   string                          `json:"Type"`                   // Feature, DataType, MigrationCaveat, UQC
+	TypeDescription        string                          `json:"TypeDescription"`        // Based on AssessmentIssue type
+	Subtype                string                          `json:"Subtype"`                // GIN Indexes, Advisory Locks etc
+	SubtypeDescription     string                          `json:"SubtypeDescription"`     // description based on subtype
+	ObjectName             string                          `json:"ObjectName"`             // Fully qualified object name(empty if NA, eg UQC)
+	SqlStatement           string                          `json:"SqlStatement"`           // DDL or DML(UQC)
+	DocsLink               string                          `json:"DocsLink"`               // docs link based on the subtype
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 
 	// Store Type-specific details - extensible, can refer any struct
 	Details json.RawMessage `json:"Details,omitempty"`
@@ -1268,7 +1283,7 @@ type TargetSizingRecommendations struct {
 	TotalShardedSize   int64
 }
 
-var ASSESS_MIGRATION_PAYLOAD_VERSION = "1.0"
+var ASSESS_MIGRATION_PAYLOAD_VERSION = "1.1"
 
 //====== AssesmentReport struct methods ======//
 

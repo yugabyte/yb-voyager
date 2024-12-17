@@ -41,8 +41,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryissue"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -163,6 +163,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	})
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
+		TargetDBVersion:     assessmentReport.TargetDBVersion,
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
 			var objects []string
@@ -473,6 +474,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	payload := AssessMigrationPayload{
 		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
 		VoyagerVersion:      assessmentReport.VoyagerVersion,
+		TargetDBVersion:     assessmentReport.TargetDBVersion,
 		MigrationComplexity: assessmentReport.MigrationComplexity,
 		SchemaSummary:       assessmentReport.SchemaSummary,
 		AssessmentIssues:    assessmentIssues,
@@ -525,13 +527,14 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 	for _, unsupportedFeature := range ar.UnsupportedFeatures {
 		for _, object := range unsupportedFeature.Objects {
 			issues = append(issues, AssessmentIssuePayload{
-				Type:               FEATURE,
-				TypeDescription:    FEATURE_ISSUE_TYPE_DESCRIPTION,
-				Subtype:            unsupportedFeature.FeatureName,
-				SubtypeDescription: unsupportedFeature.FeatureDescription, // TODO: test payload once we add desc for unsupported features
-				ObjectName:         object.ObjectName,
-				SqlStatement:       object.SqlStatement,
-				DocsLink:           unsupportedFeature.DocsLink,
+				Type:                   FEATURE,
+				TypeDescription:        FEATURE_ISSUE_TYPE_DESCRIPTION,
+				Subtype:                unsupportedFeature.FeatureName,
+				SubtypeDescription:     unsupportedFeature.FeatureDescription, // TODO: test payload once we add desc for unsupported features
+				ObjectName:             object.ObjectName,
+				SqlStatement:           object.SqlStatement,
+				DocsLink:               unsupportedFeature.DocsLink,
+				MinimumVersionsFixedIn: unsupportedFeature.MinimumVersionsFixedIn,
 			})
 		}
 	}
@@ -539,37 +542,40 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 	for _, migrationCaveat := range ar.MigrationCaveats {
 		for _, object := range migrationCaveat.Objects {
 			issues = append(issues, AssessmentIssuePayload{
-				Type:               MIGRATION_CAVEATS,
-				TypeDescription:    MIGRATION_CAVEATS_TYPE_DESCRIPTION,
-				Subtype:            migrationCaveat.FeatureName,
-				SubtypeDescription: migrationCaveat.FeatureDescription,
-				ObjectName:         object.ObjectName,
-				SqlStatement:       object.SqlStatement,
-				DocsLink:           migrationCaveat.DocsLink,
+				Type:                   MIGRATION_CAVEATS,
+				TypeDescription:        MIGRATION_CAVEATS_TYPE_DESCRIPTION,
+				Subtype:                migrationCaveat.FeatureName,
+				SubtypeDescription:     migrationCaveat.FeatureDescription,
+				ObjectName:             object.ObjectName,
+				SqlStatement:           object.SqlStatement,
+				DocsLink:               migrationCaveat.DocsLink,
+				MinimumVersionsFixedIn: migrationCaveat.MinimumVersionsFixedIn,
 			})
 		}
 	}
 
 	for _, uqc := range ar.UnsupportedQueryConstructs {
 		issues = append(issues, AssessmentIssuePayload{
-			Type:            QUERY_CONSTRUCT,
-			TypeDescription: UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
-			Subtype:         uqc.ConstructTypeName,
-			SqlStatement:    uqc.Query,
-			DocsLink:        uqc.DocsLink,
+			Type:                   QUERY_CONSTRUCT,
+			TypeDescription:        UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
+			Subtype:                uqc.ConstructTypeName,
+			SqlStatement:           uqc.Query,
+			DocsLink:               uqc.DocsLink,
+			MinimumVersionsFixedIn: uqc.MinimumVersionsFixedIn,
 		})
 	}
 
 	for _, plpgsqlObjects := range ar.UnsupportedPlPgSqlObjects {
 		for _, object := range plpgsqlObjects.Objects {
 			issues = append(issues, AssessmentIssuePayload{
-				Type:               PLPGSQL_OBJECT,
-				TypeDescription:    UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
-				Subtype:            plpgsqlObjects.FeatureName,
-				SubtypeDescription: plpgsqlObjects.FeatureDescription,
-				ObjectName:         object.ObjectName,
-				SqlStatement:       object.SqlStatement,
-				DocsLink:           plpgsqlObjects.DocsLink,
+				Type:                   PLPGSQL_OBJECT,
+				TypeDescription:        UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
+				Subtype:                plpgsqlObjects.FeatureName,
+				SubtypeDescription:     plpgsqlObjects.FeatureDescription,
+				ObjectName:             object.ObjectName,
+				SqlStatement:           object.SqlStatement,
+				DocsLink:               plpgsqlObjects.DocsLink,
+				MinimumVersionsFixedIn: plpgsqlObjects.MinimumVersionsFixedIn,
 			})
 		}
 	}
@@ -945,6 +951,9 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 	var minVersionsFixedInSet bool
 
 	for _, issue := range schemaAnalysisReport.Issues {
+		if !slices.Contains([]string{UNSUPPORTED_FEATURES, MIGRATION_CAVEATS}, issue.IssueType) {
+			continue
+		}
 		if strings.Contains(issue.Reason, issueReason) {
 			objectInfo := ObjectInfo{
 				ObjectName:   issue.ObjectName,
@@ -994,6 +1003,9 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, ISSUE_UNLOGGED_TABLE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, REFERENCING_CLAUSE_FOR_TRIGGERS, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("Advisory Locks", "Advisory Locks", schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("XML Functions", "XML Functions", schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport("System Columns", "System Columns", schemaAnalysisReport, false, ""))
 
 	return unsupportedFeatures, nil
 }
@@ -1324,7 +1336,8 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 
 	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
-	GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+	GIN_INDEXES         = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+	UNLOGGED_TABLE_NOTE = `There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported.`
 )
 
 const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
@@ -1351,7 +1364,12 @@ func addNotesToAssessmentReport() {
 				}
 			}
 		}
+	case POSTGRESQL:
+		if parserIssueDetector.IsUnloggedTablesIssueFiltered {
+			assessmentReport.Notes = append(assessmentReport.Notes, UNLOGGED_TABLE_NOTE)
+		}
 	}
+
 }
 
 func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes, unsupportedDataTypesForLiveMigrationWithFForFB []utils.TableColumnsDataTypes) {

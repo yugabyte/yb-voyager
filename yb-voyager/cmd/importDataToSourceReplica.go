@@ -67,17 +67,20 @@ func init() {
 	registerCommonImportFlags(importDataToSourceReplicaCmd)
 	registerSourceReplicaDBAsTargetConnFlags(importDataToSourceReplicaCmd)
 	registerFlagsForSourceReplica(importDataToSourceReplicaCmd)
-	registerStartCleanFlag(importDataToSourceReplicaCmd)
+	registerStartCleanFlags(importDataToSourceReplicaCmd)
 	registerImportDataCommonFlags(importDataToSourceReplicaCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceReplicaCmd)
 }
 
-func registerStartCleanFlag(cmd *cobra.Command) {
+func registerStartCleanFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		`Starts a fresh import with exported data files present in the export-dir/data directory. 
 If any table on source-replica database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files without upsert mode.
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
+
+	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on source replica DB before importing data. Only applicable along with --start-clean true (default false)")
+
 }
 
 func updateFallForwardEnabledInMetaDB() {
