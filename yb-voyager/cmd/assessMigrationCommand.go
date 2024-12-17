@@ -296,7 +296,6 @@ func init() {
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
 		fmt.Sprintf("Target YugabyteDB version to assess migration for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
-	assessMigrationCmd.Flags().MarkHidden("target-db-version")
 }
 
 func assessMigration() (err error) {

@@ -1261,7 +1261,6 @@ func init() {
 
 	analyzeSchemaCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
 		fmt.Sprintf("Target YugabyteDB version to analyze schema for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
-	analyzeSchemaCmd.Flags().MarkHidden("target-db-version")
 }
 
 func validateReportOutputFormat(validOutputFormats []string, format string) {
