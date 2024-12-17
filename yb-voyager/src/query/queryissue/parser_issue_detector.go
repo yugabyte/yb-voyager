@@ -385,7 +385,6 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 				log.Debugf("error in detector %T: %v", detector, err)
 				return fmt.Errorf("error in detectors %T: %w", detector, err)
 			}
-			// unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 		}
 		return nil
 	}
