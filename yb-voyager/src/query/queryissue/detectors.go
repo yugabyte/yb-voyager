@@ -30,8 +30,6 @@ const (
 
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
 // each detector will work on specific type of node
-// detector <> isssueType many:many
-// detector <> issueType 1:many
 type UnsupportedConstructDetector interface {
 	Detect(msg protoreflect.Message) error
 	GetIssues() []QueryIssue
@@ -40,20 +38,11 @@ type UnsupportedConstructDetector interface {
 type FuncCallDetector struct {
 	query string
 	// right now it covers Advisory Locks and XML functions
-	// unsupportedFuncs map[string]string
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
 }
 
 func NewFuncCallDetector(query string) *FuncCallDetector {
-	// unsupportedFuncs := make(map[string]string)
-	// for _, fname := range unsupportedAdvLockFuncs {
-	// 	unsupportedFuncs[fname] = ADVISORY_LOCKS_NAME
-	// }
-	// for _, fname := range unsupportedXmlFunctions {
-	// 	unsupportedFuncs[fname] = XML_FUNCTIONS_NAME
-	// }
-
 	return &FuncCallDetector{
 		query:                      query,
 		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
@@ -77,10 +66,6 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 		d.xmlFuncsDetected.Add(funcName)
 	}
 
-	// if constructType, isUnsupported := d.unsupportedFuncs[funcName]; isUnsupported {
-	// 	log.Debugf("detected unsupported function %q in msg - %+v", funcName, msg)
-	// 	return []string{constructType}, nil
-	// }
 	return nil
 }
 
@@ -98,15 +83,9 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 type ColumnRefDetector struct {
 	query                            string
 	unsupportedSystemColumnsDetected mapset.Set[string]
-	// unsupportedColumns map[string]string
 }
 
 func NewColumnRefDetector(query string) *ColumnRefDetector {
-	// unsupportedColumns := make(map[string]string)
-	// for _, colName := range unsupportedSysCols {
-	// 	unsupportedColumns[colName] = SYSTEM_COLUMNS_NAME
-	// }
-
 	return &ColumnRefDetector{
 		query:                            query,
 		unsupportedSystemColumnsDetected: mapset.NewThreadUnsafeSet[string](),
@@ -125,11 +104,6 @@ func (d *ColumnRefDetector) Detect(msg protoreflect.Message) error {
 	if unsupportedSysCols.ContainsOne(colName) {
 		d.unsupportedSystemColumnsDetected.Add(colName)
 	}
-
-	// if constructType, isUnsupported := d.unsupportedColumns[colName]; isUnsupported {
-	// 	log.Debugf("detected unsupported system column %q in msg - %+v", colName, msg)
-	// 	return []string{constructType}, nil
-	// }
 	return nil
 }
 
@@ -156,8 +130,6 @@ func NewXmlExprDetector(query string) *XmlExprDetector {
 func (d *XmlExprDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_XMLEXPR_NODE {
 		d.detected = true
-		// log.Debug("detected xml expression")
-		// return []string{XML_FUNCTIONS_NAME}, nil
 	}
 	return nil
 }
@@ -199,7 +171,6 @@ func (d *RangeTableFuncDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_RANGETABLEFUNC_NODE {
 		if queryparser.IsXMLTable(msg) {
 			d.detected = true
-			// return []string{XML_FUNCTIONS_NAME}, nil
 		}
 	}
 	return nil

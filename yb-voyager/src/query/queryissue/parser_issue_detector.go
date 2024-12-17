@@ -369,7 +369,6 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
 	var result []QueryIssue
-	// var unsupportedConstructs []string
 	visited := make(map[protoreflect.Message]bool)
 	detectors := []UnsupportedConstructDetector{
 		NewFuncCallDetector(query),
@@ -418,23 +417,5 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		}
 	}
 
-	// xmlissue1 - XMLFunctionsIssue
-	//	functions: xmleelement
-	// xmlissue2 - XMLExpressionsIssue
-	//	functions: xmlconcat
-
-	// query - 2 xml functions
-	//
-
-	// for _, unsupportedConstruct := range unsupportedConstructs {
-	// 	switch unsupportedConstruct {
-	// 	case ADVISORY_LOCKS_NAME:
-	// 		result = append(result, NewAdvisoryLocksIssue(DML_QUERY_OBJECT_TYPE, "", query))
-	// 	case SYSTEM_COLUMNS_NAME:
-	// 		result = append(result, NewSystemColumnsIssue(DML_QUERY_OBJECT_TYPE, "", query))
-	// 	case XML_FUNCTIONS_NAME:
-	// 		result = append(result, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", query))
-	// 	}
-	// }
 	return result, nil
 }

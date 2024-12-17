@@ -90,7 +90,6 @@ func TestFuncCallDetector(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			// unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
 
@@ -99,7 +98,7 @@ func TestFuncCallDetector(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Equal(t, 1, len(detector.GetIssues()), "Expected 1 issue for SQL: %s", sql)
-		// assert.Contains(t, unsupportedConstructs, ADVISORY_LOCKS_NAME, "Advisory Locks not detected in SQL: %s", sql)
+		assert.Equal(t, ADVISORY_LOCKS, detector.GetIssues()[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 	}
 }
 
@@ -150,14 +149,12 @@ func TestColumnRefDetector(t *testing.T) {
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
-		// unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
 			err := detector.Detect(msg)
 			if err != nil {
 				return err
 			}
-			// unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
 
@@ -165,7 +162,7 @@ func TestColumnRefDetector(t *testing.T) {
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(detector.GetIssues()), "Expected 1 issue for SQL: %s", sql)
-		// assert.Contains(t, unsupportedConstructs, SYSTEM_COLUMNS_NAME, "System Columns not detected in SQL: %s", sql)
+		assert.Equal(t, SYSTEM_COLUMNS, detector.GetIssues()[0].Type, "Expected System Columns issue for SQL: %s", sql)
 	}
 }
 
@@ -335,14 +332,12 @@ func TestRangeTableFuncDetector(t *testing.T) {
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
-		// unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
 			err := detector.Detect(msg)
 			if err != nil {
 				return err
 			}
-			// unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
 
@@ -351,7 +346,7 @@ func TestRangeTableFuncDetector(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Equal(t, 1, len(detector.GetIssues()), "Expected 1 issue for SQL: %s", sql)
-		// assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS_NAME, "XML Functions not detected in SQL: %s", sql)
+		assert.Equal(t, XML_FUNCTIONS, detector.GetIssues()[0].Type, "Expected XML Functions issue for SQL: %s", sql)
 	}
 }
 
@@ -482,7 +477,6 @@ func TestXMLFunctionsDetectors(t *testing.T) {
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
-		// unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
@@ -492,7 +486,6 @@ func TestXMLFunctionsDetectors(t *testing.T) {
 					log.Debugf("error in detector %T: %v", detector, err)
 					return fmt.Errorf("error in detectors %T: %w", detector, err)
 				}
-				// unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 			}
 			return nil
 		}
@@ -515,9 +508,6 @@ func TestXMLFunctionsDetectors(t *testing.T) {
 		}
 
 		assert.True(t, xmlIssueDetected, "Expected XML Functions issue for SQL: %s", sql)
-		// assert.Equal(t, 1, len(allIssues), "Expected 1 issue for SQL: %s", sql)
-		// The detector should detect XML Functions in these queries
-		// assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS_NAME, "XML Functions not detected in SQL: %s", sql)
 	}
 }
 
@@ -564,7 +554,6 @@ RETURNING id,
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
-		// unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
@@ -574,7 +563,6 @@ RETURNING id,
 					log.Debugf("error in detector %T: %v", detector, err)
 					return fmt.Errorf("error in detectors %T: %w", detector, err)
 				}
-				// unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 			}
 			return nil
 		}
@@ -593,9 +581,6 @@ RETURNING id,
 		}
 
 		assert.True(t, expectedIssueTypes.Equal(issueTypesDetected), "Expected issue types do not match the detected issue types. Expected: %v, Actual: %v", expectedIssueTypes, issueTypesDetected)
-		// assert.Equal(t, 3, len(allIssues), "Expected 1 issue for SQL: %s", sql)
-
-		// assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
 	}
 }
 
@@ -661,7 +646,6 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
-		// unsupportedConstructs := []string{}
 
 		objectCollector := queryparser.NewObjectCollector()
 		processor := func(msg protoreflect.Message) error {
@@ -672,7 +656,6 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 					log.Debugf("error in detector %T: %v", detector, err)
 					return fmt.Errorf("error in detectors %T: %w", detector, err)
 				}
-				// unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 			}
 			objectCollector.Collect(msg)
 			return nil
@@ -692,8 +675,6 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		}
 
 		assert.True(t, expectedIssueTypes.Equal(issueTypesDetected), "Expected issue types do not match the detected issue types. Expected: %v, Actual: %v", expectedIssueTypes, issueTypesDetected)
-
-		// assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
 
 		collectedObjects := objectCollector.GetObjects()
 		collectedSchemas := objectCollector.GetSchemaList()

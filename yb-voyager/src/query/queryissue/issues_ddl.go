@@ -449,3 +449,21 @@ var percentTypeSyntax = issue.Issue{
 func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+// unsupportedIndexIssue
+//   ObjectType = INDEX
+//   ObjectName = idx_name ON table_name
+//   invalidCount.Type = INDEX
+//   invalidCount.Name = ObjectName (because this is fully qualified)
+//   DisplayName = ObjectName
+
+// deferrableConstraintIssue
+//  ObjectType = TABLE
+//  ObjectName = table_name
+// 	invalidCount.Type = TABLE
+//  invalidCount.Name = ObjectName
+//  DisplayName = table_name (constraint_name) (!= ObjectName)
+
+// Solutions
+// 1. Define a issue.ObjectDisplayName
+// 2. Keep it in issue.Details and write logic in UI layer to construct display name.
