@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"testing"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -505,7 +506,16 @@ func TestXMLFunctionsDetectors(t *testing.T) {
 			allIssues = append(allIssues, detector.GetIssues()...)
 		}
 
-		assert.Equal(t, 1, len(allIssues), "Expected 1 issue for SQL: %s", sql)
+		xmlIssueDetected := false
+		for _, issue := range allIssues {
+			if issue.Type == XML_FUNCTIONS {
+				xmlIssueDetected = true
+				break
+			}
+		}
+
+		assert.True(t, xmlIssueDetected, "Expected XML Functions issue for SQL: %s", sql)
+		// assert.Equal(t, 1, len(allIssues), "Expected 1 issue for SQL: %s", sql)
 		// The detector should detect XML Functions in these queries
 		// assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS_NAME, "XML Functions not detected in SQL: %s", sql)
 	}
@@ -542,7 +552,7 @@ RETURNING id,
                      xmlattributes(id AS "ID"),
                      xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
 	}
-	// expectedConstructs := []string{ADVISORY_LOCKS_NAME, SYSTEM_COLUMNS_NAME, XML_FUNCTIONS_NAME}
+	expectedIssueTypes := mapset.NewThreadUnsafeSet[string]([]string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}...)
 
 	for _, sql := range combinationSqls {
 		detectors := []UnsupportedConstructDetector{
@@ -577,8 +587,13 @@ RETURNING id,
 		for _, detector := range detectors {
 			allIssues = append(allIssues, detector.GetIssues()...)
 		}
+		issueTypesDetected := mapset.NewThreadUnsafeSet[string]()
+		for _, issue := range allIssues {
+			issueTypesDetected.Add(issue.Type)
+		}
 
-		assert.Equal(t, 3, len(allIssues), "Expected 1 issue for SQL: %s", sql)
+		assert.True(t, expectedIssueTypes.Equal(issueTypesDetected), "Expected issue types do not match the detected issue types. Expected: %v, Actual: %v", expectedIssueTypes, issueTypesDetected)
+		// assert.Equal(t, 3, len(allIssues), "Expected 1 issue for SQL: %s", sql)
 
 		// assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
 	}
@@ -634,6 +649,7 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 	}
 
 	// expectedConstructs := []string{ADVISORY_LOCKS_NAME, SYSTEM_COLUMNS_NAME, XML_FUNCTIONS_NAME}
+	expectedIssueTypes := mapset.NewThreadUnsafeSet[string]([]string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}...)
 
 	for _, tc := range tests {
 		detectors := []UnsupportedConstructDetector{
@@ -670,6 +686,12 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		for _, detector := range detectors {
 			allIssues = append(allIssues, detector.GetIssues()...)
 		}
+		issueTypesDetected := mapset.NewThreadUnsafeSet[string]()
+		for _, issue := range allIssues {
+			issueTypesDetected.Add(issue.Type)
+		}
+
+		assert.True(t, expectedIssueTypes.Equal(issueTypesDetected), "Expected issue types do not match the detected issue types. Expected: %v, Actual: %v", expectedIssueTypes, issueTypesDetected)
 
 		// assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
 

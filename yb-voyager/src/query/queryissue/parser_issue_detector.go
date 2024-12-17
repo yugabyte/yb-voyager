@@ -402,6 +402,14 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		result = append(result, issues...)
 	}
 
+	// xmlissue1 - XMLFunctionsIssue
+	//	functions: xmleelement
+	// xmlissue2 - XMLExpressionsIssue
+	//	functions: xmlconcat
+
+	// query - 2 xml functions
+	//
+
 	// for _, unsupportedConstruct := range unsupportedConstructs {
 	// 	switch unsupportedConstruct {
 	// 	case ADVISORY_LOCKS_NAME:

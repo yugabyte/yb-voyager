@@ -30,6 +30,8 @@ const (
 
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
 // each detector will work on specific type of node
+// detector <> isssueType many:many
+// detector <> issueType 1:many
 type UnsupportedConstructDetector interface {
 	Detect(msg protoreflect.Message) error
 	GetIssues() []QueryIssue

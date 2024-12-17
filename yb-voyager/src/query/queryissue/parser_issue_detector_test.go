@@ -304,3 +304,19 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	assert.Equal(t, 1, len(issues))
 	assert.True(t, cmp.Equal(issues[0], NewUnloggedTableIssue("TABLE", "tbl_unlog", stmt)))
 }
+
+func TestSingleXMLIssueIsDetected(t *testing.T) {
+	stmt := `
+	SELECT e.id, x.employee_xml
+		FROM employees e
+		JOIN (
+			SELECT xmlelement(name "employee", xmlattributes(e.id AS "id"), e.name) AS employee_xml
+			FROM employees e
+		) x ON x.employee_xml IS NOT NULL
+		WHERE xmlexists('//employee[name="John Doe"]' PASSING BY REF x.employee_xml);`
+
+	parserIssueDetector := NewParserIssueDetector()
+	issues, err := parserIssueDetector.getDMLIssues(stmt)
+	fatalIfError(t, err)
+	assert.Equal(t, 1, len(issues))
+}
