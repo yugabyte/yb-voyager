@@ -431,7 +431,8 @@ func GetRedactedURLs(urlList []string) []string {
 	for _, u := range urlList {
 		obj, err := url.Parse(u)
 		if err != nil {
-			ErrExit("invalid URL: %q", u)
+			log.Error("error redacting connection url: invalid connection URL")
+			fmt.Printf("error redacting connection url: invalid connection URL: %v", u)
 		}
 		result = append(result, obj.Redacted())
 	}
