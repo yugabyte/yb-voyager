@@ -131,7 +131,7 @@ var exclusionConstraintIssue = issue.Issue{
 
 func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatement string, constraintName string) QueryIssue {
 	details := map[string]interface{}{
-		"ConstraintName": constraintName,
+		CONSTRAINT_NAME: constraintName,
 	}
 	return newQueryIssue(exclusionConstraintIssue, objectType, objectName, sqlStatement, details)
 }
@@ -146,7 +146,7 @@ var deferrableConstraintIssue = issue.Issue{
 
 func NewDeferrableConstraintIssue(objectType string, objectName string, sqlStatement string, constraintName string) QueryIssue {
 	details := map[string]interface{}{
-		"ConstraintName": constraintName,
+		CONSTRAINT_NAME: constraintName,
 	}
 	return newQueryIssue(deferrableConstraintIssue, objectType, objectName, sqlStatement, details)
 }
@@ -367,7 +367,7 @@ var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
 
 func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string, constraintName string) QueryIssue {
 	details := map[string]interface{}{
-		"ConstraintName": constraintName,
+		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
 	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)

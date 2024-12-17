@@ -388,7 +388,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath,
 				"RANGE with offset PRECEDING/FOLLOWING is not supported for column type numeric and offset type double precision",
 				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
-				summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			location := strings.ToUpper(stmt[1])
 			if slices.Contains(notSupportedFetchLocation, location) {
@@ -654,9 +654,29 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		queryissue.DEFERRABLE_CONSTRAINTS,
 		queryissue.PK_UK_ON_COMPLEX_DATATYPE,
 	}
+	/*
+		TODO:
+		// unsupportedIndexIssue
+		// ObjectType = INDEX
+		// ObjectName = idx_name ON table_name
+		// invalidCount.Type = INDEX
+		// invalidCount.Name = ObjectName (because this is fully qualified)
+		// DisplayName = ObjectName
+
+		// deferrableConstraintIssue
+		// ObjectType = TABLE
+		// ObjectName = table_name
+		// invalidCount.Type = TABLE
+		// invalidCount.Name = ObjectName
+		// DisplayName = table_name (constraint_name) (!= ObjectName)
+
+		// Solutions
+		// 1. Define a issue.ObjectDisplayName
+		// 2. Keep it in issue.Details and write logic in UI layer to construct display name.
+	*/
 	displayObjectName := issueInstance.ObjectName
 
-	constraintName, ok := issueInstance.Details["ConstraintName"]
+	constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]
 	if slices.Contains(constraintIssues, issueInstance.Type) && ok {
 		//In case of constraint issues we add constraint name to the object name as well
 		displayObjectName = fmt.Sprintf("%s, constraint: (%s)", issueInstance.ObjectName, constraintName)
@@ -665,15 +685,15 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 
 	return utils.Issue{
-		ObjectType:   issueInstance.ObjectType,
-		ObjectName:   displayObjectName,
-		Reason:       issueInstance.TypeName,
-		SqlStatement: issueInstance.SqlStatement,
-		DocsLink:     issueInstance.DocsLink,
-		FilePath:     fileName,
-		IssueType:    issueType,
-		Suggestion:   issueInstance.Suggestion,
-		GH:           issueInstance.GH,
+		ObjectType:             issueInstance.ObjectType,
+		ObjectName:             displayObjectName,
+		Reason:                 issueInstance.TypeName,
+		SqlStatement:           issueInstance.SqlStatement,
+		DocsLink:               issueInstance.DocsLink,
+		FilePath:               fileName,
+		IssueType:              issueType,
+		Suggestion:             issueInstance.Suggestion,
+		GH:                     issueInstance.GH,
 		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
 	}
 }
