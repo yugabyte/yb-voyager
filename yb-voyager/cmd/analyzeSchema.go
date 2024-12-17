@@ -1261,7 +1261,7 @@ func init() {
 		"format in which report can be generated: ('html', 'txt', 'json', 'xml'). If not provided, reports will be generated in both 'json' and 'html' formats by default.")
 
 	analyzeSchemaCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
-		fmt.Sprintf("Target YugabyteDB version to analyze schema for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
+		fmt.Sprintf("Target YugabyteDB version to analyze schema for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
 }
 
 func validateReportOutputFormat(validOutputFormats []string, format string) {
