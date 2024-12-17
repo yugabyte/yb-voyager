@@ -295,8 +295,7 @@ func init() {
 	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
-		fmt.Sprintf("Target YugabyteDB version to assess migration for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
-	assessMigrationCmd.Flags().MarkHidden("target-db-version")
+		fmt.Sprintf("Target YugabyteDB version to assess migration for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
 }
 
 func assessMigration() (err error) {
@@ -312,6 +311,8 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
+
+	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
@@ -1546,7 +1547,6 @@ func validateAssessmentMetadataDirFlag() {
 func validateAndSetTargetDbVersionFlag() error {
 	if targetDbVersionStrFlag == "" {
 		targetDbVersion = ybversion.LatestStable
-		utils.PrintAndLog("Defaulting to latest stable YugabyteDB version: %s", targetDbVersion)
 		return nil
 	}
 	var err error

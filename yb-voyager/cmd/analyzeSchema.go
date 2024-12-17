@@ -1082,6 +1082,7 @@ func analyzeSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
+	utils.PrintAndLog("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
 
@@ -1260,8 +1261,7 @@ func init() {
 		"format in which report can be generated: ('html', 'txt', 'json', 'xml'). If not provided, reports will be generated in both 'json' and 'html' formats by default.")
 
 	analyzeSchemaCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
-		fmt.Sprintf("Target YugabyteDB version to analyze schema for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
-	analyzeSchemaCmd.Flags().MarkHidden("target-db-version")
+		fmt.Sprintf("Target YugabyteDB version to analyze schema for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
 }
 
 func validateReportOutputFormat(validOutputFormats []string, format string) {

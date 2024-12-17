@@ -40,15 +40,16 @@ func TestValidNewYBVersion(t *testing.T) {
 
 func TestInvalidNewYBVersion(t *testing.T) {
 	invalidVersionStrings := []string{
-		"abc.def",        // has to be numbers
-		"2024.0.1-1",     // has to be in supported series
-		"2024",           // has to have 4 segments
-		"2.20.7",         // has to have 4 segments
-		"2024.1.1.1.1.1", // exactly 4 segments
+		"abc.def",         // has to be numbers
+		"2024.0.1-1",      // has to be in supported series
+		"2024",            // has to have 4 segments
+		"2.20.7",          // has to have 4 segments
+		"2024.1.1.1.1.1",  // exactly 4 segments
+		"2024.1.0.0-b123", // build number is not allowed.
 	}
 	for _, v := range invalidVersionStrings {
 		_, err := NewYBVersion(v)
-		assert.Error(t, err)
+		assert.Errorf(t, err, "expected error for %q", v)
 	}
 }
 
