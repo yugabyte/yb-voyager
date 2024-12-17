@@ -397,9 +397,25 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		return result, fmt.Errorf("error traversing parse tree message: %w", err)
 	}
 
+	xmlIssueAdded := false
 	for _, detector := range detectors {
 		issues := detector.GetIssues()
-		result = append(result, issues...)
+		for _, issue := range issues {
+			if issue.Type == XML_FUNCTIONS {
+				if xmlIssueAdded {
+					// currently, both FuncCallDetector and XmlExprDetector can detect XMLFunctionsIssue
+					// but we want to only return one XMLFunctionsIssue.
+					// TODO: refactor to avoid this
+					// Possible Solutions:
+					// 1. Have a dedicated detector for XMLFunctions and Expressions so that a single issue is returned
+					// 2. Separate issue types for XML Functions and XML expressions.
+					continue
+				} else {
+					xmlIssueAdded = true
+				}
+			}
+			result = append(result, issues...)
+		}
 	}
 
 	// xmlissue1 - XMLFunctionsIssue
