@@ -43,7 +43,7 @@ const (
 /*
 YBVersion is a wrapper around hashicorp/go-version.Version that adds some Yugabyte-specific
 functionality.
- 1. It only supports versions with 4 segments (A.B.C.D).
+ 1. It only supports versions with 4 segments (A.B.C.D). No build number is allowed.
  2. It only accepts one of supported Yugabyte version series.
 */
 type YBVersion struct {
@@ -54,6 +54,11 @@ func NewYBVersion(v string) (*YBVersion, error) {
 	v1, err := version.NewVersion(v)
 	if err != nil {
 		return nil, err
+	}
+
+	// Do not allow build number in the version. for example, 2024.1.1.0-b123
+	if v1.Prerelease() != "" {
+		return nil, fmt.Errorf("invalid YB version: %s. Build number is not supported. Version should be of format (A.B.C.D) ", v)
 	}
 
 	ybv := &YBVersion{v1}
