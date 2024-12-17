@@ -35,11 +35,10 @@ Arguments:
   assessment_metadata_dir     The directory path where the assessment metadata will be stored.
                               This script will attempt to create the directory if it does not exist.
 
-  pgss_enabled                This argument is used to determine whether pg_stat_statements extension
-                              is properly setup and enabled on source or not.
+  pgss_enabled                Determine whether the pg_stat_statements extension is correctly installed, 
+                              configured, and enabled on the source database.
 
-  iops_capture_interval       This argument is used to configure the interval for measuring the IOPS
-                              metadata on source (in seconds). (Default 120)
+  iops_capture_interval       Configure the interval for measuring the IOPS metadata on source (in seconds). (Default 120)
 
 Example:
   PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60'
@@ -215,7 +214,7 @@ main() {
 
                 log "INFO" "argument pgss_enabled=$pgss_enabled"
                 if [[ "$pgss_enabled" == "false" ]]; then
-                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements is not enabled on source for assessment"
+                    print_and_log "WARN" "Skipping $script_action: argument pgss_enabled is set as false"
                     continue
                 fi
 

@@ -38,7 +38,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/vars"
 )
 
 const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
@@ -1137,13 +1136,13 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 	return combinedResult, nil
 }
 
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission("")
 	if err != nil {
-		return nil, fmt.Errorf("error checking table select permissions: %w", err)
+		return nil, true, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
@@ -1151,14 +1150,13 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 
 	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
-		return nil, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
+		return nil, true, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
 	}
 
 	if result != "" {
-		vars.PgssEnabledForAssessment = false
 		combinedResult = append(combinedResult, result)
 	}
-	return combinedResult, nil
+	return combinedResult, result == "", nil
 }
 
 const (
