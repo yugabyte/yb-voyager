@@ -254,7 +254,6 @@ func shouldRunPersistentPreRun(cmd *cobra.Command) bool {
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
-	utils.PrintAndLog("returning from Execute of cobra command>>>>>>>>>>>>\n")
 }
 
 func init() {

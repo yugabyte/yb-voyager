@@ -40,14 +40,11 @@ func main() {
 	atexit.Register(cmd.CleanupChildProcesses)
 	atexit.Register(restoreTerminalState) // ensure terminal is always restored
 	cmd.Execute()
-	utils.PrintAndLog("preparing1 to return from main function>>>>>>>")
 	cmd.PrintElapsedDuration()
-	utils.PrintAndLog("preparing2 to return from main function>>>>>>>")
 	if cmd.ProcessShutdownRequested {
 		utils.PrintAndLog("waiting for exit handlers to complete the cleanup")
 		time.Sleep(time.Second * 120) // using here larger value than what we have for debezium(100sec)
 	}
-	utils.PrintAndLog("returning from main function>>>>>>>")
 }
 
 func registerSignalHandlers() {
@@ -96,5 +93,4 @@ func restoreTerminalState() {
 			log.Errorf("error restoring terminal: %v\n", err)
 		}
 	}
-	utils.PrintAndLog("restored terminal state, returning...")
 }

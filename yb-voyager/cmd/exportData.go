@@ -143,7 +143,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		sendPayloadAsPerExporterRole(ERROR)
 		atexit.Exit(1)
 	}
-	utils.PrintAndLog("returned from exportDataCommandFn...")
 }
 
 func sendPayloadAsPerExporterRole(status string) {
@@ -254,13 +253,7 @@ func exportData() bool {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer func() {
-		cancel()
-		utils.PrintAndLog("waiting for the go routines to exit...")
-		utils.WaitGroup.Wait()
-		time.Sleep(25 * time.Second)
-		utils.PrintAndLog("DONE waiting for the go routines to exit...")
-	}()
+	defer cancel()
 	var partitionsToRootTableMap map[string]string
 	// get initial table list
 	partitionsToRootTableMap, finalTableList := getInitialTableList()
@@ -339,6 +332,7 @@ func exportData() bool {
 	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
+
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		exportPhase = dbzm.MODE_SNAPSHOT
 		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
