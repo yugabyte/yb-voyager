@@ -97,8 +97,10 @@ func TestFuncCallDetector(t *testing.T) {
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 
-		assert.Equal(t, 1, len(detector.GetIssues()), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, ADVISORY_LOCKS, detector.GetIssues()[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+		issues := detector.GetIssues()
+
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, ADVISORY_LOCKS, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 	}
 }
 
@@ -161,8 +163,11 @@ func TestColumnRefDetector(t *testing.T) {
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(detector.GetIssues()), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, SYSTEM_COLUMNS, detector.GetIssues()[0].Type, "Expected System Columns issue for SQL: %s", sql)
+
+		issues := detector.GetIssues()
+
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, SYSTEM_COLUMNS, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
 	}
 }
 
@@ -345,8 +350,10 @@ func TestRangeTableFuncDetector(t *testing.T) {
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 
-		assert.Equal(t, 1, len(detector.GetIssues()), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, XML_FUNCTIONS, detector.GetIssues()[0].Type, "Expected XML Functions issue for SQL: %s", sql)
+		issues := detector.GetIssues()
+
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, XML_FUNCTIONS, issues[0].Type, "Expected XML Functions issue for SQL: %s", sql)
 	}
 }
 
@@ -633,7 +640,6 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		},
 	}
 
-	// expectedConstructs := []string{ADVISORY_LOCKS_NAME, SYSTEM_COLUMNS_NAME, XML_FUNCTIONS_NAME}
 	expectedIssueTypes := mapset.NewThreadUnsafeSet[string]([]string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}...)
 
 	for _, tc := range tests {
