@@ -926,7 +926,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
 			return nt.ForOutput()
 		})
-		if importerRole == TARGET_DB_IMPORTER_ROLE && truncateTables {
+		if truncateTables {
 			// truncate tables only supported for import-data-to-target.
 			utils.PrintAndLog("Truncating non-empty tables on DB: %v", nonEmptyTableNames)
 			err := tdb.TruncateTables(nonEmptyNts)
@@ -936,11 +936,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		} else {
 			utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
 			utils.PrintAndLog("The above list of tables on DB are not empty.")
-			if importerRole == TARGET_DB_IMPORTER_ROLE {
-				utils.PrintAndLog("If you wish to truncate them, re-run the import command with --truncate-tables true")
-			} else {
-				utils.PrintAndLog("If you wish to truncate them, re-run the import command after manually truncating the tables on DB.")
-			}
+			utils.PrintAndLog("If you wish to truncate them, re-run the import command with --truncate-tables true")
 			yes := utils.AskPrompt("Do you want to start afresh without truncating tables")
 			if !yes {
 				utils.ErrExit("Aborting import.")
