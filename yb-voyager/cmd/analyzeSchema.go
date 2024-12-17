@@ -1082,6 +1082,7 @@ func analyzeSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
+	utils.PrintAndLog("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
 

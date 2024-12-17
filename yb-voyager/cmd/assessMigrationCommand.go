@@ -312,6 +312,8 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 
+	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
+
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
@@ -1545,7 +1547,6 @@ func validateAssessmentMetadataDirFlag() {
 func validateAndSetTargetDbVersionFlag() error {
 	if targetDbVersionStrFlag == "" {
 		targetDbVersion = ybversion.LatestStable
-		utils.PrintAndLog("Defaulting to latest stable YugabyteDB version: %s", targetDbVersion)
 		return nil
 	}
 	var err error
