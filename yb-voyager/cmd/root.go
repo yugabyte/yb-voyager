@@ -128,6 +128,14 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			// Initialize the metaDB variable only if the metaDB is already created. For example, resumption of a command.
 			if metaDBIsCreated(exportDir) {
 				metaDB = initMetaDB(exportDir)
+				msr, err := metaDB.GetMigrationStatusRecord()
+				if err != nil {
+					utils.ErrExit("get migration status record: %v", err)
+				}
+
+				msrVoyagerVersionString := msr.VoyagerVersion
+
+				detectVersionCompatibility(msrVoyagerVersionString, exportDir)
 			}
 
 			if perfProfile {
