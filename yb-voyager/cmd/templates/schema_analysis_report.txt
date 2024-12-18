@@ -19,12 +19,12 @@ Migration Complexity          : {{ .MigrationComplexity }}
 Schema Summary
 --------------- 
 {{ range .SchemaSummary.DBObjects }}
-Object Type         : {{ .ObjectType }}
-  - Total Count     : {{ .TotalCount }}
-  - Valid Count     : {{ sub .TotalCount .InvalidCount }}
-  - Invalid Count   : {{ .InvalidCount }}
-  - Object Names    : {{ .ObjectNames }}{{ if .Details }}  
-  - Details         : {{ .Details }}
+Object Type                    : {{ .ObjectType }}
+  - Total Objects              : {{ .TotalCount }}
+  - Objects Without Issues     : {{ sub .TotalCount .InvalidCount }}
+  - Objects With Issues        : {{ .InvalidCount }}
+  - Object Names               : {{ .ObjectNames }}{{ if .Details }}  
+  - Details                    : {{ .Details }}
 {{ end }}
 {{ end }}
 

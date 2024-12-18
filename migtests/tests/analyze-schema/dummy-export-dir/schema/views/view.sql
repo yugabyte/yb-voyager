@@ -16,7 +16,7 @@ CREATE OR REPLACE view test AS (
                             FROM test1
                             where t = '1DAY' group by x
                             );
-
+CREATE VIEW view_name AS SELECT * from test_arr_enum;
 --Unsupported PG Syntax
 --For this case we will have two issues reported one by regex and other by Unsupported PG syntax with error msg
 ALTER VIEW view_name TO select * from test;
