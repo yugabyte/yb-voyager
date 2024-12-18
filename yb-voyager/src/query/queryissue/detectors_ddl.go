@@ -540,7 +540,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 		))
 	}
 
-	if slices.Contains(unsupportedLargeObjectFunctions, trigger.FuncName) {
+	if unsupportedLargeObjectFunctions.ContainsOne(trigger.FuncName) {
 		//Can't detect trigger func name using the genericIssues's FuncCallDetector 
 		//as trigger execute Func name is not a FuncCall node, its []pg_query.Node
 		issues = append(issues, NewLOFuntionsIssue(
