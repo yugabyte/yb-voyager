@@ -305,6 +305,10 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	assert.True(t, cmp.Equal(issues[0], NewUnloggedTableIssue("TABLE", "tbl_unlog", stmt)))
 }
 
+// currently, both FuncCallDetector and XmlExprDetector can detect XMLFunctionsIssue
+// statement below has both XML functions and XML expressions.
+// but we want to only return one XMLFunctionsIssue from parserIssueDetector.getDMLIssues
+// and there is some workaround in place to avoid returning multiple issues in .genericIssues method
 func TestSingleXMLIssueIsDetected(t *testing.T) {
 	stmt := `
 	SELECT e.id, x.employee_xml

@@ -83,7 +83,6 @@ func TestFuncCallDetector(t *testing.T) {
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
-		// unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
 			err := detector.Detect(msg)
