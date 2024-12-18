@@ -369,24 +369,22 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		return nil, fmt.Errorf("error parsing query: %w", err)
 	}
 	var result []QueryIssue
-	var unsupportedConstructs []string
 	visited := make(map[protoreflect.Message]bool)
 	detectors := []UnsupportedConstructDetector{
-		NewFuncCallDetector(),
-		NewColumnRefDetector(),
-		NewXmlExprDetector(),
-		NewRangeTableFuncDetector(),
+		NewFuncCallDetector(query),
+		NewColumnRefDetector(query),
+		NewXmlExprDetector(query),
+		NewRangeTableFuncDetector(query),
 	}
 
 	processor := func(msg protoreflect.Message) error {
 		for _, detector := range detectors {
 			log.Debugf("running detector %T", detector)
-			constructs, err := detector.Detect(msg)
+			err := detector.Detect(msg)
 			if err != nil {
 				log.Debugf("error in detector %T: %v", detector, err)
 				return fmt.Errorf("error in detectors %T: %w", detector, err)
 			}
-			unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 		}
 		return nil
 	}
@@ -397,15 +395,26 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		return result, fmt.Errorf("error traversing parse tree message: %w", err)
 	}
 
-	for _, unsupportedConstruct := range unsupportedConstructs {
-		switch unsupportedConstruct {
-		case ADVISORY_LOCKS_NAME:
-			result = append(result, NewAdvisoryLocksIssue(DML_QUERY_OBJECT_TYPE, "", query))
-		case SYSTEM_COLUMNS_NAME:
-			result = append(result, NewSystemColumnsIssue(DML_QUERY_OBJECT_TYPE, "", query))
-		case XML_FUNCTIONS_NAME:
-			result = append(result, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", query))
+	xmlIssueAdded := false
+	for _, detector := range detectors {
+		issues := detector.GetIssues()
+		for _, issue := range issues {
+			if issue.Type == XML_FUNCTIONS {
+				if xmlIssueAdded {
+					// currently, both FuncCallDetector and XmlExprDetector can detect XMLFunctionsIssue
+					// but we want to only return one XMLFunctionsIssue.
+					// TODO: refactor to avoid this
+					// Possible Solutions:
+					// 1. Have a dedicated detector for XMLFunctions and Expressions so that a single issue is returned
+					// 2. Separate issue types for XML Functions and XML expressions.
+					continue
+				} else {
+					xmlIssueAdded = true
+				}
+			}
+			result = append(result, issues...)
 		}
 	}
+
 	return result, nil
 }

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/samber/lo"
+	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -76,27 +76,30 @@ func TestFuncCallDetector(t *testing.T) {
 		`SELECT pg_advisory_unlock_all();`,
 	}
 
-	detector := NewFuncCallDetector()
 	for _, sql := range advisoryLockSqls {
+		detector := NewFuncCallDetector(sql)
+
 		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
-		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
-			constructs, err := detector.Detect(msg)
+			err := detector.Detect(msg)
 			if err != nil {
 				return err
 			}
-			unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
 
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.Contains(t, unsupportedConstructs, ADVISORY_LOCKS_NAME, "Advisory Locks not detected in SQL: %s", sql)
+
+		issues := detector.GetIssues()
+
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, ADVISORY_LOCKS, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 	}
 }
 
@@ -141,27 +144,29 @@ func TestColumnRefDetector(t *testing.T) {
         HAVING COUNT(*) > 1;`,
 	}
 
-	detector := NewColumnRefDetector()
 	for _, sql := range systemColumnSqls {
+		detector := NewColumnRefDetector(sql)
 		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
-		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
-			constructs, err := detector.Detect(msg)
+			err := detector.Detect(msg)
 			if err != nil {
 				return err
 			}
-			unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
 
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.Contains(t, unsupportedConstructs, SYSTEM_COLUMNS_NAME, "System Columns not detected in SQL: %s", sql)
+
+		issues := detector.GetIssues()
+
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, SYSTEM_COLUMNS, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
 	}
 }
 
@@ -325,27 +330,29 @@ func TestRangeTableFuncDetector(t *testing.T) {
 		s.report_id;`,
 	}
 
-	detector := NewRangeTableFuncDetector()
 	for _, sql := range xmlTableSqls {
+		detector := NewRangeTableFuncDetector(sql)
 		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
 		visited := make(map[protoreflect.Message]bool)
-		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
-			constructs, err := detector.Detect(msg)
+			err := detector.Detect(msg)
 			if err != nil {
 				return err
 			}
-			unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
 
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS_NAME, "XML Functions not detected in SQL: %s", sql)
+
+		issues := detector.GetIssues()
+
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, XML_FUNCTIONS, issues[0].Type, "Expected XML Functions issue for SQL: %s", sql)
 	}
 }
 
@@ -356,85 +363,85 @@ func TestXMLFunctionsDetectors(t *testing.T) {
 		`SELECT id, xpath('/person/name/text()', data) AS name FROM xml_example;`,
 		`SELECT id FROM employees WHERE xmlexists('/id' PASSING BY VALUE xmlcolumn);`,
 		`SELECT e.id, x.employee_xml
-        FROM employees e
-        JOIN (
-            SELECT xmlelement(name "employee", xmlattributes(e.id AS "id"), e.name) AS employee_xml
-            FROM employees e
-        ) x ON x.employee_xml IS NOT NULL
-        WHERE xmlexists('//employee[name="John Doe"]' PASSING BY REF x.employee_xml);`,
+		        FROM employees e
+		        JOIN (
+		            SELECT xmlelement(name "employee", xmlattributes(e.id AS "id"), e.name) AS employee_xml
+		            FROM employees e
+		        ) x ON x.employee_xml IS NOT NULL
+		        WHERE xmlexists('//employee[name="John Doe"]' PASSING BY REF x.employee_xml);`,
 		`WITH xml_data AS (
-            SELECT 
-                id, 
-                xml_column,
-                xpath('/root/element/@attribute', xml_column) as xpath_result
-            FROM xml_documents
-        )
-        SELECT 
-            x.id,
-            (xt.value).text as value
-        FROM 
-            xml_data x
-            CROSS JOIN LATERAL unnest(x.xpath_result) as xt(value);`,
+		            SELECT
+		                id,
+		                xml_column,
+		                xpath('/root/element/@attribute', xml_column) as xpath_result
+		            FROM xml_documents
+		        )
+		        SELECT
+		            x.id,
+		            (xt.value).text as value
+		        FROM
+		            xml_data x
+		            CROSS JOIN LATERAL unnest(x.xpath_result) as xt(value);`,
 		`SELECT e.id, e.name
-        FROM employees e
-        WHERE CASE
-            WHEN e.department = 'IT' THEN xmlexists('//access[@level="high"]' PASSING e.permissions)
-            ELSE FALSE
-        END;`,
+		        FROM employees e
+		        WHERE CASE
+		            WHEN e.department = 'IT' THEN xmlexists('//access[@level="high"]' PASSING e.permissions)
+		            ELSE FALSE
+		        END;`,
 		`SELECT xmlserialize(
-            content xmlelement(name "employees",
-                xmlagg(
-                    xmlelement(name "employee",
-                        xmlattributes(e.id AS "id"),
-                        e.name
-                    )
-                )
-            ) AS CLOB
-        ) AS employees_xml
-        FROM employees e
-        WHERE e.status = 'active';`,
+		            content xmlelement(name "employees",
+		                xmlagg(
+		                    xmlelement(name "employee",
+		                        xmlattributes(e.id AS "id"),
+		                        e.name
+		                    )
+		                )
+		            ) AS CLOB
+		        ) AS employees_xml
+		        FROM employees e
+		        WHERE e.status = 'active';`,
 		`CREATE VIEW employee_xml_view AS
-        SELECT e.id,
-            xmlelement(name "employee",
-                xmlattributes(e.id AS "id"),
-                e.name,
-                e.department
-            ) AS employee_xml
-        FROM employees e;`,
+		        SELECT e.id,
+		            xmlelement(name "employee",
+		                xmlattributes(e.id AS "id"),
+		                e.name,
+		                e.department
+		            ) AS employee_xml
+		        FROM employees e;`,
 		`SELECT  xmltext('<inventory><item>Widget</item></inventory>') AS inventory_text
-FROM inventory
-WHERE id = 5;`,
+		FROM inventory
+		WHERE id = 5;`,
 		`SELECT xmlforest(name, department) AS employee_info
-FROM employees
-WHERE id = 4;`,
+		FROM employees
+		WHERE id = 4;`,
 		`SELECT xmltable.*
-		FROM xmldata,
-		    XMLTABLE('//ROWS/ROW'
-		            PASSING data
-		            COLUMNS id int PATH '@id',
-		                ordinality FOR ORDINALITY,
-		                "COUNTRY_NAME" text,
-		                country_id text PATH 'COUNTRY_ID',
-		                size_sq_km float PATH 'SIZE[@unit = "sq_km"]',
-		                size_other text PATH
-		                'concat(SIZE[@unit!="sq_km"], " ", SIZE[@unit!="sq_km"]/@unit)',
-		                 premier_name text PATH 'PREMIER_NAME' DEFAULT 'not specified');`,
+				FROM xmldata,
+				    XMLTABLE('//ROWS/ROW'
+				            PASSING data
+				            COLUMNS id int PATH '@id',
+				                ordinality FOR ORDINALITY,
+				                "COUNTRY_NAME" text,
+				                country_id text PATH 'COUNTRY_ID',
+				                size_sq_km float PATH 'SIZE[@unit = "sq_km"]',
+				                size_other text PATH
+				                'concat(SIZE[@unit!="sq_km"], " ", SIZE[@unit!="sq_km"]/@unit)',
+				                 premier_name text PATH 'PREMIER_NAME' DEFAULT 'not specified');`,
 		`SELECT xmltable.*
-		FROM XMLTABLE(XMLNAMESPACES('http://example.com/myns' AS x,
-		                            'http://example.com/b' AS "B"),
-		             '/x:example/x:item'
-		                PASSING (SELECT data FROM xmldata)
-		                COLUMNS foo int PATH '@foo',
-		                  bar int PATH '@B:bar');`,
+				FROM XMLTABLE(XMLNAMESPACES('http://example.com/myns' AS x,
+				                            'http://example.com/b' AS "B"),
+				             '/x:example/x:item'
+				                PASSING (SELECT data FROM xmldata)
+				                COLUMNS foo int PATH '@foo',
+				                  bar int PATH '@B:bar');`,
 		`SELECT xml_is_well_formed_content('<project>Alpha</project>') AS is_well_formed_content
-FROM projects
-WHERE project_id = 10;`,
+		FROM projects
+		WHERE project_id = 10;`,
 		`SELECT xml_is_well_formed_document(xmlforest(name, department)) AS is_well_formed_document
-FROM employees
-WHERE id = 2;`,
+		FROM employees
+		WHERE id = 2;`,
 		`SELECT xml_is_well_formed(xmltext('<employee><name>Jane Doe</name></employee>')) AS is_well_formed
-FROM employees
-WHERE id = 1;`,
+		FROM employees
+		WHERE id = 1;`,
 		`SELECT xmlparse(DOCUMENT '<employee><name>John</name></employee>');`,
 		`SELECT xpath_exists('/employee/name', '<employee><name>John</name></employee>'::xml)`,
 		`SELECT table_to_xml('employees', TRUE, FALSE, '');`,
@@ -465,28 +472,26 @@ WHERE id = 1;`,
 		`SELECT xml_send('<root><data>send</data></root>');`,
 	}
 
-	detectors := []UnsupportedConstructDetector{
-		NewXmlExprDetector(),
-		NewRangeTableFuncDetector(),
-		NewFuncCallDetector(),
-	}
-
 	for _, sql := range xmlFunctionSqls {
+		detectors := []UnsupportedConstructDetector{
+			NewXmlExprDetector(sql),
+			NewRangeTableFuncDetector(sql),
+			NewFuncCallDetector(sql),
+		}
+
 		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
-		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
 				log.Debugf("running detector %T", detector)
-				constructs, err := detector.Detect(msg)
+				err := detector.Detect(msg)
 				if err != nil {
 					log.Debugf("error in detector %T: %v", detector, err)
 					return fmt.Errorf("error in detectors %T: %w", detector, err)
 				}
-				unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 			}
 			return nil
 		}
@@ -494,8 +499,21 @@ WHERE id = 1;`,
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		// The detector should detect XML Functions in these queries
-		assert.Contains(t, unsupportedConstructs, XML_FUNCTIONS_NAME, "XML Functions not detected in SQL: %s", sql)
+
+		var allIssues []QueryIssue
+		for _, detector := range detectors {
+			allIssues = append(allIssues, detector.GetIssues()...)
+		}
+
+		xmlIssueDetected := false
+		for _, issue := range allIssues {
+			if issue.Type == XML_FUNCTIONS {
+				xmlIssueDetected = true
+				break
+			}
+		}
+
+		assert.True(t, xmlIssueDetected, "Expected XML Functions issue for SQL: %s", sql)
 	}
 }
 
@@ -530,29 +548,27 @@ RETURNING id,
                      xmlattributes(id AS "ID"),
                      xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
 	}
-	expectedConstructs := []string{ADVISORY_LOCKS_NAME, SYSTEM_COLUMNS_NAME, XML_FUNCTIONS_NAME}
+	expectedIssueTypes := mapset.NewThreadUnsafeSet[string]([]string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}...)
 
-	detectors := []UnsupportedConstructDetector{
-		NewFuncCallDetector(),
-		NewColumnRefDetector(),
-		NewXmlExprDetector(),
-	}
 	for _, sql := range combinationSqls {
+		detectors := []UnsupportedConstructDetector{
+			NewFuncCallDetector(sql),
+			NewColumnRefDetector(sql),
+			NewXmlExprDetector(sql),
+		}
 		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
-		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
 				log.Debugf("running detector %T", detector)
-				constructs, err := detector.Detect(msg)
+				err := detector.Detect(msg)
 				if err != nil {
 					log.Debugf("error in detector %T: %v", detector, err)
 					return fmt.Errorf("error in detectors %T: %w", detector, err)
 				}
-				unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 			}
 			return nil
 		}
@@ -560,7 +576,17 @@ RETURNING id,
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
+
+		var allIssues []QueryIssue
+		for _, detector := range detectors {
+			allIssues = append(allIssues, detector.GetIssues()...)
+		}
+		issueTypesDetected := mapset.NewThreadUnsafeSet[string]()
+		for _, issue := range allIssues {
+			issueTypesDetected.Add(issue.Type)
+		}
+
+		assert.True(t, expectedIssueTypes.Equal(issueTypesDetected), "Expected issue types do not match the detected issue types. Expected: %v, Actual: %v", expectedIssueTypes, issueTypesDetected)
 	}
 }
 
@@ -613,30 +639,28 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		},
 	}
 
-	expectedConstructs := []string{ADVISORY_LOCKS_NAME, SYSTEM_COLUMNS_NAME, XML_FUNCTIONS_NAME}
+	expectedIssueTypes := mapset.NewThreadUnsafeSet[string]([]string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}...)
 
-	detectors := []UnsupportedConstructDetector{
-		NewFuncCallDetector(),
-		NewColumnRefDetector(),
-		NewXmlExprDetector(),
-	}
 	for _, tc := range tests {
+		detectors := []UnsupportedConstructDetector{
+			NewFuncCallDetector(tc.Sql),
+			NewColumnRefDetector(tc.Sql),
+			NewXmlExprDetector(tc.Sql),
+		}
 		parseResult, err := queryparser.Parse(tc.Sql)
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
-		unsupportedConstructs := []string{}
 
 		objectCollector := queryparser.NewObjectCollector()
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
 				log.Debugf("running detector %T", detector)
-				constructs, err := detector.Detect(msg)
+				err := detector.Detect(msg)
 				if err != nil {
 					log.Debugf("error in detector %T: %v", detector, err)
 					return fmt.Errorf("error in detectors %T: %w", detector, err)
 				}
-				unsupportedConstructs = lo.Union(unsupportedConstructs, constructs)
 			}
 			objectCollector.Collect(msg)
 			return nil
@@ -645,7 +669,17 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Detected constructs do not exactly match the expected constructs. Expected: %v, Actual: %v", expectedConstructs, unsupportedConstructs)
+
+		var allIssues []QueryIssue
+		for _, detector := range detectors {
+			allIssues = append(allIssues, detector.GetIssues()...)
+		}
+		issueTypesDetected := mapset.NewThreadUnsafeSet[string]()
+		for _, issue := range allIssues {
+			issueTypesDetected.Add(issue.Type)
+		}
+
+		assert.True(t, expectedIssueTypes.Equal(issueTypesDetected), "Expected issue types do not match the detected issue types. Expected: %v, Actual: %v", expectedIssueTypes, issueTypesDetected)
 
 		collectedObjects := objectCollector.GetObjects()
 		collectedSchemas := objectCollector.GetSchemaList()
