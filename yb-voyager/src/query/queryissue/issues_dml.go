@@ -58,10 +58,10 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 }
 
 var loFunctionsIssue = issue.Issue{
-	Type:            LARGE_OBJECTS,
-	TypeName:        "Large Objects",
-	TypeDescription: "Large Objects are not supported in YugabyteDB",
-	Suggestion:      "Large objects are not yet supported in YugabyteDB, no workaround available right now",
+	Type:            LARGE_OBJECT_FUNCTIONS,
+	TypeName:        LARGE_OBJECT_FUNCTIONS_NAME,
+	TypeDescription: "Large Objects functions are not supported in YugabyteDB",
+	Suggestion:      "Large objects functions are not yet supported in YugabyteDB, no workaround available right now",
 	GH:              "https://github.com/yugabyte/yugabyte-db/issues/25318",
 	DocsLink:        "", //TODO
 }

@@ -582,7 +582,7 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
-			"FeatureName": "Large Objects",
+			"FeatureName": "Large Object Functions",
 			"Objects": [
 				{
 					"ObjectName": "t_raster ON public.combined_tbl",
@@ -2200,7 +2200,7 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
-			"ConstructTypeName": "Large Objects",
+			"ConstructTypeName": "Large Object Functions",
 			"Query": "SELECT lo_create($1)",
 			"DocsLink": "",
 			"MinimumVersionsFixedIn": null
@@ -2208,7 +2208,7 @@
 	],
 	"UnsupportedPlPgSqlObjects": [
 		{
-			"FeatureName": "Large Objects",
+			"FeatureName": "Large Object Functions",
 			"Objects": [
 				{
 					"ObjectType": "FUNCTION",

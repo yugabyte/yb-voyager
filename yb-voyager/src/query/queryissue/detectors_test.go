@@ -115,13 +115,13 @@ WHERE title = 'Design Document';`,
 	for _, sql := range advisoryLockSqls {
 		issues := detectConstructs(sql)
 		assert.Equal(t, len(issues), 1)
-		assert.Equal(t, issues[0].Type, ADVISORY_LOCKS_NAME, "Advisory Locks not detected in SQL: %s", sql)
+		assert.Equal(t, issues[0].Type, ADVISORY_LOCKS, "Advisory Locks not detected in SQL: %s", sql)
 	}
 
 	for _, sql := range loFunctionSqls {
 		issues := detectConstructs(sql)
 		assert.Equal(t, len(issues), 1)
-		assert.Contains(t, issues[0].Type, LARGE_OBJECTS, "Large Objects not detected in SQL: %s", sql)
+		assert.Equal(t, issues[0].Type, LARGE_OBJECT_FUNCTIONS, "Large Objects not detected in SQL: %s", sql)
 
 	}
 }

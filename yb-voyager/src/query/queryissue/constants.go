@@ -53,8 +53,9 @@ const (
 	FOREIGN_TABLE                                   = "FOREIGN_TABLE"
 	INHERITANCE                                     = "INHERITANCE"
 
-	LARGE_OBJECT_DATATYPE = "LARGE_OBJECT_DATATYPE"
-	LARGE_OBJECTS         = "LARGE_OBJECTS"
+	LARGE_OBJECT_DATATYPE       = "LARGE_OBJECT_DATATYPE"
+	LARGE_OBJECT_FUNCTIONS      = "LARGE_OBJECT_FUNCTIONS"
+	LARGE_OBJECT_FUNCTIONS_NAME = "Large Object Functions"
 )
 
 // Object types

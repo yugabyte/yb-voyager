@@ -940,7 +940,7 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
-			"FeatureName": "Large Objects",
+			"FeatureName": "Large Object Functions",
 			"Objects": [],
 			"MinimumVersionsFixedIn": null
 		}
