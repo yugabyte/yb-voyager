@@ -16,7 +16,13 @@ limitations under the License.
 package constants
 
 const (
-	// OBJECT TYPE
+	// Database Object types
 	TABLE    = "table"
 	FUNCTION = "function"
+
+	// Source DB Types
+	YUGABYTEDB = "yugabytedb"
+	POSTGRESQL = "postgresql"
+	ORACLE     = "oracle"
+	MYSQL      = "mysql"
 )

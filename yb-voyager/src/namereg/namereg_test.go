@@ -12,12 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var oracleToYBNameRegistry = &NameRegistry{
-	SourceDBType: ORACLE,
+	SourceDBType: constants.ORACLE,
 	params: NameRegistryParams{
 		Role: TARGET_DB_IMPORTER_ROLE,
 	},
@@ -41,15 +42,15 @@ func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, 
 		sourceName = sqlname.NewObjectName(reg.SourceDBType, sourceSchema, sourceSchema, sourceTable)
 	}
 	if targetSchema != "" && targetTable != "" {
-		targetName = sqlname.NewObjectName(YUGABYTEDB, targetSchema, targetSchema, targetTable)
+		targetName = sqlname.NewObjectName(constants.YUGABYTEDB, targetSchema, targetSchema, targetTable)
 	}
 	return NewNameTuple(reg.params.Role, sourceName, targetName)
 }
 
 func TestNameTuple(t *testing.T) {
 	assert := assert.New(t)
-	sourceName := sqlname.NewObjectName(ORACLE, "SAKILA", "SAKILA", "TABLE1")
-	targetName := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "table1")
+	sourceName := sqlname.NewObjectName(constants.ORACLE, "SAKILA", "SAKILA", "TABLE1")
+	targetName := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "public", "table1")
 
 	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
 
@@ -76,8 +77,8 @@ func TestNameTuple(t *testing.T) {
 
 func TestNameTupleMatchesPattern(t *testing.T) {
 	assert := assert.New(t)
-	sourceName := sqlname.NewObjectName(ORACLE, "SAKILA", "SAKILA", "TABLE1")
-	targetName := sqlname.NewObjectName(YUGABYTEDB, "public", "sakila", "table1")
+	sourceName := sqlname.NewObjectName(constants.ORACLE, "SAKILA", "SAKILA", "TABLE1")
+	targetName := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "sakila", "table1")
 	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
 
 	testCases := []struct {
@@ -112,8 +113,8 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 
 func TestNameTupleMatchesPatternMySQL(t *testing.T) {
 	assert := assert.New(t)
-	sourceName := sqlname.NewObjectName(MYSQL, "test", "test", "Table1")
-	targetName := sqlname.NewObjectName(YUGABYTEDB, "public", "test", "table1")
+	sourceName := sqlname.NewObjectName(constants.MYSQL, "test", "test", "Table1")
+	targetName := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "test", "table1")
 	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
 	testCases := []struct {
 		pattern string
@@ -150,7 +151,7 @@ func TestNameMatchesPattern(t *testing.T) {
 	require := require.New(t)
 
 	reg := &NameRegistry{
-		SourceDBType: ORACLE,
+		SourceDBType: constants.ORACLE,
 		params: NameRegistryParams{
 			Role: SOURCE_DB_EXPORTER_ROLE,
 		},
@@ -472,7 +473,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 		params := NameRegistryParams{
 			FilePath:       "",
 			Role:           currentMode,
-			SourceDBType:   ORACLE,
+			SourceDBType:   constants.ORACLE,
 			SourceDBSchema: "SAKILA",
 			SourceDBName:   "ORCLPDB1",
 			TargetDBSchema: tSchema,
@@ -490,7 +491,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 
 	err := reg.Init()
 	require.Nil(err)
-	assert.Equal(ORACLE, reg.SourceDBType)
+	assert.Equal(constants.ORACLE, reg.SourceDBType)
 	assert.Equal("SAKILA", reg.DefaultSourceDBSchemaName)
 	assert.Equal(sourceNamesMap, reg.SourceDBTableNames)
 	table1 := buildNameTuple(reg, "SAKILA", "TABLE1", "", "")
@@ -506,7 +507,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	reg = newNameRegistry("")
 	err = reg.Init()
 	require.Nil(err)
-	assert.Equal(ORACLE, reg.SourceDBType)
+	assert.Equal(constants.ORACLE, reg.SourceDBType)
 	assert.Equal("SAKILA", reg.DefaultSourceDBSchemaName)
 	assert.Equal(sourceNamesMap, reg.SourceDBTableNames)
 	ntup, err = reg.LookupTableName("TABLE1")
@@ -606,11 +607,11 @@ func TestNameRegistryJson(t *testing.T) {
 
 	// Create a sample NameRegistry instance
 	reg := &NameRegistry{
-		SourceDBType: ORACLE,
+		SourceDBType: constants.ORACLE,
 		params: NameRegistryParams{
 			FilePath:       outputFilePath,
 			Role:           TARGET_DB_IMPORTER_ROLE,
-			SourceDBType:   ORACLE,
+			SourceDBType:   constants.ORACLE,
 			SourceDBSchema: "SAKILA",
 			SourceDBName:   "ORCLPDB1",
 			TargetDBSchema: "ybsakila",
