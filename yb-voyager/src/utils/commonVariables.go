@@ -90,6 +90,7 @@ type SchemaSummary struct {
 	DBObjects   []DBObject `json:"DatabaseObjects"`
 }
 
+//TODO: Rename the variables of TotalCount and InvalidCount -> TotalObjects and ObjectsWithIssues  
 type DBObject struct {
 	ObjectType   string `json:"ObjectType"`
 	TotalCount   int    `json:"TotalCount"`

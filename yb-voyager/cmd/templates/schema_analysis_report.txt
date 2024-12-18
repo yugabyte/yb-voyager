@@ -20,9 +20,9 @@ Schema Summary
 --------------- 
 {{ range .SchemaSummary.DBObjects }}
 Object Type                    : {{ .ObjectType }}
-  - Total Count                : {{ .TotalCount }}
-  - Valid Count                : {{ sub .TotalCount .InvalidCount }}
-  - Objects With Issues Count  : {{ .InvalidCount }}
+  - Total Objects              : {{ .TotalCount }}
+  - Objects Without Issues     : {{ sub .TotalCount .InvalidCount }}
+  - Objects With Issues        : {{ .InvalidCount }}
   - Object Names               : {{ .ObjectNames }}{{ if .Details }}  
   - Details                    : {{ .Details }}
 {{ end }}

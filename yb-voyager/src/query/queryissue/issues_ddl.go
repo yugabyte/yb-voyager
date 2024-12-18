@@ -181,10 +181,10 @@ var policyRoleIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
 }
 
-func NewPolicyRoleIssue(objectType string, objectName string, SqlStatement string, roles []string) QueryIssue {
+func NewPolicyRoleIssue(objectType string, objectName string, sqlStatement string, roles []string) QueryIssue {
 	issue := policyRoleIssue
 	issue.TypeName = fmt.Sprintf("%s Users - (%s)", issue.TypeName, strings.Join(roles, ","))
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var constraintTriggerIssue = issue.Issue{
@@ -194,9 +194,9 @@ var constraintTriggerIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported",
 }
 
-func NewConstraintTriggerIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+func NewConstraintTriggerIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(constraintTriggerIssue, objectType, objectName, SqlStatement, details)
+	return newQueryIssue(constraintTriggerIssue, objectType, objectName, sqlStatement, details)
 }
 
 var referencingClauseInTriggerIssue = issue.Issue{
@@ -206,8 +206,8 @@ var referencingClauseInTriggerIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers",
 }
 
-func NewReferencingClauseTrigIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(referencingClauseInTriggerIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewReferencingClauseTrigIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(referencingClauseInTriggerIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
@@ -218,8 +218,8 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 	Suggestion: "Create the triggers on individual partitions.",
 }
 
-func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(beforeRowTriggerOnPartitionTableIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(beforeRowTriggerOnPartitionTableIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var alterTableAddPKOnPartitionIssue = issue.Issue{
@@ -234,9 +234,9 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 	},
 }
 
-func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(alterTableAddPKOnPartitionIssue, objectType, objectName, SqlStatement, details)
+	return newQueryIssue(alterTableAddPKOnPartitionIssue, objectType, objectName, sqlStatement, details)
 }
 
 var expressionPartitionIssue = issue.Issue{
@@ -247,8 +247,8 @@ var expressionPartitionIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
 }
 
-func NewExpressionPartitionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(expressionPartitionIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewExpressionPartitionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(expressionPartitionIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var multiColumnListPartition = issue.Issue{
@@ -259,8 +259,8 @@ var multiColumnListPartition = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
 }
 
-func NewMultiColumnListPartition(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(multiColumnListPartition, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewMultiColumnListPartition(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(multiColumnListPartition, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var insufficientColumnsInPKForPartition = issue.Issue{
@@ -271,10 +271,10 @@ var insufficientColumnsInPKForPartition = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
 }
 
-func NewInsufficientColumnInPKForPartition(objectType string, objectName string, SqlStatement string, partitionColumnsNotInPK []string) QueryIssue {
+func NewInsufficientColumnInPKForPartition(objectType string, objectName string, sqlStatement string, partitionColumnsNotInPK []string) QueryIssue {
 	issue := insufficientColumnsInPKForPartition
 	issue.TypeName = fmt.Sprintf("%s - (%s)", issue.TypeName, strings.Join(partitionColumnsNotInPK, ", "))
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var xmlDatatypeIssue = issue.Issue{
@@ -285,10 +285,10 @@ var xmlDatatypeIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
 }
 
-func NewXMLDatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
+func NewXMLDatatypeIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
 	issue := xmlDatatypeIssue
 	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var xidDatatypeIssue = issue.Issue{
@@ -299,10 +299,10 @@ var xidDatatypeIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-is-not-supported",
 }
 
-func NewXIDDatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
+func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
 	issue := xidDatatypeIssue
 	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var postgisDatatypeIssue = issue.Issue{
@@ -312,10 +312,10 @@ var postgisDatatypeIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
 }
 
-func NewPostGisDatatypeIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
+func NewPostGisDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := postgisDatatypeIssue
 	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesIssue = issue.Issue{
@@ -325,10 +325,10 @@ var unsupportedDatatypesIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
 }
 
-func NewUnsupportedDatatypesIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
+func NewUnsupportedDatatypesIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesIssue
 	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesForLiveMigrationIssue = issue.Issue{
@@ -338,10 +338,10 @@ var unsupportedDatatypesForLiveMigrationIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
-func NewUnsupportedDatatypesForLMIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
+func NewUnsupportedDatatypesForLMIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesForLiveMigrationIssue
 	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = issue.Issue{
@@ -351,10 +351,10 @@ var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
-func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
+func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesForLiveMigrationWithFFOrFBIssue
 	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
@@ -365,13 +365,13 @@ var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
-func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, SqlStatement string, typeName string, constraintName string) QueryIssue {
+func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
 	details := map[string]interface{}{
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
 	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var indexOnComplexDatatypesIssue = issue.Issue{
@@ -382,10 +382,10 @@ var indexOnComplexDatatypesIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
-func NewIndexOnComplexDatatypesIssue(objectType string, objectName string, SqlStatement string, typeName string) QueryIssue {
+func NewIndexOnComplexDatatypesIssue(objectType string, objectName string, sqlStatement string, typeName string) QueryIssue {
 	issue := indexOnComplexDatatypesIssue
 	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var foreignTableIssue = issue.Issue{
@@ -396,10 +396,10 @@ var foreignTableIssue = issue.Issue{
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
 }
 
-func NewForeignTableIssue(objectType string, objectName string, SqlStatement string, serverName string) QueryIssue {
+func NewForeignTableIssue(objectType string, objectName string, sqlStatement string, serverName string) QueryIssue {
 	issue := foreignTableIssue
 	issue.Suggestion = fmt.Sprintf(issue.Suggestion, serverName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var inheritanceIssue = issue.Issue{
