@@ -12,7 +12,7 @@ import (
 // TODO: Implement containerRegistry to have Singleton Pattern for the containers
 // containerRegistry to ensure one container per database(dbtype+version) [Singleton Pattern]
 var (
-	containerRegistry map[string]TestContainer
+	containerRegistry = make(map[string]TestContainer)
 	registryMutex     sync.Mutex
 )
 
