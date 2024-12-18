@@ -48,6 +48,13 @@ func NewFuncCallDetector() *FuncCallDetector {
 		unsupportedFuncs[fname] = XML_FUNCTIONS_NAME
 	}
 
+	for _, fname := range unsupportedJsonConstructorFunctions {
+		unsupportedFuncs[fname] = JSON_CONSTRUCTOR_FUNCTION
+	}
+	for _, fname := range unsupportedAggFunctions {
+		unsupportedFuncs[fname] = AGGREGATE_FUNCTION
+	}
+
 	return &FuncCallDetector{
 		unsupportedFuncs: unsupportedFuncs,
 	}
@@ -138,6 +145,29 @@ func (d *RangeTableFuncDetector) Detect(msg protoreflect.Message) ([]string, err
 		if queryparser.IsXMLTable(msg) {
 			return []string{XML_FUNCTIONS_NAME}, nil
 		}
+	}
+	return nil, nil
+}
+
+type JsonConstructorFuncDetector struct {
+	constructorName string
+}
+
+func NewJsonConstructorFuncDetector() *JsonConstructorFuncDetector {
+	return &JsonConstructorFuncDetector{}
+}
+
+func (j *JsonConstructorFuncDetector) Detect(msg protoreflect.Message) ([]string, error) {
+	switch queryparser.GetMsgFullName(msg) {
+	case queryparser.PG_QUERY_JSON_ARRAY_AGG_NODE:
+		j.constructorName = "json_array_agg"
+		return []string{JSON_CONSTRUCTOR_FUNCTION}, nil
+	case queryparser.PG_QUERY_JSON_ARRAY_CONSTRUCTOR_AGG_NODE:
+		j.constructorName = "json_array"
+		return []string{JSON_CONSTRUCTOR_FUNCTION}, nil
+	case queryparser.PG_QUERY_JSON_OBJECT_AGG_NODE:
+		j.constructorName = "json_object_agg"
+		return []string{JSON_CONSTRUCTOR_FUNCTION}, nil
 	}
 	return nil, nil
 }

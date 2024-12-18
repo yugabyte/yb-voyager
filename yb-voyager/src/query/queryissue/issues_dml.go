@@ -16,7 +16,12 @@ limitations under the License.
 
 package queryissue
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+)
 
 var advisoryLocksIssue = issue.Issue{
 	Type:            ADVISORY_LOCKS,
@@ -55,4 +60,47 @@ var xmlFunctionsIssue = issue.Issue{
 
 func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var anyValueAggFunctionIssue = issue.Issue{
+	Type: AGGREGATE_FUNCTION,
+	TypeName: "ANY_VALUE() aggregate function is not supported",
+	TypeDescription: "",
+	Suggestion: "",
+	GH: "",
+	DocsLink: "",
+}
+
+func NewAnyValueAGGFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(anyValueAggFunctionIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var jsonConstructorFunctionsIssue = issue.Issue{
+	Type: JSON_CONSTRUCTOR_FUNCTION,
+	TypeName: "%s() json constructor function is not supported",
+	TypeDescription: "",
+	Suggestion: "",
+	GH: "",
+	DocsLink: "",
+}
+
+func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string, jsonConstructorFnName string) QueryIssue {
+	issue := jsonConstructorFunctionsIssue
+	issue.TypeName = fmt.Sprintf(issue.TypeName, strings.ToUpper(jsonConstructorFnName))
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var jsonQueryFunctionIssue = issue.Issue{
+	Type: JSON_QUERY_FUNCTION,
+	TypeName: "%s() json query function is not supported",
+	TypeDescription: "",
+	Suggestion: "",
+	GH: "",
+	DocsLink: "",
+}
+
+func NewJsonQueryFunction(objectType string, objectName string, sqlStatement string, jsonQueryFnName string) QueryIssue {
+	issue := jsonQueryFunctionIssue
+	issue.TypeName = fmt.Sprintf(issue.TypeName, strings.ToUpper(jsonQueryFnName))
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

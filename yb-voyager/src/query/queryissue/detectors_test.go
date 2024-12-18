@@ -28,7 +28,7 @@ import (
 )
 
 func TestFuncCallDetector(t *testing.T) {
-	advisoryLockSqls := []string{
+	_ = []string{
 		`SELECT pg_advisory_lock(100), COUNT(*) FROM cars;`,
 		`SELECT pg_advisory_lock_shared(100), COUNT(*) FROM cars;`,
 		`SELECT pg_advisory_unlock_shared(100);`,
@@ -75,9 +75,22 @@ func TestFuncCallDetector(t *testing.T) {
         WHERE pg_advisory_unlock(500) = TRUE;`,
 		`SELECT pg_advisory_unlock_all();`,
 	}
-
-	detector := NewFuncCallDetector()
-	for _, sql := range advisoryLockSqls {
+jsonSqls := []string{
+	`SELECT
+    department,
+    any_value(employee_name) AS any_employee
+FROM employees
+GROUP BY department;`,}
+// 	`SELECT JSON_ARRAY('PostgreSQL', 12, TRUE, NULL) AS json_array;`,
+// 		`SELECT department, JSON_ARRAYAGG(name) AS employees_json
+// FROM employees
+// GROUP BY department;`,
+// `SELECT JSON_OBJECT('{code, P123, title, Jaws, price, 19.99}') AS json_from_array;`,
+// `SELECT json_objectagg(k VALUE v) AS json_result
+// FROM (VALUES ('a', 1), ('b', 2), ('c', 3)) AS t(k, v);`,
+// }
+	// detector := NewJsonConstructorFuncDetector()
+	for _, sql := range jsonSqls {
 		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
@@ -85,10 +98,17 @@ func TestFuncCallDetector(t *testing.T) {
 		unsupportedConstructs := []string{}
 
 		processor := func(msg protoreflect.Message) error {
-			constructs, err := detector.Detect(msg)
+			constructs, err :=  NewJsonConstructorFuncDetector().Detect(msg)
 			if err != nil {
 				return err
 			}
+
+			unsupportedConstructs = append(unsupportedConstructs, constructs...)
+			constructs, err =  NewFuncCallDetector().Detect(msg)
+			if err != nil {
+				return err
+			}
+
 			unsupportedConstructs = append(unsupportedConstructs, constructs...)
 			return nil
 		}
@@ -96,7 +116,7 @@ func TestFuncCallDetector(t *testing.T) {
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
-		assert.Contains(t, unsupportedConstructs, ADVISORY_LOCKS_NAME, "Advisory Locks not detected in SQL: %s", sql)
+		assert.Contains(t, unsupportedConstructs, AGGREGATE_FUNCTION, "json not detected in SQL: %s", sql)
 	}
 }
 

@@ -620,10 +620,10 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	}
 
 	//TODO: how to different between same issue on differnt obejct types like ALTER/INDEX for not adding it ot invalid count map
-	increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"]
-	if !ok || (increaseInvalidCount.(bool)) {
-		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
-	}
+	// increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"]
+	// if !ok || (increaseInvalidCount.(bool)) {
+	// 	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	// }
 
 	return utils.Issue{
 		ObjectType:             issueInstance.ObjectType,

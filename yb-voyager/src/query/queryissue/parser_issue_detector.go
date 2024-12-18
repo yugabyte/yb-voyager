@@ -254,13 +254,13 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing a query: %v", err)
 	}
-	isDDL, err := queryparser.IsDDL(parseTree)
-	if err != nil {
-		return nil, fmt.Errorf("error checking if query is ddl: %w", err)
-	}
-	if !isDDL {
-		return nil, nil
-	}
+	// isDDL, err := queryparser.IsDDL(parseTree)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error checking if query is ddl: %w", err)
+	// }
+	// if !isDDL {
+	// 	return nil, nil
+	// }
 	// Parse the query into a DDL object
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
@@ -376,6 +376,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewColumnRefDetector(),
 		NewXmlExprDetector(),
 		NewRangeTableFuncDetector(),
+		NewJsonConstructorFuncDetector(),
 	}
 
 	processor := func(msg protoreflect.Message) error {
@@ -405,6 +406,8 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 			result = append(result, NewSystemColumnsIssue(DML_QUERY_OBJECT_TYPE, "", query))
 		case XML_FUNCTIONS_NAME:
 			result = append(result, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", query))
+		case JSON_CONSTRUCTOR_FUNCTION:
+			result = append(result, NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", query, ""))
 		}
 	}
 	return result, nil

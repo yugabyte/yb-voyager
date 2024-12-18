@@ -52,6 +52,10 @@ const (
 	INDEX_ON_COMPLEX_DATATYPE                       = "INDEX_ON_COMPLEX_DATATYPE"
 	FOREIGN_TABLE                                   = "FOREIGN_TABLE"
 	INHERITANCE                                     = "INHERITANCE"
+
+	AGGREGATE_FUNCTION        = "AGGREGATE_FUNCTION"
+	JSON_CONSTRUCTOR_FUNCTION = "JSON_CONSTRUCTOR_FUNCTION"
+	JSON_QUERY_FUNCTION       = "JSON_QUERY_FUNCTION"
 )
 
 // Object types
