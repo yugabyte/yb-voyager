@@ -80,7 +80,7 @@
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 3,
-				"InvalidCount": 1,
+				"InvalidCount": 3,
 				"ObjectNames": "audit_trigger ON public.tt, before_sales_region_insert_update ON public.sales_region, audit_trigger ON schema2.tt"
 			},
 			{
