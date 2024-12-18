@@ -14,8 +14,8 @@
 
 set -e
 
-SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]:-$0}")" &> /dev/null && pwd)
-SCRIPT_NAME=$(basename "${BASH_SOURCE[0]:-$0}")
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE:-$0}" )" &> /dev/null && pwd )
+SCRIPT_NAME=$(basename $0)
 
 HELP_TEXT="
 Usage: $SCRIPT_NAME <oracle_connection_string> <schema_name> <assessment_metadata_dir>
@@ -269,7 +269,7 @@ main() {
         run_command "$ora2pg_cmd"
     done
 
-    ora2pg_report_cmd="ora2pg -t show_report  --estimate_cost -c $OUTPUT_FILE_PATH --dump_as_sheet --quiet > $assessment_metadata_dir/schema/ora2pg_report.csv"
+    ora2pg_report_cmd="ora2pg -t -v show_report  --estimate_cost -c $OUTPUT_FILE_PATH --dump_as_sheet > $assessment_metadata_dir/schema/ora2pg_report.csv"
     log "INFO" "executing ora2pg command for report: $ora2pg_report_cmd"
     run_command "$ora2pg_report_cmd"
 
