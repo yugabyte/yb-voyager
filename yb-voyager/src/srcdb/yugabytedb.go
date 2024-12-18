@@ -1057,7 +1057,7 @@ func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTa
 }
 
 func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
-	return nil, true, nil
+	return nil, false, nil
 }
 
 func (yb *YugabyteDB) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {

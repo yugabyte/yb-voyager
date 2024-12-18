@@ -722,7 +722,7 @@ func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTable
 }
 
 func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
-	return nil, true, nil
+	return nil, false, nil
 }
 
 func (ora *Oracle) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
