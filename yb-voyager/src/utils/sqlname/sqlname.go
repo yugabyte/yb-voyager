@@ -20,14 +20,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"golang.org/x/exp/slices"
-)
-
-const (
-	YUGABYTEDB = "yugabytedb"
-	POSTGRESQL = "postgresql"
-	ORACLE     = "oracle"
-	MYSQL      = "mysql"
 )
 
 var (
@@ -113,9 +107,9 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 	}
 	return &TargetName{
 		ObjectName: Identifier{
-			Quoted:    quote(objectName, YUGABYTEDB),
-			Unquoted:  unquote(objectName, YUGABYTEDB),
-			MinQuoted: minQuote(objectName, YUGABYTEDB),
+			Quoted:    quote(objectName, constants.YUGABYTEDB),
+			Unquoted:  unquote(objectName, constants.YUGABYTEDB),
+			MinQuoted: minQuote(objectName, constants.YUGABYTEDB),
 		},
 		SchemaName: Identifier{
 			Quoted:    `"` + schemaName + `"`,
@@ -123,9 +117,9 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 			MinQuoted: schemaName,
 		},
 		Qualified: Identifier{
-			Quoted:    schemaName + "." + quote(objectName, YUGABYTEDB),
-			Unquoted:  schemaName + "." + unquote(objectName, YUGABYTEDB),
-			MinQuoted: schemaName + "." + minQuote(objectName, YUGABYTEDB),
+			Quoted:    schemaName + "." + quote(objectName, constants.YUGABYTEDB),
+			Unquoted:  schemaName + "." + unquote(objectName, constants.YUGABYTEDB),
+			MinQuoted: schemaName + "." + minQuote(objectName, constants.YUGABYTEDB),
 		},
 	}
 }
@@ -160,17 +154,17 @@ func IsQuoted(s string) bool {
 
 func quote(s string, dbType string) string {
 	if IsQuoted(s) {
-		if s[0] == '`' && dbType == YUGABYTEDB {
+		if s[0] == '`' && dbType == constants.YUGABYTEDB {
 			return `"` + unquote(s, dbType) + `"` // `Foo` -> "Foo"
 		}
 		return s
 	}
 	switch dbType {
-	case POSTGRESQL, YUGABYTEDB:
+	case constants.POSTGRESQL, constants.YUGABYTEDB:
 		return `"` + strings.ToLower(s) + `"`
-	case MYSQL:
+	case constants.MYSQL:
 		return s // TODO - learn the semantics of quoting in MySQL.
-	case ORACLE:
+	case constants.ORACLE:
 		return `"` + strings.ToUpper(s) + `"`
 	default:
 		panic("unknown source db type " + dbType)
@@ -182,11 +176,11 @@ func unquote(s string, dbType string) string {
 		return s[1 : len(s)-1]
 	}
 	switch dbType {
-	case POSTGRESQL, YUGABYTEDB:
+	case constants.POSTGRESQL, constants.YUGABYTEDB:
 		return strings.ToLower(s)
-	case MYSQL:
+	case constants.MYSQL:
 		return s
-	case ORACLE:
+	case constants.ORACLE:
 		return strings.ToUpper(s)
 	default:
 		panic("unknown source db type")
@@ -210,15 +204,15 @@ func SetDifference(a, b []*SourceName) []*SourceName {
 func minQuote(objectName, sourceDBType string) string {
 	objectName = unquote(objectName, sourceDBType)
 	switch sourceDBType {
-	case YUGABYTEDB, POSTGRESQL:
+	case constants.YUGABYTEDB, constants.POSTGRESQL:
 		if IsAllLowercase(objectName) && !IsReservedKeywordPG(objectName) {
 			return objectName
 		} else {
 			return `"` + objectName + `"`
 		}
-	case MYSQL:
+	case constants.MYSQL:
 		return objectName
-	case ORACLE:
+	case constants.ORACLE:
 		if IsAllUppercase(objectName) && !IsReservedKeywordOracle(objectName) {
 			return objectName
 		} else {
@@ -246,7 +240,7 @@ func IsAllLowercase(s string) bool {
 		if !(unicode.IsLetter(rune(c)) || unicode.IsDigit(rune(c))) { // check for special chars
 			return false
 		}
-		if unicode.IsUpper(rune(c)) { 
+		if unicode.IsUpper(rune(c)) {
 			return false
 		}
 	}
@@ -255,11 +249,11 @@ func IsAllLowercase(s string) bool {
 
 func IsCaseSensitive(s string, sourceDbType string) bool {
 	switch sourceDbType {
-	case ORACLE:
+	case constants.ORACLE:
 		return !IsAllUppercase(s)
-	case POSTGRESQL:
+	case constants.POSTGRESQL:
 		return !IsAllLowercase(s)
-	case MYSQL:
+	case constants.MYSQL:
 		return false
 	}
 	panic("invalid source db type")

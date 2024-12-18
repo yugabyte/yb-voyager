@@ -19,17 +19,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
 func TestNameTupleEquals(t *testing.T) {
 	assert := assert.New(t)
-	o1 := NewObjectName(POSTGRESQL, "public", "public", "table1")
-	o2 := NewObjectName(POSTGRESQL, "public", "public", "table1")
+	o1 := NewObjectName(constants.POSTGRESQL, "public", "public", "table1")
+	o2 := NewObjectName(constants.POSTGRESQL, "public", "public", "table1")
 	nameTuple1 := NameTuple{CurrentName: o1, SourceName: o1, TargetName: o1}
 	nameTuple2 := NameTuple{CurrentName: o2, SourceName: o2, TargetName: o2}
 	assert.True(nameTuple1.Equals(nameTuple2))
 
-	o3 := NewObjectName(POSTGRESQL, "public", "public", "table2")
+	o3 := NewObjectName(constants.POSTGRESQL, "public", "public", "table2")
 	nameTuple3 := NameTuple{CurrentName: o3, SourceName: o3, TargetName: o3}
 	assert.False(nameTuple1.Equals(nameTuple3))
 }
@@ -39,7 +40,7 @@ func TestPGDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a table name belonging to default schema.
-	tableName := NewObjectName(POSTGRESQL, "public", "public", "table1")
+	tableName := NewObjectName(constants.POSTGRESQL, "public", "public", "table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "public",
@@ -68,7 +69,7 @@ func TestPGNonDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a table name belonging to a non-default schema.
-	tableName := NewObjectName(POSTGRESQL, "public", "schema1", "table1")
+	tableName := NewObjectName(constants.POSTGRESQL, "public", "schema1", "table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",
@@ -97,7 +98,7 @@ func TestPGDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a case-sensitive name with mixed cases.
-	tableName := NewObjectName(POSTGRESQL, "public", "public", "Table1")
+	tableName := NewObjectName(constants.POSTGRESQL, "public", "public", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "public",
@@ -126,7 +127,7 @@ func TestPGNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a case-sensitive name with mixed cases.
-	tableName := NewObjectName(POSTGRESQL, "public", "schema1", "Table1")
+	tableName := NewObjectName(constants.POSTGRESQL, "public", "schema1", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",
@@ -155,7 +156,7 @@ func TestPGNonDefaultSchemaTableNameWithSpecialChars(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with PostgreSQL and default schema "public" and
 	// a case-sensitive name with mixed cases.
-	tableName := NewObjectName(POSTGRESQL, "public", "schema1", "table$1")
+	tableName := NewObjectName(constants.POSTGRESQL, "public", "schema1", "table$1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",
@@ -186,7 +187,7 @@ func TestOracleDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with Oracle and default schema "SAKILA" and
 	// a table name belonging to default schema.
-	tableName := NewObjectName(ORACLE, "SAKILA", "SAKILA", "TABLE1")
+	tableName := NewObjectName(constants.ORACLE, "SAKILA", "SAKILA", "TABLE1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "SAKILA",
@@ -215,7 +216,7 @@ func TestOracleNonDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with Oracle and default schema "SAKILA" and
 	// a table name belonging to a non-default schema.
-	tableName := NewObjectName(ORACLE, "SAKILA", "SCHEMA1", "TABLE1")
+	tableName := NewObjectName(constants.ORACLE, "SAKILA", "SCHEMA1", "TABLE1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "SCHEMA1",
@@ -244,7 +245,7 @@ func TestOracleDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with Oracle and default schema "SAKILA" and
 	// a case-sensitive name with mixed cases.
-	tableName := NewObjectName(ORACLE, "SAKILA", "SAKILA", "Table1")
+	tableName := NewObjectName(constants.ORACLE, "SAKILA", "SAKILA", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "SAKILA",
@@ -273,7 +274,7 @@ func TestOracleNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with Oracle and default schema "SAKILA" and
 	// a case-sensitive name with mixed cases.
-	tableName := NewObjectName(ORACLE, "SAKILA", "SCHEMA1", "Table1")
+	tableName := NewObjectName(constants.ORACLE, "SAKILA", "SCHEMA1", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "SCHEMA1",
@@ -304,7 +305,7 @@ func TestMySQLDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with MySQL and default schema "sakila" and
 	// a table name belonging to default schema.
-	tableName := NewObjectName(MYSQL, "sakila", "sakila", "table1")
+	tableName := NewObjectName(constants.MYSQL, "sakila", "sakila", "table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "sakila",
@@ -333,7 +334,7 @@ func TestMySQLNonDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with MySQL and default schema "sakila" and
 	// a table name belonging to a non-default schema.
-	tableName := NewObjectName(MYSQL, "sakila", "schema1", "table1")
+	tableName := NewObjectName(constants.MYSQL, "sakila", "schema1", "table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",
@@ -362,7 +363,7 @@ func TestMySQLDefaultSchemaCaseSensitiveMixedCaseTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with MySQL and default schema "sakila" and
 	// a case-sensitive name with mixed cases.
-	tableName := NewObjectName(MYSQL, "sakila", "sakila", "Table1")
+	tableName := NewObjectName(constants.MYSQL, "sakila", "sakila", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "sakila",
@@ -391,7 +392,7 @@ func TestMySQLNonDefaultSchemaCaseSensitiveUpperCaseTableName(t *testing.T) {
 	assert := assert.New(t)
 	// Test NewTableName() with MySQL and default schema "sakila" and
 	// a case-sensitive name with all upper case letters.
-	tableName := NewObjectName(MYSQL, "sakila", "schema1", "TABLE1")
+	tableName := NewObjectName(constants.MYSQL, "sakila", "schema1", "TABLE1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
 		SchemaName:        "schema1",

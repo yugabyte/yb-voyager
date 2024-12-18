@@ -3,12 +3,13 @@ package tgtdb
 import (
 	"testing"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 func TestAttributeNameRegistry_QuoteAttributeName_POSTGRES(t *testing.T) {
 	reg := NewAttributeNameRegistry(nil, &TargetConf{TargetDBType: POSTGRESQL})
-	o := sqlname.NewObjectName(sqlname.POSTGRESQL, "public", "public", "test_table")
+	o := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_table")
 	tableNameTup := sqlname.NameTuple{SourceName: o, TargetName: o, CurrentName: o}
 
 	// Mocking GetListOfTableAttributes to return a list of attributes
@@ -81,7 +82,7 @@ func TestAttributeNameRegistry_QuoteAttributeName_POSTGRES(t *testing.T) {
 }
 func TestAttributeNameRegistry_QuoteAttributeName_ORACLE(t *testing.T) {
 	reg := NewAttributeNameRegistry(nil, &TargetConf{TargetDBType: ORACLE})
-	o := sqlname.NewObjectName(sqlname.ORACLE, "TEST", "TEST", "test_table")
+	o := sqlname.NewObjectName(constants.ORACLE, "TEST", "TEST", "test_table")
 	tableNameTup := sqlname.NameTuple{SourceName: o, TargetName: o, CurrentName: o}
 
 	// Mocking GetListOfTableAttributes to return a list of attributes

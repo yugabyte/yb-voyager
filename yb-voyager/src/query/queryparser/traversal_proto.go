@@ -219,7 +219,7 @@ func GetSchemaUsed(query string) ([]string, error) {
 
 	msg := GetProtoMessageFromParseTree(parseTree)
 	visited := make(map[protoreflect.Message]bool)
-	objectCollector := NewObjectCollector()
+	objectCollector := NewObjectCollector(TablesOnlyPredicate)
 	err = TraverseParseTree(msg, visited, func(msg protoreflect.Message) error {
 		objectCollector.Collect(msg)
 		return nil
