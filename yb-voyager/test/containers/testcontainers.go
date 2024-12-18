@@ -27,7 +27,6 @@ type TestContainer interface {
 			// Function to run sql script for a specific test case
 			SetupSqlScript(scriptName string, dbName string) error
 
-			// Add Capability to not detect and not spawn the cluster if already running
 			// Add Capability to run multiple versions of a dbtype parallely
 	*/
 }
