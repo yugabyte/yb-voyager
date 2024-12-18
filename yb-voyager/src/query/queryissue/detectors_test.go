@@ -652,7 +652,7 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 
 		visited := make(map[protoreflect.Message]bool)
 
-		objectCollector := queryparser.NewObjectCollector()
+		objectCollector := queryparser.NewObjectCollector(nil)
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
 				log.Debugf("running detector %T", detector)

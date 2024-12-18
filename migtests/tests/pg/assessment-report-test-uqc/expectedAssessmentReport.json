@@ -1,0 +1,237 @@
+{
+	"VoyagerVersion": "IGNORED",
+	"TargetDBVersion": "IGNORED",
+	"MigrationComplexity": "LOW",
+	"SchemaSummary": {
+		"Description": "Objects that will be created on the target YugabyteDB.",
+		"DbName": "pg_assessment_report_uqc",
+		"SchemaNames": [
+			"sales",
+			"analytics"
+		],
+		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg20.04+1)",
+		"DatabaseObjects": [
+			{
+				"ObjectType": "SCHEMA",
+				"TotalCount": 2,
+				"InvalidCount": 0,
+				"ObjectNames": "analytics, sales"
+			},
+			{
+				"ObjectType": "EXTENSION",
+				"TotalCount": 1,
+				"InvalidCount": 0,
+				"ObjectNames": "pg_stat_statements"
+			},
+			{
+				"ObjectType": "TABLE",
+				"TotalCount": 2,
+				"InvalidCount": 0,
+				"ObjectNames": "analytics.metrics, sales.orders"
+			}
+		]
+	},
+	"Sizing": {
+		"SizingRecommendation": {
+			"ColocatedTables": [
+				"sales.orders",
+				"analytics.metrics"
+			],
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ShardedTables": null,
+			"NumNodes": 3,
+			"VCPUsPerInstance": 4,
+			"MemoryPerInstance": 16,
+			"OptimalSelectConnectionsPerNode": 8,
+			"OptimalInsertConnectionsPerNode": 12,
+			"EstimatedTimeInMinForImport": 1,
+			"ParallelVoyagerJobs": 1
+		},
+		"FailureReasoning": ""
+	},
+	"UnsupportedDataTypes": null,
+	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
+	"UnsupportedFeatures": [
+		{
+			"FeatureName": "GIST indexes",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "BRIN indexes",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "SPGIST indexes",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Constraint triggers",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Inherited tables",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Tables with stored generated columns",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Conversion objects",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Gin indexes on multi-columns",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Setting attribute=value on column",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Disabling rule on table",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Clustering table on index",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Storage parameters in DDLs",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Extensions",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Exclusion constraints",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Deferrable constraints",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "View with check option",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Index on complex datatypes",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Primary / Unique key constraints on complex datatypes",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Unlogged tables",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "REFERENCING clause for triggers",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Advisory Locks",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "XML Functions",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "System Columns",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		}
+	],
+	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"TableIndexStats": [
+		{
+			"SchemaName": "sales",
+			"ObjectName": "orders",
+			"RowCount": 2,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 2,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "analytics",
+			"ObjectName": "metrics",
+			"RowCount": 2,
+			"ColumnCount": 3,
+			"Reads": 2,
+			"Writes": 2,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		}
+	],
+	"Notes": null,
+	"MigrationCaveats": [
+		{
+			"FeatureName": "Alter partitioned tables to add Primary Key",
+			"Objects": [],
+			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Foreign tables",
+			"Objects": [],
+			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Policies",
+			"Objects": [],
+			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.",
+			"MinimumVersionsFixedIn": null
+		}
+	],
+	"UnsupportedQueryConstructs": [
+		{
+			"ConstructTypeName": "Advisory Locks",
+			"Query": "SELECT metric_name, pg_advisory_lock(metric_id)\nFROM analytics.metrics\nWHERE metric_value \u003e $1",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+			"MinimumVersionsFixedIn": null
+		}
+	],
+	"UnsupportedPlPgSqlObjects": null
+}
