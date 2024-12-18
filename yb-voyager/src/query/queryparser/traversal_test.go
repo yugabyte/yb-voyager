@@ -327,6 +327,16 @@ func TestTableObjectCollector(t *testing.T) {
 			ExpectedObjects: []string{},
 			ExpectedSchemas: []string{},
 		},
+		{
+			Sql: `SELECT t.id,
+					xpath('/root/node', xmlparse(document t.xml_column)) AS extracted_nodes,
+					s2.some_function()
+				FROM s1.some_table t
+				WHERE t.id IN (SELECT id FROM s2.some_function())
+				AND pg_advisory_lock(t.id);`,
+			ExpectedObjects: []string{"s1.some_table"},
+			ExpectedSchemas: []string{"s1"},
+		},
 	}
 
 	for _, tc := range tests {

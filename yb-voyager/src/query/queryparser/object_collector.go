@@ -20,6 +20,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -41,7 +42,7 @@ func AllObjectsPredicate(schemaName, objectName, objectType string) bool {
 
 // TablesOnlyPredicate returns true only if the object type is "table".
 func TablesOnlyPredicate(schemaName, objectName, objectType string) bool {
-	return objectType == "table"
+	return objectType == constants.TABLE
 }
 
 func NewObjectCollector(predicate ObjectPredicate) *ObjectCollector {
@@ -78,7 +79,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 		objectName := lo.Ternary(schemaName != "", schemaName+"."+relName, relName)
 		log.Debugf("[RangeVar] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
 		// it will be either table or view, considering objectType=table for both
-		if c.predicate(schemaName, relName, "table") {
+		if c.predicate(schemaName, relName, constants.TABLE) {
 			c.addObject(objectName)
 		}
 
@@ -104,7 +105,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 
 		objectName := lo.Ternary(schemaName != "", schemaName+"."+functionName, functionName)
 		log.Debugf("[Funccall] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
-		if c.predicate(schemaName, functionName, "function") {
+		if c.predicate(schemaName, functionName, constants.FUNCTION) {
 			c.addObject(objectName)
 		}
 
