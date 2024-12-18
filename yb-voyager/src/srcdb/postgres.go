@@ -1210,7 +1210,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	}
 
 	if !hasReadAllStats {
-		return "User doesn't have permissions to read pg_stat_statements view, required for detecting Unsupported Query Constructs", nil
+		return "\n" + color.RedString("Missing Permission:") + " User doesn't have the `pg_read_all_stats` grant, required for detecting Unsupported Query Constructs", nil
 	}
 
 	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
