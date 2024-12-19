@@ -90,7 +90,7 @@ jobs:
           
           echo "github path"
           echo "/usr/lib/postgresql/16/bin" >> $GITHUB_PATH
-          echo $GITHUB_PATH
+          cat $GITHUB_PATH
 
           echo "path 16"
           ls /usr/lib/postgresql/16/bin
@@ -124,7 +124,8 @@ jobs:
         run: |
           echo "github path"
           echo "/usr/lib/postgresql/16/bin" >> $GITHUB_PATH
-          echo $GITHUB_PATH
+          cat $GITHUB_PATH
+          echo $PATH
 
           sudo migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
       
