@@ -56,6 +56,7 @@ var (
 	intervalForCapturingIOPS         int64
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
+	pgssEnabledForAssessment         = false
 )
 
 var sourceConnectionFlags = []string{
@@ -350,7 +351,8 @@ func assessMigration() (err error) {
 		// Check if source db has permissions to assess migration
 		if source.RunGuardrailsChecks {
 			checkIfSchemasHaveUsagePermissions()
-			missingPerms, err := source.DB().GetMissingAssessMigrationPermissions()
+			var missingPerms []string
+			missingPerms, pgssEnabledForAssessment, err = source.DB().GetMissingAssessMigrationPermissions()
 			if err != nil {
 				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
 			}
@@ -690,8 +692,9 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	if err != nil {
 		return err
 	}
+
 	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%d", intervalForCapturingIOPS))
+		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS))
 }
 
 func findGatherMetadataScriptPath(dbType string) (string, error) {

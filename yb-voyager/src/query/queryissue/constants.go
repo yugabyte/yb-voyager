@@ -59,6 +59,7 @@ const (
 
 // Object types
 const (
+	CONSTRAINT_NAME           = "ConstraintName"
 	TABLE_OBJECT_TYPE         = "TABLE"
 	FOREIGN_TABLE_OBJECT_TYPE = "FOREIGN TABLE"
 	FUNCTION_OBJECT_TYPE      = "FUNCTION"

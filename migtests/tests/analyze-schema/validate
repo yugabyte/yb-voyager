@@ -45,25 +45,27 @@ def validate_report_summary(report, expected_summary):
 			validate_database_objects_summary(report, expected_summary)
 
 def validate_database_objects_summary(report, expected_summary):
-    key = "DatabaseObjects"
-    expected_objects = expected_summary.get(key, [])
-    reported_objects = report['Summary'].get(key, [])
+	key = "DatabaseObjects"
+	expected_objects = expected_summary.get(key, [])
+	reported_objects = report['Summary'].get(key, [])
 
-    assert len(expected_objects) == len(reported_objects), "Number of database objects does not match"
+	assert len(expected_objects) == len(reported_objects), "Number of database objects does not match"
 
-    for expected_obj, reported_obj in zip(expected_objects, reported_objects):
-        print(f"validating database object: {expected_obj['ObjectType']}")
-        print(f"expected summary field for {key}: {expected_obj}")
-        print(f"reported summary field for {key}: {reported_obj}")
-        assert expected_obj["ObjectType"] == reported_obj["ObjectType"], f"Object type mismatch for {expected_obj['ObjectType']}"
-        assert expected_obj["TotalCount"] == reported_obj["TotalCount"], f"Total count mismatch for {expected_obj['ObjectType']}"
 
-        if "Details" in expected_obj and "Details" in reported_obj:
-            assert expected_obj["Details"] == reported_obj["Details"], f"Details mismatch for {expected_obj['ObjectType']}"
+	for expected_obj, reported_obj in zip(expected_objects, reported_objects):
+		print(f"validating database object: {expected_obj['ObjectType']}")
+		print(f"expected summary field for {key}: {expected_obj}")
+		print(f"reported summary field for {key}: {reported_obj}")
+		assert expected_obj["InvalidCount"] == reported_obj["InvalidCount"], f"Invalid count mismatch for {expected_obj['ObjectType']}"
+		assert expected_obj["ObjectType"] == reported_obj["ObjectType"], f"Object type mismatch for {expected_obj['ObjectType']}"
+		assert expected_obj["TotalCount"] == reported_obj["TotalCount"], f"Total count mismatch for {expected_obj['ObjectType']}"
 
-        expected_names = sorted(expected_obj.get("ObjectNames", "").split(", "))
-        reported_names = sorted(reported_obj.get("ObjectNames", "").split(", "))
-        assert expected_names == reported_names, f"Object names mismatch for {expected_obj['ObjectType']}"
+		if "Details" in expected_obj and "Details" in reported_obj:
+			assert expected_obj["Details"] == reported_obj["Details"], f"Details mismatch for {expected_obj['ObjectType']}"
+			
+		expected_names = sorted(expected_obj.get("ObjectNames", "").split(", "))
+		reported_names = sorted(reported_obj.get("ObjectNames", "").split(", "))
+		assert expected_names == reported_names, f"Object names mismatch for {expected_obj['ObjectType']}"
 
 def validate_report_issues(report, expected_issues):
     # FilePath reported in the report can be different depending on the machine

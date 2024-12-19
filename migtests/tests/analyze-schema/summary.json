@@ -8,6 +8,7 @@
             {
                 "ObjectType": "SCHEMA",
                 "TotalCount": 1,
+                "InvalidCount": 1,
                 "ObjectNames": "hollywood"
             },
             {
@@ -20,17 +21,18 @@
             {
                 "ObjectType": "TYPE",
                 "TotalCount": 4,
+                "InvalidCount":1,
                 "ObjectNames": "address_type, non_public.address_type1, non_public.enum_test, enum_test"
             },
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 50,
-                "InvalidCount": 33,
+                "InvalidCount": 42,
                 "ObjectNames": "public.xml_data_example, combined_tbl1, test_arr_enum, public.locations, test_udt, combined_tbl, public.ts_query_table, public.documents, public.citext_type, public.inet_type, public.test_jsonb, test_xml_type, test_xid_type, public.range_columns_partition_test_copy, anydata_test, uritype_test, public.foreign_def_test, test_4, enum_example.bugs, table_abc, anydataset_test, unique_def_test1, test_2, table_1, public.range_columns_partition_test, table_xyz, public.users, test_3, test_5, test_7, foreign_def_test2, unique_def_test, sales_data, table_test, test_interval, test_non_pk_multi_column_list, test_9, test_8, order_details, public.employees4, anytype_test, public.meeting, test_table_in_type_file, sales, test_1, \"Test\", foreign_def_test1, salaries2, test_6, public.pr"            },
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 43,
-                "InvalidCount": 38,
+                "InvalidCount": 39,
                 "ObjectNames": "idx1 ON combined_tbl1, idx2 ON combined_tbl1, idx3 ON combined_tbl1, idx4 ON combined_tbl1, idx5 ON combined_tbl1, idx6 ON combined_tbl1, idx7 ON combined_tbl1, idx8 ON combined_tbl1, film_fulltext_idx ON public.film, idx_actor_last_name ON public.actor, idx_name1 ON table_name, idx_name2 ON table_name, idx_name3 ON schema_name.table_name, idx_fileinfo_name_splitted ON public.fileinfo, abc ON public.example, abc ON schema2.example, tsvector_idx ON public.documents, tsquery_idx ON public.ts_query_table, idx_citext ON public.citext_type, idx_inet ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_valid ON public.test_jsonb, idx_array ON public.documents, idx1 ON combined_tbl, idx2 ON combined_tbl, idx3 ON combined_tbl, idx4 ON combined_tbl, idx5 ON combined_tbl, idx6 ON combined_tbl, idx7 ON combined_tbl, idx8 ON combined_tbl, idx9 ON combined_tbl, idx10 ON combined_tbl, idx11 ON combined_tbl, idx12 ON combined_tbl, idx13 ON combined_tbl, idx14 ON combined_tbl, idx15 ON combined_tbl, idx_udt ON test_udt, idx_udt1 ON test_udt, idx_enum ON test_udt, \"idx\u0026_enum2\" ON test_udt",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
@@ -48,9 +50,9 @@
             },
             {
                 "ObjectType": "VIEW",
-                "TotalCount": 4,
-                "InvalidCount": 4,
-                "ObjectNames": "v1, v2, test, public.orders_view"
+                "TotalCount": 5,
+                "InvalidCount": 5,
+                "ObjectNames": "v1, v2, test, public.orders_view, view_name"
             },
             {
                 "ObjectType": "TRIGGER",
@@ -67,7 +69,7 @@
             {
                 "ObjectType": "CONVERSION",
                 "TotalCount": 1,
-                "InvalidCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "myconv"
             },
             {
@@ -85,6 +87,7 @@
             {
                 "ObjectType": "OPERATOR",
                 "TotalCount": 1,
+                "InvalidCount": 0,
                 "ObjectNames": "\u003c%"
             }
         ]

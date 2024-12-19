@@ -35,12 +35,13 @@ Arguments:
   assessment_metadata_dir     The directory path where the assessment metadata will be stored.
                               This script will attempt to create the directory if it does not exist.
 
-  iops_capture_interval   This argument is used to configure the interval for measuring the IOPS 
-                               metadata on source (in seconds). (Default 120)
-                            
+  pgss_enabled                Determine whether the pg_stat_statements extension is correctly installed, 
+                              configured, and enabled on the source database.
+
+  iops_capture_interval       Configure the interval for measuring the IOPS metadata on source (in seconds). (Default 120)
 
 Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' '60'
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -52,20 +53,12 @@ if [ "$1" == "--help" ]; then
 fi
 
 # Check if all required arguments are provided
-if [ "$#" -lt 3 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> [iops_capture_interval]"
+if [ "$#" -lt 4 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
     exit 1
-elif [ "$#" -gt 4 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> [iops_capture_interval]"
+elif [ "$#" -gt 5 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
     exit 1
-fi
-
-# Set default iops interval
-iops_capture_interval=120
-# Override default sleep interval if a fourth argument is provided
-if [ "$#" -eq 4 ]; then
-    iops_capture_interval=$4
-    echo "sleep interval for calculating iops: $iops_capture_interval seconds"
 fi
 
 pg_connection_string=$1
@@ -76,6 +69,16 @@ if [ ! -d "$assessment_metadata_dir" ]; then
     echo "Directory $assessment_metadata_dir does not exist. Please create the directory and try again."
     exit 1
 fi
+
+pgss_enabled=$4
+iops_capture_interval=120 # default sleep for calculating iops
+# Override default sleep interval if a fifth argument is provided
+if [ "$#" -eq 5 ]; then
+    iops_capture_interval=$5
+    echo "sleep interval for calculating iops: $iops_capture_interval seconds"
+fi
+
+
 
 LOG_FILE=$assessment_metadata_dir/yb-voyager-assessment.log
 log() {
@@ -209,13 +212,9 @@ main() {
                     continue
                 fi
 
-                if [[ -z "$pgss_ext_schema" ]]; then
-                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension schema is not found or not accessible."
-                    continue
-                fi
-
-                if [[ ! " ${schema_array[*]} " =~ " $pgss_ext_schema " ]]; then
-                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension schema '$pgss_ext_schema' is not in the expected schema list (${schema_array[*]})."
+                log "INFO" "argument pgss_enabled=$pgss_enabled"
+                if [[ "$pgss_enabled" == "false" ]]; then
+                    print_and_log "WARN" "Skipping $script_action: argument pgss_enabled is set as false"
                     continue
                 fi
 
