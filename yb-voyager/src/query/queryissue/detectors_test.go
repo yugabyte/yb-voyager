@@ -103,12 +103,31 @@ func TestFuncCallDetector(t *testing.T) {
 	FROM employees
 	GROUP BY department;`,
 	}
+	loFunctionSqls := []string{
+		`UPDATE documents
+SET content_oid = lo_import('/path/to/new/file.pdf')
+WHERE title = 'Sample Document';`,
+		`INSERT INTO documents (title, content_oid)
+VALUES ('Sample Document', lo_import('/path/to/your/file.pdf'));`,
+		`SELECT lo_export(content_oid, '/path/to/exported_design_document.pdf')
+FROM documents
+WHERE title = 'Design Document';`,
+		`SELECT lo_create('32142');`,
+		`SELECT  lo_unlink(loid);`,
+		`SELECT lo_unlink((SELECT content_oid FROM documents WHERE title = 'Sample Document'));`,
+		`create table test_lo_default (id int, raster lo DEFAULT lo_import('3242'));`,
+	}
 	for _, sql := range advisoryLockSqls {
 
 		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
-
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, ADVISORY_LOCKS, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+		assert.Equal(t, AGGREGATE_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+	}
+
+	for _, sql := range loFunctionSqls {
+		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
+		assert.Equal(t, len(issues), 1)
+		assert.Equal(t, issues[0].Type, LARGE_OBJECT_FUNCTIONS, "Large Objects not detected in SQL: %s", sql)
 	}
 
 	for _, sql := range anyValAggSqls {

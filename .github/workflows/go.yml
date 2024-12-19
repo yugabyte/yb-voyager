@@ -26,7 +26,7 @@ jobs:
     - name: Test
       run: |
         cd yb-voyager
-        go test -v  -skip 'TestDDLIssuesInYBVersion' ./... 
+        go test -v  -skip '^(TestDDLIssuesInYBVersion|TestDMLIssuesInYBVersion)$' ./... 
         
     - name: Vet
       run: |

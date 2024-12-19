@@ -23,12 +23,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
-const (
-	ADVISORY_LOCKS_NAME = "Advisory Locks"
-	SYSTEM_COLUMNS_NAME = "System Columns"
-	XML_FUNCTIONS_NAME  = "XML Functions"
-)
-
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
 // each detector will work on specific type of node
 type UnsupportedConstructDetector interface {
@@ -42,6 +36,7 @@ type FuncCallDetector struct {
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
 	anyValAggDetected          bool
+	loFuncsDetected            mapset.Set[string]
 }
 
 func NewFuncCallDetector(query string) *FuncCallDetector {
@@ -49,6 +44,7 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 		query:                      query,
 		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
 		xmlFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
+		loFuncsDetected:            mapset.NewThreadUnsafeSet[string](),
 	}
 }
 
@@ -71,6 +67,9 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 	if unsupportedAggFunctions.ContainsOne(funcName) {
 		d.anyValAggDetected = true
 	}
+	if unsupportedLargeObjectFunctions.ContainsOne(funcName) {
+		d.loFuncsDetected.Add(funcName)
+	}
 
 	return nil
 }
@@ -85,6 +84,9 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 	}
 	if d.anyValAggDetected {
 		issues = append(issues, NewAnyValueAGGFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.loFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }

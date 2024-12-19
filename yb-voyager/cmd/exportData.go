@@ -222,8 +222,8 @@ func exportData() bool {
 		if err != nil {
 			utils.ErrExit("check dependencies for export: %v", err)
 		} else if len(binaryCheckIssues) > 0 {
-			color.Red("\nMissing dependencies for export data:")
-			utils.PrintAndLog("\n%s", strings.Join(binaryCheckIssues, "\n"))
+			headerStmt := color.RedString("Missing dependencies for export data:")
+			utils.PrintAndLog("\n%s\n%s", headerStmt, strings.Join(binaryCheckIssues, "\n"))
 			utils.ErrExit("")
 		}
 	}
@@ -245,7 +245,6 @@ func exportData() bool {
 
 	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
-	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)

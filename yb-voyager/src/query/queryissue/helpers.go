@@ -120,3 +120,18 @@ const (
 	JSON_VALUE  = "JSON_VALUE"
 	JSON_TABLE  = "JSON_TABLE"
 )
+
+var unsupportedLargeObjectFunctions = mapset.NewThreadUnsafeSet([]string{
+
+	//refer - https://www.postgresql.org/docs/current/lo-interfaces.html#LO-CREATE
+	"lo_create", "lo_creat", "lo_import", "lo_import_with_oid",
+	"lo_export", "lo_open", "lo_write", "lo_read", "lo_lseek", "lo_lseek64",
+	"lo_tell", "lo_tell64", "lo_truncate", "lo_truncate64", "lo_close",
+	"lo_unlink",
+
+	//server side functions - https://www.postgresql.org/docs/current/lo-funcs.html
+	"lo_from_bytea", "lo_put", "lo_get",
+
+	//functions provided by lo extension, refer - https://www.postgresql.org/docs/current/lo.html#LO-RATIONALE
+	"lo_manage", "lo_oid",
+}...)
