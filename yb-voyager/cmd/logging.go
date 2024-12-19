@@ -81,7 +81,7 @@ func InitLogging(logDir string, logLevel string, disableLogging bool, cmdName st
 func redactPasswordFromArgs() {
 	for i := 0; i < len(os.Args); i++ {
 		opt := os.Args[i]
-		if opt == "--source-db-password" || opt == "--target-db-password" || opt == "--ff-db-password" {
+		if opt == "--source-db-password" || opt == "--target-db-password" || opt == "--source-replica-db-password" {
 			os.Args[i+1] = "XXX"
 		}
 	}
