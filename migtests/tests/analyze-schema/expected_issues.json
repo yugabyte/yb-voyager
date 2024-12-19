@@ -1890,5 +1890,15 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23619",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
             "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "image",
+            "Reason": "Unsupported datatype - lo on column - raster",
+            "SqlStatement": "CREATE TABLE image (title text, raster lo);",
+            "Suggestion": "Large objects are not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25318",
+            "MinimumVersionsFixedIn": null
         }
 ]
