@@ -104,7 +104,7 @@ type Issue struct {
 	ObjectType             string                          `json:"ObjectType"`
 	ObjectName             string                          `json:"ObjectName"`
 	Reason                 string                          `json:"Reason"`
-	Type                   string                          `json:"Type"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
+	Type                   string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
 	SqlStatement           string                          `json:"SqlStatement,omitempty"`
 	FilePath               string                          `json:"FilePath"`
 	Suggestion             string                          `json:"Suggestion"`
