@@ -92,6 +92,9 @@ jobs:
           echo "/usr/lib/postgresql/16/bin" >> $GITHUB_PATH
           echo $GITHUB_PATH
 
+          echo "path 16"
+          ls /usr/lib/postgresql/16/bin
+
           echo "psql"
           which psql
           echo "which -a psql"
