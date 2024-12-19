@@ -140,6 +140,11 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
+			"FeatureName": "Large Object Functions",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"FeatureName": "Gin indexes on multi-columns",
 			"Objects": [],
 		    "MinimumVersionsFixedIn": null

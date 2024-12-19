@@ -233,19 +233,6 @@
             <p>No unsupported features were present among the ones assessed.</p>
         {{end}}
 
-        {{if .Notes}}
-            <br>
-            <hr>
-            <div>
-                <h4>Notes</h4>
-                    <ul>
-                        {{range .Notes}}
-                            <li>{{.}}</li>
-                        {{end}}
-                    </ul>
-            </div>
-        {{end}}
-
         <h2>Unsupported Query Constructs</h2>
         {{ if .UnsupportedQueryConstructs}}
             <p>Source database queries not supported in YugabyteDB, identified by scanning system tables:</p>
@@ -398,6 +385,20 @@
             {{if not $hasMigrationCaveats}} <!-- Check if no migration caveats were found -->
                 <p>No migration caveats were found in the schema.</p>
             {{end}}
+        {{end}}
+
+
+        {{if .Notes}}
+            <br>
+            <hr>
+            <div>
+                <h4>Notes</h4>
+                    <ul>
+                        {{range .Notes}}
+                            <li>{{.}}</li>
+                        {{end}}
+                    </ul>
+            </div>
         {{end}}
 
     </div>

@@ -229,6 +229,13 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			col.TypeName,
 			col.ColumnName,
 		))
+	case "lo":
+		*issues = append(*issues, NewLODatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
 	default:
 		*issues = append(*issues, NewUnsupportedDatatypesIssue(
 			objType,
@@ -531,6 +538,16 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 
 	if trigger.IsBeforeRowTrigger() && tid.partitionTablesMap[trigger.GetTableName()] {
 		issues = append(issues, NewBeforeRowOnPartitionTableIssue(
+			obj.GetObjectType(),
+			trigger.GetObjectName(),
+			"",
+		))
+	}
+
+	if unsupportedLargeObjectFunctions.ContainsOne(trigger.FuncName) {
+		//Can't detect trigger func name using the genericIssues's FuncCallDetector 
+		//as trigger execute Func name is not a FuncCall node, its []pg_query.Node
+		issues = append(issues, NewLOFuntionsIssue(
 			obj.GetObjectType(),
 			trigger.GetObjectName(),
 			"",

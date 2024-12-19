@@ -18,14 +18,9 @@ package queryissue
 import (
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"google.golang.org/protobuf/reflect/protoreflect"
-)
 
-const (
-	ADVISORY_LOCKS_NAME = "Advisory Locks"
-	SYSTEM_COLUMNS_NAME = "System Columns"
-	XML_FUNCTIONS_NAME  = "XML Functions"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
@@ -40,6 +35,7 @@ type FuncCallDetector struct {
 	// right now it covers Advisory Locks and XML functions
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
+	loFuncsDetected            mapset.Set[string]
 }
 
 func NewFuncCallDetector(query string) *FuncCallDetector {
@@ -47,6 +43,7 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 		query:                      query,
 		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
 		xmlFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
+		loFuncsDetected:            mapset.NewThreadUnsafeSet[string](),
 	}
 }
 
@@ -66,6 +63,10 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 		d.xmlFuncsDetected.Add(funcName)
 	}
 
+	if unsupportedLargeObjectFunctions.ContainsOne(funcName) {
+		d.loFuncsDetected.Add(funcName)
+	}
+
 	return nil
 }
 
@@ -76,6 +77,9 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 	}
 	if d.xmlFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.loFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }

@@ -731,6 +731,7 @@ func (triggerProcessor *TriggerProcessor) Process(parseTree *pg_query.ParseResul
 		Events:                 triggerNode.CreateTrigStmt.Events,
 		ForEachRow:             triggerNode.CreateTrigStmt.Row,
 	}
+	_, trigger.FuncName = getFunctionObjectName(triggerNode.CreateTrigStmt.Funcname)
 
 	return trigger, nil
 }
@@ -744,6 +745,7 @@ type Trigger struct {
 	ForEachRow             bool
 	Timing                 int32
 	Events                 int32
+	FuncName               string //Unqualified function name
 }
 
 func (t *Trigger) GetObjectName() string {

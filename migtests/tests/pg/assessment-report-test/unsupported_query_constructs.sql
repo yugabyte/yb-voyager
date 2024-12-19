@@ -136,3 +136,6 @@ FROM
             product TEXT PATH 'product',
             quantity TEXT PATH 'quantity'
 ) AS items;
+
+
+SELECT lo_create('32142');

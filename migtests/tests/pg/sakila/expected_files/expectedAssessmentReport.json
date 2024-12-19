@@ -200,6 +200,11 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
+			"FeatureName": "Large Object Functions",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"FeatureName": "Tables with stored generated columns",
 			"Objects": [],
 		    "MinimumVersionsFixedIn": null

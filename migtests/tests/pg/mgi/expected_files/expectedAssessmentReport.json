@@ -303,6 +303,11 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
+			"FeatureName": "Large Object Functions",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"FeatureName": "Setting attribute=value on column",
 			"Objects": [],
 		    "MinimumVersionsFixedIn": null

@@ -20,9 +20,9 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 3,
+				"TotalCount": 4,
 				"InvalidCount": 0,
-				"ObjectNames": "citext, pgcrypto, pg_stat_statements"
+				"ObjectNames": "citext, pgcrypto, pg_stat_statements, lo"
 			},
 			{
 				"ObjectType": "TYPE",
@@ -56,9 +56,9 @@
 			},
 			{
 				"ObjectType": "FUNCTION",
-				"TotalCount": 10,
-				"InvalidCount": 3,
-				"ObjectNames": "public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
+				"TotalCount": 11,
+				"InvalidCount": 4,
+				"ObjectNames": "public.manage_large_object, public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
 			{
 				"ObjectType": "AGGREGATE",
 				"TotalCount": 2,
@@ -79,9 +79,9 @@
 			},
 			{
 				"ObjectType": "TRIGGER",
-				"TotalCount": 3,
-				"InvalidCount": 3,
-				"ObjectNames": "audit_trigger ON public.tt, before_sales_region_insert_update ON public.sales_region, audit_trigger ON schema2.tt"
+				"TotalCount": 4,
+				"InvalidCount": 4,
+				"ObjectNames": "t_raster ON public.combined_tbl, audit_trigger ON public.tt, before_sales_region_insert_update ON public.sales_region, audit_trigger ON schema2.tt"
 			},
 			{
 				"ObjectType": "MVIEW",
@@ -194,6 +194,12 @@
 			"TableName": "combined_tbl",
 			"ColumnName": "lsn",
 			"DataType": "pg_lsn"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "combined_tbl",
+			"ColumnName": "raster",
+			"DataType": "lo"
 		},
 		{
 			"SchemaName": "public",
@@ -573,7 +579,17 @@
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
 		    "MinimumVersionsFixedIn": null
-        }
+        },
+		{
+			"FeatureName": "Large Object Functions",
+			"Objects": [
+				{
+					"ObjectName": "t_raster ON public.combined_tbl",
+					"SqlStatement": "CREATE TRIGGER t_raster BEFORE DELETE OR UPDATE ON public.combined_tbl FOR EACH ROW EXECUTE FUNCTION public.lo_manage('raster');"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
@@ -707,7 +723,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 11,
+			"ColumnCount": 12,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -2181,9 +2197,26 @@
 			"Query": "SELECT *\nFROM xmltable(\n    $1\n    PASSING $2\n    COLUMNS \n        name TEXT PATH $3\n)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
 			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Large Object Functions",
+			"Query": "SELECT lo_create($1)",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedPlPgSqlObjects": [
+		{
+			"FeatureName": "Large Object Functions",
+			"Objects": [
+				{
+					"ObjectType": "FUNCTION",
+					"ObjectName": "public.manage_large_object",
+					"SqlStatement": "SELECT lo_unlink(loid);"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		},
 		{
 			"FeatureName": "Referenced type declaration of variables",
 			"Objects": [

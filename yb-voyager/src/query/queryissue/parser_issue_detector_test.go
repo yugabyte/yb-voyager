@@ -16,6 +16,7 @@ limitations under the License.
 package queryissue
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -154,6 +155,7 @@ $$ LANGUAGE plpgsql;`
 ADD CONSTRAINT valid_invoice_structure
 CHECK (xpath_exists('/invoice/customer', data));`
 	stmt18 = `CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));`
+	stmt19 = `create table test_lo_default (id int, raster lo DEFAULT lo_import('3242'));`
 )
 
 func modifyiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -270,6 +272,10 @@ func TestDDLIssues(t *testing.T) {
 		stmt18: []QueryIssue{
 			NewXmlFunctionsIssue("INDEX", "idx_invoices ON invoices", stmt18),
 		},
+		stmt19: []QueryIssue{
+			NewLODatatypeIssue("TABLE", "test_lo_default", stmt19, "raster"),
+			NewLOFuntionsIssue("TABLE", "test_lo_default", stmt19),
+		},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseRequiredDDLs(stmt)
@@ -305,6 +311,161 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	assert.True(t, cmp.Equal(issues[0], NewUnloggedTableIssue("TABLE", "tbl_unlog", stmt)))
 }
 
+func TestLargeObjectIssues(t *testing.T) {
+	sqls := []string{
+		`CREATE OR REPLACE FUNCTION manage_large_object(loid OID) RETURNS VOID AS $$
+BEGIN
+    IF loid IS NOT NULL THEN
+        -- Unlink the large object to free up storage
+        PERFORM lo_unlink(loid);
+    END IF;
+END;
+$$ LANGUAGE plpgsql;`,
+		`CREATE OR REPLACE FUNCTION import_file_to_table(file_path TEXT, doc_title TEXT)
+RETURNS VOID AS $$
+DECLARE
+    loid OID;
+BEGIN
+    -- Import the file and get the large object OID
+    loid := lo_import(file_path); -- NOT DETECTED 
+
+    -- Insert the file metadata and OID into the table
+    INSERT INTO documents (title, content_oid) VALUES (doc_title, lo_import(file_path));
+
+    RAISE NOTICE 'File imported with OID % and linked to title %', loid, doc_title;
+END;
+$$ LANGUAGE plpgsql;
+`,
+		`CREATE OR REPLACE FUNCTION export_large_object(doc_title TEXT, file_path TEXT)
+RETURNS VOID AS $$
+DECLARE
+    loid OID;
+BEGIN
+    -- Retrieve the OID of the large object associated with the given title
+    SELECT content_oid INTO loid FROM documents WHERE title = doc_title;
+
+    -- Check if the large object exists
+    IF loid IS NULL THEN
+        RAISE EXCEPTION 'No large object found for title %', doc_title;
+    END IF;
+
+    -- Export the large object to the specified file
+    PERFORM lo_export(loid, file_path);
+
+    RAISE NOTICE 'Large object with OID % exported to %', loid, file_path;
+END;
+$$ LANGUAGE plpgsql;
+`,
+		`CREATE OR REPLACE PROCEDURE read_large_object(doc_title TEXT)
+AS $$
+DECLARE
+    loid OID;
+    fd INTEGER;
+    buffer BYTEA;
+    content TEXT;
+BEGIN
+    -- Retrieve the OID of the large object associated with the given title
+    SELECT content_oid INTO loid FROM documents WHERE title = doc_title;
+
+    -- Check if the large object exists
+    IF loid IS NULL THEN
+        RAISE EXCEPTION 'No large object found for title %', doc_title;
+    END IF;
+
+    -- Open the large object for reading
+    fd := lo_open(loid, 262144); -- 262144 = INV_READ
+
+    -- Read data from the large object
+    buffer := lo_get(fd);
+    content := convert_from(buffer, 'UTF8');
+
+    -- Close the large object
+    PERFORM lo_close(fd);
+
+END;
+$$ LANGUAGE plpgsql;
+`,
+		`CREATE OR REPLACE FUNCTION write_to_large_object(doc_title TEXT, new_data TEXT)
+RETURNS VOID AS $$
+DECLARE
+    loid OID;
+    fd INTEGER;
+BEGIN
+    -- Create the table if it doesn't already exist
+    EXECUTE 'CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));';
+
+    -- Retrieve the OID of the large object associated with the given title
+    SELECT content_oid INTO loid FROM documents WHERE title = doc_title;
+
+    -- Check if the large object exists
+    IF loid IS NULL THEN
+        RAISE EXCEPTION 'No large object found for title %', doc_title;
+    END IF;
+
+    -- Open the large object for writing
+    fd := lo_open(loid, 524288); -- 524288 = INV_WRITE
+
+    -- Write new data to the large object
+    PERFORM lo_put(fd, convert_to(new_data, 'UTF8'));
+
+    -- Close the large object
+    PERFORM lo_close(fd);
+
+    RAISE NOTICE 'Data written to large object with OID %', loid;
+END;
+$$ LANGUAGE plpgsql;
+`,
+`CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image
+    FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);`,
+	}
+
+	expectedSQLsWithIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_unlink(loid);"),
+		},
+		sqls[1]: []QueryIssue{
+			NewLOFuntionsIssue("DML_QUERY", "", "INSERT INTO documents (title, content_oid) VALUES (doc_title, lo_import(file_path));"),
+		},
+		sqls[2]: []QueryIssue{
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_export(loid, file_path);"),
+		},
+		sqls[3]: []QueryIssue{
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);"),
+		},
+		sqls[4]: []QueryIssue{
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_put(fd, convert_to(new_data, 'UTF8'));"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);"),
+			NewLODatatypeIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", "raster"),
+			NewLOFuntionsIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));"),
+		},
+		sqls[5]: []QueryIssue{
+			NewLOFuntionsIssue("TRIGGER", "t_raster ON image", sqls[5]),
+		},
+	}
+	expectedSQLsWithIssues[sqls[0]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
+	expectedSQLsWithIssues[sqls[1]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[1]], "FUNCTION", "import_file_to_table")
+	expectedSQLsWithIssues[sqls[2]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[2]], "FUNCTION", "export_large_object")
+	expectedSQLsWithIssues[sqls[3]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
+	expectedSQLsWithIssues[sqls[4]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
+
+
+	parserIssueDetector := NewParserIssueDetector()
+
+	for stmt, expectedIssues := range expectedSQLsWithIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		fmt.Printf("%v", issues)
+
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
 // currently, both FuncCallDetector and XmlExprDetector can detect XMLFunctionsIssue
 // statement below has both XML functions and XML expressions.
 // but we want to only return one XMLFunctionsIssue from parserIssueDetector.getDMLIssues
