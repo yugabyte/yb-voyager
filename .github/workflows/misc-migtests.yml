@@ -49,12 +49,8 @@ jobs:
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
-      - name: Install python3 and psycopg2 and postgres clients
+      - name: Install python3 and psycopg2
         run: |
-          sudo apt install -y postgresql-common
-          echo | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
-          sudo apt-get update
-          sudo apt-get -y install postgresql-16
           sudo apt install -y python3
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
