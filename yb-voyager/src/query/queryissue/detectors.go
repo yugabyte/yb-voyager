@@ -41,6 +41,7 @@ type FuncCallDetector struct {
 	// right now it covers Advisory Locks and XML functions
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
+	anyValAggDetected          bool
 }
 
 func NewFuncCallDetector(query string) *FuncCallDetector {
@@ -67,6 +68,10 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 		d.xmlFuncsDetected.Add(funcName)
 	}
 
+	if unsupportedAggFunctions.ContainsOne(funcName) {
+		d.anyValAggDetected = true
+	}
+
 	return nil
 }
 
@@ -77,6 +82,9 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 	}
 	if d.xmlFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.anyValAggDetected {
+		issues = append(issues, NewAnyValueAGGFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }
@@ -186,24 +194,40 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 }
 
 type JsonConstructorFuncDetector struct {
-	constructorName string
+	query                                       string
+	unsupportedJsonConstructorFunctionsDetected mapset.Set[string]
 }
 
-func NewJsonConstructorFuncDetector() *JsonConstructorFuncDetector {
-	return &JsonConstructorFuncDetector{}
+func NewJsonConstructorFuncDetector(query string) *JsonConstructorFuncDetector {
+	return &JsonConstructorFuncDetector{
+		query: query,
+		unsupportedJsonConstructorFunctionsDetected: mapset.NewThreadUnsafeSet[string](),
+	}
 }
 
-func (j *JsonConstructorFuncDetector) Detect(msg protoreflect.Message) ([]string, error) {
+func (j *JsonConstructorFuncDetector) Detect(msg protoreflect.Message) error {
 	switch queryparser.GetMsgFullName(msg) {
 	case queryparser.PG_QUERY_JSON_ARRAY_AGG_NODE:
-		j.constructorName = "json_array_agg"
-		return []string{JSON_CONSTRUCTOR_FUNCTION}, nil
+		j.unsupportedJsonConstructorFunctionsDetected.Add("json_arrayagg")
 	case queryparser.PG_QUERY_JSON_ARRAY_CONSTRUCTOR_AGG_NODE:
-		j.constructorName = "json_array"
-		return []string{JSON_CONSTRUCTOR_FUNCTION}, nil
+		j.unsupportedJsonConstructorFunctionsDetected.Add("json_array")
 	case queryparser.PG_QUERY_JSON_OBJECT_AGG_NODE:
-		j.constructorName = "json_object_agg"
-		return []string{JSON_CONSTRUCTOR_FUNCTION}, nil
+		j.unsupportedJsonConstructorFunctionsDetected.Add("json_objectagg")
+	case queryparser.PG_QUERY_FUNCCALL_NODE:
+		_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
+		if unsupportedJsonConstructorFunctions.ContainsOne(funcName) {
+			j.unsupportedJsonConstructorFunctionsDetected.Add(funcName)
+		}
 	}
-	return nil, nil
+	return nil
+}
+
+func (d *JsonConstructorFuncDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.unsupportedJsonConstructorFunctionsDetected.Cardinality() > 0 {
+		for fn := range d.unsupportedJsonConstructorFunctionsDetected.Iter() {
+			issues = append(issues, NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, fn))
+		}
+	}
+	return issues
 }

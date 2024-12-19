@@ -76,9 +76,16 @@ func TestFuncCallDetector(t *testing.T) {
 		`SELECT pg_advisory_unlock_all();`,
 	}
 
-	for _, sql := range advisoryLockSqls {
-		detector := NewFuncCallDetector(sql)
+	anyValAggSqls := []string{
+		`SELECT
+		department,
+		any_value(employee_name) AS any_employee
+	FROM employees
+	GROUP BY department;`,
+	}
 
+	detectConstructs := func(sql string) []QueryIssue {
+		detector := NewFuncCallDetector(sql)
 		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
@@ -95,11 +102,20 @@ func TestFuncCallDetector(t *testing.T) {
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
+		return detector.GetIssues()
+	}
+	for _, sql := range advisoryLockSqls {
 
-		issues := detector.GetIssues()
+		issues := detectConstructs(sql)
 
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 		assert.Equal(t, ADVISORY_LOCKS, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+	}
+
+	for _, sql := range anyValAggSqls {
+		issues := detectConstructs(sql)
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, AGGREGATE_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 	}
 }
 
@@ -688,5 +704,51 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
 		assert.ElementsMatch(t, tc.ExpectedSchemas, collectedSchemas,
 			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
+	}
+}
+
+func TestJsonConstructorDetector(t *testing.T) {
+	jsonSqls := []string{
+		`SELECT JSON_ARRAY('PostgreSQL', 12, TRUE, NULL) AS json_array;`,
+		`SELECT department, JSON_ARRAYAGG(name) AS employees_json
+	FROM employees
+	GROUP BY department;`,
+		`SELECT JSON_OBJECT('{code, P123, title, Jaws, price, 19.99}') AS json_from_array;`,
+		`SELECT json_objectagg(k VALUE v) AS json_result
+	FROM (VALUES ('a', 1), ('b', 2), ('c', 3)) AS t(k, v);`,
+	`SELECT JSON_OBJECT(
+		'{code, title, price}',
+		'{P123, Jaws, 19.99}'
+	) AS json_from_keys_values;`,
+ 	`select JSON_ARRAYAGG('[1, "2", null]');`,
+	`SELECT JSON_OBJECT(
+    'code' VALUE 'P123',
+    'title' VALUE 'Jaws',
+    'price' VALUE 19.99,
+    'available' VALUE TRUE
+) AS json_obj;`,
+	}
+	
+	for _, sql := range jsonSqls {
+		detector := NewJsonConstructorFuncDetector(sql)
+		parseResult, err := queryparser.Parse(sql)
+		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
+
+		visited := make(map[protoreflect.Message]bool)
+
+		processor := func(msg protoreflect.Message) error {
+			err := detector.Detect(msg)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+		issues := detector.GetIssues()
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, JSON_CONSTRUCTOR_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 	}
 }

@@ -77,7 +77,7 @@ func NewAnyValueAGGFunctionIssue(objectType string, objectName string, sqlStatem
 
 var jsonConstructorFunctionsIssue = issue.Issue{
 	Type: JSON_CONSTRUCTOR_FUNCTION,
-	TypeName: "%s() json constructor function is not supported",
+	TypeName: "%s() function is not supported",
 	TypeDescription: "",
 	Suggestion: "",
 	GH: "",
@@ -92,7 +92,7 @@ func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlSt
 
 var jsonQueryFunctionIssue = issue.Issue{
 	Type: JSON_QUERY_FUNCTION,
-	TypeName: "%s() json query function is not supported",
+	TypeName: "%s() function is not supported",
 	TypeDescription: "",
 	Suggestion: "",
 	GH: "",

@@ -299,7 +299,7 @@
                     {{ if $docsLink }}
                         <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
                     {{ else }}
-                        Not Available
+                        N/A
                     {{ end }}
                 </td>
                 </tr>

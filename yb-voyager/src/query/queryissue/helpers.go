@@ -98,20 +98,20 @@ var UnsupportedIndexDatatypes = []string{
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
-var unsupportedAggFunctions = []string{
+var unsupportedAggFunctions = mapset.NewThreadUnsafeSet([]string{
 	//agg function added in PG16 - https://www.postgresql.org/docs/16/functions-aggregate.html#id-1.5.8.27.5.2.4.1.1.1.1
 	"any_value",
-}
+}...)
 
-var unsupportedJsonConstructorFunctions = []string{
+var unsupportedJsonConstructorFunctions = mapset.NewThreadUnsafeSet([]string{
 	// json functions, refer - https://www.postgresql.org/about/featurematrix/detail/395/
 	"json_object", // These functions are not func call node, they are separate node types, "json_objectagg", "json_array", "json_arrayagg" 
-}
+}...)
 
-var unsupportedJsonQueryFunctions = []string{
+var unsupportedJsonQueryFunctions = mapset.NewThreadUnsafeSet([]string{
 	//json query functions supported in PG 17, refer - https://www.postgresql.org/docs/17/functions-json.html#FUNCTIONS-SQLJSON-QUERYING
 	"json_exists", "json_query", "json_value",
-}
+}...)
 /*
 caveats -
 SELECT id, JSON_VALUE(details, '$.title') AS title
