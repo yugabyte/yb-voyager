@@ -70,10 +70,6 @@ func (yb *YugabyteDB) Disconnect() {
 	}
 }
 
-func (yb *YugabyteDB) CheckRequiredToolsAreInstalled() {
-	checkTools("strings")
-}
-
 func (yb *YugabyteDB) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())

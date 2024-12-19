@@ -140,10 +140,6 @@ func (pg *PostgreSQL) getTrimmedSchemaList() []string {
 	return trimmedList
 }
 
-func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
-	checkTools("strings")
-}
-
 func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
