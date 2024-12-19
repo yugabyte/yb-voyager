@@ -65,12 +65,26 @@ jobs:
       - name: Test PostgreSQL Connection
         run: |
           psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+          echo "psql"
           which psql
-          which -a psql 
+          echo "which -a psql"
+          which -a psql
+          echo "psql version" 
           psql --version
+          echo "which pg_dump"
           which pg_dump
+
+          echo "which -a pg_dump"
           which -a pg_dump
+
+          echo "pg_dump version"
           pg_dump --version
+
+          echo "sudo pg_dump version"
+          sudo pg_dump --version
+
+          echo "pg_dump bin version"
+          /bin/pg_dump --version
 
       - name: Create PostgreSQL user
         run: |
