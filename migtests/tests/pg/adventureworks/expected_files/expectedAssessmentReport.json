@@ -738,6 +738,11 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
+			"FeatureName": "Large Object Functions",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"FeatureName": "Regex Functions",
 			"Objects": [],
 			"MinimumVersionsFixedIn": null

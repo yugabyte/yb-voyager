@@ -63,7 +63,8 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 			objectType = "PROCEDURE"
 		}
 		funcNameList := stmt.GetFuncname()
-		return objectType, getFunctionObjectName(funcNameList)
+		funcSchemaName, funcName := getFunctionObjectName(funcNameList)
+		return objectType, lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
 		return "VIEW", getObjectNameFromRangeVar(viewName)
@@ -97,7 +98,7 @@ func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	return lo.Ternary(schema != "", fmt.Sprintf("%s.%s", schema, name), name)
 }
 
-func getFunctionObjectName(funcNameList []*pg_query.Node) string {
+func getFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
 	funcName := ""
 	funcSchemaName := ""
 	if len(funcNameList) > 0 {
@@ -106,7 +107,7 @@ func getFunctionObjectName(funcNameList []*pg_query.Node) string {
 	if len(funcNameList) >= 2 { // Names list will have all the parts of qualified func name
 		funcSchemaName = funcNameList[len(funcNameList)-2].GetString_().Sval // // func name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
 	}
-	return lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
+	return funcSchemaName, funcName
 }
 
 func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {

@@ -123,6 +123,11 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
+			"FeatureName": "Large Object Functions",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"FeatureName": "Deferrable constraints",
 			"Objects": [],
 			"MinimumVersionsFixedIn": null

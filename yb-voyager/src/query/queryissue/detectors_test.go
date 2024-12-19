@@ -76,9 +76,23 @@ func TestFuncCallDetector(t *testing.T) {
 		`SELECT pg_advisory_unlock_all();`,
 	}
 
-	for _, sql := range advisoryLockSqls {
-		detector := NewFuncCallDetector(sql)
+	loFunctionSqls := []string{
+		`UPDATE documents
+SET content_oid = lo_import('/path/to/new/file.pdf')
+WHERE title = 'Sample Document';`,
+		`INSERT INTO documents (title, content_oid)
+VALUES ('Sample Document', lo_import('/path/to/your/file.pdf'));`,
+		`SELECT lo_export(content_oid, '/path/to/exported_design_document.pdf')
+FROM documents
+WHERE title = 'Design Document';`,
+		`SELECT lo_create('32142');`,
+		`SELECT  lo_unlink(loid);`,
+		`SELECT lo_unlink((SELECT content_oid FROM documents WHERE title = 'Sample Document'));`,
+		`create table test_lo_default (id int, raster lo DEFAULT lo_import('3242'));`,
+	}
 
+	detectConstructs := func(sql string) []QueryIssue {
+		detector := NewFuncCallDetector(sql)
 		parseResult, err := queryparser.Parse(sql)
 		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
 
@@ -95,11 +109,20 @@ func TestFuncCallDetector(t *testing.T) {
 		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
+		return detector.GetIssues()
+	}
 
-		issues := detector.GetIssues()
+	for _, sql := range advisoryLockSqls {
+		issues := detectConstructs(sql)
+		assert.Equal(t, len(issues), 1)
+		assert.Equal(t, issues[0].Type, ADVISORY_LOCKS, "Advisory Locks not detected in SQL: %s", sql)
+	}
 
-		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, ADVISORY_LOCKS, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+	for _, sql := range loFunctionSqls {
+		issues := detectConstructs(sql)
+		assert.Equal(t, len(issues), 1)
+		assert.Equal(t, issues[0].Type, LARGE_OBJECT_FUNCTIONS, "Large Objects not detected in SQL: %s", sql)
+
 	}
 }
 

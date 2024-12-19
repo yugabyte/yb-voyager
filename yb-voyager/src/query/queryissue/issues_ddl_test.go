@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -203,11 +204,23 @@ func testStorageParameterIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unrecognized parameter", storageParameterIssue)
 }
 
+func testLoDatatypeIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE image (title text, raster lo);`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", loDatatypeIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
-		panic("YB_VERSION env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105 for example")
+		panic("YB_VERSION env variable is not set. Set YB_VERSION=2024.1.3.0-b105 for example")
 	}
 
 	ybVersionWithoutBuild := strings.Split(ybVersion, "-")[0]
@@ -251,6 +264,9 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "storage parameter", ybVersion), testStorageParameterIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "lo datatype", ybVersion), testLoDatatypeIssue)
 	assert.True(t, success)
 
 }

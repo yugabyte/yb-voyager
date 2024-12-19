@@ -425,3 +425,17 @@ var percentTypeSyntax = issue.Issue{
 func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var loDatatypeIssue = issue.Issue{
+	Type:       LARGE_OBJECT_DATATYPE,
+	TypeName:   "Unsupported datatype - lo",
+	Suggestion: "Large objects are not yet supported in YugabyteDB, no workaround available currently",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25318",
+	DocsLink:   "", //TODO
+}
+
+func NewLODatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
+	issue := loDatatypeIssue
+	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
