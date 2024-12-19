@@ -16,6 +16,8 @@ limitations under the License.
 package queryissue
 
 import (
+	"fmt"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -204,20 +206,27 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
-type CopyCommandUnsupportedConstructsDetector struct{}
+type CopyCommandUnsupportedConstructsDetector struct {
+	query                          string
+	copyFromWhereConstructDetected bool
+	copyOnErrorConstructDetected   bool
+}
 
-func NewCopyCommandUnsupportedConstructsDetector() *CopyCommandUnsupportedConstructsDetector {
-	return &CopyCommandUnsupportedConstructsDetector{}
+func NewCopyCommandUnsupportedConstructsDetector(query string) *CopyCommandUnsupportedConstructsDetector {
+	return &CopyCommandUnsupportedConstructsDetector{
+		query: query,
+	}
 }
 
 // Detect if COPY command uses unsupported syntax i.e. COPY FROM ... WHERE and COPY... ON_ERROR
-func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Message) ([]string, error) {
-	unsupportedConstructs := []string{}
-
+func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Message) error {
 	// Check if the message is a COPY statement
 	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPYSTSMT_NODE {
-		return unsupportedConstructs, nil // Not a COPY statement, nothing to detect
+		fmt.Println("Not a COPY statement")
+		return nil // Not a COPY statement, nothing to detect
 	}
+
+	fmt.Println("Copy command detected: ", msg)
 
 	// Check for COPY FROM ... WHERE clause
 	isFromField := msg.Descriptor().Fields().ByName("is_from")
@@ -225,7 +234,7 @@ func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Messa
 	if isFromField != nil && msg.Has(isFromField) {
 		isFrom := msg.Get(isFromField).Bool()
 		if isFrom && whereField != nil && msg.Has(whereField) {
-			unsupportedConstructs = append(unsupportedConstructs, COPY_FROM_WHERE_NAME)
+			d.copyFromWhereConstructDetected = true
 		}
 	}
 
@@ -244,14 +253,26 @@ func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Messa
 				if defNameField != nil && defElem.Has(defNameField) {
 					defName := defElem.Get(defNameField).String()
 					if defName == "on_error" {
-						unsupportedConstructs = append(unsupportedConstructs, COPY_ON_ERROR_NAME)
+						d.copyOnErrorConstructDetected = true
+						break
 					}
 				}
 			}
 		}
 	}
 
-	return unsupportedConstructs, nil
+	return nil
+}
+
+func (d *CopyCommandUnsupportedConstructsDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.copyFromWhereConstructDetected {
+		issues = append(issues, NewCopyFromWhereIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.copyOnErrorConstructDetected {
+		issues = append(issues, NewCopyOnErrorIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
 }
 
 type JsonConstructorFuncDetector struct {
