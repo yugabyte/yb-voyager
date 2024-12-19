@@ -726,7 +726,7 @@ func CheckTools(tools ...string) []string {
 	for _, tool := range tools {
 		execPath, err := exec.LookPath(tool)
 		if err != nil {
-			missingTools = append(missingTools, fmt.Sprintf("%s", tool))
+			missingTools = append(missingTools, tool)
 		} else {
 			log.Infof("Found %s at %s", tool, execPath)
 		}

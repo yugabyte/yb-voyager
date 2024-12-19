@@ -408,6 +408,8 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		missingTools = utils.CheckTools("strings")
 
 	case MYSQL:
+		// TODO: For mysql and oracle, we can probably remove the ora2pg check in case it is a live migration
+		// Issue Link: https://github.com/yugabyte/yb-voyager/issues/2102
 		missingTools = utils.CheckTools("ora2pg")
 
 	case ORACLE:
