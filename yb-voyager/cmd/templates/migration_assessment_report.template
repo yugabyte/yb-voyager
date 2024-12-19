@@ -101,7 +101,7 @@
         <table>
             <tr>
                 <th>Object Type</th>
-                <th>Total Count</th>
+                <th>Total Objects</th>
                 <th>Object Names</th>
             </tr>
             {{range .SchemaSummary.DBObjects}}

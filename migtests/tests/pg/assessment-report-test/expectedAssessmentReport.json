@@ -80,8 +80,8 @@
 			{
 				"ObjectType": "TRIGGER",
 				"TotalCount": 4,
-				"InvalidCount": 2,
-				"ObjectNames": "t_raster ON public.combined_tbl, audit_trigger ON public.tt, before_sales_region_insert_update ON public.sales_region, audit_trigger ON schema2.tt"
+				"InvalidCount": 4,
+				"ObjectNames": "audit_trigger ON public.tt, before_sales_region_insert_update ON public.sales_region, audit_trigger ON schema2.tt"
 			},
 			{
 				"ObjectType": "MVIEW",

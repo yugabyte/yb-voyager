@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
 //================================================
@@ -185,7 +186,8 @@ func (t NameTuple) Key() string {
 // ================================================
 func quote2(dbType, name string) string {
 	switch dbType {
-	case POSTGRESQL, YUGABYTEDB, ORACLE, MYSQL:
+	case constants.POSTGRESQL, constants.YUGABYTEDB,
+		constants.ORACLE, constants.MYSQL:
 		return `"` + name + `"`
 	default:
 		panic("unknown source db type " + dbType)
@@ -194,15 +196,15 @@ func quote2(dbType, name string) string {
 
 func minQuote2(objectName, sourceDBType string) string {
 	switch sourceDBType {
-	case YUGABYTEDB, POSTGRESQL:
+	case constants.YUGABYTEDB, constants.POSTGRESQL:
 		if IsAllLowercase(objectName) && !IsReservedKeywordPG(objectName) {
 			return objectName
 		} else {
 			return `"` + objectName + `"`
 		}
-	case MYSQL:
+	case constants.MYSQL:
 		return `"` + objectName + `"`
-	case ORACLE:
+	case constants.ORACLE:
 		if IsAllUppercase(objectName) && !IsReservedKeywordOracle(objectName) {
 			return objectName
 		} else {

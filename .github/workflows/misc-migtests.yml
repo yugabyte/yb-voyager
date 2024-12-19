@@ -72,6 +72,9 @@ jobs:
 
       - name: "TEST: Assessment Report Test"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
+      
+      - name: "TEST: Assessment Report Test (Schema list UQC)"
+        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test-uqc
 
       - name: "TEST: analyze-schema"
         if: ${{ !cancelled() }}

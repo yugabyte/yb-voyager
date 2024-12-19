@@ -33,6 +33,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -717,7 +718,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 	tables := []sqlname.NameTuple{}
 	for _, tableName := range tableNames {
 		parts := strings.Split(tableName, ".")
-		objName := sqlname.NewObjectName(sqlname.ORACLE, "", parts[0], strings.ToUpper(parts[1]))
+		objName := sqlname.NewObjectName(constants.ORACLE, "", parts[0], strings.ToUpper(parts[1]))
 		nt := sqlname.NameTuple{
 			CurrentName: objName,
 			SourceName:  objName,

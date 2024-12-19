@@ -1136,13 +1136,13 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 	return combinedResult, nil
 }
 
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission("")
 	if err != nil {
-		return nil, fmt.Errorf("error checking table select permissions: %w", err)
+		return nil, false, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
@@ -1150,13 +1150,15 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 
 	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
-		return nil, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
+		return nil, false, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
 	}
 
+	pgssEnabled := true
 	if result != "" {
+		pgssEnabled = false
 		combinedResult = append(combinedResult, result)
 	}
-	return combinedResult, nil
+	return combinedResult, pgssEnabled, nil
 }
 
 const (
@@ -1208,7 +1210,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	}
 
 	if !hasReadAllStats {
-		return "User doesn't have permissions to read pg_stat_statements view, required for detecting Unsupported Query Constructs", nil
+		return "\n" + color.RedString("Missing Permission:") + " User doesn't have the `pg_read_all_stats` grant, required for detecting Unsupported Query Constructs", nil
 	}
 
 	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings

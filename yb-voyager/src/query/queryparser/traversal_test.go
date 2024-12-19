@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+// Test ObjectCollector with default predicate(AllObjectsPredicate)
 func TestObjectCollector(t *testing.T) {
 	tests := []struct {
 		Sql             string
@@ -67,7 +68,7 @@ func TestObjectCollector(t *testing.T) {
 			Sql: `CREATE VIEW analytics.top_customers AS
 					SELECT user_id, COUNT(*) as order_count	FROM public.orders GROUP BY user_id HAVING COUNT(*) > 10;`,
 			ExpectedObjects: []string{"analytics.top_customers", "public.orders", "count"},
-			ExpectedSchemas: []string{"analytics", "public", ""},
+			ExpectedSchemas: []string{"analytics", "public", ""}, // "" -> unknown schemaName
 		},
 		{
 			Sql: `WITH user_orders AS (
@@ -115,7 +116,7 @@ func TestObjectCollector(t *testing.T) {
 		parseResult, err := Parse(tc.Sql)
 		assert.NoError(t, err)
 
-		objectsCollector := NewObjectCollector()
+		objectsCollector := NewObjectCollector(nil)
 		processor := func(msg protoreflect.Message) error {
 			objectsCollector.Collect(msg)
 			return nil
@@ -136,6 +137,7 @@ func TestObjectCollector(t *testing.T) {
 	}
 }
 
+// Test ObjectCollector with default predicate(AllObjectsPredicate)
 // test focussed on collecting function names from DMLs
 func TestObjectCollector2(t *testing.T) {
 	tests := []struct {
@@ -216,7 +218,7 @@ func TestObjectCollector2(t *testing.T) {
 		parseResult, err := Parse(tc.Sql)
 		assert.NoError(t, err)
 
-		objectsCollector := NewObjectCollector()
+		objectsCollector := NewObjectCollector(nil)
 		processor := func(msg protoreflect.Message) error {
 			objectsCollector.Collect(msg)
 			return nil
@@ -237,9 +239,127 @@ func TestObjectCollector2(t *testing.T) {
 	}
 }
 
-/*
+// Test ObjectCollector with TablesOnlyPredicate
+func TestTableObjectCollector(t *testing.T) {
+	tests := []struct {
+		Sql             string
+		ExpectedObjects []string
+		ExpectedSchemas []string
+	}{
+		{
+			Sql:             `SELECT * from public.employees`,
+			ExpectedObjects: []string{"public.employees"},
+			ExpectedSchemas: []string{"public"},
+		},
+		{
+			Sql:             `SELECT * from employees`,
+			ExpectedObjects: []string{"employees"},
+			ExpectedSchemas: []string{""}, // empty schemaname indicates unqualified objectname
+		},
+		{
+			Sql:             `SELECT * from s1.employees`,
+			ExpectedObjects: []string{"s1.employees"},
+			ExpectedSchemas: []string{"s1"},
+		},
+		{
+			Sql:             `SELECT * from s2.employees where salary > (Select salary from s3.employees)`,
+			ExpectedObjects: []string{"s3.employees", "s2.employees"},
+			ExpectedSchemas: []string{"s3", "s2"},
+		},
+		{
+			Sql:             `SELECT c.name, SUM(o.amount) AS total_spent FROM sales.customers c JOIN finance.orders o ON c.id = o.customer_id GROUP BY c.name HAVING SUM(o.amount) > 1000`,
+			ExpectedObjects: []string{"sales.customers", "finance.orders"},
+			ExpectedSchemas: []string{"sales", "finance"},
+		},
+		{
+			Sql:             `SELECT name FROM hr.employees WHERE department_id IN (SELECT id FROM public.departments WHERE location_id IN (SELECT id FROM eng.locations WHERE country = 'USA'))`,
+			ExpectedObjects: []string{"hr.employees", "public.departments", "eng.locations"},
+			ExpectedSchemas: []string{"hr", "public", "eng"},
+		},
+		{
+			Sql:             `SELECT name FROM sales.customers UNION SELECT name FROM marketing.customers;`,
+			ExpectedObjects: []string{"sales.customers", "marketing.customers"},
+			ExpectedSchemas: []string{"sales", "marketing"},
+		},
+		{
+			Sql: `CREATE VIEW analytics.top_customers AS
+					SELECT user_id, COUNT(*) as order_count	FROM public.orders GROUP BY user_id HAVING COUNT(*) > 10;`,
+			ExpectedObjects: []string{"analytics.top_customers", "public.orders"},
+			ExpectedSchemas: []string{"analytics", "public"},
+		},
+		{
+			Sql: `WITH user_orders AS (
+					SELECT u.id, o.id as order_id
+					FROM users u
+					JOIN orders o ON u.id = o.user_id
+					WHERE o.amount > 100
+				), order_items AS (
+					SELECT o.order_id, i.product_id
+					FROM order_items i
+					JOIN user_orders o ON i.order_id = o.order_id
+				)
+				SELECT p.name, COUNT(oi.product_id) FROM products p
+				JOIN order_items oi ON p.id = oi.product_id GROUP BY p.name;`,
+			ExpectedObjects: []string{"users", "orders", "order_items", "user_orders", "products"},
+			ExpectedSchemas: []string{""},
+		},
+		{
+			Sql: `UPDATE finance.accounts
+						SET balance = balance + 1000
+						WHERE account_id IN (
+							SELECT account_id FROM public.users WHERE active = true
+					);`,
+			ExpectedObjects: []string{"finance.accounts", "public.users"},
+			ExpectedSchemas: []string{"finance", "public"},
+		},
+		{
+			Sql:             `SELECT classid, objid, refobjid FROM pg_depend WHERE refclassid = $1::regclass AND deptype = $2 ORDER BY 3`,
+			ExpectedObjects: []string{"pg_depend"},
+			ExpectedSchemas: []string{""},
+		},
+		{
+			Sql:             `SELECT pg_advisory_unlock_shared(100);`,
+			ExpectedObjects: []string{}, // empty slice represents no object collected
+			ExpectedSchemas: []string{},
+		},
+		{
+			Sql:             `SELECT xpath_exists('/employee/name', '<employee><name>John</name></employee>'::xml)`,
+			ExpectedObjects: []string{},
+			ExpectedSchemas: []string{},
+		},
+		{
+			Sql: `SELECT t.id,
+					xpath('/root/node', xmlparse(document t.xml_column)) AS extracted_nodes,
+					s2.some_function()
+				FROM s1.some_table t
+				WHERE t.id IN (SELECT id FROM s2.some_function())
+				AND pg_advisory_lock(t.id);`,
+			ExpectedObjects: []string{"s1.some_table"},
+			ExpectedSchemas: []string{"s1"},
+		},
+	}
 
+	for _, tc := range tests {
+		parseResult, err := Parse(tc.Sql)
+		assert.NoError(t, err)
 
-	COPY (SELECT ctid, xmin, id, data FROM schema_name.my_table)
-	TO '/path/to/file_with_system_columns.csv' WITH CSV;
-*/
+		objectsCollector := NewObjectCollector(TablesOnlyPredicate)
+		processor := func(msg protoreflect.Message) error {
+			objectsCollector.Collect(msg)
+			return nil
+		}
+
+		visited := make(map[protoreflect.Message]bool)
+		parseTreeMsg := GetProtoMessageFromParseTree(parseResult)
+		err = TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+
+		collectedObjects := objectsCollector.GetObjects()
+		collectedSchemas := objectsCollector.GetSchemaList()
+
+		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
+			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
+		assert.ElementsMatch(t, tc.ExpectedSchemas, collectedSchemas,
+			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
+	}
+}
