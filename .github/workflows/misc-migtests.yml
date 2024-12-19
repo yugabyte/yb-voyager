@@ -85,6 +85,7 @@ jobs:
       - name: Test PostgreSQL Connection
         run: |
           psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+          echo "/usr/lib/postgresql/16/bin" >> $GITHUB_PATH
           echo "psql"
           which psql
           echo "which -a psql"
