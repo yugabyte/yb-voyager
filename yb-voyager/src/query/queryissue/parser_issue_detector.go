@@ -375,6 +375,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewColumnRefDetector(query),
 		NewXmlExprDetector(query),
 		NewRangeTableFuncDetector(query),
+		NewCopyCommandUnsupportedConstructsDetector(),
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
 	}

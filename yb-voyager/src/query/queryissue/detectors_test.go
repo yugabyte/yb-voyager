@@ -27,6 +27,53 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
+func TestCopyCommandUnsupportedConstructsDetector(t *testing.T) {
+	copyCommandSqlsMap := map[string][]string{
+		// Valid COPY commands without WHERE or ON_ERROR
+		`COPY my_table FROM '/path/to/data.csv' WITH (FORMAT csv);`:                          {},
+		`COPY my_table FROM '/path/to/data.csv' WITH (FORMAT text);`:                         {},
+		`COPY my_table FROM '/path/to/data.csv';`:                                            {},
+		`COPY my_table FROM '/path/to/data.csv' WITH (DELIMITER ',');`:                       {},
+		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true);`: {},
+
+		// COPY commands with WHERE clause
+		`COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`:                {COPY_FROM_WHERE_NAME},
+		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`: {COPY_FROM_WHERE_NAME},
+		`COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`:                      {COPY_FROM_WHERE_NAME},
+
+		// COPY commands with ON_ERROR clause
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`: {COPY_ON_ERROR_NAME},
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP);`:   {COPY_ON_ERROR_NAME},
+
+		// COPY commands with both ON_ERROR and WHERE clause
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE) WHERE age > 18;`:     {COPY_FROM_WHERE_NAME, COPY_ON_ERROR_NAME},
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP) WHERE name = 'Alice';`: {COPY_FROM_WHERE_NAME, COPY_ON_ERROR_NAME},
+	}
+
+	detector := NewCopyCommandUnsupportedConstructsDetector()
+	for sql, expectedConstructs := range copyCommandSqlsMap {
+		parseResult, err := queryparser.Parse(sql)
+		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
+
+		visited := make(map[protoreflect.Message]bool)
+		unsupportedConstructs := []string{}
+
+		processor := func(msg protoreflect.Message) error {
+			constructs, err := detector.Detect(msg)
+			if err != nil {
+				return err
+			}
+			unsupportedConstructs = append(unsupportedConstructs, constructs...)
+			return nil
+		}
+
+		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+		assert.NoError(t, err)
+		assert.ElementsMatch(t, expectedConstructs, unsupportedConstructs, "Unsupported Constructs not detected in SQL: %s", sql)
+	}
+}
+
 func getDetectorIssues(t *testing.T, detector UnsupportedConstructDetector, sql string) []QueryIssue {
 	parseResult, err := queryparser.Parse(sql)
 	assert.NoError(t, err, "Failed to parse SQL: %s", sql)

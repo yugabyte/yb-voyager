@@ -49,6 +49,7 @@ const (
 	PG_QUERY_JSON_OBJECT_CONSTRUCTOR_NODE    = "pg_query.JsonObjectConstructor"
 	PG_QUERY_JSON_TABLE_NODE                 = "pg_query.JsonTable"
 	PG_QUERY_VIEWSTMT_NODE                   = "pg_query.ViewStmt"
+	PG_QUERY_COPYSTSMT_NODE                  = "pg_query.CopyStmt"
 )
 
 // function type for processing nodes during traversal
