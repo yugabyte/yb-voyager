@@ -14,14 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package issue
+package queryissue
 
 // Types
 const (
-	ADVISORY_LOCKS = "ADVISORY_LOCKS"
-	SYSTEM_COLUMNS = "SYSTEM_COLUMNS"
-	XML_FUNCTIONS  = "XML_FUNCTIONS"
-
 	REFERENCED_TYPE_DECLARATION                     = "REFERENCED_TYPE_DECLARATION"
 	STORED_GENERATED_COLUMNS                        = "STORED_GENERATED_COLUMNS"
 	UNLOGGED_TABLE                                  = "UNLOGGED_TABLE"
@@ -52,10 +48,22 @@ const (
 	INDEX_ON_COMPLEX_DATATYPE                       = "INDEX_ON_COMPLEX_DATATYPE"
 	FOREIGN_TABLE                                   = "FOREIGN_TABLE"
 	INHERITANCE                                     = "INHERITANCE"
+
+	LARGE_OBJECT_DATATYPE       = "LARGE_OBJECT_DATATYPE"
+	LARGE_OBJECT_FUNCTIONS      = "LARGE_OBJECT_FUNCTIONS"
+	LARGE_OBJECT_FUNCTIONS_NAME = "Large Object Functions"
+
+	ADVISORY_LOCKS      = "ADVISORY_LOCKS"
+	SYSTEM_COLUMNS      = "SYSTEM_COLUMNS"
+	XML_FUNCTIONS       = "XML_FUNCTIONS"
+	ADVISORY_LOCKS_NAME = "Advisory Locks"
+	SYSTEM_COLUMNS_NAME = "System Columns"
+	XML_FUNCTIONS_NAME  = "XML Functions"
 )
 
 // Object types
 const (
+	CONSTRAINT_NAME           = "ConstraintName"
 	TABLE_OBJECT_TYPE         = "TABLE"
 	FOREIGN_TABLE_OBJECT_TYPE = "FOREIGN TABLE"
 	FUNCTION_OBJECT_TYPE      = "FUNCTION"

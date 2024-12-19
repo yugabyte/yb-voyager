@@ -40,6 +40,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -242,7 +243,9 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
-	log.Info("Initialized connection pool with settings: ", spew.Sdump(params))
+	redactedParams := params
+	redactedParams.ConnUriList = utils.GetRedactedURLs(redactedParams.ConnUriList)
+	log.Info("Initialized connection pool with settings: ", spew.Sdump(redactedParams))
 	return nil
 }
 
@@ -1320,7 +1323,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	tables := []sqlname.NameTuple{}
 	for _, tableName := range tableNames {
 		parts := strings.Split(tableName, ".")
-		objName := sqlname.NewObjectName(sqlname.YUGABYTEDB, "", parts[0], parts[1])
+		objName := sqlname.NewObjectName(constants.YUGABYTEDB, "", parts[0], parts[1])
 		nt := sqlname.NameTuple{
 			CurrentName: objName,
 			SourceName:  objName,
@@ -1390,24 +1393,55 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
 	}
 	defer conn.Close(context.Background())
 
-	query := "SELECT rolsuper FROM pg_roles WHERE rolname=current_user"
-	rows, err := conn.Query(context.Background(), query)
-	if err != nil {
-		return false, fmt.Errorf("querying if user is superuser: %w", err)
-	}
-	defer rows.Close()
-
-	var isSuperUser bool
-	if rows.Next() {
-		err = rows.Scan(&isSuperUser)
+	runQueryAndCheckPrivilege := func(query string) (bool, error) {
+		rows, err := conn.Query(context.Background(), query)
 		if err != nil {
-			return false, fmt.Errorf("scanning row for superuser: %w", err)
+			return false, fmt.Errorf("querying if user is superuser: %w", err)
 		}
-	} else {
-		return false, fmt.Errorf("no current user found in pg_roles")
+		defer rows.Close()
+
+		var isProperUser bool
+		if rows.Next() {
+			err = rows.Scan(&isProperUser)
+			if err != nil {
+				return false, fmt.Errorf("scanning row for query: %w", err)
+			}
+		} else {
+			return false, fmt.Errorf("no current user found in pg_roles")
+		}
+		return isProperUser, nil
 	}
 
-	return isSuperUser, nil
+	//This rolsuper is set to true in the pg_roles if a user is super user
+	isSuperUserquery := "SELECT rolsuper FROM pg_roles WHERE rolname=current_user"
+
+	isSuperUser, err := runQueryAndCheckPrivilege(isSuperUserquery)
+	if err != nil {
+		return false, fmt.Errorf("error checking super user privilege: %w", err)
+	}
+	if isSuperUser {
+		return true, nil
+	}
+	//In case of YugabyteDB Aeon deployment of target database we need to verify if yb_superuser is granted or not
+	isYbSuperUserQuery := `SELECT 
+    CASE 
+        WHEN EXISTS (
+            SELECT 1
+            FROM pg_auth_members m
+            JOIN pg_roles grantee ON m.member = grantee.oid
+            JOIN pg_roles granted ON m.roleid = granted.oid
+            WHERE grantee.rolname = CURRENT_USER AND granted.rolname = 'yb_superuser'
+        ) 
+        THEN TRUE 
+        ELSE FALSE 
+    END AS is_yb_superuser;`
+
+	isYBSuperUser, err := runQueryAndCheckPrivilege(isYbSuperUserQuery)
+	if err != nil {
+		return false, fmt.Errorf("error checking yb_superuser privilege: %w", err)
+	}
+
+	return isYBSuperUser, nil
 }
 
 func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {

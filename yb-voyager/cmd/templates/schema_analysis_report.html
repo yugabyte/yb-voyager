@@ -80,7 +80,7 @@
     <div class="section">
         <h3>Schema Summary</h3>
         <table width='100%' table-layout='fixed'>
-            <tr><th>Object</th><th>Total Count</th><th>Valid Count</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>
+            <tr><th>Object</th><th>Total Objects</th><th>Objects Without Issues</th><th>Objects With Issues</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>
             {{ range .SchemaSummary.DBObjects }}
             {{ if .TotalCount }}
             <tr>

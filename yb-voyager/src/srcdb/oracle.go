@@ -78,10 +78,6 @@ func (ora *Oracle) CheckSchemaExists() bool {
 	return true
 }
 
-func (ora *Oracle) CheckRequiredToolsAreInstalled() {
-	checkTools("ora2pg", "sqlplus")
-}
-
 func (ora *Oracle) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
@@ -721,8 +717,8 @@ func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTable
 	return nil, nil
 }
 
-func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, error) {
-	return nil, nil
+func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (ora *Oracle) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {

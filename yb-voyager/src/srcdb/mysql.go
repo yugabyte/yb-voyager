@@ -71,10 +71,6 @@ func (ms *MySQL) CheckSchemaExists() bool {
 	return true
 }
 
-func (ms *MySQL) CheckRequiredToolsAreInstalled() {
-	checkTools("ora2pg")
-}
-
 func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.AsQualifiedCatalogName())
@@ -542,8 +538,8 @@ func (ms *MySQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCo
 	return false, 0, 0, nil
 }
 
-func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, error) {
-	return nil, nil
+func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (ms *MySQL) GetSchemasMissingUsagePermissions() ([]string, error) {
