@@ -23,12 +23,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
-const (
-	ADVISORY_LOCKS_NAME = "Advisory Locks"
-	SYSTEM_COLUMNS_NAME = "System Columns"
-	XML_FUNCTIONS_NAME  = "XML Functions"
-)
-
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
 // each detector will work on specific type of node
 type UnsupportedConstructDetector interface {
