@@ -118,7 +118,6 @@ func exportSchema() error {
 	}
 
 	checkSourceDBCharset()
-	source.DB().CheckRequiredToolsAreInstalled()
 	sourceDBVersion := source.DB().GetVersion()
 	source.DBVersion = sourceDBVersion
 	source.DBSize, err = source.DB().GetDatabaseSize()

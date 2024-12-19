@@ -71,10 +71,6 @@ func (ms *MySQL) CheckSchemaExists() bool {
 	return true
 }
 
-func (ms *MySQL) CheckRequiredToolsAreInstalled() {
-	checkTools("ora2pg")
-}
-
 func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.AsQualifiedCatalogName())
