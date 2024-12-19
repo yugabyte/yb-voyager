@@ -89,7 +89,7 @@ jobs:
           find . -type f -executable -name 'pg_dump'
           
           echo "github path"
-          echo "/usr/lib/postgresql/16/bin" >> $GITHUB_PATH
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
           cat $GITHUB_PATH
 
           echo "path 16"
