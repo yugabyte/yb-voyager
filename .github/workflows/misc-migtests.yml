@@ -54,26 +54,6 @@ jobs:
           sudo apt install -y python3
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
-          echo "psql"
-          which psql
-          echo "which -a psql"
-          which -a psql
-          echo "psql version" 
-          psql --version
-          echo "which pg_dump"
-          which pg_dump
-
-          echo "which -a pg_dump"
-          which -a pg_dump
-
-          echo "pg_dump version"
-          pg_dump --version
-
-          echo "sudo pg_dump version"
-          sudo pg_dump --version
-
-          echo "pg_dump bin version"
-          /bin/pg_dump --version
 
       - name: Run installer script to setup voyager
         run: |
@@ -85,51 +65,13 @@ jobs:
       - name: Test PostgreSQL Connection
         run: |
           psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
-          echo "find all pg_dump"
-          find . -type f -executable -name 'pg_dump'
-          
-          echo "github path"
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-          cat $GITHUB_PATH
-
-          echo "path 16"
-          ls /usr/lib/postgresql/16/bin
-
-          echo "psql"
-          which psql
-          echo "which -a psql"
-          which -a psql
-          echo "psql version" 
-          psql --version
-          echo "which pg_dump"
-          which pg_dump
-
-          echo "which -a pg_dump"
-          which -a pg_dump
-
-          echo "pg_dump version"
-          pg_dump --version
-
-          echo "sudo pg_dump version"
-          sudo pg_dump --version
-
-          echo "pg_dump bin version"
-          /bin/pg_dump --version
 
       - name: Create PostgreSQL user
         run: |
           ./migtests/scripts/postgresql/create_pg_user
 
       - name: "TEST: Assessment Report Test"
-        run: |
-          echo "github path"
-          echo "/usr/lib/postgresql/16/bin" >> $GITHUB_PATH
-          cat $GITHUB_PATH
-
-          echo "path var"
-          echo $PATH
-
-          migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
+        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
       
       - name: "TEST: Assessment Report Test (Schema list UQC)"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test-uqc

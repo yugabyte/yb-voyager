@@ -453,7 +453,6 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
 		currVersion := strings.Fields(string(stdout))[2]
 
-		utils.PrintAndLog("cmd = %s, path = %s, path version = %s, required version=%s, compare = %d\n", cmd, path, currVersion, minRequiredVersion, version.CompareSimple(currVersion, minRequiredVersion))
 		// Check if the version of the command is greater or equal to the min required version
 		if version.CompareSimple(currVersion, minRequiredVersion) >= 0 {
 			return path, "", nil
