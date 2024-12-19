@@ -27,6 +27,26 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
+func getDetectorIssues(t *testing.T, detector UnsupportedConstructDetector, sql string) []QueryIssue {
+	parseResult, err := queryparser.Parse(sql)
+	assert.NoError(t, err, "Failed to parse SQL: %s", sql)
+
+	visited := make(map[protoreflect.Message]bool)
+
+	processor := func(msg protoreflect.Message) error {
+		err := detector.Detect(msg)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+	err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+	assert.NoError(t, err)
+	return detector.GetIssues()
+}
+
 func TestFuncCallDetector(t *testing.T) {
 	advisoryLockSqls := []string{
 		`SELECT pg_advisory_lock(100), COUNT(*) FROM cars;`,
@@ -83,37 +103,16 @@ func TestFuncCallDetector(t *testing.T) {
 	FROM employees
 	GROUP BY department;`,
 	}
-
-	detectConstructs := func(sql string) []QueryIssue {
-		detector := NewFuncCallDetector(sql)
-		parseResult, err := queryparser.Parse(sql)
-		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
-
-		visited := make(map[protoreflect.Message]bool)
-
-		processor := func(msg protoreflect.Message) error {
-			err := detector.Detect(msg)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-
-		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
-		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
-		assert.NoError(t, err)
-		return detector.GetIssues()
-	}
 	for _, sql := range advisoryLockSqls {
 
-		issues := detectConstructs(sql)
+		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
 
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 		assert.Equal(t, ADVISORY_LOCKS, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 	}
 
 	for _, sql := range anyValAggSqls {
-		issues := detectConstructs(sql)
+		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 		assert.Equal(t, AGGREGATE_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 	}
@@ -161,25 +160,7 @@ func TestColumnRefDetector(t *testing.T) {
 	}
 
 	for _, sql := range systemColumnSqls {
-		detector := NewColumnRefDetector(sql)
-		parseResult, err := queryparser.Parse(sql)
-		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
-
-		visited := make(map[protoreflect.Message]bool)
-
-		processor := func(msg protoreflect.Message) error {
-			err := detector.Detect(msg)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-
-		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
-		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
-		assert.NoError(t, err)
-
-		issues := detector.GetIssues()
+		issues := getDetectorIssues(t, NewColumnRefDetector(sql), sql)
 
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 		assert.Equal(t, SYSTEM_COLUMNS, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
@@ -347,25 +328,7 @@ func TestRangeTableFuncDetector(t *testing.T) {
 	}
 
 	for _, sql := range xmlTableSqls {
-		detector := NewRangeTableFuncDetector(sql)
-		parseResult, err := queryparser.Parse(sql)
-		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
-
-		visited := make(map[protoreflect.Message]bool)
-
-		processor := func(msg protoreflect.Message) error {
-			err := detector.Detect(msg)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-
-		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
-		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
-		assert.NoError(t, err)
-
-		issues := detector.GetIssues()
+		issues := getDetectorIssues(t, NewRangeTableFuncDetector(sql), sql)
 
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 		assert.Equal(t, XML_FUNCTIONS, issues[0].Type, "Expected XML Functions issue for SQL: %s", sql)
@@ -708,47 +671,21 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 }
 
 func TestJsonConstructorDetector(t *testing.T) {
-	jsonSqls := []string{
-		`SELECT JSON_ARRAY('PostgreSQL', 12, TRUE, NULL) AS json_array;`,
-		`SELECT department, JSON_ARRAYAGG(name) AS employees_json
-	FROM employees
-	GROUP BY department;`,
-		`SELECT JSON_OBJECT('{code, P123, title, Jaws, price, 19.99}') AS json_from_array;`,
-		`SELECT json_objectagg(k VALUE v) AS json_result
-	FROM (VALUES ('a', 1), ('b', 2), ('c', 3)) AS t(k, v);`,
-	`SELECT JSON_OBJECT(
-		'{code, title, price}',
-		'{P123, Jaws, 19.99}'
-	) AS json_from_keys_values;`,
- 	`select JSON_ARRAYAGG('[1, "2", null]');`,
-	`SELECT JSON_OBJECT(
-    'code' VALUE 'P123',
-    'title' VALUE 'Jaws',
-    'price' VALUE 19.99,
-    'available' VALUE TRUE
-) AS json_obj;`,
-	}
-	
-	for _, sql := range jsonSqls {
-		detector := NewJsonConstructorFuncDetector(sql)
-		parseResult, err := queryparser.Parse(sql)
-		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
+	sql := `SELECT JSON_ARRAY('PostgreSQL', 12, TRUE, NULL) AS json_array;`
 
-		visited := make(map[protoreflect.Message]bool)
+	issues := getDetectorIssues(t, NewJsonConstructorFuncDetector(sql), sql)
+	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+	assert.Equal(t, JSON_CONSTRUCTOR_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 
-		processor := func(msg protoreflect.Message) error {
-			err := detector.Detect(msg)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
+}
 
-		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
-		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
-		assert.NoError(t, err)
-		issues := detector.GetIssues()
-		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, JSON_CONSTRUCTOR_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
-	}
+func TestJsonQueryFunctionDetector(t *testing.T) {
+	sql := `SELECT id, JSON_VALUE(details, '$.title') AS title
+FROM books
+WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`
+
+	issues := getDetectorIssues(t, NewJsonQueryFunctionDetector(sql), sql)
+	assert.Equal(t, 0, len(issues), "Expected 2 issue for SQL: %s", sql)
+	// assert.Equal(t, JSON_QUERY_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+
 }

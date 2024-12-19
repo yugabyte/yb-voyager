@@ -208,11 +208,13 @@ func NewJsonConstructorFuncDetector(query string) *JsonConstructorFuncDetector {
 func (j *JsonConstructorFuncDetector) Detect(msg protoreflect.Message) error {
 	switch queryparser.GetMsgFullName(msg) {
 	case queryparser.PG_QUERY_JSON_ARRAY_AGG_NODE:
-		j.unsupportedJsonConstructorFunctionsDetected.Add("json_arrayagg")
+		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_ARRAYAGG)
 	case queryparser.PG_QUERY_JSON_ARRAY_CONSTRUCTOR_AGG_NODE:
-		j.unsupportedJsonConstructorFunctionsDetected.Add("json_array")
+		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_ARRAY)
 	case queryparser.PG_QUERY_JSON_OBJECT_AGG_NODE:
-		j.unsupportedJsonConstructorFunctionsDetected.Add("json_objectagg")
+		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_OBJECTAGG)
+	case queryparser.PG_QUERY_JSON_OBJECT_CONSTRUCTOR_NODE:
+		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_OBJECT)
 	case queryparser.PG_QUERY_FUNCCALL_NODE:
 		_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
 		if unsupportedJsonConstructorFunctions.ContainsOne(funcName) {
@@ -227,6 +229,57 @@ func (d *JsonConstructorFuncDetector) GetIssues() []QueryIssue {
 	if d.unsupportedJsonConstructorFunctionsDetected.Cardinality() > 0 {
 		for fn := range d.unsupportedJsonConstructorFunctionsDetected.Iter() {
 			issues = append(issues, NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, fn))
+		}
+	}
+	return issues
+}
+
+type JsonQueryFunctionDetector struct {
+	query                                 string
+	unsupportedJsonQueryFunctionsDetected mapset.Set[string]
+}
+
+func NewJsonQueryFunctionDetector(query string) *JsonQueryFunctionDetector {
+	return &JsonQueryFunctionDetector{
+		query:                                 query,
+		unsupportedJsonQueryFunctionsDetected: mapset.NewThreadUnsafeSet[string](),
+	}
+}
+
+func (j *JsonQueryFunctionDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_JSON_FUNC_EXPR_NODE {
+		return nil
+	}
+	/*
+		JsonExprOp -
+			enumeration of SQL/JSON query function types
+		typedef enum JsonExprOp
+		{
+			JSON_EXISTS_OP,				 JSON_EXISTS()
+			JSON_QUERY_OP,				 JSON_QUERY()
+			JSON_VALUE_OP,				 JSON_VALUE()
+			JSON_TABLE_OP,				JSON_TABLE()
+		} JsonExprOp;
+	*/
+	jsonExprFuncOpNum := queryparser.GetEnumField(msg, "op")
+	switch jsonExprFuncOpNum {
+	case 1:
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_EXISTS)
+	case 2:
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_QUERY)
+	case 3:
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_VALUE)
+	case 4:
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_TABLE)
+	}
+	return nil
+}
+
+func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.unsupportedJsonQueryFunctionsDetected.Cardinality() > 0 {
+		for fn := range d.unsupportedJsonQueryFunctionsDetected.Iter() {
+			issues = append(issues, NewJsonQueryFunction(DML_QUERY_OBJECT_TYPE, "", d.query, fn))
 		}
 	}
 	return issues

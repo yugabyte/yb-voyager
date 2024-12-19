@@ -63,12 +63,12 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 }
 
 var anyValueAggFunctionIssue = issue.Issue{
-	Type: AGGREGATE_FUNCTION,
-	TypeName: "ANY_VALUE() aggregate function is not supported",
+	Type:            AGGREGATE_FUNCTION,
+	TypeName:        "ANY_VALUE() aggregate function is not supported",
 	TypeDescription: "",
-	Suggestion: "",
-	GH: "",
-	DocsLink: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
 }
 
 func NewAnyValueAGGFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -76,12 +76,12 @@ func NewAnyValueAGGFunctionIssue(objectType string, objectName string, sqlStatem
 }
 
 var jsonConstructorFunctionsIssue = issue.Issue{
-	Type: JSON_CONSTRUCTOR_FUNCTION,
-	TypeName: "%s() function is not supported",
+	Type:            JSON_CONSTRUCTOR_FUNCTION,
+	TypeName:        "%s() function is not supported",
 	TypeDescription: "",
-	Suggestion: "",
-	GH: "",
-	DocsLink: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
 }
 
 func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string, jsonConstructorFnName string) QueryIssue {
@@ -91,16 +91,16 @@ func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlSt
 }
 
 var jsonQueryFunctionIssue = issue.Issue{
-	Type: JSON_QUERY_FUNCTION,
-	TypeName: "%s() function is not supported",
+	Type:            JSON_QUERY_FUNCTION,
+	TypeName:        "%s() function is not supported",
 	TypeDescription: "",
-	Suggestion: "",
-	GH: "",
-	DocsLink: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
 }
 
 func NewJsonQueryFunction(objectType string, objectName string, sqlStatement string, jsonQueryFnName string) QueryIssue {
 	issue := jsonQueryFunctionIssue
-	issue.TypeName = fmt.Sprintf(issue.TypeName, strings.ToUpper(jsonQueryFnName))
+	issue.TypeName = fmt.Sprintf(issue.TypeName, jsonQueryFnName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

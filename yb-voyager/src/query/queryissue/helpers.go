@@ -105,19 +105,18 @@ var unsupportedAggFunctions = mapset.NewThreadUnsafeSet([]string{
 
 var unsupportedJsonConstructorFunctions = mapset.NewThreadUnsafeSet([]string{
 	// json functions, refer - https://www.postgresql.org/about/featurematrix/detail/395/
-	"json_object", // These functions are not func call node, they are separate node types, "json_objectagg", "json_array", "json_arrayagg" 
+	"json_object",
 }...)
 
-var unsupportedJsonQueryFunctions = mapset.NewThreadUnsafeSet([]string{
+const (
+	// These functions are not func call node, they are separate node types, "json_objectagg", "json_array", "json_arrayagg"
+	JSON_OBJECTAGG = "JSON_OBJECTAGG"
+	JSON_ARRAY     = "JSON_ARRAY"
+	JSON_ARRAYAGG  = "JSON_ARRAYAGG"
+	JSON_OBJECT    = "JSON_OBJECT"
 	//json query functions supported in PG 17, refer - https://www.postgresql.org/docs/17/functions-json.html#FUNCTIONS-SQLJSON-QUERYING
-	"json_exists", "json_query", "json_value",
-}...)
-/*
-caveats -
-SELECT id, JSON_VALUE(details, '$.title') AS title
-FROM books
-WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);
-parser error - : syntax error at or near "PASSING"
-
-THEse might be separate NODe types in PG-17 parser as per the syntax it more than a function call
-*/
+	JSON_EXISTS = "JSON_EXISTS"
+	JSON_QUERY  = "JSON_QUERY"
+	JSON_VALUE  = "JSON_VALUE"
+	JSON_TABLE  = "JSON_TABLE"
+)

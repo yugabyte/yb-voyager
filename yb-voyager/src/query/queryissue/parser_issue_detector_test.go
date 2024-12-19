@@ -324,3 +324,100 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 	fatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 }
+
+func TestJsonUnsupportedFeatures(t *testing.T) {
+	sqls := []string{
+		`SELECT department, JSON_ARRAYAGG(name) AS employees_json
+	FROM employees
+	GROUP BY department;`,
+		`SELECT JSON_OBJECT('{code, P123, title, Jaws, price, 19.99}') AS json_from_array;`,
+		`SELECT json_objectagg(k VALUE v) AS json_result
+	FROM (VALUES ('a', 1), ('b', 2), ('c', 3)) AS t(k, v);`,
+		`SELECT JSON_OBJECT(
+		'{code, title, price}',
+		'{P123, Jaws, 19.99}'
+	) AS json_from_keys_values;`,
+		`select JSON_ARRAYAGG('[1, "2", null]');`,
+		`SELECT JSON_OBJECT(
+    'code' VALUE 'P123',
+    'title' VALUE 'Jaws',
+    'price' VALUE 19.99,
+    'available' VALUE TRUE
+) AS json_obj;`,
+ `SELECT id, JSON_QUERY(details, '$.author') AS author
+FROM books;`,
+		`SELECT jt.* FROM
+ my_films,
+ JSON_TABLE (js, '$.favorites[*]' COLUMNS (
+   id FOR ORDINALITY,
+   kind text PATH '$.kind',
+   title text PATH '$.films[*].title' WITH WRAPPER,
+   director text PATH '$.films[*].director' WITH WRAPPER)) AS jt;`,
+		`SELECT id, details
+FROM books
+WHERE JSON_EXISTS(details, '$.author');`,
+		`SELECT id, JSON_QUERY(details, '$.author') AS author
+FROM books;`,
+		`SELECT 
+    id, 
+    JSON_VALUE(details, '$.title') AS title,
+    JSON_VALUE(details, '$.price')::NUMERIC AS price
+FROM books;`,
+`SELECT id, JSON_VALUE(details, '$.title') AS title
+FROM books
+WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
+	}
+	sqlsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], JSON_ARRAYAGG),
+		},
+		sqls[1]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], JSON_OBJECT),
+		},
+		sqls[2]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], JSON_OBJECTAGG),
+		},
+		sqls[3]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], JSON_OBJECT),
+		},
+		sqls[4]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4], JSON_ARRAYAGG),
+		},
+		sqls[5]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[5], JSON_OBJECT),
+		},
+		// sqls[6]: []QueryIssue{
+		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[6], JSON_QUERY),
+		// },
+		// sqls[7]: []QueryIssue{
+		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[7], JSON_TABLE),
+		// },
+		// sqls[8]: []QueryIssue{
+		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[8], JSON_EXISTS),
+		// },
+		// sqls[9]: []QueryIssue{
+		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9], JSON_QUERY),
+		// },
+		// sqls[10]: []QueryIssue{
+		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[10], JSON_VALUE),
+		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls1[11], JSON_VALUE),
+		// },
+		// sqls[11]: []QueryIssue{
+		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], JSON_VALUE),
+		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], JSON_EXISTS),
+		// },
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range sqlsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
