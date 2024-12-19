@@ -80,16 +80,18 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 			if c.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
 				issues = append(issues, NewExclusionConstraintIssue(
 					obj.GetObjectType(),
-					fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+					table.GetObjectName(),
 					"",
+					c.ConstraintName,
 				))
 			}
 
 			if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
 				issues = append(issues, NewDeferrableConstraintIssue(
 					obj.GetObjectType(),
-					fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+					table.GetObjectName(),
 					"",
+					c.ConstraintName,
 				))
 			}
 
@@ -106,10 +108,10 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					}
 					issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
 						obj.GetObjectType(),
-						fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+						table.GetObjectName(),
 						"",
 						typeName,
-						true,
+						c.ConstraintName,
 					))
 				}
 			}
@@ -413,15 +415,17 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		if alter.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
 			issues = append(issues, NewExclusionConstraintIssue(
 				obj.GetObjectType(),
-				fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
+				alter.GetObjectName(),
 				"",
+				alter.ConstraintName,
 			))
 		}
 		if alter.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && alter.IsDeferrable {
 			issues = append(issues, NewDeferrableConstraintIssue(
 				obj.GetObjectType(),
-				fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
+				alter.GetObjectName(),
 				"",
+				alter.ConstraintName,
 			))
 		}
 
@@ -447,10 +451,10 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				}
 				issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
 					obj.GetObjectType(),
-					fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
+					alter.GetObjectName(),
 					"",
 					typeName,
-					false,
+					alter.ConstraintName,
 				))
 			}
 

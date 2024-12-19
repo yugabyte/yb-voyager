@@ -373,16 +373,6 @@
         },
         {
             "IssueType": "unsupported_features",
-            "ObjectType": "VIEW",
-            "ObjectName": "",
-            "Reason": "Unsupported PG syntax - 'syntax error at or near \"TO\"'",
-            "SqlStatement": "ALTER VIEW view_name TO select * from test;",
-            "Suggestion": "Fix the schema as per PG syntax",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1625",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "party_profile_part",
             "Reason": "ALTER TABLE OF not supported yet.",

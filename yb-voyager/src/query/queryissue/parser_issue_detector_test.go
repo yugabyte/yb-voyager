@@ -191,7 +191,7 @@ func TestAllIssues(t *testing.T) {
 			NewDisableRuleIssue("TABLE", "public.example", stmt4, "example_rule"),
 		},
 		stmt5: []QueryIssue{
-			NewDeferrableConstraintIssue("TABLE", "abc, constraint: (cnstr_id)", stmt5),
+			NewDeferrableConstraintIssue("TABLE", "abc", stmt5, "cnstr_id"),
 		},
 		stmt6: []QueryIssue{
 			NewAdvisoryLocksIssue("DML_QUERY", "", stmt6),
@@ -210,8 +210,8 @@ func TestAllIssues(t *testing.T) {
 			NewInsufficientColumnInPKForPartition("TABLE", "test_non_pk_multi_column_list", stmt10, []string{"country_code", "record_type"}),
 		},
 		stmt11: []QueryIssue{
-			NewExclusionConstraintIssue("TABLE", "Test, constraint: (Test_room_id_time_range_excl)", stmt11),
-			NewExclusionConstraintIssue("TABLE", "Test, constraint: (no_time_overlap_constr)", stmt11),
+			NewExclusionConstraintIssue("TABLE", "Test", stmt11, "Test_room_id_time_range_excl"),
+			NewExclusionConstraintIssue("TABLE", "Test", stmt11, "no_time_overlap_constr"),
 		},
 		stmt13: []QueryIssue{
 			NewIndexOnComplexDatatypesIssue("INDEX", "idx_on_daterange ON test_dt", stmt13, "daterange"),
@@ -259,7 +259,7 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt16: []QueryIssue{
 			NewXmlFunctionsIssue("TABLE", "public.xml_data_example", stmt16),
-			NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue("TABLE", "public.xml_data_example, constraint: (xml_data_example_d_key)", stmt16, "daterange", true),
+			NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue("TABLE", "public.xml_data_example", stmt16, "daterange", "xml_data_example_d_key"),
 			NewMultiColumnListPartition("TABLE", "public.xml_data_example", stmt16),
 			NewInsufficientColumnInPKForPartition("TABLE", "public.xml_data_example", stmt16, []string{"name"}),
 			NewXMLDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "description"),
@@ -303,4 +303,24 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	fatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 	assert.True(t, cmp.Equal(issues[0], NewUnloggedTableIssue("TABLE", "tbl_unlog", stmt)))
+}
+
+// currently, both FuncCallDetector and XmlExprDetector can detect XMLFunctionsIssue
+// statement below has both XML functions and XML expressions.
+// but we want to only return one XMLFunctionsIssue from parserIssueDetector.getDMLIssues
+// and there is some workaround in place to avoid returning multiple issues in .genericIssues method
+func TestSingleXMLIssueIsDetected(t *testing.T) {
+	stmt := `
+	SELECT e.id, x.employee_xml
+		FROM employees e
+		JOIN (
+			SELECT xmlelement(name "employee", xmlattributes(e.id AS "id"), e.name) AS employee_xml
+			FROM employees e
+		) x ON x.employee_xml IS NOT NULL
+		WHERE xmlexists('//employee[name="John Doe"]' PASSING BY REF x.employee_xml);`
+
+	parserIssueDetector := NewParserIssueDetector()
+	issues, err := parserIssueDetector.getDMLIssues(stmt)
+	fatalIfError(t, err)
+	assert.Equal(t, 1, len(issues))
 }

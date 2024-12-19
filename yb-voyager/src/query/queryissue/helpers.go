@@ -16,21 +16,25 @@ limitations under the License.
 
 package queryissue
 
+import (
+	mapset "github.com/deckarep/golang-set/v2"
+)
+
 // Refer: https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
-var unsupportedAdvLockFuncs = []string{
+var unsupportedAdvLockFuncs = mapset.NewThreadUnsafeSet([]string{
 	"pg_advisory_lock", "pg_advisory_lock_shared",
 	"pg_advisory_unlock", "pg_advisory_unlock_all", "pg_advisory_unlock_shared",
 	"pg_advisory_xact_lock", "pg_advisory_xact_lock_shared",
 	"pg_try_advisory_lock", "pg_try_advisory_lock_shared",
 	"pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared",
-}
+}...)
 
-var unsupportedSysCols = []string{
+var unsupportedSysCols = mapset.NewThreadUnsafeSet([]string{
 	"xmin", "xmax", "cmin", "cmax", "ctid",
-}
+}...)
 
 // Refer: https://www.postgresql.org/docs/17/functions-xml.html#FUNCTIONS-XML-PROCESSING
-var unsupportedXmlFunctions = []string{
+var unsupportedXmlFunctions = mapset.NewThreadUnsafeSet([]string{
 	// 1. Producing XML content
 	"xmltext", "xmlcomment", "xmlconcat", "xmlelement", "xmlforest",
 	"xmlpi", "xmlroot", "xmlagg",
@@ -52,7 +56,7 @@ var unsupportedXmlFunctions = []string{
 		WHERE prorettype = 'xml'::regtype;
 	*/
 	"xmlconcat2", "xmlvalidate", "xml_in", "xml_out", "xml_recv", "xml_send", // System XML I/O
-}
+}...)
 
 var UnsupportedIndexMethods = []string{
 	"gist",
