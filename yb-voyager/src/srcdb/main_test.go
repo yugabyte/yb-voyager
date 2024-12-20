@@ -1,3 +1,5 @@
+//go:build integration
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -62,7 +64,7 @@ func TestMain(m *testing.M) {
 			User:      postgresContainer.GetConfig().User,
 			Password:  postgresContainer.GetConfig().Password,
 			Schema:    postgresContainer.GetConfig().Schema,
-			DBName: postgresContainer.GetConfig().DBName,
+			DBName:    postgresContainer.GetConfig().DBName,
 			Host:      host,
 			Port:      port,
 			SSLMode:   "disable",

@@ -1,0 +1,40 @@
+name: Go
+
+on:
+  push:
+    branches: ['main', '*.*-dev', '*.*.*-dev']
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  integration-tests:
+    strategy:
+      fail-fast: false
+
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: "1.23.1"
+
+    - name: Build
+      run: |
+        cd yb-voyager
+        go build -v ./...
+
+    - name: Run installer script to setup voyager for Oracle Clients
+      run: |
+        cd installer_scripts
+        yes | ./install-yb-voyager --install-from-local-source
+      env:
+        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+    - name: Run Integration Tests
+      run: |
+        cd yb-voyager
+        
+        go test -v -run '^(TestDDLIssuesInYBVersion|TestDMLIssuesInYBVersion)$' ./... -tags 'integration'
