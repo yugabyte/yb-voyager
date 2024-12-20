@@ -15,6 +15,20 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
+    - uses: actions/setup-java@v3
+      # https://github.com/actions/setup-java
+      with:
+        distribution: "temurin"
+        java-version: "17"
+        check-latest: true
+
+    - name: Cache local Maven repository
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
 
     - name: Set up Go
       uses: actions/setup-go@v3
@@ -26,7 +40,7 @@ jobs:
         cd yb-voyager
         go build -v ./...
 
-    - name: Run installer script to setup voyager for Oracle Clients
+    - name: Run installer script to setup Oracle Client Libraries # required by godror driver
       run: |
         cd installer_scripts
         yes | ./install-yb-voyager --install-from-local-source
