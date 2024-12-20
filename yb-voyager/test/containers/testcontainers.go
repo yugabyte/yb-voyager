@@ -9,7 +9,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// TODO: Implement containerRegistry to have Singleton Pattern for the containers
 // containerRegistry to ensure one container per database(dbtype+version) [Singleton Pattern]
 var (
 	containerRegistry = make(map[string]TestContainer)
