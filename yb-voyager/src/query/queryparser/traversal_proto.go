@@ -46,6 +46,7 @@ const (
 	PG_QUERY_JSON_ARRAY_CONSTRUCTOR_AGG_NODE = "pg_query.JsonArrayConstructor"
 	PG_QUERY_JSON_FUNC_EXPR_NODE             = "pg_query.JsonFuncExpr"
 	PG_QUERY_JSON_OBJECT_CONSTRUCTOR_NODE    = "pg_query.JsonObjectConstructor"
+	PG_QUERY_JSON_TABLE_NODE                 = "pg_query.JsonTable"
 )
 
 // function type for processing nodes during traversal

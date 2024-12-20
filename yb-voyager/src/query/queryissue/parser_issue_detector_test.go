@@ -514,6 +514,13 @@ FROM books;`,
    kind text PATH '$.kind',
    title text PATH '$.films[*].title' WITH WRAPPER,
    director text PATH '$.films[*].director' WITH WRAPPER)) AS jt;`,
+   `SELECT jt.* FROM
+ my_films,
+ JSON_TABLE (js, $1 COLUMNS (
+   id FOR ORDINALITY,
+   kind text PATH '$.kind',
+   title text PATH '$.films[*].title' WITH WRAPPER,
+   director text PATH '$.films[*].director' WITH WRAPPER)) AS jt;`,
 		`SELECT id, details
 FROM books
 WHERE JSON_EXISTS(details, '$.author');`,
@@ -530,43 +537,45 @@ WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], JSON_ARRAYAGG),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0]),
 		},
 		sqls[1]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], JSON_OBJECT),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1]),
 		},
 		sqls[2]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], JSON_OBJECTAGG),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2]),
 		},
 		sqls[3]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], JSON_OBJECT),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3]),
 		},
 		sqls[4]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4], JSON_ARRAYAGG),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4]),
 		},
 		sqls[5]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[5], JSON_OBJECT),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[5]),
 		},
-		// sqls[6]: []QueryIssue{
-		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[6], JSON_QUERY),
-		// },
-		// sqls[7]: []QueryIssue{
-		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[7], JSON_TABLE),
-		// },
+		sqls[6]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[6]),
+		},
+		sqls[7]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[7]),
+		},
 		// sqls[8]: []QueryIssue{
-		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[8], JSON_EXISTS),
+		// 	NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[8]),
+		//NOT REPORTED YET because of PA
 		// },
-		// sqls[9]: []QueryIssue{
-		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9], JSON_QUERY),
-		// },
-		// sqls[10]: []QueryIssue{
-		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[10], JSON_VALUE),
-		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls1[11], JSON_VALUE),
-		// },
-		// sqls[11]: []QueryIssue{
-		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], JSON_VALUE),
-		// 	NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], JSON_EXISTS),
-		// },
+		sqls[9]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9]),
+		},
+		sqls[10]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[10]),
+		},
+		sqls[11]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[11]),
+		},
+		sqls[12]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12]),
+		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {

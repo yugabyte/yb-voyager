@@ -18,7 +18,7 @@ package queryparser
 import (
 	"strings"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -33,7 +33,7 @@ const (
 
 func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
-	
+
 }
 
 func GetMsgFullName(msg protoreflect.Message) string {
@@ -359,9 +359,9 @@ func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List 
 	return nil
 }
 
-//GetEnumField retrieves a enum field from a message 
-//FieldDescriptor{Syntax: proto3, FullName: pg_query.JsonFuncExpr.op, Number: 1, Cardinality: optional, Kind: enum, HasJSONName: true, JSONName: "op", Enum: pg_query.JsonExprOp}
-func GetEnumField(msg protoreflect.Message, fieldName string) protoreflect.EnumNumber {
+// GetEnumNumField retrieves a enum field from a message
+// FieldDescriptor{Syntax: proto3, FullName: pg_query.JsonFuncExpr.op, Number: 1, Cardinality: optional, Kind: enum, HasJSONName: true, JSONName: "op", Enum: pg_query.JsonExprOp}
+func GetEnumNumField(msg protoreflect.Message, fieldName string) protoreflect.EnumNumber {
 	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 	if field != nil && msg.Has(field) {
 		return msg.Get(field).Enum()

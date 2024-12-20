@@ -17,9 +17,6 @@ limitations under the License.
 package queryissue
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 )
 
@@ -64,7 +61,7 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 
 var anyValueAggFunctionIssue = issue.Issue{
 	Type:            AGGREGATE_FUNCTION,
-	TypeName:        "ANY_VALUE() aggregate function is not supported",
+	TypeName:        "Aggregate Functions",
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
@@ -77,32 +74,28 @@ func NewAnyValueAGGFunctionIssue(objectType string, objectName string, sqlStatem
 
 var jsonConstructorFunctionsIssue = issue.Issue{
 	Type:            JSON_CONSTRUCTOR_FUNCTION,
-	TypeName:        "%s() function is not supported",
+	TypeName:        "Json Constructor Functions",
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "",
 }
 
-func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string, jsonConstructorFnName string) QueryIssue {
-	issue := jsonConstructorFunctionsIssue
-	issue.TypeName = fmt.Sprintf(issue.TypeName, strings.ToUpper(jsonConstructorFnName))
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(jsonConstructorFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var jsonQueryFunctionIssue = issue.Issue{
 	Type:            JSON_QUERY_FUNCTION,
-	TypeName:        "%s() function is not supported",
+	TypeName:        "Json Query Functions",
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "",
 }
 
-func NewJsonQueryFunction(objectType string, objectName string, sqlStatement string, jsonQueryFnName string) QueryIssue {
-	issue := jsonQueryFunctionIssue
-	issue.TypeName = fmt.Sprintf(issue.TypeName, jsonQueryFnName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var loFunctionsIssue = issue.Issue{

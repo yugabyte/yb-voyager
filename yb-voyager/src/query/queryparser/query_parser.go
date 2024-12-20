@@ -28,13 +28,20 @@ package queryparser
 
 import (
 	"fmt"
+	// "regexp"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 )
 
 func Parse(query string) (*pg_query.ParseResult, error) {
 	log.Debugf("parsing the query [%s]", query)
+	
+	// placeholderRegex := regexp.MustCompile(`\$\d+`) // for all the $1, $2 parameters in the query
+	// queryWithDummyData := placeholderRegex.ReplaceAllStringFunc(query, func(placeholder string) string {
+	// 	return "''"
+	// })
+	// log.Debugf("parsing the query without place holders [%s]", queryWithDummyData)
 	tree, err := pg_query.Parse(query)
 	if err != nil {
 		return nil, err

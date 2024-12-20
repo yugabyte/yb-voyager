@@ -229,9 +229,7 @@ func (j *JsonConstructorFuncDetector) Detect(msg protoreflect.Message) error {
 func (d *JsonConstructorFuncDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.unsupportedJsonConstructorFunctionsDetected.Cardinality() > 0 {
-		for fn := range d.unsupportedJsonConstructorFunctionsDetected.Iter() {
-			issues = append(issues, NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, fn))
-		}
+		issues = append(issues, NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }
@@ -249,6 +247,10 @@ func NewJsonQueryFunctionDetector(query string) *JsonQueryFunctionDetector {
 }
 
 func (j *JsonQueryFunctionDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_JSON_TABLE_NODE {
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_TABLE)
+		return nil
+	}
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_JSON_FUNC_EXPR_NODE {
 		return nil
 	}
@@ -257,13 +259,13 @@ func (j *JsonQueryFunctionDetector) Detect(msg protoreflect.Message) error {
 			enumeration of SQL/JSON query function types
 		typedef enum JsonExprOp
 		{
-			JSON_EXISTS_OP,				 JSON_EXISTS()
-			JSON_QUERY_OP,				 JSON_QUERY()
-			JSON_VALUE_OP,				 JSON_VALUE()
-			JSON_TABLE_OP,				JSON_TABLE()
+			1. JSON_EXISTS_OP,				 JSON_EXISTS()
+			2. JSON_QUERY_OP,				 JSON_QUERY()
+			3. JSON_VALUE_OP,				 JSON_VALUE()
+			4. JSON_TABLE_OP,				JSON_TABLE()
 		} JsonExprOp;
 	*/
-	jsonExprFuncOpNum := queryparser.GetEnumField(msg, "op")
+	jsonExprFuncOpNum := queryparser.GetEnumNumField(msg, "op")
 	switch jsonExprFuncOpNum {
 	case 1:
 		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_EXISTS)
@@ -280,9 +282,7 @@ func (j *JsonQueryFunctionDetector) Detect(msg protoreflect.Message) error {
 func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.unsupportedJsonQueryFunctionsDetected.Cardinality() > 0 {
-		for fn := range d.unsupportedJsonQueryFunctionsDetected.Iter() {
-			issues = append(issues, NewJsonQueryFunction(DML_QUERY_OBJECT_TYPE, "", d.query, fn))
-		}
+		issues = append(issues, NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }
