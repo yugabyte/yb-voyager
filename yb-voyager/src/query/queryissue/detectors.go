@@ -16,11 +16,16 @@ limitations under the License.
 package queryissue
 
 import (
+	"fmt"
+
 	mapset "github.com/deckarep/golang-set/v2"
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
@@ -51,6 +56,17 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_FUNCCALL_NODE {
 		return nil
+	}
+
+	protoMsg := msg.Interface().(proto.Message)
+	funcCallNode, ok := protoMsg.(*pg_query.FuncCall)
+	if !ok {
+		return fmt.Errorf("failed to cast %s to %s", queryparser.PG_QUERY_FUNCCALL_NODE, queryparser.PG_QUERY_FUNCCALL_NODE)
+	}
+	funcNames := funcCallNode.Funcname
+	for _, funcName := range funcNames {
+		log.Infof("fetched function name from %s node: %q", queryparser.PG_QUERY_FUNCCALL_NODE, funcName.String())
+		utils.PrintAndLog("funcName = %s", funcName.Node.(*pg_query.Node_String_).String_.Sval)
 	}
 
 	_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
@@ -184,6 +200,48 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.detected {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
+
+type SelectStmtDetector struct {
+	query                       string
+	limitOptionWithTiesDetected bool
+}
+
+func NewSelectStmtDetector(query string) *SelectStmtDetector {
+	return &SelectStmtDetector{
+		query: query,
+	}
+}
+
+func (d *SelectStmtDetector) getSelectStmtFromProto(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
+	protoMsg := msg.Interface().(proto.Message)
+	selectStmtNode, ok := protoMsg.(*pg_query.SelectStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast %s to %s", queryparser.PG_QUERY_SELECTSTMT_NODE, queryparser.PG_QUERY_SELECTSTMT_NODE)
+	}
+	return selectStmtNode, nil
+}
+
+// Detect checks if a SelectStmt node uses a LIMIT clause with TIES
+func (d *SelectStmtDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_SELECTSTMT_NODE {
+		selectStmtNode, err := d.getSelectStmtFromProto(msg)
+		if err != nil {
+			return err
+		}
+		if selectStmtNode.LimitOption == pg_query.LimitOption_LIMIT_OPTION_WITH_TIES {
+			d.limitOptionWithTiesDetected = true
+		}
+	}
+	return nil
+}
+
+func (d *SelectStmtDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.limitOptionWithTiesDetected {
+		issues = append(issues, NewLimitWithTiesIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }

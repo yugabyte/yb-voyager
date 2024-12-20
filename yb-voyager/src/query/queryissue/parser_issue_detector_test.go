@@ -415,7 +415,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 `,
-`CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image
+		`CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image
     FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);`,
 	}
 
@@ -448,7 +448,6 @@ $$ LANGUAGE plpgsql;
 	expectedSQLsWithIssues[sqls[3]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
 	expectedSQLsWithIssues[sqls[4]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
 
-
 	parserIssueDetector := NewParserIssueDetector()
 
 	for stmt, expectedIssues := range expectedSQLsWithIssues {
@@ -466,6 +465,7 @@ $$ LANGUAGE plpgsql;
 		}
 	}
 }
+
 // currently, both FuncCallDetector and XmlExprDetector can detect XMLFunctionsIssue
 // statement below has both XML functions and XML expressions.
 // but we want to only return one XMLFunctionsIssue from parserIssueDetector.getDMLIssues
@@ -484,4 +484,16 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 	issues, err := parserIssueDetector.getDMLIssues(stmt)
 	fatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
+}
+
+func TestWithTies(t *testing.T) {
+	stmt := `
+	SELECT * FROM employees
+		ORDER BY salary DESC
+		FETCH FIRST 2 ROWS WITH TIES;`
+	parserIssueDetector := NewParserIssueDetector()
+	issues, err := parserIssueDetector.getDMLIssues(stmt)
+	fatalIfError(t, err)
+	assert.Equal(t, 1, len(issues))
+	assert.True(t, cmp.Equal(issues[0], NewLimitWithTiesIssue("DML_QUERY", "", stmt)))
 }
