@@ -12,6 +12,7 @@ LOG_FILE=/tmp/install-yb-voyager.log
 VERSION="latest"
 
 ONLY_PG="false"
+NO_LIVE_SETUP="false"
 
 trap on_exit EXIT
 
@@ -323,14 +324,18 @@ check_java() {
 }
 
 install_debezium_server(){
+	if [ $NO_LIVE_SETUP == "true" ] ; then
+		return
+	fi
+
 	if [ "${VERSION}" != "local" ]
 	then
 		output "Installing debezium:${DEBEZIUM_VERSION}"
 		install_debezium_server_from_release
 		return
 	fi
-	output "Installing debezium:${VERSION}."
 
+	output "Installing debezium:${VERSION}."
 	check_install_maven
 	clean_debezium
 	install_debezium_local ${DEBEZIUM_LOCAL_REF}
@@ -554,6 +559,10 @@ get_passed_options() {
 			-p | --only-pg-support ) 
 				ONLY_PG="true"; 
 				shift 
+				;;
+			--no-live )
+				NO_LIVE_SETUP="true"
+				shift
 				;;
 			-v | --rebuild-voyager-local )
 				REBUILD_VOYAGER_LOCAL="true";
