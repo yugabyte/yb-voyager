@@ -6,8 +6,10 @@ on:
   pull_request:
     branches: [main]
 
-jobs:
+env:
+  ORACLE_INSTANT_CLIENT_VERSION: "21.5.0.0.0-1"
 
+jobs:
   integration-tests:
     strategy:
       fail-fast: false
@@ -15,20 +17,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
-    - uses: actions/setup-java@v3
-      # https://github.com/actions/setup-java
-      with:
-        distribution: "temurin"
-        java-version: "17"
-        check-latest: true
-
-    - name: Cache local Maven repository
-      uses: actions/cache@v3
-      with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
 
     - name: Set up Go
       uses: actions/setup-go@v3
@@ -40,12 +28,24 @@ jobs:
         cd yb-voyager
         go build -v ./...
 
-    - name: Run installer script to setup Oracle Client Libraries # required by godror driver
+    # required by godror driver used in the tests
+    - name: Install Oracle Instant Clients
       run: |
-        cd installer_scripts
-        yes | ./install-yb-voyager --install-from-local-source
-      env:
-        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+        # Download and install the YB APT repository package
+        wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
+        sudo apt-get install -y ./yb-apt-repo_1.0.0_all.deb
+        sudo apt-get update -y
+
+        # Install Oracle Instant Client packages using the defined version
+        sudo apt-get install -y oracle-instantclient-tools=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
+        sudo apt-get install -y oracle-instantclient-basic=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
+        sudo apt-get install -y oracle-instantclient-devel=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
+        sudo apt-get install -y oracle-instantclient-jdbc=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
+        sudo apt-get install -y oracle-instantclient-sqlplus=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
+
+        # Clean up the YB APT repository package
+        sudo apt-get remove -y yb-apt-repo
+        rm -f yb-apt-repo_1.0.0_all.deb
 
     - name: Run Integration Tests
       run: |
