@@ -148,7 +148,7 @@ var copyFromWhereIssue = issue.Issue{
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
-	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#copy-from-where-is-not-yet-supported",
+	DocsLink:        "",
 }
 
 func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -161,7 +161,7 @@ var copyOnErrorIssue = issue.Issue{
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
-	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#copy-on-error-is-not-yet-supported",
+	DocsLink:        "",
 }
 
 func NewCopyOnErrorIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

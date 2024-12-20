@@ -449,11 +449,11 @@ $$ LANGUAGE plpgsql;
 			NewLOFuntionsIssue("TRIGGER", "t_raster ON image", sqls[5], []string{"lo_manage"}),
 		},
 	}
-	expectedSQLsWithIssues[sqls[0]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
-	expectedSQLsWithIssues[sqls[1]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[1]], "FUNCTION", "import_file_to_table")
-	expectedSQLsWithIssues[sqls[2]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[2]], "FUNCTION", "export_large_object")
-	expectedSQLsWithIssues[sqls[3]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
-	expectedSQLsWithIssues[sqls[4]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
+	expectedSQLsWithIssues[sqls[0]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
+	expectedSQLsWithIssues[sqls[1]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[1]], "FUNCTION", "import_file_to_table")
+	expectedSQLsWithIssues[sqls[2]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[2]], "FUNCTION", "export_large_object")
+	expectedSQLsWithIssues[sqls[3]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
+	expectedSQLsWithIssues[sqls[4]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
 
 	parserIssueDetector := NewParserIssueDetector()
 
@@ -648,4 +648,38 @@ func TestRegexFunctionsIssue(t *testing.T) {
 		assert.Equal(t, NewRegexFunctionsIssue(TABLE_OBJECT_TYPE, "x", stmt), issues[0])
 	}
 
+}
+
+func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
+	expectedIssues := map[string][]QueryIssue{
+		`COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`:                {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`)},
+		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`: {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`)},
+		`COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`:                      {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`)},
+
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`: {NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`)},
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP);`:   {NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP);`)},
+
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE) WHERE age > 18;`:     {NewCopyFromWhereIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE) WHERE age > 18;`), NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE) WHERE age > 18;`)},
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP) WHERE name = 'Alice';`: {NewCopyFromWhereIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP) WHERE name = 'Alice';`), NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP) WHERE name = 'Alice';`)},
+
+		`COPY my_table FROM '/path/to/data.csv' WITH (FORMAT csv);`:                          {},
+		`COPY my_table FROM '/path/to/data.csv' WITH (FORMAT text);`:                         {},
+		`COPY my_table FROM '/path/to/data.csv';`:                                            {},
+		`COPY my_table FROM '/path/to/data.csv' WITH (DELIMITER ',');`:                       {},
+		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true);`: {},
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+
+	for stmt, expectedIssues := range expectedIssues {
+		issues, err := parserIssueDetector.getDMLIssues(stmt)
+		fatalIfError(t, err)
+		assert.Equal(t, len(expectedIssues), len(issues))
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found)
+		}
+	}
 }
