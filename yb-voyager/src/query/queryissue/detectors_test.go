@@ -121,7 +121,7 @@ WHERE title = 'Design Document';`,
 
 		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, AGGREGATE_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+		assert.Equal(t, ADVISORY_LOCKS, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 	}
 
 	for _, sql := range loFunctionSqls {
