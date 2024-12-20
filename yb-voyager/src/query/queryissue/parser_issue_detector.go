@@ -415,7 +415,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 					xmlIssueAdded = true
 				}
 			}
-			result = append(result, issues...)
+			result = append(result, issue)
 		}
 	}
 

@@ -16,8 +16,6 @@ limitations under the License.
 package queryissue
 
 import (
-	"fmt"
-
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -222,11 +220,8 @@ func NewCopyCommandUnsupportedConstructsDetector(query string) *CopyCommandUnsup
 func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Message) error {
 	// Check if the message is a COPY statement
 	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPYSTSMT_NODE {
-		fmt.Println("Not a COPY statement")
 		return nil // Not a COPY statement, nothing to detect
 	}
-
-	fmt.Println("Copy command detected: ", msg)
 
 	// Check for COPY FROM ... WHERE clause
 	isFromField := msg.Descriptor().Fields().ByName("is_from")
