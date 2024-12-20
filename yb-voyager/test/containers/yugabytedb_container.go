@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
+	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -108,4 +109,21 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 	}
 
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
+}
+
+func (yb *YugabyteDBContainer) ExecuteSqls(sqls []string) error {
+	connStr := yb.GetConnectionString()
+	conn, err := pgx.Connect(context.Background(), connStr)
+	if err != nil {
+		return fmt.Errorf("failed to connect postgres for executing sqls: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	for _, sql := range sqls {
+		_, err := conn.Exec(context.Background(), sql)
+		if err != nil {
+			return fmt.Errorf("failed to execute sql '%s': %w", sql, err)
+		}
+	}
+	return nil
 }

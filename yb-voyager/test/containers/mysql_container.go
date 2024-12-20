@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"time"
@@ -16,6 +17,7 @@ import (
 type MysqlContainer struct {
 	ContainerConfig
 	container testcontainers.Container
+	db        *sql.DB
 }
 
 func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
@@ -59,12 +61,37 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	dsn := ms.GetConnectionString()
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to open mysql connection: %w", err)
+	}
+
+	if err = db.Ping(); err != nil {
+		db.Close()
+		return fmt.Errorf("failed to ping mysql after connection: %w", err)
+	}
+
+	// Store the DB connection for reuse
+	ms.db = db
+
+	return nil
 }
 
 func (ms *MysqlContainer) Terminate(ctx context.Context) {
 	if ms == nil {
 		return
+	}
+
+	// Close the DB connection if it exists
+	if ms.db != nil {
+		if err := ms.db.Close(); err != nil {
+			log.Errorf("failed to close mysql db connection: %v", err)
+		}
 	}
 
 	err := ms.container.Terminate(ctx)
@@ -96,6 +123,29 @@ func (ms *MysqlContainer) GetConfig() ContainerConfig {
 	return ms.ContainerConfig
 }
 
+// GetConnectionString constructs and returns the MySQL DSN
 func (ms *MysqlContainer) GetConnectionString() string {
-	panic("GetConnectionString() not implemented yet for mysql")
+	host, port, err := ms.GetHostPort()
+	if err != nil {
+		utils.ErrExit("failed to get host port for mysql connection string: %v", err)
+	}
+
+	// DSN format: user:password@tcp(host:port)/dbname
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		ms.User, ms.Password, host, port, ms.DBName)
+}
+
+// ExecuteSqls executes a list of SQL statements using the persistent DB connection
+func (ms *MysqlContainer) ExecuteSqls(sqls []string) error {
+	if ms.db == nil {
+		return fmt.Errorf("db connection not initialized for mysql container")
+	}
+
+	for _, sqlStmt := range sqls {
+		_, err := ms.db.Exec(sqlStmt)
+		if err != nil {
+			return fmt.Errorf("failed to execute sql '%s': %w", sqlStmt, err)
+		}
+	}
+	return nil
 }
