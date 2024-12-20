@@ -982,6 +982,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
+
 	for _, indexMethod := range queryissue.UnsupportedIndexMethods {
 		displayIndexMethod := strings.ToUpper(indexMethod)
 		featureName := fmt.Sprintf("%s indexes", displayIndexMethod)
@@ -1014,6 +1015,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SYSTEM_COLUMNS_NAME, queryissue.SYSTEM_COLUMNS_NAME, "", schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LARGE_OBJECT_FUNCTIONS_NAME, queryissue.LARGE_OBJECT_FUNCTIONS_NAME, "", schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REGEX_FUNCTIONS_FEATURE, "", queryissue.REGEX_FUNCTIONS, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SECURITY_INVOKER_VIEWS, "", SECURITY_INVOKER_VIEWS_ISSUE, schemaAnalysisReport, true, ""))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
