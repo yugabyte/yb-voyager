@@ -103,11 +103,6 @@ var unsupportedAggFunctions = mapset.NewThreadUnsafeSet([]string{
 	"any_value",
 }...)
 
-var unsupportedJsonConstructorFunctions = mapset.NewThreadUnsafeSet([]string{
-	// json functions, refer - https://www.postgresql.org/about/featurematrix/detail/395/
-	"json_object",
-}...)
-
 const (
 	// These functions are not func call node, they are separate node types, "json_objectagg", "json_array", "json_arrayagg"
 	JSON_OBJECTAGG = "JSON_OBJECTAGG"

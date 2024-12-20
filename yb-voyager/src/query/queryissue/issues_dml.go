@@ -61,20 +61,20 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 
 var anyValueAggFunctionIssue = issue.Issue{
 	Type:            AGGREGATE_FUNCTION,
-	TypeName:        "Aggregate Functions",
+	TypeName:        AGGREGATION_FUNCTIONS_NAME,
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "",
 }
 
-func NewAnyValueAGGFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(anyValueAggFunctionIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var jsonConstructorFunctionsIssue = issue.Issue{
 	Type:            JSON_CONSTRUCTOR_FUNCTION,
-	TypeName:        "Json Constructor Functions",
+	TypeName:        JSON_CONSTRUCTOR_FUNCTION_NAME,
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",
@@ -87,7 +87,7 @@ func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlSt
 
 var jsonQueryFunctionIssue = issue.Issue{
 	Type:            JSON_QUERY_FUNCTION,
-	TypeName:        "Json Query Functions",
+	TypeName:        JSON_QUERY_FUNCTIONS_NAME,
 	TypeDescription: "",
 	Suggestion:      "",
 	GH:              "",

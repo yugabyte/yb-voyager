@@ -704,7 +704,7 @@ FROM books
 WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`
 
 	issues := getDetectorIssues(t, NewJsonQueryFunctionDetector(sql), sql)
-	assert.Equal(t, 2, len(issues), "Expected 2 issue for SQL: %s", sql)
+	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 	assert.Equal(t, JSON_QUERY_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 
 }

@@ -491,13 +491,16 @@ func TestJsonUnsupportedFeatures(t *testing.T) {
 		`SELECT department, JSON_ARRAYAGG(name) AS employees_json
 	FROM employees
 	GROUP BY department;`,
-		`SELECT JSON_OBJECT('{code, P123, title, Jaws, price, 19.99}') AS json_from_array;`,
+	`INSERT INTO movies (details)
+VALUES (
+    JSON_OBJECT('title' VALUE 'Dune', 'director' VALUE 'Denis Villeneuve', 'year' VALUE 2021)
+);`,
 		`SELECT json_objectagg(k VALUE v) AS json_result
 	FROM (VALUES ('a', 1), ('b', 2), ('c', 3)) AS t(k, v);`,
-		`SELECT JSON_OBJECT(
-		'{code, title, price}',
-		'{P123, Jaws, 19.99}'
-	) AS json_from_keys_values;`,
+	`SELECT JSON_OBJECT(
+  'movie' VALUE JSON_OBJECT('code' VALUE 'P123', 'title' VALUE 'Jaws'),
+  'director' VALUE 'Steven Spielberg'
+) AS nested_json_object;`,
 		`select JSON_ARRAYAGG('[1, "2", null]');`,
 		`SELECT JSON_OBJECT(
     'code' VALUE 'P123',
@@ -562,7 +565,7 @@ WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
 		},
 		// sqls[8]: []QueryIssue{
 		// 	NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[8]),
-		//NOT REPORTED YET because of PA
+		//NOT REPORTED YET because of PARSER failing if JSON_TABLE has a parameterized values $1, $2 ...
 		// },
 		sqls[9]: []QueryIssue{
 			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9]),

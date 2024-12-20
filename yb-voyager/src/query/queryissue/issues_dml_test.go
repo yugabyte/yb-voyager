@@ -40,6 +40,29 @@ func testLOFunctionsIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "Transaction for catalog table write operation 'pg_largeobject_metadata' not found", loDatatypeIssue)
 }
 
+func testJsonConstructorFunctions(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `select json_object('code' VALUE 'P123', 'title': 'Jaws');`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "VALUE"`, jsonConstructorFunctionsIssue)
+}
+
+func testJsonQueryFunctions(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `SELECT id, JSON_QUERY(details, '$.author') AS author
+FROM books;`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, jsonConstructorFunctionsIssue)
+}
+
 func TestDMLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")

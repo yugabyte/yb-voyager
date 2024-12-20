@@ -83,7 +83,7 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	if d.anyValAggDetected {
-		issues = append(issues, NewAnyValueAGGFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		issues = append(issues, NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	if d.loFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
@@ -217,11 +217,6 @@ func (j *JsonConstructorFuncDetector) Detect(msg protoreflect.Message) error {
 		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_OBJECTAGG)
 	case queryparser.PG_QUERY_JSON_OBJECT_CONSTRUCTOR_NODE:
 		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_OBJECT)
-	case queryparser.PG_QUERY_FUNCCALL_NODE:
-		_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
-		if unsupportedJsonConstructorFunctions.ContainsOne(funcName) {
-			j.unsupportedJsonConstructorFunctionsDetected.Add(funcName)
-		}
 	}
 	return nil
 }
