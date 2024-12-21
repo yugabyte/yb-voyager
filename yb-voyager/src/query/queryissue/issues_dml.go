@@ -17,6 +17,8 @@ limitations under the License.
 package queryissue
 
 import (
+	"sort"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 )
 
@@ -69,6 +71,7 @@ var anyValueAggFunctionIssue = issue.Issue{
 }
 
 func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	sort.Strings(funcNames)
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
 	}
@@ -85,6 +88,7 @@ var jsonConstructorFunctionsIssue = issue.Issue{
 }
 
 func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	sort.Strings(funcNames)
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
 	}
@@ -101,6 +105,7 @@ var jsonQueryFunctionIssue = issue.Issue{
 }
 
 func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	sort.Strings(funcNames)
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
@@ -117,6 +122,7 @@ var loFunctionsIssue = issue.Issue{
 }
 
 func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	sort.Strings(funcNames)
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
 	}
