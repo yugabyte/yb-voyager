@@ -43,10 +43,12 @@ func TestMain(m *testing.M) {
 	defer cancel()
 
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	utils.PrintAndLog("calling postgresContainer.Start() from tgtdb/main_test.go\n")
 	err := postgresContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
 	}
+	utils.PrintAndLog("done postgresContainer.Start() from tgtdb/main_test.go\n")
 	host, port, err := postgresContainer.GetHostPort()
 	if err != nil {
 		utils.ErrExit("%v", err)
