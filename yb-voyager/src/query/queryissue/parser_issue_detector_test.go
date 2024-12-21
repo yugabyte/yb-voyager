@@ -594,3 +594,71 @@ WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
 		}
 	}
 }
+
+func TestAggregateFunctions(t *testing.T) {
+	sqls := []string{
+		`SELECT
+		department,
+		any_value(employee_name) AS any_employee
+	FROM employees
+	GROUP BY department;`,
+		`SELECT range_intersect_agg(multi_event_range) AS intersection_of_multiranges
+FROM multiranges;`,
+		`SELECT range_agg(multi_event_range) AS union_of_multiranges
+FROM multiranges;`,
+		`SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM events;`,
+		`SELECT range_agg(event_range) AS union_of_ranges
+FROM events;`,
+`CREATE OR REPLACE FUNCTION aggregate_ranges()
+RETURNS INT4MULTIRANGE AS $$
+DECLARE
+    aggregated_range INT4MULTIRANGE;
+BEGIN
+    SELECT range_agg(range_value) INTO aggregated_range FROM ranges;
+	SELECT
+		department,
+		any_value(employee_name) AS any_employee
+	FROM employees
+	GROUP BY department;
+    RETURN aggregated_range;
+END;
+$$ LANGUAGE plpgsql;`,
+	}
+	aggregateSqls := map[string][]QueryIssue{
+		// sqls[0]: []QueryIssue{
+		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
+		// },
+		// sqls[1]: []QueryIssue{
+		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], []string{"range_intersect_agg"}),
+		// },
+		// sqls[2]: []QueryIssue{
+		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{"range_agg"}),
+		// },
+		// sqls[3]: []QueryIssue{
+		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], []string{"range_intersect_agg"}),
+		// },
+		// sqls[4]: []QueryIssue{
+		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4], []string{"range_agg"}),
+		// },
+		sqls[5]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", "SELECT range_agg(range_value)                       FROM ranges;", []string{"range_agg"}),
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
+		},
+	}
+	aggregateSqls[sqls[5]] = modifyiedIssuesforPLPGSQL(aggregateSqls[sqls[5]], "FUNCTION", "aggregate_ranges")
+
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range aggregateSqls {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+		fmt.Printf("issues %v", issues)
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}

@@ -63,6 +63,35 @@ FROM books;`)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, jsonConstructorFunctionsIssue)
 }
 
+func testAggFunctions(t *testing.T) {
+	sqls := `CREATE TABLE employees (
+    department TEXT,
+    employee_name TEXT,
+    salary NUMERIC
+);
+
+INSERT INTO employees VALUES
+('HR', 'Alice', 50000),
+('HR', 'Bob', 55000),
+('IT', 'Charlie', 60000),
+('IT', 'Diana', 62000);
+
+SELECT
+    department,
+    any_value(employee_name) AS any_employee
+FROM employees
+GROUP BY department;`
+
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, sqls)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, aggregateFunctionIssue)
+}
+
 func TestDMLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")

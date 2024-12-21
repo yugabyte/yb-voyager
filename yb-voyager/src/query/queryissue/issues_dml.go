@@ -61,7 +61,7 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var anyValueAggFunctionIssue = issue.Issue{
+var aggregateFunctionIssue = issue.Issue{
 	Type:            AGGREGATE_FUNCTION,
 	TypeName:        AGGREGATION_FUNCTIONS_NAME,
 	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
@@ -73,9 +73,9 @@ var anyValueAggFunctionIssue = issue.Issue{
 func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
 	sort.Strings(funcNames)
 	details := map[string]interface{}{
-		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
+		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(anyValueAggFunctionIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(aggregateFunctionIssue, objectType, objectName, sqlStatement, details)
 }
 
 var jsonConstructorFunctionsIssue = issue.Issue{
@@ -90,7 +90,7 @@ var jsonConstructorFunctionsIssue = issue.Issue{
 func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
 	sort.Strings(funcNames)
 	details := map[string]interface{}{
-		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
+		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
 	return newQueryIssue(jsonConstructorFunctionsIssue, objectType, objectName, sqlStatement, details)
 }
@@ -124,7 +124,7 @@ var loFunctionsIssue = issue.Issue{
 func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
 	sort.Strings(funcNames)
 	details := map[string]interface{}{
-		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
+		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
 	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
 }

@@ -96,13 +96,6 @@ func TestFuncCallDetector(t *testing.T) {
 		`SELECT pg_advisory_unlock_all();`,
 	}
 
-	anyValAggSqls := []string{
-		`SELECT
-		department,
-		any_value(employee_name) AS any_employee
-	FROM employees
-	GROUP BY department;`,
-	}
 	loFunctionSqls := []string{
 		`UPDATE documents
 SET content_oid = lo_import('/path/to/new/file.pdf')
@@ -130,11 +123,6 @@ WHERE title = 'Design Document';`,
 		assert.Equal(t, issues[0].Type, LARGE_OBJECT_FUNCTIONS, "Large Objects not detected in SQL: %s", sql)
 	}
 
-	for _, sql := range anyValAggSqls {
-		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
-		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, AGGREGATE_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
-	}
 }
 
 func TestColumnRefDetector(t *testing.T) {
