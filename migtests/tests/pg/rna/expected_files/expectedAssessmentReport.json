@@ -26505,7 +26505,7 @@
 		}
 	],
 	"Notes": null,
-	"MigrationCaveats": null,
+	"MigrationCaveats": [],
 	"UnsupportedQueryConstructs": null,
     "UnsupportedPlPgSqlObjects": null
 }
