@@ -46,7 +46,10 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 			"POSTGRES_PASSWORD": pg.Password,
 			"POSTGRES_DB":       pg.DBName, // NOTE: PG image makes the database with same name as user if not specific
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(1 * time.Minute),
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort("5432/tcp").WithStartupTimeout(2*time.Minute).WithPollInterval(5*time.Second),
+			wait.ForLog("database system is ready to accept connections").WithStartupTimeout(3*time.Minute).WithPollInterval(5*time.Second),
+		),
 		Files: []testcontainers.ContainerFile{
 			{
 				HostFilePath:      tmpFile.Name(),

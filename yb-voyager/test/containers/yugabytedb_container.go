@@ -48,7 +48,7 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 			"--initial_scripts_dir=/home/yugabyte/initial-scripts",
 		},
 		WaitingFor: wait.ForAll(
-			wait.ForListeningPort("5433/tcp").WithStartupTimeout(2*time.Minute).WithPollInterval(1*time.Second),
+			wait.ForListeningPort("5433/tcp").WithStartupTimeout(2*time.Minute).WithPollInterval(5*time.Second),
 			wait.ForLog("Data placement constraint successfully verified").WithStartupTimeout(3*time.Minute).WithPollInterval(1*time.Second),
 		),
 		Files: []testcontainers.ContainerFile{

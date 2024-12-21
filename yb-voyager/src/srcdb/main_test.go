@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
 	}
-	utils.PrintAndLog("done postgresContainer.Start() from tgtdb/main_test.go\n")
+	utils.PrintAndLog("done postgresContainer.Start() from srcdb/main_test.go\n")
 	host, port, err := postgresContainer.GetHostPort()
 	if err != nil {
 		utils.ErrExit("%v", err)
