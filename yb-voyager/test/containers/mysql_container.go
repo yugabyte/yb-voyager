@@ -47,7 +47,7 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 			"MYSQL_PASSWORD":      ms.Password,
 			"MYSQL_DATABASE":      ms.DBName,
 		},
-		WaitingFor: wait.ForListeningPort("3306/tcp").WithStartupTimeout(1 * time.Minute).WithPollInterval(1 * time.Second),
+		WaitingFor: wait.ForListeningPort("3306/tcp").WithStartupTimeout(2 * time.Minute).WithPollInterval(5 * time.Second),
 		Files: []testcontainers.ContainerFile{
 			{
 				HostFilePath:      tmpFile.Name(),
