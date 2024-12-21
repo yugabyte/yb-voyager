@@ -111,19 +111,18 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
 }
 
-func (yb *YugabyteDBContainer) ExecuteSqls(sqls []string) error {
+func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 	connStr := yb.GetConnectionString()
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
-		return fmt.Errorf("failed to connect postgres for executing sqls: %w", err)
+		utils.ErrExit("failed to connect postgres for executing sqls: %w", err)
 	}
 	defer conn.Close(context.Background())
 
 	for _, sql := range sqls {
 		_, err := conn.Exec(context.Background(), sql)
 		if err != nil {
-			return fmt.Errorf("failed to execute sql '%s': %w", sql, err)
+			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
 		}
 	}
-	return nil
 }

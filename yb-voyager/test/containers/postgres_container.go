@@ -2,13 +2,13 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"os"
 	"time"
 
 	"github.com/docker/go-connections/nat"
-	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -18,6 +18,7 @@ import (
 type PostgresContainer struct {
 	ContainerConfig
 	container testcontainers.Container
+	db        *sql.DB
 }
 
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
@@ -78,14 +79,36 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 				fmt.Println("=== End of Logs ===")
 			}
 		}
+		return err
 	}
 
-	return err
+	dsn := pg.GetConnectionString()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to open postgres connection: %w", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		db.Close()
+		pg.container.Terminate(ctx)
+		return fmt.Errorf("failed to ping postgres after connection: %w", err)
+	}
+
+	// Store the DB connection for reuse
+	pg.db = db
+	return nil
 }
 
 func (pg *PostgresContainer) Terminate(ctx context.Context) {
 	if pg == nil {
 		return
+	}
+
+	// Close the DB connection if it exists
+	if pg.db != nil {
+		if err := pg.db.Close(); err != nil {
+			log.Errorf("failed to close postgres db connection: %v", err)
+		}
 	}
 
 	err := pg.container.Terminate(ctx)
@@ -127,19 +150,15 @@ func (pg *PostgresContainer) GetConnectionString() string {
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
 }
 
-func (pg *PostgresContainer) ExecuteSqls(sqls []string) error {
-	connStr := pg.GetConnectionString()
-	conn, err := pgx.Connect(context.Background(), connStr)
-	if err != nil {
-		return fmt.Errorf("failed to connect postgres for executing sqls: %w", err)
+func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
+	if pg.db == nil {
+		utils.ErrExit("db connection not initialized for postgres container")
 	}
-	defer conn.Close(context.Background())
 
-	for _, sql := range sqls {
-		_, err := conn.Exec(context.Background(), sql)
+	for _, sqlStmt := range sqls {
+		_, err := pg.db.Exec(sqlStmt)
 		if err != nil {
-			return fmt.Errorf("failed to execute sql '%s': %w", sql, err)
+			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}
 	}
-	return nil
 }

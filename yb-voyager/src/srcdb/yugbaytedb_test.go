@@ -26,42 +26,79 @@ import (
 )
 
 func TestYugabyteGetAllTableNames(t *testing.T) {
-	sqlname.SourceDBType = "yugabytedb"
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.foo (
+		id INT PRIMARY KEY,
+		name VARCHAR
+	);`,
+		`INSERT into test_schema.foo values (1, 'abc'), (2, 'xyz');`,
+		`CREATE TABLE test_schema.bar (
+		id INT PRIMARY KEY,
+		name VARCHAR
+	);`,
+		`INSERT into test_schema.bar values (1, 'abc'), (2, 'xyz');`,
+		`CREATE TABLE test_schema.non_pk1(
+		id INT,
+		name VARCHAR(255)
+	);`)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	sqlname.SourceDBType = "postgresql"
+	testYugabyteDBSource.Source.Schema = "test_schema"
 
 	// Test GetAllTableNames
 	actualTables := testYugabyteDBSource.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
-		sqlname.NewSourceName("public", "foo"),
-		sqlname.NewSourceName("public", "bar"),
-		sqlname.NewSourceName("public", "table1"),
-		sqlname.NewSourceName("public", "table2"),
-		sqlname.NewSourceName("public", "unique_table"),
-		sqlname.NewSourceName("public", "non_pk1"),
-		sqlname.NewSourceName("public", "non_pk2"),
+		sqlname.NewSourceName("test_schema", "foo"),
+		sqlname.NewSourceName("test_schema", "bar"),
+		sqlname.NewSourceName("test_schema", "non_pk1"),
 	}
 	assert.Equal(t, len(expectedTables), len(actualTables), "Expected number of tables to match")
-
 	testutils.AssertEqualSourceNameSlices(t, expectedTables, actualTables)
 }
 
 func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
-	objectName := sqlname.NewObjectName("yugabytedb", "public", "public", "unique_table")
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.unique_table (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR(255) UNIQUE,
+            phone VARCHAR(20) UNIQUE,
+            address VARCHAR(255) UNIQUE
+        );`,
+		`INSERT INTO test_schema.unique_table (email, phone, address) VALUES
+            ('john@example.com', '1234567890', '123 Elm Street'),
+            ('jane@example.com', '0987654321', '456 Oak Avenue');`,
+		`CREATE TABLE test_schema.another_unique_table (
+            user_id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE,
+            age INT
+        );`,
+		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
+		`INSERT INTO test_schema.another_unique_table (username, age) VALUES
+            ('user1', 30),
+            ('user2', 40);`)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
-	// Test GetTableToUniqueKeyColumnsMap
-	tableList := []sqlname.NameTuple{
-		{CurrentName: objectName},
+	uniqueTablesList := []sqlname.NameTuple{
+		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "unique_table")},
+		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "another_unique_table")},
 	}
-	uniqueKeys, err := testYugabyteDBSource.DB().GetTableToUniqueKeyColumnsMap(tableList)
+
+	actualUniqKeys, err := testYugabyteDBSource.DB().GetTableToUniqueKeyColumnsMap(uniqueTablesList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
 
-	expectedKeys := map[string][]string{
-		"unique_table": {"email", "phone", "address"},
+	expectedUniqKeys := map[string][]string{
+		"test_schema.unique_table":         {"email", "phone", "address"},
+		"test_schema.another_unique_table": {"username", "age"},
 	}
+
 	// Compare the maps by iterating over each table and asserting the columns list
-	for table, expectedColumns := range expectedKeys {
-		actualColumns, exists := uniqueKeys[table]
+	for table, expectedColumns := range expectedUniqKeys {
+		actualColumns, exists := actualUniqKeys[table]
 		if !exists {
 			t.Errorf("Expected table %s not found in uniqueKeys", table)
 		}
@@ -71,9 +108,29 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 }
 
 func TestYugabyteGetNonPKTables(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.table1 (
+		id SERIAL PRIMARY KEY,
+		name VARCHAR(100)
+	);`,
+		`CREATE TABLE test_schema.table2 (
+		id SERIAL PRIMARY KEY,
+		email VARCHAR(100)
+	);`,
+		`CREATE TABLE test_schema.non_pk1(
+		id INT,
+		name VARCHAR(255)
+	);`,
+		`CREATE TABLE test_schema.non_pk2(
+		id INT,
+		name VARCHAR(255)
+	);`)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
 	actualTables, err := testYugabyteDBSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
-	expectedTables := []string{`public."non_pk2"`, `public."non_pk1"`} // func returns table.Qualified.Quoted
+	expectedTables := []string{`test_schema."non_pk2"`, `test_schema."non_pk1"`} // func returns table.Qualified.Quoted
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }

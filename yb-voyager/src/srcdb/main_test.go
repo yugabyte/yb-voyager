@@ -47,7 +47,6 @@ func TestMain(m *testing.M) {
 
 	// setting source db type, version and defaults
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
-	// TODO: handle error
 	err := postgresContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
@@ -82,6 +81,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		utils.ErrExit("%v", err)
 	}
+
 	testOracleSource = &TestDB{
 		TestContainer: oracleContainer,
 		Source: &Source{

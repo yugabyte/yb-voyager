@@ -123,7 +123,6 @@ func (ms *MysqlContainer) GetConfig() ContainerConfig {
 	return ms.ContainerConfig
 }
 
-// GetConnectionString constructs and returns the MySQL DSN
 func (ms *MysqlContainer) GetConnectionString() string {
 	host, port, err := ms.GetHostPort()
 	if err != nil {
@@ -135,17 +134,15 @@ func (ms *MysqlContainer) GetConnectionString() string {
 		ms.User, ms.Password, host, port, ms.DBName)
 }
 
-// ExecuteSqls executes a list of SQL statements using the persistent DB connection
-func (ms *MysqlContainer) ExecuteSqls(sqls []string) error {
+func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {
 	if ms.db == nil {
-		return fmt.Errorf("db connection not initialized for mysql container")
+		utils.ErrExit("db connection not initialized for mysql container")
 	}
 
 	for _, sqlStmt := range sqls {
 		_, err := ms.db.Exec(sqlStmt)
 		if err != nil {
-			return fmt.Errorf("failed to execute sql '%s': %w", sqlStmt, err)
+			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}
 	}
-	return nil
 }

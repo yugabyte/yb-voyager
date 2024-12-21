@@ -28,7 +28,7 @@ type TestContainer interface {
 
 			// Add Capability to run multiple versions of a dbtype parallely
 	*/
-	ExecuteSqls(sqls []string) error
+	ExecuteSqls(sqls ...string)
 }
 
 type ContainerConfig struct {

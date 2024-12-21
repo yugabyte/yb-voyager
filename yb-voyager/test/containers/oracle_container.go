@@ -101,6 +101,6 @@ func (ora *OracleContainer) GetConnectionString() string {
 	panic("GetConnectionString() not implemented yet for oracle")
 }
 
-func (ora *OracleContainer) ExecuteSqls(sqls []string) error {
-	return nil
+func (ora *OracleContainer) ExecuteSqls(sqls ...string) {
+
 }

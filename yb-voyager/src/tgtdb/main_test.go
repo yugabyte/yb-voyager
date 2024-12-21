@@ -28,7 +28,7 @@ import (
 )
 
 type TestDB struct {
-	Container testcontainers.TestContainer
+	testcontainers.TestContainer
 	TargetDB
 }
 
@@ -42,7 +42,6 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// setting source db type, version and defaults
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
 	if err != nil {
@@ -53,7 +52,7 @@ func TestMain(m *testing.M) {
 		utils.ErrExit("%v", err)
 	}
 	testPostgresTarget = &TestDB{
-		Container: postgresContainer,
+		TestContainer: postgresContainer,
 		TargetDB: NewTargetDB(&TargetConf{
 			TargetDBType: "postgresql",
 			DBVersion:    postgresContainer.GetConfig().DBVersion,
@@ -109,7 +108,7 @@ func TestMain(m *testing.M) {
 		utils.ErrExit("%v", err)
 	}
 	testYugabyteDBTarget = &TestDB{
-		Container: yugabytedbContainer,
+		TestContainer: yugabytedbContainer,
 		TargetDB: NewTargetDB(&TargetConf{
 			TargetDBType: "yugabytedb",
 			DBVersion:    yugabytedbContainer.GetConfig().DBVersion,

@@ -28,7 +28,7 @@ import (
 )
 
 func TestCreateVoyagerSchemaYB(t *testing.T) {
-	db, err := sql.Open("pgx", testYugabyteDBTarget.Container.GetConnectionString())
+	db, err := sql.Open("pgx", testYugabyteDBTarget.GetConnectionString())
 	assert.NoError(t, err)
 	defer db.Close()
 
@@ -88,19 +88,56 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 }
 
 func TestYugabyteGetNonEmptyTables(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema`,
+		`CREATE TABLE test_schema.foo (
+			id INT PRIMARY KEY,
+			name VARCHAR
+		);`,
+		`INSERT into test_schema.foo values (1, 'abc'), (2, 'xyz');`,
+		`CREATE TABLE test_schema.bar (
+			id INT PRIMARY KEY,
+			name VARCHAR
+		);`,
+		`INSERT into test_schema.bar values (1, 'abc'), (2, 'xyz');`,
+		`CREATE TABLE test_schema.unique_table (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(100),
+			phone VARCHAR(100),
+			address VARCHAR(255),
+			UNIQUE (email, phone)
+		);`,
+		`CREATE TABLE test_schema.table1 (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.table2 (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.non_pk1(
+			id INT,
+			name VARCHAR(255)
+		);`,
+		`CREATE TABLE test_schema.non_pk2(
+			id INT,
+			name VARCHAR(255)
+		);`)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
 	tables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "foo")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "bar")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "unique_table")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "table1")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "table2")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "non_pk1")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "non_pk2")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "unique_table")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "table1")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "table2")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "non_pk1")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "non_pk2")},
 	}
 
 	expectedTables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "foo")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "public", "public", "bar")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
 	}
 
 	actualTables := testYugabyteDBTarget.GetNonEmptyTables(tables)
