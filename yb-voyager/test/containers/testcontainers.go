@@ -10,6 +10,7 @@ import (
 )
 
 // containerRegistry to ensure one container per database(dbtype+version) [Singleton Pattern]
+// Limitation - go test spawns different process for running tests of each package, hence the containers won't be shared across packages.
 var (
 	containerRegistry = make(map[string]TestContainer)
 	registryMutex     sync.Mutex

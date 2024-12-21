@@ -17,6 +17,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -26,6 +27,10 @@ func TestYugabyteDTableSchema(t *testing.T) {
 
 	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	err := yugabyteDBContainer.Start(ctx)
+	if err != nil {
+		utils.ErrExit("Failed to start yugabytedb container: %v", err)
+	}
+	defer testcontainers.TerminateAllContainers()
 	assert.NoError(t, err, "Failed to start YugabyteDB container")
 
 	// Connect to the database
