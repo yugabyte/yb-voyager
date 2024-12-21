@@ -22,6 +22,26 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "test",
+            "Reason": "Json Constructor Functions",
+            "SqlStatement": "CREATE OR REPLACE view test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "MVIEW",
+            "ObjectName": "test",
+            "Reason": "Json Constructor Functions",
+            "SqlStatement": "CREATE MATERIALIZED VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
             "Reason": "XML Functions",
