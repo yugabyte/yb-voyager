@@ -51,6 +51,17 @@ func testJsonConstructorFunctions(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "VALUE"`, jsonConstructorFunctionsIssue)
 }
 
+func testJsonPredicateIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `SELECT js, js IS JSON "json?" FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "JSON"`, jsonConstructorFunctionsIssue)
+}
+
 func testJsonQueryFunctions(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
