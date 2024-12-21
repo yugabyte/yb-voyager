@@ -64,6 +64,7 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
+	printContainerLogs(yb.container)
 	return err
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io"
 	"os"
 	"time"
 
@@ -62,23 +61,8 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		Started:          true,
 	})
 
+	printContainerLogs(pg.container)
 	if err != nil {
-		if pg.container == nil {
-			return fmt.Errorf("failed to create test container for postgres: %w", err)
-		} else {
-			reader, err := pg.container.Logs(ctx)
-			if err != nil {
-				fmt.Printf("failed to get container logs: %v", err)
-			} else {
-				fmt.Println("=== Container Logs ===")
-				data, err := io.ReadAll(reader)
-				if err != nil {
-					panic(err)
-				}
-				fmt.Printf("%s\n", string(data))
-				fmt.Println("=== End of Logs ===")
-			}
-		}
 		return err
 	}
 

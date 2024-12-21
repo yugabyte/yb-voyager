@@ -61,6 +61,7 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
+	printContainerLogs(ms.container)
 	if err != nil {
 		return err
 	}

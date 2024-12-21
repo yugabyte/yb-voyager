@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -141,6 +142,6 @@ func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	}
 
 	actualTables := testYugabyteDBTarget.GetNonEmptyTables(tables)
-	fmt.Printf("non empty tables: %+v\n", actualTables)
+	log.Infof("non empty tables: %+v\n", actualTables)
 	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
 }

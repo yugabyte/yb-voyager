@@ -45,7 +45,6 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// setting source db type, version and defaults
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
 	if err != nil {
@@ -76,7 +75,10 @@ func TestMain(m *testing.M) {
 	defer testPostgresSource.DB().Disconnect()
 
 	oracleContainer := testcontainers.NewTestContainer("oracle", nil)
-	_ = oracleContainer.Start(ctx)
+	err = oracleContainer.Start(ctx)
+	if err != nil {
+		utils.ErrExit("Failed to start oracle container: %v", err)
+	}
 	host, port, err = oracleContainer.GetHostPort()
 	if err != nil {
 		utils.ErrExit("%v", err)
@@ -103,7 +105,10 @@ func TestMain(m *testing.M) {
 	defer testOracleSource.DB().Disconnect()
 
 	mysqlContainer := testcontainers.NewTestContainer("mysql", nil)
-	_ = mysqlContainer.Start(ctx)
+	err = mysqlContainer.Start(ctx)
+	if err != nil {
+		utils.ErrExit("Failed to start mysql container: %v", err)
+	}
 	host, port, err = mysqlContainer.GetHostPort()
 	if err != nil {
 		utils.ErrExit("%v", err)

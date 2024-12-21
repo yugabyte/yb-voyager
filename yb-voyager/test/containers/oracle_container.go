@@ -60,6 +60,7 @@ func (ora *OracleContainer) Start(ctx context.Context) (err error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
+	printContainerLogs(ora.container)
 	return err
 }
 

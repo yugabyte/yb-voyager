@@ -1,7 +1,14 @@
 package testcontainers
 
 import (
+	"context"
 	_ "embed"
+	"fmt"
+	"io"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/testcontainers/testcontainers-go"
 )
 
 const (
@@ -27,3 +34,27 @@ var mysqlInitSchemaFile []byte
 
 //go:embed test_schemas/yugabytedb_schema.sql
 var yugabytedbInitSchemaFile []byte
+
+func printContainerLogs(container testcontainers.Container) {
+	if container == nil {
+		log.Printf("Cannot fetch logs: container is nil")
+		return
+	}
+
+	containerID := container.GetContainerID()
+	logs, err := container.Logs(context.Background())
+	if err != nil {
+		log.Printf("Error fetching logs for container %s: %v", containerID, err)
+		return
+	}
+	defer logs.Close()
+
+	// Read the logs
+	logData, err := io.ReadAll(logs)
+	if err != nil {
+		log.Printf("Error reading logs for container %s: %v", containerID, err)
+		return
+	}
+
+	fmt.Printf("=== Logs for container %s ===\n%s\n=== End of Logs for container %s ===\n", containerID, string(logData), containerID)
+}
