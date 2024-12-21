@@ -696,3 +696,14 @@ WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`
 	assert.Equal(t, JSON_QUERY_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 
 }
+
+func TestJsonPredicateDetector(t *testing.T) {
+	sql := `SELECT js, js IS JSON "json?", js IS JSON SCALAR "scalar?", js IS JSON OBJECT "object?", js IS JSON ARRAY "array?" 
+	FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);
+`
+
+	issues := getDetectorIssues(t, NewJsonPredicateExprDetector(sql), sql)
+	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+	assert.Equal(t, JSON_PREDICATE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+
+}

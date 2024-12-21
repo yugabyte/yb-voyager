@@ -282,3 +282,29 @@ func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	}
 	return issues
 }
+
+type JsonPredicateExprDetector struct {
+	query    string
+	detected bool
+}
+
+func NewJsonPredicateExprDetector(query string) *JsonPredicateExprDetector {
+	return &JsonPredicateExprDetector{
+		query: query,
+	}
+}
+
+func (j *JsonPredicateExprDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_JSON_PREDICATE_NODE {
+		j.detected = true
+	}
+	return nil
+}
+
+func (d *JsonPredicateExprDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.detected {
+		issues = append(issues, NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}

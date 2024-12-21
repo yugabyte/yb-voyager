@@ -537,6 +537,15 @@ FROM books;`,
 		`SELECT id, JSON_VALUE(details, '$.title') AS title
 FROM books
 WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
+`SELECT js, js IS JSON "json?", js IS JSON SCALAR "scalar?", js IS JSON OBJECT "object?", js IS JSON ARRAY "array?" 
+FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`,
+`SELECT js,
+  js IS JSON OBJECT "object?",
+  js IS JSON ARRAY "array?",
+  js IS JSON ARRAY WITH UNIQUE KEYS "array w. UK?",
+  js IS JSON ARRAY WITHOUT UNIQUE KEYS "array w/o UK?"
+FROM (VALUES ('[{"a":"1"},
+ {"b":"2","b":"3"}]')) foo(js);`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
@@ -578,6 +587,12 @@ WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
 		},
 		sqls[12]: []QueryIssue{
 			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], []string{JSON_VALUE, JSON_EXISTS}),
+		},
+		sqls[13]: []QueryIssue{
+			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[13]),
+		},
+		sqls[14]: []QueryIssue{
+			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14]),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
@@ -626,21 +641,21 @@ END;
 $$ LANGUAGE plpgsql;`,
 	}
 	aggregateSqls := map[string][]QueryIssue{
-		// sqls[0]: []QueryIssue{
-		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
-		// },
-		// sqls[1]: []QueryIssue{
-		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], []string{"range_intersect_agg"}),
-		// },
-		// sqls[2]: []QueryIssue{
-		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{"range_agg"}),
-		// },
-		// sqls[3]: []QueryIssue{
-		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], []string{"range_intersect_agg"}),
-		// },
-		// sqls[4]: []QueryIssue{
-		// 	NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4], []string{"range_agg"}),
-		// },
+		sqls[0]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
+		},
+		sqls[1]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], []string{"range_intersect_agg"}),
+		},
+		sqls[2]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{"range_agg"}),
+		},
+		sqls[3]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], []string{"range_intersect_agg"}),
+		},
+		sqls[4]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4], []string{"range_agg"}),
+		},
 		sqls[5]: []QueryIssue{
 			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", "SELECT range_agg(range_value)                       FROM ranges;", []string{"range_agg"}),
 			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),

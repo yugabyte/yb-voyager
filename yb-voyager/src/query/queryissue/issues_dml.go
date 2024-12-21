@@ -128,3 +128,16 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 	}
 	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
 }
+
+var jsonPredicateIssue = issue.Issue{
+	Type:            JSON_PREDICATE,
+	TypeName:        JSON_PREDICATE_NAME,
+	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "", //TODO
+}
+
+func NewJsonPredicateIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(jsonPredicateIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

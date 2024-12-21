@@ -47,6 +47,7 @@ const (
 	PG_QUERY_JSON_FUNC_EXPR_NODE             = "pg_query.JsonFuncExpr"
 	PG_QUERY_JSON_OBJECT_CONSTRUCTOR_NODE    = "pg_query.JsonObjectConstructor"
 	PG_QUERY_JSON_TABLE_NODE                 = "pg_query.JsonTable"
+	PG_QUERY_JSON_PREDICATE_NODE             = "pg_query.JsonIsPredicate"
 )
 
 // function type for processing nodes during traversal
