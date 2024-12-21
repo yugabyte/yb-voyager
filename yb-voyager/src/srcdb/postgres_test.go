@@ -45,7 +45,7 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	sqlname.SourceDBType = "postgresql"
-	testPostgresSource.Source.Schema = "test_schema"
+	testPostgresSource.Source.Schema = "test_schema" // used in query of GetAllTableNames()
 
 	// Test GetAllTableNames
 	actualTables := testPostgresSource.DB().GetAllTableNames()
