@@ -35,7 +35,7 @@ type FuncCallDetector struct {
 	// right now it covers Advisory Locks and XML functions
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
-	anyValAggDetected          bool
+	aggFuncsDetected           mapset.Set[string]
 	loFuncsDetected            mapset.Set[string]
 }
 
@@ -44,6 +44,7 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 		query:                      query,
 		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
 		xmlFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
+		aggFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
 		loFuncsDetected:            mapset.NewThreadUnsafeSet[string](),
 	}
 }
@@ -65,7 +66,7 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 	}
 
 	if unsupportedAggFunctions.ContainsOne(funcName) {
-		d.anyValAggDetected = true
+		d.aggFuncsDetected.Add(funcName)
 	}
 	if unsupportedLargeObjectFunctions.ContainsOne(funcName) {
 		d.loFuncsDetected.Add(funcName)
@@ -82,11 +83,11 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 	if d.xmlFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
-	if d.anyValAggDetected {
-		issues = append(issues, NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	if d.aggFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.aggFuncsDetected.ToSlice()))
 	}
 	if d.loFuncsDetected.Cardinality() > 0 {
-		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.loFuncsDetected.ToSlice()))
 	}
 	return issues
 }
@@ -224,7 +225,7 @@ func (j *JsonConstructorFuncDetector) Detect(msg protoreflect.Message) error {
 func (d *JsonConstructorFuncDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.unsupportedJsonConstructorFunctionsDetected.Cardinality() > 0 {
-		issues = append(issues, NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		issues = append(issues, NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.unsupportedJsonConstructorFunctionsDetected.ToSlice()))
 	}
 	return issues
 }
@@ -277,7 +278,7 @@ func (j *JsonQueryFunctionDetector) Detect(msg protoreflect.Message) error {
 func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.unsupportedJsonQueryFunctionsDetected.Cardinality() > 0 {
-		issues = append(issues, NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		issues = append(issues, NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.unsupportedJsonQueryFunctionsDetected.ToSlice()))
 	}
 	return issues
 }

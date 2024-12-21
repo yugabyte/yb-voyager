@@ -62,40 +62,49 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 var anyValueAggFunctionIssue = issue.Issue{
 	Type:            AGGREGATE_FUNCTION,
 	TypeName:        AGGREGATION_FUNCTIONS_NAME,
-	TypeDescription: "",
+	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "",
 }
 
-func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(anyValueAggFunctionIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	details := map[string]interface{}{
+		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
+	}
+	return newQueryIssue(anyValueAggFunctionIssue, objectType, objectName, sqlStatement, details)
 }
 
 var jsonConstructorFunctionsIssue = issue.Issue{
 	Type:            JSON_CONSTRUCTOR_FUNCTION,
 	TypeName:        JSON_CONSTRUCTOR_FUNCTION_NAME,
-	TypeDescription: "",
+	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "",
 }
 
-func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(jsonConstructorFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	details := map[string]interface{}{
+		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
+	}
+	return newQueryIssue(jsonConstructorFunctionsIssue, objectType, objectName, sqlStatement, details)
 }
 
 var jsonQueryFunctionIssue = issue.Issue{
 	Type:            JSON_QUERY_FUNCTION,
 	TypeName:        JSON_QUERY_FUNCTIONS_NAME,
-	TypeDescription: "",
+	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "",
 }
 
-func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	details := map[string]interface{}{
+		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
+	}
+	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, details)
 }
 
 var loFunctionsIssue = issue.Issue{
@@ -107,6 +116,9 @@ var loFunctionsIssue = issue.Issue{
 	DocsLink:        "", //TODO
 }
 
-func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	details := map[string]interface{}{
+		FUNCTION_NAMES: funcNames,//TODO USE it later when we start putting these in reports
+	}
+	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
 }

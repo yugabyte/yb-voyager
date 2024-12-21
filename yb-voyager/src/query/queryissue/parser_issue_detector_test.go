@@ -274,7 +274,7 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt19: []QueryIssue{
 			NewLODatatypeIssue("TABLE", "test_lo_default", stmt19, "raster"),
-			NewLOFuntionsIssue("TABLE", "test_lo_default", stmt19),
+			NewLOFuntionsIssue("TABLE", "test_lo_default", stmt19, []string{"lo_import"}),
 		},
 	}
 	for _, stmt := range requiredDDLs {
@@ -415,31 +415,31 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 `,
-`CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image
+		`CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image
     FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);`,
 	}
 
 	expectedSQLsWithIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_unlink(loid);"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_unlink(loid);", []string{"lo_unlink"}),
 		},
 		sqls[1]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "INSERT INTO documents (title, content_oid) VALUES (doc_title, lo_import(file_path));"),
+			NewLOFuntionsIssue("DML_QUERY", "", "INSERT INTO documents (title, content_oid) VALUES (doc_title, lo_import(file_path));", []string{"lo_import"}),
 		},
 		sqls[2]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_export(loid, file_path);"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_export(loid, file_path);", []string{"lo_export"}),
 		},
 		sqls[3]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);", []string{"lo_close"}),
 		},
 		sqls[4]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_put(fd, convert_to(new_data, 'UTF8'));"),
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_put(fd, convert_to(new_data, 'UTF8'));", []string{"lo_put"}),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);", []string{"lo_close"}),
 			NewLODatatypeIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", "raster"),
-			NewLOFuntionsIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));"),
+			NewLOFuntionsIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", []string{"lo_import"}),
 		},
 		sqls[5]: []QueryIssue{
-			NewLOFuntionsIssue("TRIGGER", "t_raster ON image", sqls[5]),
+			NewLOFuntionsIssue("TRIGGER", "t_raster ON image", sqls[5], []string{"lo_manage"}),
 		},
 	}
 	expectedSQLsWithIssues[sqls[0]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
@@ -447,7 +447,6 @@ $$ LANGUAGE plpgsql;
 	expectedSQLsWithIssues[sqls[2]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[2]], "FUNCTION", "export_large_object")
 	expectedSQLsWithIssues[sqls[3]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
 	expectedSQLsWithIssues[sqls[4]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
-
 
 	parserIssueDetector := NewParserIssueDetector()
 
@@ -466,6 +465,7 @@ $$ LANGUAGE plpgsql;
 		}
 	}
 }
+
 // currently, both FuncCallDetector and XmlExprDetector can detect XMLFunctionsIssue
 // statement below has both XML functions and XML expressions.
 // but we want to only return one XMLFunctionsIssue from parserIssueDetector.getDMLIssues
@@ -491,13 +491,13 @@ func TestJsonUnsupportedFeatures(t *testing.T) {
 		`SELECT department, JSON_ARRAYAGG(name) AS employees_json
 	FROM employees
 	GROUP BY department;`,
-	`INSERT INTO movies (details)
+		`INSERT INTO movies (details)
 VALUES (
     JSON_OBJECT('title' VALUE 'Dune', 'director' VALUE 'Denis Villeneuve', 'year' VALUE 2021)
 );`,
 		`SELECT json_objectagg(k VALUE v) AS json_result
 	FROM (VALUES ('a', 1), ('b', 2), ('c', 3)) AS t(k, v);`,
-	`SELECT JSON_OBJECT(
+		`SELECT JSON_OBJECT(
   'movie' VALUE JSON_OBJECT('code' VALUE 'P123', 'title' VALUE 'Jaws'),
   'director' VALUE 'Steven Spielberg'
 ) AS nested_json_object;`,
@@ -508,7 +508,7 @@ VALUES (
     'price' VALUE 19.99,
     'available' VALUE TRUE
 ) AS json_obj;`,
- `SELECT id, JSON_QUERY(details, '$.author') AS author
+		`SELECT id, JSON_QUERY(details, '$.author') AS author
 FROM books;`,
 		`SELECT jt.* FROM
  my_films,
@@ -517,7 +517,7 @@ FROM books;`,
    kind text PATH '$.kind',
    title text PATH '$.films[*].title' WITH WRAPPER,
    director text PATH '$.films[*].director' WITH WRAPPER)) AS jt;`,
-   `SELECT jt.* FROM
+		`SELECT jt.* FROM
  my_films,
  JSON_TABLE (js, $1 COLUMNS (
    id FOR ORDINALITY,
@@ -534,50 +534,50 @@ FROM books;`,
     JSON_VALUE(details, '$.title') AS title,
     JSON_VALUE(details, '$.price')::NUMERIC AS price
 FROM books;`,
-`SELECT id, JSON_VALUE(details, '$.title') AS title
+		`SELECT id, JSON_VALUE(details, '$.title') AS title
 FROM books
 WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0]),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{JSON_ARRAYAGG}),
 		},
 		sqls[1]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1]),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], []string{JSON_OBJECT}),
 		},
 		sqls[2]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2]),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{JSON_OBJECTAGG}),
 		},
 		sqls[3]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3]),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], []string{JSON_OBJECT}),
 		},
 		sqls[4]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4]),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4], []string{JSON_ARRAYAGG}),
 		},
 		sqls[5]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[5]),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[5], []string{JSON_OBJECT}),
 		},
 		sqls[6]: []QueryIssue{
-			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[6]),
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[6], []string{JSON_QUERY}),
 		},
 		sqls[7]: []QueryIssue{
-			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[7]),
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[7], []string{JSON_TABLE}),
 		},
 		// sqls[8]: []QueryIssue{
 		// 	NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[8]),
 		//NOT REPORTED YET because of PARSER failing if JSON_TABLE has a parameterized values $1, $2 ...
 		// },
 		sqls[9]: []QueryIssue{
-			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9]),
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9], []string{JSON_EXISTS}),
 		},
 		sqls[10]: []QueryIssue{
-			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[10]),
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[10], []string{JSON_QUERY}),
 		},
 		sqls[11]: []QueryIssue{
-			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[11]),
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[11], []string{JSON_VALUE}),
 		},
 		sqls[12]: []QueryIssue{
-			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12]),
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], []string{JSON_VALUE, JSON_EXISTS}),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
