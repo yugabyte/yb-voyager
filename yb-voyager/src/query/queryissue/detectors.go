@@ -16,7 +16,10 @@ limitations under the License.
 package queryissue
 
 import (
+	"slices"
+
 	mapset "github.com/deckarep/golang-set/v2"
+	pg_query "github.com/pganalyze/pg_query_go/v5"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -185,5 +188,70 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	if d.detected {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
+	return issues
+}
+
+type JsonSubscriptingDetector struct {
+	query        string
+	arrayColumns []string
+	detected     bool
+}
+
+func NewJsonSubscriptingDetector(query string, arrayColumns []string) *JsonSubscriptingDetector {
+	return &JsonSubscriptingDetector{
+		query:        query,
+		arrayColumns: arrayColumns,
+	}
+}
+
+func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
+
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_A_INDIRECTION_NODE {
+		return nil
+	}
+	protoMsg := msg.Interface().(protoreflect.ProtoMessage)
+	aIndirectionNode, ok := protoMsg.(*pg_query.A_Indirection)
+	if !ok {
+		return nil
+	}
+
+	arg := aIndirectionNode.GetArg()
+	if arg == nil {
+		return nil
+	}
+
+	switch {
+	case arg.GetColumnRef() != nil:
+		/*
+		{a_indirection:{arg:{column_ref:{fields:{string:{sval:"numbers"}}  location:69}}  
+		indirection:{a_indices:{uidx:{a_const:{ival:{ival:1}  location:77}}}}}}  location:69}}
+		*/
+		_, col := queryparser.GetColNameFromColumnRef(arg.GetColumnRef().ProtoReflect())
+		if slices.Contains(j.arrayColumns, col) {
+			return nil
+		}
+		j.detected = true
+
+	case arg.GetTypeCast() != nil:
+		/*
+		{a_indirection:{arg:{type_cast:{arg:{a_const:{sval:{sval:"{\"a\": {\"b\": {\"c\": 1}}}"}  location:280}}  
+		type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
+		*/
+		typeCast := arg.GetTypeCast()
+		typeName, _ := queryparser.GetTypeNameAndSchema(typeCast.GetTypeName().GetNames())
+		if slices.Contains([]string{"json", "jsonb"}, typeName) {
+			j.detected = true
+		}
+	}
+
+	return nil
+}
+
+func (j *JsonSubscriptingDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if j.detected {
+		issues = append(issues, NewJsonSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", ""))
+	}
+
 	return issues
 }

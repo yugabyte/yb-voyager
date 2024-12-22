@@ -713,3 +713,31 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
 	}
 }
+
+func TestJsonSubscripting(t *testing.T) {
+	sql := `SELECT numbers[1] AS first_number 
+FROM array_data;`
+	detector := NewJsonSubscriptingDetector(sql, []string{"numbers"})
+	parseResult, err := queryparser.Parse(sql)
+	assert.NoError(t, err, "Failed to parse SQL: %s", sql)
+
+	visited := make(map[protoreflect.Message]bool)
+
+	processor := func(msg protoreflect.Message) error {
+		err := detector.Detect(msg)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
+	err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
+	assert.NoError(t, err)
+
+	issues := detector.GetIssues()
+
+	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+	assert.Equal(t, "JSON_SUBSTRUSDFS", issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
+
+}

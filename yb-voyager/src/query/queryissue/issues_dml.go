@@ -69,3 +69,18 @@ var loFunctionsIssue = issue.Issue{
 func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+
+var jsonSubscriptingIssue = issue.Issue{
+	Type:            "JSON_SUBSTRUSDFS",
+	TypeName:        "JSONDSa",
+	TypeDescription: "Large Objects functions are not supported in YugabyteDB",
+	Suggestion:      "Large objects functions are not yet supported in YugabyteDB, no workaround available right now",
+	GH:              "https://github.com/yugabyte/yugabyte-db/issues/25318",
+	DocsLink:        "", //TODO
+}
+
+func NewJsonSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(jsonSubscriptingIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+

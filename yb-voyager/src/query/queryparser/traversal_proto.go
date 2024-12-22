@@ -40,6 +40,8 @@ const (
 	PG_QUERY_INSERTSTMT_NODE = "pg_query.InsertStmt"
 	PG_QUERY_UPDATESTMT_NODE = "pg_query.UpdateStmt"
 	PG_QUERY_DELETESTMT_NODE = "pg_query.DeleteStmt"
+
+	PG_QUERY_A_INDIRECTION_NODE = "pg_query.A_Indirection"
 )
 
 // function type for processing nodes during traversal

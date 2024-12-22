@@ -418,3 +418,17 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 
 	return result, nil
 }
+
+func (p *ParserIssueDetector) getArrayColumns() []string {
+	var arrayColumns []string
+	for _, mp := range p.columnsWithUnsupportedIndexDatatypes {
+		for col, colType := range mp {
+			if colType == "array" {
+				arrayColumns = append(arrayColumns, col)
+			}
+		}
+	}
+
+	return arrayColumns
+
+}
