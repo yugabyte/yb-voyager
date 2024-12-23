@@ -171,15 +171,7 @@
 				"public.library_nested",
 				"public.orders_lateral",
 				"public.employees",
-				"public.employees3"
-			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 84 objects (76 tables/materialized views and 8 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 28 objects (5 tables/materialized views and 23 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			"ShardedTables": [
-				"public.combined_tbl",
-				"public.citext_type",
-				"public.test_jsonb",
-				"schema2.mixed_data_types_table1",
-				"public.mixed_data_types_table1",
+				"public.employees3",
 				"public.bigint_multirange_table",
 				"public.date_multirange_table",
 				"public.int_multirange_table",
@@ -192,6 +184,14 @@
 				"schema2.numeric_multirange_table",
 				"schema2.timestamp_multirange_table",
 				"schema2.timestamptz_multirange_table"
+			],
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 84 objects (76 tables/materialized views and 8 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 28 objects (5 tables/materialized views and 23 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ShardedTables": [
+				"public.combined_tbl",
+				"public.citext_type",
+				"public.test_jsonb",
+				"schema2.mixed_data_types_table1",
+				"public.mixed_data_types_table1"
 			],
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
