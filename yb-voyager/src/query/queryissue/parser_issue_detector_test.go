@@ -537,6 +537,19 @@ FROM books;`,
 		`SELECT id, JSON_VALUE(details, '$.title') AS title
 FROM books
 WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
+`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
+SELECT 
+    id,
+    data->>'name' AS name,
+    JSON_VALUE(data, '$.age' RETURNING INTEGER) AS age,
+    JSON_EXISTS(data, '$.skills[*] ? (@ == "JSON")') AS knows_json,
+    jt.skill
+FROM public.test_jsonb,
+JSON_TABLE(data, '$.skills[*]' 
+    COLUMNS (
+        skill TEXT PATH '$'
+    )
+) AS jt;`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
@@ -580,12 +593,14 @@ WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
 		sqls[12]: []QueryIssue{
 			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], []string{JSON_VALUE, JSON_EXISTS}),
 		},
+		sqls[13]: []QueryIssue{
+			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[13], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
+		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
-
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
