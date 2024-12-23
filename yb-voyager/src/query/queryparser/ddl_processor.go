@@ -129,7 +129,7 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 			colName := element.GetColumnDef().GetColname()
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+			typeName, typeSchemaName := GetTypeNameAndSchema(typeNames)
 			/*
 				e.g. CREATE TABLE test_xml_type(id int, data xml);
 				relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
@@ -381,7 +381,7 @@ func (ftProcessor *ForeignTableProcessor) Process(parseTree *pg_query.ParseResul
 			colName := element.GetColumnDef().GetColname()
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+			typeName, typeSchemaName := GetTypeNameAndSchema(typeNames)
 			table.Columns = append(table.Columns, TableColumn{
 				ColumnName:  colName,
 				TypeName:    typeName,
@@ -466,7 +466,7 @@ func (indexProcessor *IndexProcessor) parseIndexParams(params []*pg_query.Node) 
 		if ip.IsExpression {
 			//For the expression index case to report in case casting to unsupported types #3
 			typeNames := i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
-			ip.ExprCastTypeName, ip.ExprCastTypeSchema = getTypeNameAndSchema(typeNames)
+			ip.ExprCastTypeName, ip.ExprCastTypeSchema = GetTypeNameAndSchema(typeNames)
 			ip.IsExprCastArrayType = isArrayType(i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName())
 		}
 		indexParams = append(indexParams, ip)
@@ -809,7 +809,7 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 		return createType, nil
 	case isEnum:
 		typeNames := enumNode.CreateEnumStmt.GetTypeName()
-		typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+		typeName, typeSchemaName := GetTypeNameAndSchema(typeNames)
 		createType := &CreateType{
 			TypeName:   typeName,
 			SchemaName: typeSchemaName,

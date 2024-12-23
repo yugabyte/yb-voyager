@@ -110,7 +110,7 @@ func getFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
 	return funcSchemaName, funcName
 }
 
-func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
+func GetTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
 	typeName := ""
 	typeSchemaName := ""
 	if len(typeNames) > 0 {
