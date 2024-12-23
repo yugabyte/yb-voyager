@@ -36,7 +36,7 @@
 			{
 				"ObjectType": "FUNCTION",
 				"TotalCount": 139,
-				"InvalidCount": 16,
+				"InvalidCount": 17,
 				"ObjectNames": "mgd.acc_accession_delete, mgd.acc_assignj, mgd.acc_assignmgi, mgd.acc_delete_byacckey, mgd.acc_insert, mgd.acc_setmax, mgd.acc_split, mgd.acc_update, mgd.accref_insert, mgd.accref_process, mgd.all_allele_delete, mgd.all_allele_insert, mgd.all_allele_update, mgd.all_cellline_delete, mgd.all_cellline_update1, mgd.all_cellline_update2, mgd.all_convertallele, mgd.all_createwildtype, mgd.all_insertallele, mgd.all_mergeallele, mgd.all_mergewildtypes, mgd.all_reloadlabel, mgd.all_variant_delete, mgd.bib_keepwfrelevance, mgd.bib_refs_delete, mgd.bib_refs_insert, mgd.bib_reloadcache, mgd.bib_updatewfstatusap, mgd.bib_updatewfstatusgo, mgd.bib_updatewfstatusgxd, mgd.bib_updatewfstatusqtl, mgd.gxd_addcelltypeset, mgd.gxd_addemapaset, mgd.gxd_addgenotypeset, mgd.gxd_allelepair_insert, mgd.gxd_antibody_delete, mgd.gxd_antibody_insert, mgd.gxd_antigen_delete, mgd.gxd_antigen_insert, mgd.gxd_assay_delete, mgd.gxd_assay_insert, mgd.gxd_checkduplicategenotype, mgd.gxd_gelrow_insert, mgd.gxd_genotype_delete, mgd.gxd_genotype_insert, mgd.gxd_getgenotypesdatasets, mgd.gxd_getgenotypesdatasetscount, mgd.gxd_htexperiment_delete, mgd.gxd_htrawsample_delete, mgd.gxd_htsample_ageminmax, mgd.gxd_index_insert, mgd.gxd_index_insert_before, mgd.gxd_index_update, mgd.gxd_orderallelepairs, mgd.gxd_ordergenotypes, mgd.gxd_ordergenotypesall, mgd.gxd_ordergenotypesmissing, mgd.gxd_removebadgelband, mgd.gxd_replacegenotype, mgd.img_image_delete, mgd.img_image_insert, mgd.img_setpdo, mgd.mgi_addsetmember, mgd.mgi_checkemapaclipboard, mgd.mgi_cleannote, mgd.mgi_deleteemapaclipboarddups, mgd.mgi_insertreferenceassoc, mgd.mgi_insertsynonym, mgd.mgi_mergerelationship, mgd.mgi_organism_delete, mgd.mgi_organism_insert, mgd.mgi_processnote, mgd.mgi_reference_assoc_delete, mgd.mgi_reference_assoc_insert, mgd.mgi_relationship_delete, mgd.mgi_resetageminmax, mgd.mgi_resetsequencenum, mgd.mgi_setmember_emapa_insert, mgd.mgi_setmember_emapa_update, mgd.mgi_statistic_delete, mgd.mgi_updatereferenceassoc, mgd.mgi_updatesetmember, mgd.mld_expt_marker_update, mgd.mld_expts_delete, mgd.mld_expts_insert, mgd.mrk_allelewithdrawal, mgd.mrk_cluster_delete, mgd.mrk_copyhistory, mgd.mrk_deletewithdrawal, mgd.mrk_inserthistory, mgd.mrk_marker_delete, mgd.mrk_marker_insert, mgd.mrk_marker_update, mgd.mrk_mergewithdrawal, mgd.mrk_reloadlocation, mgd.mrk_reloadreference, mgd.mrk_simplewithdrawal, mgd.mrk_strainmarker_delete, mgd.mrk_updatekeys, mgd.prb_ageminmax, mgd.prb_getstrainbyreference, mgd.prb_getstraindatasets, mgd.prb_getstrainreferences, mgd.prb_insertreference, mgd.prb_marker_insert, mgd.prb_marker_update, mgd.prb_mergestrain, mgd.prb_probe_delete, mgd.prb_probe_insert, mgd.prb_processanonymoussource, mgd.prb_processprobesource, mgd.prb_processseqloadersource, mgd.prb_processsequencesource, mgd.prb_reference_delete, mgd.prb_reference_update, mgd.prb_setstrainreview, mgd.prb_source_delete, mgd.prb_strain_delete, mgd.prb_strain_insert, mgd.seq_deletebycreatedby, mgd.seq_deletedummy, mgd.seq_deleteobsoletedummy, mgd.seq_merge, mgd.seq_sequence_delete, mgd.seq_split, mgd.voc_annot_insert, mgd.voc_copyannotevidencenotes, mgd.voc_evidence_delete, mgd.voc_evidence_insert, mgd.voc_evidence_property_delete, mgd.voc_evidence_update, mgd.voc_mergeannotations, mgd.voc_mergedupannotations, mgd.voc_mergeterms, mgd.voc_processannotheader, mgd.voc_processannotheaderall, mgd.voc_processannotheadermissing, mgd.voc_resetterms, mgd.voc_term_delete"
 			},
 			{
@@ -13779,6 +13779,11 @@
 					"ObjectType": "FUNCTION",
 					"ObjectName": "mgd.seq_split",
 					"SqlStatement": "acc_accession.accID%TYPE"
+				},
+				{
+					"ObjectType": "FUNCTION",
+					"ObjectName": "mgd.mgi_resetageminmax",
+					"SqlStatement": "prb_source.age%TYPE"
 				}
 			],
 			"MinimumVersionsFixedIn": null,
