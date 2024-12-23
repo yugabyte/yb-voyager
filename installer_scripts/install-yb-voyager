@@ -543,9 +543,9 @@ rebuild_voyager_local() {
 get_passed_options() {
 	if [ "$1" == "linux" ]
 	then
-		OPTS=$(getopt -o "lpnvV", --long install-from-local-source,only-pg-support,skip-debezium,rebuild-voyager-local,version: --name 'install-yb-voyager' -- $ARGS_LINUX)
+		OPTS=$(getopt -o "lpdvV", --long install-from-local-source,only-pg-support,skip-debezium,rebuild-voyager-local,version: --name 'install-yb-voyager' -- $ARGS_LINUX)
 	else
-		OPTS=$(getopt  lpvV  $ARGS_MACOS)
+		OPTS=$(getopt  lpdvV  $ARGS_MACOS)
 	fi
 
 	eval set -- "$OPTS"
@@ -560,11 +560,11 @@ get_passed_options() {
 				ONLY_PG="true"; 
 				shift 
 				;;
-			--skip-debezium )
+			-d | --skip-debezium )
 				SKIP_DEBEZIUM="true"
 				shift
 				;;
-			--rebuild-voyager-local )
+			-v | --rebuild-voyager-local )
 				REBUILD_VOYAGER_LOCAL="true";
 				shift
 				;;
