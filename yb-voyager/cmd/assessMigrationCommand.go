@@ -1415,10 +1415,12 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE, nil})
 			}
 		}
-
-		assessmentReport.MigrationCaveats = lo.Filter(migrationCaveats, func(m UnsupportedFeature, _ int) bool {
+		migrationCaveats = lo.Filter(migrationCaveats, func(m UnsupportedFeature, _ int) bool {
 			return len(m.Objects) > 0
 		})
+		if len(migrationCaveats) > 0 {
+			assessmentReport.MigrationCaveats = migrationCaveats
+		}
 
 	}
 }

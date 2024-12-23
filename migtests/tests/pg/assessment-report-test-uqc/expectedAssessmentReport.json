@@ -84,7 +84,7 @@
 		}
 	],
 	"Notes": null,
-	"MigrationCaveats": [],
+	"MigrationCaveats": null,
 	"UnsupportedQueryConstructs": [
 		{
 			"ConstructTypeName": "Advisory Locks",
