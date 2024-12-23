@@ -32,10 +32,11 @@ type UnsupportedConstructDetector interface {
 
 type FuncCallDetector struct {
 	query string
-	// right now it covers Advisory Locks and XML functions
+
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
 	aggFuncsDetected           mapset.Set[string]
+	regexFuncsDetected         mapset.Set[string]
 	loFuncsDetected            mapset.Set[string]
 }
 
@@ -45,6 +46,7 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
 		xmlFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
 		aggFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
+		regexFuncsDetected:         mapset.NewThreadUnsafeSet[string](),
 		loFuncsDetected:            mapset.NewThreadUnsafeSet[string](),
 	}
 }
@@ -63,6 +65,9 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 	}
 	if unsupportedXmlFunctions.ContainsOne(funcName) {
 		d.xmlFuncsDetected.Add(funcName)
+	}
+	if unsupportedRegexFunctions.ContainsOne(funcName) {
+		d.regexFuncsDetected.Add(funcName)
 	}
 
 	if unsupportedAggFunctions.ContainsOne(funcName) {
@@ -85,6 +90,9 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 	}
 	if d.aggFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.aggFuncsDetected.ToSlice()))
+	}
+	if d.regexFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	if d.loFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.loFuncsDetected.ToSlice()))

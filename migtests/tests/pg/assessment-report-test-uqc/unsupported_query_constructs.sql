@@ -21,3 +21,8 @@ FROM public.employees;
 SELECT metric_name, pg_advisory_lock(metric_id)
 FROM analytics.metrics
 WHERE metric_value > 0.02;
+
+-- Aggregate functions UQC
+SELECT
+        any_value(name) AS any_employee
+    FROM employees;

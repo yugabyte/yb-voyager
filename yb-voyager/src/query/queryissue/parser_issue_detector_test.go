@@ -537,15 +537,28 @@ FROM books;`,
 		`SELECT id, JSON_VALUE(details, '$.title') AS title
 FROM books
 WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
-`SELECT js, js IS JSON "json?", js IS JSON SCALAR "scalar?", js IS JSON OBJECT "object?", js IS JSON ARRAY "array?" 
+		`SELECT js, js IS JSON "json?", js IS JSON SCALAR "scalar?", js IS JSON OBJECT "object?", js IS JSON ARRAY "array?" 
 FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`,
-`SELECT js,
+		`SELECT js,
   js IS JSON OBJECT "object?",
   js IS JSON ARRAY "array?",
   js IS JSON ARRAY WITH UNIQUE KEYS "array w. UK?",
   js IS JSON ARRAY WITHOUT UNIQUE KEYS "array w/o UK?"
 FROM (VALUES ('[{"a":"1"},
  {"b":"2","b":"3"}]')) foo(js);`,
+		`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
+SELECT 
+    id,
+    data->>'name' AS name,
+    JSON_VALUE(data, '$.age' RETURNING INTEGER) AS age,
+    JSON_EXISTS(data, '$.skills[*] ? (@ == "JSON")') AS knows_json,
+    jt.skill
+FROM public.test_jsonb,
+JSON_TABLE(data, '$.skills[*]' 
+    COLUMNS (
+        skill TEXT PATH '$'
+    )
+) AS jt;`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
@@ -575,6 +588,7 @@ FROM (VALUES ('[{"a":"1"},
 		// sqls[8]: []QueryIssue{
 		// 	NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[8]),
 		//NOT REPORTED YET because of PARSER failing if JSON_TABLE has a parameterized values $1, $2 ...
+		//https://github.com/pganalyze/pg_query_go/issues/127
 		// },
 		sqls[9]: []QueryIssue{
 			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9], []string{JSON_EXISTS}),
@@ -593,13 +607,13 @@ FROM (VALUES ('[{"a":"1"},
 		},
 		sqls[14]: []QueryIssue{
 			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14]),
+			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[13], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
-
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
@@ -625,7 +639,7 @@ FROM multiranges;`,
 FROM events;`,
 		`SELECT range_agg(event_range) AS union_of_ranges
 FROM events;`,
-`CREATE OR REPLACE FUNCTION aggregate_ranges()
+		`CREATE OR REPLACE FUNCTION aggregate_ranges()
 RETURNS INT4MULTIRANGE AS $$
 DECLARE
     aggregated_range INT4MULTIRANGE;
@@ -676,4 +690,33 @@ $$ LANGUAGE plpgsql;`,
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
+}
+func TestRegexFunctionsIssue(t *testing.T) {
+	dmlStmts := []string{
+		`SELECT regexp_count('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_instr('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_like('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_count('abc','abc'), regexp_instr('abc','abc'), regexp_like('abc','abc')`,
+	}
+
+	ddlStmts := []string{
+		`CREATE TABLE x (id INT PRIMARY KEY, id2 INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example'))`,
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+
+	for _, stmt := range dmlStmts {
+		issues, err := parserIssueDetector.getDMLIssues(stmt)
+		fatalIfError(t, err)
+		assert.Equal(t, 1, len(issues))
+		assert.Equal(t, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", stmt), issues[0])
+	}
+
+	for _, stmt := range ddlStmts {
+		issues, err := parserIssueDetector.getDDLIssues(stmt)
+		fatalIfError(t, err)
+		assert.Equal(t, 1, len(issues))
+		assert.Equal(t, NewRegexFunctionsIssue(TABLE_OBJECT_TYPE, "x", stmt), issues[0])
+	}
+
 }

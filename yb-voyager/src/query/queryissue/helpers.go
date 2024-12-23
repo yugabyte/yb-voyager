@@ -58,6 +58,10 @@ var unsupportedXmlFunctions = mapset.NewThreadUnsafeSet([]string{
 	"xmlconcat2", "xmlvalidate", "xml_in", "xml_out", "xml_recv", "xml_send", // System XML I/O
 }...)
 
+var unsupportedRegexFunctions = mapset.NewThreadUnsafeSet([]string{
+	"regexp_count", "regexp_instr", "regexp_like",
+}...)
+
 var UnsupportedIndexMethods = []string{
 	"gist",
 	"brin",

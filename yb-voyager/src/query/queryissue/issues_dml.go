@@ -61,6 +61,19 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
+var regexFunctionsIssue = issue.Issue{
+	Type:            REGEX_FUNCTIONS,
+	TypeName:        "Regex Functions",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(regexFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
 var aggregateFunctionIssue = issue.Issue{
 	Type:            AGGREGATE_FUNCTION,
 	TypeName:        AGGREGATION_FUNCTIONS_NAME,
