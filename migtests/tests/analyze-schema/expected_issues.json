@@ -1937,7 +1937,6 @@
             "ObjectName": "timestamp_multirange_table",
             "Reason": "Unsupported datatype - multirange on column - event_times",
             "SqlStatement": "CREATE TABLE timestamp_multirange_table (\n    id integer NOT NULL,\n    event_times tsmultirange\n);",
-            "FilePath": "/home/runner/work/yb-voyager/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1948,7 +1947,6 @@
             "ObjectName": "timestamptz_multirange_table",
             "Reason": "Unsupported datatype - multirange on column - global_event_times",
             "SqlStatement": "CREATE TABLE timestamptz_multirange_table (\n    id integer NOT NULL,\n    global_event_times tstzmultirange\n);",
-            "FilePath": "/home/runner/work/yb-voyager/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1959,7 +1957,6 @@
             "ObjectName": "int_multirange_table",
             "Reason": "Unsupported datatype - multirange on column - value_ranges",
             "SqlStatement": "CREATE TABLE int_multirange_table (\n    id integer NOT NULL,\n    value_ranges int4multirange\n);",
-            "FilePath": "/home/runner/work/yb-voyager/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1970,7 +1967,6 @@
             "ObjectName": "numeric_multirange_table",
             "Reason": "Unsupported datatype - multirange on column - price_ranges",
             "SqlStatement": "CREATE TABLE numeric_multirange_table (\n    id integer NOT NULL,\n    price_ranges nummultirange\n);",
-            "FilePath": "/home/runner/work/yb-voyager/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1981,7 +1977,6 @@
             "ObjectName": "bigint_multirange_table",
             "Reason": "Unsupported datatype - multirange on column - value_ranges",
             "SqlStatement": "CREATE TABLE bigint_multirange_table (\n    id integer NOT NULL,\n    value_ranges int8multirange\n);",
-            "FilePath": "/home/runner/work/yb-voyager/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1992,7 +1987,6 @@
             "ObjectName": "date_multirange_table",
             "Reason": "Unsupported datatype - multirange on column - project_dates",
             "SqlStatement": "CREATE TABLE date_multirange_table (\n    id integer NOT NULL,\n    project_dates datemultirange\n);",
-            "FilePath": "/home/runner/work/yb-voyager/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
