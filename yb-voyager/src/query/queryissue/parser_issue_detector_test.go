@@ -493,8 +493,26 @@ func TestWithTies(t *testing.T) {
 		ORDER BY salary DESC
 		FETCH FIRST 2 ROWS WITH TIES;`
 
+	// subquery
+	stmt2 := `SELECT *
+	FROM (
+		SELECT * FROM employees
+		ORDER BY salary DESC
+		FETCH FIRST 2 ROWS WITH TIES
+	) AS top_employees;`
+
+	stmt3 := `CREATE VIEW top_employees_view AS
+		SELECT *
+		FROM (
+			SELECT * FROM employees
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;`
+
 	expectedIssues := map[string][]QueryIssue{
 		stmt1: []QueryIssue{NewLimitWithTiesIssue("DML_QUERY", "", stmt1)},
+		stmt2: []QueryIssue{NewLimitWithTiesIssue("DML_QUERY", "", stmt2)},
+		stmt3: []QueryIssue{NewLimitWithTiesIssue("VIEW", "top_employees_view", stmt3)},
 	}
 
 	parserIssueDetector := NewParserIssueDetector()
