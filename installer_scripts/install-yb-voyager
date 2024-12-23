@@ -12,7 +12,7 @@ LOG_FILE=/tmp/install-yb-voyager.log
 VERSION="latest"
 
 ONLY_PG="false"
-NO_DEBEZIUM_SETUP="false"
+SKIP_DEBEZIUM="false"
 
 trap on_exit EXIT
 
@@ -324,7 +324,7 @@ check_java() {
 }
 
 install_debezium_server(){
-	if [ $NO_DEBEZIUM_SETUP == "true" ] ; then
+	if [ $SKIP_DEBEZIUM == "true" ] ; then
 		return
 	fi
 
@@ -543,7 +543,7 @@ rebuild_voyager_local() {
 get_passed_options() {
 	if [ "$1" == "linux" ]
 	then
-		OPTS=$(getopt -o "lpnvV", --long install-from-local-source,only-pg-support,no-debezium,rebuild-voyager-local,version: --name 'install-yb-voyager' -- $ARGS_LINUX)
+		OPTS=$(getopt -o "lpnvV", --long install-from-local-source,only-pg-support,skip-debezium,rebuild-voyager-local,version: --name 'install-yb-voyager' -- $ARGS_LINUX)
 	else
 		OPTS=$(getopt  lpvV  $ARGS_MACOS)
 	fi
@@ -560,11 +560,11 @@ get_passed_options() {
 				ONLY_PG="true"; 
 				shift 
 				;;
-			-n | --no-debezium )
-				NO_DEBEZIUM_SETUP="true"
+			--skip-debezium )
+				SKIP_DEBEZIUM="true"
 				shift
 				;;
-			-v | --rebuild-voyager-local )
+			--rebuild-voyager-local )
 				REBUILD_VOYAGER_LOCAL="true";
 				shift
 				;;
