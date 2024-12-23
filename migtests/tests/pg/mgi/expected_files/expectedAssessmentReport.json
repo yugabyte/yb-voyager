@@ -13641,6 +13641,11 @@
 					"ObjectType": "FUNCTION",
 					"ObjectName": "mgd.seq_split",
 					"SqlStatement": "acc_accession.accID%TYPE"
+				},
+				{
+					"ObjectType": "FUNCTION",
+					"ObjectName": "mgd.mgi_resetageminmax",
+					"SqlStatement": "prb_source.age%TYPE"
 				}
 			],
 			"MinimumVersionsFixedIn": null,
