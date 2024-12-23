@@ -487,13 +487,29 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 }
 
 func TestWithTies(t *testing.T) {
-	stmt := `
+
+	stmt1 := `
 	SELECT * FROM employees
 		ORDER BY salary DESC
 		FETCH FIRST 2 ROWS WITH TIES;`
+
+	expectedIssues := map[string][]QueryIssue{
+		stmt1: []QueryIssue{NewLimitWithTiesIssue("DML_QUERY", "", stmt1)},
+	}
+
 	parserIssueDetector := NewParserIssueDetector()
-	issues, err := parserIssueDetector.getDMLIssues(stmt)
-	fatalIfError(t, err)
-	assert.Equal(t, 1, len(issues))
-	assert.True(t, cmp.Equal(issues[0], NewLimitWithTiesIssue("DML_QUERY", "", stmt)))
+
+	for stmt, expectedIssues := range expectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
 }

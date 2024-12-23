@@ -25,7 +25,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
@@ -56,17 +55,6 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_FUNCCALL_NODE {
 		return nil
-	}
-
-	protoMsg := msg.Interface().(proto.Message)
-	funcCallNode, ok := protoMsg.(*pg_query.FuncCall)
-	if !ok {
-		return fmt.Errorf("failed to cast %s to %s", queryparser.PG_QUERY_FUNCCALL_NODE, queryparser.PG_QUERY_FUNCCALL_NODE)
-	}
-	funcNames := funcCallNode.Funcname
-	for _, funcName := range funcNames {
-		log.Infof("fetched function name from %s node: %q", queryparser.PG_QUERY_FUNCCALL_NODE, funcName.String())
-		utils.PrintAndLog("funcName = %s", funcName.Node.(*pg_query.Node_String_).String_.Sval)
 	}
 
 	_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
@@ -224,13 +212,13 @@ func (d *SelectStmtDetector) getSelectStmtFromProto(msg protoreflect.Message) (*
 	return selectStmtNode, nil
 }
 
-// Detect checks if a SelectStmt node uses a LIMIT clause with TIES
 func (d *SelectStmtDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_SELECTSTMT_NODE {
 		selectStmtNode, err := d.getSelectStmtFromProto(msg)
 		if err != nil {
 			return err
 		}
+		// checks if a SelectStmt node uses a LIMIT clause with TIES
 		if selectStmtNode.LimitOption == pg_query.LimitOption_LIMIT_OPTION_WITH_TIES {
 			d.limitOptionWithTiesDetected = true
 		}

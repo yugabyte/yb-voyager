@@ -20,7 +20,6 @@ import (
 	"slices"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -115,7 +114,7 @@ func TraverseParseTree(msg protoreflect.Message, visited map[protoreflect.Messag
 	visited[msg] = true
 
 	nodeType := msg.Descriptor().FullName()
-	utils.PrintAndLog("Traversing NodeType: %s\n", nodeType)
+	log.Debugf("Traversing NodeType: %s\n", nodeType)
 	// applying the processor to the current node
 	if err := processor(msg); err != nil {
 		log.Debugf("error processing node %s: %v", nodeType, err)
@@ -169,26 +168,7 @@ func TraverseNodeFields(msg protoreflect.Message, visited map[protoreflect.Messa
 				continue // Skip unset fields in the oneof group
 			}
 		}
-		utils.PrintAndLog("Field: %s, Type: %s\n", fieldDesc.Name(), fieldDesc.Kind())
-		// if fieldDesc.Name() == "limit_option" {
-		// 	protoMsg := msg.Interface().(proto.Message)
-		// 	selectStmt, ok := protoMsg.(*pg_query.SelectStmt)
-		// 	if !ok {
-		// 		return fmt.Errorf("error casting message to SelectStmt: %v", selectStmt)
-		// 	}
-
-		// 	// bytes, err := proto.Marshal(msg.Interface().(proto.Message))
-		// 	// if err != nil {
-		// 	// 	return fmt.Errorf("error marshalling message: %w", err)
-		// 	// }
-		// 	// var selectStmt pg_query.SelectStmt
-		// 	// err = proto.Unmarshal(bytes, &selectStmt)
-		// 	// if err != nil {
-		// 	// 	return fmt.Errorf("error unmarshalling message: %w", err)
-		// 	// }
-
-		// 	utils.PrintAndLog("Field: %s, Type: %s\n", fieldDesc.Name(), fieldDesc.Kind())
-		// }
+		log.Debugf("Field: %s, Type: %s\n", fieldDesc.Name(), fieldDesc.Kind())
 		value := msg.Get(fieldDesc)
 		switch {
 		case fieldDesc.IsList() && fieldDesc.Kind() == protoreflect.MessageKind:
