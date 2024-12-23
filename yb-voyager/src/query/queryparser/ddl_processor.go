@@ -23,7 +23,6 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // Base parser interface
@@ -855,6 +854,7 @@ func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 	viewSchemaName := viewNode.ViewStmt.View.Schemaname
 	viewName := viewNode.ViewStmt.View.Relname
 	qualifiedViewName := lo.Ternary(viewSchemaName == "", viewName, viewSchemaName+"."+viewName)
+
 	/*
 		view_stmt:{view:{schemaname:"public" relname:"invoker_view" inh:true relpersistence:"p" location:12}
 		query:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"id"}} location:95}} location:95}}
@@ -864,26 +864,13 @@ func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 		options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
 		with_check_option:NO_CHECK_OPTION}
 	*/
-
 	log.Infof("checking the view '%s' is security invoker view", qualifiedViewName)
-	securityInvokerView := false
-	withClauseParamsComparator := func(msg protoreflect.Message) error {
-		if GetMsgFullName(msg) != PG_QUERY_DEFELEM_NODE {
-			return nil
-		}
-
-		fieldVal := GetStringField(msg, "defname")
-		log.Debugf("fieldVal of defname is: %s\n", fieldVal)
-		if fieldVal == "security_invoker" {
-			log.Infof("detected the view '%s' as security invoker view", qualifiedViewName)
-			securityInvokerView = true
-		}
-		return nil
-	}
-
 	msg := GetProtoMessageFromParseTree(parseTree)
-	visited := make(map[protoreflect.Message]bool)
-	TraverseParseTree(msg, visited, withClauseParamsComparator)
+	defNames := TraverseAndExtractDefNamesFromDefElem(msg)
+	securityInvokerView := false
+	if slices.Contains(defNames, "security_invoker") {
+		securityInvokerView = true
+	}
 
 	view := View{
 		SchemaName:      viewSchemaName,

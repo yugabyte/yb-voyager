@@ -385,3 +385,21 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 	}
 	return schemaName, objectName
 }
+
+func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) []string {
+	var defNames []string
+
+	collectorFunc := func(msg protoreflect.Message) error {
+		if GetMsgFullName(msg) != PG_QUERY_DEFELEM_NODE {
+			return nil
+		}
+
+		fieldVal := GetStringField(msg, "defname")
+		defNames = append(defNames, fieldVal)
+		return nil
+	}
+	visited := make(map[protoreflect.Message]bool)
+	TraverseParseTree(msg, visited, collectorFunc)
+
+	return defNames
+}
