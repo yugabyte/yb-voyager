@@ -364,23 +364,23 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- SECURITY INVOKER VIEW
-CREATE TABLE public.employees (
-    employee_id SERIAL PRIMARY KEY,
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
-    department VARCHAR(50)
-);
+-- CREATE TABLE public.employees (
+--     employee_id SERIAL PRIMARY KEY,
+--     first_name VARCHAR(100),
+--     last_name VARCHAR(100),
+--     department VARCHAR(50)
+-- );
 
-INSERT INTO public.employees (first_name, last_name, department)
-VALUES 
-    ('Alice', 'Smith', 'HR'),
-    ('Bob', 'Jones', 'Finance'),
-    ('Charlie', 'Brown', 'IT'),
-    ('Diana', 'Prince', 'HR'),
-    ('Ethan', 'Hunt', 'Security');
+-- INSERT INTO public.employees (first_name, last_name, department)
+-- VALUES 
+--     ('Alice', 'Smith', 'HR'),
+--     ('Bob', 'Jones', 'Finance'),
+--     ('Charlie', 'Brown', 'IT'),
+--     ('Diana', 'Prince', 'HR'),
+--     ('Ethan', 'Hunt', 'Security');
 
-CREATE VIEW public.view_explicit_security_invoker
-WITH (security_invoker = true) AS
-    SELECT employee_id, first_name
-    FROM public.employees;
+-- CREATE VIEW public.view_explicit_security_invoker
+-- WITH (security_invoker = true) AS
+--     SELECT employee_id, first_name
+--     FROM public.employees;
 
