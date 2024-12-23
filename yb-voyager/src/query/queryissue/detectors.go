@@ -226,7 +226,8 @@ func (d *SelectStmtDetector) Detect(msg protoreflect.Message) error {
 		if err != nil {
 			return err
 		}
-		// checks if a SelectStmt node uses a LIMIT clause with TIES
+		// checks if a SelectStmt node uses a FETCH clause with TIES
+		// https://www.postgresql.org/docs/13/sql-select.html#SQL-LIMIT
 		if selectStmtNode.LimitOption == pg_query.LimitOption_LIMIT_OPTION_WITH_TIES {
 			d.limitOptionWithTiesDetected = true
 		}
@@ -237,7 +238,7 @@ func (d *SelectStmtDetector) Detect(msg protoreflect.Message) error {
 func (d *SelectStmtDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.limitOptionWithTiesDetected {
-		issues = append(issues, NewLimitWithTiesIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		issues = append(issues, NewFetchWithTiesIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }

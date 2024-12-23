@@ -83,15 +83,15 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var limitWithTiesIssue = issue.Issue{
-	Type:            LIMIT_WITH_TIES,
-	TypeName:        "LIMIT .. WITH TIES",
-	TypeDescription: "LIMIT WITH TIES is not supported in YugabyteDB",
-	Suggestion:      "LIMIT WITH TIES is not yet supported in YugabyteDB, no workaround available right now",
+var fetchWithTiesIssue = issue.Issue{
+	Type:            FETCH_WITH_TIES,
+	TypeName:        "FETCH .. WITH TIES",
+	TypeDescription: "FETCH .. WITH TIES is not supported in YugabyteDB",
+	Suggestion:      "No workaround available right now",
 	GH:              "",
 	DocsLink:        "", //TODO
 }
 
-func NewLimitWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(limitWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(fetchWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

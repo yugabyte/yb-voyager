@@ -540,11 +540,11 @@ func TestWithTies(t *testing.T) {
 		) AS top_employees;`
 
 	expectedIssues := map[string][]QueryIssue{
-		stmt1: []QueryIssue{NewLimitWithTiesIssue("DML_QUERY", "", stmt1)},
-		stmt2: []QueryIssue{NewLimitWithTiesIssue("DML_QUERY", "", stmt2)},
+		stmt1: []QueryIssue{NewFetchWithTiesIssue("DML_QUERY", "", stmt1)},
+		stmt2: []QueryIssue{NewFetchWithTiesIssue("DML_QUERY", "", stmt2)},
 	}
 	expectedDDLIssues := map[string][]QueryIssue{
-		stmt3: []QueryIssue{NewLimitWithTiesIssue("VIEW", "top_employees_view", stmt3)},
+		stmt3: []QueryIssue{NewFetchWithTiesIssue("VIEW", "top_employees_view", stmt3)},
 	}
 
 	parserIssueDetector := NewParserIssueDetector()
