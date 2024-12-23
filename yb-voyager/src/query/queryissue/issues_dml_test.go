@@ -40,6 +40,25 @@ func testLOFunctionsIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "Transaction for catalog table write operation 'pg_largeobject_metadata' not found", loDatatypeIssue)
 }
 
+func testRegexFunctionsIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+
+	stmts := []string{
+		`SELECT regexp_count('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_instr('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_like('This is an example. Another example. Example is a common word.', 'example')`,
+	}
+
+	for _, stmt := range stmts {
+		_, err = conn.Exec(ctx, stmt)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", regexFunctionsIssue)
+	}
+}
+
 func TestDMLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -66,6 +85,9 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 
 	// run tests
 	success := t.Run(fmt.Sprintf("%s-%s", "lo functions", ybVersion), testLOFunctionsIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "regex functions", ybVersion), testRegexFunctionsIssue)
 	assert.True(t, success)
 
 }

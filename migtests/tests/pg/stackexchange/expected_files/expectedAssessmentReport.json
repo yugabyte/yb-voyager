@@ -383,6 +383,11 @@
 			"FeatureName": "Large Object Functions",
 			"Objects": [],
 			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Regex Functions",
+			"Objects": [],
+			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",

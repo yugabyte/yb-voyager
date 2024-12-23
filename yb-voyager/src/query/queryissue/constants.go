@@ -59,6 +59,8 @@ const (
 	ADVISORY_LOCKS_NAME = "Advisory Locks"
 	SYSTEM_COLUMNS_NAME = "System Columns"
 	XML_FUNCTIONS_NAME  = "XML Functions"
+
+	REGEX_FUNCTIONS = "REGEX_FUNCTIONS"
 )
 
 // Object types
