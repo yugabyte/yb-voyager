@@ -29,11 +29,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -76,6 +78,12 @@ func (pg *TargetPostgreSQL) Exec(query string) (int64, error) {
 
 	res, err := pg.db.Exec(query)
 	if err != nil {
+		var pgErr *pgconn5.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Hint != "" || pgErr.Detail != "" {
+				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, pg.tconf.Host, err, pgErr.Hint, pgErr.Detail)
+			}
+		}
 		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
 	}
 	rowsAffected, err = res.RowsAffected()
@@ -785,7 +793,7 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	tables := []sqlname.NameTuple{}
 	for _, tableName := range tableNames {
 		parts := strings.Split(tableName, ".")
-		objName := sqlname.NewObjectName(sqlname.POSTGRESQL, "", parts[0], parts[1])
+		objName := sqlname.NewObjectName(constants.POSTGRESQL, "", parts[0], parts[1])
 		nt := sqlname.NameTuple{
 			CurrentName: objName,
 			SourceName:  objName,

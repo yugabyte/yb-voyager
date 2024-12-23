@@ -7,6 +7,7 @@ SELECT
     CASE
         WHEN c.data_type = 'ARRAY' THEN c.udt_schema || '.' || SUBSTRING(c.udt_name FROM 2) || '[]'  -- Removes leading _ for array types and appends []
         WHEN c.data_type = 'USER-DEFINED' THEN c.udt_schema || '.' || c.udt_name -- in case of User defined types using udt_name
+        WHEN c.domain_name <> '' THEN c.domain_name -- in case of datatype is a domain name expected type is domain_name e.g "lo" is a domain name over oid https://www.postgresql.org/docs/current/lo.html#LO-RATIONALE:~:text=The%20module%20also%20provides%20a%20data%20type%20lo%2C%20which%20is%20really%20just%20a%20domain%20over%20the%20oid%20type
         ELSE c.data_type -- in native type cases using data_type
     END AS data_type
 FROM

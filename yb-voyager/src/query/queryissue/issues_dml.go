@@ -56,3 +56,29 @@ var xmlFunctionsIssue = issue.Issue{
 func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var regexFunctionsIssue = issue.Issue{
+	Type:            REGEX_FUNCTIONS,
+	TypeName:        "Regex Functions",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(regexFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var loFunctionsIssue = issue.Issue{
+	Type:            LARGE_OBJECT_FUNCTIONS,
+	TypeName:        LARGE_OBJECT_FUNCTIONS_NAME,
+	TypeDescription: "Large Objects functions are not supported in YugabyteDB",
+	Suggestion:      "Large objects functions are not yet supported in YugabyteDB, no workaround available right now",
+	GH:              "https://github.com/yugabyte/yugabyte-db/issues/25318",
+	DocsLink:        "", //TODO
+}
+
+func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

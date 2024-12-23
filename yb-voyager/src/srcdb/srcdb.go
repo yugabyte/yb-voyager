@@ -33,7 +33,6 @@ type SourceDB interface {
 	GetConnectionUriWithoutPassword() string
 	GetTableRowCount(tableName sqlname.NameTuple) (int64, error)
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
-	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
@@ -58,7 +57,7 @@ type SourceDB interface {
 	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)
 	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error)
-	GetMissingAssessMigrationPermissions() ([]string, error)
+	GetMissingAssessMigrationPermissions() ([]string, bool, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)
 }

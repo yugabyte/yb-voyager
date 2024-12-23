@@ -29,9 +29,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -192,8 +194,33 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlna
 	return result
 }
 
+// There are some restrictions on TRUNCATE TABLE in oracle
+// https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/TRUNCATE-TABLE.html#:~:text=cursors%20are%20invalidated.-,Restrictions%20on%20Truncating%20Tables,-This%20statement%20is
+// Notable ones include:
+//  1. You cannot truncate a table that has a foreign key constraint. This is not a problem because in our fall-forward workflow,
+//     we ask users to disable foreign key constraints before starting the migration.
+//  2. You cannot truncate a table that is part of a cluster. This will fail.
+//  3. You cannot truncate the parent table of a reference-partitioned table. This will fail. voyager does not support reference partitioned tables migration.
+//
+// Given that there are some cases where it might fail, we attempt to truncate all tables wherever possible,
+// and accumulate all the errors and return them as a single error.
 func (tdb *TargetOracleDB) TruncateTables(tables []sqlname.NameTuple) error {
-	return fmt.Errorf("truncate tables not implemented for oracle")
+	tableNames := lo.Map(tables, func(nt sqlname.NameTuple, _ int) string {
+		return nt.ForUserQuery()
+	})
+	var errors []error
+
+	for _, tableName := range tableNames {
+		query := fmt.Sprintf("TRUNCATE TABLE %s", tableName)
+		_, err := tdb.Exec(query)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("truncate table %q: %w", tableName, err))
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("truncate tables: %v", errors)
+	}
+	return nil
 }
 
 func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
@@ -691,7 +718,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 	tables := []sqlname.NameTuple{}
 	for _, tableName := range tableNames {
 		parts := strings.Split(tableName, ".")
-		objName := sqlname.NewObjectName(sqlname.ORACLE, "", parts[0], strings.ToUpper(parts[1]))
+		objName := sqlname.NewObjectName(constants.ORACLE, "", parts[0], strings.ToUpper(parts[1]))
 		nt := sqlname.NameTuple{
 			CurrentName: objName,
 			SourceName:  objName,

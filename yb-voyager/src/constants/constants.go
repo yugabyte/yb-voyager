@@ -12,27 +12,17 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/package srcdb
+*/
+package constants
 
-import (
-	"fmt"
-	"os"
-	"path"
-	"strings"
+const (
+	// Database Object types
+	TABLE    = "table"
+	FUNCTION = "function"
+
+	// Source DB Types
+	YUGABYTEDB = "yugabytedb"
+	POSTGRESQL = "postgresql"
+	ORACLE     = "oracle"
+	MYSQL      = "mysql"
 )
-
-func findAllExecutablesInPath(executableName string) ([]string, error) {
-	pathString := os.Getenv("PATH")
-	if pathString == "" {
-		return nil, fmt.Errorf("PATH environment variable is not set")
-	}
-	paths := strings.Split(pathString, string(os.PathListSeparator))
-	var result []string
-	for _, dir := range paths {
-		fullPath := path.Join(dir, executableName)
-		if _, err := os.Stat(fullPath); err == nil {
-			result = append(result, fullPath)
-		}
-	}
-	return result, nil
-}

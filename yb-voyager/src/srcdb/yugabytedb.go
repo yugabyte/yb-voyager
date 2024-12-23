@@ -70,10 +70,6 @@ func (yb *YugabyteDB) Disconnect() {
 	}
 }
 
-func (yb *YugabyteDB) CheckRequiredToolsAreInstalled() {
-	checkTools("strings")
-}
-
 func (yb *YugabyteDB) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
@@ -1056,8 +1052,8 @@ func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTa
 	return nil, nil
 }
 
-func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, error) {
-	return nil, nil
+func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (yb *YugabyteDB) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {

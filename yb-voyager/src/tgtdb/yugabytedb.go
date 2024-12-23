@@ -40,6 +40,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -242,7 +243,9 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
-	log.Info("Initialized connection pool with settings: ", spew.Sdump(params))
+	redactedParams := params
+	redactedParams.ConnUriList = utils.GetRedactedURLs(redactedParams.ConnUriList)
+	log.Info("Initialized connection pool with settings: ", spew.Sdump(redactedParams))
 	return nil
 }
 
@@ -1320,7 +1323,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	tables := []sqlname.NameTuple{}
 	for _, tableName := range tableNames {
 		parts := strings.Split(tableName, ".")
-		objName := sqlname.NewObjectName(sqlname.YUGABYTEDB, "", parts[0], parts[1])
+		objName := sqlname.NewObjectName(constants.YUGABYTEDB, "", parts[0], parts[1])
 		nt := sqlname.NameTuple{
 			CurrentName: objName,
 			SourceName:  objName,

@@ -173,6 +173,7 @@ CREATE TYPE public.address_type AS (
     zip_code VARCHAR(10)
 );
 
+CREATE EXTENSION lo;
 --other misc types
 create table public.combined_tbl (
 	id int, 
@@ -185,6 +186,7 @@ create table public.combined_tbl (
 	bitt bit (13),
 	bittv bit varying(15) UNIQUE,
     address address_type,
+    raster lo,
     arr_enum enum_kind[],
     PRIMARY KEY (id, arr_enum)
 );
@@ -240,7 +242,8 @@ EXECUTE FUNCTION public.check_sales_region();
     product_name TEXT NOT NULL,
     quantity INT NOT NULL,
     price NUMERIC(10, 2) NOT NULL,
-    processed_at timestamp
+    processed_at timestamp,
+    r INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example') -- regex functions in default
 );
 
 INSERT INTO public.ordersentry (customer_name, product_name, quantity, price)
@@ -345,5 +348,17 @@ BEGIN
 
     RAISE NOTICE 'Updated record with ID: %, CIDR: %, BIT: %, Date range: %', 
         p_id, p_c, p_bitt, p_d;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON public.combined_tbl
+    FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);
+
+CREATE OR REPLACE FUNCTION public.manage_large_object(loid OID) RETURNS VOID AS $$
+BEGIN
+    IF loid IS NOT NULL THEN
+        -- Unlink the large object to free up storage
+        PERFORM lo_unlink(loid);
+    END IF;
 END;
 $$ LANGUAGE plpgsql;

@@ -16,101 +16,142 @@ limitations under the License.
 package queryissue
 
 import (
+	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
-const (
-	ADVISORY_LOCKS_NAME = "Advisory Locks"
-	SYSTEM_COLUMNS_NAME = "System Columns"
-	XML_FUNCTIONS_NAME  = "XML Functions"
-)
-
 // To Add a new unsupported query construct implement this interface for all possible nodes for that construct
 // each detector will work on specific type of node
 type UnsupportedConstructDetector interface {
-	Detect(msg protoreflect.Message) ([]string, error)
+	Detect(msg protoreflect.Message) error
+	GetIssues() []QueryIssue
 }
 
 type FuncCallDetector struct {
-	// right now it covers Advisory Locks and XML functions
-	unsupportedFuncs map[string]string
+	query string
+
+	advisoryLocksFuncsDetected mapset.Set[string]
+	xmlFuncsDetected           mapset.Set[string]
+	regexFuncsDetected         mapset.Set[string]
+	loFuncsDetected            mapset.Set[string]
 }
 
-func NewFuncCallDetector() *FuncCallDetector {
-	unsupportedFuncs := make(map[string]string)
-	for _, fname := range unsupportedAdvLockFuncs {
-		unsupportedFuncs[fname] = ADVISORY_LOCKS_NAME
-	}
-	for _, fname := range unsupportedXmlFunctions {
-		unsupportedFuncs[fname] = XML_FUNCTIONS_NAME
-	}
-
+func NewFuncCallDetector(query string) *FuncCallDetector {
 	return &FuncCallDetector{
-		unsupportedFuncs: unsupportedFuncs,
+		query:                      query,
+		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
+		xmlFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
+		regexFuncsDetected:         mapset.NewThreadUnsafeSet[string](),
+		loFuncsDetected:            mapset.NewThreadUnsafeSet[string](),
 	}
 }
 
 // Detect checks if a FuncCall node uses an unsupported function.
-func (d *FuncCallDetector) Detect(msg protoreflect.Message) ([]string, error) {
+func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_FUNCCALL_NODE {
-		return nil, nil
+		return nil
 	}
 
 	_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
 	log.Debugf("fetched function name from %s node: %q", queryparser.PG_QUERY_FUNCCALL_NODE, funcName)
-	if constructType, isUnsupported := d.unsupportedFuncs[funcName]; isUnsupported {
-		log.Debugf("detected unsupported function %q in msg - %+v", funcName, msg)
-		return []string{constructType}, nil
+
+	if unsupportedAdvLockFuncs.ContainsOne(funcName) {
+		d.advisoryLocksFuncsDetected.Add(funcName)
 	}
-	return nil, nil
+	if unsupportedXmlFunctions.ContainsOne(funcName) {
+		d.xmlFuncsDetected.Add(funcName)
+	}
+	if unsupportedRegexFunctions.ContainsOne(funcName) {
+		d.regexFuncsDetected.Add(funcName)
+	}
+
+	if unsupportedLargeObjectFunctions.ContainsOne(funcName) {
+		d.loFuncsDetected.Add(funcName)
+	}
+
+	return nil
+}
+
+func (d *FuncCallDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.advisoryLocksFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewAdvisoryLocksIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.xmlFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.regexFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.loFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
 }
 
 type ColumnRefDetector struct {
-	unsupportedColumns map[string]string
+	query                            string
+	unsupportedSystemColumnsDetected mapset.Set[string]
 }
 
-func NewColumnRefDetector() *ColumnRefDetector {
-	unsupportedColumns := make(map[string]string)
-	for _, colName := range unsupportedSysCols {
-		unsupportedColumns[colName] = SYSTEM_COLUMNS_NAME
-	}
-
+func NewColumnRefDetector(query string) *ColumnRefDetector {
 	return &ColumnRefDetector{
-		unsupportedColumns: unsupportedColumns,
+		query:                            query,
+		unsupportedSystemColumnsDetected: mapset.NewThreadUnsafeSet[string](),
 	}
 }
 
 // Detect checks if a ColumnRef node uses an unsupported system column
-func (d *ColumnRefDetector) Detect(msg protoreflect.Message) ([]string, error) {
+func (d *ColumnRefDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_COLUMNREF_NODE {
-		return nil, nil
+		return nil
 	}
 
 	_, colName := queryparser.GetColNameFromColumnRef(msg)
 	log.Debugf("fetched column name from %s node: %q", queryparser.PG_QUERY_COLUMNREF_NODE, colName)
-	if constructType, isUnsupported := d.unsupportedColumns[colName]; isUnsupported {
-		log.Debugf("detected unsupported system column %q in msg - %+v", colName, msg)
-		return []string{constructType}, nil
+
+	if unsupportedSysCols.ContainsOne(colName) {
+		d.unsupportedSystemColumnsDetected.Add(colName)
 	}
-	return nil, nil
+	return nil
 }
 
-type XmlExprDetector struct{}
+func (d *ColumnRefDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.unsupportedSystemColumnsDetected.Cardinality() > 0 {
+		issues = append(issues, NewSystemColumnsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
 
-func NewXmlExprDetector() *XmlExprDetector {
-	return &XmlExprDetector{}
+type XmlExprDetector struct {
+	query    string
+	detected bool
+}
+
+func NewXmlExprDetector(query string) *XmlExprDetector {
+	return &XmlExprDetector{
+		query: query,
+	}
 }
 
 // Detect checks if a XmlExpr node is present, means Xml type/functions are used
-func (d *XmlExprDetector) Detect(msg protoreflect.Message) ([]string, error) {
+func (d *XmlExprDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_XMLEXPR_NODE {
-		log.Debug("detected xml expression")
-		return []string{XML_FUNCTIONS_NAME}, nil
+		d.detected = true
 	}
-	return nil, nil
+	return nil
+}
+
+func (d *XmlExprDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.detected {
+		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
 }
 
 /*
@@ -126,18 +167,31 @@ ASSUMPTION:
 
 - link: https://github.com/postgres/postgres/blob/ea792bfd93ab8ad4ef4e3d1a741b8595db143677/src/include/nodes/parsenodes.h#L651
 */
-type RangeTableFuncDetector struct{}
+type RangeTableFuncDetector struct {
+	query    string
+	detected bool
+}
 
-func NewRangeTableFuncDetector() *RangeTableFuncDetector {
-	return &RangeTableFuncDetector{}
+func NewRangeTableFuncDetector(query string) *RangeTableFuncDetector {
+	return &RangeTableFuncDetector{
+		query: query,
+	}
 }
 
 // Detect checks if a RangeTableFunc node is present for a XMLTABLE() function
-func (d *RangeTableFuncDetector) Detect(msg protoreflect.Message) ([]string, error) {
+func (d *RangeTableFuncDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_RANGETABLEFUNC_NODE {
 		if queryparser.IsXMLTable(msg) {
-			return []string{XML_FUNCTIONS_NAME}, nil
+			d.detected = true
 		}
 	}
-	return nil, nil
+	return nil
+}
+
+func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.detected {
+		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
 }

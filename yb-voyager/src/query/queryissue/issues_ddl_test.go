@@ -22,9 +22,9 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -73,32 +73,6 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	}
 }
 
-func getConnWithNoticeHandler(noticeHandler func(*pgconn.PgConn, *pgconn.Notice)) (*pgx.Conn, error) {
-	ctx := context.Background()
-	var connStr string
-	var err error
-	if testYugabytedbConnStr != "" {
-		connStr = testYugabytedbConnStr
-	} else {
-		connStr, err = testYugabytedbContainer.YSQLConnectionString(ctx, "sslmode=disable")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	conf, err := pgx.ParseConfig(connStr)
-	if err != nil {
-		return nil, err
-	}
-	conf.OnNotice = noticeHandler
-	conn, err := pgx.ConnectConfig(ctx, conf)
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
-}
-
 func testXMLFunctionIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -126,26 +100,14 @@ func testStoredGeneratedFunctionsIssue(t *testing.T) {
 }
 
 func testUnloggedTableIssue(t *testing.T) {
-	noticeFound := false
-	noticeHandler := func(conn *pgconn.PgConn, notice *pgconn.Notice) {
-		if notice != nil && notice.Message != "" {
-			assert.Equal(t, "unlogged option is currently ignored in YugabyteDB, all non-temp tables will be logged", notice.Message)
-			noticeFound = true
-		}
-	}
 	ctx := context.Background()
-	conn, err := getConnWithNoticeHandler(noticeHandler)
+	conn, err := getConn()
 	assert.NoError(t, err)
 
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, "CREATE UNLOGGED TABLE unlogged_table (a int)")
-	// in 2024.2, UNLOGGED no longer throws an error, just a notice
-	if noticeFound {
-		return
-	} else {
-		assert.ErrorContains(t, err, "UNLOGGED database object not supported yet")
-	}
 
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "UNLOGGED database object not supported yet", unloggedTableIssue)
 }
 
 func testAlterTableAddPKOnPartitionIssue(t *testing.T) {
@@ -242,11 +204,23 @@ func testStorageParameterIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unrecognized parameter", storageParameterIssue)
 }
 
+func testLoDatatypeIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE image (title text, raster lo);`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", loDatatypeIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
-		panic("YB_VERSION env variable is not set. Set YB_VERSIONS=2024.1.3.0-b105 for example")
+		panic("YB_VERSION env variable is not set. Set YB_VERSION=2024.1.3.0-b105 for example")
 	}
 
 	ybVersionWithoutBuild := strings.Split(ybVersion, "-")[0]
@@ -290,6 +264,9 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "storage parameter", ybVersion), testStorageParameterIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "lo datatype", ybVersion), testLoDatatypeIssue)
 	assert.True(t, success)
 
 }
