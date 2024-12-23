@@ -984,9 +984,9 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
 	for _, indexMethod := range queryissue.UnsupportedIndexMethods {
 		displayIndexMethod := strings.ToUpper(indexMethod)
-		feature := fmt.Sprintf("%s indexes", displayIndexMethod)
+		featureName := fmt.Sprintf("%s indexes", displayIndexMethod)
 		reason := fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, displayIndexMethod)
-		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(feature, reason, "", schemaAnalysisReport, false, ""))
+		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(featureName, reason, "", schemaAnalysisReport, false, ""))
 	}
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONSTRAINT_TRIGGERS_FEATURE, CONSTRAINT_TRIGGER_ISSUE_REASON, "", schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(INHERITED_TABLES_FEATURE, INHERITANCE_ISSUE_REASON, "", schemaAnalysisReport, false, ""))
@@ -1015,7 +1015,9 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LARGE_OBJECT_FUNCTIONS_NAME, queryissue.LARGE_OBJECT_FUNCTIONS_NAME, "", schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REGEX_FUNCTIONS_FEATURE, "", queryissue.REGEX_FUNCTIONS, schemaAnalysisReport, false, ""))
 
-	return unsupportedFeatures, nil
+	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
+		return len(f.Objects) > 0
+	}), nil
 }
 
 func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.SchemaReport, unsupportedIndexDatatypes []string) UnsupportedFeature {
@@ -1038,7 +1040,6 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 			}
 		}
 	}
-
 	return indexesOnComplexTypesFeature
 }
 
@@ -1046,7 +1047,9 @@ func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.S
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(COMPOUND_TRIGGER_FEATURE, COMPOUND_TRIGGER_ISSUE_REASON, "", schemaAnalysisReport, false, ""))
-	return unsupportedFeatures, nil
+	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
+		return len(f.Objects) > 0
+	}), nil
 }
 
 var OracleUnsupportedIndexTypes = []string{"CLUSTER INDEX", "DOMAIN INDEX", "FUNCTION-BASED DOMAIN INDEX", "IOT - TOP INDEX", "NORMAL/REV INDEX", "FUNCTION-BASED NORMAL/REV INDEX"}
@@ -1095,7 +1098,9 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{VIRTUAL_COLUMNS_FEATURE, virtualColumns, false, "", "", nil})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{INHERITED_TYPES_FEATURE, inheritedTypes, false, "", "", nil})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_PARTITIONING_METHODS_FEATURE, unsupportedPartitionTypes, false, "", "", nil})
-	return unsupportedFeatures, nil
+	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
+		return len(f.Objects) > 0
+	}), nil
 }
 
 func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []UnsupportedFeature {
@@ -1397,16 +1402,26 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			for _, col := range unsupportedDataTypesForLiveMigration {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE, nil})
+			if len(columns) > 0 {
+				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE, nil})
+			}
 		}
 		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, col := range unsupportedDataTypesForLiveMigrationWithFForFB {
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE, nil})
+			if len(columns) > 0 {
+				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE, nil})
+			}
 		}
-		assessmentReport.MigrationCaveats = migrationCaveats
+		migrationCaveats = lo.Filter(migrationCaveats, func(m UnsupportedFeature, _ int) bool {
+			return len(m.Objects) > 0
+		})
+		if len(migrationCaveats) > 0 {
+			assessmentReport.MigrationCaveats = migrationCaveats
+		}
+
 	}
 }
 

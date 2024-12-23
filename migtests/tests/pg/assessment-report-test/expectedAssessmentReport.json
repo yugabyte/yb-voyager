@@ -361,31 +361,6 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
-			"FeatureName": "Conversion objects",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Gin indexes on multi-columns",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Setting attribute=value on column",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Disabling rule on table",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "REFERENCING clause for triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
 			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
 			"Objects": [
 				{
@@ -396,21 +371,6 @@
 			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
 			"MinimumVersionsFixedIn": null
 		},
-		{
-			"FeatureName": "Clustering table on index",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Storage parameters in DDLs",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Extensions",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
 		{
 			"FeatureName": "Exclusion constraints",
 			"Objects": [
@@ -542,11 +502,6 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 		    "MinimumVersionsFixedIn": null
         },
-		{
-			"FeatureName": "Unlogged tables",
-			"Objects": [],
-			"MinimumVersionsFixedIn": null
-		},
 		{
 			"FeatureName": "System Columns",
 			"Objects": [
@@ -2008,18 +1963,6 @@
 		"There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported."
 	],
 	"MigrationCaveats": [
-		{
-			"FeatureName": "Alter partitioned tables to add Primary Key",
-			"Objects": [],
-			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Foreign tables",
-			"Objects": [],
-			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
-		    "MinimumVersionsFixedIn": null
-        },
 		{
 			"FeatureName": "Policies",
 			"Objects": [

@@ -117,21 +117,6 @@
 	"UnsupportedDataTypes": null,
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": [
-        {
-			"FeatureName": "Advisory Locks",
-			"Objects":[],
-			"MinimumVersionsFixedIn":null
-		},
-		{
-			"FeatureName":"System Columns",
-			"Objects":[],
-			"MinimumVersionsFixedIn":null
-		},
-		{
-			"FeatureName": "XML Functions",
-			"Objects": [],
-"MinimumVersionsFixedIn":null
-		},
 		{
 			"FeatureName": "GIST indexes",
 			"Objects": [
@@ -141,31 +126,6 @@
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "BRIN indexes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "SPGIST indexes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Constraint triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "REFERENCING clause for triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
-			"Objects": [],
 		    "MinimumVersionsFixedIn": null
         },
 		{
@@ -198,87 +158,7 @@
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
 		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Large Object Functions",
-			"Objects": [],
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Tables with stored generated columns",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Conversion objects",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Gin indexes on multi-columns",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Setting attribute=value on column",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Disabling rule on table",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Clustering table on index",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Storage parameters in DDLs",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Extensions",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Exclusion constraints",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Deferrable constraints",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "View with check option",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Primary / Unique key constraints on complex datatypes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Index on complex datatypes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Unlogged tables",
-			"Objects": [],
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Regex Functions",
-			"Objects": [],
-			"MinimumVersionsFixedIn": null
-		}
+        }
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
@@ -985,24 +865,6 @@
 	],
 	"Notes": null,
 	"MigrationCaveats": [
-		{
-			"FeatureName": "Alter partitioned tables to add Primary Key",
-			"Objects": [],
-			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Foreign tables",
-			"Objects": [],
-			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Policies",
-			"Objects": [],
-			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.",
-		    "MinimumVersionsFixedIn": null
-        },
 		{
 			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
 			"Objects": [
