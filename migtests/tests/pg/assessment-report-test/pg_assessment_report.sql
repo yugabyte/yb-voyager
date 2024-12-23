@@ -242,7 +242,8 @@ EXECUTE FUNCTION public.check_sales_region();
     product_name TEXT NOT NULL,
     quantity INT NOT NULL,
     price NUMERIC(10, 2) NOT NULL,
-    processed_at timestamp
+    processed_at timestamp,
+    r INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example') -- regex functions in default
 );
 
 INSERT INTO public.ordersentry (customer_name, product_name, quantity, price)

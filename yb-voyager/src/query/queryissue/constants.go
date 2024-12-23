@@ -60,6 +60,7 @@ const (
 	SYSTEM_COLUMNS_NAME = "System Columns"
 	XML_FUNCTIONS_NAME  = "XML Functions"
 	LIMIT_WITH_TIES     = "LIMIT_WITH_TIES"
+	REGEX_FUNCTIONS     = "REGEX_FUNCTIONS"
 )
 
 // Object types

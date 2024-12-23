@@ -486,6 +486,36 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 	assert.Equal(t, 1, len(issues))
 }
 
+func TestRegexFunctionsIssue(t *testing.T) {
+	dmlStmts := []string{
+		`SELECT regexp_count('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_instr('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_like('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_count('abc','abc'), regexp_instr('abc','abc'), regexp_like('abc','abc')`,
+	}
+
+	ddlStmts := []string{
+		`CREATE TABLE x (id INT PRIMARY KEY, id2 INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example'))`,
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+
+	for _, stmt := range dmlStmts {
+		issues, err := parserIssueDetector.getDMLIssues(stmt)
+		fatalIfError(t, err)
+		assert.Equal(t, 1, len(issues))
+		assert.Equal(t, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", stmt), issues[0])
+	}
+
+	for _, stmt := range ddlStmts {
+		issues, err := parserIssueDetector.getDDLIssues(stmt)
+		fatalIfError(t, err)
+		assert.Equal(t, 1, len(issues))
+		assert.Equal(t, NewRegexFunctionsIssue(TABLE_OBJECT_TYPE, "x", stmt), issues[0])
+	}
+
+}
+
 func TestWithTies(t *testing.T) {
 
 	stmt1 := `
@@ -512,13 +542,29 @@ func TestWithTies(t *testing.T) {
 	expectedIssues := map[string][]QueryIssue{
 		stmt1: []QueryIssue{NewLimitWithTiesIssue("DML_QUERY", "", stmt1)},
 		stmt2: []QueryIssue{NewLimitWithTiesIssue("DML_QUERY", "", stmt2)},
+	}
+	expectedDDLIssues := map[string][]QueryIssue{
 		stmt3: []QueryIssue{NewLimitWithTiesIssue("VIEW", "top_employees_view", stmt3)},
 	}
 
 	parserIssueDetector := NewParserIssueDetector()
 
 	for stmt, expectedIssues := range expectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.LatestStable)
+
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+
+	for stmt, expectedIssues := range expectedDDLIssues {
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
 
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
