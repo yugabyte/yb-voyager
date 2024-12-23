@@ -385,3 +385,81 @@ CREATE TABLE public.locations (
 );
 
 CREATE TABLE image (title text, raster lo);
+
+-- create table with multirange data types
+
+CREATE TABLE bigint_multirange_table (
+    id integer NOT NULL,
+    value_ranges int8multirange
+);
+
+
+CREATE TABLE date_multirange_table (
+    id integer NOT NULL,
+    project_dates datemultirange
+);
+
+
+CREATE TABLE int_multirange_table (
+    id integer NOT NULL,
+    value_ranges int4multirange
+);
+
+CREATE TABLE numeric_multirange_table (
+    id integer NOT NULL,
+    price_ranges nummultirange
+);
+
+
+CREATE TABLE timestamp_multirange_table (
+    id integer NOT NULL,
+    event_times tsmultirange
+);
+
+
+CREATE TABLE timestamptz_multirange_table (
+    id integer NOT NULL,
+    global_event_times tstzmultirange
+);
+
+
+ALTER TABLE ONLY bigint_multirange_table ALTER COLUMN id SET DEFAULT nextval('multirange_demo.bigint_multirange_table_id_seq'::regclass);
+
+
+ALTER TABLE ONLY date_multirange_table ALTER COLUMN id SET DEFAULT nextval('multirange_demo.date_multirange_table_id_seq'::regclass);
+
+
+ALTER TABLE ONLY int_multirange_table ALTER COLUMN id SET DEFAULT nextval('multirange_demo.int_multirange_table_id_seq'::regclass);
+
+
+ALTER TABLE ONLY numeric_multirange_table ALTER COLUMN id SET DEFAULT nextval('multirange_demo.numeric_multirange_table_id_seq'::regclass);
+
+
+ALTER TABLE ONLY timestamp_multirange_table ALTER COLUMN id SET DEFAULT nextval('multirange_demo.timestamp_multirange_table_id_seq'::regclass);
+
+
+ALTER TABLE ONLY timestamptz_multirange_table ALTER COLUMN id SET DEFAULT nextval('multirange_demo.timestamptz_multirange_table_id_seq'::regclass);
+
+
+ALTER TABLE ONLY bigint_multirange_table
+    ADD CONSTRAINT bigint_multirange_table_pkey PRIMARY KEY (id);
+
+
+ALTER TABLE ONLY date_multirange_table
+    ADD CONSTRAINT date_multirange_table_pkey PRIMARY KEY (id);
+
+
+ALTER TABLE ONLY int_multirange_table
+    ADD CONSTRAINT int_multirange_table_pkey PRIMARY KEY (id);
+
+
+ALTER TABLE ONLY numeric_multirange_table
+    ADD CONSTRAINT numeric_multirange_table_pkey PRIMARY KEY (id);
+
+
+ALTER TABLE ONLY timestamp_multirange_table
+    ADD CONSTRAINT timestamp_multirange_table_pkey PRIMARY KEY (id);
+
+
+ALTER TABLE ONLY timestamptz_multirange_table
+    ADD CONSTRAINT timestamptz_multirange_table_pkey PRIMARY KEY (id);

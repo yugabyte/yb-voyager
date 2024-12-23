@@ -1930,5 +1930,71 @@
             "Suggestion": "Large objects are not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25318",
             "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "multirange_demo.timestamp_multirange_table",
+            "Reason": "Unsupported datatype - multirange on column - event_times",
+            "SqlStatement": "CREATE TABLE multirange_demo.timestamp_multirange_table (\n    id integer NOT NULL,\n    event_times tsmultirange\n);",
+            "FilePath": "/home/ubuntu/pg_export/schema/tables/table.sql",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "multirange_demo.timestamptz_multirange_table",
+            "Reason": "Unsupported datatype - multirange on column - global_event_times",
+            "SqlStatement": "CREATE TABLE multirange_demo.timestamptz_multirange_table (\n    id integer NOT NULL,\n    global_event_times tstzmultirange\n);",
+            "FilePath": "/home/ubuntu/pg_export/schema/tables/table.sql",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "multirange_demo.int_multirange_table",
+            "Reason": "Unsupported datatype - multirange on column - value_ranges",
+            "SqlStatement": "CREATE TABLE multirange_demo.int_multirange_table (\n    id integer NOT NULL,\n    value_ranges int4multirange\n);",
+            "FilePath": "/home/ubuntu/pg_export/schema/tables/table.sql",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "multirange_demo.numeric_multirange_table",
+            "Reason": "Unsupported datatype - multirange on column - price_ranges",
+            "SqlStatement": "CREATE TABLE multirange_demo.numeric_multirange_table (\n    id integer NOT NULL,\n    price_ranges nummultirange\n);",
+            "FilePath": "/home/ubuntu/pg_export/schema/tables/table.sql",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "multirange_demo.bigint_multirange_table",
+            "Reason": "Unsupported datatype - multirange on column - value_ranges",
+            "SqlStatement": "CREATE TABLE multirange_demo.bigint_multirange_table (\n    id integer NOT NULL,\n    value_ranges int8multirange\n);",
+            "FilePath": "/home/ubuntu/pg_export/schema/tables/table.sql",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "multirange_demo.date_multirange_table",
+            "Reason": "Unsupported datatype - multirange on column - project_dates",
+            "SqlStatement": "CREATE TABLE multirange_demo.date_multirange_table (\n    id integer NOT NULL,\n    project_dates datemultirange\n);",
+            "FilePath": "/home/ubuntu/pg_export/schema/tables/table.sql",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
         }
 ]

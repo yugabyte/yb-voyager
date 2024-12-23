@@ -269,6 +269,42 @@
 			"TableName": "orders_lateral",
 			"ColumnName": "order_details",
 			"DataType": "xml"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "date_multirange_table",
+			"ColumnName": "project_dates",
+			"DataType": "datemultirange"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "numeric_multirange_table",
+			"ColumnName": "price_ranges",
+			"DataType": "nummultirange"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "bigint_multirange_table",
+			"ColumnName": "value_ranges",
+			"DataType": "int8multirange"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "int_multirange_table",
+			"ColumnName": "value_ranges",
+			"DataType": "int4multirange"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "timestamp_multirange_table",
+			"ColumnName": "event_times",
+			"DataType": "tsmultirange"
+		},
+		{
+			"SchemaName": "public",
+			"TableName": "timestamptz_multirange_table",
+			"ColumnName": "global_event_times",
+			"DataType": "tstzmultirange"
 		}
 	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
