@@ -59,6 +59,25 @@ func testRegexFunctionsIssue(t *testing.T) {
 	}
 }
 
+func testFetchWithTiesIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+
+	stmts := []string{
+		`SELECT * FROM employees
+		ORDER BY salary DESC
+		FETCH FIRST 2 ROWS WITH TIES;`,
+	}
+
+	for _, stmt := range stmts {
+		_, err = conn.Exec(ctx, stmt)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "WITH"`, regexFunctionsIssue)
+	}
+}
+
 func TestDMLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -88,6 +107,9 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "regex functions", ybVersion), testRegexFunctionsIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "fetch with ties", ybVersion), testFetchWithTiesIssue)
 	assert.True(t, success)
 
 }
