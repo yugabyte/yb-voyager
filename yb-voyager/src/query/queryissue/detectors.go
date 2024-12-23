@@ -32,9 +32,10 @@ type UnsupportedConstructDetector interface {
 
 type FuncCallDetector struct {
 	query string
-	// right now it covers Advisory Locks and XML functions
+
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
+	regexFuncsDetected         mapset.Set[string]
 	loFuncsDetected            mapset.Set[string]
 }
 
@@ -43,6 +44,7 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 		query:                      query,
 		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
 		xmlFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
+		regexFuncsDetected:         mapset.NewThreadUnsafeSet[string](),
 		loFuncsDetected:            mapset.NewThreadUnsafeSet[string](),
 	}
 }
@@ -62,6 +64,9 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 	if unsupportedXmlFunctions.ContainsOne(funcName) {
 		d.xmlFuncsDetected.Add(funcName)
 	}
+	if unsupportedRegexFunctions.ContainsOne(funcName) {
+		d.regexFuncsDetected.Add(funcName)
+	}
 
 	if unsupportedLargeObjectFunctions.ContainsOne(funcName) {
 		d.loFuncsDetected.Add(funcName)
@@ -77,6 +82,9 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 	}
 	if d.xmlFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.regexFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	if d.loFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))

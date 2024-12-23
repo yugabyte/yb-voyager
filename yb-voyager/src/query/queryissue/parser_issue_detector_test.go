@@ -485,3 +485,33 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 	fatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 }
+
+func TestRegexFunctionsIssue(t *testing.T) {
+	dmlStmts := []string{
+		`SELECT regexp_count('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_instr('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_like('This is an example. Another example. Example is a common word.', 'example')`,
+		`SELECT regexp_count('abc','abc'), regexp_instr('abc','abc'), regexp_like('abc','abc')`,
+	}
+
+	ddlStmts := []string{
+		`CREATE TABLE x (id INT PRIMARY KEY, id2 INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example'))`,
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+
+	for _, stmt := range dmlStmts {
+		issues, err := parserIssueDetector.getDMLIssues(stmt)
+		fatalIfError(t, err)
+		assert.Equal(t, 1, len(issues))
+		assert.Equal(t, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", stmt), issues[0])
+	}
+
+	for _, stmt := range ddlStmts {
+		issues, err := parserIssueDetector.getDDLIssues(stmt)
+		fatalIfError(t, err)
+		assert.Equal(t, 1, len(issues))
+		assert.Equal(t, NewRegexFunctionsIssue(TABLE_OBJECT_TYPE, "x", stmt), issues[0])
+	}
+
+}
