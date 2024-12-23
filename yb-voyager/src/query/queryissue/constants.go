@@ -51,8 +51,8 @@ const (
 
 	AGGREGATE_FUNCTION             = "AGGREGATE_FUNCTION"
 	AGGREGATION_FUNCTIONS_NAME     = "Aggregate Functions"
-	JSON_PREDICATE                 = "JSON_PREDICATE"
-	JSON_PREDICATE_NAME            = "Json Predicate expression"
+	JSON_TYPE_PREDICATE            = "JSON_TYPE_PREDICATE"
+	JSON_TYPE_PREDICATE_NAME       = "Json Type Validation Predicate"
 	JSON_CONSTRUCTOR_FUNCTION      = "JSON_CONSTRUCTOR_FUNCTION"
 	JSON_CONSTRUCTOR_FUNCTION_NAME = "Json Constructor Functions"
 	JSON_QUERY_FUNCTION            = "JSON_QUERY_FUNCTION"

@@ -704,6 +704,6 @@ func TestJsonPredicateDetector(t *testing.T) {
 
 	issues := getDetectorIssues(t, NewJsonPredicateExprDetector(sql), sql)
 	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-	assert.Equal(t, JSON_PREDICATE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+	assert.Equal(t, JSON_TYPE_PREDICATE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 
 }

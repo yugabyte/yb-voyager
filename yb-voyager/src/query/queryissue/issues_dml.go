@@ -143,8 +143,8 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 }
 
 var jsonPredicateIssue = issue.Issue{
-	Type:            JSON_PREDICATE,
-	TypeName:        JSON_PREDICATE_NAME,
+	Type:            JSON_TYPE_PREDICATE,
+	TypeName:        JSON_TYPE_PREDICATE_NAME,
 	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
 	Suggestion:      "",
 	GH:              "",
