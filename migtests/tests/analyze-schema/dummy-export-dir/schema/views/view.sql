@@ -33,3 +33,14 @@ CREATE VIEW public.orders_view AS
     orders.ctid AS row_ctid,
     orders.xmin AS transaction_id
    FROM public.orders;
+
+CREATE VIEW public.my_films_view AS 
+SELECT jt.* FROM
+ my_films,
+ JSON_TABLE ( js, '$.favorites[*]'
+   COLUMNS (
+    id FOR ORDINALITY,
+    kind text PATH '$.kind',
+    NESTED PATH '$.films[*]' COLUMNS (
+      title text FORMAT JSON PATH '$.title' OMIT QUOTES,
+      director text PATH '$.director' KEEP QUOTES))) AS jt;

@@ -35,6 +35,7 @@ type FuncCallDetector struct {
 
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
+	aggFuncsDetected           mapset.Set[string]
 	regexFuncsDetected         mapset.Set[string]
 	loFuncsDetected            mapset.Set[string]
 }
@@ -44,6 +45,7 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 		query:                      query,
 		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
 		xmlFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
+		aggFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
 		regexFuncsDetected:         mapset.NewThreadUnsafeSet[string](),
 		loFuncsDetected:            mapset.NewThreadUnsafeSet[string](),
 	}
@@ -68,6 +70,9 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 		d.regexFuncsDetected.Add(funcName)
 	}
 
+	if unsupportedAggFunctions.ContainsOne(funcName) {
+		d.aggFuncsDetected.Add(funcName)
+	}
 	if unsupportedLargeObjectFunctions.ContainsOne(funcName) {
 		d.loFuncsDetected.Add(funcName)
 	}
@@ -83,11 +88,14 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 	if d.xmlFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
+	if d.aggFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.aggFuncsDetected.ToSlice()))
+	}
 	if d.regexFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	if d.loFuncsDetected.Cardinality() > 0 {
-		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		issues = append(issues, NewLOFuntionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.loFuncsDetected.ToSlice()))
 	}
 	return issues
 }
@@ -192,6 +200,108 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.detected {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
+
+type JsonConstructorFuncDetector struct {
+	query                                       string
+	unsupportedJsonConstructorFunctionsDetected mapset.Set[string]
+}
+
+func NewJsonConstructorFuncDetector(query string) *JsonConstructorFuncDetector {
+	return &JsonConstructorFuncDetector{
+		query: query,
+		unsupportedJsonConstructorFunctionsDetected: mapset.NewThreadUnsafeSet[string](),
+	}
+}
+
+func (j *JsonConstructorFuncDetector) Detect(msg protoreflect.Message) error {
+	switch queryparser.GetMsgFullName(msg) {
+	case queryparser.PG_QUERY_JSON_ARRAY_AGG_NODE:
+		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_ARRAYAGG)
+	case queryparser.PG_QUERY_JSON_ARRAY_CONSTRUCTOR_AGG_NODE:
+		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_ARRAY)
+	case queryparser.PG_QUERY_JSON_OBJECT_AGG_NODE:
+		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_OBJECTAGG)
+	case queryparser.PG_QUERY_JSON_OBJECT_CONSTRUCTOR_NODE:
+		j.unsupportedJsonConstructorFunctionsDetected.Add(JSON_OBJECT)
+	}
+	return nil
+}
+
+func (d *JsonConstructorFuncDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.unsupportedJsonConstructorFunctionsDetected.Cardinality() > 0 {
+		issues = append(issues, NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.unsupportedJsonConstructorFunctionsDetected.ToSlice()))
+	}
+	return issues
+}
+
+type JsonQueryFunctionDetector struct {
+	query                                 string
+	unsupportedJsonQueryFunctionsDetected mapset.Set[string]
+}
+
+func NewJsonQueryFunctionDetector(query string) *JsonQueryFunctionDetector {
+	return &JsonQueryFunctionDetector{
+		query:                                 query,
+		unsupportedJsonQueryFunctionsDetected: mapset.NewThreadUnsafeSet[string](),
+	}
+}
+
+func (j *JsonQueryFunctionDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_JSON_TABLE_NODE {
+		/*
+		SELECT * FROM json_table(
+			'[{"a":10,"b":20},{"a":30,"b":40}]'::jsonb,
+			'$[*]'
+			COLUMNS (
+				column_a int4 path '$.a',
+				column_b int4 path '$.b'
+			)
+		);
+		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:530}}  location:530}}  
+		from_clause:{json_table:{context_item:{raw_expr:{type_cast:{arg:{a_const:{sval:{sval:"[{\"a\":10,\"b\":20},{\"a\":30,\"b\":40}]"}  
+		location:553}}  type_name:{names:{string:{sval:"jsonb"}}  .....  name_location:-1  location:601}  
+		columns:{json_table_column:{coltype:JTC_REGULAR  name:"column_a"  type_name:{names:{string:{sval:"int4"}}  typemod:-1  location:639}  
+		pathspec:{string:{a_const:{sval:{sval:"$.a"}  location:649}}  name_location:-1  location:649} ...
+		*/
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_TABLE)
+		return nil
+	}
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_JSON_FUNC_EXPR_NODE {
+		return nil
+	}
+	/*
+		JsonExprOp -
+			enumeration of SQL/JSON query function types
+		typedef enum JsonExprOp
+		{
+			1. JSON_EXISTS_OP,				 JSON_EXISTS()
+			2. JSON_QUERY_OP,				 JSON_QUERY()
+			3. JSON_VALUE_OP,				 JSON_VALUE()
+			4. JSON_TABLE_OP,				JSON_TABLE()
+		} JsonExprOp;
+	*/
+	jsonExprFuncOpNum := queryparser.GetEnumNumField(msg, "op")
+	switch jsonExprFuncOpNum {
+	case 1:
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_EXISTS)
+	case 2:
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_QUERY)
+	case 3:
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_VALUE)
+	case 4:
+		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_TABLE)
+	}
+	return nil
+}
+
+func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.unsupportedJsonQueryFunctionsDetected.Cardinality() > 0 {
+		issues = append(issues, NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.unsupportedJsonQueryFunctionsDetected.ToSlice()))
 	}
 	return issues
 }

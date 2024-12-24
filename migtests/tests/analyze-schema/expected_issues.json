@@ -22,6 +22,36 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "public.my_films_view",
+            "Reason": "Json Query Functions",
+            "SqlStatement": "CREATE VIEW public.my_films_view AS\nSELECT jt.* FROM\n my_films,\n JSON_TABLE ( js, '$.favorites[*]'\n   COLUMNS (\n    id FOR ORDINALITY,\n    kind text PATH '$.kind',\n    NESTED PATH '$.films[*]' COLUMNS (\n      title text FORMAT JSON PATH '$.title' OMIT QUOTES,\n      director text PATH '$.director' KEEP QUOTES))) AS jt;",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "test",
+            "Reason": "Json Constructor Functions",
+            "SqlStatement": "CREATE OR REPLACE view test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "MVIEW",
+            "ObjectName": "test",
+            "Reason": "Json Constructor Functions",
+            "SqlStatement": "CREATE MATERIALIZED VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
             "Reason": "XML Functions",

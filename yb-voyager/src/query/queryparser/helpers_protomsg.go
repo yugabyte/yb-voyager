@@ -34,6 +34,7 @@ const (
 
 func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
+
 }
 
 func GetMsgFullName(msg protoreflect.Message) string {
@@ -372,6 +373,17 @@ func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List 
 		return msg.Get(field).List()
 	}
 	return nil
+}
+
+// GetEnumNumField retrieves a enum field from a message
+// FieldDescriptor{Syntax: proto3, FullName: pg_query.JsonFuncExpr.op, Number: 1, Cardinality: optional, Kind: enum, HasJSONName: true, JSONName: "op", Enum: pg_query.JsonExprOp}
+//val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT 
+func GetEnumNumField(msg protoreflect.Message, fieldName string) protoreflect.EnumNumber {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Enum()
+	}
+	return 0
 }
 
 // GetSchemaAndObjectName extracts the schema and object name from a list.

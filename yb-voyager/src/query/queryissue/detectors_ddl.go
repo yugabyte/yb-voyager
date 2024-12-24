@@ -551,6 +551,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 			obj.GetObjectType(),
 			trigger.GetObjectName(),
 			"",
+			[]string{trigger.FuncName},
 		))
 	}
 
