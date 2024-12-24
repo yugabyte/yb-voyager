@@ -610,8 +610,8 @@ JSON_TABLE(data, '$.skills[*]'
 			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14]),
 			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[13], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
 		},
-		sqls[14]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14], []string{JSON_ARRAY}),
+		sqls[15]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[15], []string{JSON_ARRAY}),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
