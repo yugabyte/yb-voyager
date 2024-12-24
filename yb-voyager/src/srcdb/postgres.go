@@ -940,7 +940,7 @@ var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname 
 FROM pg_class c
 LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_constraint con ON con.conrelid = c.oid AND con.contype = 'p'
-WHERE c.relkind = 'r'  -- Only consider ordinary tables
+WHERE c.relkind = 'r' OR c.relkind = 'p'  -- Only consider table objects
 GROUP BY schema_name, table_name HAVING nspname IN (%s);`
 
 func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
