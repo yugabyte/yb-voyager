@@ -46,3 +46,23 @@ INSERT INTO analytics.metrics (metric_name, metric_value) VALUES ('ConversionRat
 create view sales.employ_depart_view AS  SELECT
         any_value(name) AS any_employee
     FROM employees;
+
+CREATE TABLE sales.events (
+    id int PRIMARY KEY,
+    event_range daterange
+);
+
+-- Insert some ranges
+INSERT INTO sales.events (id, event_range) VALUES
+    (1,'[2024-01-01, 2024-01-10]'::daterange),
+    (2,'[2024-01-05, 2024-01-15]'::daterange),
+    (3,'[2024-01-20, 2024-01-25]'::daterange);
+
+CREATE VIEW sales.event_analysis_view AS
+SELECT
+    range_agg(event_range) AS all_event_ranges, 
+    range_intersect_agg(event_range) AS overlapping_range, 
+    lower(range_agg(event_range)) AS earliest_start, 
+    upper(range_agg(event_range)) AS latest_end 
+FROM
+    sales.events;
