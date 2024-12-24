@@ -655,6 +655,11 @@ func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
 		`COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`:                {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`)},
 		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`: {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`)},
 		`COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`:                      {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`)},
+		`COPY employees (id, name, age)
+		FROM STDIN WITH (FORMAT csv)
+		WHERE age > 30;`: {NewCopyFromWhereIssue("DML_QUERY", "", `COPY employees (id, name, age)
+		FROM STDIN WITH (FORMAT csv)
+		WHERE age > 30;`)},
 
 		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`: {NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`)},
 		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP);`:   {NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP);`)},
@@ -679,7 +684,7 @@ func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
-			assert.True(t, found)
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
 }

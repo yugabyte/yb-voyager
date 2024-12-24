@@ -40,6 +40,9 @@ func TestCopyCommandUnsupportedConstructsDetector(t *testing.T) {
 		`COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`:                {COPY_FROM_WHERE},
 		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`: {COPY_FROM_WHERE},
 		`COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`:                      {COPY_FROM_WHERE},
+		`COPY employees (id, name, age)
+		FROM STDIN WITH (FORMAT csv)
+		WHERE age > 30;`: {COPY_FROM_WHERE},
 
 		// COPY commands with ON_ERROR clause
 		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`: {COPY_ON_ERROR},
