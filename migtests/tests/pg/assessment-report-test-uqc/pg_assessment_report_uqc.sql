@@ -66,3 +66,23 @@ SELECT
     upper(range_agg(event_range)) AS latest_end 
 FROM
     sales.events;
+
+-- PG 16 and above feature 
+-- CREATE TABLE sales.json_data (
+--     id SERIAL PRIMARY KEY,
+--     data_column TEXT NOT NULL CHECK (data_column IS JSON),
+--     object_column TEXT CHECK (object_column IS JSON OBJECT),
+--     array_column TEXT CHECK (array_column IS JSON ARRAY),
+--     scalar_column TEXT CHECK (scalar_column IS JSON SCALAR),
+--     unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
+-- );
+
+-- INSERT INTO public.json_data (
+--     data_column, object_column, array_column, scalar_column, unique_keys_column
+-- ) VALUES (
+--     '{"key": "value"}',
+--     '{"name": "John", "age": 30}',
+--     '[1, 2, 3, 4]',
+--     '"hello"',
+--     '{"uniqueKey1": "value1", "uniqueKey2": "value2"}'
+-- );
