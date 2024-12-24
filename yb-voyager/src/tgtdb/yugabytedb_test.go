@@ -1,33 +1,40 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package tgtdb
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/testcontainers"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestCreateVoyagerSchemaYB(t *testing.T) {
-	ctx := context.Background()
-
-	// Start a YugabyteDB container
-	ybContainer, host, port, err := testcontainers.StartDBContainer(ctx, testcontainers.YUGABYTEDB)
-	assert.NoError(t, err, "Failed to start YugabyteDB container")
-	defer ybContainer.Terminate(ctx)
-
-	// Connect to the database
-	dsn := fmt.Sprintf("host=%s port=%s user=yugabyte password=yugabyte dbname=yugabyte sslmode=disable", host, port.Port())
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", testYugabyteDBTarget.GetConnectionString())
 	assert.NoError(t, err)
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = testcontainers.WaitForDBToBeReady(db)
+	err = testutils.WaitForDBToBeReady(db)
 	assert.NoError(t, err)
 
 	// Initialize the TargetYugabyteDB instance
@@ -79,4 +86,62 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 			testutils.CheckTableStructurePG(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
 		})
 	}
+}
+
+func TestYugabyteGetNonEmptyTables(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema`,
+		`CREATE TABLE test_schema.foo (
+			id INT PRIMARY KEY,
+			name VARCHAR
+		);`,
+		`INSERT into test_schema.foo values (1, 'abc'), (2, 'xyz');`,
+		`CREATE TABLE test_schema.bar (
+			id INT PRIMARY KEY,
+			name VARCHAR
+		);`,
+		`INSERT into test_schema.bar values (1, 'abc'), (2, 'xyz');`,
+		`CREATE TABLE test_schema.unique_table (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(100),
+			phone VARCHAR(100),
+			address VARCHAR(255),
+			UNIQUE (email, phone)
+		);`,
+		`CREATE TABLE test_schema.table1 (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.table2 (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.non_pk1(
+			id INT,
+			name VARCHAR(255)
+		);`,
+		`CREATE TABLE test_schema.non_pk2(
+			id INT,
+			name VARCHAR(255)
+		);`)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tables := []sqlname.NameTuple{
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "unique_table")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "table1")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "table2")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "non_pk1")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "non_pk2")},
+	}
+
+	expectedTables := []sqlname.NameTuple{
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
+	}
+
+	actualTables := testYugabyteDBTarget.GetNonEmptyTables(tables)
+	log.Infof("non empty tables: %+v\n", actualTables)
+	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
 }

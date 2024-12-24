@@ -23,44 +23,18 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-
-	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 )
 
-// var postgres *embeddedpostgres.EmbeddedPostgres
-
-func setupPostgres(t *testing.T) *embeddedpostgres.EmbeddedPostgres {
-	postgres := embeddedpostgres.NewDatabase(embeddedpostgres.DefaultConfig().
-		Username("postgres").
-		Password("postgres").
-		Database("test").
-		Port(9876).
-		StartTimeout(30 * time.Second))
-	err := postgres.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return postgres
-}
-
-func shutdownPostgres(postgres *embeddedpostgres.EmbeddedPostgres, t *testing.T) {
-	err := postgres.Stop()
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestBasic(t *testing.T) {
-	postgres := setupPostgres(t)
-	defer shutdownPostgres(postgres, t)
 	// GIVEN: a conn pool of size 10.
 	size := 10
 
 	connParams := &ConnectionParams{
 		NumConnections:    size,
 		NumMaxConnections: size,
-		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
 	pool := NewConnectionPool(connParams)
@@ -88,8 +62,6 @@ func dummyProcess(pool *ConnectionPool, milliseconds int, wg *sync.WaitGroup) {
 }
 
 func TestIncreaseConnectionsUptoMax(t *testing.T) {
-	postgres := setupPostgres(t)
-	defer shutdownPostgres(postgres, t)
 	// GIVEN: a conn pool of size 10, with max 20 connections.
 	size := 10
 	maxSize := 20
@@ -97,7 +69,7 @@ func TestIncreaseConnectionsUptoMax(t *testing.T) {
 	connParams := &ConnectionParams{
 		NumConnections:    size,
 		NumMaxConnections: maxSize,
-		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
 	pool := NewConnectionPool(connParams)
@@ -105,7 +77,7 @@ func TestIncreaseConnectionsUptoMax(t *testing.T) {
 
 	// WHEN: multiple goroutines acquire connection, perform some operation
 	// and release connection back to pool
-	// WHEN: we keep increasing the connnections upto the max..
+	// WHEN: we keep increasing the connections upto the max..
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -133,8 +105,6 @@ func TestIncreaseConnectionsUptoMax(t *testing.T) {
 }
 
 func TestDecreaseConnectionsUptoMin(t *testing.T) {
-	postgres := setupPostgres(t)
-	defer shutdownPostgres(postgres, t)
 	// GIVEN: a conn pool of size 10, with max 20 connections.
 	size := 10
 	maxSize := 20
@@ -142,7 +112,7 @@ func TestDecreaseConnectionsUptoMin(t *testing.T) {
 	connParams := &ConnectionParams{
 		NumConnections:    size,
 		NumMaxConnections: maxSize,
-		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
 	pool := NewConnectionPool(connParams)
@@ -178,8 +148,6 @@ func TestDecreaseConnectionsUptoMin(t *testing.T) {
 }
 
 func TestUpdateConnectionsRandom(t *testing.T) {
-	postgres := setupPostgres(t)
-	defer shutdownPostgres(postgres, t)
 	// GIVEN: a conn pool of size 10, with max 20 connections.
 	size := 10
 	maxSize := 20
@@ -187,7 +155,7 @@ func TestUpdateConnectionsRandom(t *testing.T) {
 	connParams := &ConnectionParams{
 		NumConnections:    size,
 		NumMaxConnections: maxSize,
-		ConnUriList:       []string{fmt.Sprintf("postgresql://postgres:postgres@localhost:%d/test", 9876)},
+		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
 	pool := NewConnectionPool(connParams)
@@ -207,7 +175,7 @@ func TestUpdateConnectionsRandom(t *testing.T) {
 			if pool.size+randomNumber < 1 || (pool.size+randomNumber > pool.params.NumMaxConnections) {
 				continue
 			}
-			fmt.Printf("i=%d, updating by %d. New pool size expected = %d\n", i, randomNumber, *expectedFinalSize+randomNumber)
+			log.Infof("i=%d, updating by %d. New pool size expected = %d\n", i, randomNumber, *expectedFinalSize+randomNumber)
 			err := pool.UpdateNumConnections(randomNumber)
 			assert.NoError(t, err)
 			time.Sleep(10 * time.Millisecond)

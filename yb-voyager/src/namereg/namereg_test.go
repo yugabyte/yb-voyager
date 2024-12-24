@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 var oracleToYBNameRegistry = &NameRegistry{

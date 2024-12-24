@@ -940,6 +940,7 @@ var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname 
 FROM pg_class c
 LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_constraint con ON con.conrelid = c.oid AND con.contype = 'p'
+WHERE c.relkind = 'r' OR c.relkind = 'p'  -- Only consider table objects
 GROUP BY schema_name, table_name HAVING nspname IN (%s);`
 
 func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
@@ -964,8 +965,9 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for primary key: %v", err)
 		}
-		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
+
 		if pkCount == 0 {
+			table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
 			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
 	}
