@@ -1,3 +1,5 @@
+//go:build unit
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -543,7 +545,7 @@ FROM books;`,
 		`SELECT id, JSON_VALUE(details, '$.title') AS title
 FROM books
 WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
-`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
+		`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
 SELECT 
     id,
     data->>'name' AS name,
@@ -556,7 +558,7 @@ JSON_TABLE(data, '$.skills[*]'
         skill TEXT PATH '$'
     )
 ) AS jt;`,
- `SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
+		`SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
