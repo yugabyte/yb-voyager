@@ -142,7 +142,7 @@ SELECT lo_create('32142');
 
 -- Unsupported COPY constructs
 
-CREATE TABLE IF NOT EXISTS employees (
+CREATE TABLE IF NOT EXISTS employees3 (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     age INT NOT NULL
@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS employees (
 
 
 -- COPY FROM with WHERE clause
-COPY employees (id, name, age)
+COPY employees3 (id, name, age)
 FROM STDIN WITH (FORMAT csv)
 WHERE age > 30;
 1,John Smith,25
