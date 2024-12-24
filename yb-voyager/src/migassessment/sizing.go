@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/samber/lo"
 
@@ -128,9 +129,8 @@ const (
 	PREFER_REMOTE_EXPERIMENT_DB     = false
 	COLOCATED_MAX_INDEXES_THRESHOLD = 2
 	// COLOCATED / SHARDED Object types
-	COLOCATED                            = "colocated"
-	SHARDED                              = "sharded"
-	SOURCE_METADATA_OBJECTS_TYPES_TO_USE = "('table', 'index', 'materialized view')"
+	COLOCATED = "colocated"
+	SHARDED   = "sharded"
 )
 
 func getExperimentDBPath() string {
@@ -139,6 +139,12 @@ func getExperimentDBPath() string {
 
 //go:embed resources/yb_2024_0_source.db
 var experimentData20240 []byte
+
+var SourceMetadataObjectTypesToUse = []string{
+	"%table%",
+	"%index%",
+	"materialized view",
+}
 
 func SizingAssessment() error {
 
@@ -1229,6 +1235,14 @@ Returns:
 	float64: The total size of the source database in gigabytes.
 */
 func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+	// Construct the WHERE clause dynamically using LIKE
+	var likeConditions []string
+	for _, pattern := range SourceMetadataObjectTypesToUse {
+		likeConditions = append(likeConditions, fmt.Sprintf("object_type LIKE '%s'", pattern))
+	}
+	// Join the LIKE conditions with OR
+	whereClause := strings.Join(likeConditions, " OR ")
+
 	query := fmt.Sprintf(`
 		SELECT schema_name, 
 			   object_name, 
@@ -1240,9 +1254,9 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 			   size_in_bytes,
 			   column_count 
 		FROM %v 
-		WHERE object_type IN %v
+		WHERE %s
 		ORDER BY IFNULL(size_in_bytes, 0) ASC
-	`, GetTableIndexStatName(), SOURCE_METADATA_OBJECTS_TYPES_TO_USE)
+	`, GetTableIndexStatName(), whereClause)
 	rows, err := sourceDB.Query(query)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
