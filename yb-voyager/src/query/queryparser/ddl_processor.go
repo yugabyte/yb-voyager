@@ -866,16 +866,15 @@ func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 	*/
 	log.Infof("checking the view '%s' is security invoker view", qualifiedViewName)
 	msg := GetProtoMessageFromParseTree(parseTree)
-	defNames := TraverseAndExtractDefNamesFromDefElem(msg)
-	securityInvokerView := false
-	if slices.Contains(defNames, "security_invoker") {
-		securityInvokerView = true
+	defNames, err := TraverseAndExtractDefNamesFromDefElem(msg)
+	if err != nil {
+		return nil, err
 	}
 
 	view := View{
 		SchemaName:      viewSchemaName,
 		ViewName:        viewName,
-		SecurityInvoker: securityInvokerView,
+		SecurityInvoker: slices.Contains(defNames, "security_invoker"),
 	}
 	return &view, nil
 }
