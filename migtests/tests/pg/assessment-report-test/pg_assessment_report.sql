@@ -362,3 +362,17 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- for FETCH .. WITH TIES
+CREATE TABLE employees (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    salary NUMERIC(10, 2) NOT NULL
+);
+
+CREATE VIEW top_employees_view AS SELECT * FROM (
+			SELECT * FROM employees
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;
