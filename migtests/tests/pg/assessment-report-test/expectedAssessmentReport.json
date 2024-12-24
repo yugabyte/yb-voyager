@@ -562,7 +562,7 @@
 			"Objects": [
 				{
 					"ObjectName": "public.view_explicit_security_invoker",
-					"SqlStatement": "CREATE VIEW public.view_explicit_security_invoker WITH (security_invoker='true') AS\n SELECT employees.employee_id,\n    employees.first_name\n   FROM public.employees;"
+					"SqlStatement": "CREATE VIEW public.view_explicit_security_invoker WITH (security_invoker='true') AS\n SELECT employee_id,\n    first_name\n   FROM public.employees;"
 				}
 			],
 			"MinimumVersionsFixedIn": null
