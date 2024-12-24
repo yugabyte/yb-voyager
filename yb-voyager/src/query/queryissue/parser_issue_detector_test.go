@@ -559,6 +559,7 @@ JSON_TABLE(data, '$.skills[*]'
         skill TEXT PATH '$'
     )
 ) AS jt;`,
+ `SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
@@ -608,6 +609,9 @@ JSON_TABLE(data, '$.skills[*]'
 		sqls[14]: []QueryIssue{
 			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14]),
 			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[13], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
+		},
+		sqls[14]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14], []string{JSON_ARRAY}),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
