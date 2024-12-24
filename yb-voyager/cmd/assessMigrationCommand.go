@@ -335,6 +335,14 @@ func assessMigration() (err error) {
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
 		if source.RunGuardrailsChecks {
+			// Check source database version.
+			log.Info("checking source DB version")
+			err = source.DB().CheckSourceDBVersion(exportType)
+			if err != nil {
+				return fmt.Errorf("source DB version check failed: %w", err)
+			}
+
+			// Check if required binaries are installed.
 			binaryCheckIssues, err := checkDependenciesForExport()
 			if err != nil {
 				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
