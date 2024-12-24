@@ -33,3 +33,9 @@ CREATE VIEW public.orders_view AS
     orders.ctid AS row_ctid,
     orders.xmin AS transaction_id
    FROM public.orders;
+
+CREATE VIEW top_employees_view AS SELECT * FROM (
+			SELECT * FROM employees
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;

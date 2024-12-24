@@ -385,3 +385,5 @@ CREATE TABLE public.locations (
 );
 
 CREATE TABLE image (title text, raster lo);
+
+CREATE TABLE employees (id INT PRIMARY KEY, salary INT);
