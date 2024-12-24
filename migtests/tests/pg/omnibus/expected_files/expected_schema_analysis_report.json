@@ -338,7 +338,7 @@
             "ObjectType": "VIEW",
             "ObjectName": "regress_rls_schema.bv1",
             "Reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
-            "SqlStatement": "CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS\n SELECT b1.a,\n    b1.b\n   FROM regress_rls_schema.b1\n  WHERE (b1.a \u003e 0)\n  WITH CASCADED CHECK OPTION;",
+            "SqlStatement": "CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS\n SELECT a,\n    b\n   FROM regress_rls_schema.b1\n  WHERE (a \u003e 0)\n  WITH CASCADED CHECK OPTION;",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql",
             "Suggestion": "Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/22716",
