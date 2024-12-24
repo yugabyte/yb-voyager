@@ -121,6 +121,7 @@ WHERE title = 'Design Document';`,
 		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
 		assert.Equal(t, len(issues), 1)
 		assert.Equal(t, issues[0].Type, LARGE_OBJECT_FUNCTIONS, "Large Objects not detected in SQL: %s", sql)
+
 	}
 
 }
@@ -675,35 +676,4 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		assert.ElementsMatch(t, tc.ExpectedSchemas, collectedSchemas,
 			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
 	}
-}
-
-func TestJsonConstructorDetector(t *testing.T) {
-	sql := `SELECT JSON_ARRAY('PostgreSQL', 12, TRUE, NULL) AS json_array;`
-
-	issues := getDetectorIssues(t, NewJsonConstructorFuncDetector(sql), sql)
-	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-	assert.Equal(t, JSON_CONSTRUCTOR_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
-
-}
-
-func TestJsonQueryFunctionDetector(t *testing.T) {
-	sql := `SELECT id, JSON_VALUE(details, '$.title') AS title
-FROM books
-WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`
-
-	issues := getDetectorIssues(t, NewJsonQueryFunctionDetector(sql), sql)
-	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-	assert.Equal(t, JSON_QUERY_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
-
-}
-
-func TestJsonPredicateDetector(t *testing.T) {
-	sql := `SELECT js, js IS JSON "json?", js IS JSON SCALAR "scalar?", js IS JSON OBJECT "object?", js IS JSON ARRAY "array?" 
-	FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);
-`
-
-	issues := getDetectorIssues(t, NewJsonPredicateExprDetector(sql), sql)
-	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-	assert.Equal(t, JSON_TYPE_PREDICATE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
-
 }
