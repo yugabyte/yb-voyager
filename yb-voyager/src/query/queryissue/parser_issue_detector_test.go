@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -310,12 +311,12 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 
 	// Not reported by default
 	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 0, len(issues))
 
 	// older version should report the issue
 	issues, err = parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_1_0_0)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 	assert.True(t, cmp.Equal(issues[0], NewUnloggedTableIssue("TABLE", "tbl_unlog", stmt)))
 }
@@ -490,7 +491,7 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 
 	parserIssueDetector := NewParserIssueDetector()
 	issues, err := parserIssueDetector.getDMLIssues(stmt)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 }
 
@@ -638,14 +639,14 @@ func TestRegexFunctionsIssue(t *testing.T) {
 
 	for _, stmt := range dmlStmts {
 		issues, err := parserIssueDetector.getDMLIssues(stmt)
-		fatalIfError(t, err)
+		testutils.FatalIfError(t, err)
 		assert.Equal(t, 1, len(issues))
 		assert.Equal(t, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", stmt), issues[0])
 	}
 
 	for _, stmt := range ddlStmts {
 		issues, err := parserIssueDetector.getDDLIssues(stmt)
-		fatalIfError(t, err)
+		testutils.FatalIfError(t, err)
 		assert.Equal(t, 1, len(issues))
 		assert.Equal(t, NewRegexFunctionsIssue(TABLE_OBJECT_TYPE, "x", stmt), issues[0])
 	}

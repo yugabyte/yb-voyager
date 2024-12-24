@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -125,7 +126,7 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 
 	ybVersionWithoutBuild := strings.Split(ybVersion, "-")[0]
 	testYbVersion, err = ybversion.NewYBVersion(ybVersionWithoutBuild)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 
 	testYugabytedbConnStr = os.Getenv("YB_CONN_STR")
 	if testYugabytedbConnStr == "" {

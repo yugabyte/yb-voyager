@@ -400,3 +400,9 @@ func WaitForDBToBeReady(db *sql.DB) error {
 	}
 	return fmt.Errorf("database did not become ready in time")
 }
+
+func FatalIfError(t *testing.T, err error) {
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+}
