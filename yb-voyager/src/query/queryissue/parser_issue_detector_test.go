@@ -552,6 +552,10 @@ FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`,
   js IS JSON ARRAY WITHOUT UNIQUE KEYS "array w/o UK?"
 FROM (VALUES ('[{"a":"1"},
  {"b":"2","b":"3"}]')) foo(js);`,
+		`SELECT js,
+  js IS JSON OBJECT "object?"
+  FROM (VALUES ('[{"a":"1"},
+ {"b":"2","b":"3"}]')) foo(js); `,
 		`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
 SELECT 
     id,
@@ -616,10 +620,13 @@ JSON_TABLE(data, '$.skills[*]'
 			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14]),
 		},
 		sqls[15]: []QueryIssue{
-			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[15], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
+			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[15]),
 		},
 		sqls[16]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[16], []string{JSON_ARRAY}),
+			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[16], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
+		},
+		sqls[17]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[17], []string{JSON_ARRAY}),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()

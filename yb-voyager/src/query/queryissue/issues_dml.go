@@ -77,7 +77,7 @@ func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement s
 var aggregateFunctionIssue = issue.Issue{
 	Type:            AGGREGATE_FUNCTION,
 	TypeName:        AGGREGATION_FUNCTIONS_NAME,
-	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
+	TypeDescription: "any_value, range_agg and range_intersect_agg functions not supported yet in YugabyteDB",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "",
@@ -145,7 +145,7 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 var jsonPredicateIssue = issue.Issue{
 	Type:            JSON_TYPE_PREDICATE,
 	TypeName:        JSON_TYPE_PREDICATE_NAME,
-	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
+	TypeDescription: "IS JSON predicate expressions not supported yet in YugabyteDB",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "", //TODO
