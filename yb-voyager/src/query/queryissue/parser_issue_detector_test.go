@@ -565,7 +565,7 @@ JSON_TABLE(data, '$.skills[*]'
         skill TEXT PATH '$'
     )
 ) AS jt;`,
- `SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
+		`SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
@@ -687,7 +687,7 @@ $$ LANGUAGE plpgsql;`,
 			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
 		},
 	}
-	aggregateSqls[sqls[5]] = modifyiedIssuesforPLPGSQL(aggregateSqls[sqls[5]], "FUNCTION", "aggregate_ranges")
+	aggregateSqls[sqls[5]] = modifiedIssuesforPLPGSQL(aggregateSqls[sqls[5]], "FUNCTION", "aggregate_ranges")
 
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range aggregateSqls {
