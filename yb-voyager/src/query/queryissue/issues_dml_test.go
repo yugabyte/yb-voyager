@@ -185,4 +185,10 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "regex functions", ybVersion), testRegexFunctionsIssue)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "json constructor functions", ybVersion), testJsonConstructorFunctions)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "json query functions", ybVersion), testJsonQueryFunctions)
+	assert.True(t, success)
+
 }

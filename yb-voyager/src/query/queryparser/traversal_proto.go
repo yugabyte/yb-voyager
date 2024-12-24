@@ -36,6 +36,7 @@ const (
 	PG_QUERY_RANGEVAR_NODE       = "pg_query.RangeVar"
 	PG_QUERY_RANGETABLEFUNC_NODE = "pg_query.RangeTableFunc"
 	PG_QUERY_PARAMREF_NODE       = "pg_query.ParamRef"
+	PG_QUERY_DEFELEM_NODE        = "pg_query.DefElem"
 
 	PG_QUERY_INSERTSTMT_NODE = "pg_query.InsertStmt"
 	PG_QUERY_UPDATESTMT_NODE = "pg_query.UpdateStmt"
@@ -48,6 +49,7 @@ const (
 	PG_QUERY_JSON_OBJECT_CONSTRUCTOR_NODE    = "pg_query.JsonObjectConstructor"
 	PG_QUERY_JSON_TABLE_NODE                 = "pg_query.JsonTable"
 	PG_QUERY_JSON_PREDICATE_NODE             = "pg_query.JsonIsPredicate"
+	PG_QUERY_VIEWSTMT_NODE                   = "pg_query.ViewStmt"
 )
 
 // function type for processing nodes during traversal
