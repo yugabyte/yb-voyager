@@ -371,7 +371,7 @@
                         <h4>{{.FeatureName}}</h4>
                         {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
                         {{ if $supporterVerStr }}
-                        <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                            <p>Supported in Versions: {{ $supporterVerStr }} </p>
                         {{ end }}
                         <p>{{.FeatureDescription}}</p>
                         <div class="scrollable-div">
@@ -385,7 +385,7 @@
                         <h4>{{.FeatureName}}</h4>
                         {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
                         {{ if $supporterVerStr }}
-                        <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                            <p>Supported in Versions: {{ $supporterVerStr }} </p>
                         {{ end }}
                         <p>{{.FeatureDescription}}</p>
                         <div class="scrollable-div">

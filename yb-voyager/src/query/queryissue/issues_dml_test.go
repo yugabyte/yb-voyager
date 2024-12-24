@@ -62,23 +62,56 @@ func testJsonConstructorFunctions(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
+	sqls := map[string]string{
+		`select json_object('code' VALUE 'P123', 'title': 'Jaws');`: `syntax error at or near "VALUE"`,
+		`select JSON_ARRAYAGG('[1, "2", null]');`:                   `does not exist`,
+		`SELECT json_objectagg(k VALUE v) AS json_result
+	FROM (VALUES ('a', 1), ('b', 2), ('c', 3)) AS t(k, v);`: `syntax error at or near "VALUE"`,
+		`SELECT JSON_ARRAY('PostgreSQL', 12, TRUE, NULL) AS json_array;`: `does not exist`,
+	}
+	for sql, expectedErr := range sqls {
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
 
-	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, `select json_object('code' VALUE 'P123', 'title': 'Jaws');`)
-
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "VALUE"`, jsonConstructorFunctionsIssue)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, expectedErr, jsonConstructorFunctionsIssue)
+	}
 }
 
 func testJsonQueryFunctions(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
+	sqls := []string{
+		`SELECT id, JSON_QUERY(details, '$.author') AS author
+FROM books;`,
+		`SELECT 
+    id, 
+    JSON_VALUE(details, '$.title') AS title,
+    JSON_VALUE(details, '$.price')::NUMERIC AS price
+FROM books;`,
+		`SELECT id, details
+FROM books
+WHERE JSON_EXISTS(details, '$.author');`,
+	}
+	for _, sql := range sqls {
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
 
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, jsonConstructorFunctionsIssue)
+	}
+
+	jsonTableSQL := `SELECT * FROM json_table(
+			'[{"a":10,"b":20},{"a":30,"b":40}]'::jsonb,
+			'$[*]'
+			COLUMNS (
+				column_a int4 path '$.a',
+				column_b int4 path '$.b'
+			)
+		);`
 	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, `SELECT id, JSON_QUERY(details, '$.author') AS author
-FROM books;`)
+	_, err = conn.Exec(ctx, jsonTableSQL)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, jsonConstructorFunctionsIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "COLUMNS"`, jsonConstructorFunctionsIssue)
 }
 
 func TestDMLIssuesInYBVersion(t *testing.T) {

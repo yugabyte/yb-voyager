@@ -252,6 +252,21 @@ func NewJsonQueryFunctionDetector(query string) *JsonQueryFunctionDetector {
 
 func (j *JsonQueryFunctionDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_JSON_TABLE_NODE {
+		/*
+		SELECT * FROM json_table(
+			'[{"a":10,"b":20},{"a":30,"b":40}]'::jsonb,
+			'$[*]'
+			COLUMNS (
+				column_a int4 path '$.a',
+				column_b int4 path '$.b'
+			)
+		);
+		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:530}}  location:530}}  
+		from_clause:{json_table:{context_item:{raw_expr:{type_cast:{arg:{a_const:{sval:{sval:"[{\"a\":10,\"b\":20},{\"a\":30,\"b\":40}]"}  
+		location:553}}  type_name:{names:{string:{sval:"jsonb"}}  .....  name_location:-1  location:601}  
+		columns:{json_table_column:{coltype:JTC_REGULAR  name:"column_a"  type_name:{names:{string:{sval:"int4"}}  typemod:-1  location:639}  
+		pathspec:{string:{a_const:{sval:{sval:"$.a"}  location:649}}  name_location:-1  location:649} ...
+		*/
 		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_TABLE)
 		return nil
 	}
