@@ -981,18 +981,13 @@ func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	}
 
 	// Extract the major version from the full version string
-	// Version can be like: 17.2 (Ubuntu 17.2-1.pgdg20.04+1), 17.2, 17alpha1 etc
+	// Version can be like: 17.2 (Ubuntu 17.2-1.pgdg20.04+1), 17.2, 17alpha1 etc.
 	re := regexp.MustCompile(`^(\d+)`)
 	match := re.FindStringSubmatch(pgVersion)
 	if len(match) < 2 {
 		return fmt.Errorf("failed to extract major version from source database version: %s", pgVersion)
 	}
 	majorVersion := match[1]
-
-	fmt.Println("Source DB Major version: ", majorVersion)
-	fmt.Println("match[1]: ", match[1])
-	fmt.Println("match[0]: ", match[0])
-	fmt.Println("match len: ", len(match))
 
 	supportedVersionRange := fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
 
