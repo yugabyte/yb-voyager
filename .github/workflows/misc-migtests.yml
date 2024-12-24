@@ -60,7 +60,6 @@ jobs:
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           sudo apt-get -y install postgresql-17
-          sudo /usr/lib/postgresql/17/bin/pg_dump --version
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y

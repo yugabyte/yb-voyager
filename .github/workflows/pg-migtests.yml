@@ -11,6 +11,7 @@ jobs:
     strategy:
       matrix:
         version: [2024.2.0.0-b145, 2.20.8.0-b53, 2024.1.3.1-b8, 2.23.1.0-b220]
+        pg_version: [13, 17]
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
@@ -22,7 +23,7 @@ jobs:
     runs-on: ubuntu-22.04
     services:
       postgres:
-        image: postgres:13
+        image: postgres:${{ matrix.pg_version }}
         env:
           POSTGRES_PASSWORD: secret
         # Set health checks to wait until postgres has started
@@ -69,10 +70,11 @@ jobs:
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
+          sudo apt-get -y install postgresql-17
           sudo rm /usr/bin/pg_dump
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_dump /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
           sudo rm /usr/bin/pg_restore
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_restore /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
           pg_dump --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
