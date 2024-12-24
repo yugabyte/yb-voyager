@@ -278,7 +278,7 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt19: []QueryIssue{
 			NewLODatatypeIssue("TABLE", "test_lo_default", stmt19, "raster"),
-			NewLOFuntionsIssue("TABLE", "test_lo_default", stmt19),
+			NewLOFuntionsIssue("TABLE", "test_lo_default", stmt19, []string{"lo_import"}),
 		},
 		stmt20: []QueryIssue{
 			NewSecurityInvokerViewIssue("VIEW", "public.view_explicit_security_invoker", stmt20),
@@ -428,25 +428,25 @@ $$ LANGUAGE plpgsql;
 
 	expectedSQLsWithIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_unlink(loid);"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_unlink(loid);", []string{"lo_unlink"}),
 		},
 		sqls[1]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "INSERT INTO documents (title, content_oid) VALUES (doc_title, lo_import(file_path));"),
+			NewLOFuntionsIssue("DML_QUERY", "", "INSERT INTO documents (title, content_oid) VALUES (doc_title, lo_import(file_path));", []string{"lo_import"}),
 		},
 		sqls[2]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_export(loid, file_path);"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_export(loid, file_path);", []string{"lo_export"}),
 		},
 		sqls[3]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);", []string{"lo_close"}),
 		},
 		sqls[4]: []QueryIssue{
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_put(fd, convert_to(new_data, 'UTF8'));"),
-			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);"),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_put(fd, convert_to(new_data, 'UTF8'));", []string{"lo_put"}),
+			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);", []string{"lo_close"}),
 			NewLODatatypeIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", "raster"),
-			NewLOFuntionsIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));"),
+			NewLOFuntionsIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", []string{"lo_import"}),
 		},
 		sqls[5]: []QueryIssue{
-			NewLOFuntionsIssue("TRIGGER", "t_raster ON image", sqls[5]),
+			NewLOFuntionsIssue("TRIGGER", "t_raster ON image", sqls[5], []string{"lo_manage"}),
 		},
 	}
 	expectedSQLsWithIssues[sqls[0]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
@@ -492,6 +492,134 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 	assert.Equal(t, 1, len(issues))
 }
 
+func TestJsonUnsupportedFeatures(t *testing.T) {
+	sqls := []string{
+		`SELECT department, JSON_ARRAYAGG(name) AS employees_json
+	FROM employees
+	GROUP BY department;`,
+		`INSERT INTO movies (details)
+VALUES (
+    JSON_OBJECT('title' VALUE 'Dune', 'director' VALUE 'Denis Villeneuve', 'year' VALUE 2021)
+);`,
+		`SELECT json_objectagg(k VALUE v) AS json_result
+	FROM (VALUES ('a', 1), ('b', 2), ('c', 3)) AS t(k, v);`,
+		`SELECT JSON_OBJECT(
+  'movie' VALUE JSON_OBJECT('code' VALUE 'P123', 'title' VALUE 'Jaws'),
+  'director' VALUE 'Steven Spielberg'
+) AS nested_json_object;`,
+		`select JSON_ARRAYAGG('[1, "2", null]');`,
+		`SELECT JSON_OBJECT(
+    'code' VALUE 'P123',
+    'title' VALUE 'Jaws',
+    'price' VALUE 19.99,
+    'available' VALUE TRUE
+) AS json_obj;`,
+		`SELECT id, JSON_QUERY(details, '$.author') AS author
+FROM books;`,
+		`SELECT jt.* FROM
+ my_films,
+ JSON_TABLE (js, '$.favorites[*]' COLUMNS (
+   id FOR ORDINALITY,
+   kind text PATH '$.kind',
+   title text PATH '$.films[*].title' WITH WRAPPER,
+   director text PATH '$.films[*].director' WITH WRAPPER)) AS jt;`,
+		`SELECT jt.* FROM
+ my_films,
+ JSON_TABLE (js, $1 COLUMNS (
+   id FOR ORDINALITY,
+   kind text PATH '$.kind',
+   title text PATH '$.films[*].title' WITH WRAPPER,
+   director text PATH '$.films[*].director' WITH WRAPPER)) AS jt;`,
+		`SELECT id, details
+FROM books
+WHERE JSON_EXISTS(details, '$.author');`,
+		`SELECT id, JSON_QUERY(details, '$.author') AS author
+FROM books;`,
+		`SELECT 
+    id, 
+    JSON_VALUE(details, '$.title') AS title,
+    JSON_VALUE(details, '$.price')::NUMERIC AS price
+FROM books;`,
+		`SELECT id, JSON_VALUE(details, '$.title') AS title
+FROM books
+WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
+`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
+SELECT 
+    id,
+    data->>'name' AS name,
+    JSON_VALUE(data, '$.age' RETURNING INTEGER) AS age,
+    JSON_EXISTS(data, '$.skills[*] ? (@ == "JSON")') AS knows_json,
+    jt.skill
+FROM public.test_jsonb,
+JSON_TABLE(data, '$.skills[*]' 
+    COLUMNS (
+        skill TEXT PATH '$'
+    )
+) AS jt;`,
+ `SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
+	}
+	sqlsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{JSON_ARRAYAGG}),
+		},
+		sqls[1]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], []string{JSON_OBJECT}),
+		},
+		sqls[2]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{JSON_OBJECTAGG}),
+		},
+		sqls[3]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], []string{JSON_OBJECT}),
+		},
+		sqls[4]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4], []string{JSON_ARRAYAGG}),
+		},
+		sqls[5]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[5], []string{JSON_OBJECT}),
+		},
+		sqls[6]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[6], []string{JSON_QUERY}),
+		},
+		sqls[7]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[7], []string{JSON_TABLE}),
+		},
+		// sqls[8]: []QueryIssue{
+		// 	NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[8]),
+		//NOT REPORTED YET because of PARSER failing if JSON_TABLE has a parameterized values $1, $2 ...
+		//https://github.com/pganalyze/pg_query_go/issues/127
+		// },
+		sqls[9]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9], []string{JSON_EXISTS}),
+		},
+		sqls[10]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[10], []string{JSON_QUERY}),
+		},
+		sqls[11]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[11], []string{JSON_VALUE}),
+		},
+		sqls[12]: []QueryIssue{
+			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], []string{JSON_VALUE, JSON_EXISTS}),
+		},
+		sqls[13]: []QueryIssue{
+			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[13], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
+		},
+		sqls[14]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14], []string{JSON_ARRAY}),
+		},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range sqlsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
 func TestRegexFunctionsIssue(t *testing.T) {
 	dmlStmts := []string{
 		`SELECT regexp_count('This is an example. Another example. Example is a common word.', 'example')`,
