@@ -126,7 +126,8 @@ WHERE JSON_EXISTS(details, '$.author');`,
 }
 
 func testAggFunctions(t *testing.T) {
-	sqls := `CREATE TABLE employees (
+	sqls := []string{
+		`CREATE TABLE employees (
     department TEXT,
     employee_name TEXT,
     salary NUMERIC
@@ -142,16 +143,35 @@ SELECT
     department,
     any_value(employee_name) AS any_employee
 FROM employees
-GROUP BY department;`
+GROUP BY department;`,
 
-	ctx := context.Background()
-	conn, err := getConn()
-	assert.NoError(t, err)
+`CREATE TABLE events (
+    id SERIAL PRIMARY KEY,
+    event_range daterange
+);
 
-	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, sqls)
+INSERT INTO events (event_range) VALUES
+    ('[2024-01-01, 2024-01-10]'::daterange),
+    ('[2024-01-05, 2024-01-15]'::daterange),
+    ('[2024-01-20, 2024-01-25]'::daterange);
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, aggregateFunctionIssue)
+SELECT range_agg(event_range) AS union_of_ranges
+FROM events;
+
+SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM events;`,
+	}
+
+	for _, sql := range sqls {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, aggregateFunctionIssue)
+	}
 }
 
 func TestDMLIssuesInYBVersion(t *testing.T) {
@@ -189,6 +209,9 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json query functions", ybVersion), testJsonQueryFunctions)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testAggFunctions)
 	assert.True(t, success)
 
 }
