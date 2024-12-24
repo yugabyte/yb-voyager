@@ -32,6 +32,16 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.json_data",
+            "Reason": "Json Type Predicate",
+            "SqlStatement": "CREATE TABLE public.json_data (\n    id SERIAL PRIMARY KEY,\n    data_column TEXT NOT NULL CHECK (data_column IS JSON),\n    object_column TEXT CHECK (object_column IS JSON OBJECT),\n    array_column TEXT CHECK (array_column IS JSON ARRAY),\n    scalar_column TEXT CHECK (scalar_column IS JSON SCALAR),\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "test",
             "Reason": "Json Constructor Functions",

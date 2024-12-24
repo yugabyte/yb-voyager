@@ -385,3 +385,13 @@ CREATE TABLE public.locations (
 );
 
 CREATE TABLE image (title text, raster lo);
+
+-- IS JSON Predicate
+CREATE TABLE public.json_data (
+    id SERIAL PRIMARY KEY,
+    data_column TEXT NOT NULL CHECK (data_column IS JSON),
+    object_column TEXT CHECK (object_column IS JSON OBJECT),
+    array_column TEXT CHECK (array_column IS JSON ARRAY),
+    scalar_column TEXT CHECK (scalar_column IS JSON SCALAR),
+    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
+);
