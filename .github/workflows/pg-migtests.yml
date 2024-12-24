@@ -127,10 +127,11 @@ jobs:
 
       - name: "TEST: PG sample schemas (pgtbrus)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.pg_version == 17 }}
-        run: migtests/scripts/run-schema-migration.sh pg/pgtbrus\
+        run: migtests/scripts/run-schema-migration.sh pg/pgtbrus
 
       - name: "TEST: PG sample schemas (stackexchange)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.pg_version == 17 }}
+        run: migtests/scripts/run-schema-migration.sh pg/stackexchange
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
