@@ -16,6 +16,8 @@ limitations under the License.
 package queryissue
 
 import (
+	"slices"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -224,36 +226,19 @@ func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Messa
 	}
 
 	// Check for COPY FROM ... WHERE clause
-	isFromField := msg.Descriptor().Fields().ByName("is_from")
-	whereField := msg.Descriptor().Fields().ByName("where_clause")
-	if isFromField != nil && msg.Has(isFromField) {
-		isFrom := msg.Get(isFromField).Bool()
-		if isFrom && whereField != nil && msg.Has(whereField) {
-			d.copyFromWhereConstructDetected = true
-		}
+	fromField := queryparser.GetBoolField(msg, "is_from")
+	whereField := queryparser.GetMessageField(msg, "where_clause")
+	if fromField && whereField != nil {
+		d.copyFromWhereConstructDetected = true
 	}
 
 	// Check for COPY ... ON_ERROR clause
-	optionsField := msg.Descriptor().Fields().ByName("options")
-	if optionsField != nil && msg.Has(optionsField) {
-		optionsList := msg.Get(optionsField).List()
-		for i := 0; i < optionsList.Len(); i++ {
-			option := optionsList.Get(i).Message()
-
-			// Check for nested def_elem field
-			defElemField := option.Descriptor().Fields().ByName("def_elem")
-			if defElemField != nil && option.Has(defElemField) {
-				defElem := option.Get(defElemField).Message()
-				defNameField := defElem.Descriptor().Fields().ByName("defname")
-				if defNameField != nil && defElem.Has(defNameField) {
-					defName := defElem.Get(defNameField).String()
-					if defName == "on_error" {
-						d.copyOnErrorConstructDetected = true
-						break
-					}
-				}
-			}
-		}
+	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	if err != nil {
+		log.Errorf("error extracting defnames from COPY statement: %v", err)
+	}
+	if slices.Contains(defNames, "on_error") {
+		d.copyOnErrorConstructDetected = true
 	}
 
 	return nil
