@@ -123,7 +123,8 @@ func shouldSkipDDL(stmt string) (bool, error) {
 
 	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
 	// NOTICE severity as well (which is the default), hence skipping this.
-	if strings.Contains(stmt, "SET CLIENT_MIN_MESSAGES") {
+	//pg_dump 17 gives this SET transaction_timeout = 0;
+	if strings.Contains(stmt, "SET CLIENT_MIN_MESSAGES") || strings.Contains(stmt, "SET TRANSACTION_TIMEOUT") { 
 		return true, nil
 	}
 	skipReplicaIdentity := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")

@@ -105,13 +105,11 @@ ERROR: VIEW WITH CASCADED CHECK OPTION not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS
-SELECT
-    a,
+ SELECT a,
     b
-FROM
-    regress_rls_schema.b1
-WHERE
-    (a > 0) WITH CASCADED CHECK OPTION;
+   FROM regress_rls_schema.b1
+  WHERE (a > 0)
+  WITH CASCADED CHECK OPTION;
 
 /*
 ERROR: CREATE CONVERSION not supported yet (SQLSTATE 0A000)
