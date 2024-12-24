@@ -225,6 +225,7 @@ const (
 	INDEX_METHOD_ISSUE_REASON                = "Schema contains %s index which is not supported."
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
 	GIN_INDEX_DETAILS                        = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+	SECURITY_INVOKER_VIEWS_ISSUE             = "Security Invoker Views not supported yet"
 )
 
 // Reports one case in JSON

@@ -431,11 +431,23 @@ var loDatatypeIssue = issue.Issue{
 	TypeName:   "Unsupported datatype - lo",
 	Suggestion: "Large objects are not yet supported in YugabyteDB, no workaround available currently",
 	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25318",
-	DocsLink:   "", //TODO
+	DocsLink:   "", // TODO
 }
 
 func NewLODatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
 	issue := loDatatypeIssue
 	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
 	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var securityInvokerViewIssue = issue.Issue{
+	Type:       SECURITY_INVOKER_VIEWS,
+	TypeName:   "Security Invoker Views not supported yet",
+	Suggestion: "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently",
+	GH:         "", // TODO
+	DocsLink:   "", // TODO
+}
+
+func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(securityInvokerViewIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }

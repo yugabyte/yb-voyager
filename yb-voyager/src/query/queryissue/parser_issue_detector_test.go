@@ -156,9 +156,13 @@ ADD CONSTRAINT valid_invoice_structure
 CHECK (xpath_exists('/invoice/customer', data));`
 	stmt18 = `CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));`
 	stmt19 = `create table test_lo_default (id int, raster lo DEFAULT lo_import('3242'));`
+	stmt20 = `CREATE VIEW public.view_explicit_security_invoker
+	WITH (security_invoker = true) AS
+	SELECT employee_id, first_name
+	FROM public.employees;`
 )
 
-func modifyiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
+func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
 	return lo.Map(issues, func(i QueryIssue, _ int) QueryIssue {
 		i.ObjectType = objType
 		i.ObjectName = objName
@@ -221,9 +225,9 @@ func TestAllIssues(t *testing.T) {
 	}
 
 	//Should modify it in similar way we do it actual code as the particular DDL issue in plpgsql can have different Details map on the basis of objectType
-	stmtsWithExpectedIssues[stmt1] = modifyiedIssuesforPLPGSQL(stmtsWithExpectedIssues[stmt1], "FUNCTION", "list_high_earners")
+	stmtsWithExpectedIssues[stmt1] = modifiedIssuesforPLPGSQL(stmtsWithExpectedIssues[stmt1], "FUNCTION", "list_high_earners")
 
-	stmtsWithExpectedIssues[stmt2] = modifyiedIssuesforPLPGSQL(stmtsWithExpectedIssues[stmt2], "FUNCTION", "process_order")
+	stmtsWithExpectedIssues[stmt2] = modifiedIssuesforPLPGSQL(stmtsWithExpectedIssues[stmt2], "FUNCTION", "process_order")
 
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseRequiredDDLs(stmt)
@@ -275,6 +279,9 @@ func TestDDLIssues(t *testing.T) {
 		stmt19: []QueryIssue{
 			NewLODatatypeIssue("TABLE", "test_lo_default", stmt19, "raster"),
 			NewLOFuntionsIssue("TABLE", "test_lo_default", stmt19),
+		},
+		stmt20: []QueryIssue{
+			NewSecurityInvokerViewIssue("VIEW", "public.view_explicit_security_invoker", stmt20),
 		},
 	}
 	for _, stmt := range requiredDDLs {
@@ -415,7 +422,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 `,
-`CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image
+		`CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON image
     FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);`,
 	}
 
@@ -442,12 +449,11 @@ $$ LANGUAGE plpgsql;
 			NewLOFuntionsIssue("TRIGGER", "t_raster ON image", sqls[5]),
 		},
 	}
-	expectedSQLsWithIssues[sqls[0]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
-	expectedSQLsWithIssues[sqls[1]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[1]], "FUNCTION", "import_file_to_table")
-	expectedSQLsWithIssues[sqls[2]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[2]], "FUNCTION", "export_large_object")
-	expectedSQLsWithIssues[sqls[3]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
-	expectedSQLsWithIssues[sqls[4]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
-
+	expectedSQLsWithIssues[sqls[0]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
+	expectedSQLsWithIssues[sqls[1]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[1]], "FUNCTION", "import_file_to_table")
+	expectedSQLsWithIssues[sqls[2]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[2]], "FUNCTION", "export_large_object")
+	expectedSQLsWithIssues[sqls[3]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
+	expectedSQLsWithIssues[sqls[4]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
 
 	parserIssueDetector := NewParserIssueDetector()
 
@@ -456,7 +462,6 @@ $$ LANGUAGE plpgsql;
 		fmt.Printf("%v", issues)
 
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
-
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
@@ -466,6 +471,7 @@ $$ LANGUAGE plpgsql;
 		}
 	}
 }
+
 // currently, both FuncCallDetector and XmlExprDetector can detect XMLFunctionsIssue
 // statement below has both XML functions and XML expressions.
 // but we want to only return one XMLFunctionsIssue from parserIssueDetector.getDMLIssues

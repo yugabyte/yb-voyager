@@ -16,6 +16,7 @@ limitations under the License.
 package queryparser
 
 import (
+	"fmt"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -328,6 +329,21 @@ func GetStatementType(msg protoreflect.Message) string {
 	return GetMsgFullName(node)
 }
 
+func getOneofActiveNode(msg protoreflect.Message) protoreflect.Message {
+	nodeField := getOneofActiveField(msg, "node")
+	if nodeField == nil {
+		return nil
+	}
+
+	value := msg.Get(nodeField)
+	node := value.Message()
+	if node == nil || !node.IsValid() {
+		return nil
+	}
+
+	return node
+}
+
 // == Generic helper functions ==
 
 // GetStringField retrieves a string field from a message.
@@ -369,4 +385,36 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 		objectName = GetStringField(nameList.Get(1).Message(), "string")
 	}
 	return schemaName, objectName
+}
+
+/*
+Example:
+options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}
+options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
+
+Extract all defnames from the def_eleme node
+*/
+func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) ([]string, error) {
+	var defNames []string
+
+	collectorFunc := func(msg protoreflect.Message) error {
+		if GetMsgFullName(msg) != PG_QUERY_DEFELEM_NODE {
+			return nil
+		}
+
+		defName := GetStringField(msg, "defname")
+		// TODO(future):
+		//      defValNode = GetMessageField(msg, "arg")
+		//      defVal     = GetStringField(defValNode, "sval")
+
+		defNames = append(defNames, defName)
+		return nil
+	}
+	visited := make(map[protoreflect.Message]bool)
+	err := TraverseParseTree(msg, visited, collectorFunc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to traverse parse tree for fetching defnames: %w", err)
+	}
+
+	return defNames, nil
 }

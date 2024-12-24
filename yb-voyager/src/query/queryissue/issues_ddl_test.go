@@ -216,6 +216,28 @@ func testLoDatatypeIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", loDatatypeIssue)
 }
 
+func testSecurityInvokerView(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE public.employees (
+		employee_id SERIAL PRIMARY KEY,
+		first_name VARCHAR(100),
+		last_name VARCHAR(100),
+		department VARCHAR(50)
+	);
+
+	CREATE VIEW public.view_explicit_security_invoker
+	WITH (security_invoker = true) AS
+	SELECT employee_id, first_name
+	FROM public.employees;`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unrecognized parameter", securityInvokerViewIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -269,4 +291,6 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "lo datatype", ybVersion), testLoDatatypeIssue)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "security invoker view", ybVersion), testSecurityInvokerView)
+	assert.True(t, success)
 }
