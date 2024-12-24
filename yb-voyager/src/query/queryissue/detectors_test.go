@@ -677,3 +677,32 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
 	}
 }
+
+func TestJsonConstructorDetector(t *testing.T) {
+	sql := `SELECT JSON_ARRAY('PostgreSQL', 12, TRUE, NULL) AS json_array;`
+
+	issues := getDetectorIssues(t, NewJsonConstructorFuncDetector(sql), sql)
+	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+	assert.Equal(t, JSON_CONSTRUCTOR_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+
+}
+
+func TestJsonQueryFunctionDetector(t *testing.T) {
+	sql := `SELECT id, JSON_VALUE(details, '$.title') AS title
+FROM books
+WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`
+
+	issues := getDetectorIssues(t, NewJsonQueryFunctionDetector(sql), sql)
+	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+	assert.Equal(t, JSON_QUERY_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+
+}
+
+func TestIsJsonPredicate(t *testing.T) {
+	sql := `SELECT js, js IS JSON "json?" FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`
+
+	issues := getDetectorIssues(t, NewJsonPredicateExprDetector(sql), sql)
+	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+	assert.Equal(t, JSON_TYPE_PREDICATE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+
+}
