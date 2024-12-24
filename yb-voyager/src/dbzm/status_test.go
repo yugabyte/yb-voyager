@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestExportStatusStructs(t *testing.T) {
