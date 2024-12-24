@@ -42,7 +42,7 @@ import (
 
 const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
 const MIN_SUPPORTED_PG_VERSION_LIVE = "10"
-const MAX_SUPPORTED_PG_VERSION = "16"
+const MAX_SUPPORTED_PG_VERSION = "17"
 const MISSING = "MISSING"
 const GRANTED = "GRANTED"
 const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
@@ -979,14 +979,24 @@ func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	if pgVersion == "" {
 		return fmt.Errorf("failed to get source database version")
 	}
+
+	// Extract the major version from the full version string
+	// Version can be like: 17.2 (Ubuntu 17.2-1.pgdg20.04+1), 17.2, 17alpha1 etc.
+	re := regexp.MustCompile(`^(\d+)`)
+	match := re.FindStringSubmatch(pgVersion)
+	if len(match) < 2 {
+		return fmt.Errorf("failed to extract major version from source database version: %s", pgVersion)
+	}
+	majorVersion := match[1]
+
 	supportedVersionRange := fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
 
-	if version.CompareSimple(pgVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
+	if version.CompareSimple(majorVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(majorVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
 		return fmt.Errorf("current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
 	}
 	// for live migration
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
-		if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
+		if version.CompareSimple(majorVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
 			supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
 			utils.PrintAndLog(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
 		}
