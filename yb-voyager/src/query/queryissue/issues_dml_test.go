@@ -127,13 +127,13 @@ WHERE JSON_EXISTS(details, '$.author');`,
 
 func testAggFunctions(t *testing.T) {
 	sqls := []string{
-		`CREATE TABLE employees (
+		`CREATE TABLE any_value_ex (
     department TEXT,
     employee_name TEXT,
     salary NUMERIC
 );
 
-INSERT INTO employees VALUES
+INSERT INTO any_value_ex VALUES
 ('HR', 'Alice', 50000),
 ('HR', 'Bob', 55000),
 ('IT', 'Charlie', 60000),
@@ -142,7 +142,7 @@ INSERT INTO employees VALUES
 SELECT
     department,
     any_value(employee_name) AS any_employee
-FROM employees
+FROM any_value_ex
 GROUP BY department;`,
 
 `CREATE TABLE events (
