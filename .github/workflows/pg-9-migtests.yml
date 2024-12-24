@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: ['main', 'priyanshi/report-json-fn-any_agg-fn']
+    branches: ['main']
 
 jobs:
   run-pg-migration-tests:
