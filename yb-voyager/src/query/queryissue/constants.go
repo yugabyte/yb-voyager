@@ -70,6 +70,9 @@ const (
 	XML_FUNCTIONS_NAME  = "XML Functions"
 
 	REGEX_FUNCTIONS = "REGEX_FUNCTIONS"
+
+	JSON_SUBSCRIPTING      = "JSON_SUBSCRIPTING"
+	JSON_SUBSCRIPTING_NAME = "Json Subscripting"
 )
 
 // Object types

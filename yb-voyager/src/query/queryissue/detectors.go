@@ -237,6 +237,8 @@ func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
 	switch {
 	case arg.GetColumnRef() != nil:
 		/*
+			SELECT numbers[1] AS first_number
+			FROM array_data;
 			{a_indirection:{arg:{column_ref:{fields:{string:{sval:"numbers"}}  location:69}}
 			indirection:{a_indices:{uidx:{a_const:{ival:{ival:1}  location:77}}}}}}  location:69}}
 		*/
@@ -248,6 +250,7 @@ func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
 
 	case arg.GetTypeCast() != nil:
 		/*
+			SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];
 			{a_indirection:{arg:{type_cast:{arg:{a_const:{sval:{sval:"{\"a\": {\"b\": {\"c\": 1}}}"}  location:280}}
 			type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
 		*/

@@ -142,17 +142,15 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
 }
 
-
 var jsonSubscriptingIssue = issue.Issue{
-	Type:            "JSON_SUBSTRUSDFS",
-	TypeName:        "JSONDSa",
-	TypeDescription: "Large Objects functions are not supported in YugabyteDB",
-	Suggestion:      "Large objects functions are not yet supported in YugabyteDB, no workaround available right now",
-	GH:              "https://github.com/yugabyte/yugabyte-db/issues/25318",
+	Type:            JSON_SUBSCRIPTING,
+	TypeName:        JSON_SUBSCRIPTING_NAME,
+	TypeDescription: "Json subscripting is not supported in YugabyteDB yet",
+	Suggestion:      "Use Arrow operators (-> / ->>) to access the json fields.",
+	GH:              "",
 	DocsLink:        "", //TODO
 }
 
 func NewJsonSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(jsonSubscriptingIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
-

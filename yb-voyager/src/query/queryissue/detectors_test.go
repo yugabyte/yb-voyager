@@ -707,7 +707,7 @@ WHERE data['user']['name'] = '"Alice"';`,
 		issues := getDetectorIssues(t, NewJsonSubscriptingDetector(sql, []string{"numbers", "json_array"}), sql)
 
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, "JSON_SUBSTRUSDFS", issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
+		assert.Equal(t, JSON_SUBSCRIPTING, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
 	}
 }
 
