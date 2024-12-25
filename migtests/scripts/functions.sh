@@ -932,7 +932,7 @@ compare_files() {
         return 0
     else
         echo "Data does not match expected report."
-        diff_output=$(diff "$file1" "$file2")
+        diff_output=$(diff --context "$file1" "$file2")
         echo "$diff_output"
         return 1
     fi

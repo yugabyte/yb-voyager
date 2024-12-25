@@ -25,6 +25,7 @@ cat <<EOF > "$TEMP_SQL"
 \i ${TEST_DIR}/../views-and-rules/pg_views_and_rules_automation.sql;
 \i pg_assessment_report.sql;
 \i unsupported_query_constructs.sql;
+
 CREATE SCHEMA IF NOT EXISTS schema2;
 SET SEARCH_PATH TO schema2;
 \i ${TEST_DIR}/../misc-objects-1/schema.sql;

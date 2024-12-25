@@ -375,6 +375,8 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewColumnRefDetector(query),
 		NewXmlExprDetector(query),
 		NewRangeTableFuncDetector(query),
+		NewJsonConstructorFuncDetector(query),
+		NewJsonQueryFunctionDetector(query),
 	}
 
 	processor := func(msg protoreflect.Message) error {

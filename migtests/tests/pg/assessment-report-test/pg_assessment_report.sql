@@ -242,7 +242,8 @@ EXECUTE FUNCTION public.check_sales_region();
     product_name TEXT NOT NULL,
     quantity INT NOT NULL,
     price NUMERIC(10, 2) NOT NULL,
-    processed_at timestamp
+    processed_at timestamp,
+    r INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example') -- regex functions in default
 );
 
 INSERT INTO public.ordersentry (customer_name, product_name, quantity, price)
@@ -361,3 +362,25 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- SECURITY INVOKER VIEW
+CREATE TABLE public.employees (
+    employee_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    department VARCHAR(50)
+);
+
+INSERT INTO public.employees (first_name, last_name, department)
+VALUES
+    ('Alice', 'Smith', 'HR'),
+    ('Bob', 'Jones', 'Finance'),
+    ('Charlie', 'Brown', 'IT'),
+    ('Diana', 'Prince', 'HR'),
+    ('Ethan', 'Hunt', 'Security');
+
+CREATE VIEW public.view_explicit_security_invoker
+WITH (security_invoker = true) AS
+    SELECT employee_id, first_name
+    FROM public.employees;
+
