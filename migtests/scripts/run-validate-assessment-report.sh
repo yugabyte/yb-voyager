@@ -57,6 +57,12 @@ main() {
 	step "Initialise source database."
 	./init-db
 
+	step "test pg version and tools"
+	pg_dump --version
+	pg_restore --version 
+	psql --version 
+	run_psql postgres "SELECT VERSION();"
+
 	step "Grant source database user permissions"
 	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 
