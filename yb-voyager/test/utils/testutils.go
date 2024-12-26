@@ -6,11 +6,14 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type ColumnPropertiesSqlite struct {
@@ -201,10 +204,10 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, expectedColumns map[string]ColumnPropertiesPG) {
 	// Validate primary keys
 	queryPrimaryKeys := `
-    SELECT conrelid::regclass AS table_name, 
-           conname AS primary_key, 
+    SELECT conrelid::regclass AS table_name,
+        	conname AS primary_key,
            pg_get_constraintdef(oid)
-    FROM   pg_constraint 
+    FROM   pg_constraint
     WHERE  contype = 'p'  -- 'p' indicates primary key
     AND    conrelid::regclass::text = $1
     ORDER  BY conrelid::regclass::text, contype DESC;`
@@ -349,4 +352,51 @@ func CheckTableExistencePG(t *testing.T, db *sql.DB, schema string, expectedTabl
 			t.Errorf("Unexpected table found: %s", actualTable)
 		}
 	}
+}
+
+// === assertion helper functions
+func AssertEqualStringSlices(t *testing.T, expected, actual []string) {
+	t.Helper()
+	if len(expected) != len(actual) {
+		t.Errorf("Mismatch in slice length. Expected: %v, Actual: %v", expected, actual)
+	}
+
+	sort.Strings(expected)
+	sort.Strings(actual)
+	assert.Equal(t, expected, actual)
+}
+
+func AssertEqualSourceNameSlices(t *testing.T, expected, actual []*sqlname.SourceName) {
+	SortSourceNames(expected)
+	SortSourceNames(actual)
+	assert.Equal(t, expected, actual)
+}
+
+func SortSourceNames(tables []*sqlname.SourceName) {
+	sort.Slice(tables, func(i, j int) bool {
+		return tables[i].Qualified.MinQuoted < tables[j].Qualified.MinQuoted
+	})
+}
+
+func AssertEqualNameTuplesSlice(t *testing.T, expected, actual []sqlname.NameTuple) {
+	sortNameTuples(expected)
+	sortNameTuples(actual)
+	assert.Equal(t, expected, actual)
+}
+
+func sortNameTuples(tables []sqlname.NameTuple) {
+	sort.Slice(tables, func(i, j int) bool {
+		return tables[i].ForOutput() < tables[j].ForOutput()
+	})
+}
+
+// waitForDBConnection waits until the database is ready for connections.
+func WaitForDBToBeReady(db *sql.DB) error {
+	for i := 0; i < 12; i++ {
+		if err := db.Ping(); err == nil {
+			return nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("database did not become ready in time")
 }

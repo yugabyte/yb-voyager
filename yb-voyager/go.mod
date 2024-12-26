@@ -22,8 +22,8 @@ require (
 	github.com/gosuri/uilive v0.0.4
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.7.0
-	github.com/jackc/pgconn v1.13.0
-	github.com/jackc/pgx/v4 v4.17.2
+	github.com/jackc/pgconn v1.14.3
+	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.0.3
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.17
@@ -45,6 +45,7 @@ require (
 	golang.org/x/term v0.24.0
 	google.golang.org/api v0.169.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
+	gotest.tools v2.2.0+incompatible
 )
 
 require (
@@ -143,9 +144,9 @@ require (
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pglogrepl v0.0.0-20231111135425-1627ab1b5780
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgtype v1.12.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-colorable v0.1.13 // indirect
