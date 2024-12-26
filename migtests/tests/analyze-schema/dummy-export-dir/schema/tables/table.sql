@@ -385,3 +385,37 @@ CREATE TABLE public.locations (
 );
 
 CREATE TABLE image (title text, raster lo);
+
+-- create table with multirange data types
+
+-- Create tables with primary keys directly
+CREATE TABLE bigint_multirange_table (
+    id integer PRIMARY KEY,
+    value_ranges int8multirange
+);
+
+CREATE TABLE date_multirange_table (
+    id integer PRIMARY KEY,
+    project_dates datemultirange
+);
+
+CREATE TABLE int_multirange_table (
+    id integer PRIMARY KEY,
+    value_ranges int4multirange
+);
+
+CREATE TABLE numeric_multirange_table (
+    id integer PRIMARY KEY,
+    price_ranges nummultirange
+);
+
+CREATE TABLE timestamp_multirange_table (
+    id integer PRIMARY KEY,
+    event_times tsmultirange
+);
+
+CREATE TABLE timestamptz_multirange_table (
+    id integer PRIMARY KEY,
+    global_event_times tstzmultirange
+);
+
