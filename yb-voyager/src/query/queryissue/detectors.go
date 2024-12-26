@@ -16,6 +16,8 @@ limitations under the License.
 package queryissue
 
 import (
+	"slices"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -204,6 +206,55 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type CopyCommandUnsupportedConstructsDetector struct {
+	query                          string
+	copyFromWhereConstructDetected bool
+	copyOnErrorConstructDetected   bool
+}
+
+func NewCopyCommandUnsupportedConstructsDetector(query string) *CopyCommandUnsupportedConstructsDetector {
+	return &CopyCommandUnsupportedConstructsDetector{
+		query: query,
+	}
+}
+
+// Detect if COPY command uses unsupported syntax i.e. COPY FROM ... WHERE and COPY... ON_ERROR
+func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Message) error {
+	// Check if the message is a COPY statement
+	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPYSTSMT_NODE {
+		return nil // Not a COPY statement, nothing to detect
+	}
+
+	// Check for COPY FROM ... WHERE clause
+	fromField := queryparser.GetBoolField(msg, "is_from")
+	whereField := queryparser.GetMessageField(msg, "where_clause")
+	if fromField && whereField != nil {
+		d.copyFromWhereConstructDetected = true
+	}
+
+	// Check for COPY ... ON_ERROR clause
+	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	if err != nil {
+		log.Errorf("error extracting defnames from COPY statement: %v", err)
+	}
+	if slices.Contains(defNames, "on_error") {
+		d.copyOnErrorConstructDetected = true
+	}
+
+	return nil
+}
+
+func (d *CopyCommandUnsupportedConstructsDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.copyFromWhereConstructDetected {
+		issues = append(issues, NewCopyFromWhereIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.copyOnErrorConstructDetected {
+		issues = append(issues, NewCopyOnErrorIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
+
 type JsonConstructorFuncDetector struct {
 	query                                       string
 	unsupportedJsonConstructorFunctionsDetected mapset.Set[string]
@@ -253,19 +304,19 @@ func NewJsonQueryFunctionDetector(query string) *JsonQueryFunctionDetector {
 func (j *JsonQueryFunctionDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_JSON_TABLE_NODE {
 		/*
-		SELECT * FROM json_table(
-			'[{"a":10,"b":20},{"a":30,"b":40}]'::jsonb,
-			'$[*]'
-			COLUMNS (
-				column_a int4 path '$.a',
-				column_b int4 path '$.b'
-			)
-		);
-		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:530}}  location:530}}  
-		from_clause:{json_table:{context_item:{raw_expr:{type_cast:{arg:{a_const:{sval:{sval:"[{\"a\":10,\"b\":20},{\"a\":30,\"b\":40}]"}  
-		location:553}}  type_name:{names:{string:{sval:"jsonb"}}  .....  name_location:-1  location:601}  
-		columns:{json_table_column:{coltype:JTC_REGULAR  name:"column_a"  type_name:{names:{string:{sval:"int4"}}  typemod:-1  location:639}  
-		pathspec:{string:{a_const:{sval:{sval:"$.a"}  location:649}}  name_location:-1  location:649} ...
+			SELECT * FROM json_table(
+				'[{"a":10,"b":20},{"a":30,"b":40}]'::jsonb,
+				'$[*]'
+				COLUMNS (
+					column_a int4 path '$.a',
+					column_b int4 path '$.b'
+				)
+			);
+			stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:530}}  location:530}}
+			from_clause:{json_table:{context_item:{raw_expr:{type_cast:{arg:{a_const:{sval:{sval:"[{\"a\":10,\"b\":20},{\"a\":30,\"b\":40}]"}
+			location:553}}  type_name:{names:{string:{sval:"jsonb"}}  .....  name_location:-1  location:601}
+			columns:{json_table_column:{coltype:JTC_REGULAR  name:"column_a"  type_name:{names:{string:{sval:"int4"}}  typemod:-1  location:639}
+			pathspec:{string:{a_const:{sval:{sval:"$.a"}  location:649}}  name_location:-1  location:649} ...
 		*/
 		j.unsupportedJsonQueryFunctionsDetected.Add(JSON_TABLE)
 		return nil

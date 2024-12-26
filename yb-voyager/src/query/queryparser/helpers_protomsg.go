@@ -366,6 +366,14 @@ func GetMessageField(msg protoreflect.Message, fieldName string) protoreflect.Me
 	return nil
 }
 
+func GetBoolField(msg protoreflect.Message, fieldName string) bool {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Bool()
+	}
+	return false
+}
+
 // GetListField retrieves a list field from a message.
 func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List {
 	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
@@ -403,12 +411,10 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 Example:
 options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}
 options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
-
 Extract all defnames from the def_eleme node
 */
 func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) ([]string, error) {
 	var defNames []string
-
 	collectorFunc := func(msg protoreflect.Message) error {
 		if GetMsgFullName(msg) != PG_QUERY_DEFELEM_NODE {
 			return nil

@@ -70,6 +70,8 @@ const (
 	XML_FUNCTIONS_NAME  = "XML Functions"
 
 	REGEX_FUNCTIONS = "REGEX_FUNCTIONS"
+	COPY_FROM_WHERE = "COPY FROM ... WHERE"
+	COPY_ON_ERROR   = "COPY ... ON_ERROR"
 )
 
 // Object types

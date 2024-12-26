@@ -58,6 +58,29 @@ func testRegexFunctionsIssue(t *testing.T) {
 	}
 }
 
+func testCopyOnErrorIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	// In case the COPY ... ON_ERROR construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
+	_, err = conn.Exec(ctx, `COPY pg_largeobject (loid, pageno, data) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: option \"on_error\" not recognized (SQLSTATE 42601)", copyOnErrorIssue)
+
+}
+
+func testCopyFromWhereIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	// In case the COPY FROM ...  WHERE construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
+	_, err = conn.Exec(ctx, `COPY pg_largeobject (loid, pageno, data) FROM '/path/to/data.csv' WHERE loid = 1 WITH (FORMAT csv, HEADER true);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)", copyFromWhereIssue)
+}
+
 func testJsonConstructorFunctions(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -145,6 +168,11 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "regex functions", ybVersion), testRegexFunctionsIssue)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "copy on error", ybVersion), testCopyOnErrorIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "copy from where", ybVersion), testCopyFromWhereIssue)
+	assert.True(t, success)
 	success = t.Run(fmt.Sprintf("%s-%s", "json constructor functions", ybVersion), testJsonConstructorFunctions)
 	assert.True(t, success)
 
