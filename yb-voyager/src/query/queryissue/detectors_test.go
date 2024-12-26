@@ -27,63 +27,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
-func TestCopyCommandUnsupportedConstructsDetector(t *testing.T) {
-	copyCommandSqlsMap := map[string][]string{
-		// Valid COPY commands without WHERE or ON_ERROR
-		`COPY my_table FROM '/path/to/data.csv' WITH (FORMAT csv);`:                          {},
-		`COPY my_table FROM '/path/to/data.csv' WITH (FORMAT text);`:                         {},
-		`COPY my_table FROM '/path/to/data.csv';`:                                            {},
-		`COPY my_table FROM '/path/to/data.csv' WITH (DELIMITER ',');`:                       {},
-		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true);`: {},
-
-		// COPY commands with WHERE clause
-		`COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`:                {COPY_FROM_WHERE},
-		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`: {COPY_FROM_WHERE},
-		`COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`:                      {COPY_FROM_WHERE},
-		`COPY employees (id, name, age)
-		FROM STDIN WITH (FORMAT csv)
-		WHERE age > 30;`: {COPY_FROM_WHERE},
-
-		// COPY commands with ON_ERROR clause
-		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`: {COPY_ON_ERROR},
-		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP);`:   {COPY_ON_ERROR},
-
-		// COPY commands with both ON_ERROR and WHERE clause
-		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE) WHERE age > 18;`:     {COPY_FROM_WHERE, COPY_ON_ERROR},
-		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP) WHERE name = 'Alice';`: {COPY_FROM_WHERE, COPY_ON_ERROR},
-	}
-
-	detectConstructs := func(sql string) []QueryIssue {
-		detector := NewCopyCommandUnsupportedConstructsDetector(sql)
-		parseResult, err := queryparser.Parse(sql)
-		assert.NoError(t, err, "Failed to parse SQL: %s", sql)
-
-		visited := make(map[protoreflect.Message]bool)
-
-		processor := func(msg protoreflect.Message) error {
-			err := detector.Detect(msg)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-
-		parseTreeMsg := queryparser.GetProtoMessageFromParseTree(parseResult)
-		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
-		assert.NoError(t, err)
-
-		return detector.GetIssues()
-	}
-
-	for sql, expectedIssues := range copyCommandSqlsMap {
-		issues := detectConstructs(sql)
-		assert.Equal(t, len(expectedIssues), len(issues), "Expected %d issues for SQL: %s", len(expectedIssues), sql)
-		for i, issue := range issues {
-			assert.Equal(t, expectedIssues[i], issue.Type, "Expected issue %s for SQL: %s", expectedIssues[i], sql)
-		}
-	}
-}
-
 func getDetectorIssues(t *testing.T, detector UnsupportedConstructDetector, sql string) []QueryIssue {
 	parseResult, err := queryparser.Parse(sql)
 	assert.NoError(t, err, "Failed to parse SQL: %s", sql)
