@@ -697,6 +697,10 @@ FROM array_data;`
 		`UPDATE json_data
 SET data = jsonb_set(data, '{user,details,city}', '"San Francisco"')
 WHERE data['user']['name'] = '"Alice"';`,
+		`SELECT
+    data->>$1 AS name, 
+    data[$2][$3] AS second_score
+FROM test_jsonb1`,
 	}
 
 	issues := getDetectorIssues(t, NewJsonSubscriptingDetector(withoutIssueSql, []string{"numbers"}), withoutIssueSql)
@@ -707,7 +711,7 @@ WHERE data['user']['name'] = '"Alice"';`,
 		issues := getDetectorIssues(t, NewJsonSubscriptingDetector(sql, []string{"numbers", "json_array"}), sql)
 
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, JSON_SUBSCRIPTING, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
+		assert.Equal(t, JSONB_SUBSCRIPTING, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
 	}
 }
 

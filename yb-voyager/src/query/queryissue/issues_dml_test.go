@@ -40,6 +40,18 @@ func testLOFunctionsIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "Transaction for catalog table write operation 'pg_largeobject_metadata' not found", loDatatypeIssue)
 }
 
+
+func testJsonSubscriptingIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "cannot subscript type jsonb because it is not an array", loDatatypeIssue)
+}
+
 func testRegexFunctionsIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -150,5 +162,8 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json query functions", ybVersion), testJsonQueryFunctions)
 	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "json subscripting", ybVersion), testJsonSubscriptingIssue)
+	assert.True(t, success)	
 
 }

@@ -267,7 +267,7 @@ func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
 func (j *JsonSubscriptingDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if j.detected {
-		issues = append(issues, NewJsonSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", ""))
+		issues = append(issues, NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", j.query))
 	}
 	return issues
 }

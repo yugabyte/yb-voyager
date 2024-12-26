@@ -142,15 +142,15 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
 }
 
-var jsonSubscriptingIssue = issue.Issue{
-	Type:            JSON_SUBSCRIPTING,
-	TypeName:        JSON_SUBSCRIPTING_NAME,
-	TypeDescription: "Json subscripting is not supported in YugabyteDB yet",
-	Suggestion:      "Use Arrow operators (-> / ->>) to access the json fields.",
+var jsonbSubscriptingIssue = issue.Issue{
+	Type:            JSONB_SUBSCRIPTING,
+	TypeName:        JSONB_SUBSCRIPTING_NAME,
+	TypeDescription: "Jsonb subscripting is not supported in YugabyteDB yet",
+	Suggestion:      "Use Arrow operators (-> / ->>) to access the jsonb fields.",
 	GH:              "",
 	DocsLink:        "", //TODO
 }
 
-func NewJsonSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(jsonSubscriptingIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(jsonbSubscriptingIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

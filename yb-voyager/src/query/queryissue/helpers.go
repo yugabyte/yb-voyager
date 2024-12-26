@@ -134,3 +134,38 @@ var unsupportedLargeObjectFunctions = mapset.NewThreadUnsafeSet([]string{
 	//functions provided by lo extension, refer - https://www.postgresql.org/docs/current/lo.html#LO-RATIONALE
 	"lo_manage", "lo_oid",
 }...)
+
+var catalogTablesArrayColumns = mapset.NewThreadUnsafeSet([]string{
+	/*
+			SELECT
+		    DISTINCT a.attname AS column_name
+		FROM
+		    pg_attribute a
+		JOIN
+		    pg_class c ON a.attrelid = c.oid
+		JOIN
+		    pg_namespace n ON c.relnamespace = n.oid
+		JOIN
+		    pg_type t ON a.atttypid = t.oid
+		WHERE
+		    a.attnum > 0 -- Exclude system columns
+		    AND NOT a.attisdropped -- Exclude dropped columns
+		    AND t.typtype = 'b' -- Only base types
+		    AND t.typelem <> 0 -- Has an element type (indicating it's an array)
+		    AND t.typcategory = 'A' -- Specifically arrays
+		ORDER BY column_name;
+	*/
+	"attacl", "attfdwoptions", "attnames", "attoptions", "conexclop", "confdelsetcols",
+	"conffeqop", "confkey", "conkey", "conpfeqop", "conppeqop", "database",
+	"datacl", "defaclacl", "elem_count_histogram", "enumvals", "evttags", "exprs",
+	"extcondition", "extconfig", "fdwacl", "fdwoptions", "ftoptions", "grolist",
+	"indclass", "indcollation", "indkey", "indoption", "initprivs", "kinds",
+	"lanacl", "lomacl", "most_common_base_freqs", "most_common_elem_freqs", "most_common_freqs", "most_common_val_nulls",
+	"most_common_vals", "nspacl", "options", "paracl", "parameter_types", "partattrs",
+	"partclass", "partcollation", "polroles", "prattrs", "proacl", "proallargtypes",
+	"proargmodes", "proargnames", "proargtypes", "proconfig", "protrftypes", "relacl",
+	"reloptions", "requires", "result_types", "rolconfig", "roles", "setconfig",
+	"spcacl", "spcoptions", "srvacl", "srvoptions", "stanumbers1", "stanumbers2",
+	"stanumbers3", "stanumbers4", "stanumbers5", "stxdexpr", "stxkeys", "stxkind",
+	"subpublications", "tgattr", "typacl", "umoptions", "useconfig", "user_name",
+}...)

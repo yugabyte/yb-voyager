@@ -377,6 +377,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewRangeTableFuncDetector(query),
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
+		NewJsonSubscriptingDetector(query, p.getArrayColumns()),
 	}
 
 	processor := func(msg protoreflect.Message) error {
@@ -430,7 +431,7 @@ func (p *ParserIssueDetector) getArrayColumns() []string {
 			}
 		}
 	}
-
+	arrayColumns = append(arrayColumns, catalogTablesArrayColumns.ToSlice()...)
 	return arrayColumns
 
 }
