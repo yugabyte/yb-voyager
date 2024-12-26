@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var AssessmentDbSelectQuery = fmt.Sprintf("(?i)SELECT schema_name,.* FROM %v ORDER BY .* ASC", TABLE_INDEX_STATS)
+var AssessmentDbSelectQuery = fmt.Sprintf("(?i)SELECT schema_name,.* FROM %v .* ORDER BY .* ASC", TABLE_INDEX_STATS)
 var AssessmentDBColumns = []string{"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
 	"is_index", "parent_table_name", "size_in_bytes", "column_count"}
 

@@ -236,6 +236,14 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			"",
 			col.ColumnName,
 		))
+	case "int8multirange", "int4multirange", "datemultirange", "nummultirange", "tsmultirange", "tstzmultirange":
+		*issues = append(*issues, NewMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
 	default:
 		*issues = append(*issues, NewUnsupportedDatatypesIssue(
 			objType,
@@ -545,12 +553,13 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 	}
 
 	if unsupportedLargeObjectFunctions.ContainsOne(trigger.FuncName) {
-		//Can't detect trigger func name using the genericIssues's FuncCallDetector 
+		//Can't detect trigger func name using the genericIssues's FuncCallDetector
 		//as trigger execute Func name is not a FuncCall node, its []pg_query.Node
 		issues = append(issues, NewLOFuntionsIssue(
 			obj.GetObjectType(),
 			trigger.GetObjectName(),
 			"",
+			[]string{trigger.FuncName},
 		))
 	}
 
@@ -562,7 +571,16 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 type ViewIssueDetector struct{}
 
 func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
-	return nil, nil
+	view, ok := obj.(*queryparser.View)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected View")
+	}
+	var issues []QueryIssue
+
+	if view.SecurityInvoker {
+		issues = append(issues, NewSecurityInvokerViewIssue(obj.GetObjectType(), obj.GetObjectName(), ""))
+	}
+	return issues, nil
 }
 
 // ==============MVIEW ISSUE DETECTOR ======================

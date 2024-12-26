@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestInitAssessmentDB(t *testing.T) {

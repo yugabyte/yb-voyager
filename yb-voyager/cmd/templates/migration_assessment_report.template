@@ -286,7 +286,7 @@
                     {{ if $docsLink }}
                         <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
                     {{ else }}
-                        Not Available
+                        N/A
                     {{ end }}
                 </td>
                 </tr>
@@ -313,6 +313,7 @@
                     {{ $objectsGroupByObjectType := groupByObjectType .Objects }}
                     {{ $numUniqueObjectNamesOfAllTypes := totalUniqueObjectNamesOfAllTypes $objectsGroupByObjectType }}
                     {{ $docsLink := .DocsLink }}
+                    {{ $supportedVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
                     <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}><strong>{{ .FeatureName }}</strong></td>
                     {{ $isNextRowRequiredForObjectType := false }}
                     {{ range $type, $objectsByType := $objectsGroupByObjectType }}
@@ -338,7 +339,16 @@
                                 </div>
                             </td>
                             {{ if not $isNextRowRequiredForObjectType }}
-                                <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}><a href="{{ $docsLink }}" target="_blank">Link</a></td>
+                                <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}>
+                                    {{ if $supportedVerStr }}
+                                        Supported in Versions: {{ $supportedVerStr }} <br>
+                                    {{ end }}
+                                    {{ if $docsLink }}
+                                        <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
+                                    {{ else }}
+                                        N/A
+                                    {{ end }}
+                                </td>
                             {{ end }}
                             {{ $isNextRowRequiredForObjectName = true }}
                             {{ $isNextRowRequiredForObjectType = true }}
@@ -359,6 +369,10 @@
                     {{ $hasMigrationCaveats = true }}
                     {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
                         <h4>{{.FeatureName}}</h4>
+                        {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                        {{ if $supporterVerStr }}
+                            <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                        {{ end }}
                         <p>{{.FeatureDescription}}</p>
                         <div class="scrollable-div">
                             <ul>
@@ -369,6 +383,10 @@
                         </div>
                     {{else}}
                         <h4>{{.FeatureName}}</h4>
+                        {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                        {{ if $supporterVerStr }}
+                            <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                        {{ end }}
                         <p>{{.FeatureDescription}}</p>
                         <div class="scrollable-div">
                             <ul>

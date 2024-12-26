@@ -21,3 +21,8 @@ FROM public.employees;
 SELECT metric_name, pg_advisory_lock(metric_id)
 FROM analytics.metrics
 WHERE metric_value > 0.02;
+
+-- Aggregate functions UQC NOT REPORTING as it need PG16 upgarde in pipeline from PG15
+SELECT
+        any_value(name) AS any_employee
+    FROM employees;
