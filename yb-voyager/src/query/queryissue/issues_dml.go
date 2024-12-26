@@ -141,3 +141,29 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 	}
 	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
 }
+
+var copyFromWhereIssue = issue.Issue{
+	Type:            COPY_FROM_WHERE,
+	TypeName:        "COPY FROM ... WHERE",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(copyFromWhereIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var copyOnErrorIssue = issue.Issue{
+	Type:            COPY_ON_ERROR,
+	TypeName:        "COPY ... ON_ERROR",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewCopyOnErrorIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(copyOnErrorIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
