@@ -1936,7 +1936,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "bigint_multirange_table",
             "Reason": "Unsupported datatype - int8multirange on column - value_ranges",
-            "SqlStatement": "CREATE TABLE bigint_multirange_table (\n    id integer NOT NULL,\n    value_ranges int8multirange\n);",
+            "SqlStatement": "CREATE TABLE bigint_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int8multirange\n);",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1946,7 +1946,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "date_multirange_table",
             "Reason": "Unsupported datatype - datemultirange on column - project_dates",
-            "SqlStatement": "CREATE TABLE date_multirange_table (\n    id integer NOT NULL,\n    project_dates datemultirange\n);",
+            "SqlStatement": "CREATE TABLE date_multirange_table (\n    id integer PRIMARY KEY,\n    project_dates datemultirange\n);",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1956,7 +1956,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "int_multirange_table",
             "Reason": "Unsupported datatype - int4multirange on column - value_ranges",
-            "SqlStatement": "CREATE TABLE int_multirange_table (\n    id integer NOT NULL,\n    value_ranges int4multirange\n);",
+            "SqlStatement": "CREATE TABLE int_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int4multirange\n);",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1966,7 +1966,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "numeric_multirange_table",
             "Reason": "Unsupported datatype - nummultirange on column - price_ranges",
-            "SqlStatement": "CREATE TABLE numeric_multirange_table (\n    id integer NOT NULL,\n    price_ranges nummultirange\n);",
+            "SqlStatement": "CREATE TABLE numeric_multirange_table (\n    id integer PRIMARY KEY,\n    price_ranges nummultirange\n);",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1976,7 +1976,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "timestamp_multirange_table",
             "Reason": "Unsupported datatype - tsmultirange on column - event_times",
-            "SqlStatement": "CREATE TABLE timestamp_multirange_table (\n    id integer NOT NULL,\n    event_times tsmultirange\n);",
+            "SqlStatement": "CREATE TABLE timestamp_multirange_table (\n    id integer PRIMARY KEY,\n    event_times tsmultirange\n);",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
@@ -1986,7 +1986,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "timestamptz_multirange_table",
             "Reason": "Unsupported datatype - tstzmultirange on column - global_event_times",
-            "SqlStatement": "CREATE TABLE timestamptz_multirange_table (\n    id integer NOT NULL,\n    global_event_times tstzmultirange\n);",
+            "SqlStatement": "CREATE TABLE timestamptz_multirange_table (\n    id integer PRIMARY KEY,\n    global_event_times tstzmultirange\n);",
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
