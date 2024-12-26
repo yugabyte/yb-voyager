@@ -236,6 +236,14 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			"",
 			col.ColumnName,
 		))
+	case "int8multirange", "int4multirange", "datemultirange", "nummultirange", "tsmultirange", "tstzmultirange":
+		*issues = append(*issues, NewMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
 	default:
 		*issues = append(*issues, NewUnsupportedDatatypesIssue(
 			objType,
