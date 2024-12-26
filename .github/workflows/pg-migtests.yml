@@ -109,7 +109,7 @@ jobs:
       
       - name: "TEST: Import data file resumption"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/resumption.sh resumption/import-file-200-tables
+        run: migtests/scripts/resumption.sh resumption/import-file-1250-tables
 
       - name: "TEST: PG sample schemas (sakila)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
