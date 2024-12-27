@@ -2060,5 +2060,35 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "users_unique_nulls_not_distinct",
+            "Reason": "UNIQUE NULLS NOT DISTINCT",
+            "SqlStatement": "CREATE TABLE users_unique_nulls_not_distinct (\n    id SERIAL PRIMARY KEY,\n    email TEXT,\n    UNIQUE NULLS NOT DISTINCT (email)\n);",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales_unique_nulls_not_distinct",
+            "Reason": "UNIQUE NULLS NOT DISTINCT",
+            "SqlStatement": "CREATE TABLE sales_unique_nulls_not_distinct (\n    store_id INT,\n    product_id INT,\n    sale_date DATE,\n    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)\n);",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales_unique_nulls_not_distinct_alter",
+            "Reason": "UNIQUE NULLS NOT DISTINCT",
+            "SqlStatement": "ALTER TABLE sales_unique_nulls_not_distinct_alter\n\tADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
         }
 ]
