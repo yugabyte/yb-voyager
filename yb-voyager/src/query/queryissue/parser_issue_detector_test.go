@@ -164,7 +164,7 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	SELECT employee_id, first_name
 	FROM public.employees;`
 	stmt21 = `CREATE TABLE public.products (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
     product_name VARCHAR(100),
     serial_number TEXT,
     UNIQUE NULLS NOT DISTINCT (product_name, serial_number)
