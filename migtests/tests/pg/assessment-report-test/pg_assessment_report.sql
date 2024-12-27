@@ -402,10 +402,11 @@ CREATE TABLE employeesForView (
 );
 
 CREATE VIEW top_employees_view AS SELECT * FROM (
-			SELECT * FROM employees
+			SELECT * FROM employeesForView
 			ORDER BY salary DESC
 			FETCH FIRST 2 ROWS WITH TIES
 		) AS top_employees;
+
 -- SECURITY INVOKER VIEW
 CREATE TABLE public.employees (
     employee_id SERIAL PRIMARY KEY,
