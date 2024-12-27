@@ -703,12 +703,12 @@ WHERE data['user']['name'] = '"Alice"';`,
 FROM test_jsonb1`,
 	}
 
-	issues := getDetectorIssues(t, NewJsonSubscriptingDetector(withoutIssueSql, []string{"numbers"}), withoutIssueSql)
+	issues := getDetectorIssues(t, NewJsonSubscriptingDetector(withoutIssueSql, []string{}), withoutIssueSql)
 
 	assert.Equal(t, 0, len(issues), "Expected 1 issue for SQL: %s", withoutIssueSql)
 
 	for _, sql := range issuesSqls {
-		issues := getDetectorIssues(t, NewJsonSubscriptingDetector(sql, []string{"numbers", "json_array"}), sql)
+		issues := getDetectorIssues(t, NewJsonSubscriptingDetector(sql, []string{"data"}), sql)
 
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 		assert.Equal(t, JSONB_SUBSCRIPTING, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)

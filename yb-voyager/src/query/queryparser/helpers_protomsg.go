@@ -377,13 +377,22 @@ func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List 
 
 // GetEnumNumField retrieves a enum field from a message
 // FieldDescriptor{Syntax: proto3, FullName: pg_query.JsonFuncExpr.op, Number: 1, Cardinality: optional, Kind: enum, HasJSONName: true, JSONName: "op", Enum: pg_query.JsonExprOp}
-//val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT 
+// val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT
 func GetEnumNumField(msg protoreflect.Message, fieldName string) protoreflect.EnumNumber {
 	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 	if field != nil && msg.Has(field) {
 		return msg.Get(field).Enum()
 	}
 	return 0
+}
+
+// GetBoolField retrieves a list field from a message.
+func GetBoolField(msg protoreflect.Message, fieldName string) bool {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Bool()
+	}
+	return false
 }
 
 // GetSchemaAndObjectName extracts the schema and object name from a list.
@@ -433,6 +442,6 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) ([]string, 
 
 func GetAIndirectionNode(msg protoreflect.Message) (*pg_query.A_Indirection, bool) {
 	protoMsg := msg.Interface().(protoreflect.ProtoMessage)
-	aIndirection, ok :=  protoMsg.(*pg_query.A_Indirection)
+	aIndirection, ok := protoMsg.(*pg_query.A_Indirection)
 	return aIndirection, ok
 }

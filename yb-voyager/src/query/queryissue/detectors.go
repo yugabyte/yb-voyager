@@ -207,15 +207,15 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 }
 
 type JsonSubscriptingDetector struct {
-	query        string
-	arrayColumns []string
-	detected     bool
+	query       string
+	jsonColumns []string
+	detected    bool
 }
 
-func NewJsonSubscriptingDetector(query string, arrayColumns []string) *JsonSubscriptingDetector {
+func NewJsonSubscriptingDetector(query string, jsonColumns []string) *JsonSubscriptingDetector {
 	return &JsonSubscriptingDetector{
-		query:        query,
-		arrayColumns: arrayColumns,
+		query:       query,
+		jsonColumns: jsonColumns,
 	}
 }
 
@@ -243,10 +243,9 @@ func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
 			indirection:{a_indices:{uidx:{a_const:{ival:{ival:1}  location:77}}}}}}  location:69}}
 		*/
 		_, col := queryparser.GetColNameFromColumnRef(arg.GetColumnRef().ProtoReflect())
-		if slices.Contains(j.arrayColumns, col) {
-			return nil
+		if slices.Contains(j.jsonColumns, col) {
+			j.detected = true
 		}
-		j.detected = true
 
 	case arg.GetTypeCast() != nil:
 		/*
@@ -256,9 +255,11 @@ func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
 		*/
 		typeCast := arg.GetTypeCast()
 		typeName, _ := queryparser.GetTypeNameAndSchema(typeCast.GetTypeName().GetNames())
-		if slices.Contains([]string{"json", "jsonb"}, typeName) {
+		if slices.Contains([]string{"jsonb"}, typeName) {
 			j.detected = true
 		}
+	case arg.GetFuncCall() != nil:
+		
 	}
 
 	return nil

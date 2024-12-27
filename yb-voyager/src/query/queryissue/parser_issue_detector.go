@@ -377,7 +377,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewRangeTableFuncDetector(query),
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
-		NewJsonSubscriptingDetector(query, p.getArrayColumns()),
+		NewJsonSubscriptingDetector(query, p.getJsonColumns()),
 	}
 
 	processor := func(msg protoreflect.Message) error {
@@ -422,16 +422,15 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 	return result, nil
 }
 
-func (p *ParserIssueDetector) getArrayColumns() []string {
-	var arrayColumns []string
+func (p *ParserIssueDetector) getJsonColumns() []string {
+	var jsonColumns []string
 	for _, mp := range p.columnsWithUnsupportedIndexDatatypes {
 		for col, colType := range mp {
-			if colType == "array" {
-				arrayColumns = append(arrayColumns, col)
+			if slices.Contains([]string{"jsonb"}, colType) {
+				jsonColumns = append(jsonColumns, col)
 			}
 		}
 	}
-	arrayColumns = append(arrayColumns, catalogTablesArrayColumns.ToSlice()...)
-	return arrayColumns
+	return jsonColumns
 
 }
