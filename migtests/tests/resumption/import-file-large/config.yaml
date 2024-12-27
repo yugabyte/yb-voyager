@@ -16,6 +16,6 @@ row_count:
 resumption:
   max_retries: 30
   min_interrupt_seconds: 300
-  max_interrupt_seconds: 900
+  max_interrupt_seconds: 720
   min_restart_wait_seconds: 30
   max_restart_wait_seconds: 60
