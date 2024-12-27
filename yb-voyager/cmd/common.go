@@ -1240,7 +1240,7 @@ type AssessMigrationPayload struct {
 	TargetDBVersion       *ybversion.YBVersion
 	MigrationComplexity   string
 	SchemaSummary         utils.SchemaSummary
-	AssessmentIssues      []AssessmentIssuePayload
+	AssessmentIssues      []AssessmentIssueYugabyteD
 	SourceSizeDetails     SourceDBSizeDetails
 	TargetRecommendations TargetSizingRecommendations
 	ConversionIssues      []utils.Issue
@@ -1248,7 +1248,7 @@ type AssessMigrationPayload struct {
 	AssessmentJsonReport AssessmentReport
 }
 
-type AssessmentIssuePayload struct {
+type AssessmentIssueYugabyteD struct {
 	Type                   string                          `json:"Type"`                   // Feature, DataType, MigrationCaveat, UQC
 	TypeDescription        string                          `json:"TypeDescription"`        // Based on AssessmentIssue type
 	Subtype                string                          `json:"Subtype"`                // GIN Indexes, Advisory Locks etc

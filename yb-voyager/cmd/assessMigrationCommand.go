@@ -514,8 +514,8 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 }
 
 // flatten UnsupportedDataTypes, UnsupportedFeatures, MigrationCaveats
-func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []AssessmentIssuePayload {
-	var issues []AssessmentIssuePayload
+func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []AssessmentIssueYugabyteD {
+	var issues []AssessmentIssueYugabyteD
 
 	var dataTypesDocsLink string
 	switch source.DBType {
@@ -525,7 +525,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE
 	}
 	for _, unsupportedDataType := range ar.UnsupportedDataTypes {
-		issues = append(issues, AssessmentIssuePayload{
+		issues = append(issues, AssessmentIssueYugabyteD{
 			Type:            DATATYPE,
 			TypeDescription: DATATYPE_ISSUE_TYPE_DESCRIPTION,
 			Subtype:         unsupportedDataType.DataType,
@@ -537,7 +537,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 
 	for _, unsupportedFeature := range ar.UnsupportedFeatures {
 		for _, object := range unsupportedFeature.Objects {
-			issues = append(issues, AssessmentIssuePayload{
+			issues = append(issues, AssessmentIssueYugabyteD{
 				Type:                   FEATURE,
 				TypeDescription:        FEATURE_ISSUE_TYPE_DESCRIPTION,
 				Subtype:                unsupportedFeature.FeatureName,
@@ -552,7 +552,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 
 	for _, migrationCaveat := range ar.MigrationCaveats {
 		for _, object := range migrationCaveat.Objects {
-			issues = append(issues, AssessmentIssuePayload{
+			issues = append(issues, AssessmentIssueYugabyteD{
 				Type:                   MIGRATION_CAVEATS,
 				TypeDescription:        MIGRATION_CAVEATS_TYPE_DESCRIPTION,
 				Subtype:                migrationCaveat.FeatureName,
@@ -566,7 +566,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 	}
 
 	for _, uqc := range ar.UnsupportedQueryConstructs {
-		issues = append(issues, AssessmentIssuePayload{
+		issues = append(issues, AssessmentIssueYugabyteD{
 			Type:                   QUERY_CONSTRUCT,
 			TypeDescription:        UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
 			Subtype:                uqc.ConstructTypeName,
@@ -578,7 +578,7 @@ func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []Assessment
 
 	for _, plpgsqlObjects := range ar.UnsupportedPlPgSqlObjects {
 		for _, object := range plpgsqlObjects.Objects {
-			issues = append(issues, AssessmentIssuePayload{
+			issues = append(issues, AssessmentIssueYugabyteD{
 				Type:                   PLPGSQL_OBJECT,
 				TypeDescription:        UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
 				Subtype:                plpgsqlObjects.FeatureName,
@@ -1158,8 +1158,8 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 		}
 		unsupportedPlpgSqlObjects = append(unsupportedPlpgSqlObjects, feature)
 	}
-	return unsupportedPlpgSqlObjects
 
+	return unsupportedPlpgSqlObjects
 }
 
 func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
