@@ -120,7 +120,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
 	// NOTICE severity as well (which is the default), hence skipping this.
 	//pg_dump 17 gives this SET transaction_timeout = 0;
-	if strings.Contains(stmt, "SET CLIENT_MIN_MESSAGES") || strings.Contains(stmt, "SET TRANSACTION_TIMEOUT") {
+	if strings.Contains(stmt, CLIENT_MESSAGES_SESSION_VAR) || strings.Contains(stmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
 		return true, nil
 	}
 	if objType != TABLE {
