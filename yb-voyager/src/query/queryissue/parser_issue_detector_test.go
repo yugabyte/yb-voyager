@@ -681,7 +681,7 @@ func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
 
 	for stmt, expectedIssues := range expectedIssues {
 		issues, err := parserIssueDetector.getDMLIssues(stmt)
-		fatalIfError(t, err)
+		testutils.FatalIfError(t, err)
 		assert.Equal(t, len(expectedIssues), len(issues))
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
