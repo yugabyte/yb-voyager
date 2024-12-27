@@ -66,11 +66,6 @@ var exportSchemaCmd = &cobra.Command{
 }
 
 func exportSchema() error {
-	err := retrieveMigrationUUID()
-	if err != nil {
-		log.Errorf("failed to get migration UUID: %v", err)
-		return fmt.Errorf("failed to get migration UUID: %w", err)
-	}
 	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
@@ -95,7 +90,12 @@ func exportSchema() error {
 		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
 	}
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
+	err := retrieveMigrationUUID()
+	if err != nil {
+		log.Errorf("failed to get migration UUID: %v", err)
+		return fmt.Errorf("failed to get migration UUID: %w", err)
+	}
+	
 	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
 	err = source.DB().Connect()
