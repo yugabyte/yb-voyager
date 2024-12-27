@@ -409,7 +409,10 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 }
 
 func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
-	protoMsg := msg.Interface().(proto.Message)
+	protoMsg, ok := msg.Interface().(proto.Message)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to proto.Message")
+	}
 	selectStmtNode, ok := protoMsg.(*pg_query.SelectStmt)
 	if !ok {
 		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
