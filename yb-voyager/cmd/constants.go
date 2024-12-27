@@ -93,6 +93,9 @@ const (
 	CUTOVER_TO_SOURCE         = "cutover-to-source"
 	CUTOVER_TO_SOURCE_REPLICA = "cutover-to-source-replica"
 
+	CLIENT_MESSAGES_SESSION_VAR     = "SET CLIENT_MIN_MESSAGES"
+	TRANSACTION_TIMEOUT_SESSION_VAR = "SET TRANSACTION_TIMEOUT"
+
 	// unsupported features of assess migration
 	VIRTUAL_COLUMN      = "VIRTUAL COLUMN"
 	INHERITED_TYPE      = "INHERITED TYPE"
