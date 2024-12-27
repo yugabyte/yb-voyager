@@ -620,6 +620,13 @@ JSON_TABLE(data, '$.skills[*]'
 		}
 	}
 }
+
+// func TestJsonSubscriptingIssue(t *testing.T) {
+// 	sqls := []string{
+// 		``
+// 	}
+// }
+
 func TestRegexFunctionsIssue(t *testing.T) {
 	dmlStmts := []string{
 		`SELECT regexp_count('This is an example. Another example. Example is a common word.', 'example')`,

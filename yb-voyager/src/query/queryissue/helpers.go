@@ -135,37 +135,25 @@ var unsupportedLargeObjectFunctions = mapset.NewThreadUnsafeSet([]string{
 	"lo_manage", "lo_oid",
 }...)
 
-// var catalogTablesArrayColumns = mapset.NewThreadUnsafeSet([]string{
-// 	/*
-// 			SELECT
-// 		    DISTINCT a.attname AS column_name
-// 		FROM
-// 		    pg_attribute a
-// 		JOIN
-// 		    pg_class c ON a.attrelid = c.oid
-// 		JOIN
-// 		    pg_namespace n ON c.relnamespace = n.oid
-// 		JOIN
-// 		    pg_type t ON a.atttypid = t.oid
-// 		WHERE
-// 		    a.attnum > 0 -- Exclude system columns
-// 		    AND NOT a.attisdropped -- Exclude dropped columns
-// 		    AND t.typtype = 'b' -- Only base types
-// 		    AND t.typelem <> 0 -- Has an element type (indicating it's an array)
-// 		    AND t.typcategory = 'A' -- Specifically arrays
-// 		ORDER BY column_name;
-// 	*/
-// 	"attacl", "attfdwoptions", "attnames", "attoptions", "conexclop", "confdelsetcols",
-// 	"conffeqop", "confkey", "conkey", "conpfeqop", "conppeqop", "database",
-// 	"datacl", "defaclacl", "elem_count_histogram", "enumvals", "evttags", "exprs",
-// 	"extcondition", "extconfig", "fdwacl", "fdwoptions", "ftoptions", "grolist",
-// 	"indclass", "indcollation", "indkey", "indoption", "initprivs", "kinds",
-// 	"lanacl", "lomacl", "most_common_base_freqs", "most_common_elem_freqs", "most_common_freqs", "most_common_val_nulls",
-// 	"most_common_vals", "nspacl", "options", "paracl", "parameter_types", "partattrs",
-// 	"partclass", "partcollation", "polroles", "prattrs", "proacl", "proallargtypes",
-// 	"proargmodes", "proargnames", "proargtypes", "proconfig", "protrftypes", "relacl",
-// 	"reloptions", "requires", "result_types", "rolconfig", "roles", "setconfig",
-// 	"spcacl", "spcoptions", "srvacl", "srvoptions", "stanumbers1", "stanumbers2",
-// 	"stanumbers3", "stanumbers4", "stanumbers5", "stxdexpr", "stxkeys", "stxkind",
-// 	"subpublications", "tgattr", "typacl", "umoptions", "useconfig", "user_name",
-// }...)
+// catalog functions return type jsonb
+var catalogFunctionsReturningJsonb = mapset.NewThreadUnsafeSet([]string{
+	/*
+			SELECT
+		    DISTINCT p.proname AS Function_Name
+		FROM
+		    pg_catalog.pg_proc p
+		    LEFT JOIN pg_catalog.pg_language l ON p.prolang = l.oid
+		    LEFT JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
+		WHERE
+		    pg_catalog.pg_function_is_visible(p.oid) AND pg_catalog.pg_get_function_result(p.oid) = 'jsonb'
+
+		ORDER BY Function_Name;
+	*/
+	"jsonb_agg", "jsonb_agg_finalfn", "jsonb_agg_strict", "jsonb_array_element",
+	"jsonb_build_array", "jsonb_build_object", "jsonb_concat", "jsonb_delete",
+	"jsonb_delete_path", "jsonb_extract_path", "jsonb_in", "jsonb_insert",
+	"jsonb_object", "jsonb_object_agg", "jsonb_object_agg_finalfn", "jsonb_object_agg_strict",
+	"jsonb_object_agg_unique", "jsonb_object_agg_unique_strict", "jsonb_object_field", "jsonb_path_query_array",
+	"jsonb_path_query_array_tz", "jsonb_path_query_first", "jsonb_path_query_first_tz", "jsonb_recv",
+	"jsonb_set", "jsonb_set_lax", "jsonb_strip_nulls", "to_jsonb", "ts_headline",
+}...)

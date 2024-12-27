@@ -63,7 +63,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 			objectType = "PROCEDURE"
 		}
 		funcNameList := stmt.GetFuncname()
-		funcSchemaName, funcName := getFunctionObjectName(funcNameList)
+		funcSchemaName, funcName := GetFunctionObjectName(funcNameList)
 		return objectType, lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
@@ -98,7 +98,7 @@ func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	return lo.Ternary(schema != "", fmt.Sprintf("%s.%s", schema, name), name)
 }
 
-func getFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
+func GetFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
 	funcName := ""
 	funcSchemaName := ""
 	if len(funcNameList) > 0 {

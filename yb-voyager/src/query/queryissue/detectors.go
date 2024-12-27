@@ -207,16 +207,88 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 }
 
 type JsonSubscriptingDetector struct {
-	query       string
-	jsonColumns []string
-	detected    bool
+	query          string
+	jsonbColumns   []string
+	detected       bool
+	jsonbFunctions []string
 }
 
-func NewJsonSubscriptingDetector(query string, jsonColumns []string) *JsonSubscriptingDetector {
+func NewJsonSubscriptingDetector(query string, jsonbColumns []string, jsonbFunctions []string) *JsonSubscriptingDetector {
 	return &JsonSubscriptingDetector{
-		query:       query,
-		jsonColumns: jsonColumns,
+		query:          query,
+		jsonbColumns:   jsonbColumns,
+		jsonbFunctions: jsonbFunctions,
 	}
+}
+
+func (j *JsonSubscriptingDetector) isJsonType(msg protoreflect.Message) bool {
+	node, ok := queryparser.GetGenericNode(msg)
+	if !ok {
+		return false
+	}
+	switch {
+	case node.GetColumnRef() != nil:
+		/*
+			SELECT numbers[1] AS first_number
+			FROM array_data;
+			{a_indirection:{arg:{column_ref:{fields:{string:{sval:"numbers"}}  location:69}}
+			indirection:{a_indices:{uidx:{a_const:{ival:{ival:1}  location:77}}}}}}  location:69}}
+		*/
+		_, col := queryparser.GetColNameFromColumnRef(node.GetColumnRef().ProtoReflect())
+		if slices.Contains(j.jsonbColumns, col) {
+			return true
+		}
+
+	case node.GetTypeCast() != nil:
+		/*
+			SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];
+			{a_indirection:{arg:{type_cast:{arg:{a_const:{sval:{sval:"{\"a\": {\"b\": {\"c\": 1}}}"}  location:280}}
+			type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
+		*/
+		typeCast := node.GetTypeCast()
+		typeName, _ := queryparser.GetTypeNameAndSchema(typeCast.GetTypeName().GetNames())
+		if slices.Contains([]string{"jsonb"}, typeName) {
+			return true
+		}
+	case node.GetFuncCall() != nil:
+		/*
+			SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE))['name'] AS json_obj;
+			val:{a_indirection:{arg:{func_call:{funcname:{string:{sval:"jsonb_build_object"}}  args:{a_const:{sval:{sval:"name"}
+			location:194}}  args:{a_const:{sval:{sval:"PostgreSQL"}  location:202}}  args:{a_const:{sval:{sval:"version"}  location:216}}
+			args:{a_const:{ival:{ival:14}  location:227}}
+		*/
+		funcCall := node.GetFuncCall()
+		_, funcName := queryparser.GetFunctionObjectName(funcCall.Funcname)
+		if slices.Contains(j.jsonbFunctions, funcName) {
+			return true
+		}
+	case node.GetAExpr() != nil:
+		/*
+			SELECT ('{"key": "value1"}'::jsonb || '{"key": "value2"}'::jsonb)['key'] AS object_in_array;
+			val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key\": \"value1\"}"}
+			location:81}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:102}  location:100}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key\": \"value2\"}"}
+			location:111}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:132}  location:130}}  location:108}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"key"}
+			location:139}}}}}}
+
+			SELECT (data || '{"new_key": "new_value"}' )['name'] FROM test_jsonb;
+			{val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{column_ref:{fields:{string:{sval:"data"}}  location:10}}  rexpr:{a_const:{sval:{sval:"{\"new_key\": \"new_value\"}"}
+			location:18}}  location:15}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"name"}
+
+			SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;
+			{val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{column_ref:{fields:{string:{sval:"data"}}  location:10}}  rexpr:{a_const:{sval:{sval:"{\"new_key\": \"new_value\"}"}
+			location:18}}  location:15}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"name"}  location:47}}}}}}  location:9}}
+		*/
+		expr := node.GetAExpr()
+		lExpr := expr.GetLexpr()
+		rExpr := expr.GetRexpr()
+		if lExpr != nil && j.isJsonType(lExpr.ProtoReflect()) {
+			return true
+		}
+		if rExpr != nil && j.isJsonType(rExpr.ProtoReflect()) {
+			return true
+		}
+	}
+	return false
 }
 
 func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
@@ -234,32 +306,8 @@ func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
 		return nil
 	}
 
-	switch {
-	case arg.GetColumnRef() != nil:
-		/*
-			SELECT numbers[1] AS first_number
-			FROM array_data;
-			{a_indirection:{arg:{column_ref:{fields:{string:{sval:"numbers"}}  location:69}}
-			indirection:{a_indices:{uidx:{a_const:{ival:{ival:1}  location:77}}}}}}  location:69}}
-		*/
-		_, col := queryparser.GetColNameFromColumnRef(arg.GetColumnRef().ProtoReflect())
-		if slices.Contains(j.jsonColumns, col) {
-			j.detected = true
-		}
-
-	case arg.GetTypeCast() != nil:
-		/*
-			SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];
-			{a_indirection:{arg:{type_cast:{arg:{a_const:{sval:{sval:"{\"a\": {\"b\": {\"c\": 1}}}"}  location:280}}
-			type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
-		*/
-		typeCast := arg.GetTypeCast()
-		typeName, _ := queryparser.GetTypeNameAndSchema(typeCast.GetTypeName().GetNames())
-		if slices.Contains([]string{"jsonb"}, typeName) {
-			j.detected = true
-		}
-	case arg.GetFuncCall() != nil:
-		
+	if j.isJsonType(arg.ProtoReflect()) {
+		j.detected = true
 	}
 
 	return nil
