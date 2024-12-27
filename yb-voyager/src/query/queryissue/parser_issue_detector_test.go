@@ -452,19 +452,11 @@ $$ LANGUAGE plpgsql;
 			NewLOFuntionsIssue("TRIGGER", "t_raster ON image", sqls[5], []string{"lo_manage"}),
 		},
 	}
-<<<<<<< HEAD
-	expectedSQLsWithIssues[sqls[0]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
-	expectedSQLsWithIssues[sqls[1]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[1]], "FUNCTION", "import_file_to_table")
-	expectedSQLsWithIssues[sqls[2]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[2]], "FUNCTION", "export_large_object")
-	expectedSQLsWithIssues[sqls[3]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
-	expectedSQLsWithIssues[sqls[4]] = modifyiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
-=======
 	expectedSQLsWithIssues[sqls[0]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[0]], "FUNCTION", "manage_large_object")
 	expectedSQLsWithIssues[sqls[1]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[1]], "FUNCTION", "import_file_to_table")
 	expectedSQLsWithIssues[sqls[2]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[2]], "FUNCTION", "export_large_object")
 	expectedSQLsWithIssues[sqls[3]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[3]], "PROCEDURE", "read_large_object")
 	expectedSQLsWithIssues[sqls[4]] = modifiedIssuesforPLPGSQL(expectedSQLsWithIssues[sqls[4]], "FUNCTION", "write_to_large_object")
->>>>>>> main
 
 	parserIssueDetector := NewParserIssueDetector()
 
@@ -661,7 +653,6 @@ func TestRegexFunctionsIssue(t *testing.T) {
 
 }
 
-
 func TestFetchWithTiesInSelect(t *testing.T) {
 
 	stmt1 := `
@@ -746,7 +737,6 @@ func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
 		`COPY my_table FROM '/path/to/data.csv';`:                                            {},
 		`COPY my_table FROM '/path/to/data.csv' WITH (DELIMITER ',');`:                       {},
 		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true);`: {},
-
 	}
 
 	parserIssueDetector := NewParserIssueDetector()
