@@ -3,15 +3,8 @@
 set -e
 set -x
 
-# Ensure required environment variables are set
-if [[ -z "${TARGET_DB_NAME}" || -z "${SCRIPTS}" ]]; then
-    echo "Error: Required environment variables are not set."
-    exit 1
-fi
-
 source "${SCRIPTS}/functions.sh"
 
-# Function to create multiple tables using a SQL function
 function create_tables_sql_function() {
     local db_name=$1
     local table_count=$2
@@ -42,13 +35,11 @@ function create_tables_sql_function() {
     echo "All ${table_count} tables created successfully."
 }
 
-
-# Step: Create Target Database
 step "Create target database."
 run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE;"
 
-# Step: Initialize Target Database with 1000 tables
+# Step: Initialize Target Database with 1250 tables
 create_tables_sql_function ${TARGET_DB_NAME} 1250
 
 echo "End of init-db script"

@@ -33,7 +33,7 @@ then
 else
 	source ${TEST_DIR}/env.sh
 fi
-# source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+
 source ${SCRIPTS}/yugabytedb/env.sh
 
 source ${SCRIPTS}/functions.sh

@@ -7,7 +7,7 @@ import time
 import random
 import sys
 import select
-import yaml  # Required for parsing the YAML config
+import yaml
 sys.path.append(os.path.join(os.getcwd(), 'migtests/lib'))
 import yb
 import argparse
@@ -52,7 +52,6 @@ def prepare_import_data_file_command(config):
     if os.getenv('RUN_WITHOUT_ADAPTIVE_PARALLELISM') == 'true':
         args.extend(['--enable-adaptive-parallelism', 'false'])
 
-    # Add additional flags as key-value pairs
     for flag, value in additional_flags.items():
         args.append(flag)
         args.append(value)
@@ -74,7 +73,6 @@ def run_and_resume_voyager(command, resumption):
             start_time = time.time()
             full_output = ''
 
-            # Existing logic to capture output and handle interruptions
             while True:
                 rlist, _, _ = select.select([process.stdout, process.stderr], [], [], 5)
                 for ready in rlist:
@@ -123,7 +121,7 @@ def run_and_resume_voyager(command, resumption):
     # Final import retry logic
     print("\n--- Final attempt to complete the import ---")
     
-    for _ in range(2):  # Retry logic for final import
+    for _ in range(2): 
         try:
             print("\nVoyager command output:")
 
@@ -174,7 +172,7 @@ def validate_row_counts(row_count, schema, export_dir):
             else:
                 print(f"\u274C Validation failed: {table_name} - Expected: {expected_row_count}, Actual: {actual_row_count}")
                 print(f"Row count validation failed. For more details check {export_dir}/logs")
-                sys.exit(1)  # Exit if validation fails
+                sys.exit(1)
         except Exception as e:
             print(f"Error during validation: {e}")
             sys.exit(1)
