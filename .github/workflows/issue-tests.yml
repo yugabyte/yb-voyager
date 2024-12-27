@@ -47,4 +47,4 @@ jobs:
     - name: Test Issues Against YB Version
       run: |
         cd yb-voyager
-        go test -v -run '^(TestDDLIssuesInYBVersion|TestDMLIssuesInYBVersion)$' ./... -tags '!integration'
+        go test -v ./... -tags 'issues_integration'

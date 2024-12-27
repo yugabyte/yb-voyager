@@ -50,4 +50,4 @@ jobs:
     - name: Run Integration Tests
       run: |
         cd yb-voyager
-        go test -v -skip '^(TestDDLIssuesInYBVersion|TestDMLIssuesInYBVersion)$' ./... -tags 'integration'
+        go test -v ./... -tags 'integration'

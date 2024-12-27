@@ -1,3 +1,5 @@
+//go:build unit
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -23,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -308,12 +311,12 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 
 	// Not reported by default
 	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 0, len(issues))
 
 	// older version should report the issue
 	issues, err = parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_1_0_0)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 	assert.True(t, cmp.Equal(issues[0], NewUnloggedTableIssue("TABLE", "tbl_unlog", stmt)))
 }
@@ -488,7 +491,7 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 
 	parserIssueDetector := NewParserIssueDetector()
 	issues, err := parserIssueDetector.getDMLIssues(stmt)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 }
 
@@ -543,7 +546,7 @@ FROM books;`,
 		`SELECT id, JSON_VALUE(details, '$.title') AS title
 FROM books
 WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
-`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
+		`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
 SELECT 
     id,
     data->>'name' AS name,
@@ -556,7 +559,7 @@ JSON_TABLE(data, '$.skills[*]'
         skill TEXT PATH '$'
     )
 ) AS jt;`,
- `SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
+		`SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
@@ -636,14 +639,14 @@ func TestRegexFunctionsIssue(t *testing.T) {
 
 	for _, stmt := range dmlStmts {
 		issues, err := parserIssueDetector.getDMLIssues(stmt)
-		fatalIfError(t, err)
+		testutils.FatalIfError(t, err)
 		assert.Equal(t, 1, len(issues))
 		assert.Equal(t, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", stmt), issues[0])
 	}
 
 	for _, stmt := range ddlStmts {
 		issues, err := parserIssueDetector.getDDLIssues(stmt)
-		fatalIfError(t, err)
+		testutils.FatalIfError(t, err)
 		assert.Equal(t, 1, len(issues))
 		assert.Equal(t, NewRegexFunctionsIssue(TABLE_OBJECT_TYPE, "x", stmt), issues[0])
 	}
