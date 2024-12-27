@@ -649,11 +649,11 @@
 			"Objects": [
 				{
 					"ObjectName": "public.top_employees_view",
-					"SqlStatement": "CREATE VIEW public.top_employees_view AS\n SELECT top_employees.id,\n    top_employees.first_name,\n    top_employees.last_name,\n    top_employees.salary\n   FROM ( SELECT employees.id,\n            employees.first_name,\n            employees.last_name,\n            employees.salary\n           FROM public.employeesforview\n          ORDER BY employees.salary DESC\n         FETCH FIRST 2 ROWS WITH TIES) top_employees;"
+					"SqlStatement": "CREATE VIEW public.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employees.id,\n            employees.first_name,\n            employees.last_name,\n            employees.salary\n           FROM public.employeesforview\n          ORDER BY employees.salary DESC\n         FETCH FIRST 2 ROWS WITH TIES) top_employees;"
 				},
 				{
 					"ObjectName": "schema2.top_employees_view",
-					"SqlStatement": "CREATE VIEW schema2.top_employees_view AS\n SELECT top_employees.id,\n    top_employees.first_name,\n    top_employees.last_name,\n    top_employees.salary\n   FROM ( SELECT employees.id,\n            employees.first_name,\n            employees.last_name,\n            employees.salary\n           FROM schema2.employeesforview\n          ORDER BY employees.salary DESC\n         FETCH FIRST 2 ROWS WITH TIES) top_employees;"
+					"SqlStatement": "CREATE VIEW schema2.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employees.id,\n            employees.first_name,\n            employees.last_name,\n            employees.salary\n           FROM schema2.employeesforview\n          ORDER BY employees.salary DESC\n         FETCH FIRST 2 ROWS WITH TIES) top_employees;"
 				}
 			],
 			"MinimumVersionsFixedIn": null
@@ -954,7 +954,7 @@
 		{
 			"SchemaName": "public",
 			"ObjectName": "employees",
-			"RowCount": 5,
+			"RowCount": 10,
 			"ColumnCount": 4,
 			"Reads": 0,
 			"Writes": 10,
@@ -2199,7 +2199,7 @@
 		},
 		{
 			"SchemaName": "schema2",
-			"ObjectName": "employees",
+			"ObjectName": "employeesforview",
 			"RowCount": 0,
 			"ColumnCount": 4,
 			"Reads": 0,
