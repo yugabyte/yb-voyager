@@ -1,5 +1,8 @@
+//go:build issues_integration
+
 /*
 Copyright (c) YugabyteDB, Inc.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -24,9 +27,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 var (
@@ -56,15 +59,9 @@ func getConn() (*pgx.Conn, error) {
 	return conn, nil
 }
 
-func fatalIfError(t *testing.T, err error) {
-	if err != nil {
-		t.Fatalf("error: %v", err)
-	}
-}
-
 func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue) {
 	isFixed, err := issue.IsFixedIn(testYbVersion)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 
 	if isFixed {
 		assert.NoError(t, execErr)
@@ -285,7 +282,7 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 
 	ybVersionWithoutBuild := strings.Split(ybVersion, "-")[0]
 	testYbVersion, err = ybversion.NewYBVersion(ybVersionWithoutBuild)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 
 	testYugabytedbConnStr = os.Getenv("YB_CONN_STR")
 	if testYugabytedbConnStr == "" {
