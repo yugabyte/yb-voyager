@@ -516,7 +516,7 @@ func TestRegexFunctionsIssue(t *testing.T) {
 
 }
 
-func TestWithTies(t *testing.T) {
+func TestFetchWithTiesInSelect(t *testing.T) {
 
 	stmt1 := `
 	SELECT * FROM employees

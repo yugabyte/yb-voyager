@@ -16,12 +16,8 @@ limitations under the License.
 package queryissue
 
 import (
-	"fmt"
-
 	mapset "github.com/deckarep/golang-set/v2"
-	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
@@ -211,24 +207,15 @@ func NewSelectStmtDetector(query string) *SelectStmtDetector {
 	}
 }
 
-func (d *SelectStmtDetector) getSelectStmtFromProto(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
-	protoMsg := msg.Interface().(proto.Message)
-	selectStmtNode, ok := protoMsg.(*pg_query.SelectStmt)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast %s to %s", queryparser.PG_QUERY_SELECTSTMT_NODE, queryparser.PG_QUERY_SELECTSTMT_NODE)
-	}
-	return selectStmtNode, nil
-}
-
 func (d *SelectStmtDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_SELECTSTMT_NODE {
-		selectStmtNode, err := d.getSelectStmtFromProto(msg)
+		selectStmtNode, err := queryparser.ProtoAsSelectStmt(msg)
 		if err != nil {
 			return err
 		}
 		// checks if a SelectStmt node uses a FETCH clause with TIES
 		// https://www.postgresql.org/docs/13/sql-select.html#SQL-LIMIT
-		if selectStmtNode.LimitOption == pg_query.LimitOption_LIMIT_OPTION_WITH_TIES {
+		if selectStmtNode.LimitOption == queryparser.LIMIT_OPTION_WITH_TIES {
 			d.limitOptionWithTiesDetected = true
 		}
 	}

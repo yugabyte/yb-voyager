@@ -16,10 +16,12 @@ limitations under the License.
 package queryparser
 
 import (
+	"fmt"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -369,4 +371,13 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 		objectName = GetStringField(nameList.Get(1).Message(), "string")
 	}
 	return schemaName, objectName
+}
+
+func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
+	protoMsg := msg.Interface().(proto.Message)
+	selectStmtNode, ok := protoMsg.(*pg_query.SelectStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
+	}
+	return selectStmtNode, nil
 }
