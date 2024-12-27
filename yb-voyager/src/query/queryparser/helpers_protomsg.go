@@ -35,6 +35,7 @@ const (
 
 func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
+
 }
 
 func GetMsgFullName(msg protoreflect.Message) string {
@@ -330,6 +331,21 @@ func GetStatementType(msg protoreflect.Message) string {
 	return GetMsgFullName(node)
 }
 
+func getOneofActiveNode(msg protoreflect.Message) protoreflect.Message {
+	nodeField := getOneofActiveField(msg, "node")
+	if nodeField == nil {
+		return nil
+	}
+
+	value := msg.Get(nodeField)
+	node := value.Message()
+	if node == nil || !node.IsValid() {
+		return nil
+	}
+
+	return node
+}
+
 // == Generic helper functions ==
 
 // GetStringField retrieves a string field from a message.
@@ -351,6 +367,14 @@ func GetMessageField(msg protoreflect.Message, fieldName string) protoreflect.Me
 	return nil
 }
 
+func GetBoolField(msg protoreflect.Message, fieldName string) bool {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Bool()
+	}
+	return false
+}
+
 // GetListField retrieves a list field from a message.
 func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List {
 	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
@@ -358,6 +382,17 @@ func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List 
 		return msg.Get(field).List()
 	}
 	return nil
+}
+
+// GetEnumNumField retrieves a enum field from a message
+// FieldDescriptor{Syntax: proto3, FullName: pg_query.JsonFuncExpr.op, Number: 1, Cardinality: optional, Kind: enum, HasJSONName: true, JSONName: "op", Enum: pg_query.JsonExprOp}
+// val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT
+func GetEnumNumField(msg protoreflect.Message, fieldName string) protoreflect.EnumNumber {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Enum()
+	}
+	return 0
 }
 
 // GetSchemaAndObjectName extracts the schema and object name from a list.
@@ -380,4 +415,34 @@ func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
 		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
 	}
 	return selectStmtNode, nil
+}
+
+/*
+Example:
+options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}
+options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
+Extract all defnames from the def_eleme node
+*/
+func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) ([]string, error) {
+	var defNames []string
+	collectorFunc := func(msg protoreflect.Message) error {
+		if GetMsgFullName(msg) != PG_QUERY_DEFELEM_NODE {
+			return nil
+		}
+
+		defName := GetStringField(msg, "defname")
+		// TODO(future):
+		//      defValNode = GetMessageField(msg, "arg")
+		//      defVal     = GetStringField(defValNode, "sval")
+
+		defNames = append(defNames, defName)
+		return nil
+	}
+	visited := make(map[protoreflect.Message]bool)
+	err := TraverseParseTree(msg, visited, collectorFunc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to traverse parse tree for fetching defnames: %w", err)
+	}
+
+	return defNames, nil
 }

@@ -42,3 +42,7 @@ INSERT INTO hr.departments (department_name, location) VALUES ('Sales', 'Buildin
 INSERT INTO public.employees (name, department_id) VALUES ('Alice', 1), ('Bob', 1), ('Charlie', 2);
 INSERT INTO sales.orders (customer_id, amount) VALUES (101, 500.00), (102, 1200.00);
 INSERT INTO analytics.metrics (metric_name, metric_value) VALUES ('ConversionRate', 0.023), ('ChurnRate', 0.05);
+
+create view sales.employ_depart_view AS  SELECT
+        any_value(name) AS any_employee
+    FROM employees;

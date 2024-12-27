@@ -335,6 +335,14 @@ func assessMigration() (err error) {
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
 		if source.RunGuardrailsChecks {
+			// Check source database version.
+			log.Info("checking source DB version")
+			err = source.DB().CheckSourceDBVersion(exportType)
+			if err != nil {
+				return fmt.Errorf("source DB version check failed: %w", err)
+			}
+
+			// Check if required binaries are installed.
 			binaryCheckIssues, err := checkDependenciesForExport()
 			if err != nil {
 				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
@@ -982,6 +990,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
+
 	for _, indexMethod := range queryissue.UnsupportedIndexMethods {
 		displayIndexMethod := strings.ToUpper(indexMethod)
 		featureName := fmt.Sprintf("%s indexes", displayIndexMethod)
@@ -1015,6 +1024,10 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LARGE_OBJECT_FUNCTIONS_NAME, queryissue.LARGE_OBJECT_FUNCTIONS_NAME, "", schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REGEX_FUNCTIONS_FEATURE, "", queryissue.REGEX_FUNCTIONS, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(FETCH_WITH_TIES_FEATURE, "", queryissue.FETCH_WITH_TIES, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_QUERY_FUNCTIONS_NAME, "", queryissue.JSON_QUERY_FUNCTION, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_CONSTRUCTOR_FUNCTION_NAME, "", queryissue.JSON_CONSTRUCTOR_FUNCTION, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.AGGREGATION_FUNCTIONS_NAME, "", queryissue.AGGREGATE_FUNCTION, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SECURITY_INVOKER_VIEWS_NAME, "", queryissue.SECURITY_INVOKER_VIEWS, schemaAnalysisReport, false, ""))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
