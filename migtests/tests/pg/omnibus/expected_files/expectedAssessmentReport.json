@@ -576,7 +576,7 @@
 			"Objects": [
 				{
 					"ObjectName": "regress_rls_schema.bv1",
-					"SqlStatement": "CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS\n SELECT b1.a,\n    b1.b\n   FROM regress_rls_schema.b1\n  WHERE (b1.a \u003e 0)\n  WITH CASCADED CHECK OPTION;"
+					"SqlStatement": "CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS\n SELECT a,\n    b\n   FROM regress_rls_schema.b1\n  WHERE (a \u003e 0)\n  WITH CASCADED CHECK OPTION;"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",

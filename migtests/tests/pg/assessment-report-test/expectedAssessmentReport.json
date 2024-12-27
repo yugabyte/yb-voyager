@@ -488,11 +488,11 @@
 			"Objects": [
 				{
 					"ObjectName": "public.sales_employees",
-					"SqlStatement": "CREATE VIEW public.sales_employees AS\n SELECT employees2.id,\n    employees2.first_name,\n    employees2.last_name,\n    employees2.full_name\n   FROM public.employees2\n  WHERE ((employees2.department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
+					"SqlStatement": "CREATE VIEW public.sales_employees AS\n SELECT id,\n    first_name,\n    last_name,\n    full_name\n   FROM public.employees2\n  WHERE ((department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
 				},
 				{
 					"ObjectName": "schema2.sales_employees",
-					"SqlStatement": "CREATE VIEW schema2.sales_employees AS\n SELECT employees2.id,\n    employees2.first_name,\n    employees2.last_name,\n    employees2.full_name\n   FROM schema2.employees2\n  WHERE ((employees2.department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
+					"SqlStatement": "CREATE VIEW schema2.sales_employees AS\n SELECT id,\n    first_name,\n    last_name,\n    full_name\n   FROM schema2.employees2\n  WHERE ((department)::text = 'sales'::text)\n  WITH CASCADED CHECK OPTION;"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
@@ -593,7 +593,7 @@
 			"Objects": [
 				{
 					"ObjectName": "public.ordersentry_view",
-					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT ordersentry.order_id,\n    ordersentry.customer_name,\n    ordersentry.product_name,\n    ordersentry.quantity,\n    ordersentry.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name), XMLELEMENT(NAME \"Quantity\", ordersentry.quantity), XMLELEMENT(NAME \"TotalPrice\", (ordersentry.price * (ordersentry.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((ordersentry.customer_name || ordersentry.product_name)))::bigint) AS lock_acquired,\n    ordersentry.ctid AS row_ctid,\n    ordersentry.xmin AS transaction_id\n   FROM public.ordersentry;"
+					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT order_id,\n    customer_name,\n    product_name,\n    quantity,\n    price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name), XMLELEMENT(NAME \"Quantity\", quantity), XMLELEMENT(NAME \"TotalPrice\", (price * (quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((customer_name || product_name)))::bigint) AS lock_acquired,\n    ctid AS row_ctid,\n    xmin AS transaction_id\n   FROM public.ordersentry;"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
@@ -604,7 +604,7 @@
 			"Objects": [
 				{
 					"ObjectName": "public.ordersentry_view",
-					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT ordersentry.order_id,\n    ordersentry.customer_name,\n    ordersentry.product_name,\n    ordersentry.quantity,\n    ordersentry.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name), XMLELEMENT(NAME \"Quantity\", ordersentry.quantity), XMLELEMENT(NAME \"TotalPrice\", (ordersentry.price * (ordersentry.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((ordersentry.customer_name || ordersentry.product_name)))::bigint) AS lock_acquired,\n    ordersentry.ctid AS row_ctid,\n    ordersentry.xmin AS transaction_id\n   FROM public.ordersentry;"
+					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT order_id,\n    customer_name,\n    product_name,\n    quantity,\n    price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name), XMLELEMENT(NAME \"Quantity\", quantity), XMLELEMENT(NAME \"TotalPrice\", (price * (quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((customer_name || product_name)))::bigint) AS lock_acquired,\n    ctid AS row_ctid,\n    xmin AS transaction_id\n   FROM public.ordersentry;"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
@@ -615,7 +615,7 @@
 			"Objects": [
 				{
 					"ObjectName": "public.ordersentry_view",
-					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT ordersentry.order_id,\n    ordersentry.customer_name,\n    ordersentry.product_name,\n    ordersentry.quantity,\n    ordersentry.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name), XMLELEMENT(NAME \"Quantity\", ordersentry.quantity), XMLELEMENT(NAME \"TotalPrice\", (ordersentry.price * (ordersentry.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", ordersentry.customer_name), XMLELEMENT(NAME \"Product\", ordersentry.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((ordersentry.customer_name || ordersentry.product_name)))::bigint) AS lock_acquired,\n    ordersentry.ctid AS row_ctid,\n    ordersentry.xmin AS transaction_id\n   FROM public.ordersentry;"
+					"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT order_id,\n    customer_name,\n    product_name,\n    quantity,\n    price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name), XMLELEMENT(NAME \"Quantity\", quantity), XMLELEMENT(NAME \"TotalPrice\", (price * (quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((customer_name || product_name)))::bigint) AS lock_acquired,\n    ctid AS row_ctid,\n    xmin AS transaction_id\n   FROM public.ordersentry;"
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
@@ -646,7 +646,7 @@
 			"Objects": [
 				{
 					"ObjectName": "public.view_explicit_security_invoker",
-					"SqlStatement": "CREATE VIEW public.view_explicit_security_invoker WITH (security_invoker='true') AS\n SELECT employees.employee_id,\n    employees.first_name\n   FROM public.employees;"
+					"SqlStatement": "CREATE VIEW public.view_explicit_security_invoker WITH (security_invoker='true') AS\n SELECT employee_id,\n    first_name\n   FROM public.employees;"
 				}
 			],
 			"MinimumVersionsFixedIn": null

@@ -86,7 +86,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 	}()
 
 	sqlInfoArr := parseSqlFileForObjectType(file, objType)
-	var err error
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
@@ -97,17 +96,14 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
 			continue
 		}
-
-		if objType == "TABLE" {
-			// Check if the statement should be skipped
-			skip, err := shouldSkipDDL(sqlInfo.stmt)
-			if err != nil {
-				return fmt.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
-			}
-			if skip {
-				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
-				continue
-			}
+		// Check if the statement should be skipped
+		skip, err := shouldSkipDDL(sqlInfo.stmt, objType)
+		if err != nil {
+			return fmt.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
+		}
+		if skip {
+			log.Infof("Skipping DDL: %s", sqlInfo.stmt)
+			continue
 		}
 
 		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType)
@@ -118,14 +114,19 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 	return nil
 }
 
-func shouldSkipDDL(stmt string) (bool, error) {
+func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	stmt = strings.ToUpper(stmt)
 
 	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
 	// NOTICE severity as well (which is the default), hence skipping this.
-	if strings.Contains(stmt, "SET CLIENT_MIN_MESSAGES") {
+	//pg_dump 17 gives this SET transaction_timeout = 0;
+	if strings.Contains(stmt, CLIENT_MESSAGES_SESSION_VAR) || strings.Contains(stmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
 		return true, nil
 	}
+	if objType != TABLE {
+		return false, nil
+	}
+
 	skipReplicaIdentity := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
 	if skipReplicaIdentity {
 		return true, nil

@@ -12,9 +12,9 @@ jobs:
     
     services:
         postgres:
-          image: postgres:15
+          image: postgres:17
           env:
-            POSTGRES_PASSWORD: secret
+            POSTGRES_PASSWORD: postgres
           # Set health checks to wait until postgres has started
           options: >-
             --health-cmd pg_isready
@@ -55,17 +55,19 @@ jobs:
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
 
+      #TODO Remove the install PG 17 command once we do that in installer script 
       - name: Run installer script to setup voyager
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+          sudo apt-get -y install postgresql-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
       - name: Test PostgreSQL Connection
         run: |
-          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" -c "SELECT version();"
 
       - name: Create PostgreSQL user
         run: |

@@ -28,6 +28,12 @@
 				"TotalCount": 2,
 				"InvalidCount": 0,
 				"ObjectNames": "analytics.metrics, sales.orders"
+			},
+			{
+				"ObjectType": "VIEW",
+				"TotalCount": 1,
+				"InvalidCount": 1,
+				"ObjectNames": "sales.employ_depart_view"
 			}
 		]
 	},
@@ -51,7 +57,18 @@
 	},
 	"UnsupportedDataTypes": null,
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": null,
+	"UnsupportedFeatures": [
+		{
+			"FeatureName": "Aggregate Functions",
+			"Objects": [
+				{
+					"ObjectName": "sales.employ_depart_view",
+					"SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		}
+	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
@@ -90,6 +107,12 @@
 			"ConstructTypeName": "Advisory Locks",
 			"Query": "SELECT metric_name, pg_advisory_lock(metric_id)\nFROM analytics.metrics\nWHERE metric_value \u003e $1",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Aggregate Functions",
+			"Query": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
+			"DocsLink": "",
 			"MinimumVersionsFixedIn": null
 		}
 	],
