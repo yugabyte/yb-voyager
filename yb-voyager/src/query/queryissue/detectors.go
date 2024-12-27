@@ -453,6 +453,139 @@ func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type UniqueNullsNotDistinctDetector struct {
+	query    string
+	detected bool
+}
+
+func NewUniqueNullsNotDistinctDetector(query string) *UniqueNullsNotDistinctDetector {
+	return &UniqueNullsNotDistinctDetector{
+		query: query,
+	}
+}
+
+// {
+// 	"parseTreeVersion": 170000,
+// 	"statements": {
+// 	  "statement": {
+// 		"createStatement": {
+// 		  "relation": {
+// 			"schemaName": "public",
+// 			"relationName": "products",
+// 			"inherits": true,
+// 			"persistence": "p",  // permanent table
+// 			"location": 13
+// 		  },
+// 		  "tableElements": [
+// 			{
+// 			  "columnDefinition": {
+// 				"columnName": "id",
+// 				"typeName": {
+// 				  "names": [
+// 					{ "string": { "value": "serial" } }
+// 				  ],
+// 				  "typeModifier": -1,
+// 				  "location": 38
+// 				},
+// 				"isLocal": true,
+// 				"constraints": [
+// 				  {
+// 					"constraintType": "PRIMARY_KEY",
+// 					"location": 45
+// 				  }
+// 				],
+// 				"location": 35
+// 			  }
+// 			},
+// 			{
+// 			  "columnDefinition": {
+// 				"columnName": "product_name",
+// 				"typeName": {
+// 				  "names": [
+// 					{ "string": { "value": "pg_catalog" } },
+// 					{ "string": { "value": "varchar" } }
+// 				  ],
+// 				  "typeModifiers": [
+// 					{
+// 					  "constant": {
+// 						"integerValue": 100,
+// 						"location": 83
+// 					  }
+// 					}
+// 				  ],
+// 				  "typeModifier": -1,
+// 				  "location": 75
+// 				},
+// 				"isLocal": true,
+// 				"location": 62
+// 			  }
+// 			},
+// 			{
+// 			  "columnDefinition": {
+// 				"columnName": "serial_number",
+// 				"typeName": {
+// 				  "names": [
+// 					{ "string": { "value": "text" } }
+// 				  ],
+// 				  "typeModifier": -1,
+// 				  "location": 107
+// 				},
+// 				"isLocal": true,
+// 				"location": 93
+// 			  }
+// 			}
+// 		  ],
+// 		  "tableConstraints": [
+// 			{
+// 			  "constraintType": "UNIQUE",
+// 			  "nullsNotDistinct": true,
+// 			  "keys": [
+// 				{ "string": { "value": "product_name" } },
+// 				{ "string": { "value": "serial_number" } }
+// 			  ],
+// 			  "location": 117
+// 			}
+// 		  ],
+// 		  "onCommit": "ONCOMMIT_NOOP"
+// 		}
+// 	  }
+// 	},
+// 	"statementLength": 174
+//   }
+
+// Detect checks if a unique constraint is defined which has nulls not distinct
+func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error {
+	// If message is of type PG_QUERY_TABLECONSTRAINT_NODE
+	if !(queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_TABLECONSTRAINT_NODE) {
+		return nil
+	}
+
+	// Fetch contype as an enum number
+	constraintType := queryparser.GetEnumNumField(msg, "contype")
+	constraintTypeStr := queryparser.GetResolvedEnumName(msg, "contype", constraintType)
+
+	// Check if the constraint is of type CONSTR_UNIQUE
+	if constraintTypeStr != "CONSTR_UNIQUE" {
+		return nil
+	}
+
+	// Check if the constraint has nulls not distinct
+	nullsNotDistinct := queryparser.GetBoolField(msg, "nulls_not_distinct")
+	if nullsNotDistinct {
+		d.detected = true
+	}
+
+	return nil
+}
+
+func (d *UniqueNullsNotDistinctDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.detected {
+		issues = append(issues, NewUniqueNullsNotDistinctIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
+
 type JsonPredicateExprDetector struct {
 	query    string
 	detected bool

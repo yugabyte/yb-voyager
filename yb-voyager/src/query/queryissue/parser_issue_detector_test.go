@@ -163,6 +163,13 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	WITH (security_invoker = true) AS
 	SELECT employee_id, first_name
 	FROM public.employees;`
+	stmt21 = `CREATE TABLE public.products (
+    id SERIAL PRIMARY KEY,
+    product_name VARCHAR(100),
+    serial_number TEXT,
+    UNIQUE NULLS NOT DISTINCT (product_name, serial_number)
+	);`
+	stmt22 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -285,6 +292,12 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt20: []QueryIssue{
 			NewSecurityInvokerViewIssue("VIEW", "public.view_explicit_security_invoker", stmt20),
+		},
+		stmt21: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt21),
+		},
+		stmt22: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt22),
 		},
 	}
 	for _, stmt := range requiredDDLs {
