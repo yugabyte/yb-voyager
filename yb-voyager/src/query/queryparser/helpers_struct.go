@@ -211,6 +211,9 @@ func getQualifiedTypeName(typeNames []*pg_query.Node) string {
 }
 
 func convertParserTypeNameToString(typeVar *pg_query.TypeName) string {
+	if typeVar == nil {
+		return ""
+	}
 	typeNames := typeVar.GetNames()
 	finalTypeName := getQualifiedTypeName(typeNames) // type name can qualified table_name.column in case of %TYPE
 	if typeVar.PctType {                             // %TYPE declaration, so adding %TYPE for using it further
