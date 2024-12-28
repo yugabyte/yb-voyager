@@ -206,22 +206,22 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
-type JsonSubscriptingDetector struct {
+type JsonbSubscriptingDetector struct {
 	query          string
 	jsonbColumns   []string
 	detected       bool
 	jsonbFunctions []string
 }
 
-func NewJsonSubscriptingDetector(query string, jsonbColumns []string, jsonbFunctions []string) *JsonSubscriptingDetector {
-	return &JsonSubscriptingDetector{
+func NewJsonbSubscriptingDetector(query string, jsonbColumns []string, jsonbFunctions []string) *JsonbSubscriptingDetector {
+	return &JsonbSubscriptingDetector{
 		query:          query,
 		jsonbColumns:   jsonbColumns,
 		jsonbFunctions: jsonbFunctions,
 	}
 }
 
-func (j *JsonSubscriptingDetector) isJsonType(msg protoreflect.Message) bool {
+func (j *JsonbSubscriptingDetector) isJsonbType(msg protoreflect.Message) bool {
 	node, ok := queryparser.GetGenericNode(msg)
 	if !ok {
 		return false
@@ -247,7 +247,7 @@ func (j *JsonSubscriptingDetector) isJsonType(msg protoreflect.Message) bool {
 		*/
 		typeCast := node.GetTypeCast()
 		typeName, _ := queryparser.GetTypeNameAndSchema(typeCast.GetTypeName().GetNames())
-		if slices.Contains([]string{"jsonb"}, typeName) {
+		if typeName == "jsonb" {
 			return true
 		}
 	case node.GetFuncCall() != nil:
@@ -264,9 +264,9 @@ func (j *JsonSubscriptingDetector) isJsonType(msg protoreflect.Message) bool {
 		}
 	case node.GetAExpr() != nil:
 		/*
-			SELECT ('{"key": "value1"}'::jsonb || '{"key": "value2"}'::jsonb)['key'] AS object_in_array;
+			SELECT ('{"key": "value1"}'::jsonb || '{"key1": "value2"}'::jsonb)['key'] AS object_in_array;
 			val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key\": \"value1\"}"}
-			location:81}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:102}  location:100}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key\": \"value2\"}"}
+			location:81}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:102}  location:100}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key1\": \"value2\"}"}
 			location:111}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:132}  location:130}}  location:108}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"key"}
 			location:139}}}}}}
 
@@ -281,17 +281,17 @@ func (j *JsonSubscriptingDetector) isJsonType(msg protoreflect.Message) bool {
 		expr := node.GetAExpr()
 		lExpr := expr.GetLexpr()
 		rExpr := expr.GetRexpr()
-		if lExpr != nil && j.isJsonType(lExpr.ProtoReflect()) {
+		if lExpr != nil && j.isJsonbType(lExpr.ProtoReflect()) {
 			return true
 		}
-		if rExpr != nil && j.isJsonType(rExpr.ProtoReflect()) {
+		if rExpr != nil && j.isJsonbType(rExpr.ProtoReflect()) {
 			return true
 		}
 	}
 	return false
 }
 
-func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
+func (j *JsonbSubscriptingDetector) Detect(msg protoreflect.Message) error {
 
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_A_INDIRECTION_NODE {
 		return nil
@@ -306,14 +306,14 @@ func (j *JsonSubscriptingDetector) Detect(msg protoreflect.Message) error {
 		return nil
 	}
 
-	if j.isJsonType(arg.ProtoReflect()) {
+	if j.isJsonbType(arg.ProtoReflect()) {
 		j.detected = true
 	}
 
 	return nil
 }
 
-func (j *JsonSubscriptingDetector) GetIssues() []QueryIssue {
+func (j *JsonbSubscriptingDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if j.detected {
 		issues = append(issues, NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", j.query))

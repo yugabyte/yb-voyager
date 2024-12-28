@@ -41,7 +41,7 @@ func testLOFunctionsIssue(t *testing.T) {
 }
 
 
-func testJsonSubscriptingIssue(t *testing.T) {
+func testJsonbSubscriptingIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
@@ -163,7 +163,7 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "json query functions", ybVersion), testJsonQueryFunctions)
 	assert.True(t, success)
 
-	success = t.Run(fmt.Sprintf("%s-%s", "json subscripting", ybVersion), testJsonSubscriptingIssue)
+	success = t.Run(fmt.Sprintf("%s-%s", "json subscripting", ybVersion), testJsonbSubscriptingIssue)
 	assert.True(t, success)	
 
 }

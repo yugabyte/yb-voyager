@@ -383,7 +383,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewRangeTableFuncDetector(query),
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
-		NewJsonSubscriptingDetector(query, p.getJsonbColumns(), p.getJsonbReturnTypeFunctions()),
+		NewJsonbSubscriptingDetector(query, p.getJsonbColumns(), p.getJsonbReturnTypeFunctions()),
 	}
 
 	processor := func(msg protoreflect.Message) error {
@@ -432,7 +432,7 @@ func (p *ParserIssueDetector) getJsonbColumns() []string {
 	var jsonColumns []string
 	for _, mp := range p.columnsWithUnsupportedIndexDatatypes {
 		for col, colType := range mp {
-			if slices.Contains([]string{"jsonb"}, colType) {
+			if colType == "jsonb" {
 				jsonColumns = append(jsonColumns, col)
 			}
 		}
@@ -455,7 +455,7 @@ func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
 				jsonbFunctions = append(jsonbFunctions, function.FuncName)
 			}
 		} else {
-			// e.g. text, trigger, jsonb
+			// e.g. public.udt_type, text, trigger, jsonb
 			parts := strings.Split(returnType, ".")
 			typeName := parts[len(parts)-1]
 			if typeName == "jsonb" {

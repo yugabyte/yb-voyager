@@ -689,7 +689,7 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 	}
 }
 
-func TestJsonSubscripting(t *testing.T) {
+func TestJsonbSubscripting(t *testing.T) {
 	withoutIssueSql := `SELECT numbers[1] AS first_number 
 FROM array_data;`
 	issuesSqls := []string{
@@ -701,17 +701,17 @@ WHERE data['user']['name'] = '"Alice"';`,
     data->>$1 AS name, 
     data[$2][$3] AS second_score
 FROM test_jsonb1`,
-`SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;`,
-`SELECT (data || '{"new_key": "new_value"}' )['name'] FROM test_jsonb;`,
-`SELECT ('{"key": "value1"}'::jsonb || '{"key": "value2"}'::jsonb)['key'] AS object_in_array;`,
+		`SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;`,
+		`SELECT (data || '{"new_key": "new_value"}' )['name'] FROM test_jsonb;`,
+		`SELECT ('{"key": "value1"}'::jsonb || '{"key": "value2"}'::jsonb)['key'] AS object_in_array;`,
 	}
 
-	issues := getDetectorIssues(t, NewJsonSubscriptingDetector(withoutIssueSql, []string{}, []string{}), withoutIssueSql)
+	issues := getDetectorIssues(t, NewJsonbSubscriptingDetector(withoutIssueSql, []string{}, []string{}), withoutIssueSql)
 
 	assert.Equal(t, 0, len(issues), "Expected 1 issue for SQL: %s", withoutIssueSql)
 
 	for _, sql := range issuesSqls {
-		issues := getDetectorIssues(t, NewJsonSubscriptingDetector(sql, []string{"data"}, []string{"jsonb_build_object"}), sql)
+		issues := getDetectorIssues(t, NewJsonbSubscriptingDetector(sql, []string{"data"}, []string{"jsonb_build_object"}), sql)
 
 		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 		assert.Equal(t, JSONB_SUBSCRIPTING, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
