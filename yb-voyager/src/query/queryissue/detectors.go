@@ -344,6 +344,7 @@ func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Messa
 		log.Errorf("error extracting defnames from COPY statement: %v", err)
 	}
 	if slices.Contains(defNames, "on_error") {
+		d.copyOnErrorConstructDetected = true
 	}
 
 	return nil
