@@ -73,6 +73,9 @@ const (
 
 	JSONB_SUBSCRIPTING      = "JSONB_SUBSCRIPTING"
 	JSONB_SUBSCRIPTING_NAME = "Jsonb Subscripting"
+	MULTI_RANGE_DATATYPE    = "MULTI_RANGE_DATATYPE"
+	COPY_FROM_WHERE         = "COPY FROM ... WHERE"
+	COPY_ON_ERROR           = "COPY ... ON_ERROR"
 )
 
 // Object types

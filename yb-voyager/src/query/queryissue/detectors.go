@@ -309,6 +309,42 @@ func (j *JsonbSubscriptingDetector) Detect(msg protoreflect.Message) error {
 	if j.isJsonbType(arg.ProtoReflect()) {
 		j.detected = true
 	}
+	return nil
+}
+
+type CopyCommandUnsupportedConstructsDetector struct {
+	query                          string
+	copyFromWhereConstructDetected bool
+	copyOnErrorConstructDetected   bool
+}
+
+func NewCopyCommandUnsupportedConstructsDetector(query string) *CopyCommandUnsupportedConstructsDetector {
+	return &CopyCommandUnsupportedConstructsDetector{
+		query: query,
+	}
+}
+
+// Detect if COPY command uses unsupported syntax i.e. COPY FROM ... WHERE and COPY... ON_ERROR
+func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Message) error {
+	// Check if the message is a COPY statement
+	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPYSTSMT_NODE {
+		return nil // Not a COPY statement, nothing to detect
+	}
+
+	// Check for COPY FROM ... WHERE clause
+	fromField := queryparser.GetBoolField(msg, "is_from")
+	whereField := queryparser.GetMessageField(msg, "where_clause")
+	if fromField && whereField != nil {
+		d.copyFromWhereConstructDetected = true
+	}
+
+	// Check for COPY ... ON_ERROR clause
+	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	if err != nil {
+		log.Errorf("error extracting defnames from COPY statement: %v", err)
+	}
+	if slices.Contains(defNames, "on_error") {
+	}
 
 	return nil
 }
@@ -317,6 +353,16 @@ func (j *JsonbSubscriptingDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if j.detected {
 		issues = append(issues, NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", j.query))
+	}
+	return issues
+}
+func (d *CopyCommandUnsupportedConstructsDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.copyFromWhereConstructDetected {
+		issues = append(issues, NewCopyFromWhereIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.copyOnErrorConstructDetected {
+		issues = append(issues, NewCopyOnErrorIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }

@@ -1,3 +1,5 @@
+//go:build unit
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -23,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -308,12 +311,12 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 
 	// Not reported by default
 	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 0, len(issues))
 
 	// older version should report the issue
 	issues, err = parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_1_0_0)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 	assert.True(t, cmp.Equal(issues[0], NewUnloggedTableIssue("TABLE", "tbl_unlog", stmt)))
 }
@@ -488,7 +491,7 @@ func TestSingleXMLIssueIsDetected(t *testing.T) {
 
 	parserIssueDetector := NewParserIssueDetector()
 	issues, err := parserIssueDetector.getDMLIssues(stmt)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 	assert.Equal(t, 1, len(issues))
 }
 
@@ -755,16 +758,55 @@ func TestRegexFunctionsIssue(t *testing.T) {
 
 	for _, stmt := range dmlStmts {
 		issues, err := parserIssueDetector.getDMLIssues(stmt)
-		fatalIfError(t, err)
+		testutils.FatalIfError(t, err)
 		assert.Equal(t, 1, len(issues))
 		assert.Equal(t, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", stmt), issues[0])
 	}
 
 	for _, stmt := range ddlStmts {
 		issues, err := parserIssueDetector.getDDLIssues(stmt)
-		fatalIfError(t, err)
+		testutils.FatalIfError(t, err)
 		assert.Equal(t, 1, len(issues))
 		assert.Equal(t, NewRegexFunctionsIssue(TABLE_OBJECT_TYPE, "x", stmt), issues[0])
 	}
 
+}
+
+func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
+	expectedIssues := map[string][]QueryIssue{
+		`COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`:                {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`)},
+		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`: {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table(col1, col2) FROM '/path/to/data.csv' WHERE col2 = 'test';`)},
+		`COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`:                      {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table FROM '/path/to/data.csv' WHERE TRUE;`)},
+		`COPY employees (id, name, age)
+		FROM STDIN WITH (FORMAT csv)
+		WHERE age > 30;`: {NewCopyFromWhereIssue("DML_QUERY", "", `COPY employees (id, name, age)
+		FROM STDIN WITH (FORMAT csv)
+		WHERE age > 30;`)},
+
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`: {NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`)},
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP);`:   {NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP);`)},
+
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE) WHERE age > 18;`:     {NewCopyFromWhereIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE) WHERE age > 18;`), NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE) WHERE age > 18;`)},
+		`COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP) WHERE name = 'Alice';`: {NewCopyFromWhereIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP) WHERE name = 'Alice';`), NewCopyOnErrorIssue("DML_QUERY", "", `COPY table_name (name, age) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR STOP) WHERE name = 'Alice';`)},
+
+		`COPY my_table FROM '/path/to/data.csv' WITH (FORMAT csv);`:                          {},
+		`COPY my_table FROM '/path/to/data.csv' WITH (FORMAT text);`:                         {},
+		`COPY my_table FROM '/path/to/data.csv';`:                                            {},
+		`COPY my_table FROM '/path/to/data.csv' WITH (DELIMITER ',');`:                       {},
+		`COPY my_table(col1, col2) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true);`: {},
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+
+	for stmt, expectedIssues := range expectedIssues {
+		issues, err := parserIssueDetector.getDMLIssues(stmt)
+		testutils.FatalIfError(t, err)
+		assert.Equal(t, len(expectedIssues), len(issues))
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
 }

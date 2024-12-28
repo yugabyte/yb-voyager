@@ -381,6 +381,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewColumnRefDetector(query),
 		NewXmlExprDetector(query),
 		NewRangeTableFuncDetector(query),
+		NewCopyCommandUnsupportedConstructsDetector(query),
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
 		NewJsonbSubscriptingDetector(query, p.getJsonbColumns(), p.getJsonbReturnTypeFunctions()),
@@ -421,7 +422,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 					xmlIssueAdded = true
 				}
 			}
-			result = append(result, issues...)
+			result = append(result, issue)
 		}
 	}
 
