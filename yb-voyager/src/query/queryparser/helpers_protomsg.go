@@ -21,6 +21,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -385,7 +386,7 @@ func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List 
 
 // GetEnumNumField retrieves a enum field from a message
 // FieldDescriptor{Syntax: proto3, FullName: pg_query.JsonFuncExpr.op, Number: 1, Cardinality: optional, Kind: enum, HasJSONName: true, JSONName: "op", Enum: pg_query.JsonExprOp}
-//val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT 
+// val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT
 func GetEnumNumField(msg protoreflect.Message, fieldName string) protoreflect.EnumNumber {
 	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 	if field != nil && msg.Has(field) {
@@ -405,6 +406,18 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 		objectName = GetStringField(nameList.Get(1).Message(), "string")
 	}
 	return schemaName, objectName
+}
+
+func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
+	protoMsg, ok := msg.Interface().(proto.Message)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to proto.Message")
+	}
+	selectStmtNode, ok := protoMsg.(*pg_query.SelectStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
+	}
+	return selectStmtNode, nil
 }
 
 /*

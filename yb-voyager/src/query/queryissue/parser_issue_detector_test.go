@@ -653,6 +653,68 @@ func TestRegexFunctionsIssue(t *testing.T) {
 
 }
 
+func TestFetchWithTiesInSelect(t *testing.T) {
+
+	stmt1 := `
+	SELECT * FROM employees
+		ORDER BY salary DESC
+		FETCH FIRST 2 ROWS WITH TIES;`
+
+	// subquery
+	stmt2 := `SELECT *
+	FROM (
+		SELECT * FROM employees
+		ORDER BY salary DESC
+		FETCH FIRST 2 ROWS WITH TIES
+	) AS top_employees;`
+
+	stmt3 := `CREATE VIEW top_employees_view AS
+		SELECT *
+		FROM (
+			SELECT * FROM employees
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;`
+
+	expectedIssues := map[string][]QueryIssue{
+		stmt1: []QueryIssue{NewFetchWithTiesIssue("DML_QUERY", "", stmt1)},
+		stmt2: []QueryIssue{NewFetchWithTiesIssue("DML_QUERY", "", stmt2)},
+	}
+	expectedDDLIssues := map[string][]QueryIssue{
+		stmt3: []QueryIssue{NewFetchWithTiesIssue("VIEW", "top_employees_view", stmt3)},
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+
+	for stmt, expectedIssues := range expectedIssues {
+		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.LatestStable)
+
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+
+	for stmt, expectedIssues := range expectedDDLIssues {
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
+
 func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
 	expectedIssues := map[string][]QueryIssue{
 		`COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`:                {NewCopyFromWhereIssue("DML_QUERY", "", `COPY my_table FROM '/path/to/data.csv' WHERE col1 > 100;`)},
@@ -683,6 +745,7 @@ func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
 		issues, err := parserIssueDetector.getDMLIssues(stmt)
 		testutils.FatalIfError(t, err)
 		assert.Equal(t, len(expectedIssues), len(issues))
+
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)

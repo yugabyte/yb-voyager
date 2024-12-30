@@ -393,6 +393,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- for FETCH .. WITH TIES
+CREATE TABLE employeesForView (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    salary NUMERIC(10, 2) NOT NULL
+);
+
+CREATE VIEW top_employees_view AS SELECT * FROM (
+			SELECT * FROM employeesForView
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;
+
 -- SECURITY INVOKER VIEW
 CREATE TABLE public.employees (
     employee_id SERIAL PRIMARY KEY,

@@ -61,16 +61,35 @@ func testRegexFunctionsIssue(t *testing.T) {
 	}
 }
 
+func testFetchWithTiesIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+
+	stmts := []string{
+		`SELECT * FROM employees
+		ORDER BY salary DESC
+		FETCH FIRST 2 ROWS WITH TIES;`,
+	}
+
+	for _, stmt := range stmts {
+		_, err = conn.Exec(ctx, stmt)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "WITH"`, regexFunctionsIssue)
+	}
+}
+
 func testCopyOnErrorIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
 
 	defer conn.Close(context.Background())
+
 	// In case the COPY ... ON_ERROR construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
 	_, err = conn.Exec(ctx, `COPY pg_largeobject (loid, pageno, data) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: option \"on_error\" not recognized (SQLSTATE 42601)", copyOnErrorIssue)
-
 }
 
 func testCopyFromWhereIssue(t *testing.T) {
@@ -169,6 +188,9 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "regex functions", ybVersion), testRegexFunctionsIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "fetch with ties", ybVersion), testFetchWithTiesIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "copy on error", ybVersion), testCopyOnErrorIssue)

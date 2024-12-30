@@ -167,3 +167,16 @@ var copyOnErrorIssue = issue.Issue{
 func NewCopyOnErrorIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(copyOnErrorIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var fetchWithTiesIssue = issue.Issue{
+	Type:            FETCH_WITH_TIES,
+	TypeName:        "FETCH .. WITH TIES",
+	TypeDescription: "FETCH .. WITH TIES is not supported in YugabyteDB",
+	Suggestion:      "No workaround available right now",
+	GH:              "",
+	DocsLink:        "", //TODO
+}
+
+func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(fetchWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

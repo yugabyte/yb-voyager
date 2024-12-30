@@ -206,6 +206,40 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type SelectStmtDetector struct {
+	query                       string
+	limitOptionWithTiesDetected bool
+}
+
+func NewSelectStmtDetector(query string) *SelectStmtDetector {
+	return &SelectStmtDetector{
+		query: query,
+	}
+}
+
+func (d *SelectStmtDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_SELECTSTMT_NODE {
+		selectStmtNode, err := queryparser.ProtoAsSelectStmt(msg)
+		if err != nil {
+			return err
+		}
+		// checks if a SelectStmt node uses a FETCH clause with TIES
+		// https://www.postgresql.org/docs/13/sql-select.html#SQL-LIMIT
+		if selectStmtNode.LimitOption == queryparser.LIMIT_OPTION_WITH_TIES {
+			d.limitOptionWithTiesDetected = true
+		}
+	}
+	return nil
+}
+
+func (d *SelectStmtDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.limitOptionWithTiesDetected {
+		issues = append(issues, NewFetchWithTiesIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
+
 type CopyCommandUnsupportedConstructsDetector struct {
 	query                          string
 	copyFromWhereConstructDetected bool
