@@ -1932,6 +1932,16 @@
             "MinimumVersionsFixedIn": null
         },
         {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "top_employees_view",
+            "Reason": "FETCH .. WITH TIES",
+            "SqlStatement": "CREATE VIEW top_employees_view AS SELECT * FROM (\n\t\t\tSELECT * FROM employees\n\t\t\tORDER BY salary DESC\n\t\t\tFETCH FIRST 2 ROWS WITH TIES\n\t\t) AS top_employees;",
+            "Suggestion": "No workaround available right now",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
             "IssueType": "unsupported_datatypes",
             "ObjectType": "TABLE",
             "ObjectName": "bigint_multirange_table",
