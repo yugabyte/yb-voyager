@@ -691,9 +691,12 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 	}
 }
 
-func TestJsonbSubscripting(t *testing.T) {
-	withoutIssueSql := `SELECT numbers[1] AS first_number 
-FROM array_data;`
+func TestJsonbSubscriptingDetector(t *testing.T) {
+	withoutIssueSqls := []string{
+		`SELECT numbers[1] AS first_number 
+		FROM array_data;`,
+		`select ab_data['name'] from (select Data as ab_data from test_jsonb);`, // NOT REPORTED AS OF NOW because of caveat
+	}
 	issuesSqls := []string{
 		`SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];`,
 		`UPDATE json_data
@@ -708,9 +711,11 @@ FROM test_jsonb1`,
 		`SELECT ('{"key": "value1"}'::jsonb || '{"key": "value2"}'::jsonb)['key'] AS object_in_array;`,
 	}
 
-	issues := getDetectorIssues(t, NewJsonbSubscriptingDetector(withoutIssueSql, []string{}, []string{}), withoutIssueSql)
+	for _, sql := range withoutIssueSqls {
+		issues := getDetectorIssues(t, NewJsonbSubscriptingDetector(sql, []string{}, []string{}), sql)
 
-	assert.Equal(t, 0, len(issues), "Expected 1 issue for SQL: %s", withoutIssueSql)
+		assert.Equal(t, 0, len(issues), "Expected 1 issue for SQL: %s", sql)
+	}
 
 	for _, sql := range issuesSqls {
 		issues := getDetectorIssues(t, NewJsonbSubscriptingDetector(sql, []string{"data"}, []string{"jsonb_build_object"}), sql)

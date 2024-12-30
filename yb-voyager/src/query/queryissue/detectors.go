@@ -221,76 +221,6 @@ func NewJsonbSubscriptingDetector(query string, jsonbColumns []string, jsonbFunc
 	}
 }
 
-func (j *JsonbSubscriptingDetector) isJsonbType(msg protoreflect.Message) bool {
-	node, ok := queryparser.GetGenericNode(msg)
-	if !ok {
-		return false
-	}
-	switch {
-	case node.GetColumnRef() != nil:
-		/*
-			SELECT numbers[1] AS first_number
-			FROM array_data;
-			{a_indirection:{arg:{column_ref:{fields:{string:{sval:"numbers"}}  location:69}}
-			indirection:{a_indices:{uidx:{a_const:{ival:{ival:1}  location:77}}}}}}  location:69}}
-		*/
-		_, col := queryparser.GetColNameFromColumnRef(node.GetColumnRef().ProtoReflect())
-		if slices.Contains(j.jsonbColumns, col) {
-			return true
-		}
-
-	case node.GetTypeCast() != nil:
-		/*
-			SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];
-			{a_indirection:{arg:{type_cast:{arg:{a_const:{sval:{sval:"{\"a\": {\"b\": {\"c\": 1}}}"}  location:280}}
-			type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
-		*/
-		typeCast := node.GetTypeCast()
-		typeName, _ := queryparser.GetTypeNameAndSchema(typeCast.GetTypeName().GetNames())
-		if typeName == "jsonb" {
-			return true
-		}
-	case node.GetFuncCall() != nil:
-		/*
-			SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE))['name'] AS json_obj;
-			val:{a_indirection:{arg:{func_call:{funcname:{string:{sval:"jsonb_build_object"}}  args:{a_const:{sval:{sval:"name"}
-			location:194}}  args:{a_const:{sval:{sval:"PostgreSQL"}  location:202}}  args:{a_const:{sval:{sval:"version"}  location:216}}
-			args:{a_const:{ival:{ival:14}  location:227}}
-		*/
-		funcCall := node.GetFuncCall()
-		_, funcName := queryparser.GetFunctionObjectName(funcCall.Funcname)
-		if slices.Contains(j.jsonbFunctions, funcName) {
-			return true
-		}
-	case node.GetAExpr() != nil:
-		/*
-			SELECT ('{"key": "value1"}'::jsonb || '{"key1": "value2"}'::jsonb)['key'] AS object_in_array;
-			val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key\": \"value1\"}"}
-			location:81}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:102}  location:100}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key1\": \"value2\"}"}
-			location:111}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:132}  location:130}}  location:108}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"key"}
-			location:139}}}}}}
-
-			SELECT (data || '{"new_key": "new_value"}' )['name'] FROM test_jsonb;
-			{val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{column_ref:{fields:{string:{sval:"data"}}  location:10}}  rexpr:{a_const:{sval:{sval:"{\"new_key\": \"new_value\"}"}
-			location:18}}  location:15}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"name"}
-
-			SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;
-			{val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{column_ref:{fields:{string:{sval:"data"}}  location:10}}  rexpr:{a_const:{sval:{sval:"{\"new_key\": \"new_value\"}"}
-			location:18}}  location:15}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"name"}  location:47}}}}}}  location:9}}
-		*/
-		expr := node.GetAExpr()
-		lExpr := expr.GetLexpr()
-		rExpr := expr.GetRexpr()
-		if lExpr != nil && j.isJsonbType(lExpr.ProtoReflect()) {
-			return true
-		}
-		if rExpr != nil && j.isJsonbType(rExpr.ProtoReflect()) {
-			return true
-		}
-	}
-	return false
-}
-
 func (j *JsonbSubscriptingDetector) Detect(msg protoreflect.Message) error {
 
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_A_INDIRECTION_NODE {
@@ -305,11 +235,31 @@ func (j *JsonbSubscriptingDetector) Detect(msg protoreflect.Message) error {
 	if arg == nil {
 		return nil
 	}
+	/*
+		Caveats -
 
-	if j.isJsonbType(arg.ProtoReflect()) {
+		Still with this approach we won't be able to cover all cases e.g.
+
+		select ab_data['name'] from (select Data as ab_data from test_jsonb);`,
+
+		parseTree - stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{a_indirection:{arg:{column_ref:{fields:{string:{sval:"ab_data"}}  location:9}}
+		indirection:{a_indices:{uidx:{a_const:{sval:{sval:"name"}  location:17}}}}}}  location:9}}  from_clause:{range_subselect:{subquery:{select_stmt:{
+		target_list:{res_target:{name:"ab_data"  val:{column_ref:{fields:{string:{sval:"data"}}  location:38}}  location:38}}
+		from_clause:{range_var:{relname:"test_jsonb"  inh:true  relpersistence:"p"  location:59}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}}
+		limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}
+	*/
+	if queryparser.IsJsonbType(arg, j.jsonbColumns, j.jsonbFunctions) {
 		j.detected = true
 	}
 	return nil
+}
+
+func (j *JsonbSubscriptingDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if j.detected {
+		issues = append(issues, NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", j.query))
+	}
+	return issues
 }
 
 type CopyCommandUnsupportedConstructsDetector struct {
@@ -350,13 +300,6 @@ func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Messa
 	return nil
 }
 
-func (j *JsonbSubscriptingDetector) GetIssues() []QueryIssue {
-	var issues []QueryIssue
-	if j.detected {
-		issues = append(issues, NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", j.query))
-	}
-	return issues
-}
 func (d *CopyCommandUnsupportedConstructsDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.copyFromWhereConstructDetected {
