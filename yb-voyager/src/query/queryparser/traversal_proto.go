@@ -41,6 +41,7 @@ const (
 	PG_QUERY_INSERTSTMT_NODE = "pg_query.InsertStmt"
 	PG_QUERY_UPDATESTMT_NODE = "pg_query.UpdateStmt"
 	PG_QUERY_DELETESTMT_NODE = "pg_query.DeleteStmt"
+	PG_QUERY_SELECTSTMT_NODE = "pg_query.SelectStmt"
 
 	PG_QUERY_JSON_OBJECT_AGG_NODE            = "pg_query.JsonObjectAgg"
 	PG_QUERY_JSON_ARRAY_AGG_NODE             = "pg_query.JsonArrayAgg"
@@ -50,6 +51,7 @@ const (
 	PG_QUERY_JSON_TABLE_NODE                 = "pg_query.JsonTable"
 	PG_QUERY_JSON_PREDICATE_NODE             = "pg_query.JsonIsPredicate"
 	PG_QUERY_VIEWSTMT_NODE                   = "pg_query.ViewStmt"
+	PG_QUERY_COPYSTSMT_NODE                  = "pg_query.CopyStmt"
 )
 
 // function type for processing nodes during traversal

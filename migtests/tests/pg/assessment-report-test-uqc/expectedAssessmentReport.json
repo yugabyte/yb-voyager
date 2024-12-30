@@ -33,7 +33,7 @@
 				"ObjectType": "VIEW",
 				"TotalCount": 1,
 				"InvalidCount": 1,
-				"ObjectNames": "sales.event_analysis_view"
+				"ObjectNames": "sales.event_analysis_view, sales.employ_depart_view"
 			}
 		]
 	},
@@ -65,6 +65,10 @@
 				{
 					"ObjectName": "sales.event_analysis_view",
 					"SqlStatement": "CREATE VIEW sales.event_analysis_view AS\n SELECT range_agg(events.event_range) AS all_event_ranges,\n    range_intersect_agg(events.event_range) AS overlapping_range,\n    lower(range_agg(events.event_range)) AS earliest_start,\n    upper(range_agg(events.event_range)) AS latest_end\n   FROM sales.events;"
+				},
+				{
+					"ObjectName": "sales.employ_depart_view",
+					"SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;"
 				}
 			],
 			"MinimumVersionsFixedIn": null
@@ -133,6 +137,12 @@
 		{
 			"ConstructTypeName": "Aggregate Functions",
 			"Query": "SELECT range_agg(event_range) AS union_of_ranges\nFROM sales.events",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Aggregate Functions",
+			"Query": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
 			"DocsLink": "",
 			"MinimumVersionsFixedIn": null
 		}

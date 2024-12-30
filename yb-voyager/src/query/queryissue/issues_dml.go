@@ -154,3 +154,42 @@ var jsonPredicateIssue = issue.Issue{
 func NewJsonPredicateIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(jsonPredicateIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var copyFromWhereIssue = issue.Issue{
+	Type:            COPY_FROM_WHERE,
+	TypeName:        "COPY FROM ... WHERE",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(copyFromWhereIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var copyOnErrorIssue = issue.Issue{
+	Type:            COPY_ON_ERROR,
+	TypeName:        "COPY ... ON_ERROR",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewCopyOnErrorIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(copyOnErrorIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var fetchWithTiesIssue = issue.Issue{
+	Type:            FETCH_WITH_TIES,
+	TypeName:        "FETCH .. WITH TIES",
+	TypeDescription: "FETCH .. WITH TIES is not supported in YugabyteDB",
+	Suggestion:      "No workaround available right now",
+	GH:              "",
+	DocsLink:        "", //TODO
+}
+
+func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(fetchWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

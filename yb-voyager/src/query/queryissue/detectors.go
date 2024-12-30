@@ -16,6 +16,8 @@ limitations under the License.
 package queryissue
 
 import (
+	"slices"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -200,6 +202,89 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.detected {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
+
+type SelectStmtDetector struct {
+	query                       string
+	limitOptionWithTiesDetected bool
+}
+
+func NewSelectStmtDetector(query string) *SelectStmtDetector {
+	return &SelectStmtDetector{
+		query: query,
+	}
+}
+
+func (d *SelectStmtDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_SELECTSTMT_NODE {
+		selectStmtNode, err := queryparser.ProtoAsSelectStmt(msg)
+		if err != nil {
+			return err
+		}
+		// checks if a SelectStmt node uses a FETCH clause with TIES
+		// https://www.postgresql.org/docs/13/sql-select.html#SQL-LIMIT
+		if selectStmtNode.LimitOption == queryparser.LIMIT_OPTION_WITH_TIES {
+			d.limitOptionWithTiesDetected = true
+		}
+	}
+	return nil
+}
+
+func (d *SelectStmtDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.limitOptionWithTiesDetected {
+		issues = append(issues, NewFetchWithTiesIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
+
+type CopyCommandUnsupportedConstructsDetector struct {
+	query                          string
+	copyFromWhereConstructDetected bool
+	copyOnErrorConstructDetected   bool
+}
+
+func NewCopyCommandUnsupportedConstructsDetector(query string) *CopyCommandUnsupportedConstructsDetector {
+	return &CopyCommandUnsupportedConstructsDetector{
+		query: query,
+	}
+}
+
+// Detect if COPY command uses unsupported syntax i.e. COPY FROM ... WHERE and COPY... ON_ERROR
+func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Message) error {
+	// Check if the message is a COPY statement
+	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPYSTSMT_NODE {
+		return nil // Not a COPY statement, nothing to detect
+	}
+
+	// Check for COPY FROM ... WHERE clause
+	fromField := queryparser.GetBoolField(msg, "is_from")
+	whereField := queryparser.GetMessageField(msg, "where_clause")
+	if fromField && whereField != nil {
+		d.copyFromWhereConstructDetected = true
+	}
+
+	// Check for COPY ... ON_ERROR clause
+	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	if err != nil {
+		log.Errorf("error extracting defnames from COPY statement: %v", err)
+	}
+	if slices.Contains(defNames, "on_error") {
+		d.copyOnErrorConstructDetected = true
+	}
+
+	return nil
+}
+
+func (d *CopyCommandUnsupportedConstructsDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.copyFromWhereConstructDetected {
+		issues = append(issues, NewCopyFromWhereIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	if d.copyOnErrorConstructDetected {
+		issues = append(issues, NewCopyOnErrorIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	return issues
 }

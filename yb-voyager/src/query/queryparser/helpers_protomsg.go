@@ -21,6 +21,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -366,6 +367,14 @@ func GetMessageField(msg protoreflect.Message, fieldName string) protoreflect.Me
 	return nil
 }
 
+func GetBoolField(msg protoreflect.Message, fieldName string) bool {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Bool()
+	}
+	return false
+}
+
 // GetListField retrieves a list field from a message.
 func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List {
 	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
@@ -377,7 +386,7 @@ func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List 
 
 // GetEnumNumField retrieves a enum field from a message
 // FieldDescriptor{Syntax: proto3, FullName: pg_query.JsonFuncExpr.op, Number: 1, Cardinality: optional, Kind: enum, HasJSONName: true, JSONName: "op", Enum: pg_query.JsonExprOp}
-//val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT 
+// val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT
 func GetEnumNumField(msg protoreflect.Message, fieldName string) protoreflect.EnumNumber {
 	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
 	if field != nil && msg.Has(field) {
@@ -399,16 +408,26 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 	return schemaName, objectName
 }
 
+func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
+	protoMsg, ok := msg.Interface().(proto.Message)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to proto.Message")
+	}
+	selectStmtNode, ok := protoMsg.(*pg_query.SelectStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
+	}
+	return selectStmtNode, nil
+}
+
 /*
 Example:
 options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}
 options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
-
 Extract all defnames from the def_eleme node
 */
 func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) ([]string, error) {
 	var defNames []string
-
 	collectorFunc := func(msg protoreflect.Message) error {
 		if GetMsgFullName(msg) != PG_QUERY_DEFELEM_NODE {
 			return nil

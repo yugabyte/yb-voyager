@@ -1,3 +1,5 @@
+//go:build unit
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -17,9 +19,10 @@ limitations under the License.
 package cmd
 
 import (
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestShardingRecommendations(t *testing.T) {

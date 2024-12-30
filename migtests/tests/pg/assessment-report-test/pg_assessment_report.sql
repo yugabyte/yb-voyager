@@ -24,6 +24,36 @@ CREATE TABLE Mixed_Data_Types_Table2 (
     path_data PATH
 );
 
+CREATE TABLE int_multirange_table (
+    id SERIAL PRIMARY KEY,
+    value_ranges int4multirange
+);
+
+CREATE TABLE bigint_multirange_table (
+    id SERIAL PRIMARY KEY,
+    value_ranges int8multirange
+);
+
+CREATE TABLE numeric_multirange_table (
+    id SERIAL PRIMARY KEY,
+    price_ranges nummultirange
+);
+
+CREATE TABLE timestamp_multirange_table (
+    id SERIAL PRIMARY KEY,
+    event_times tsmultirange
+);
+
+CREATE TABLE timestamptz_multirange_table (
+    id SERIAL PRIMARY KEY,
+    global_event_times tstzmultirange
+);
+
+CREATE TABLE date_multirange_table (
+    id SERIAL PRIMARY KEY,
+    project_dates datemultirange
+);
+
 -- GIST Index on point_data column
 CREATE INDEX idx_point_data ON Mixed_Data_Types_Table1 USING GIST (point_data);
 
@@ -362,6 +392,20 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- for FETCH .. WITH TIES
+CREATE TABLE employeesForView (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    salary NUMERIC(10, 2) NOT NULL
+);
+
+CREATE VIEW top_employees_view AS SELECT * FROM (
+			SELECT * FROM employeesForView
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;
 
 -- SECURITY INVOKER VIEW
 CREATE TABLE public.employees (

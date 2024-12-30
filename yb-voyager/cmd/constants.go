@@ -93,6 +93,9 @@ const (
 	CUTOVER_TO_SOURCE         = "cutover-to-source"
 	CUTOVER_TO_SOURCE_REPLICA = "cutover-to-source-replica"
 
+	CLIENT_MESSAGES_SESSION_VAR     = "SET CLIENT_MIN_MESSAGES"
+	TRANSACTION_TIMEOUT_SESSION_VAR = "SET TRANSACTION_TIMEOUT"
+
 	// unsupported features of assess migration
 	VIRTUAL_COLUMN      = "VIRTUAL COLUMN"
 	INHERITED_TYPE      = "INHERITED TYPE"
@@ -214,6 +217,7 @@ const (
 	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE = "BEFORE ROW triggers on Partitioned tables"
 	PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE             = "Primary / Unique key constraints on complex datatypes"
 	REGEX_FUNCTIONS_FEATURE                                   = "Regex Functions"
+	FETCH_WITH_TIES_FEATURE                                   = "FETCH .. WITH TIES Clause"
 
 	// Migration caveats
 

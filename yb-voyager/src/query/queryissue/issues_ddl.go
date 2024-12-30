@@ -440,6 +440,20 @@ func NewLODatatypeIssue(objectType string, objectName string, SqlStatement strin
 	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
+var multiRangeDatatypeIssue = issue.Issue{
+	Type:       MULTI_RANGE_DATATYPE,
+	TypeName:   "Unsupported datatype",
+	Suggestion: "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+	GH:         "", //TODO
+	DocsLink:   "", //TODO
+}
+
+func NewMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := multiRangeDatatypeIssue
+	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
 var securityInvokerViewIssue = issue.Issue{
 	Type:       SECURITY_INVOKER_VIEWS,
 	TypeName:   "Security Invoker Views not supported yet",

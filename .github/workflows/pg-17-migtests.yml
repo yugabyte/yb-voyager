@@ -1,4 +1,4 @@
-name: "PG 13: Migration Tests"
+name: "PG 17: Migration Tests"
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: ['main']
 
 jobs:
-  run-pg-migration-tests:
+  run-pg-17-migration-tests:
     strategy:
       matrix:
         version: [2024.2.0.0-b145, 2.20.8.0-b53, 2024.1.3.1-b8, 2.23.1.0-b220]
@@ -22,9 +22,9 @@ jobs:
     runs-on: ubuntu-22.04
     services:
       postgres:
-        image: postgres:13
+        image: postgres:17
         env:
-          POSTGRES_PASSWORD: secret
+          POSTGRES_PASSWORD: postgres
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready
@@ -55,7 +55,7 @@ jobs:
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis postgresql-13-postgis-3"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis postgresql-17-postgis-3"
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
@@ -65,21 +65,23 @@ jobs:
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
 
+      #TODO Remove the install PG 17 command once we do that in installer script 
       - name: Run installer script to setup voyager
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
+          sudo apt-get -y install postgresql-17 
           sudo rm /usr/bin/pg_dump
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_dump /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
           sudo rm /usr/bin/pg_restore
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_restore /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
           pg_dump --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
       - name: Test PostgreSQL Connection
         run: |
-          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" -c "SELECT version();"
 
       - name: Create PostgreSQL user
         run: |
@@ -125,7 +127,7 @@ jobs:
 
       - name: "TEST: PG sample schemas (pgtbrus)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/pgtbrus\
+        run: migtests/scripts/run-schema-migration.sh pg/pgtbrus
 
       - name: "TEST: PG sample schemas (stackexchange)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
