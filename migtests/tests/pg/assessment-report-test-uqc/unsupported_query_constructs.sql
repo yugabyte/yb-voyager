@@ -35,6 +35,6 @@ SELECT range_intersect_agg(event_range) AS intersection_of_ranges
 FROM sales.events;
 
 -- -- PG 16 and above feature
--- SELECT * 
--- FROM public.json_data
--- WHERE array_column IS JSON ARRAY;
+SELECT * 
+FROM sales.json_data
+WHERE array_column IS JSON ARRAY;

@@ -25,14 +25,14 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 3,
-				"InvalidCount": 0,
-				"ObjectNames": "analytics.metrics, sales.events, sales.orders"
+				"TotalCount": 4,
+				"InvalidCount": 1,
+				"ObjectNames": "sales.json_data, analytics.metrics, sales.events, sales.orders"
 			},
 			{
 				"ObjectType": "VIEW",
-				"TotalCount": 1,
-				"InvalidCount": 1,
+				"TotalCount": 2,
+				"InvalidCount": 2,
 				"ObjectNames": "sales.event_analysis_view, sales.employ_depart_view"
 			}
 		]
@@ -42,9 +42,10 @@
 			"ColocatedTables": [
 				"sales.orders",
 				"analytics.metrics",
-				"sales.events"
+				"sales.events",
+				"sales.json_data"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 3 objects (3 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 4 objects (4 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -56,7 +57,14 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
+	"UnsupportedDataTypes": [
+		{
+			"SchemaName": "sales",
+			"TableName": "event_analysis_view",
+			"ColumnName": "all_event_ranges",
+			"DataType": "datemultirange"
+		}
+	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": [
 		{
@@ -64,11 +72,21 @@
 			"Objects": [
 				{
 					"ObjectName": "sales.event_analysis_view",
-					"SqlStatement": "CREATE VIEW sales.event_analysis_view AS\n SELECT range_agg(events.event_range) AS all_event_ranges,\n    range_intersect_agg(events.event_range) AS overlapping_range,\n    lower(range_agg(events.event_range)) AS earliest_start,\n    upper(range_agg(events.event_range)) AS latest_end\n   FROM sales.events;"
+					"SqlStatement": "CREATE VIEW sales.event_analysis_view AS\n SELECT range_agg(event_range) AS all_event_ranges,\n    range_intersect_agg(event_range) AS overlapping_range,\n    lower(range_agg(event_range)) AS earliest_start,\n    upper(range_agg(event_range)) AS latest_end\n   FROM sales.events;"
 				},
 				{
 					"ObjectName": "sales.employ_depart_view",
 					"SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Json Type Predicate",
+			"Objects": [
+				{
+					"ObjectName": "sales.json_data",
+					"SqlStatement": "CREATE TABLE sales.json_data (\n    id integer NOT NULL,\n    data_column text NOT NULL,\n    object_column text,\n    array_column text,\n    scalar_column text,\n    unique_keys_column text,\n    CONSTRAINT json_data_array_column_check CHECK ((array_column IS JSON ARRAY)),\n    CONSTRAINT json_data_data_column_check CHECK ((data_column IS JSON)),\n    CONSTRAINT json_data_object_column_check CHECK ((object_column IS JSON OBJECT)),\n    CONSTRAINT json_data_scalar_column_check CHECK ((scalar_column IS JSON SCALAR)),\n    CONSTRAINT json_data_unique_keys_column_check CHECK ((unique_keys_column IS JSON WITH UNIQUE KEYS))\n);"
 				}
 			],
 			"MinimumVersionsFixedIn": null
@@ -103,6 +121,20 @@
 			"ObjectType": "",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "json_data",
+			"RowCount": 0,
+			"ColumnCount": 6,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
 		},
 		{
 			"SchemaName": "analytics",
@@ -143,6 +175,12 @@
 		{
 			"ConstructTypeName": "Aggregate Functions",
 			"Query": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Json Type Predicate",
+			"Query": "SELECT * \nFROM sales.json_data\nWHERE array_column IS JSON ARRAY",
 			"DocsLink": "",
 			"MinimumVersionsFixedIn": null
 		}
