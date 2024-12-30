@@ -217,6 +217,7 @@ const (
 	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE = "BEFORE ROW triggers on Partitioned tables"
 	PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE             = "Primary / Unique key constraints on complex datatypes"
 	REGEX_FUNCTIONS_FEATURE                                   = "Regex Functions"
+	FETCH_WITH_TIES_FEATURE                                   = "FETCH .. WITH TIES Clause"
 
 	// Migration caveats
 
