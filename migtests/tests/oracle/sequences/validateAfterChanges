@@ -174,7 +174,6 @@ def migration_completed_checks_fb():
     print("Running tests on Oracle source")
     global db_schema
     db_schema = os.environ.get("SOURCE_DB_SCHEMA").upper()
-    print(db_schema)
     change_expected_values_ff_fb()
     oracle.run_checks(migration_completed_checks, db_type="source")
 
