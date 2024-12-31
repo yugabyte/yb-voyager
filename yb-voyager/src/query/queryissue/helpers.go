@@ -16,21 +16,25 @@ limitations under the License.
 
 package queryissue
 
+import (
+	mapset "github.com/deckarep/golang-set/v2"
+)
+
 // Refer: https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
-var unsupportedAdvLockFuncs = []string{
+var unsupportedAdvLockFuncs = mapset.NewThreadUnsafeSet([]string{
 	"pg_advisory_lock", "pg_advisory_lock_shared",
 	"pg_advisory_unlock", "pg_advisory_unlock_all", "pg_advisory_unlock_shared",
 	"pg_advisory_xact_lock", "pg_advisory_xact_lock_shared",
 	"pg_try_advisory_lock", "pg_try_advisory_lock_shared",
 	"pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared",
-}
+}...)
 
-var unsupportedSysCols = []string{
+var unsupportedSysCols = mapset.NewThreadUnsafeSet([]string{
 	"xmin", "xmax", "cmin", "cmax", "ctid",
-}
+}...)
 
 // Refer: https://www.postgresql.org/docs/17/functions-xml.html#FUNCTIONS-XML-PROCESSING
-var unsupportedXmlFunctions = []string{
+var unsupportedXmlFunctions = mapset.NewThreadUnsafeSet([]string{
 	// 1. Producing XML content
 	"xmltext", "xmlcomment", "xmlconcat", "xmlelement", "xmlforest",
 	"xmlpi", "xmlroot", "xmlagg",
@@ -52,7 +56,11 @@ var unsupportedXmlFunctions = []string{
 		WHERE prorettype = 'xml'::regtype;
 	*/
 	"xmlconcat2", "xmlvalidate", "xml_in", "xml_out", "xml_recv", "xml_send", // System XML I/O
-}
+}...)
+
+var unsupportedRegexFunctions = mapset.NewThreadUnsafeSet([]string{
+	"regexp_count", "regexp_instr", "regexp_like",
+}...)
 
 var UnsupportedIndexMethods = []string{
 	"gist",
@@ -93,3 +101,36 @@ var UnsupportedIndexDatatypes = []string{
 	"txid_snapshot",
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
+
+var unsupportedAggFunctions = mapset.NewThreadUnsafeSet([]string{
+	//agg function added in PG16 - https://www.postgresql.org/docs/16/functions-aggregate.html#id-1.5.8.27.5.2.4.1.1.1.1
+	"any_value",
+}...)
+
+const (
+	// // json functions, refer - https://www.postgresql.org/about/featurematrix/detail/395/
+	JSON_OBJECTAGG = "JSON_OBJECTAGG"
+	JSON_ARRAY     = "JSON_ARRAY"
+	JSON_ARRAYAGG  = "JSON_ARRAYAGG"
+	JSON_OBJECT    = "JSON_OBJECT"
+	//json query functions supported in PG 17, refer - https://www.postgresql.org/docs/17/functions-json.html#FUNCTIONS-SQLJSON-QUERYING
+	JSON_EXISTS = "JSON_EXISTS"
+	JSON_QUERY  = "JSON_QUERY"
+	JSON_VALUE  = "JSON_VALUE"
+	JSON_TABLE  = "JSON_TABLE"
+)
+
+var unsupportedLargeObjectFunctions = mapset.NewThreadUnsafeSet([]string{
+
+	//refer - https://www.postgresql.org/docs/current/lo-interfaces.html#LO-CREATE
+	"lo_create", "lo_creat", "lo_import", "lo_import_with_oid",
+	"lo_export", "lo_open", "lo_write", "lo_read", "lo_lseek", "lo_lseek64",
+	"lo_tell", "lo_tell64", "lo_truncate", "lo_truncate64", "lo_close",
+	"lo_unlink",
+
+	//server side functions - https://www.postgresql.org/docs/current/lo-funcs.html
+	"lo_from_bytea", "lo_put", "lo_get",
+
+	//functions provided by lo extension, refer - https://www.postgresql.org/docs/current/lo.html#LO-RATIONALE
+	"lo_manage", "lo_oid",
+}...)

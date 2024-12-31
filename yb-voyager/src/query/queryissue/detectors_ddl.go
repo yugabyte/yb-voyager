@@ -80,16 +80,18 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 			if c.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
 				issues = append(issues, NewExclusionConstraintIssue(
 					obj.GetObjectType(),
-					fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+					table.GetObjectName(),
 					"",
+					c.ConstraintName,
 				))
 			}
 
 			if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
 				issues = append(issues, NewDeferrableConstraintIssue(
 					obj.GetObjectType(),
-					fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+					table.GetObjectName(),
 					"",
+					c.ConstraintName,
 				))
 			}
 
@@ -106,10 +108,10 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					}
 					issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
 						obj.GetObjectType(),
-						fmt.Sprintf("%s, constraint: (%s)", table.GetObjectName(), c.ConstraintName),
+						table.GetObjectName(),
 						"",
 						typeName,
-						true,
+						c.ConstraintName,
 					))
 				}
 			}
@@ -221,6 +223,21 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 		))
 	case "geometry", "geography", "box2d", "box3d", "topogeometry":
 		*issues = append(*issues, NewPostGisDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "lo":
+		*issues = append(*issues, NewLODatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "int8multirange", "int4multirange", "datemultirange", "nummultirange", "tsmultirange", "tstzmultirange":
+		*issues = append(*issues, NewMultiRangeDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -413,15 +430,17 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		if alter.ConstraintType == queryparser.EXCLUSION_CONSTR_TYPE {
 			issues = append(issues, NewExclusionConstraintIssue(
 				obj.GetObjectType(),
-				fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
+				alter.GetObjectName(),
 				"",
+				alter.ConstraintName,
 			))
 		}
 		if alter.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && alter.IsDeferrable {
 			issues = append(issues, NewDeferrableConstraintIssue(
 				obj.GetObjectType(),
-				fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
+				alter.GetObjectName(),
 				"",
+				alter.ConstraintName,
 			))
 		}
 
@@ -447,10 +466,10 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				}
 				issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
 					obj.GetObjectType(),
-					fmt.Sprintf("%s, constraint: (%s)", alter.GetObjectName(), alter.ConstraintName),
+					alter.GetObjectName(),
 					"",
 					typeName,
-					false,
+					alter.ConstraintName,
 				))
 			}
 
@@ -533,6 +552,17 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 		))
 	}
 
+	if unsupportedLargeObjectFunctions.ContainsOne(trigger.FuncName) {
+		//Can't detect trigger func name using the genericIssues's FuncCallDetector
+		//as trigger execute Func name is not a FuncCall node, its []pg_query.Node
+		issues = append(issues, NewLOFuntionsIssue(
+			obj.GetObjectType(),
+			trigger.GetObjectName(),
+			"",
+			[]string{trigger.FuncName},
+		))
+	}
+
 	return issues, nil
 }
 
@@ -541,7 +571,16 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 type ViewIssueDetector struct{}
 
 func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
-	return nil, nil
+	view, ok := obj.(*queryparser.View)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected View")
+	}
+	var issues []QueryIssue
+
+	if view.SecurityInvoker {
+		issues = append(issues, NewSecurityInvokerViewIssue(obj.GetObjectType(), obj.GetObjectName(), ""))
+	}
+	return issues, nil
 }
 
 // ==============MVIEW ISSUE DETECTOR ======================

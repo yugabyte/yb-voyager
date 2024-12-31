@@ -11,25 +11,24 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.18.15
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.5
 	github.com/davecgh/go-spew v1.1.1
+	github.com/deckarep/golang-set/v2 v2.7.0
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.13.0
-	github.com/fergusstrange/embedded-postgres v1.29.0
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/godror/godror v0.30.2
 	github.com/google/uuid v1.6.0
 	github.com/gosuri/uilive v0.0.4
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.7.0
-	github.com/jackc/pgconn v1.13.0
-	github.com/jackc/pgx/v4 v4.17.2
+	github.com/jackc/pgconn v1.14.3
+	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.0.3
-	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/nightlyone/lockfile v1.0.0
-	github.com/pganalyze/pg_query_go/v5 v5.1.0
+	github.com/pganalyze/pg_query_go/v6 v6.0.0
 	github.com/samber/lo v1.38.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.6.1
@@ -44,6 +43,7 @@ require (
 	golang.org/x/term v0.24.0
 	google.golang.org/api v0.169.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
+	gotest.tools v2.2.0+incompatible
 )
 
 require (
@@ -81,7 +81,6 @@ require (
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
-	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
@@ -142,9 +141,9 @@ require (
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pglogrepl v0.0.0-20231111135425-1627ab1b5780
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgtype v1.12.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-colorable v0.1.13 // indirect

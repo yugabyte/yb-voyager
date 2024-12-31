@@ -1,0 +1,120 @@
+{
+	"VoyagerVersion": "IGNORED",
+	"TargetDBVersion": "IGNORED",
+	"MigrationComplexity": "LOW",
+	"SchemaSummary": {
+		"Description": "Objects that will be created on the target YugabyteDB.",
+		"DbName": "pg_assessment_report_uqc",
+		"SchemaNames": [
+			"sales",
+			"analytics"
+		],
+		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg20.04+1)",
+		"DatabaseObjects": [
+			{
+				"ObjectType": "SCHEMA",
+				"TotalCount": 2,
+				"InvalidCount": 0,
+				"ObjectNames": "analytics, sales"
+			},
+			{
+				"ObjectType": "EXTENSION",
+				"TotalCount": 1,
+				"InvalidCount": 0,
+				"ObjectNames": "pg_stat_statements"
+			},
+			{
+				"ObjectType": "TABLE",
+				"TotalCount": 2,
+				"InvalidCount": 0,
+				"ObjectNames": "analytics.metrics, sales.orders"
+			},
+			{
+				"ObjectType": "VIEW",
+				"TotalCount": 1,
+				"InvalidCount": 1,
+				"ObjectNames": "sales.employ_depart_view"
+			}
+		]
+	},
+	"Sizing": {
+		"SizingRecommendation": {
+			"ColocatedTables": [
+				"sales.orders",
+				"analytics.metrics"
+			],
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ShardedTables": null,
+			"NumNodes": 3,
+			"VCPUsPerInstance": 4,
+			"MemoryPerInstance": 16,
+			"OptimalSelectConnectionsPerNode": 8,
+			"OptimalInsertConnectionsPerNode": 12,
+			"EstimatedTimeInMinForImport": 1,
+			"ParallelVoyagerJobs": 1
+		},
+		"FailureReasoning": ""
+	},
+	"UnsupportedDataTypes": null,
+	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
+	"UnsupportedFeatures": [
+		{
+			"FeatureName": "Aggregate Functions",
+			"Objects": [
+				{
+					"ObjectName": "sales.employ_depart_view",
+					"SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		}
+	],
+	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"TableIndexStats": [
+		{
+			"SchemaName": "sales",
+			"ObjectName": "orders",
+			"RowCount": 2,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 2,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "analytics",
+			"ObjectName": "metrics",
+			"RowCount": 2,
+			"ColumnCount": 3,
+			"Reads": 2,
+			"Writes": 2,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		}
+	],
+	"Notes": null,
+	"MigrationCaveats": null,
+	"UnsupportedQueryConstructs": [
+		{
+			"ConstructTypeName": "Advisory Locks",
+			"Query": "SELECT metric_name, pg_advisory_lock(metric_id)\nFROM analytics.metrics\nWHERE metric_value \u003e $1",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Aggregate Functions",
+			"Query": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		}
+	],
+	"UnsupportedPlPgSqlObjects": null
+}

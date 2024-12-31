@@ -383,3 +383,40 @@ CREATE TABLE public.locations (
     description XML DEFAULT xmlparse(document '<product><name>Default Product</name><price>100.00</price><category>Electronics</category></product>'),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE image (title text, raster lo);
+
+CREATE TABLE employees (id INT PRIMARY KEY, salary INT);
+-- create table with multirange data types
+
+-- Create tables with primary keys directly
+CREATE TABLE bigint_multirange_table (
+    id integer PRIMARY KEY,
+    value_ranges int8multirange
+);
+
+CREATE TABLE date_multirange_table (
+    id integer PRIMARY KEY,
+    project_dates datemultirange
+);
+
+CREATE TABLE int_multirange_table (
+    id integer PRIMARY KEY,
+    value_ranges int4multirange
+);
+
+CREATE TABLE numeric_multirange_table (
+    id integer PRIMARY KEY,
+    price_ranges nummultirange
+);
+
+CREATE TABLE timestamp_multirange_table (
+    id integer PRIMARY KEY,
+    event_times tsmultirange
+);
+
+CREATE TABLE timestamptz_multirange_table (
+    id integer PRIMARY KEY,
+    global_event_times tstzmultirange
+);
+

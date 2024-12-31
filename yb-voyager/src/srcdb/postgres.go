@@ -42,7 +42,7 @@ import (
 
 const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
 const MIN_SUPPORTED_PG_VERSION_LIVE = "10"
-const MAX_SUPPORTED_PG_VERSION = "16"
+const MAX_SUPPORTED_PG_VERSION = "17"
 const MISSING = "MISSING"
 const GRANTED = "GRANTED"
 const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
@@ -50,8 +50,8 @@ const PG_STAT_STATEMENTS = "pg_stat_statements"
 
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database", "pg_extension"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
-var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
-var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
+var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
+var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
 	liveMigrationUnsupportedDataTypes, _ := lo.Difference(PostgresUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
@@ -138,10 +138,6 @@ func (pg *PostgreSQL) getTrimmedSchemaList() []string {
 		trimmedList = append(trimmedList, schema)
 	}
 	return trimmedList
-}
-
-func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
-	checkTools("strings")
 }
 
 func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
@@ -944,6 +940,7 @@ var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname 
 FROM pg_class c
 LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_constraint con ON con.conrelid = c.oid AND con.contype = 'p'
+WHERE c.relkind = 'r' OR c.relkind = 'p'  -- Only consider table objects
 GROUP BY schema_name, table_name HAVING nspname IN (%s);`
 
 func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
@@ -968,8 +965,9 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for primary key: %v", err)
 		}
-		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
+
 		if pkCount == 0 {
+			table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
 			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
 	}
@@ -983,14 +981,24 @@ func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	if pgVersion == "" {
 		return fmt.Errorf("failed to get source database version")
 	}
+
+	// Extract the major version from the full version string
+	// Version can be like: 17.2 (Ubuntu 17.2-1.pgdg20.04+1), 17.2, 17alpha1 etc.
+	re := regexp.MustCompile(`^(\d+)`)
+	match := re.FindStringSubmatch(pgVersion)
+	if len(match) < 2 {
+		return fmt.Errorf("failed to extract major version from source database version: %s", pgVersion)
+	}
+	majorVersion := match[1]
+
 	supportedVersionRange := fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
 
-	if version.CompareSimple(pgVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
+	if version.CompareSimple(majorVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(majorVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
 		return fmt.Errorf("current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
 	}
 	// for live migration
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
-		if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
+		if version.CompareSimple(majorVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
 			supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
 			utils.PrintAndLog(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
 		}
@@ -1136,13 +1144,13 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 	return combinedResult, nil
 }
 
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission("")
 	if err != nil {
-		return nil, fmt.Errorf("error checking table select permissions: %w", err)
+		return nil, false, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
@@ -1150,13 +1158,15 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 
 	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
-		return nil, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
+		return nil, false, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
 	}
 
+	pgssEnabled := true
 	if result != "" {
+		pgssEnabled = false
 		combinedResult = append(combinedResult, result)
 	}
-	return combinedResult, nil
+	return combinedResult, pgssEnabled, nil
 }
 
 const (
@@ -1208,7 +1218,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	}
 
 	if !hasReadAllStats {
-		return "User doesn't have permissions to read pg_stat_statements view, required for detecting Unsupported Query Constructs", nil
+		return "\n" + color.RedString("Missing Permission:") + " User doesn't have the `pg_read_all_stats` grant, required for detecting Unsupported Query Constructs", nil
 	}
 
 	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings

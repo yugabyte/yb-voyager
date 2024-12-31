@@ -19,8 +19,12 @@ import (
 	"fmt"
 	"strings"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
+)
+
+const (
+	LIMIT_OPTION_WITH_TIES = pg_query.LimitOption_LIMIT_OPTION_WITH_TIES
 )
 
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
@@ -63,7 +67,8 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 			objectType = "PROCEDURE"
 		}
 		funcNameList := stmt.GetFuncname()
-		return objectType, getFunctionObjectName(funcNameList)
+		funcSchemaName, funcName := getFunctionObjectName(funcNameList)
+		return objectType, lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
 		return "VIEW", getObjectNameFromRangeVar(viewName)
@@ -97,7 +102,7 @@ func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	return lo.Ternary(schema != "", fmt.Sprintf("%s.%s", schema, name), name)
 }
 
-func getFunctionObjectName(funcNameList []*pg_query.Node) string {
+func getFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
 	funcName := ""
 	funcSchemaName := ""
 	if len(funcNameList) > 0 {
@@ -106,7 +111,7 @@ func getFunctionObjectName(funcNameList []*pg_query.Node) string {
 	if len(funcNameList) >= 2 { // Names list will have all the parts of qualified func name
 		funcSchemaName = funcNameList[len(funcNameList)-2].GetString_().Sval // // func name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
 	}
-	return lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
+	return funcSchemaName, funcName
 }
 
 func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {

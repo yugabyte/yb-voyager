@@ -7,7 +7,7 @@ on:
     branches: ['main']
 
 jobs:
-  run-pg-migration-tests:
+  run-pg-9-migration-tests:
     strategy:
       matrix:
         version: [2024.2.0.0-b145]
@@ -19,7 +19,7 @@ jobs:
       postgres:
         image: postgres:9
         env:
-          POSTGRES_PASSWORD: secret
+          POSTGRES_PASSWORD: postgres
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready
@@ -72,7 +72,7 @@ jobs:
 
       - name: Test PostgreSQL Connection
         run: |
-          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" -c "SELECT version();"
 
       - name: Create PostgreSQL user
         run: |
