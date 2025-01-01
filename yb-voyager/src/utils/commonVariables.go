@@ -90,7 +90,7 @@ type SchemaSummary struct {
 	DBObjects   []DBObject `json:"DatabaseObjects"`
 }
 
-//TODO: Rename the variables of TotalCount and InvalidCount -> TotalObjects and ObjectsWithIssues  
+// TODO: Rename the variables of TotalCount and InvalidCount -> TotalObjects and ObjectsWithIssues
 type DBObject struct {
 	ObjectType   string `json:"ObjectType"`
 	TotalCount   int    `json:"TotalCount"`
@@ -101,6 +101,7 @@ type DBObject struct {
 
 // TODO: support MinimumVersionsFixedIn in xml
 type Issue struct {
+	// TODO: rename IssueType to Category
 	IssueType              string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
 	ObjectType             string                          `json:"ObjectType"`
 	ObjectName             string                          `json:"ObjectName"`
