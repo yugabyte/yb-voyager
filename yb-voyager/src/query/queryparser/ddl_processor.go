@@ -193,6 +193,13 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 							table.Constraints[len(table.Constraints)-1] = lastConstraint
 						}
 					} else {
+						/*
+							table_elts:{column_def:{colname:"abc_id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1
+							location:45}  is_local:true  constraints:{constraint:{contype:CONSTR_FOREIGN  initially_valid:true  pktable:{schemaname:"schema1"
+							relname:"abc"  inh:true  relpersistence:"p"  location:60}  pk_attrs:{string:{sval:"id"}}  fk_matchtype:"s"  fk_upd_action:"a"  fk_del_action:"a"
+
+							In case of FKs there is field called PkTable which has reference table information
+						*/
 						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false, constraint.Pktable)
 					}
 				}
@@ -593,6 +600,12 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 		alter.ConstraintNotValid = constraint.SkipValidation // this is set for the NOT VALID clause
 		alter.ConstraintColumns = parseColumnsFromKeys(constraint.GetKeys())
 		if alter.ConstraintType == FOREIGN_CONSTR_TYPE {
+			/*
+				alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_FOREIGN  conname:"fk"  initially_valid:true
+				pktable:{schemaname:"schema1"  relname:"abc"  inh:true  relpersistence:"p"
+				In case of FKs the reference table is in PKTable field and columns are in FkAttrs
+			*/
+			alter.ConstraintColumns = parseColumnsFromKeys(constraint.FkAttrs)
 			alter.ConstraintReferencedTable = lo.Ternary(constraint.Pktable.Schemaname != "", constraint.Pktable.Schemaname+"."+constraint.Pktable.Relname, constraint.Pktable.Relname)
 		}
 
