@@ -902,6 +902,12 @@ func generateAssessmentReport() (err error) {
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
+	/*
+	Here we are generating analyze schema report which converts issue instance to analyze schema issue
+	Then in assessment codepath we extract the required information from analyze schema issue which could have been done directly from issue instance(TODO)
+
+	But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
+	*/
 	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
 	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
