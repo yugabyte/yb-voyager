@@ -46,7 +46,7 @@
             "ObjectName": "test_1",
             "Reason": "Foreign key constraint references partitioned table",
             "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL REFERENCES sales_data(sales_id),\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
-            "Suggestion": "Not workaround available ",
+            "Suggestion": "No workaround available ",
             "GH": "",
             "MinimumVersionsFixedIn": null
         },
