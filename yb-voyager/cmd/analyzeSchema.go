@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -1099,6 +1100,13 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 			})
 		}
 	}
+
+	sort.Slice(schemaAnalysisReport.Issues, func(i, j int) bool {
+		if schemaAnalysisReport.Issues[i].Type != "" && schemaAnalysisReport.Issues[j].Type != ""{
+			return  schemaAnalysisReport.Issues[i].Type < schemaAnalysisReport.Issues[j].Type
+		}
+		return schemaAnalysisReport.Issues[i].Reason < schemaAnalysisReport.Issues[j].Reason
+	})
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
