@@ -19,6 +19,7 @@ import (
 	"slices"
 
 	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -387,6 +388,51 @@ func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.unsupportedJsonQueryFunctionsDetected.Cardinality() > 0 {
 		issues = append(issues, NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.unsupportedJsonQueryFunctionsDetected.ToSlice()))
+	}
+	return issues
+}
+
+type ConstraintIssuesDetector struct {
+	query                                        string
+	partitionTablesMap                           map[string]bool
+	isForeignKeyReferencesPartitionTableDetected bool
+}
+
+func NewConstraintIssuesDetector(query string, partitionTablesMap map[string]bool) *ConstraintIssuesDetector {
+	return &ConstraintIssuesDetector{
+		query:              query,
+		partitionTablesMap: partitionTablesMap,
+	}
+}
+
+func (c *ConstraintIssuesDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_CONSTRAINT_NODE {
+		return nil
+	}
+
+	constraintNode, err := queryparser.GetConstraintNode(msg)
+	if err != nil {
+		return err
+	}
+
+	switch constraintNode.Contype {
+	case queryparser.FOREIGN_CONSTR_TYPE:
+		referencedTable := constraintNode.Pktable
+		//constraints:{constraint:{contype:CONSTR_FOREIGN initially_valid:true pktable:{relname:"abc1" inh:true relpersistence:"p" location:121} 
+		referencedTableObjName := lo.Ternary(referencedTable.Schemaname != "", referencedTable.Schemaname+"."+referencedTable.Relname, referencedTable.Relname)
+		if c.partitionTablesMap[referencedTableObjName] {
+			//If reference table is Partitioned table
+			c.isForeignKeyReferencesPartitionTableDetected = true
+		}
+	}
+
+	return nil
+}
+
+func (c *ConstraintIssuesDetector) GetIssues() []QueryIssue {
+	issues := make([]QueryIssue, 0)
+	if c.isForeignKeyReferencesPartitionTableDetected {
+		issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(DML_QUERY_OBJECT_TYPE, "", c.query))
 	}
 	return issues
 }

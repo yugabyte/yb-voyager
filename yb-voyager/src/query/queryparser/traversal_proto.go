@@ -51,6 +51,7 @@ const (
 	PG_QUERY_JSON_TABLE_NODE                 = "pg_query.JsonTable"
 	PG_QUERY_VIEWSTMT_NODE                   = "pg_query.ViewStmt"
 	PG_QUERY_COPYSTSMT_NODE                  = "pg_query.CopyStmt"
+	PG_QUERY_CONSTRAINT_NODE                 = "pg_query.Constraint"
 )
 
 // function type for processing nodes during traversal

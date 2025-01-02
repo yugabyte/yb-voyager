@@ -465,3 +465,15 @@ var securityInvokerViewIssue = issue.Issue{
 func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	return newQueryIssue(securityInvokerViewIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
+
+var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
+	Type:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
+	TypeName:   FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
+	Suggestion: "Not workaround available ",
+	GH:         "", // TODO
+	DocsLink:   "", // TODO
+}
+
+func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(foreignKeyReferencesPartitionedTableIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
