@@ -638,7 +638,7 @@
 			"FeatureName": "Foreign key constraint references partitioned table",
 			"Objects": [
 				{
-					"ObjectName": "public.test_jsonb",
+					"ObjectName": "public.test_jsonb, constraint: (test_jsonb_id_region_fkey)",
 					"SqlStatement": "ALTER TABLE ONLY public.test_jsonb\n    ADD CONSTRAINT test_jsonb_id_region_fkey FOREIGN KEY (id, region) REFERENCES public.sales_region(id, region);"
 				}
 			],

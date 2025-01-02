@@ -711,12 +711,12 @@ WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`
 
 }
 
-func TestConstraintIssuesDetector(t *testing.T) {
-	sql := `CREATE TABLE abc_fk(id int PRIMARY KEY, abc_id INT REFERENCES public.abc(id), val text) ;`
+// func TestConstraintIssuesDetector(t *testing.T) {
+// 	sql := `CREATE TABLE abc_fk(id int PRIMARY KEY, abc_id INT REFERENCES public.abc(id), val text) ;`
 
-	issues := getDetectorIssues(t, NewConstraintIssuesDetector(sql, map[string]bool{
-		"public.abc": true,
-	}), sql)
-	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-	assert.Equal(t, FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
-}
+// 	issues := getDetectorIssues(t, NewConstraintIssuesDetector(sql, map[string]bool{
+// 		"public.abc": true,
+// 	}), sql)
+// 	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+// 	assert.Equal(t, FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+// }

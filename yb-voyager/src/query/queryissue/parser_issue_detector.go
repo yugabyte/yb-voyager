@@ -379,7 +379,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewCopyCommandUnsupportedConstructsDetector(query),
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
-		NewConstraintIssuesDetector(query, p.partitionTablesMap),
+		// NewConstraintIssuesDetector(query, p.partitionTablesMap),
 	}
 
 	processor := func(msg protoreflect.Message) error {

@@ -474,6 +474,9 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	DocsLink:   "", // TODO
 }
 
-func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(foreignKeyReferencesPartitionedTableIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	return newQueryIssue(foreignKeyReferencesPartitionedTableIssue, objectType, objectName, SqlStatement, details)
 }
