@@ -90,10 +90,15 @@ func exportSchema() error {
 		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
 	}
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
+	err := retrieveMigrationUUID()
+	if err != nil {
+		log.Errorf("failed to get migration UUID: %v", err)
+		return fmt.Errorf("failed to get migration UUID: %w", err)
+	}
+	
 	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
-	err := source.DB().Connect()
+	err = source.DB().Connect()
 	if err != nil {
 		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db: %w", err)
@@ -151,12 +156,6 @@ func exportSchema() error {
 				return fmt.Errorf("grant the required permissions and try again")
 			}
 		}
-	}
-
-	err = retrieveMigrationUUID()
-	if err != nil {
-		log.Errorf("failed to get migration UUID: %v", err)
-		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 
 	exportSchemaStartEvent := createExportSchemaStartedEvent()

@@ -132,6 +132,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
 
+	err = retrieveMigrationUUID()
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
+
 	// Check if target DB has the required permissions
 	if tconf.RunGuardrailsChecks {
 		checkImportDataPermissions()
@@ -470,10 +475,6 @@ func updateTargetConfInMigrationStatus() {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	err := retrieveMigrationUUID()
-	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
-	}
 
 	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
 		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
