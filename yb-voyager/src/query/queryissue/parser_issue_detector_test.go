@@ -796,7 +796,6 @@ REFERENCES schema1.abc (id);
 	}
 	for stmt, expectedIssues := range ddlStmtsWithIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
-		fmt.Printf("%v", issues)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
