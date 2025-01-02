@@ -718,5 +718,5 @@ func TestConstraintIssuesDetector(t *testing.T) {
 		"public.abc": true,
 	}), sql)
 	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-	assert.Equal(t, FOREIGN_KEY_REFERENCED_PARTITIONED_TABLE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+	assert.Equal(t, FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 }

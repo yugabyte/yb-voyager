@@ -777,16 +777,16 @@ REFERENCES schema1.abc (id);
 
 	ddlStmtsWithIssues := map[string][]QueryIssue{
 		stmt1: []QueryIssue{
-			NewForeignKeyReferencedPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt1),
+			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt1),
 		},
 		stmt2: []QueryIssue{
-			NewForeignKeyReferencedPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk1", stmt2),
+			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk1", stmt2),
 		},
 		stmt3: []QueryIssue{
-			NewForeignKeyReferencedPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt3),
+			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt3),
 		},
 		stmt4: []QueryIssue{
-			NewForeignKeyReferencedPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk", stmt4),
+			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk", stmt4),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
