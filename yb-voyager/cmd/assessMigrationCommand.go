@@ -1119,10 +1119,10 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 		return nil
 	}
 	analyzeIssues := schemaAnalysisReport.Issues
-	plpgsqlIssues := lo.Filter(analyzeIssues, func(issue utils.Issue, _ int) bool {
+	plpgsqlIssues := lo.Filter(analyzeIssues, func(issue utils.AnalyzeSchemaIssue, _ int) bool {
 		return issue.IssueType == UNSUPPORTED_PLPGSQL_OBEJCTS
 	})
-	groupPlpgsqlIssuesByReason := lo.GroupBy(plpgsqlIssues, func(issue utils.Issue) string {
+	groupPlpgsqlIssuesByReason := lo.GroupBy(plpgsqlIssues, func(issue utils.AnalyzeSchemaIssue) string {
 		return issue.Reason
 	})
 	var unsupportedPlpgSqlObjects []UnsupportedFeature

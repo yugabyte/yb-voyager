@@ -78,7 +78,7 @@ type SchemaReport struct {
 	TargetDBVersion     *ybversion.YBVersion `json:"TargetDBVersion"`
 	MigrationComplexity string               `json:"MigrationComplexity"`
 	SchemaSummary       SchemaSummary        `json:"Summary"`
-	Issues              []Issue              `json:"Issues"`
+	Issues              []AnalyzeSchemaIssue `json:"Issues"`
 }
 
 type SchemaSummary struct {
@@ -100,7 +100,7 @@ type DBObject struct {
 }
 
 // TODO: support MinimumVersionsFixedIn in xml
-type Issue struct {
+type AnalyzeSchemaIssue struct {
 	// TODO: rename IssueType to Category
 	IssueType              string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
 	ObjectType             string                          `json:"ObjectType"`
@@ -115,7 +115,7 @@ type Issue struct {
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
 }
 
-func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
+func (i AnalyzeSchemaIssue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	if i.MinimumVersionsFixedIn == nil {
 		return false, nil
 	}

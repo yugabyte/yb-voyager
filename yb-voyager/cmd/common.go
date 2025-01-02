@@ -1243,7 +1243,7 @@ type AssessMigrationPayload struct {
 	AssessmentIssues      []AssessmentIssueYugabyteD
 	SourceSizeDetails     SourceDBSizeDetails
 	TargetRecommendations TargetSizingRecommendations
-	ConversionIssues      []utils.Issue
+	ConversionIssues      []utils.AnalyzeSchemaIssue
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
 	AssessmentJsonReport AssessmentReport
 }

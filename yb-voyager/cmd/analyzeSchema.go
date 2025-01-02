@@ -221,7 +221,7 @@ const (
 
 // Reports one case in JSON
 func reportCase(filePath string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string, issueType string, docsLink string) {
-	var issue utils.Issue
+	var issue utils.AnalyzeSchemaIssue
 	issue.FilePath = filePath
 	issue.Reason = reason
 	issue.GH = ghIssue
@@ -619,7 +619,7 @@ var MigrationCaveatsIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.Issue {
+func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
 	case isPlPgSQLIssue:
@@ -669,7 +669,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 
 	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 
-	return utils.Issue{
+	return utils.AnalyzeSchemaIssue{
 		IssueType:              issueType,
 		ObjectType:             issueInstance.ObjectType,
 		ObjectName:             displayObjectName,
@@ -1074,7 +1074,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 
 			// Ideally all filtering of issues should happen in queryissue pkg layer,
 			// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
-			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.Issue, index int) bool {
+			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
 				fixed, err := i.IsFixedIn(targetDbVersion)
 				if err != nil {
 					utils.ErrExit("checking if issue %v is supported: %v", i, err)
@@ -1238,7 +1238,7 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	payload := createCallhomePayload()
 
 	payload.MigrationPhase = ANALYZE_PHASE
-	var callhomeIssues []utils.Issue
+	var callhomeIssues []utils.AnalyzeSchemaIssue
 	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
 		if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
