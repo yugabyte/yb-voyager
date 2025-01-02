@@ -207,6 +207,8 @@ const (
 	FOREIGN_TABLE_ISSUE_REASON                  = "Foreign tables require manual intervention."
 	DEFERRABLE_CONSTRAINT_ISSUE                 = "DEFERRABLE constraints not supported yet"
 	POLICY_ROLE_ISSUE                           = "Policy require roles to be created."
+	ISSUE_INDEX_WITH_COMPLEX_DATATYPES          = `INDEX on column '%s' not yet supported`
+	INDEX_METHOD_ISSUE_REASON                   = "Schema contains %s index which is not supported."
 
 	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
