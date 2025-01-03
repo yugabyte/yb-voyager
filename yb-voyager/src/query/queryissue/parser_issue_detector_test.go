@@ -25,9 +25,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 const (
@@ -163,6 +163,10 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	WITH (security_invoker = true) AS
 	SELECT employee_id, first_name
 	FROM public.employees;`
+	stmt21 = `CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = false);`
+	stmt22 = `CREATE COLLATION new_schema.ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);`
+	stmt23 = `CREATE COLLATION upperfirst (provider = icu, locale = 'en-u-kf-upper', deterministic = true);`
+	stmt24 = `CREATE COLLATION special (provider = icu, locale = 'en-u-kf-upper-kr-grek-latn');`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -285,6 +289,17 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt20: []QueryIssue{
 			NewSecurityInvokerViewIssue("VIEW", "public.view_explicit_security_invoker", stmt20),
+		},
+		stmt21: []QueryIssue{
+			NewDeterministicOptionCollationIssue("COLLATION", "case_insensitive", stmt21),
+		},
+		stmt22: []QueryIssue{
+			NewDeterministicOptionCollationIssue("COLLATION", "new_schema.ignore_accents", stmt22),
+		},
+		stmt23: []QueryIssue{
+			NewDeterministicOptionCollationIssue("COLLATION", "upperfirst", stmt23),
+		},
+		stmt24: []QueryIssue{
 		},
 	}
 	for _, stmt := range requiredDDLs {

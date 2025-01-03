@@ -465,3 +465,15 @@ var securityInvokerViewIssue = issue.Issue{
 func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	return newQueryIssue(securityInvokerViewIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
+
+var deterministicOptionCollationIssue = issue.Issue{
+	Type:       DETERMINISTIC_OPTION_WITH_COLLATION,
+	TypeName:   DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
+	Suggestion: "This feature is not supported in YugabyteDB yet",
+	GH:         "", // TODO
+	DocsLink:   "", // TODO
+}
+
+func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}

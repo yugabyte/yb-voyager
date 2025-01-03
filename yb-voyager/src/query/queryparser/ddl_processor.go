@@ -130,7 +130,7 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 			colName := element.GetColumnDef().GetColname()
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+			typeSchemaName, typeName := getSchemaAndObjectName(typeNames)
 			/*
 				e.g. CREATE TABLE test_xml_type(id int, data xml);
 				relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
@@ -382,7 +382,7 @@ func (ftProcessor *ForeignTableProcessor) Process(parseTree *pg_query.ParseResul
 			colName := element.GetColumnDef().GetColname()
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+			typeSchemaName, typeName := getSchemaAndObjectName(typeNames)
 			table.Columns = append(table.Columns, TableColumn{
 				ColumnName:  colName,
 				TypeName:    typeName,
@@ -467,7 +467,7 @@ func (indexProcessor *IndexProcessor) parseIndexParams(params []*pg_query.Node) 
 		if ip.IsExpression {
 			//For the expression index case to report in case casting to unsupported types #3
 			typeNames := i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
-			ip.ExprCastTypeName, ip.ExprCastTypeSchema = getTypeNameAndSchema(typeNames)
+			ip.ExprCastTypeSchema, ip.ExprCastTypeName = getSchemaAndObjectName(typeNames)
 			ip.IsExprCastArrayType = isArrayType(i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName())
 		}
 		indexParams = append(indexParams, ip)
@@ -732,7 +732,7 @@ func (triggerProcessor *TriggerProcessor) Process(parseTree *pg_query.ParseResul
 		Events:                 triggerNode.CreateTrigStmt.Events,
 		ForEachRow:             triggerNode.CreateTrigStmt.Row,
 	}
-	_, trigger.FuncName = getFunctionObjectName(triggerNode.CreateTrigStmt.Funcname)
+	_, trigger.FuncName = getSchemaAndObjectName(triggerNode.CreateTrigStmt.Funcname)
 
 	return trigger, nil
 }
@@ -810,7 +810,7 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 		return createType, nil
 	case isEnum:
 		typeNames := enumNode.CreateEnumStmt.GetTypeName()
-		typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
+		typeSchemaName, typeName := getSchemaAndObjectName(typeNames)
 		createType := &CreateType{
 			TypeName:   typeName,
 			SchemaName: typeSchemaName,
@@ -924,6 +924,45 @@ func (mv *MView) GetSchemaName() string { return mv.SchemaName }
 
 func (mv *MView) GetObjectType() string { return MVIEW_OBJECT_TYPE }
 
+//=============================COLLATION PROCESSOR ==============
+
+type CollationProcessor struct{}
+
+func NewCollationProcessor() *CollationProcessor {
+	return &CollationProcessor{}
+}
+
+func (cp *CollationProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	defineStmt, ok := getDefineStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE VIEW statement")
+	}
+	schema, colName := getSchemaAndObjectName(defineStmt.Defnames)
+	defNames, err := TraverseAndExtractDefNamesFromDefElem(defineStmt.ProtoReflect())
+	if err != nil {
+		return nil, fmt.Errorf("error getting the defElems in collation: %v", err)
+	}
+	collation := Collation{
+		SchemaName:    schema,
+		CollationName: colName,
+		Options:       defNames,
+	}
+	return &collation, nil
+}
+
+type Collation struct {
+	SchemaName    string
+	CollationName string
+	Options       []string
+}
+
+func (c *Collation) GetObjectName() string {
+	return lo.Ternary(c.SchemaName != "", fmt.Sprintf("%s.%s", c.SchemaName, c.CollationName), c.CollationName)
+}
+func (c *Collation) GetSchemaName() string { return c.SchemaName }
+
+func (c *Collation) GetObjectType() string { return COLLATION_OBJECT_TYPE }
+
 //=============================No-Op PROCESSOR ==================
 
 //No op Processor for objects we don't have Processor yet
@@ -969,9 +1008,13 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 	case PG_QUERY_CREATE_TABLE_AS_STMT:
 		if IsMviewObject(parseTree) {
 			return NewMViewProcessor(), nil
-		} else {
-			return NewNoOpProcessor(), nil
 		}
+		return NewNoOpProcessor(), nil
+	case PG_QUERY_DEFINE_STMT_NODE:
+		if IsCollationObject(parseTree) {
+			return NewCollationProcessor(), nil
+		}
+		return NewNoOpProcessor(), nil
 	default:
 		return NewNoOpProcessor(), nil
 	}
@@ -988,6 +1031,7 @@ const (
 	INDEX_OBJECT_TYPE             = "INDEX"
 	POLICY_OBJECT_TYPE            = "POLICY"
 	TRIGGER_OBJECT_TYPE           = "TRIGGER"
+	COLLATION_OBJECT_TYPE         = "COLLATION"
 	ADD_CONSTRAINT                = pg_query.AlterTableType_AT_AddConstraint
 	SET_OPTIONS                   = pg_query.AlterTableType_AT_SetOptions
 	DISABLE_RULE                  = pg_query.AlterTableType_AT_DisableRule
