@@ -776,7 +776,7 @@ install_ora2pg() {
 	ora2pg_license_acknowledgement
 
 	output "Installing perl DB drivers required for ora2pg."
-	sudo cpanm DBD::mysql@5.005 Test::NoWarnings@1.06 1>&2
+	sudo cpanm Test::NoWarnings@1.06 1>&2
 
 	output "Installing ora2pg."
 	wget -nv https://github.com/darold/ora2pg/archive/${ORA2PG_VERSION}.tar.gz 1>&2
