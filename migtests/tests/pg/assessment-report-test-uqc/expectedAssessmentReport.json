@@ -31,9 +31,9 @@
 			},
 			{
 				"ObjectType": "VIEW",
-				"TotalCount": 2,
-				"InvalidCount": 2,
-				"ObjectNames": "sales.event_analysis_view, sales.employ_depart_view"
+				"TotalCount": 3,
+				"InvalidCount": 3,
+				"ObjectNames": "sales.event_analysis_view, sales.event_analysis_view2, sales.employ_depart_view"
 			}
 		]
 	},
@@ -72,7 +72,11 @@
 			"Objects": [
 				{
 					"ObjectName": "sales.event_analysis_view",
-					"SqlStatement": "CREATE VIEW sales.event_analysis_view AS\n SELECT range_agg(event_range) AS all_event_ranges,\n    range_intersect_agg(event_range) AS overlapping_range,\n    lower(range_agg(event_range)) AS earliest_start,\n    upper(range_agg(event_range)) AS latest_end\n   FROM sales.events;"
+					"SqlStatement": "CREATE VIEW sales.event_analysis_view AS\n SELECT range_agg(event_range) AS all_event_ranges\n   FROM sales.events;"
+				},
+				{
+					"ObjectName": "sales.event_analysis_view2",
+					"SqlStatement": "CREATE VIEW sales.event_analysis_view2 AS\n SELECT range_intersect_agg(event_range) AS overlapping_range\n   FROM sales.events;"
 				},
 				{
 					"ObjectName": "sales.employ_depart_view",
@@ -86,7 +90,7 @@
 			"Objects": [
 				{
 					"ObjectName": "sales.json_data",
-					"SqlStatement": "CREATE TABLE sales.json_data (\n    id integer NOT NULL,\n    data_column text NOT NULL,\n    object_column text,\n    array_column text,\n    scalar_column text,\n    unique_keys_column text,\n    CONSTRAINT json_data_array_column_check CHECK ((array_column IS JSON ARRAY)),\n    CONSTRAINT json_data_data_column_check CHECK ((data_column IS JSON)),\n    CONSTRAINT json_data_object_column_check CHECK ((object_column IS JSON OBJECT)),\n    CONSTRAINT json_data_scalar_column_check CHECK ((scalar_column IS JSON SCALAR)),\n    CONSTRAINT json_data_unique_keys_column_check CHECK ((unique_keys_column IS JSON WITH UNIQUE KEYS))\n);"
+					"SqlStatement": "CREATE TABLE sales.json_data (\n    id integer NOT NULL,\n    array_column text,\n    unique_keys_column text,\n    CONSTRAINT json_data_array_column_check CHECK ((array_column IS JSON ARRAY)),\n    CONSTRAINT json_data_unique_keys_column_check CHECK ((unique_keys_column IS JSON WITH UNIQUE KEYS))\n);"
 				}
 			],
 			"MinimumVersionsFixedIn": null
@@ -126,7 +130,7 @@
 			"SchemaName": "sales",
 			"ObjectName": "json_data",
 			"RowCount": 0,
-			"ColumnCount": 6,
+			"ColumnCount": 3,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,

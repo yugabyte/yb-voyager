@@ -60,20 +60,20 @@ INSERT INTO sales.events (id, event_range) VALUES
 
 CREATE VIEW sales.event_analysis_view AS
 SELECT
-    range_agg(event_range) AS all_event_ranges, 
-    range_intersect_agg(event_range) AS overlapping_range, 
-    lower(range_agg(event_range)) AS earliest_start, 
-    upper(range_agg(event_range)) AS latest_end 
+    range_agg(event_range) AS all_event_ranges
+FROM
+    sales.events;
+
+CREATE VIEW sales.event_analysis_view2 AS
+SELECT
+    range_intersect_agg(event_range) AS overlapping_range
 FROM
     sales.events;
 
 -- PG 16 and above feature 
 CREATE TABLE sales.json_data (
     id int PRIMARY KEY,
-    data_column TEXT NOT NULL CHECK (data_column IS JSON),
-    object_column TEXT CHECK (object_column IS JSON OBJECT),
     array_column TEXT CHECK (array_column IS JSON ARRAY),
-    scalar_column TEXT CHECK (scalar_column IS JSON SCALAR),
     unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
 );
 
