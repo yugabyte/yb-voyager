@@ -25,9 +25,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 const (
@@ -636,7 +636,7 @@ func TestJsonbSubscriptingIssue(t *testing.T) {
     email TEXT,
     active BOOLEAN
 );`,
-`CREATE TABLE test_json_chk (
+		`CREATE TABLE test_json_chk (
     id int,
     data1 jsonb,
     CHECK (data1['key']<>'')
