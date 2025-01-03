@@ -154,6 +154,8 @@ centos_main() {
 		$YUM_INSTALL perl-ExtUtils-MakeMaker 1>&2
 		centos_install_oracle_instant_clients
 		update_yb_voyager_bashrc
+		# Removing gcc for testing
+		sudo dnf remove -y gcc 1>&2
 		install_ora2pg
 		create_base_ora2pg_conf_file
 	fi
@@ -200,6 +202,8 @@ ubuntu_main() {
 		sudo apt-get -y install libmysqlclient-dev 1>&2
 		ubuntu_install_oracle_instant_clients
 		update_yb_voyager_bashrc
+		# Removing gcc for testing
+		sudo apt-get remove -y gcc 1>&2
 		install_ora2pg
 		create_base_ora2pg_conf_file
 	fi
