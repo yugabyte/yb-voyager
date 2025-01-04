@@ -26,3 +26,14 @@ WHERE metric_value > 0.02;
 SELECT
         any_value(name) AS any_employee
     FROM employees;
+
+MERGE INTO sales.customer_account ca
+USING sales.recent_transactions t      
+ON t.customer_id = ca.customer_id
+WHEN MATCHED THEN
+  UPDATE SET balance = balance + transaction_value
+WHEN NOT MATCHED THEN
+  INSERT (customer_id, balance)
+  VALUES (t.customer_id, t.transaction_value);
+
+select * from sales.customer_account ;

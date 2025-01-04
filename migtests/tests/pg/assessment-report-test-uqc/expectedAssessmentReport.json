@@ -25,9 +25,16 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 2,
+				"TotalCount": 4,
 				"InvalidCount": 0,
-				"ObjectNames": "analytics.metrics, sales.orders"
+				"ObjectNames": "analytics.metrics, sales.orders, sales.customer_account, sales.recent_transactions"
+			},
+			{
+				"ObjectType": "SEQUENCE",
+				"TotalCount": 1,
+				"InvalidCount":0,
+				"ObjectNames": "sales.recent_transactions_transaction_id_seq"
+
 			},
 			{
 				"ObjectType": "VIEW",
@@ -41,9 +48,11 @@
 		"SizingRecommendation": {
 			"ColocatedTables": [
 				"sales.orders",
-				"analytics.metrics"
+				"analytics.metrics",
+				"sales.customer_account",
+				"sales.recent_transactions"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 4 objects (4 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -71,6 +80,34 @@
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
+		{
+			"SchemaName": "sales",
+			"ObjectName": "customer_account",
+			"RowCount": 4,
+			"ColumnCount": 2,
+			"Reads": 7,
+			"Writes": 6,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "recent_transactions",
+			"RowCount": 3,
+			"ColumnCount": 3,
+			"Reads": 3,
+			"Writes": 3,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
 		{
 			"SchemaName": "sales",
 			"ObjectName": "orders",
@@ -112,6 +149,12 @@
 		{
 			"ConstructTypeName": "Aggregate Functions",
 			"Query": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Merge Statement",
+			"Query": "MERGE INTO sales.customer_account ca\nUSING sales.recent_transactions t      \nON t.customer_id = ca.customer_id\nWHEN MATCHED THEN\n  UPDATE SET balance = balance + transaction_value\nWHEN NOT MATCHED THEN\n  INSERT (customer_id, balance)\n  VALUES (t.customer_id, t.transaction_value)",
 			"DocsLink": "",
 			"MinimumVersionsFixedIn": null
 		}

@@ -390,3 +390,29 @@ func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	}
 	return issues
 }
+
+type MergeStatementDetector struct {
+	query                    string
+	isMergeStatementDetected bool
+}
+
+func NewMergeStatementDetector(query string) *MergeStatementDetector {
+	return &MergeStatementDetector{
+		query: query,
+	}
+}
+
+func (m *MergeStatementDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_MERGE_STMT_NODE {
+		m.isMergeStatementDetected = true
+	}
+	return nil
+}
+
+func (m *MergeStatementDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if m.isMergeStatementDetected {
+		issues = append(issues, NewMergeStatementIssue(DML_QUERY_OBJECT_TYPE, "", m.query))
+	}
+	return issues
+}

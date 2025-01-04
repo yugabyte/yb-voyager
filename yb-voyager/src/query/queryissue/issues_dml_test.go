@@ -25,9 +25,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
-	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func testLOFunctionsIssue(t *testing.T) {
@@ -159,6 +159,28 @@ WHERE JSON_EXISTS(details, '$.author');`,
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "COLUMNS"`, jsonConstructorFunctionsIssue)
 }
 
+func testMergeStmtIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	sql := `
+	MERGE INTO customer_account ca
+USING recent_transactions t
+ON t.customer_id = ca.customer_id
+WHEN MATCHED THEN
+  UPDATE SET balance = balance + transaction_value
+WHEN NOT MATCHED THEN
+  INSERT (customer_id, balance)
+  VALUES (t.customer_id, t.transaction_value);
+	`
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, sql)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "MERGE"`, mergeStatementIssue)
+
+}
+
 func TestDMLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -204,4 +226,6 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "json query functions", ybVersion), testJsonQueryFunctions)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "merge statement", ybVersion), testMergeStmtIssue)
+	assert.True(t, success)
 }

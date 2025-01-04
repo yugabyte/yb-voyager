@@ -53,6 +53,7 @@ const (
 	PG_QUERY_COPYSTSMT_NODE                  = "pg_query.CopyStmt"
 
 	PG_QUERY_DEFINE_STMT_NODE = "pg_query.DefineStmt"
+	PG_QUERY_MERGE_STMT_NODE  = "pg_query.MergeStmt"
 )
 
 // function type for processing nodes during traversal
