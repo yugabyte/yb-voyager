@@ -37,7 +37,7 @@ run_psql "${SOURCE_DB_NAME}" "\i ${TEMP_SQL}"
 rm "$TEMP_SQL"
 
 chmod +x ${TESTS_DIR}/pg/partitions/snapshot.sh
-${TESTS_DIR}/pg/partitions/snapshot.sh 1500000
+${TESTS_DIR}/pg/partitions/snapshot.sh 10000000
 
 
 # Create tables in the target database
