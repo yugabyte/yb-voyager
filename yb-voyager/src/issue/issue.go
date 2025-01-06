@@ -17,6 +17,8 @@ limitations under the License.
 package issue
 
 import (
+	"github.com/samber/lo"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -41,3 +43,42 @@ func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	}
 	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
 }
+
+func (i Issue) GetImpact() string {
+	// Default value as IMPACT_LEVEL_1 if not defined in issue
+	return lo.Ternary(i.Impact != "", i.Impact, constants.IMPACT_LEVEL_1)
+}
+
+/*
+	Dynamic Impact Determination (TODO)
+	- We can define the impact calculator function based on issue type wherever/whenever needed
+	- Map will have functions only for issue type with dynamic impact determination
+
+	For example:
+
+	type ImpactCalcFunc func(issue QueryIssue, stats *PgStats) string
+
+	var impactCalculators = map[string]ImpactCalcFunc{
+		INHERITED_TABLE: inheritedTableImpactCalc,
+		// etc...
+	}
+
+	// Example dynamic function
+	func inheritedTableImpactCalc(i QueryIssue, stats *PgStats) string {
+		usage := stats.GetUsage(i.ObjectName) // e.g. how many reads/writes
+		if usage.WritesPerDay > 1000 {
+			return "LEVEL_2"
+		}
+		return "LEVEL_3"
+	}
+
+	// Update existing GetImpact() method
+	func (i Issue) GetImpact(stats *PgStats) string {
+		if calc, ok := impactCalculators[i.Type]; ok {
+			return calc(i, stats)
+		}
+
+		return lo.Ternary(i.Impact != "", i.Impact, constants.IMPACT_LEVEL_1)
+	}
+
+*/

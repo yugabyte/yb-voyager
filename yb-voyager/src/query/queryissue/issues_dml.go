@@ -19,12 +19,14 @@ package queryissue
 import (
 	"sort"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 )
 
 var advisoryLocksIssue = issue.Issue{
 	Type:        ADVISORY_LOCKS,
 	Name:        "Advisory Locks",
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "",
 	Suggestion:  "",
 	GH:          "",
@@ -38,6 +40,7 @@ func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement st
 var systemColumnsIssue = issue.Issue{
 	Type:        SYSTEM_COLUMNS,
 	Name:        "System Columns",
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "",
 	Suggestion:  "",
 	GH:          "",
@@ -51,6 +54,7 @@ func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement st
 var xmlFunctionsIssue = issue.Issue{
 	Type:        XML_FUNCTIONS,
 	Name:        "XML Functions",
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "",
 	Suggestion:  "",
 	GH:          "",
@@ -64,6 +68,7 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 var regexFunctionsIssue = issue.Issue{
 	Type:        REGEX_FUNCTIONS,
 	Name:        "Regex Functions",
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "",
 	Suggestion:  "",
 	GH:          "",
@@ -171,6 +176,7 @@ func NewJsonPredicateIssue(objectType string, objectName string, sqlStatement st
 var copyFromWhereIssue = issue.Issue{
 	Type:        COPY_FROM_WHERE,
 	Name:        "COPY FROM ... WHERE",
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "",
 	Suggestion:  "",
 	GH:          "",
@@ -184,6 +190,7 @@ func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement st
 var copyOnErrorIssue = issue.Issue{
 	Type:        COPY_ON_ERROR,
 	Name:        "COPY ... ON_ERROR",
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "",
 	Suggestion:  "",
 	GH:          "",

@@ -34,4 +34,9 @@ const (
 	QUERY_CONSTRUCT   = "query_construct"
 	MIGRATION_CAVEATS = "migration_caveats"
 	PLPGSQL_OBJECT    = "plpgsql_object"
+
+	// constants for the Impact Buckets
+	IMPACT_LEVEL_1 = "LEVEL_1" // Represents minimal impact like only the schema ddl
+	IMPACT_LEVEL_2 = "LEVEL_2" // Represents moderate impact like dml queries which might impact a lot of implementation/assumption in app layer
+	IMPACT_LEVEL_3 = "LEVEL_3" // Represent significant impact like TABLE INHERITANCE, which doesn't have any simple workaround but can impact multiple objects/apps
 )
