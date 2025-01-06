@@ -380,6 +380,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
 		NewMergeStatementDetector(query),
+		NewJsonPredicateExprDetector(query),
 	}
 
 	processor := func(msg protoreflect.Message) error {

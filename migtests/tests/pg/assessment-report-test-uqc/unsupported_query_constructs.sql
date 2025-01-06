@@ -37,3 +37,14 @@ WHEN NOT MATCHED THEN
   VALUES (t.customer_id, t.transaction_value);
 
 select * from sales.customer_account ;
+--PG15
+SELECT range_agg(event_range) AS union_of_ranges
+FROM sales.events;
+
+SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM sales.events;
+
+-- -- PG 16 and above feature
+SELECT * 
+FROM sales.json_data
+WHERE array_column IS JSON ARRAY;

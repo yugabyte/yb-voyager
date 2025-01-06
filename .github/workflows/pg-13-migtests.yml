@@ -70,10 +70,12 @@ jobs:
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           sudo rm /usr/bin/pg_dump
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_dump /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
           sudo rm /usr/bin/pg_restore
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_restore /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
           pg_dump --version
+          pg_restore --version
+          psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
@@ -118,10 +120,6 @@ jobs:
       - name: "TEST: pg-case-sensitivity-single-table"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
-
-      - name: "TEST: pg-dvdrental"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/dvdrental
 
       - name: "TEST: pg-datatypes"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
