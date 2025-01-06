@@ -461,4 +461,14 @@ CREATE TABLE sales_unique_nulls_not_distinct_alter (
 ALTER TABLE sales_unique_nulls_not_distinct_alter
 	ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);
 
+-- Create a unique index on a column with NULLs with the NULLS NOT DISTINCT option
+CREATE TABLE users_unique_nulls_not_distinct_index (
+    id INTEGER PRIMARY KEY,
+    email TEXT
+);
+
+CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email
+    ON users_unique_nulls_not_distinct_index (email)
+    NULLS NOT DISTINCT;
+
 

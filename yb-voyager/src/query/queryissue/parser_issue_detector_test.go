@@ -170,6 +170,7 @@ CHECK (xpath_exists('/invoice/customer', data));`
     UNIQUE NULLS NOT DISTINCT (product_name, serial_number)
 	);`
 	stmt22 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
+	stmt23 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -299,6 +300,9 @@ func TestDDLIssues(t *testing.T) {
 		stmt22: []QueryIssue{
 			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt22),
 		},
+		stmt23: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt23),
+		},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseRequiredDDLs(stmt)
@@ -313,7 +317,7 @@ func TestDDLIssues(t *testing.T) {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
-			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+			assert.True(t, found, "Expected issue not found: %v in statement: %s. \nFound: %v", expectedIssue, stmt, issues)
 		}
 	}
 }

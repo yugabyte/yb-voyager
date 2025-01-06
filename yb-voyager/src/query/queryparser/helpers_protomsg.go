@@ -395,27 +395,6 @@ func GetEnumNumField(msg protoreflect.Message, fieldName string) protoreflect.En
 	return 0
 }
 
-// GetResolvedEnumName resolves the enum value to its symbolic name.
-func GetResolvedEnumName(msg protoreflect.Message, fieldName string, enumNum protoreflect.EnumNumber) string {
-	fieldDescriptor := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
-	if fieldDescriptor == nil {
-		return "UNKNOWN"
-	}
-
-	enumDescriptor := fieldDescriptor.Enum()
-	if enumDescriptor == nil {
-		return "UNKNOWN"
-	}
-
-	// Resolve the enum value to its symbolic name
-	resolvedName := enumDescriptor.Values().ByNumber(protoreflect.EnumNumber(enumNum)).Name()
-
-	if resolvedName == "" {
-		return "UNKNOWN"
-	}
-	return string(resolvedName)
-}
-
 // GetSchemaAndObjectName extracts the schema and object name from a list.
 func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 	var schemaName, objectName string

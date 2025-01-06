@@ -19,7 +19,9 @@ import (
 	"slices"
 
 	mapset "github.com/deckarep/golang-set/v2"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
@@ -466,24 +468,20 @@ func NewUniqueNullsNotDistinctDetector(query string) *UniqueNullsNotDistinctDete
 
 // Detect checks if a unique constraint is defined which has nulls not distinct
 func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error {
-	// If message is of type PG_QUERY_TABLECONSTRAINT_NODE
-	if !(queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_TABLECONSTRAINT_NODE) {
-		return nil
-	}
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_INDEX_STMT_NODE {
+		proto := msg.Interface().(proto.Message)
+		indexStmt := proto.(*pg_query.IndexStmt)
 
-	// Fetch contype as an enum number
-	constraintType := queryparser.GetEnumNumField(msg, "contype")
-	constraintTypeStr := queryparser.GetResolvedEnumName(msg, "contype", constraintType)
+		if indexStmt.Unique && indexStmt.NullsNotDistinct {
+			d.detected = true
+		}
+	} else if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_TABLECONSTRAINT_NODE {
+		proto := msg.Interface().(proto.Message)
+		constraintNode := proto.(*pg_query.Constraint)
 
-	// Check if the constraint is of type CONSTR_UNIQUE
-	if constraintTypeStr != "CONSTR_UNIQUE" {
-		return nil
-	}
-
-	// Check if the constraint has nulls not distinct
-	nullsNotDistinct := queryparser.GetBoolField(msg, "nulls_not_distinct")
-	if nullsNotDistinct {
-		d.detected = true
+		if constraintNode.Contype == pg_query.ConstrType_CONSTR_UNIQUE && constraintNode.NullsNotDistinct {
+			d.detected = true
+		}
 	}
 
 	return nil
