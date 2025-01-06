@@ -51,10 +51,10 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 	expectedTables := map[string]map[string]testutils.ColumnPropertiesPG{
 		BATCH_METADATA_TABLE_NAME: {
 			"migration_uuid": {Type: "uuid", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"data_file_name": {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"data_file_name": {Type: "text", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
 			"batch_number":   {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"schema_name":    {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"table_name":     {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"schema_name":    {Type: "text", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"table_name":     {Type: "text", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
 			"rows_imported":  {Type: "bigint", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 		},
 		EVENT_CHANNELS_METADATA_TABLE_NAME: {
@@ -67,7 +67,7 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 		},
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME: {
 			"migration_uuid": {Type: "uuid", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"table_name":     {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
+			"table_name":     {Type: "text", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
 			"channel_no":     {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
 			"total_events":   {Type: "bigint", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 			"num_inserts":    {Type: "bigint", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
