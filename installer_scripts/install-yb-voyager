@@ -156,13 +156,13 @@ centos_main() {
 		update_yb_voyager_bashrc
 		# Removing gcc for testing
 		sudo dnf remove -y gcc 1>&2
-		sudo yum install -y https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-yum-repo-1.1-0.noarch.rpm 1>&2
-		sudo yum install -y perl-DBD-Oracle perl-DBD-mysql 1>&2
+		$YUM_INSTALL https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-yum-repo-1.1-0.noarch.rpm 1>&2
+		$YUM_INSTALL perl-DBD-Oracle perl-DBD-mysql 1>&2
 		install_ora2pg
 		create_base_ora2pg_conf_file
 	fi
 	install_debezium_server
-	sudo dnf install -y gcc 1>&2
+	$YUM_INSTALL gcc 1>&2
 	install_yb_voyager
 	sudo dnf remove -y gcc 1>&2
 	create_yb_session_vars_file
