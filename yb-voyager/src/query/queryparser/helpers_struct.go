@@ -69,7 +69,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		}
 		funcNameList := stmt.GetFuncname()
 		funcSchemaName, funcName := getFunctionObjectName(funcNameList)
-		return objectType, utils.GetObjectName(funcSchemaName, funcName)
+		return objectType, utils.BuildObjectName(funcSchemaName, funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
 		return "VIEW", getObjectNameFromRangeVar(viewName)
@@ -84,7 +84,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		indexName := createIndexNode.IndexStmt.Idxname
 		schemaName := createIndexNode.IndexStmt.Relation.GetSchemaname()
 		tableName := createIndexNode.IndexStmt.Relation.GetRelname()
-		fullyQualifiedName := utils.GetObjectName(schemaName, tableName)
+		fullyQualifiedName := utils.BuildObjectName(schemaName, tableName)
 		displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
 		return "INDEX", displayObjName
 	default:
@@ -100,7 +100,7 @@ func isArrayType(typeName *pg_query.TypeName) bool {
 func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	schema := obj.Schemaname
 	name := obj.Relname
-	return utils.GetObjectName(schema, name)
+	return utils.BuildObjectName(schema, name)
 }
 
 func getFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {

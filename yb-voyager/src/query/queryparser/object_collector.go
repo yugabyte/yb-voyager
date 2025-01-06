@@ -78,7 +78,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 	case PG_QUERY_RANGEVAR_NODE:
 		schemaName := GetStringField(msg, "schemaname")
 		relName := GetStringField(msg, "relname")
-		objectName := utils.GetObjectName(schemaName, relName)
+		objectName := utils.BuildObjectName(schemaName, relName)
 		log.Debugf("[RangeVar] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
 		// it will be either table or view, considering objectType=table for both
 		if c.predicate(schemaName, relName, constants.TABLE) {
@@ -91,7 +91,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 		if relationMsg != nil {
 			schemaName := GetStringField(relationMsg, "schemaname")
 			relName := GetStringField(relationMsg, "relname")
-			objectName := utils.GetObjectName(schemaName, relName)
+			objectName := utils.BuildObjectName(schemaName, relName)
 			log.Debugf("[IUD] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
 			if c.predicate(schemaName, relName, "table") {
 				c.addObject(objectName)
@@ -105,7 +105,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 			return
 		}
 
-		objectName := utils.GetObjectName(schemaName, functionName)
+		objectName := utils.BuildObjectName(schemaName, functionName)
 		log.Debugf("[Funccall] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
 		if c.predicate(schemaName, functionName, constants.FUNCTION) {
 			c.addObject(objectName)

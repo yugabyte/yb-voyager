@@ -312,7 +312,7 @@ type TableColumn struct {
 }
 
 func (tc *TableColumn) GetFullTypeName() string {
-	return utils.GetObjectName(tc.TypeSchema, tc.TypeName)
+	return utils.BuildObjectName(tc.TypeSchema, tc.TypeName)
 }
 
 type TableConstraint struct {
@@ -346,7 +346,7 @@ func (c *TableConstraint) generateConstraintName(tableName string) string {
 }
 
 func (t *Table) GetObjectName() string {
-	return utils.GetObjectName(t.SchemaName, t.TableName)
+	return utils.BuildObjectName(t.SchemaName, t.TableName)
 }
 func (t *Table) GetSchemaName() string { return t.SchemaName }
 
@@ -381,7 +381,7 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 	conName := lo.Ternary(specifiedConName == "", generatedConName, specifiedConName)
 	tc.ConstraintName = conName
 	if conType == FOREIGN_CONSTR_TYPE {
-		tc.ReferencedTable = utils.GetObjectName(referencedTable.Schemaname, referencedTable.Relname)
+		tc.ReferencedTable = utils.BuildObjectName(referencedTable.Schemaname, referencedTable.Relname)
 	}
 	t.Constraints = append(t.Constraints, tc)
 }
@@ -433,7 +433,7 @@ type ForeignTable struct {
 }
 
 func (f *ForeignTable) GetObjectName() string {
-	return utils.GetObjectName(f.SchemaName, f.TableName)
+	return utils.BuildObjectName(f.SchemaName, f.TableName)
 }
 func (f *ForeignTable) GetSchemaName() string { return f.SchemaName }
 
@@ -524,7 +524,7 @@ type IndexParam struct {
 }
 
 func (indexParam *IndexParam) GetFullExprCastTypeName() string {
-	return utils.GetObjectName(indexParam.ExprCastTypeSchema, indexParam.ExprCastTypeName)
+	return utils.BuildObjectName(indexParam.ExprCastTypeSchema, indexParam.ExprCastTypeName)
 }
 
 func (i *Index) GetObjectName() string {
@@ -533,7 +533,7 @@ func (i *Index) GetObjectName() string {
 func (i *Index) GetSchemaName() string { return i.SchemaName }
 
 func (i *Index) GetTableName() string {
-	return utils.GetObjectName(i.SchemaName, i.TableName)
+	return utils.BuildObjectName(i.SchemaName, i.TableName)
 }
 
 func (i *Index) GetObjectType() string { return INDEX_OBJECT_TYPE }
@@ -611,7 +611,7 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 				In case of FKs the reference table is in PKTable field and columns are in FkAttrs
 			*/
 			alter.ConstraintColumns = parseColumnsFromKeys(constraint.FkAttrs)
-			alter.ConstraintReferencedTable = utils.GetObjectName(constraint.Pktable.Schemaname, constraint.Pktable.Relname)
+			alter.ConstraintReferencedTable = utils.BuildObjectName(constraint.Pktable.Schemaname, constraint.Pktable.Relname)
 		}
 
 	case pg_query.AlterTableType_AT_DisableRule:
@@ -651,7 +651,7 @@ type AlterTable struct {
 }
 
 func (a *AlterTable) GetObjectName() string {
-	return utils.GetObjectName(a.SchemaName, a.TableName)
+	return utils.BuildObjectName(a.SchemaName, a.TableName)
 }
 func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
 
@@ -716,7 +716,7 @@ type Policy struct {
 }
 
 func (p *Policy) GetObjectName() string {
-	qualifiedTable := utils.GetObjectName(p.SchemaName, p.TableName)
+	qualifiedTable := utils.BuildObjectName(p.SchemaName, p.TableName)
 	return fmt.Sprintf("%s ON %s", p.PolicyName, qualifiedTable)
 }
 func (p *Policy) GetSchemaName() string { return p.SchemaName }
@@ -792,7 +792,7 @@ func (t *Trigger) GetObjectName() string {
 }
 
 func (t *Trigger) GetTableName() string {
-	return utils.GetObjectName(t.SchemaName, t.TableName)
+	return utils.BuildObjectName(t.SchemaName, t.TableName)
 }
 
 func (t *Trigger) GetSchemaName() string { return t.SchemaName }
@@ -869,7 +869,7 @@ type CreateType struct {
 }
 
 func (c *CreateType) GetObjectName() string {
-	return utils.GetObjectName(c.SchemaName, c.TypeName)
+	return utils.BuildObjectName(c.SchemaName, c.TypeName)
 }
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
@@ -891,7 +891,7 @@ func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 
 	viewSchemaName := viewNode.ViewStmt.View.Schemaname
 	viewName := viewNode.ViewStmt.View.Relname
-	qualifiedViewName := utils.GetObjectName(viewSchemaName, viewName)
+	qualifiedViewName := utils.BuildObjectName(viewSchemaName, viewName)
 
 	/*
 		view_stmt:{view:{schemaname:"public" relname:"invoker_view" inh:true relpersistence:"p" location:12}
@@ -924,7 +924,7 @@ type View struct {
 }
 
 func (v *View) GetObjectName() string {
-	return utils.GetObjectName(v.SchemaName, v.ViewName)
+	return utils.BuildObjectName(v.SchemaName, v.ViewName)
 }
 func (v *View) GetSchemaName() string { return v.SchemaName }
 
@@ -956,7 +956,7 @@ type MView struct {
 }
 
 func (mv *MView) GetObjectName() string {
-	return utils.GetObjectName(mv.SchemaName, mv.ViewName)
+	return utils.BuildObjectName(mv.SchemaName, mv.ViewName)
 }
 func (mv *MView) GetSchemaName() string { return mv.SchemaName }
 
