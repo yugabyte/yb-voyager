@@ -141,7 +141,7 @@ func testSetAttributeIssue(t *testing.T) {
 	);
 	ALTER TABLE ONLY public.event_search ALTER COLUMN room_id SET (n_distinct=-0.01)`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE ALTER column not supported yet", setAttributeIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE ALTER column not supported yet", setColumnAttributeIssue)
 }
 
 func testClusterOnIssue(t *testing.T) {
@@ -161,7 +161,7 @@ func testClusterOnIssue(t *testing.T) {
 
 	ALTER TABLE public.test CLUSTER ON test_age_salary`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE CLUSTER not supported yet", clusterOnIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE CLUSTER not supported yet", alterTableClusterOnIssue)
 }
 
 func testDisableRuleIssue(t *testing.T) {
@@ -177,7 +177,7 @@ func testDisableRuleIssue(t *testing.T) {
 
 	ALTER TABLE trule DISABLE RULE trule_rule`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE DISABLE RULE not supported yet", disableRuleIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE DISABLE RULE not supported yet", alterTableDisableRuleIssue)
 }
 
 func testStorageParameterIssue(t *testing.T) {
