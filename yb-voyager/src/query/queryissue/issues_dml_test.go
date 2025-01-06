@@ -122,6 +122,17 @@ func testJsonConstructorFunctions(t *testing.T) {
 	}
 }
 
+func testJsonPredicateIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `SELECT js, js IS JSON "json?" FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "JSON"`, jsonConstructorFunctionsIssue)
+}
+
 func testJsonQueryFunctions(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -157,6 +168,55 @@ WHERE JSON_EXISTS(details, '$.author');`,
 	_, err = conn.Exec(ctx, jsonTableSQL)
 
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "COLUMNS"`, jsonConstructorFunctionsIssue)
+}
+
+func testAggFunctions(t *testing.T) {
+	sqls := []string{
+		`CREATE TABLE any_value_ex (
+    department TEXT,
+    employee_name TEXT,
+    salary NUMERIC
+);
+
+INSERT INTO any_value_ex VALUES
+('HR', 'Alice', 50000),
+('HR', 'Bob', 55000),
+('IT', 'Charlie', 60000),
+('IT', 'Diana', 62000);
+
+SELECT
+    department,
+    any_value(employee_name) AS any_employee
+FROM any_value_ex
+GROUP BY department;`,
+
+`CREATE TABLE events (
+    id SERIAL PRIMARY KEY,
+    event_range daterange
+);
+
+INSERT INTO events (event_range) VALUES
+    ('[2024-01-01, 2024-01-10]'::daterange),
+    ('[2024-01-05, 2024-01-15]'::daterange),
+    ('[2024-01-20, 2024-01-25]'::daterange);
+
+SELECT range_agg(event_range) AS union_of_ranges
+FROM events;
+
+SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM events;`,
+	}
+
+	for _, sql := range sqls {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, aggregateFunctionIssue)
+	}
 }
 
 func TestDMLIssuesInYBVersion(t *testing.T) {
@@ -202,6 +262,12 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json query functions", ybVersion), testJsonQueryFunctions)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testAggFunctions)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "json type predicate", ybVersion), testJsonPredicateIssue)
 	assert.True(t, success)
 
 }

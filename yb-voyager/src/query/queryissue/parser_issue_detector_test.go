@@ -25,9 +25,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 const (
@@ -546,6 +546,19 @@ FROM books;`,
 		`SELECT id, JSON_VALUE(details, '$.title') AS title
 FROM books
 WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`,
+		`SELECT js, js IS JSON "json?", js IS JSON SCALAR "scalar?", js IS JSON OBJECT "object?", js IS JSON ARRAY "array?" 
+FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`,
+		`SELECT js,
+  js IS JSON OBJECT "object?",
+  js IS JSON ARRAY "array?",
+  js IS JSON ARRAY WITH UNIQUE KEYS "array w. UK?",
+  js IS JSON ARRAY WITHOUT UNIQUE KEYS "array w/o UK?"
+FROM (VALUES ('[{"a":"1"},
+ {"b":"2","b":"3"}]')) foo(js);`,
+		`SELECT js,
+  js IS JSON OBJECT "object?"
+  FROM (VALUES ('[{"a":"1"},
+ {"b":"2","b":"3"}]')) foo(js); `,
 		`CREATE MATERIALIZED VIEW public.test_jsonb_view AS
 SELECT 
     id,
@@ -560,6 +573,11 @@ JSON_TABLE(data, '$.skills[*]'
     )
 ) AS jt;`,
 		`SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
+`CREATE TABLE sales.json_data (
+    id int PRIMARY KEY,
+    array_column TEXT CHECK (array_column IS JSON ARRAY),
+    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
+);`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
@@ -604,14 +622,83 @@ JSON_TABLE(data, '$.skills[*]'
 			NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[12], []string{JSON_VALUE, JSON_EXISTS}),
 		},
 		sqls[13]: []QueryIssue{
-			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[13], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
+			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[13]),
 		},
 		sqls[14]: []QueryIssue{
-			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14], []string{JSON_ARRAY}),
+			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[14]),
+		},
+		sqls[15]: []QueryIssue{
+			NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", sqls[15]),
+		},
+		sqls[16]: []QueryIssue{
+			NewJsonQueryFunctionIssue("MVIEW", "public.test_jsonb_view", sqls[16], []string{JSON_VALUE, JSON_EXISTS, JSON_TABLE}),
+		},
+		sqls[17]: []QueryIssue{
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[17], []string{JSON_ARRAY}),
+		},
+		sqls[18]: []QueryIssue{
+			NewJsonPredicateIssue("TABLE", "sales.json_data", sqls[18]),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
+
+func TestAggregateFunctions(t *testing.T) {
+	sqls := []string{
+		`SELECT
+		department,
+		any_value(employee_name) AS any_employee
+	FROM employees
+	GROUP BY department;`,
+		`SELECT range_intersect_agg(multi_event_range) AS intersection_of_multiranges
+FROM multiranges;`,
+		`SELECT range_agg(multi_event_range) AS union_of_multiranges
+FROM multiranges;`,
+		`CREATE OR REPLACE FUNCTION aggregate_ranges()
+RETURNS INT4MULTIRANGE AS $$
+DECLARE
+    aggregated_range INT4MULTIRANGE;
+BEGIN
+    SELECT range_agg(range_value) INTO aggregated_range FROM ranges;
+	SELECT
+		department,
+		any_value(employee_name) AS any_employee
+	FROM employees
+	GROUP BY department;
+    RETURN aggregated_range;
+END;
+$$ LANGUAGE plpgsql;`,
+	}
+	aggregateSqls := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
+		},
+		sqls[1]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], []string{"range_intersect_agg"}),
+		},
+		sqls[2]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{"range_agg"}),
+		},
+		sqls[3]: []QueryIssue{
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", "SELECT range_agg(range_value)                       FROM ranges;", []string{"range_agg"}),
+			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
+		},
+	}
+	aggregateSqls[sqls[3]] = modifiedIssuesforPLPGSQL(aggregateSqls[sqls[3]], "FUNCTION", "aggregate_ranges")
+
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range aggregateSqls {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)

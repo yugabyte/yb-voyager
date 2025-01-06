@@ -362,30 +362,39 @@ CREATE TABLE test_udt (
 	employee_name VARCHAR(100),
 	home_address address_type,
 	some_field enum_test,
-	home_address1 non_public.address_type1
+	home_address1 non_public.address_type1,
+    scalar_column TEXT CHECK (scalar_column IS JSON SCALAR)
 );
 
 CREATE TABLE test_arr_enum (
 	id int,
 	arr text[],
-	arr_enum enum_test[]
+	arr_enum enum_test[],
+    object_column TEXT CHECK (object_column IS JSON OBJECT)
 );
 
 CREATE TABLE public.locations (
     id integer NOT NULL,
     name character varying(100),
-    geom geometry(Point,4326)
+    geom geometry(Point,4326),
+    array_column TEXT CHECK (array_column IS JSON ARRAY)
  );
 
  CREATE TABLE public.xml_data_example (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255),
     description XML DEFAULT xmlparse(document '<product><name>Default Product</name><price>100.00</price><category>Electronics</category></product>'),
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
 );
 
 CREATE TABLE image (title text, raster lo);
 
+-- IS JSON Predicate
+CREATE TABLE public.json_data (
+    id SERIAL PRIMARY KEY,
+    data_column TEXT NOT NULL CHECK (data_column IS JSON)
+);
 CREATE TABLE employees (id INT PRIMARY KEY, salary INT);
 -- create table with multirange data types
 
