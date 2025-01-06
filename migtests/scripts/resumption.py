@@ -29,7 +29,7 @@ def load_config(config_file):
 
 def prepare_import_data_file_command(config):
     """
-    Prepares the yb-voyager command based on the given configuration.
+    Prepares the yb-voyager import data file command based on the given configuration.
     """
     file_table_map = config['file_table_map']
     additional_flags = config.get('additional_flags', {})
@@ -59,13 +59,44 @@ def prepare_import_data_file_command(config):
     return args
 
 
+def prepare_import_data_command(config):
+    """
+    Prepares the yb-voyager import data command based on the given configuration.
+    """
+
+    additional_flags = config.get('additional_flags', {})
+
+    args = [
+        'yb-voyager', 'import', 'data',
+        '--export-dir', os.getenv('EXPORT_DIR', ''),
+        '--target-db-host', os.getenv('TARGET_DB_HOST', ''),
+        '--target-db-port', os.getenv('TARGET_DB_PORT', ''),
+        '--target-db-user', os.getenv('TARGET_DB_USER', ''),
+        '--target-db-password', os.getenv('TARGET_DB_PASSWORD', ''),
+        '--target-db-name', os.getenv('TARGET_DB_NAME', ''),
+        '--disable-pb', 'true',
+        '--send-diagnostics', 'false',
+    ]
+    
+    if os.getenv('SOURCE_DB_TYPE') != 'postgresql':
+        args.extend(['--target-db-schema', os.getenv('TARGET_DB_SCHEMA', '')])
+
+    if os.getenv('RUN_WITHOUT_ADAPTIVE_PARALLELISM') == 'true':
+        args.extend(['--enable-adaptive-parallelism', 'false'])
+
+    for flag, value in additional_flags.items():
+        args.append(flag)
+        args.append(value)
+
+    return args
+
+
 def run_and_resume_voyager(command, resumption):
     """
     Runs the yb-voyager command with support for resumption testing.
-    Includes final import retry logic.
     """
-    for attempt in range(1, resumption['max_retries'] + 1):
-        print(f"\n--- Attempt {attempt} of {resumption['max_retries']} ---")
+    for attempt in range(1, resumption['max_restarts'] + 1):
+        print(f"\n--- Attempt {attempt} of {resumption['max_restarts']} ---")
         try:
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             print("Running command:", ' '.join(command), flush=True)
@@ -153,43 +184,68 @@ def run_and_resume_voyager(command, resumption):
         print("Final import failed after 2 attempts.")
         sys.exit(1)
 
-
-def validate_row_counts(row_count, schema, export_dir):
+def validate_row_counts(row_count, export_dir):
     """
     Validates the row counts of the target tables after import.
-    If the row count validation fails, it prints a message with the log path.
+    If the row count validation fails, it logs details and exits.
     """
-    for table_name, expected_row_count in row_count.items():
-        print(f"\nValidating row count for table '{table_name}'...")
+    failed_validations = []
+
+    for table_identifier, expected_row_count in row_count.items():
+        print(f"\nValidating row count for table '{table_identifier}'...")
+
+        # Parse schema and table, always quote both
+        if '.' in table_identifier:
+            schema, table_name = table_identifier.split('.', 1)
+        else:
+            schema = "public"
+            table_name = table_identifier
+
+        tgt = None
         try:
             tgt = yb.new_target_db()
             tgt.connect()
-            print("Connected to target database.")
-            
+            print(f"Connected to target database. Using schema: {schema}")
             actual_row_count = tgt.get_row_count(table_name, schema)
+
             if actual_row_count == expected_row_count:
-                print(f"\u2714 Validation successful: {table_name} - Expected: {expected_row_count}, Actual: {actual_row_count}")
+                print(f"\u2714 Validation successful: {table_identifier} - Expected: {expected_row_count}, Actual: {actual_row_count}")
             else:
-                print(f"\u274C Validation failed: {table_name} - Expected: {expected_row_count}, Actual: {actual_row_count}")
-                print(f"Row count validation failed. For more details check {export_dir}/logs")
-                sys.exit(1)
+                print(f"\u274C Validation failed: {table_identifier} - Expected: {expected_row_count}, Actual: {actual_row_count}")
+                failed_validations.append((table_identifier, expected_row_count, actual_row_count))
         except Exception as e:
-            print(f"Error during validation: {e}")
-            sys.exit(1)
+            print(f"Error during validation for table '{table_identifier}': {e}")
+            failed_validations.append((table_identifier, expected_row_count, "Error"))
         finally:
-            if 'tgt' in locals() and tgt:
+            if tgt:
                 tgt.close()
                 print("Disconnected from target database.")
 
+    if failed_validations:
+        print("\nValidation failed for the following tables:")
+        for table, expected, actual in failed_validations:
+            print(f"  Table: {table}, Expected: {expected}, Actual: {actual}")
+        print(f"\nFor more details, check {export_dir}/logs")
+        sys.exit(1)
+    else:
+        print("\nAll table row counts validated successfully.")
+
+
 
 def run_import_with_resumption(config):
-    """
-    Runs the yb-voyager import data file command with resumption testing and validation.
-    """
+    
+    import_type = config.get('import_type', 'file')  # Default to 'file' if not specified
 
-    command = prepare_import_data_file_command(config)
+    if import_type == 'file':
+        command = prepare_import_data_file_command(config)
+    elif import_type == 'offline':
+        command = prepare_import_data_command(config)
+    else:
+        raise ValueError(f"Unsupported import_type: {import_type}")
+
     run_and_resume_voyager(command, config['resumption'])
-    validate_row_counts(config['row_count'], os.getenv('TARGET_DB_SCHEMA', 'public'), os.getenv('EXPORT_DIR', ''))
+
+    validate_row_counts(config['row_count'], os.getenv('EXPORT_DIR', ''))
 
 
 if __name__ == "__main__":

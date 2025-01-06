@@ -34,8 +34,11 @@ else
 	source ${TEST_DIR}/env.sh
 fi
 
-source ${SCRIPTS}/yugabytedb/env.sh
+if [ "${SOURCE_DB_TYPE}" != "" ]; then
+	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+fi
 
+source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
 
 main() {
@@ -44,11 +47,12 @@ main() {
 	echo "Creating export-dir in the parent test directory"
 	mkdir -p ${EXPORT_DIR}
 	echo "Assigning permissions to the export-dir to execute init-db script"
-	chmod +x ${TEST_DIR}/init-target-db
 
-	if [ -f "${TEST_DIR}/generate_config.py" ]; then
-	  chmod +x "${TEST_DIR}/generate_config.py"	  
-	fi
+	for script in init-db init-target-db generate_config.py; do
+	  if [ -f "${TEST_DIR}/${script}" ]; then
+		chmod +x "${TEST_DIR}/${script}"
+	  fi
+	done
 
 	step "START: ${TEST_NAME}"
 	print_env
@@ -58,8 +62,27 @@ main() {
 	step "Check the Voyager version installed"
 	yb-voyager version
 
-	step "Initialise target database."
-	./init-target-db
+	step "Initialise databases"
+
+	for script in init-db init-target-db; do
+	  if [ -f "${TEST_DIR}/${script}" ]; then
+	    "${TEST_DIR}/${script}"
+	  fi
+	done
+
+	step "Run additional steps in case of offline"
+	if [ "${SOURCE_DB_TYPE}" != "" ]; then
+		step "Grant source database user permissions"
+		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+
+		step "Export data."
+		# false if exit code of export_data is non-zero
+		export_data || { 
+			cat_log_file "yb-voyager-export-data.log"
+			cat_log_file "debezium-source_db_exporter.log"
+			exit 1
+		}
+	fi
 
 	step "Generate the YAML file"
 	if [ -f "${TEST_DIR}/generate_config.py" ]; then
@@ -75,6 +98,7 @@ main() {
 	if [ -f "${TEST_DIR}/generate_config.py" ]; then
 	  rm config.yaml
 	fi
+	run_psql postgres "DROP DATABASE ${SOURCE_DB_NAME};"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

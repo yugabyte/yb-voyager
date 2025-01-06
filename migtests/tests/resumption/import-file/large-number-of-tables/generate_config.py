@@ -12,7 +12,7 @@ def generate_yaml(num_tables=1250):
         },
         "row_count": {},
         "resumption": {
-            "max_retries": 50,
+            "max_restarts": 50,
             "min_interrupt_seconds": 15,
             "max_interrupt_seconds": 30,
             "min_restart_wait_seconds": 15,
