@@ -27,7 +27,7 @@ CREATE TABLE sales (
 
 -- cases for multi column list partition, to be reported during analyze-schema
 CREATE TABLE test_1 (
-	id numeric NOT NULL,
+	id numeric NOT NULL REFERENCES sales_data(sales_id),
 	country_code varchar(3),
 	record_type varchar(5),
 	descriptions varchar(50),

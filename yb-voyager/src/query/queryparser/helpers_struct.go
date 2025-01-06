@@ -20,7 +20,8 @@ import (
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
-	"github.com/samber/lo"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
@@ -68,7 +69,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		}
 		funcNameList := stmt.GetFuncname()
 		funcSchemaName, funcName := getFunctionObjectName(funcNameList)
-		return objectType, lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
+		return objectType, utils.BuildObjectName(funcSchemaName, funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
 		return "VIEW", getObjectNameFromRangeVar(viewName)
@@ -83,7 +84,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		indexName := createIndexNode.IndexStmt.Idxname
 		schemaName := createIndexNode.IndexStmt.Relation.GetSchemaname()
 		tableName := createIndexNode.IndexStmt.Relation.GetRelname()
-		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+		fullyQualifiedName := utils.BuildObjectName(schemaName, tableName)
 		displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
 		return "INDEX", displayObjName
 	default:
@@ -99,7 +100,7 @@ func isArrayType(typeName *pg_query.TypeName) bool {
 func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	schema := obj.Schemaname
 	name := obj.Relname
-	return lo.Ternary(schema != "", fmt.Sprintf("%s.%s", schema, name), name)
+	return utils.BuildObjectName(schema, name)
 }
 
 func getFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
