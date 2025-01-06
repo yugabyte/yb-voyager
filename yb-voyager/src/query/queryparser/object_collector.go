@@ -20,8 +20,10 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // ObjectPredicate defines a function signature that decides whether to include an object.
@@ -76,7 +78,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 	case PG_QUERY_RANGEVAR_NODE:
 		schemaName := GetStringField(msg, "schemaname")
 		relName := GetStringField(msg, "relname")
-		objectName := lo.Ternary(schemaName != "", schemaName+"."+relName, relName)
+		objectName := utils.BuildObjectName(schemaName, relName)
 		log.Debugf("[RangeVar] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
 		// it will be either table or view, considering objectType=table for both
 		if c.predicate(schemaName, relName, constants.TABLE) {
@@ -89,7 +91,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 		if relationMsg != nil {
 			schemaName := GetStringField(relationMsg, "schemaname")
 			relName := GetStringField(relationMsg, "relname")
-			objectName := lo.Ternary(schemaName != "", schemaName+"."+relName, relName)
+			objectName := utils.BuildObjectName(schemaName, relName)
 			log.Debugf("[IUD] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
 			if c.predicate(schemaName, relName, "table") {
 				c.addObject(objectName)
@@ -103,7 +105,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 			return
 		}
 
-		objectName := lo.Ternary(schemaName != "", schemaName+"."+functionName, functionName)
+		objectName := utils.BuildObjectName(schemaName, functionName)
 		log.Debugf("[Funccall] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
 		if c.predicate(schemaName, functionName, constants.FUNCTION) {
 			c.addObject(objectName)

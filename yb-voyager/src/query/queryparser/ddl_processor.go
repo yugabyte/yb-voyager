@@ -23,6 +23,8 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // Base parser interface
@@ -122,7 +124,32 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 	}
 
 	// Parse columns and their properties
-	for _, element := range createTableNode.CreateStmt.TableElts {
+	tableProcessor.parseTableElts(createTableNode.CreateStmt.TableElts, table)
+
+	if table.IsPartitioned {
+
+		partitionElements := createTableNode.CreateStmt.GetPartspec().GetPartParams()
+		table.PartitionStrategy = createTableNode.CreateStmt.GetPartspec().GetStrategy()
+
+		for _, partElem := range partitionElements {
+			if partElem.GetPartitionElem().GetExpr() != nil {
+				table.IsExpressionPartition = true
+			} else {
+				table.PartitionColumns = append(table.PartitionColumns, partElem.GetPartitionElem().GetName())
+			}
+		}
+	}
+
+	return table, nil
+}
+
+func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node, table *Table) {
+	/*
+		Parsing the table elements liek column definitions constraint basically all the things inside the () of CREATE TABLE test(id int, CONSTRAINT Pk PRIMARY KEY (id)....);
+		storing all the information of columns - name, typename, isArraytype and constraints - constraint name, columns involved, type of constraint, is deferrable or not
+
+	*/
+	for _, element := range tableElts {
 		if element.GetColumnDef() != nil {
 			if tableProcessor.isGeneratedColumn(element.GetColumnDef()) {
 				table.GeneratedColumns = append(table.GeneratedColumns, element.GetColumnDef().Colname)
@@ -172,7 +199,14 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 							table.Constraints[len(table.Constraints)-1] = lastConstraint
 						}
 					} else {
-						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false)
+						/*
+							table_elts:{column_def:{colname:"abc_id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1
+							location:45}  is_local:true  constraints:{constraint:{contype:CONSTR_FOREIGN  initially_valid:true  pktable:{schemaname:"schema1"
+							relname:"abc"  inh:true  relpersistence:"p"  location:60}  pk_attrs:{string:{sval:"id"}}  fk_matchtype:"s"  fk_upd_action:"a"  fk_del_action:"a"
+
+							In case of FKs there is field called PkTable which has reference table information
+						*/
+						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false, constraint.Pktable)
 					}
 				}
 			}
@@ -190,33 +224,25 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 			constraint := element.GetConstraint()
 			conType := element.GetConstraint().Contype
 			columns := parseColumnsFromKeys(constraint.GetKeys())
-			if conType == EXCLUSION_CONSTR_TYPE {
+			switch conType {
+			case EXCLUSION_CONSTR_TYPE:
 				//In case CREATE DDL has EXCLUDE USING gist(room_id '=', time_range WITH &&) - it will be included in columns but won't have columnDef as its a constraint
 				exclusions := constraint.GetExclusions()
 				//exclusions:{list:{items:{index_elem:{name:"room_id" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
 				//items:{list:{items:{string:{sval:"="}}}}}}
 				columns = tableProcessor.parseColumnsFromExclusions(exclusions)
+			case FOREIGN_CONSTR_TYPE:
+				// In case of Foreign key constraint if it is present at the end of table column definition
+				fkAttrs := constraint.FkAttrs
+				//CREATE TABLE schema1.abc_fk(id int, abc_id INT, val text, PRIMARY KEY(id), FOREIGN KEY (abc_id) REFERENCES schema1.abc(id));
+				//table_elts:{constraint:{contype:CONSTR_FOREIGN initially_valid:true pktable:{schemaname:"schema1" relname:"abc" inh:true relpersistence:"p" location:109}
+				//fk_attrs:{string:{sval:"abc_id"}} pk_attrs:{string:{sval:"id"}}
+				columns = parseColumnsFromKeys(fkAttrs)
 			}
-			table.addConstraint(conType, columns, constraint.Conname, constraint.Deferrable)
+			table.addConstraint(conType, columns, constraint.Conname, constraint.Deferrable, constraint.Pktable)
 
 		}
 	}
-
-	if table.IsPartitioned {
-
-		partitionElements := createTableNode.CreateStmt.GetPartspec().GetPartParams()
-		table.PartitionStrategy = createTableNode.CreateStmt.GetPartspec().GetStrategy()
-
-		for _, partElem := range partitionElements {
-			if partElem.GetPartitionElem().GetExpr() != nil {
-				table.IsExpressionPartition = true
-			} else {
-				table.PartitionColumns = append(table.PartitionColumns, partElem.GetPartitionElem().GetName())
-			}
-		}
-	}
-
-	return table, nil
 }
 
 func (tableProcessor *TableProcessor) checkInheritance(createTableNode *pg_query.Node_CreateStmt) bool {
@@ -286,14 +312,15 @@ type TableColumn struct {
 }
 
 func (tc *TableColumn) GetFullTypeName() string {
-	return lo.Ternary(tc.TypeSchema != "", tc.TypeSchema+"."+tc.TypeName, tc.TypeName)
+	return utils.BuildObjectName(tc.TypeSchema, tc.TypeName)
 }
 
 type TableConstraint struct {
-	ConstraintType pg_query.ConstrType
-	ConstraintName string
-	IsDeferrable   bool
-	Columns        []string
+	ConstraintType  pg_query.ConstrType
+	ConstraintName  string
+	IsDeferrable    bool
+	ReferencedTable string
+	Columns         []string
 }
 
 func (c *TableConstraint) IsPrimaryKeyORUniqueConstraint() bool {
@@ -319,8 +346,7 @@ func (c *TableConstraint) generateConstraintName(tableName string) string {
 }
 
 func (t *Table) GetObjectName() string {
-	qualifiedTable := lo.Ternary(t.SchemaName != "", fmt.Sprintf("%s.%s", t.SchemaName, t.TableName), t.TableName)
-	return qualifiedTable
+	return utils.BuildObjectName(t.SchemaName, t.TableName)
 }
 func (t *Table) GetSchemaName() string { return t.SchemaName }
 
@@ -345,7 +371,7 @@ func (t *Table) UniqueKeyColumns() []string {
 	return uniqueCols
 }
 
-func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, specifiedConName string, deferrable bool) {
+func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, specifiedConName string, deferrable bool, referencedTable *pg_query.RangeVar) {
 	tc := TableConstraint{
 		ConstraintType: conType,
 		Columns:        columns,
@@ -354,6 +380,9 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 	generatedConName := tc.generateConstraintName(t.TableName)
 	conName := lo.Ternary(specifiedConName == "", generatedConName, specifiedConName)
 	tc.ConstraintName = conName
+	if conType == FOREIGN_CONSTR_TYPE {
+		tc.ReferencedTable = utils.BuildObjectName(referencedTable.Schemaname, referencedTable.Relname)
+	}
 	t.Constraints = append(t.Constraints, tc)
 }
 
@@ -404,7 +433,7 @@ type ForeignTable struct {
 }
 
 func (f *ForeignTable) GetObjectName() string {
-	return lo.Ternary(f.SchemaName != "", f.SchemaName+"."+f.TableName, f.TableName)
+	return utils.BuildObjectName(f.SchemaName, f.TableName)
 }
 func (f *ForeignTable) GetSchemaName() string { return f.SchemaName }
 
@@ -495,7 +524,7 @@ type IndexParam struct {
 }
 
 func (indexParam *IndexParam) GetFullExprCastTypeName() string {
-	return lo.Ternary(indexParam.ExprCastTypeSchema != "", indexParam.ExprCastTypeSchema+"."+indexParam.ExprCastTypeName, indexParam.ExprCastTypeName)
+	return utils.BuildObjectName(indexParam.ExprCastTypeSchema, indexParam.ExprCastTypeName)
 }
 
 func (i *Index) GetObjectName() string {
@@ -504,7 +533,7 @@ func (i *Index) GetObjectName() string {
 func (i *Index) GetSchemaName() string { return i.SchemaName }
 
 func (i *Index) GetTableName() string {
-	return lo.Ternary(i.SchemaName != "", fmt.Sprintf("%s.%s", i.SchemaName, i.TableName), i.TableName)
+	return utils.BuildObjectName(i.SchemaName, i.TableName)
 }
 
 func (i *Index) GetObjectType() string { return INDEX_OBJECT_TYPE }
@@ -575,6 +604,15 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 		alter.IsDeferrable = constraint.Deferrable
 		alter.ConstraintNotValid = constraint.SkipValidation // this is set for the NOT VALID clause
 		alter.ConstraintColumns = parseColumnsFromKeys(constraint.GetKeys())
+		if alter.ConstraintType == FOREIGN_CONSTR_TYPE {
+			/*
+				alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_FOREIGN  conname:"fk"  initially_valid:true
+				pktable:{schemaname:"schema1"  relname:"abc"  inh:true  relpersistence:"p"
+				In case of FKs the reference table is in PKTable field and columns are in FkAttrs
+			*/
+			alter.ConstraintColumns = parseColumnsFromKeys(constraint.FkAttrs)
+			alter.ConstraintReferencedTable = utils.BuildObjectName(constraint.Pktable.Schemaname, constraint.Pktable.Relname)
+		}
 
 	case pg_query.AlterTableType_AT_DisableRule:
 		/*
@@ -604,16 +642,16 @@ type AlterTable struct {
 	NumSetAttributes  int
 	NumStorageOptions int
 	//In case AlterType - ADD_CONSTRAINT
-	ConstraintType     pg_query.ConstrType
-	ConstraintName     string
-	ConstraintNotValid bool
-	IsDeferrable       bool
-	ConstraintColumns  []string
+	ConstraintType            pg_query.ConstrType
+	ConstraintName            string
+	ConstraintNotValid        bool
+	ConstraintReferencedTable string
+	IsDeferrable              bool
+	ConstraintColumns         []string
 }
 
 func (a *AlterTable) GetObjectName() string {
-	qualifiedTable := lo.Ternary(a.SchemaName != "", fmt.Sprintf("%s.%s", a.SchemaName, a.TableName), a.TableName)
-	return qualifiedTable
+	return utils.BuildObjectName(a.SchemaName, a.TableName)
 }
 func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
 
@@ -678,7 +716,7 @@ type Policy struct {
 }
 
 func (p *Policy) GetObjectName() string {
-	qualifiedTable := lo.Ternary(p.SchemaName != "", fmt.Sprintf("%s.%s", p.SchemaName, p.TableName), p.TableName)
+	qualifiedTable := utils.BuildObjectName(p.SchemaName, p.TableName)
 	return fmt.Sprintf("%s ON %s", p.PolicyName, qualifiedTable)
 }
 func (p *Policy) GetSchemaName() string { return p.SchemaName }
@@ -754,7 +792,7 @@ func (t *Trigger) GetObjectName() string {
 }
 
 func (t *Trigger) GetTableName() string {
-	return lo.Ternary(t.SchemaName != "", fmt.Sprintf("%s.%s", t.SchemaName, t.TableName), t.TableName)
+	return utils.BuildObjectName(t.SchemaName, t.TableName)
 }
 
 func (t *Trigger) GetSchemaName() string { return t.SchemaName }
@@ -831,7 +869,7 @@ type CreateType struct {
 }
 
 func (c *CreateType) GetObjectName() string {
-	return lo.Ternary(c.SchemaName != "", fmt.Sprintf("%s.%s", c.SchemaName, c.TypeName), c.TypeName)
+	return utils.BuildObjectName(c.SchemaName, c.TypeName)
 }
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
@@ -853,7 +891,7 @@ func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 
 	viewSchemaName := viewNode.ViewStmt.View.Schemaname
 	viewName := viewNode.ViewStmt.View.Relname
-	qualifiedViewName := lo.Ternary(viewSchemaName == "", viewName, viewSchemaName+"."+viewName)
+	qualifiedViewName := utils.BuildObjectName(viewSchemaName, viewName)
 
 	/*
 		view_stmt:{view:{schemaname:"public" relname:"invoker_view" inh:true relpersistence:"p" location:12}
@@ -886,7 +924,7 @@ type View struct {
 }
 
 func (v *View) GetObjectName() string {
-	return lo.Ternary(v.SchemaName != "", fmt.Sprintf("%s.%s", v.SchemaName, v.ViewName), v.ViewName)
+	return utils.BuildObjectName(v.SchemaName, v.ViewName)
 }
 func (v *View) GetSchemaName() string { return v.SchemaName }
 
@@ -918,7 +956,7 @@ type MView struct {
 }
 
 func (mv *MView) GetObjectName() string {
-	return lo.Ternary(mv.SchemaName != "", fmt.Sprintf("%s.%s", mv.SchemaName, mv.ViewName), mv.ViewName)
+	return utils.BuildObjectName(mv.SchemaName, mv.ViewName)
 }
 func (mv *MView) GetSchemaName() string { return mv.SchemaName }
 

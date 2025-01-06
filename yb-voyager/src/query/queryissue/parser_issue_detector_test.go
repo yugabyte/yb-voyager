@@ -841,3 +841,56 @@ func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
 		}
 	}
 }
+
+func TestForeignKeyReferencesPartitionedTableIssues(t *testing.T) {
+	requiredDDLs := []string{
+		`CREATE TABLE abc1(id int PRIMARY KEY, val text) PARTITION BY RANGE (id);`,
+		`CREATE TABLE schema1.abc(id int PRIMARY KEY, val text) PARTITION BY RANGE (id);`,
+	}
+	stmt1 := `CREATE TABLE abc_fk(id int PRIMARY KEY, abc_id INT REFERENCES abc1(id), val text) ;`
+	stmt2 := `ALTER TABLE schema1.abc_fk1
+ADD CONSTRAINT fk FOREIGN KEY (abc1_id)
+REFERENCES schema1.abc (id);
+`
+	stmt3 := `CREATE TABLE abc_fk (
+    id INT PRIMARY KEY,
+    abc_id INT,
+    val TEXT,
+    CONSTRAINT fk_abc FOREIGN KEY (abc_id) REFERENCES abc1(id)
+);
+`
+
+	stmt4 := `CREATE TABLE schema1.abc_fk(id int PRIMARY KEY, abc_id INT, val text, FOREIGN KEY (abc_id) REFERENCES schema1.abc(id));`
+
+	ddlStmtsWithIssues := map[string][]QueryIssue{
+		stmt1: []QueryIssue{
+			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt1, "abc_fk_abc_id_fkey"),
+		},
+		stmt2: []QueryIssue{
+			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk1", stmt2, "fk"),
+		},
+		stmt3: []QueryIssue{
+			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt3, "fk_abc"),
+		},
+		stmt4: []QueryIssue{
+			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk", stmt4, "abc_fk_abc_id_fkey"),
+		},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for _, stmt := range requiredDDLs {
+		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
+	}
+	for stmt, expectedIssues := range ddlStmtsWithIssues {
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}

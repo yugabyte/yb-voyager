@@ -638,6 +638,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		queryissue.EXCLUSION_CONSTRAINTS,
 		queryissue.DEFERRABLE_CONSTRAINTS,
 		queryissue.PK_UK_ON_COMPLEX_DATATYPE,
+		queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
 	}
 	/*
 		TODO:

@@ -144,7 +144,9 @@ WITH CHECK OPTION;
 CREATE TABLE public.test_jsonb (
     id integer,
     data jsonb,
-	data2 text
+	data2 text,
+    region text,
+    FOREIGN KEY (id, region) REFERENCES sales_region(id, region)
 );
 
 CREATE TABLE public.inet_type (
