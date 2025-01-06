@@ -64,8 +64,11 @@ type ParserIssueDetector struct {
 	// out because they are fixed as per the target db version
 	IsUnloggedTablesIssueFiltered bool
 
-	//Functions in schema with return type
+	//Functions in exported schema
 	functionObjects []*queryparser.Function
+
+	//columns names with jsonb type
+	jsonbColumns []string
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -223,6 +226,11 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 				if isUDTType { //For UDTs
 					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "user_defined_type"
 				}
+			}
+
+			if col.TypeName == "jsonb" {
+				// used to detect the jsonb subscripting happening on these columns
+				p.jsonbColumns = append(p.jsonbColumns, col.ColumnName)
 			}
 		}
 
@@ -385,7 +393,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewCopyCommandUnsupportedConstructsDetector(query),
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
-		NewJsonbSubscriptingDetector(query, p.getJsonbColumns(), p.getJsonbReturnTypeFunctions()),
+		NewJsonbSubscriptingDetector(query, p.jsonbColumns, p.getJsonbReturnTypeFunctions()),
 	}
 
 	processor := func(msg protoreflect.Message) error {
@@ -430,22 +438,9 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 	return result, nil
 }
 
-func (p *ParserIssueDetector) getJsonbColumns() []string {
-	var jsonColumns []string
-	for _, mp := range p.columnsWithUnsupportedIndexDatatypes {
-		for col, colType := range mp {
-			if colType == "jsonb" {
-				jsonColumns = append(jsonColumns, col)
-			}
-		}
-	}
-	return jsonColumns
-
-}
-
 func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
 	var jsonbFunctions []string
-	jsonbColumns := p.getJsonbColumns()
+	jsonbColumns := p.jsonbColumns
 	for _, function := range p.functionObjects {
 		returnType := function.ReturnType
 		if strings.HasSuffix(returnType, "%TYPE") {

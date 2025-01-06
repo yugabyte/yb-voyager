@@ -455,9 +455,3 @@ func GetAIndirectionNode(msg protoreflect.Message) (*pg_query.A_Indirection, boo
 	aIndirection, ok := protoMsg.(*pg_query.A_Indirection)
 	return aIndirection, ok
 }
-
-func GetGenericNode(msg protoreflect.Message) (*pg_query.Node, bool) {
-	protoMsg := msg.Interface().(protoreflect.ProtoMessage)
-	node, ok := protoMsg.(*pg_query.Node)
-	return node, ok
-}

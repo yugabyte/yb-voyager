@@ -68,7 +68,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 			objectType = "PROCEDURE"
 		}
 		funcNameList := stmt.GetFuncname()
-		funcSchemaName, funcName := GetFunctionObjectName(funcNameList)
+		funcSchemaName, funcName := getFunctionObjectName(funcNameList)
 		return objectType, lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
@@ -103,7 +103,7 @@ func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	return lo.Ternary(schema != "", fmt.Sprintf("%s.%s", schema, name), name)
 }
 
-func GetFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
+func getFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
 	funcName := ""
 	funcSchemaName := ""
 	if len(funcNameList) > 0 {
@@ -115,7 +115,7 @@ func GetFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
 	return funcSchemaName, funcName
 }
 
-func GetTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
+func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
 	typeName := ""
 	typeSchemaName := ""
 	if len(typeNames) > 0 {
@@ -269,7 +269,14 @@ func IsDDL(parseTree *pg_query.ParseResult) (bool, error) {
 	return !ok, nil
 }
 
-func IsJsonbType(node *pg_query.Node, jsonbColumns []string, jsonbFunctions []string) bool {
+/*
+this function checks whether the current node handles the jsonb data or not by evaluating all different type of nodes - 
+column ref - column of jsonb type
+type cast - constant data with type casting to jsonb type
+func call - function call returning the jsonb data 
+Expression - if any of left and right operands are of node type handling jsonb data 
+*/
+func IsNodeHandlesJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFunctions []string) bool {
 	switch {
 	case node.GetColumnRef() != nil:
 		/*
@@ -290,7 +297,7 @@ func IsJsonbType(node *pg_query.Node, jsonbColumns []string, jsonbFunctions []st
 			type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
 		*/
 		typeCast := node.GetTypeCast()
-		typeName, _ := GetTypeNameAndSchema(typeCast.GetTypeName().GetNames())
+		typeName, _ := getTypeNameAndSchema(typeCast.GetTypeName().GetNames())
 		if typeName == "jsonb" {
 			return true
 		}
@@ -302,7 +309,7 @@ func IsJsonbType(node *pg_query.Node, jsonbColumns []string, jsonbFunctions []st
 			args:{a_const:{ival:{ival:14}  location:227}}
 		*/
 		funcCall := node.GetFuncCall()
-		_, funcName := GetFunctionObjectName(funcCall.Funcname)
+		_, funcName := getFunctionObjectName(funcCall.Funcname)
 		if slices.Contains(jsonbFunctions, funcName) {
 			return true
 		}
@@ -325,10 +332,10 @@ func IsJsonbType(node *pg_query.Node, jsonbColumns []string, jsonbFunctions []st
 		expr := node.GetAExpr()
 		lExpr := expr.GetLexpr()
 		rExpr := expr.GetRexpr()
-		if lExpr != nil && IsJsonbType(lExpr, jsonbColumns, jsonbFunctions) {
+		if lExpr != nil && IsNodeHandlesJsonbData(lExpr, jsonbColumns, jsonbFunctions) {
 			return true
 		}
-		if rExpr != nil && IsJsonbType(rExpr, jsonbColumns, jsonbFunctions) {
+		if rExpr != nil && IsNodeHandlesJsonbData(rExpr, jsonbColumns, jsonbFunctions) {
 			return true
 		}
 	}

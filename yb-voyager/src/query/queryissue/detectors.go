@@ -231,6 +231,12 @@ func (j *JsonbSubscriptingDetector) Detect(msg protoreflect.Message) error {
 		return nil
 	}
 
+	/*
+	Indirection node is to determine if subscripting is happening in the query e.g. data['name'] - jsonb, numbers[1] - array type, and ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];
+	Arg is the data on which subscripting is happening e.g data, numbers (columns) and constant data type casted to jsonb ('{"a": {"b": {"c": 1}}}'::jsonb)
+	Indices are the actual fields that are being accessed while subscripting or the index in case of array type e.g. name, 1, a, b etc.
+	So we are checking the arg is of jsonb type here 
+	*/
 	arg := aIndirectionNode.GetArg()
 	if arg == nil {
 		return nil
@@ -248,7 +254,7 @@ func (j *JsonbSubscriptingDetector) Detect(msg protoreflect.Message) error {
 		from_clause:{range_var:{relname:"test_jsonb"  inh:true  relpersistence:"p"  location:59}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}}
 		limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}
 	*/
-	if queryparser.IsJsonbType(arg, j.jsonbColumns, j.jsonbFunctions) {
+	if queryparser.IsNodeHandlesJsonbData(arg, j.jsonbColumns, j.jsonbFunctions) {
 		j.detected = true
 	}
 	return nil

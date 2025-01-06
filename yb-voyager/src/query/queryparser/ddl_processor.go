@@ -130,7 +130,7 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 			colName := element.GetColumnDef().GetColname()
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := GetTypeNameAndSchema(typeNames)
+			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
 			/*
 				e.g. CREATE TABLE test_xml_type(id int, data xml);
 				relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
@@ -382,7 +382,7 @@ func (ftProcessor *ForeignTableProcessor) Process(parseTree *pg_query.ParseResul
 			colName := element.GetColumnDef().GetColname()
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
-			typeName, typeSchemaName := GetTypeNameAndSchema(typeNames)
+			typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
 			table.Columns = append(table.Columns, TableColumn{
 				ColumnName:  colName,
 				TypeName:    typeName,
@@ -467,7 +467,7 @@ func (indexProcessor *IndexProcessor) parseIndexParams(params []*pg_query.Node) 
 		if ip.IsExpression {
 			//For the expression index case to report in case casting to unsupported types #3
 			typeNames := i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName().GetNames()
-			ip.ExprCastTypeName, ip.ExprCastTypeSchema = GetTypeNameAndSchema(typeNames)
+			ip.ExprCastTypeName, ip.ExprCastTypeSchema = getTypeNameAndSchema(typeNames)
 			ip.IsExprCastArrayType = isArrayType(i.GetIndexElem().GetExpr().GetTypeCast().GetTypeName())
 		}
 		indexParams = append(indexParams, ip)
@@ -732,7 +732,7 @@ func (triggerProcessor *TriggerProcessor) Process(parseTree *pg_query.ParseResul
 		Events:                 triggerNode.CreateTrigStmt.Events,
 		ForEachRow:             triggerNode.CreateTrigStmt.Row,
 	}
-	_, trigger.FuncName = GetFunctionObjectName(triggerNode.CreateTrigStmt.Funcname)
+	_, trigger.FuncName = getFunctionObjectName(triggerNode.CreateTrigStmt.Funcname)
 
 	return trigger, nil
 }
@@ -810,7 +810,7 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 		return createType, nil
 	case isEnum:
 		typeNames := enumNode.CreateEnumStmt.GetTypeName()
-		typeName, typeSchemaName := GetTypeNameAndSchema(typeNames)
+		typeName, typeSchemaName := getTypeNameAndSchema(typeNames)
 		createType := &CreateType{
 			TypeName:   typeName,
 			SchemaName: typeSchemaName,
@@ -935,11 +935,11 @@ func NewFunctionProcessor() *FunctionProcessor {
 func (mv *FunctionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	funcNode, ok := getCreateFuncStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE VIEW statement")
+		return nil, fmt.Errorf("not a CREATE FUNCTION statement")
 	}
 
 	funcNameList := funcNode.CreateFunctionStmt.GetFuncname()
-	funcSchemaName, funcName := GetFunctionObjectName(funcNameList)
+	funcSchemaName, funcName := getFunctionObjectName(funcNameList)
 	function := Function{
 		SchemaName: funcSchemaName,
 		FuncName:   funcName,
@@ -949,10 +949,9 @@ func (mv *FunctionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject
 }
 
 type Function struct {
-	SchemaName       string
-	FuncName         string
-	ReturnType       string
-	IsReturnPercType bool
+	SchemaName string
+	FuncName   string
+	ReturnType string
 }
 
 func (f *Function) GetObjectName() string {
