@@ -98,7 +98,9 @@ main() {
 	if [ -f "${TEST_DIR}/generate_config.py" ]; then
 	  rm config.yaml
 	fi
-	run_psql postgres "DROP DATABASE ${SOURCE_DB_NAME};"
+	if [ -n "${SOURCE_DB_NAME}" ]; then
+		run_psql postgres "DROP DATABASE ${SOURCE_DB_NAME};"
+	fi
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 
