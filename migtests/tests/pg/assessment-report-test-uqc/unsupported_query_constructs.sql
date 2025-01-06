@@ -27,6 +27,7 @@ SELECT
         any_value(name) AS any_employee
     FROM employees;
 
+<<<<<<< HEAD
 SELECT (sales.get_user_info(2))['name'] AS user_info;
 
 SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 17, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;
@@ -38,3 +39,16 @@ SELECT
 FROM sales.test_json_chk;
 
 SELECT ('{"a": { "b": {"c": "1"}}}' :: jsonb)['a']['b'] as b;
+=======
+--PG15
+SELECT range_agg(event_range) AS union_of_ranges
+FROM sales.events;
+
+SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM sales.events;
+
+-- -- PG 16 and above feature
+SELECT * 
+FROM sales.json_data
+WHERE array_column IS JSON ARRAY;
+>>>>>>> main

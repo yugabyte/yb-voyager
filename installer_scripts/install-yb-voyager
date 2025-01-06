@@ -142,7 +142,7 @@ centos_main() {
 	output "Installing RPM dependencies."
 	$YUM_INSTALL which wget git gcc make 1>&2
 	$YUM_INSTALL https://download.postgresql.org/pub/repos/yum/reporpms/EL-${majorVersion}-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
-	$YUM_INSTALL postgresql16 1>&2
+	$YUM_INSTALL postgresql17 1>&2
 	$YUM_INSTALL sqlite 1>&2
 	create_guardrail_scripts_dir
 	create_pg_dump_args_file
@@ -953,7 +953,7 @@ ubuntu_install_postgres() {
 	sudo apt install -y postgresql-common 1>&2
     echo | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh 1>&2
 	sudo apt-get update 1>&2
-	sudo apt-get -y install postgresql-16  1>&2
+	sudo apt-get -y install postgresql-17  1>&2
 	output "Postgres Installed."
 }
 
