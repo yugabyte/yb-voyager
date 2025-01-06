@@ -9,44 +9,44 @@ import_type: offline
 
 # Row Count Validation
 row_count:
-  Case_Sensitive_Table: 150001
-  case: 150002
-  Table: 150003
-  schema2.Case_Sensitive_Table: 150001
-  schema2.case: 150002
-  schema2.Table: 150003
-  public.boston: 50000
-  public.cust_active: 112500 
-  public.cust_arr_small: 75000
-  public.cust_arr_large: 37500
-  public.cust_other: 37500
-  public.cust_part11: 37588
-  public.cust_part12: 37412
-  public.cust_part21: 18686
-  public.cust_part22: 18814
-  public.customers: 150000
-  public.emp: 150000
-  public.emp_0: 50333
-  public.emp_1: 49929
-  public.emp_2: 49738
-  public.london: 50000
-  public.sales: 150000
-  public.sales_2019_q4: 50000
-  public.sales_2020_q1: 50000
-  public.sales_2020_q2: 50000
-  public.sales_region: 150000
-  public.sydney: 50000
-  p1.sales_region: 150000
-  p2.sydney: 50000
-  p2.london: 50000
-  p2.boston: 50000
+  Case_Sensitive_Table: 1500001
+  case: 1500002
+  Table: 1500003
+  schema2.Case_Sensitive_Table: 1500001
+  schema2.case: 1500002
+  schema2.Table: 1500003
+  public.boston: 500000
+  public.cust_active: 1125000
+  public.cust_arr_small: 750000
+  public.cust_arr_large: 375000
+  public.cust_other: 375000
+  public.cust_part11: 374247
+  public.cust_part12: 375753
+  public.cust_part21: 187763
+  public.cust_part22: 187237
+  public.customers: 1500000
+  public.emp: 1500000
+  public.emp_0: 499940
+  public.emp_1: 500292
+  public.emp_2: 499768
+  public.london: 500000
+  public.sales: 1500000
+  public.sales_2019_q4: 500000
+  public.sales_2020_q1: 500000
+  public.sales_2020_q2: 500000
+  public.sales_region: 1500000
+  public.sydney: 500000
+  p1.sales_region: 1500000
+  p2.sydney: 500000
+  p2.london: 500000
+  p2.boston: 500000
   public.range_columns_partition_test: 6
   public.range_columns_partition_test_p0: 3
   public.range_columns_partition_test_p1: 3
-  public.test_partitions_sequences: 150000
-  public.test_partitions_sequences_l: 50000
-  public.test_partitions_sequences_s: 50000
-  public.test_partitions_sequences_b: 50000
+  public.test_partitions_sequences: 1500000
+  public.test_partitions_sequences_l: 500000
+  public.test_partitions_sequences_s: 500000
+  public.test_partitions_sequences_b: 500000
 
 # Resumption Settings
 resumption:

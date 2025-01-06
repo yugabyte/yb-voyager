@@ -7,7 +7,7 @@ BEGIN
             FLOOR(RANDOM() * 65535 - 32768)::SMALLINT,      -- Smallint range
             FLOOR(RANDOM() * 2147483647)::INTEGER,         -- Integer range
             FLOOR(RANDOM() * 9223372036854775807)::BIGINT, -- Bigint range
-            ROUND((RANDOM() * 1000)::NUMERIC, 3)::DECIMAL(6,3), -- Decimal
+            ROUND((RANDOM() * 999.999)::NUMERIC, 3)::DECIMAL(6,3), -- Decimal
             RANDOM() * 1e6::NUMERIC,                      -- Numeric for v5
             ((RANDOM() * 1000)::NUMERIC)::MONEY,          -- Money
             RANDOM() * 1e90::NUMERIC(108,9),              -- Numeric(108,9)
@@ -63,6 +63,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT insert_numeric_and_decimal_types(150001);
-SELECT insert_string_and_enum_types(150002); 
-SELECT insert_datetime_and_complex_types(150003);
+SELECT insert_numeric_and_decimal_types(1500001);
+SELECT insert_string_and_enum_types(1500002); 
+SELECT insert_datetime_and_complex_types(1500003);
