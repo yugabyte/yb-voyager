@@ -573,6 +573,11 @@ JSON_TABLE(data, '$.skills[*]'
     )
 ) AS jt;`,
 		`SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
+`CREATE TABLE sales.json_data (
+    id int PRIMARY KEY,
+    array_column TEXT CHECK (array_column IS JSON ARRAY),
+    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
+);`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
@@ -631,6 +636,9 @@ JSON_TABLE(data, '$.skills[*]'
 		sqls[17]: []QueryIssue{
 			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[17], []string{JSON_ARRAY}),
 		},
+		sqls[18]: []QueryIssue{
+			NewJsonPredicateIssue("TABLE", "sales.json_data", sqls[18]),
+		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
@@ -657,10 +665,6 @@ func TestAggregateFunctions(t *testing.T) {
 FROM multiranges;`,
 		`SELECT range_agg(multi_event_range) AS union_of_multiranges
 FROM multiranges;`,
-		`SELECT range_intersect_agg(event_range) AS intersection_of_ranges
-FROM events;`,
-		`SELECT range_agg(event_range) AS union_of_ranges
-FROM events;`,
 		`CREATE OR REPLACE FUNCTION aggregate_ranges()
 RETURNS INT4MULTIRANGE AS $$
 DECLARE
@@ -687,17 +691,11 @@ $$ LANGUAGE plpgsql;`,
 			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{"range_agg"}),
 		},
 		sqls[3]: []QueryIssue{
-			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], []string{"range_intersect_agg"}),
-		},
-		sqls[4]: []QueryIssue{
-			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4], []string{"range_agg"}),
-		},
-		sqls[5]: []QueryIssue{
 			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", "SELECT range_agg(range_value)                       FROM ranges;", []string{"range_agg"}),
 			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
 		},
 	}
-	aggregateSqls[sqls[5]] = modifiedIssuesforPLPGSQL(aggregateSqls[sqls[5]], "FUNCTION", "aggregate_ranges")
+	aggregateSqls[sqls[3]] = modifiedIssuesforPLPGSQL(aggregateSqls[sqls[3]], "FUNCTION", "aggregate_ranges")
 
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range aggregateSqls {
