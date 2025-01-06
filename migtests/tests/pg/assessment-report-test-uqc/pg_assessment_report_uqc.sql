@@ -47,7 +47,6 @@ create view sales.employ_depart_view AS  SELECT
         any_value(name) AS any_employee
     FROM employees;
 
-<<<<<<< HEAD
 CREATE TABLE sales.test_json_chk (
     id int,
     name text,
@@ -84,7 +83,6 @@ BEGIN
     );
 END;
 $$ LANGUAGE plpgsql;
-=======
 CREATE TABLE sales.events (
     id int PRIMARY KEY,
     event_range daterange
@@ -124,4 +122,3 @@ INSERT INTO public.json_data (
     4, '"hello"',
     5, '{"uniqueKey1": "value1", "uniqueKey2": "value2"}'
 );
->>>>>>> main
