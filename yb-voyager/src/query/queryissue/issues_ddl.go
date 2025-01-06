@@ -477,3 +477,18 @@ var deterministicOptionCollationIssue = issue.Issue{
 func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
+
+var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
+	Type:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
+	TypeName:   FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
+	Suggestion: "No workaround available ",
+	GH:         "", // TODO
+	DocsLink:   "", // TODO
+}
+
+func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	return newQueryIssue(foreignKeyReferencesPartitionedTableIssue, objectType, objectName, SqlStatement, details)
+}

@@ -55,6 +55,7 @@ const (
 
 	PG_QUERY_DEFINE_STMT_NODE = "pg_query.DefineStmt"
 	PG_QUERY_MERGE_STMT_NODE  = "pg_query.MergeStmt"
+	PG_QUERY_CONSTRAINT_NODE  = "pg_query.Constraint"
 )
 
 // function type for processing nodes during traversal
