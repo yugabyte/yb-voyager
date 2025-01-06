@@ -115,9 +115,7 @@ var assessMigrationCmd = &cobra.Command{
 }
 
 // Assessment feature names to send the object names for to callhome
-var featuresToSendObjectsToCallhome = []string{
-	EXTENSION_FEATURE,
-}
+var featuresToSendObjectsToCallhome = []string{}
 
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
@@ -163,24 +161,38 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		return len(constructs)
 	})
 
-	assessPayload := callhome.AssessMigrationPhasePayload{
-		TargetDBVersion:     assessmentReport.TargetDBVersion,
-		MigrationComplexity: assessmentReport.MigrationComplexity,
-		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
+	var unsupportedFeatures []callhome.UnsupportedFeature
+	for _, feature := range assessmentReport.UnsupportedFeatures {
+		if feature.FeatureName == EXTENSION_FEATURE {
+			// For extensions, we need to send the extension name in the feature name
+			// for better categorization in callhome
+			for _, object := range feature.Objects {
+				unsupportedFeatures = append(unsupportedFeatures, callhome.UnsupportedFeature{
+					FeatureName:      fmt.Sprintf("%s - %s", feature.FeatureName, object.ObjectName),
+					ObjectCount:      1,
+					TotalOccurrences: 1,
+				})
+			}
+		} else {
 			var objects []string
 			if slices.Contains(featuresToSendObjectsToCallhome, feature.FeatureName) {
 				objects = lo.Map(feature.Objects, func(o ObjectInfo, _ int) string {
 					return o.ObjectName
 				})
 			}
-			res := callhome.UnsupportedFeature{
+			unsupportedFeatures = append(unsupportedFeatures, callhome.UnsupportedFeature{
 				FeatureName:      feature.FeatureName,
 				ObjectCount:      len(feature.Objects),
 				Objects:          objects,
 				TotalOccurrences: len(feature.Objects),
-			}
-			return res
-		})),
+			})
+		}
+	}
+
+	assessPayload := callhome.AssessMigrationPhasePayload{
+		TargetDBVersion:            assessmentReport.TargetDBVersion,
+		MigrationComplexity:        assessmentReport.MigrationComplexity,
+		UnsupportedFeatures:        callhome.MarshalledJsonString(unsupportedFeatures),
 		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
 		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
 		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.MigrationCaveats, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
