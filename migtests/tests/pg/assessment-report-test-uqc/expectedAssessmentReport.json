@@ -25,15 +25,15 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 2,
-				"InvalidCount": 0,
-				"ObjectNames": "analytics.metrics, sales.orders"
+				"TotalCount": 4,
+				"InvalidCount": 1,
+				"ObjectNames": "sales.json_data, analytics.metrics, sales.events, sales.orders"
 			},
 			{
 				"ObjectType": "VIEW",
-				"TotalCount": 1,
-				"InvalidCount": 1,
-				"ObjectNames": "sales.employ_depart_view"
+				"TotalCount": 3,
+				"InvalidCount": 3,
+				"ObjectNames": "sales.event_analysis_view, sales.event_analysis_view2, sales.employ_depart_view"
 			}
 		]
 	},
@@ -41,9 +41,11 @@
 		"SizingRecommendation": {
 			"ColocatedTables": [
 				"sales.orders",
-				"analytics.metrics"
+				"analytics.metrics",
+				"sales.events",
+				"sales.json_data"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 4 objects (4 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -55,15 +57,40 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
+	"UnsupportedDataTypes": [
+		{
+			"SchemaName": "sales",
+			"TableName": "event_analysis_view",
+			"ColumnName": "all_event_ranges",
+			"DataType": "datemultirange"
+		}
+	],
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": [
 		{
 			"FeatureName": "Aggregate Functions",
 			"Objects": [
 				{
+					"ObjectName": "sales.event_analysis_view",
+					"SqlStatement": "CREATE VIEW sales.event_analysis_view AS\n SELECT range_agg(event_range) AS all_event_ranges\n   FROM sales.events;"
+				},
+				{
+					"ObjectName": "sales.event_analysis_view2",
+					"SqlStatement": "CREATE VIEW sales.event_analysis_view2 AS\n SELECT range_intersect_agg(event_range) AS overlapping_range\n   FROM sales.events;"
+				},
+				{
 					"ObjectName": "sales.employ_depart_view",
 					"SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Json Type Predicate",
+			"Objects": [
+				{
+					"ObjectName": "sales.json_data",
+					"SqlStatement": "CREATE TABLE sales.json_data (\n    id integer NOT NULL,\n    array_column text,\n    unique_keys_column text,\n    CONSTRAINT json_data_array_column_check CHECK ((array_column IS JSON ARRAY)),\n    CONSTRAINT json_data_unique_keys_column_check CHECK ((unique_keys_column IS JSON WITH UNIQUE KEYS))\n);"
 				}
 			],
 			"MinimumVersionsFixedIn": null
@@ -84,6 +111,34 @@
 			"ObjectType": "",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "events",
+			"RowCount": 3,
+			"ColumnCount": 2,
+			"Reads": 6,
+			"Writes": 3,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "json_data",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
 		},
 		{
 			"SchemaName": "analytics",
@@ -111,7 +166,25 @@
 		},
 		{
 			"ConstructTypeName": "Aggregate Functions",
+			"Query": "SELECT range_intersect_agg(event_range) AS intersection_of_ranges\nFROM sales.events",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Aggregate Functions",
+			"Query": "SELECT range_agg(event_range) AS union_of_ranges\nFROM sales.events",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Aggregate Functions",
 			"Query": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Json Type Predicate",
+			"Query": "SELECT * \nFROM sales.json_data\nWHERE array_column IS JSON ARRAY",
 			"DocsLink": "",
 			"MinimumVersionsFixedIn": null
 		}

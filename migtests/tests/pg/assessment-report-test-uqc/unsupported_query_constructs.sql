@@ -26,3 +26,15 @@ WHERE metric_value > 0.02;
 SELECT
         any_value(name) AS any_employee
     FROM employees;
+
+--PG15
+SELECT range_agg(event_range) AS union_of_ranges
+FROM sales.events;
+
+SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM sales.events;
+
+-- -- PG 16 and above feature
+SELECT * 
+FROM sales.json_data
+WHERE array_column IS JSON ARRAY;

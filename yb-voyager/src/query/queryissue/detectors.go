@@ -390,3 +390,35 @@ func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	}
 	return issues
 }
+
+type JsonPredicateExprDetector struct {
+	query    string
+	detected bool
+}
+
+func NewJsonPredicateExprDetector(query string) *JsonPredicateExprDetector {
+	return &JsonPredicateExprDetector{
+		query: query,
+	}
+}
+
+func (j *JsonPredicateExprDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_JSON_IS_PREDICATE_NODE {
+		/*
+			SELECT  js IS JSON "json?" FROM (VALUES ('123')) foo(js);
+			stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"js"}}  location:337}}  location:337}}
+			target_list:{res_target:{name:"json?"  val:{json_is_predicate:{expr:{column_ref:{fields:{string:{sval:"js"}}  location:341}}
+			format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT  location:-1}  item_type:JS_TYPE_ANY  location:341}}  location:341}} ...
+		*/
+		j.detected = true
+	}
+	return nil
+}
+
+func (j *JsonPredicateExprDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if j.detected {
+		issues = append(issues, NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", j.query))
+	}
+	return issues
+}
