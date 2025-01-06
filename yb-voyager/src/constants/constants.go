@@ -19,10 +19,19 @@ const (
 	// Database Object types
 	TABLE    = "table"
 	FUNCTION = "function"
+	COLUMN   = "column"
 
 	// Source DB Types
 	YUGABYTEDB = "yugabytedb"
 	POSTGRESQL = "postgresql"
 	ORACLE     = "oracle"
 	MYSQL      = "mysql"
+
+	// AssessmentIssue Categoes - used by YugabyteD payload and Migration Complexity Explainability
+	// TODO: soon to be renamed as SCHEMA, SCHEMA_PLPGSQL, DML_QUERY, MIGRATION_CAVEAT, "DATATYPE"
+	FEATURE           = "feature"
+	DATATYPE          = "datatype"
+	QUERY_CONSTRUCT   = "query_construct"
+	MIGRATION_CAVEATS = "migration_caveats"
+	PLPGSQL_OBJECT    = "plpgsql_object"
 )

@@ -623,7 +623,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
 	case isPlPgSQLIssue:
-		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
+		issueType = UNSUPPORTED_PLPGSQL_OBJECTS
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
 		//Adding the MIGRATION_CAVEATS issueType of the utils.Issue for these issueInstances in MigrationCaveatsIssues
 		return strings.Contains(issueInstance.TypeName, i)
