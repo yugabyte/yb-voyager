@@ -74,10 +74,10 @@ func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement s
 	return newQueryIssue(regexFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var anyValueAggFunctionIssue = issue.Issue{
+var aggregateFunctionIssue = issue.Issue{
 	Type:            AGGREGATE_FUNCTION,
 	TypeName:        AGGREGATION_FUNCTIONS_NAME,
-	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
+	TypeDescription: "any_value, range_agg and range_intersect_agg functions not supported yet in YugabyteDB",
 	Suggestion:      "",
 	GH:              "",
 	DocsLink:        "",
@@ -88,7 +88,7 @@ func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatem
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(anyValueAggFunctionIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(aggregateFunctionIssue, objectType, objectName, sqlStatement, details)
 }
 
 var jsonConstructorFunctionsIssue = issue.Issue{
@@ -140,6 +140,19 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
 	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
+}
+
+var jsonPredicateIssue = issue.Issue{
+	Type:            JSON_TYPE_PREDICATE,
+	TypeName:        JSON_TYPE_PREDICATE_NAME,
+	TypeDescription: "IS JSON predicate expressions not supported yet in YugabyteDB",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "", //TODO
+}
+
+func NewJsonPredicateIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(jsonPredicateIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var copyFromWhereIssue = issue.Issue{

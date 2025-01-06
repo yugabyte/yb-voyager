@@ -26,9 +26,9 @@
             },
             {
                 "ObjectType": "TABLE",
-                "TotalCount": 58,
-                "InvalidCount": 49,
-                "ObjectNames": "employees, image, public.xml_data_example, combined_tbl1, test_arr_enum, public.locations, test_udt, combined_tbl, public.ts_query_table, public.documents, public.citext_type, public.inet_type, public.test_jsonb, test_xml_type, test_xid_type, public.range_columns_partition_test_copy, anydata_test, uritype_test, public.foreign_def_test, test_4, enum_example.bugs, table_abc, anydataset_test, unique_def_test1, test_2, table_1, public.range_columns_partition_test, table_xyz, public.users, test_3, test_5, test_7, foreign_def_test2, unique_def_test, sales_data, table_test, test_interval, test_non_pk_multi_column_list, test_9, test_8, order_details, public.employees4, anytype_test, public.meeting, test_table_in_type_file, sales, test_1, \"Test\", foreign_def_test1, salaries2, test_6, public.pr, bigint_multirange_table, date_multirange_table, int_multirange_table, numeric_multirange_table, timestamp_multirange_table, timestamptz_multirange_table"            },
+                "TotalCount": 59,
+                "InvalidCount": 50,
+                "ObjectNames": "public.json_data, employees, image, public.xml_data_example, combined_tbl1, test_arr_enum, public.locations, test_udt, combined_tbl, public.ts_query_table, public.documents, public.citext_type, public.inet_type, public.test_jsonb, test_xml_type, test_xid_type, public.range_columns_partition_test_copy, anydata_test, uritype_test, public.foreign_def_test, test_4, enum_example.bugs, table_abc, anydataset_test, unique_def_test1, test_2, table_1, public.range_columns_partition_test, table_xyz, public.users, test_3, test_5, test_7, foreign_def_test2, unique_def_test, sales_data, table_test, test_interval, test_non_pk_multi_column_list, test_9, test_8, order_details, public.employees4, anytype_test, public.meeting, test_table_in_type_file, sales, test_1, \"Test\", foreign_def_test1, salaries2, test_6, public.pr, bigint_multirange_table, date_multirange_table, int_multirange_table, numeric_multirange_table, timestamp_multirange_table, timestamptz_multirange_table"            },
 
             {
                 "ObjectType": "INDEX",

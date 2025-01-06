@@ -343,6 +343,9 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			rows_imported BIGINT,
 			PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN data_file_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN schema_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
 			channel_no INT,
@@ -360,6 +363,7 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			num_deletes BIGINT,
 			num_updates BIGINT,
 			PRIMARY KEY (migration_uuid, table_name, channel_no));`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12

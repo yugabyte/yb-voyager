@@ -104,7 +104,7 @@ var UnsupportedIndexDatatypes = []string{
 
 var unsupportedAggFunctions = mapset.NewThreadUnsafeSet([]string{
 	//agg function added in PG16 - https://www.postgresql.org/docs/16/functions-aggregate.html#id-1.5.8.27.5.2.4.1.1.1.1
-	"any_value",
+	"any_value", "range_agg", "range_intersect_agg",
 }...)
 
 const (

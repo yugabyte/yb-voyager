@@ -80,21 +80,21 @@ func NewStorageParameterIssue(objectType string, objectName string, sqlStatement
 	return newQueryIssue(storageParameterIssue, objectType, objectName, sqlStatement, details)
 }
 
-var setAttributeIssue = issue.Issue{
-	Type:       SET_ATTRIBUTES,
+var setColumnAttributeIssue = issue.Issue{
+	Type:       ALTER_TABLE_SET_COLUMN_ATTRIBUTE,
 	TypeName:   "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet",
 	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1124",
 	Suggestion: "Remove it from the exported schema",
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
-func NewSetAttributeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+func NewSetColumnAttributeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(setAttributeIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(setColumnAttributeIssue, objectType, objectName, sqlStatement, details)
 }
 
-var clusterOnIssue = issue.Issue{
-	Type:       CLUSTER_ON,
+var alterTableClusterOnIssue = issue.Issue{
+	Type:       ALTER_TABLE_CLUSTER_ON,
 	TypeName:   "ALTER TABLE CLUSTER not supported yet.",
 	GH:         "https://github.com/YugaByte/yugabyte-db/issues/1124",
 	Suggestion: "Remove it from the exported schema.",
@@ -103,20 +103,20 @@ var clusterOnIssue = issue.Issue{
 
 func NewClusterONIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(clusterOnIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(alterTableClusterOnIssue, objectType, objectName, sqlStatement, details)
 }
 
-var disableRuleIssue = issue.Issue{
-	Type:       DISABLE_RULE,
+var alterTableDisableRuleIssue = issue.Issue{
+	Type:       ALTER_TABLE_DISABLE_RULE,
 	TypeName:   "ALTER TABLE name DISABLE RULE not supported yet",
 	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1124",
 	Suggestion: "Remove this and the rule '%s' from the exported schema to be not enabled on the table.",
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
-func NewDisableRuleIssue(objectType string, objectName string, sqlStatement string, ruleName string) QueryIssue {
+func NewAlterTableDisableRuleIssue(objectType string, objectName string, sqlStatement string, ruleName string) QueryIssue {
 	details := map[string]interface{}{}
-	issue := disableRuleIssue
+	issue := alterTableDisableRuleIssue
 	issue.Suggestion = fmt.Sprintf(issue.Suggestion, ruleName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
@@ -200,7 +200,7 @@ func NewConstraintTriggerIssue(objectType string, objectName string, sqlStatemen
 }
 
 var referencingClauseInTriggerIssue = issue.Issue{
-	Type:     REFERENCING_CLAUSE_FOR_TRIGGERS,
+	Type:     REFERENCING_CLAUSE_IN_TRIGGER,
 	TypeName: "REFERENCING clause (transition tables) not supported yet.",
 	GH:       "https://github.com/YugaByte/yugabyte-db/issues/1668",
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers",

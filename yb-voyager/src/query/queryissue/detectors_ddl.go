@@ -422,7 +422,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	switch alter.AlterType {
 	case queryparser.SET_OPTIONS:
 		if alter.NumSetAttributes > 0 {
-			issues = append(issues, NewSetAttributeIssue(
+			issues = append(issues, NewSetColumnAttributeIssue(
 				obj.GetObjectType(),
 				alter.GetObjectName(),
 				"", // query string
@@ -495,7 +495,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 
 		}
 	case queryparser.DISABLE_RULE:
-		issues = append(issues, NewDisableRuleIssue(
+		issues = append(issues, NewAlterTableDisableRuleIssue(
 			obj.GetObjectType(),
 			alter.GetObjectName(),
 			"", // query string
