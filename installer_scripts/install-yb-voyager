@@ -157,6 +157,7 @@ centos_main() {
 		# Removing gcc for testing
 		sudo dnf remove -y gcc 1>&2
 		$YUM_INSTALL https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-yum-repo-1.1-0.noarch.rpm 1>&2
+		output "Install perl DBD oracle driver."
 		$YUM_INSTALL perl-DBD-Oracle perl-DBD-mysql 1>&2
 		install_ora2pg
 		create_base_ora2pg_conf_file
