@@ -467,8 +467,7 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	}
 
 	// true -> oracle, false -> PG
-	parsedObjectName := lo.Ternary(relation.Schemaname == "", relation.Relname,
-		relation.Schemaname+"."+relation.Relname)
+	parsedObjectName := utils.GetObjectName(relation.Schemaname, relation.Relname)
 
 	match := false
 	switch source.DBType {

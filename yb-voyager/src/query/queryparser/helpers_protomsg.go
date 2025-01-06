@@ -420,18 +420,6 @@ func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
 	return selectStmtNode, nil
 }
 
-func GetConstraintNode(msg protoreflect.Message) (*pg_query.Constraint, error) {
-	protoMsg, ok := msg.Interface().(proto.Message)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to proto.Message")
-	}
-	constNode, ok := protoMsg.(*pg_query.Constraint)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CONSTRAINT_NODE)
-	}
-	return constNode, nil
-}
-
 /*
 Example:
 options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}

@@ -23,6 +23,8 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // Base parser interface
@@ -142,7 +144,11 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 }
 
 func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node, table *Table) {
+	/*
+		Parsing the table elements liek column definitions constraint basically all the things inside the () of CREATE TABLE test(id int, CONSTRAINT Pk PRIMARY KEY (id)....);
+		storing all the information of columns - name, typename, isArraytype and constraints - constraint name, columns involved, type of constraint, is deferrable or not
 
+	*/
 	for _, element := range tableElts {
 		if element.GetColumnDef() != nil {
 			if tableProcessor.isGeneratedColumn(element.GetColumnDef()) {
@@ -306,7 +312,7 @@ type TableColumn struct {
 }
 
 func (tc *TableColumn) GetFullTypeName() string {
-	return lo.Ternary(tc.TypeSchema != "", tc.TypeSchema+"."+tc.TypeName, tc.TypeName)
+	return utils.GetObjectName(tc.TypeSchema, tc.TypeName)
 }
 
 type TableConstraint struct {
@@ -340,8 +346,7 @@ func (c *TableConstraint) generateConstraintName(tableName string) string {
 }
 
 func (t *Table) GetObjectName() string {
-	qualifiedTable := lo.Ternary(t.SchemaName != "", fmt.Sprintf("%s.%s", t.SchemaName, t.TableName), t.TableName)
-	return qualifiedTable
+	return utils.GetObjectName(t.SchemaName, t.TableName)
 }
 func (t *Table) GetSchemaName() string { return t.SchemaName }
 
@@ -376,7 +381,7 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 	conName := lo.Ternary(specifiedConName == "", generatedConName, specifiedConName)
 	tc.ConstraintName = conName
 	if conType == FOREIGN_CONSTR_TYPE {
-		tc.ReferencedTable = lo.Ternary(referencedTable.Schemaname != "", referencedTable.Schemaname+"."+referencedTable.Relname, referencedTable.Relname)
+		tc.ReferencedTable = utils.GetObjectName(referencedTable.Schemaname, referencedTable.Relname)
 	}
 	t.Constraints = append(t.Constraints, tc)
 }
@@ -428,7 +433,7 @@ type ForeignTable struct {
 }
 
 func (f *ForeignTable) GetObjectName() string {
-	return lo.Ternary(f.SchemaName != "", f.SchemaName+"."+f.TableName, f.TableName)
+	return utils.GetObjectName(f.SchemaName, f.TableName)
 }
 func (f *ForeignTable) GetSchemaName() string { return f.SchemaName }
 
@@ -519,7 +524,7 @@ type IndexParam struct {
 }
 
 func (indexParam *IndexParam) GetFullExprCastTypeName() string {
-	return lo.Ternary(indexParam.ExprCastTypeSchema != "", indexParam.ExprCastTypeSchema+"."+indexParam.ExprCastTypeName, indexParam.ExprCastTypeName)
+	return utils.GetObjectName(indexParam.ExprCastTypeSchema, indexParam.ExprCastTypeName)
 }
 
 func (i *Index) GetObjectName() string {
@@ -528,7 +533,7 @@ func (i *Index) GetObjectName() string {
 func (i *Index) GetSchemaName() string { return i.SchemaName }
 
 func (i *Index) GetTableName() string {
-	return lo.Ternary(i.SchemaName != "", fmt.Sprintf("%s.%s", i.SchemaName, i.TableName), i.TableName)
+	return utils.GetObjectName(i.SchemaName, i.TableName)
 }
 
 func (i *Index) GetObjectType() string { return INDEX_OBJECT_TYPE }
@@ -606,7 +611,7 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 				In case of FKs the reference table is in PKTable field and columns are in FkAttrs
 			*/
 			alter.ConstraintColumns = parseColumnsFromKeys(constraint.FkAttrs)
-			alter.ConstraintReferencedTable = lo.Ternary(constraint.Pktable.Schemaname != "", constraint.Pktable.Schemaname+"."+constraint.Pktable.Relname, constraint.Pktable.Relname)
+			alter.ConstraintReferencedTable = utils.GetObjectName(constraint.Pktable.Schemaname, constraint.Pktable.Relname)
 		}
 
 	case pg_query.AlterTableType_AT_DisableRule:
@@ -646,8 +651,7 @@ type AlterTable struct {
 }
 
 func (a *AlterTable) GetObjectName() string {
-	qualifiedTable := lo.Ternary(a.SchemaName != "", fmt.Sprintf("%s.%s", a.SchemaName, a.TableName), a.TableName)
-	return qualifiedTable
+	return utils.GetObjectName(a.SchemaName, a.TableName)
 }
 func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
 
@@ -712,7 +716,7 @@ type Policy struct {
 }
 
 func (p *Policy) GetObjectName() string {
-	qualifiedTable := lo.Ternary(p.SchemaName != "", fmt.Sprintf("%s.%s", p.SchemaName, p.TableName), p.TableName)
+	qualifiedTable := utils.GetObjectName(p.SchemaName, p.TableName)
 	return fmt.Sprintf("%s ON %s", p.PolicyName, qualifiedTable)
 }
 func (p *Policy) GetSchemaName() string { return p.SchemaName }
@@ -788,7 +792,7 @@ func (t *Trigger) GetObjectName() string {
 }
 
 func (t *Trigger) GetTableName() string {
-	return lo.Ternary(t.SchemaName != "", fmt.Sprintf("%s.%s", t.SchemaName, t.TableName), t.TableName)
+	return utils.GetObjectName(t.SchemaName, t.TableName)
 }
 
 func (t *Trigger) GetSchemaName() string { return t.SchemaName }
@@ -865,7 +869,7 @@ type CreateType struct {
 }
 
 func (c *CreateType) GetObjectName() string {
-	return lo.Ternary(c.SchemaName != "", fmt.Sprintf("%s.%s", c.SchemaName, c.TypeName), c.TypeName)
+	return utils.GetObjectName(c.SchemaName, c.TypeName)
 }
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
@@ -887,7 +891,7 @@ func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 
 	viewSchemaName := viewNode.ViewStmt.View.Schemaname
 	viewName := viewNode.ViewStmt.View.Relname
-	qualifiedViewName := lo.Ternary(viewSchemaName == "", viewName, viewSchemaName+"."+viewName)
+	qualifiedViewName := utils.GetObjectName(viewSchemaName, viewName)
 
 	/*
 		view_stmt:{view:{schemaname:"public" relname:"invoker_view" inh:true relpersistence:"p" location:12}
@@ -920,7 +924,7 @@ type View struct {
 }
 
 func (v *View) GetObjectName() string {
-	return lo.Ternary(v.SchemaName != "", fmt.Sprintf("%s.%s", v.SchemaName, v.ViewName), v.ViewName)
+	return utils.GetObjectName(v.SchemaName, v.ViewName)
 }
 func (v *View) GetSchemaName() string { return v.SchemaName }
 
@@ -952,7 +956,7 @@ type MView struct {
 }
 
 func (mv *MView) GetObjectName() string {
-	return lo.Ternary(mv.SchemaName != "", fmt.Sprintf("%s.%s", mv.SchemaName, mv.ViewName), mv.ViewName)
+	return utils.GetObjectName(mv.SchemaName, mv.ViewName)
 }
 func (mv *MView) GetSchemaName() string { return mv.SchemaName }
 

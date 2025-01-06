@@ -740,3 +740,7 @@ func CheckTools(tools ...string) []string {
 
 	return missingTools
 }
+
+func GetObjectName(schemaName, objName string) string {
+	return lo.Ternary(schemaName != "", schemaName+"."+objName, objName)
+}
