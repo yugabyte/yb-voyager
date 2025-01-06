@@ -1195,13 +1195,14 @@ type AssessmentReport struct {
 	MigrationCaveats           []UnsupportedFeature              `json:"MigrationCaveats"`
 }
 
+// Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
 type AssessmentIssue struct {
-	Category              string
+	Category              string // Feature, query_constrcuts, migration_caveats
 	CategoryDescription   string
-	TypeName              string
+	TypeName              string // GIN Indexes, Security Invoker View
 	TypeDescription       string
-	Impact                string
-	ObjectType            string
+	Impact                string // Level-1, Level-2, Level-3 (default: Level-1 ??)
+	ObjectType            string // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName            string
 	SqlStatement          string
 	DocsLink              string

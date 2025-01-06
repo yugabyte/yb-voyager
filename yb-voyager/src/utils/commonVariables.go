@@ -103,11 +103,11 @@ type DBObject struct {
 type AnalyzeSchemaIssue struct {
 	// TODO: rename IssueType to Category
 	IssueType              string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
+	ObjectType             string                          `json:"ObjectType"`
+	ObjectName             string                          `json:"ObjectName"`
 	Reason                 string                          `json:"Reason"`
 	Type                   string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
 	Impact                 string                          `json:"-" xml:"-"`
-	ObjectType             string                          `json:"ObjectType"`
-	ObjectName             string                          `json:"ObjectName"`
 	SqlStatement           string                          `json:"SqlStatement,omitempty"`
 	FilePath               string                          `json:"FilePath"`
 	Suggestion             string                          `json:"Suggestion"`
