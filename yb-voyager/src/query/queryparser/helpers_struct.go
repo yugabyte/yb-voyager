@@ -271,13 +271,13 @@ func IsDDL(parseTree *pg_query.ParseResult) (bool, error) {
 }
 
 /*
-this function checks whether the current node handles the jsonb data or not by evaluating all different type of nodes - 
+this function checks whether the current node handles the jsonb data or not by evaluating all different type of nodes -
 column ref - column of jsonb type
 type cast - constant data with type casting to jsonb type
-func call - function call returning the jsonb data 
-Expression - if any of left and right operands are of node type handling jsonb data 
+func call - function call returning the jsonb data
+Expression - if any of left and right operands are of node type handling jsonb data
 */
-func IsNodeHandlesJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFunctions []string) bool {
+func DoesNodeHandleJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFunctions []string) bool {
 	switch {
 	case node.GetColumnRef() != nil:
 		/*
@@ -333,10 +333,10 @@ func IsNodeHandlesJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFun
 		expr := node.GetAExpr()
 		lExpr := expr.GetLexpr()
 		rExpr := expr.GetRexpr()
-		if lExpr != nil && IsNodeHandlesJsonbData(lExpr, jsonbColumns, jsonbFunctions) {
+		if lExpr != nil && DoesNodeHandleJsonbData(lExpr, jsonbColumns, jsonbFunctions) {
 			return true
 		}
-		if rExpr != nil && IsNodeHandlesJsonbData(rExpr, jsonbColumns, jsonbFunctions) {
+		if rExpr != nil && DoesNodeHandleJsonbData(rExpr, jsonbColumns, jsonbFunctions) {
 			return true
 		}
 	}
