@@ -191,5 +191,6 @@ var mergeStatementIssue = issue.Issue{
 }
 
 func NewMergeStatementIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	//MERGE STATEMENT is PG15 feature but  MERGE .... RETURNING clause is PG17 feature so need to report it separately later.
 	return newQueryIssue(mergeStatementIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

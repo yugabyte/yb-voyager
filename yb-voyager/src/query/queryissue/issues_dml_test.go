@@ -163,7 +163,7 @@ func testMergeStmtIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
-	sql := `
+	sqls := []string{`
 	MERGE INTO customer_account ca
 USING recent_transactions t
 ON t.customer_id = ca.customer_id
@@ -172,12 +172,27 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
   INSERT (customer_id, balance)
   VALUES (t.customer_id, t.transaction_value);
-	`
+`,
+		`
+  MERGE INTO wines w
+USING wine_stock_changes s
+ON s.winename = w.winename
+WHEN NOT MATCHED AND s.stock_delta > 0 THEN
+  INSERT VALUES(s.winename, s.stock_delta)
+WHEN MATCHED AND w.stock + s.stock_delta > 0 THEN
+  UPDATE SET stock = w.stock + s.stock_delta
+WHEN MATCHED THEN
+  DELETE
+RETURNING merge_action(), w.*;
+	`, // MERGE ... RETURNING statement >PG15 feature
+	}
 
-	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, sql)
+	for _, sql := range sqls {
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "MERGE"`, mergeStatementIssue)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "MERGE"`, mergeStatementIssue)
+	}
 
 }
 
