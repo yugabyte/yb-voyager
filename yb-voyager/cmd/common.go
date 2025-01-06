@@ -1176,20 +1176,36 @@ func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
 type AssessmentReport struct {
-	VoyagerVersion             string                                `json:"VoyagerVersion"`
-	TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
-	MigrationComplexity        string                                `json:"MigrationComplexity"`
-	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
-	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
-	UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
-	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
-	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
-	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
-	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
-	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
-	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
-	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-	Notes                      []string                              `json:"Notes"`
+	VoyagerVersion      string                                `json:"VoyagerVersion"`
+	TargetDBVersion     *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity string                                `json:"MigrationComplexity"`
+	SchemaSummary       utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing              *migassessment.SizingAssessmentReport `json:"Sizing"`
+	Issues              []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
+	TableIndexStats     *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes               []string                              `json:"Notes"`
+
+	// fields going to be deprecated
+	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"UnsupportedDataTypes"`
+	UnsupportedDataTypesDesc   string                            `json:"UnsupportedDataTypesDesc"`
+	UnsupportedFeatures        []UnsupportedFeature              `json:"UnsupportedFeatures"`
+	UnsupportedFeaturesDesc    string                            `json:"UnsupportedFeaturesDesc"`
+	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct `json:"UnsupportedQueryConstructs"`
+	UnsupportedPlPgSqlObjects  []UnsupportedFeature              `json:"UnsupportedPlPgSqlObjects"`
+	MigrationCaveats           []UnsupportedFeature              `json:"MigrationCaveats"`
+}
+
+type AssessmentIssue struct {
+	Category              string
+	CategoryDescription   string
+	TypeName              string
+	TypeDescription       string
+	Impact                string
+	ObjectType            string
+	ObjectName            string
+	SqlStatement          string
+	DocsLink              string
+	MinimumVersionFixedIn map[string]*ybversion.YBVersion
 }
 
 type UnsupportedFeature struct {
@@ -1240,15 +1256,15 @@ type AssessMigrationPayload struct {
 	TargetDBVersion       *ybversion.YBVersion
 	MigrationComplexity   string
 	SchemaSummary         utils.SchemaSummary
-	AssessmentIssues      []AssessmentIssuePayload
+	AssessmentIssues      []AssessmentIssueYugabyteD
 	SourceSizeDetails     SourceDBSizeDetails
 	TargetRecommendations TargetSizingRecommendations
-	ConversionIssues      []utils.Issue
+	ConversionIssues      []utils.AnalyzeSchemaIssue
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
 	AssessmentJsonReport AssessmentReport
 }
 
-type AssessmentIssuePayload struct {
+type AssessmentIssueYugabyteD struct {
 	Type                   string                          `json:"Type"`                   // Feature, DataType, MigrationCaveat, UQC
 	TypeDescription        string                          `json:"TypeDescription"`        // Based on AssessmentIssue type
 	Subtype                string                          `json:"Subtype"`                // GIN Indexes, Advisory Locks etc
