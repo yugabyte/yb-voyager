@@ -115,9 +115,7 @@ var assessMigrationCmd = &cobra.Command{
 }
 
 // Assessment feature names to send the object names for to callhome
-var featuresToSendObjectsToCallhome = []string{
-	EXTENSION_FEATURE,
-}
+var featuresToSendObjectsToCallhome = []string{}
 
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
