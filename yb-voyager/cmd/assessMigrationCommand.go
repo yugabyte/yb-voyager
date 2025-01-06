@@ -31,6 +31,7 @@ import (
 	"syscall"
 	"text/template"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -429,9 +430,15 @@ func assessMigration() (err error) {
 		log.Errorf("failed to fetch the assessment issues for migration complexity: %v", err)
 	}
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentIssues))
-	// for i, issue := range assessmentIssues {
-	// 	fmt.Printf("AssessmentIssue[%d] = %s\n\n", i, spew.Sdump(issue))
-	// }
+	var data string
+	for i, issue := range assessmentIssues {
+		data += fmt.Sprintf("AssessmentIssue[%d] = %s\n\n", i, spew.Sdump(issue))
+	}
+	assessIssuesFile := filepath.Join(exportDir, "assessment_issues.txt")
+	err = os.WriteFile(assessIssuesFile, []byte(data), 0677)
+	if err != nil {
+		panic("failed to write to assessment_issues.txt")
+	}
 
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()

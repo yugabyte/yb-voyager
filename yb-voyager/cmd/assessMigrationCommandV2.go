@@ -175,6 +175,7 @@ func fetchUnsupportedObjectTypesV2() ([]AssessmentIssue, error) {
 		case slices.Contains(OracleUnsupportedIndexTypes, objectType):
 			assessmentIssues = append(assessmentIssues, AssessmentIssue{
 				Category:   constants.FEATURE,
+				Type:       "", // TODO
 				TypeName:   UNSUPPORTED_INDEXES_FEATURE,
 				Impact:     "", // TODO
 				ObjectType: "INDEX",
@@ -183,12 +184,14 @@ func fetchUnsupportedObjectTypesV2() ([]AssessmentIssue, error) {
 		case objectType == VIRTUAL_COLUMN:
 			assessmentIssues = append(assessmentIssues, AssessmentIssue{
 				Category:   constants.FEATURE,
+				Type:       "", // TODO
 				TypeName:   VIRTUAL_COLUMNS_FEATURE,
 				ObjectName: objectName,
 			})
 		case objectType == INHERITED_TYPE:
 			assessmentIssues = append(assessmentIssues, AssessmentIssue{
 				Category:   constants.FEATURE,
+				Type:       "", // TODO
 				TypeName:   INHERITED_TYPES_FEATURE,
 				ObjectName: objectName,
 			})
@@ -196,6 +199,7 @@ func fetchUnsupportedObjectTypesV2() ([]AssessmentIssue, error) {
 			referenceOrTablePartitionPresent = true
 			assessmentIssues = append(assessmentIssues, AssessmentIssue{
 				Category:   constants.FEATURE,
+				Type:       "", // TODO
 				TypeName:   UNSUPPORTED_PARTITIONING_METHODS_FEATURE,
 				ObjectType: "TABLE",
 				ObjectName: fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType),
@@ -235,6 +239,7 @@ func fetchUnsupportedPlPgSQLObjectsV2(schemaAnalysisReport utils.SchemaReport) [
 
 			assessmentIssues = append(assessmentIssues, AssessmentIssue{
 				Category:              constants.PLPGSQL_OBJECT,
+				Type:                  issue.Type,
 				TypeName:              reason,
 				Impact:                issue.Impact, // TODO
 				ObjectType:            issue.ObjectType,
@@ -273,7 +278,8 @@ func getAssessmentIssuesFromSchemaAnalysisReport(category string, issueType stri
 			issues = append(issues, AssessmentIssue{
 				Category:              category,
 				CategoryDescription:   GetCategoryDescription(category),
-				TypeName:              analyzeIssue.Type,
+				Type:                  analyzeIssue.Type,
+				TypeName:              analyzeIssue.Reason,
 				TypeDescription:       issueDescription, // TODO: verify
 				Impact:                analyzeIssue.Impact,
 				ObjectType:            analyzeIssue.ObjectType,
@@ -347,6 +353,7 @@ func fetchUnsupportedQueryConstructsV2() ([]AssessmentIssue, error) {
 		for _, issue := range issues {
 			issue := AssessmentIssue{
 				Category:              constants.QUERY_CONSTRUCT,
+				Type:                  issue.Type,
 				TypeName:              issue.TypeName,
 				SqlStatement:          issue.SqlStatement,
 				DocsLink:              issue.DocsLink,
@@ -366,6 +373,7 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 		issue := AssessmentIssue{
 			Category:              constants.DATATYPE,
 			CategoryDescription:   GetCategoryDescription(constants.DATATYPE),
+			Type:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
 			TypeName:              colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
 			Impact:                "",               // TODO
 			ObjectType:            constants.COLUMN,
@@ -394,7 +402,8 @@ func fetchMigrationCaveatAssessmentIssues(unsupportedDataTypesForLiveMigration [
 				issue := AssessmentIssue{
 					Category:            constants.MIGRATION_CAVEATS,
 					CategoryDescription: "",                                        // TODO
-					TypeName:            UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, // TODO add object type in type name
+					Type:                UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, // TODO add object type in type name
+					TypeName:            "",                                        // TODO
 					TypeDescription:     UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
 					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),
@@ -409,7 +418,8 @@ func fetchMigrationCaveatAssessmentIssues(unsupportedDataTypesForLiveMigration [
 				issue := AssessmentIssue{
 					Category:            constants.MIGRATION_CAVEATS,
 					CategoryDescription: "",                                                   // TODO
-					TypeName:            UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, // TODO add object type in type name
+					Type:                UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, // TODO add object type in type name
+					TypeName:            "",                                                   // TODO
 					TypeDescription:     UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
 					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),

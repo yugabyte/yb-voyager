@@ -1197,9 +1197,10 @@ type AssessmentReport struct {
 
 // Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
 type AssessmentIssue struct {
-	Category              string // Feature, query_constrcuts, migration_caveats
+	Category              string // expected values: feature, query_constrcuts, migration_caveats, plpgsql_objects, datatytpe
 	CategoryDescription   string
-	TypeName              string // GIN Indexes, Security Invoker View
+	Type                  string // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	TypeName              string // Ex: "Stored generated columns are not supported."
 	TypeDescription       string
 	Impact                string // Level-1, Level-2, Level-3 (default: Level-1 ??)
 	ObjectType            string // For datatype category, ObjectType will be datatype (for eg "geometry")
