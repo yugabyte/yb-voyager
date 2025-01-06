@@ -31,9 +31,9 @@
 			},
 			{
 				"ObjectType": "VIEW",
-				"TotalCount": 4,
-				"InvalidCount": 4,
-				"ObjectNames": "sales.employ_depart_view, sales.event_analysis_view, sales.event_analysis_view2, sales.employ_depart_view"
+				"TotalCount": 3,
+				"InvalidCount": 3,
+				"ObjectNames": "sales.employ_depart_view, sales.event_analysis_view, sales.event_analysis_view2"
 			},
 			{
 				"ObjectType": "FUNCTION",
