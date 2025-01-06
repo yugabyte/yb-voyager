@@ -162,7 +162,9 @@ centos_main() {
 		create_base_ora2pg_conf_file
 	fi
 	install_debezium_server
+	sudo dnf install -y gcc 1>&2
 	install_yb_voyager
+	sudo dnf remove -y gcc 1>&2
 	create_yb_session_vars_file
 	update_bashrc
 
@@ -214,7 +216,9 @@ ubuntu_main() {
 		create_base_ora2pg_conf_file
 	fi
 	install_debezium_server
+	sudo apt-get install -y gcc 1>&2
 	install_yb_voyager
+	sudo apt-get remove -y gcc 1>&2
 	create_yb_session_vars_file
 	update_bashrc
 
