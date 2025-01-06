@@ -25,9 +25,9 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 5,
+				"TotalCount": 6,
 				"InvalidCount": 1,
-				"ObjectNames": "analytics.metrics, sales.orders, sales.customer_account, sales.recent_transactions, sales.json_data"
+				"ObjectNames": "analytics.metrics, sales.orders, sales.events, sales.customer_account, sales.recent_transactions, sales.json_data"
 			},
 			{
 				"ObjectType": "SEQUENCE",
@@ -54,7 +54,7 @@
 				"sales.events",
 				"sales.json_data"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 4 objects (4 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 6 objects (6 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
