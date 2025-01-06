@@ -1,5 +1,8 @@
+//go:build issues_integration
+
 /*
 Copyright (c) YugabyteDB, Inc.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -24,9 +27,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 var (
@@ -56,15 +59,9 @@ func getConn() (*pgx.Conn, error) {
 	return conn, nil
 }
 
-func fatalIfError(t *testing.T, err error) {
-	if err != nil {
-		t.Fatalf("error: %v", err)
-	}
-}
-
 func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue) {
 	isFixed, err := issue.IsFixedIn(testYbVersion)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 
 	if isFixed {
 		assert.NoError(t, execErr)
@@ -216,6 +213,66 @@ func testLoDatatypeIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", loDatatypeIssue)
 }
 
+func testMultiRangeDatatypeIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	queries := []string{
+		`CREATE TABLE int_multirange_table (
+			id SERIAL PRIMARY KEY,
+			value_ranges int4multirange
+		);`,
+		`CREATE TABLE bigint_multirange_table (
+			id SERIAL PRIMARY KEY,
+			value_ranges int8multirange
+		);`,
+		`CREATE TABLE numeric_multirange_table (
+			id SERIAL PRIMARY KEY,
+			price_ranges nummultirange
+		);`,
+		`CREATE TABLE timestamp_multirange_table (
+			id SERIAL PRIMARY KEY,
+			event_times tsmultirange
+		);`,
+		`CREATE TABLE timestamptz_multirange_table (
+			id SERIAL PRIMARY KEY,
+			global_event_times tstzmultirange
+		);`,
+		`CREATE TABLE date_multirange_table (
+			id SERIAL PRIMARY KEY,
+			project_dates datemultirange
+		);`,
+	}
+
+	for _, query := range queries {
+		_, err = conn.Exec(ctx, query)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", multiRangeDatatypeIssue)
+	}
+}
+
+func testSecurityInvokerView(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE public.employees (
+		employee_id SERIAL PRIMARY KEY,
+		first_name VARCHAR(100),
+		last_name VARCHAR(100),
+		department VARCHAR(50)
+	);
+
+	CREATE VIEW public.view_explicit_security_invoker
+	WITH (security_invoker = true) AS
+	SELECT employee_id, first_name
+	FROM public.employees;`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unrecognized parameter", securityInvokerViewIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -225,7 +282,7 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 
 	ybVersionWithoutBuild := strings.Split(ybVersion, "-")[0]
 	testYbVersion, err = ybversion.NewYBVersion(ybVersionWithoutBuild)
-	fatalIfError(t, err)
+	testutils.FatalIfError(t, err)
 
 	testYugabytedbConnStr = os.Getenv("YB_CONN_STR")
 	if testYugabytedbConnStr == "" {
@@ -269,4 +326,8 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "lo datatype", ybVersion), testLoDatatypeIssue)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "multi range datatype", ybVersion), testMultiRangeDatatypeIssue)
+	assert.True(t, success)
+	success = t.Run(fmt.Sprintf("%s-%s", "security invoker view", ybVersion), testSecurityInvokerView)
+	assert.True(t, success)
 }

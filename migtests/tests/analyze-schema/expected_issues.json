@@ -22,6 +22,36 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "public.my_films_view",
+            "Reason": "Json Query Functions",
+            "SqlStatement": "CREATE VIEW public.my_films_view AS\nSELECT jt.* FROM\n my_films,\n JSON_TABLE ( js, '$.favorites[*]'\n   COLUMNS (\n    id FOR ORDINALITY,\n    kind text PATH '$.kind',\n    NESTED PATH '$.films[*]' COLUMNS (\n      title text FORMAT JSON PATH '$.title' OMIT QUOTES,\n      director text PATH '$.director' KEEP QUOTES))) AS jt;",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "test",
+            "Reason": "Json Constructor Functions",
+            "SqlStatement": "CREATE OR REPLACE view test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "MVIEW",
+            "ObjectName": "test",
+            "Reason": "Json Constructor Functions",
+            "SqlStatement": "CREATE MATERIALIZED VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
             "Reason": "XML Functions",
@@ -1899,6 +1929,76 @@
             "SqlStatement": "CREATE TABLE image (title text, raster lo);",
             "Suggestion": "Large objects are not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25318",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "top_employees_view",
+            "Reason": "FETCH .. WITH TIES",
+            "SqlStatement": "CREATE VIEW top_employees_view AS SELECT * FROM (\n\t\t\tSELECT * FROM employees\n\t\t\tORDER BY salary DESC\n\t\t\tFETCH FIRST 2 ROWS WITH TIES\n\t\t) AS top_employees;",
+            "Suggestion": "No workaround available right now",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "bigint_multirange_table",
+            "Reason": "Unsupported datatype - int8multirange on column - value_ranges",
+            "SqlStatement": "CREATE TABLE bigint_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int8multirange\n);",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "date_multirange_table",
+            "Reason": "Unsupported datatype - datemultirange on column - project_dates",
+            "SqlStatement": "CREATE TABLE date_multirange_table (\n    id integer PRIMARY KEY,\n    project_dates datemultirange\n);",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "int_multirange_table",
+            "Reason": "Unsupported datatype - int4multirange on column - value_ranges",
+            "SqlStatement": "CREATE TABLE int_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int4multirange\n);",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "numeric_multirange_table",
+            "Reason": "Unsupported datatype - nummultirange on column - price_ranges",
+            "SqlStatement": "CREATE TABLE numeric_multirange_table (\n    id integer PRIMARY KEY,\n    price_ranges nummultirange\n);",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "timestamp_multirange_table",
+            "Reason": "Unsupported datatype - tsmultirange on column - event_times",
+            "SqlStatement": "CREATE TABLE timestamp_multirange_table (\n    id integer PRIMARY KEY,\n    event_times tsmultirange\n);",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_datatypes",
+            "ObjectType": "TABLE",
+            "ObjectName": "timestamptz_multirange_table",
+            "Reason": "Unsupported datatype - tstzmultirange on column - global_event_times",
+            "SqlStatement": "CREATE TABLE timestamptz_multirange_table (\n    id integer PRIMARY KEY,\n    global_event_times tstzmultirange\n);",
+            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "GH": "",
             "MinimumVersionsFixedIn": null
         }
 ]

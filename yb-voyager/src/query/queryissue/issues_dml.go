@@ -16,7 +16,11 @@ limitations under the License.
 
 package queryissue
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+import (
+	"sort"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+)
 
 var advisoryLocksIssue = issue.Issue{
 	Type:            ADVISORY_LOCKS,
@@ -57,6 +61,70 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
+var regexFunctionsIssue = issue.Issue{
+	Type:            REGEX_FUNCTIONS,
+	TypeName:        "Regex Functions",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(regexFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var anyValueAggFunctionIssue = issue.Issue{
+	Type:            AGGREGATE_FUNCTION,
+	TypeName:        AGGREGATION_FUNCTIONS_NAME,
+	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	sort.Strings(funcNames)
+	details := map[string]interface{}{
+		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
+	}
+	return newQueryIssue(anyValueAggFunctionIssue, objectType, objectName, sqlStatement, details)
+}
+
+var jsonConstructorFunctionsIssue = issue.Issue{
+	Type:            JSON_CONSTRUCTOR_FUNCTION,
+	TypeName:        JSON_CONSTRUCTOR_FUNCTION_NAME,
+	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	sort.Strings(funcNames)
+	details := map[string]interface{}{
+		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
+	}
+	return newQueryIssue(jsonConstructorFunctionsIssue, objectType, objectName, sqlStatement, details)
+}
+
+var jsonQueryFunctionIssue = issue.Issue{
+	Type:            JSON_QUERY_FUNCTION,
+	TypeName:        JSON_QUERY_FUNCTIONS_NAME,
+	TypeDescription: "Postgresql 17 features not supported yet in YugabyteDB",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	sort.Strings(funcNames)
+	details := map[string]interface{}{
+		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
+	}
+	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, details)
+}
+
 var loFunctionsIssue = issue.Issue{
 	Type:            LARGE_OBJECT_FUNCTIONS,
 	TypeName:        LARGE_OBJECT_FUNCTIONS_NAME,
@@ -66,6 +134,49 @@ var loFunctionsIssue = issue.Issue{
 	DocsLink:        "", //TODO
 }
 
-func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+	sort.Strings(funcNames)
+	details := map[string]interface{}{
+		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
+	}
+	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
+}
+
+var copyFromWhereIssue = issue.Issue{
+	Type:            COPY_FROM_WHERE,
+	TypeName:        "COPY FROM ... WHERE",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(copyFromWhereIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var copyOnErrorIssue = issue.Issue{
+	Type:            COPY_ON_ERROR,
+	TypeName:        "COPY ... ON_ERROR",
+	TypeDescription: "",
+	Suggestion:      "",
+	GH:              "",
+	DocsLink:        "",
+}
+
+func NewCopyOnErrorIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(copyOnErrorIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var fetchWithTiesIssue = issue.Issue{
+	Type:            FETCH_WITH_TIES,
+	TypeName:        "FETCH .. WITH TIES",
+	TypeDescription: "FETCH .. WITH TIES is not supported in YugabyteDB",
+	Suggestion:      "No workaround available right now",
+	GH:              "",
+	DocsLink:        "", //TODO
+}
+
+func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(fetchWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

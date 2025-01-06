@@ -27,7 +27,7 @@ import (
 	"strings"
 	"text/template"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -225,6 +225,7 @@ const (
 	INDEX_METHOD_ISSUE_REASON                = "Schema contains %s index which is not supported."
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
 	GIN_INDEX_DETAILS                        = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+	SECURITY_INVOKER_VIEWS_ISSUE             = "Security Invoker Views not supported yet"
 )
 
 // Reports one case in JSON
@@ -688,6 +689,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		ObjectType:             issueInstance.ObjectType,
 		ObjectName:             displayObjectName,
 		Reason:                 issueInstance.TypeName,
+		Type:                   issueInstance.Type,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
 		FilePath:               fileName,

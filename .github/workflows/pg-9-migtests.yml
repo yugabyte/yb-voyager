@@ -7,7 +7,7 @@ on:
     branches: ['main']
 
 jobs:
-  run-pg-migration-tests:
+  run-pg-9-migration-tests:
     strategy:
       matrix:
         version: [2024.2.0.0-b145]
@@ -19,7 +19,7 @@ jobs:
       postgres:
         image: postgres:9
         env:
-          POSTGRES_PASSWORD: secret
+          POSTGRES_PASSWORD: postgres
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready
@@ -63,16 +63,18 @@ jobs:
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           sudo rm /usr/bin/pg_dump
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_dump /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
           sudo rm /usr/bin/pg_restore
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_restore /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
           pg_dump --version
+          pg_restore --version
+          psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
       - name: Test PostgreSQL Connection
         run: |
-          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" -c "SELECT version();"
 
       - name: Create PostgreSQL user
         run: |

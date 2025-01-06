@@ -91,6 +91,10 @@ var importDataFileCmd = &cobra.Command{
 		dataStore = datastore.NewDataStore(dataDir)
 		importFileTasks := prepareImportFileTasks()
 		prepareForImportDataCmd(importFileTasks)
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		importData(importFileTasks)
 		packAndSendImportDataFilePayload(COMPLETE)
 
