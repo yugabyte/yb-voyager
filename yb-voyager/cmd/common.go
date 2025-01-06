@@ -1200,8 +1200,8 @@ type AssessmentIssue struct {
 	Category              string // expected values: feature, query_constrcuts, migration_caveats, plpgsql_objects, datatytpe
 	CategoryDescription   string
 	Type                  string // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
-	TypeName              string // Ex: "Stored generated columns are not supported."
-	TypeDescription       string
+	Name                  string // Ex: "Stored generated columns are not supported."
+	Description           string
 	Impact                string // Level-1, Level-2, Level-3 (default: Level-1 ??)
 	ObjectType            string // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName            string

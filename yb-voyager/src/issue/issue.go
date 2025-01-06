@@ -22,8 +22,8 @@ import (
 
 type Issue struct {
 	Type                   string // (advisory_locks, index_not_supported, etc)
-	TypeName               string // for display
-	TypeDescription        string
+	Name                   string // for display
+	Description            string
 	Impact                 string
 	Suggestion             string
 	GH                     string

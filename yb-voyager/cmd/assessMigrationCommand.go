@@ -1255,7 +1255,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		for _, issue := range issues {
 			uqc := utils.UnsupportedQueryConstruct{
 				Query:                  issue.SqlStatement,
-				ConstructTypeName:      issue.TypeName,
+				ConstructTypeName:      issue.Name,
 				DocsLink:               issue.DocsLink,
 				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 			}
