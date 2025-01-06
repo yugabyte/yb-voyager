@@ -299,8 +299,7 @@ func TestDDLIssues(t *testing.T) {
 		stmt23: []QueryIssue{
 			NewDeterministicOptionCollationIssue("COLLATION", "upperfirst", stmt23),
 		},
-		stmt24: []QueryIssue{
-		},
+		stmt24: []QueryIssue{},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseRequiredDDLs(stmt)
@@ -588,7 +587,7 @@ JSON_TABLE(data, '$.skills[*]'
     )
 ) AS jt;`,
 		`SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
-`CREATE TABLE sales.json_data (
+		`CREATE TABLE sales.json_data (
     id int PRIMARY KEY,
     array_column TEXT CHECK (array_column IS JSON ARRAY),
     unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)

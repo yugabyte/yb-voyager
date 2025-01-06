@@ -935,7 +935,7 @@ func NewCollationProcessor() *CollationProcessor {
 func (cp *CollationProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	defineStmt, ok := getDefineStmtNode(parseTree)
 	if !ok {
-		return nil, fmt.Errorf("not a CREATE VIEW statement")
+		return nil, fmt.Errorf("not a CREATE COLLATION statement")
 	}
 	schema, colName := getSchemaAndObjectName(defineStmt.Defnames)
 	defNames, err := TraverseAndExtractDefNamesFromDefElem(defineStmt.ProtoReflect())

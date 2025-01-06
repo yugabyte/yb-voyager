@@ -6,4 +6,4 @@ CREATE COLLATION special1 (provider = icu, locale = 'en@colCaseFirst=upper;colRe
 
 CREATE COLLATION ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);
 
- CREATE COLLATION schema2. upperfirst (provider = icu, locale = 'en-u-kf-upper');
+ CREATE COLLATION schema2.upperfirst (provider = icu, locale = 'en-u-kf-upper');
