@@ -210,7 +210,7 @@ ubuntu_main() {
 		sudo apt-get remove -y gcc 1>&2
 		output "Install perl DBD oracle driver."
 		wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb 1>&2
-		sudo apt-get install ./yb-apt-repo_1.0.0_all.deb 1>&2
+		sudo apt-get install -y ./yb-apt-repo_1.0.0_all.deb 1>&2
 		sudo apt-get install -y libdbd-oracle-perl libdbd-mysql-perl 1>&2 
 		install_ora2pg
 		create_base_ora2pg_conf_file
