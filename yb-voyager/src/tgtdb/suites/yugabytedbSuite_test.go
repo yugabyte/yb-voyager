@@ -93,3 +93,22 @@ func TestUUIDConversionWithFormatting(t *testing.T) {
 	// Then
 	assert.Equal(t, `'123e4567-e89b-12d3-a456-426614174000'`, result)
 }
+
+func TestMapConversion(t *testing.T) {
+	value := "{key1=value1, key2=value2}"
+	result, err := YBValueConverterSuite["MAP"](value, false, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, `"key1"=>"value1","key2"=>"value2"`, result)
+
+	result, err = YBValueConverterSuite["MAP"](value, true, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, `'"key1"=>"value1","key2"=>"value2"'`, result)
+
+	result, err = YBValueConverterSuite["MAP"]("", false, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, "", result)
+
+	result, err = YBValueConverterSuite["MAP"]("", true, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, "''", result)
+}

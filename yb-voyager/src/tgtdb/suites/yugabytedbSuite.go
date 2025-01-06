@@ -19,13 +19,13 @@ package tgtdbsuite
 import (
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/samber/lo"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 )
 
@@ -173,17 +173,31 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		}
 		return string(hexValue), nil
 	},
-	"MAP": func(columnValue string, _ bool, _ *schemareg.ColumnSchema) (string, error) {
-		mapValue := make(map[string]interface{})
-		err := json.Unmarshal([]byte(columnValue), &mapValue)
-		if err != nil {
-			return columnValue, fmt.Errorf("parsing map: %v", err)
-		}
+	"MAP": func(columnValue string, formatIfRequired bool, colDbzmSchema *schemareg.ColumnSchema) (string, error) {
+		//e.g. val -  {key1=value1, key2=value2}
+		// Remove curly braces from the string
+		input := strings.Trim(columnValue, "{}")
+
+		// Split the string by comma to get key-value pairs
+		pairs := strings.Split(input, ", ")
+
+		// Create a map to store the parsed key-value pairs
 		var transformedMapValue string
-		for key, value := range mapValue {
-			transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
+
+		// Iterate over each pair
+		for _, pair := range pairs {
+			// Split the pair by '=' to separate key and value
+			kv := strings.SplitN(pair, "=", 2)
+			if len(kv) == 2 {
+				key := kv[0]
+				value := kv[1]
+				transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
+			}
 		}
-		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
+		if len(transformedMapValue) > 1 {
+			transformedMapValue = transformedMapValue[:len(transformedMapValue)-1]//remove last comma and
+		}
+		return quoteValueIfRequired(transformedMapValue, formatIfRequired, colDbzmSchema) // add quotes if required
 	},
 	"STRING": quoteValueIfRequiredWithEscaping,
 }
