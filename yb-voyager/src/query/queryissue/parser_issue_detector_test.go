@@ -197,7 +197,7 @@ func TestAllIssues(t *testing.T) {
 			NewStorageParameterIssue("INDEX", "abc ON public.example", stmt3),
 		},
 		stmt4: []QueryIssue{
-			NewDisableRuleIssue("TABLE", "public.example", stmt4, "example_rule"),
+			NewAlterTableDisableRuleIssue("TABLE", "public.example", stmt4, "example_rule"),
 		},
 		stmt5: []QueryIssue{
 			NewDeferrableConstraintIssue("TABLE", "abc", stmt5, "cnstr_id"),

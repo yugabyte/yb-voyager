@@ -194,43 +194,34 @@ var (
 )
 
 const (
-	CONVERSION_ISSUE_REASON                           = "CREATE CONVERSION is not supported yet"
-	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON               = "Schema contains gin index on multi column which is not supported."
-	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON       = "Adding primary key to a partitioned table is not supported yet."
-	INHERITANCE_ISSUE_REASON                          = "TABLE INHERITANCE not supported in YugabyteDB"
-	CONSTRAINT_TRIGGER_ISSUE_REASON                   = "CONSTRAINT TRIGGER not supported yet."
-	REFERENCING_CLAUSE_FOR_TRIGGERS                   = "REFERENCING clause (transition tables) not supported yet."
-	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE = "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers."
-	COMPOUND_TRIGGER_ISSUE_REASON                     = "COMPOUND TRIGGER not supported in YugabyteDB."
+	// Issues detected using regexp, reported in assessment and analyze both
+	CONVERSION_ISSUE_REASON     = "CREATE CONVERSION is not supported yet"
+	UNSUPPORTED_EXTENSION_ISSUE = "This extension is not supported in YugabyteDB by default."
+	VIEW_CHECK_OPTION_ISSUE     = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 
-	STORED_GENERATED_COLUMN_ISSUE_REASON           = "Stored generated columns are not supported."
-	UNSUPPORTED_EXTENSION_ISSUE                    = "This extension is not supported in YugabyteDB by default."
-	EXCLUSION_CONSTRAINT_ISSUE                     = "Exclusion constraint is not supported yet"
-	ALTER_TABLE_DISABLE_RULE_ISSUE                 = "ALTER TABLE name DISABLE RULE not supported yet"
-	STORAGE_PARAMETERS_DDL_STMT_ISSUE              = "Storage parameters are not supported yet."
-	ALTER_TABLE_SET_ATTRIBUTE_ISSUE                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
-	FOREIGN_TABLE_ISSUE_REASON                     = "Foreign tables require manual intervention."
-	ALTER_TABLE_CLUSTER_ON_ISSUE                   = "ALTER TABLE CLUSTER not supported yet."
-	DEFERRABLE_CONSTRAINT_ISSUE                    = "DEFERRABLE constraints not supported yet"
-	POLICY_ROLE_ISSUE                              = "Policy require roles to be created."
-	VIEW_CHECK_OPTION_ISSUE                        = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
-	ISSUE_INDEX_WITH_COMPLEX_DATATYPES             = `INDEX on column '%s' not yet supported`
-	ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES  = `Primary key and Unique constraint on column '%s' not yet supported`
-	ISSUE_UNLOGGED_TABLE                           = "UNLOGGED tables are not supported yet."
+	// Refactor: constants below used in some comparisions (use Issue Type there and remove these)
+	INHERITANCE_ISSUE_REASON                    = "TABLE INHERITANCE not supported in YugabyteDB"
+	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not supported yet."
+	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
+	STORED_GENERATED_COLUMN_ISSUE_REASON        = "Stored generated columns are not supported."
+	FOREIGN_TABLE_ISSUE_REASON                  = "Foreign tables require manual intervention."
+	DEFERRABLE_CONSTRAINT_ISSUE                 = "DEFERRABLE constraints not supported yet"
+	POLICY_ROLE_ISSUE                           = "Policy require roles to be created."
+	ISSUE_INDEX_WITH_COMPLEX_DATATYPES          = `INDEX on column '%s' not yet supported`
+	INDEX_METHOD_ISSUE_REASON                   = "Schema contains %s index which is not supported."
+
 	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "Unsupported datatype for Live migration with fall-forward/fallback"
 	UNSUPPORTED_PG_SYNTAX                          = "Unsupported PG syntax"
 
-	INDEX_METHOD_ISSUE_REASON                = "Schema contains %s index which is not supported."
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
 	GIN_INDEX_DETAILS                        = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
-	SECURITY_INVOKER_VIEWS_ISSUE             = "Security Invoker Views not supported yet"
 )
 
 // Reports one case in JSON
 func reportCase(filePath string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string, issueType string, docsLink string) {
-	var issue utils.Issue
+	var issue utils.AnalyzeSchemaIssue
 	issue.FilePath = filePath
 	issue.Reason = reason
 	issue.GH = ghIssue
@@ -354,13 +345,6 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 // Checks compatibility of views
 func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
-		/*if dropMatViewRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP MATERIALIZED VIEW not supported yet.",a
-				"https://github.com/YugaByte/yugabyte-db/issues/10102", "")
-		} else if view := matViewRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
-			reportCase(fpath, "Schema contains materialized view which is not supported. The view is: "+view[1],
-				"https://github.com/yugabyte/yugabyte-db/issues/10102", "")
-		} else */
 		if view := viewWithCheckRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
 			summaryMap["VIEW"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, VIEW_CHECK_OPTION_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/22716",
@@ -635,7 +619,7 @@ var MigrationCaveatsIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.Issue {
+func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
 	issueType := UNSUPPORTED_FEATURES
 	switch true {
 	case isPlPgSQLIssue:
@@ -685,7 +669,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 
 	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
 
-	return utils.Issue{
+	return utils.AnalyzeSchemaIssue{
+		IssueType:              issueType,
 		ObjectType:             issueInstance.ObjectType,
 		ObjectName:             displayObjectName,
 		Reason:                 issueInstance.TypeName,
@@ -693,7 +678,6 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
 		FilePath:               fileName,
-		IssueType:              issueType,
 		Suggestion:             issueInstance.Suggestion,
 		GH:                     issueInstance.GH,
 		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
@@ -1090,7 +1074,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 
 			// Ideally all filtering of issues should happen in queryissue pkg layer,
 			// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
-			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.Issue, index int) bool {
+			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
 				fixed, err := i.IsFixedIn(targetDbVersion)
 				if err != nil {
 					utils.ErrExit("checking if issue %v is supported: %v", i, err)
@@ -1254,7 +1238,7 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 	payload := createCallhomePayload()
 
 	payload.MigrationPhase = ANALYZE_PHASE
-	var callhomeIssues []utils.Issue
+	var callhomeIssues []utils.AnalyzeSchemaIssue
 	for _, issue := range schemaAnalysisReport.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
 		if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
