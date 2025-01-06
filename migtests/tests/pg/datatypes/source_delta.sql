@@ -51,5 +51,14 @@ UPDATE datatypes2
 SET v1 = '{"updated": true}', v2 = B'0101010101', v5 = B'101010101010101010101010101010', v3 = ARRAY[5, 6, 7, 8], v4 = '{{"e", "f"}, {"g", "h"}}'
 WHERE v1 IS NULL;
 
+UPDATE hstore_example 
+SET data = data || 'key3 => value3'
+WHERE id = 1;
 
+UPDATE hstore_example 
+SET data = delete(data, 'key2')
+WHERE id = 3;
 
+INSERT INTO hstore_example (data) 
+VALUES 
+    ('key5 => value5, key6 => value6');
