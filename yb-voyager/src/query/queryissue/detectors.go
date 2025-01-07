@@ -16,6 +16,7 @@ limitations under the License.
 package queryissue
 
 import (
+	"fmt"
 	"slices"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -469,15 +470,23 @@ func NewUniqueNullsNotDistinctDetector(query string) *UniqueNullsNotDistinctDete
 // Detect checks if a unique constraint is defined which has nulls not distinct
 func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_INDEX_STMT_NODE {
-		proto := msg.Interface().(proto.Message)
-		indexStmt := proto.(*pg_query.IndexStmt)
+		indexStmt, err := queryparser.ProtoAsIndexStmt(msg)
+		if err != nil {
+			return err
+		}
 
 		if indexStmt.Unique && indexStmt.NullsNotDistinct {
 			d.detected = true
 		}
 	} else if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_TABLECONSTRAINT_NODE {
-		proto := msg.Interface().(proto.Message)
-		constraintNode := proto.(*pg_query.Constraint)
+		proto, ok := msg.Interface().(proto.Message)
+		if !ok {
+			return fmt.Errorf("failed to cast msg to proto.Message")
+		}
+		constraintNode, ok := proto.(*pg_query.Constraint)
+		if !ok {
+			return fmt.Errorf("failed to cast msg to %s", queryparser.PG_QUERY_TABLECONSTRAINT_NODE)
+		}
 
 		if constraintNode.Contype == pg_query.ConstrType_CONSTR_UNIQUE && constraintNode.NullsNotDistinct {
 			d.detected = true
