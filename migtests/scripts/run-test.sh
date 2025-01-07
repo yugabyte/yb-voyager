@@ -120,6 +120,9 @@ main() {
 	    fi
 	fi
 
+	cat ${EXPORT_DIR}/data/hstore_example_data.sql
+
+	
 	step "Fix data."
 	if [ -x "${TEST_DIR}/fix-data" ]
 	then
