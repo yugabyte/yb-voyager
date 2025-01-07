@@ -18,7 +18,6 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
@@ -31,11 +30,6 @@ else
     source "${TEST_DIR}/env.sh"
 fi
 
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_fallf_export-dir"}
-if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
-  EXPORT_DIR="${EXPORT_DIR}_ssl"
-fi
-
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 then
     source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh 
@@ -43,20 +37,29 @@ else
     source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
 
-if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
-    export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_fallf"}
-elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
-    export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_fallf"} && export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
-else
-    echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
-    exit 1
-fi
+# export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
+# export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_fallf_export-dir"}
+# if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
+#   EXPORT_DIR="${EXPORT_DIR}_ssl"
+# fi
+
+# if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
+#     export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_fallf"}
+# elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
+#     export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_fallf"} && export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
+# else
+#     echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+#     exit 1
+# fi
+
+
+source ${SCRIPTS}/functions.sh
+
+normalize_and_export_vars "fallf"
 
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 
 source ${SCRIPTS}/yugabytedb/env.sh
-
-source ${SCRIPTS}/functions.sh
 
 main() {
 
@@ -77,6 +80,7 @@ main() {
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 	then
 		create_source_db ${SOURCE_DB_SCHEMA}
+		# TODO: Add dynamic Fall Forward schema creation
 		create_source_db ${SOURCE_REPLICA_DB_SCHEMA}
 		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
 	fi

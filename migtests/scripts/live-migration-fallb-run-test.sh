@@ -18,9 +18,7 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
 export QUEUE_SEGMENT_MAX_BYTES=400
-
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Order of env.sh import matters.
@@ -42,18 +40,21 @@ else
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
 
-if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
-    export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_fallb"}
-elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
-    export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_fallb"} && export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
-else
-    echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
-    exit 1
-fi
-
-source ${SCRIPTS}/yugabytedb/env.sh
+# export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
+# if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
+#     export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_fallb"}
+# elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
+#     export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_fallb"} && export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
+# else
+#     echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+#     exit 1
+# fi
 
 source ${SCRIPTS}/functions.sh
+
+normalize_and_export_vars "fallb"
+
+source ${SCRIPTS}/yugabytedb/env.sh
 
 main() {
 
