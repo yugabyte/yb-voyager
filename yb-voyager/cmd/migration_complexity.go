@@ -23,39 +23,26 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 )
 
 const NOT_AVAILABLE = "NOT AVAILABLE"
 
 var (
-	UNSUPPORTED_DATATYPE_XML_ISSUE  = fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE)
-	UNSUPPORTED_DATATYPE_XID_ISSUE  = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
-	APP_CHANGES_HIGH_THRESHOLD      = 5
-	APP_CHANGES_MEDIUM_THRESHOLD    = 1
-	SCHEMA_CHANGES_HIGH_THRESHOLD   = math.MaxInt32
-	SCHEMA_CHANGES_MEDIUM_THRESHOLD = 20
+	LEVEL_1_MEDIUM_THRESHOLD = 20
+	LEVEL_1_HIGH_THRESHOLD   = math.MaxInt32
+	LEVEL_2_MEDIUM_THRESHOLD = 10
+	LEVEL_2_HIGH_THRESHOLD   = 100
+	LEVEL_3_MEDIUM_THRESHOLD = 0
+	LEVEL_3_HIGH_THRESHOLD   = 4
 )
 
-var appChanges = []string{
-	INHERITANCE_ISSUE_REASON,
-	CONVERSION_ISSUE_REASON,
-	DEFERRABLE_CONSTRAINT_ISSUE,
-	UNSUPPORTED_DATATYPE_XML_ISSUE,
-	UNSUPPORTED_DATATYPE_XID_ISSUE,
-	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this
-}
-
-func readEnvForAppOrSchemaCounts() {
-	APP_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_HIGH_THRESHOLD", APP_CHANGES_HIGH_THRESHOLD)
-	APP_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_MEDIUM_THRESHOLD", APP_CHANGES_MEDIUM_THRESHOLD)
-	SCHEMA_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_HIGH_THRESHOLD", SCHEMA_CHANGES_HIGH_THRESHOLD)
-	SCHEMA_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_MEDIUM_THRESHOLD", SCHEMA_CHANGES_MEDIUM_THRESHOLD)
-}
-
 // Migration complexity calculation from the conversion issues
-func calculateMigrationComplexity(sourceDBType string, schemaDirectory string, schemaAnalysisReport utils.SchemaReport) string {
+func calculateMigrationComplexity(sourceDBType string, schemaDirectory string, assessmentReport AssessmentReport) string {
 	if sourceDBType != ORACLE && sourceDBType != POSTGRESQL {
 		return NOT_AVAILABLE
 	}
@@ -70,31 +57,37 @@ func calculateMigrationComplexity(sourceDBType string, schemaDirectory string, s
 		}
 		return migrationComplexity
 	case POSTGRESQL:
-		return calculateMigrationComplexityForPG(schemaAnalysisReport)
+		return calculateMigrationComplexityForPG(assessmentReport)
 	default:
 		panic(fmt.Sprintf("unsupported source db type '%s' for migration complexity", sourceDBType))
 	}
 }
 
-func calculateMigrationComplexityForPG(schemaAnalysisReport utils.SchemaReport) string {
-	readEnvForAppOrSchemaCounts()
-	appChangesCount := 0
-	for _, issue := range schemaAnalysisReport.Issues {
-		for _, appChange := range appChanges {
-			if strings.Contains(issue.Reason, appChange) {
-				appChangesCount++
-			}
-		}
-	}
-	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
+func calculateMigrationComplexityForPG(assessmentReport AssessmentReport) string {
+	counts := lo.CountValuesBy(assessmentReport.Issues, func(issue AssessmentIssue) string {
+		return issue.Impact
+	})
 
-	if appChangesCount > APP_CHANGES_HIGH_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_HIGH_THRESHOLD {
-		return HIGH
-	} else if appChangesCount > APP_CHANGES_MEDIUM_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_MEDIUM_THRESHOLD {
-		return MEDIUM
+	level1IssueCount := counts[constants.IMPACT_LEVEL_1]
+	level2IssueCount := counts[constants.IMPACT_LEVEL_2]
+	level3IssueCount := counts[constants.IMPACT_LEVEL_3]
+
+	utils.PrintAndLog("issue counts: level-1=%d, level-2=%d, level-3=%d\n", level1IssueCount, level2IssueCount, level3IssueCount)
+	// Determine complexity for each level
+	comp1 := getComplexityForLevel(constants.IMPACT_LEVEL_1, level1IssueCount)
+	comp2 := getComplexityForLevel(constants.IMPACT_LEVEL_2, level2IssueCount)
+	comp3 := getComplexityForLevel(constants.IMPACT_LEVEL_3, level3IssueCount)
+	complexities := []string{comp1, comp2, comp3}
+
+	// If ANY level is HIGH => final is HIGH
+	if slices.Contains(complexities, constants.MIGRATION_COMPLEXITY_HIGH) {
+		return constants.MIGRATION_COMPLEXITY_HIGH
 	}
-	//LOW in case appChanges == 0 or schemaChanges [0-20]
-	return LOW
+	// Else if ANY level is MEDIUM => final is MEDIUM
+	if slices.Contains(complexities, constants.MIGRATION_COMPLEXITY_MEDIUM) {
+		return constants.MIGRATION_COMPLEXITY_MEDIUM
+	}
+	return constants.MIGRATION_COMPLEXITY_LOW
 }
 
 // This is a temporary logic to get migration complexity for oracle based on the migration level from ora2pg report.
@@ -110,7 +103,7 @@ func calculateMigrationComplexityForOracle(schemaDirectory string) (string, erro
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Errorf("Error while closing file %s: %w", ora2pgReportPath, err)
+			log.Errorf("Error while closing file %s: %v", ora2pgReportPath, err)
 		}
 	}()
 	// Sample file contents
@@ -148,12 +141,62 @@ func calculateMigrationComplexityForOracle(schemaDirectory string) (string, erro
 
 	switch migrationLevel {
 	case "A":
-		return LOW, nil
+		return constants.MIGRATION_COMPLEXITY_LOW, nil
 	case "B":
-		return MEDIUM, nil
+		return constants.MIGRATION_COMPLEXITY_MEDIUM, nil
 	case "C":
-		return HIGH, nil
+		return constants.MIGRATION_COMPLEXITY_HIGH, nil
 	default:
 		return "", fmt.Errorf("invalid migration level [%s] found in ora2pg report %v", migrationLevel, reportData)
+	}
+}
+
+// getComplexityLevel returns LOW, MEDIUM, or HIGH for a given impact level & count
+func getComplexityForLevel(level string, count int) string {
+	switch level {
+	// -------------------------------------------------------
+	// LEVEL_1:
+	//   - LOW if count <= 20
+	//   - MEDIUM if 20 < count < math.MaxInt32
+	//   - HIGH if count >= math.MaxInt32 (not possible)
+	// -------------------------------------------------------
+	case constants.IMPACT_LEVEL_1:
+		if count <= LEVEL_1_MEDIUM_THRESHOLD {
+			return constants.MIGRATION_COMPLEXITY_LOW
+		} else if count <= LEVEL_1_HIGH_THRESHOLD {
+			return constants.MIGRATION_COMPLEXITY_MEDIUM
+		}
+		return constants.MIGRATION_COMPLEXITY_HIGH
+
+	// -------------------------------------------------------
+	// LEVEL_2:
+	//   - LOW if count <= 10
+	//   - MEDIUM if 10 < count <= 100
+	//   - HIGH if count > 100
+	// -------------------------------------------------------
+	case constants.IMPACT_LEVEL_2:
+		if count <= LEVEL_2_MEDIUM_THRESHOLD {
+			return constants.MIGRATION_COMPLEXITY_LOW
+		} else if count <= LEVEL_2_HIGH_THRESHOLD {
+			return constants.MIGRATION_COMPLEXITY_MEDIUM
+		}
+		return constants.MIGRATION_COMPLEXITY_HIGH
+
+	// -------------------------------------------------------
+	// LEVEL_3:
+	//   - LOW if count == 0
+	//	 - MEDIUM if 0 < count <= 4
+	//   - HIGH if count > 4
+	// -------------------------------------------------------
+	case constants.IMPACT_LEVEL_3:
+		if count <= LEVEL_3_MEDIUM_THRESHOLD {
+			return constants.MIGRATION_COMPLEXITY_LOW
+		} else if count <= LEVEL_3_HIGH_THRESHOLD {
+			return constants.MIGRATION_COMPLEXITY_MEDIUM
+		}
+		return constants.MIGRATION_COMPLEXITY_HIGH
+
+	default:
+		panic(fmt.Sprintf("unknown impact level %s for determining complexity", level))
 	}
 }
