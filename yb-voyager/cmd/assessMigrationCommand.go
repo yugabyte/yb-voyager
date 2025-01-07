@@ -926,7 +926,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 		But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
 	*/
 	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
-	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
+	assessmentReport.MigrationComplexity = calculateMigrationComplexity(source.DBType, schemaDir, schemaAnalysisReport)
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 	assessmentReport.SchemaSummary.Description = lo.Ternary(source.DBType == ORACLE, SCHEMA_SUMMARY_DESCRIPTION_ORACLE, SCHEMA_SUMMARY_DESCRIPTION)
 
