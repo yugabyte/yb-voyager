@@ -2090,5 +2090,15 @@
             "Suggestion": "",
             "GH": "",
             "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "users_unique_nulls_not_distinct_index_email ON users_unique_nulls_not_distinct_index",
+            "Reason": "UNIQUE NULLS NOT DISTINCT",
+            "SqlStatement": "CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email\n    ON users_unique_nulls_not_distinct_index (email)\n    NULLS NOT DISTINCT;",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
         }
 ]
