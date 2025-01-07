@@ -206,6 +206,68 @@ func (d *RangeTableFuncDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type JsonbSubscriptingDetector struct {
+	query          string
+	jsonbColumns   []string
+	detected       bool
+	jsonbFunctions []string
+}
+
+func NewJsonbSubscriptingDetector(query string, jsonbColumns []string, jsonbFunctions []string) *JsonbSubscriptingDetector {
+	return &JsonbSubscriptingDetector{
+		query:          query,
+		jsonbColumns:   jsonbColumns,
+		jsonbFunctions: jsonbFunctions,
+	}
+}
+
+func (j *JsonbSubscriptingDetector) Detect(msg protoreflect.Message) error {
+
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_A_INDIRECTION_NODE {
+		return nil
+	}
+	aIndirectionNode, ok := queryparser.GetAIndirectionNode(msg)
+	if !ok {
+		return nil
+	}
+
+	/*
+		Indirection node is to determine if subscripting is happening in the query e.g. data['name'] - jsonb, numbers[1] - array type, and ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];
+		Arg is the data on which subscripting is happening e.g data, numbers (columns) and constant data type casted to jsonb ('{"a": {"b": {"c": 1}}}'::jsonb)
+		Indices are the actual fields that are being accessed while subscripting or the index in case of array type e.g. name, 1, a, b etc.
+		So we are checking the arg is of jsonb type here
+	*/
+	arg := aIndirectionNode.GetArg()
+	if arg == nil {
+		return nil
+	}
+	/*
+		Caveats -
+
+		Still with this approach we won't be able to cover all cases e.g.
+
+		select ab_data['name'] from (select Data as ab_data from test_jsonb);`,
+
+		parseTree - stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{a_indirection:{arg:{column_ref:{fields:{string:{sval:"ab_data"}}  location:9}}
+		indirection:{a_indices:{uidx:{a_const:{sval:{sval:"name"}  location:17}}}}}}  location:9}}  from_clause:{range_subselect:{subquery:{select_stmt:{
+		target_list:{res_target:{name:"ab_data"  val:{column_ref:{fields:{string:{sval:"data"}}  location:38}}  location:38}}
+		from_clause:{range_var:{relname:"test_jsonb"  inh:true  relpersistence:"p"  location:59}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}}}
+		limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}
+	*/
+	if queryparser.DoesNodeHandleJsonbData(arg, j.jsonbColumns, j.jsonbFunctions) {
+		j.detected = true
+	}
+	return nil
+}
+
+func (j *JsonbSubscriptingDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if j.detected {
+		issues = append(issues, NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", j.query))
+	}
+	return issues
+}
+
 type SelectStmtDetector struct {
 	query                       string
 	limitOptionWithTiesDetected bool
@@ -387,6 +449,38 @@ func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if d.unsupportedJsonQueryFunctionsDetected.Cardinality() > 0 {
 		issues = append(issues, NewJsonQueryFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.unsupportedJsonQueryFunctionsDetected.ToSlice()))
+	}
+	return issues
+}
+
+type JsonPredicateExprDetector struct {
+	query    string
+	detected bool
+}
+
+func NewJsonPredicateExprDetector(query string) *JsonPredicateExprDetector {
+	return &JsonPredicateExprDetector{
+		query: query,
+	}
+}
+
+func (j *JsonPredicateExprDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_JSON_IS_PREDICATE_NODE {
+		/*
+			SELECT  js IS JSON "json?" FROM (VALUES ('123')) foo(js);
+			stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"js"}}  location:337}}  location:337}}
+			target_list:{res_target:{name:"json?"  val:{json_is_predicate:{expr:{column_ref:{fields:{string:{sval:"js"}}  location:341}}
+			format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT  location:-1}  item_type:JS_TYPE_ANY  location:341}}  location:341}} ...
+		*/
+		j.detected = true
+	}
+	return nil
+}
+
+func (j *JsonPredicateExprDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if j.detected {
+		issues = append(issues, NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", j.query))
 	}
 	return issues
 }

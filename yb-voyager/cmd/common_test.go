@@ -134,6 +134,9 @@ func TestAssessmentReportStructs(t *testing.T) {
 				MigrationComplexity        string                                `json:"MigrationComplexity"`
 				SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
 				Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
+				Issues                     []AssessmentIssue                     `json:"-"`
+				TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+				Notes                      []string                              `json:"Notes"`
 				UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
 				UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
 				UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
@@ -141,8 +144,6 @@ func TestAssessmentReportStructs(t *testing.T) {
 				UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
 				UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
 				MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
-				TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-				Notes                      []string                              `json:"Notes"`
 			}{},
 		},
 	}
@@ -196,6 +197,24 @@ func TestAssessmentReportJson(t *testing.T) {
 			},
 			FailureReasoning: "Test failure reasoning",
 		},
+		Issues: nil,
+		TableIndexStats: &[]migassessment.TableIndexStats{
+			{
+				SchemaName:      "public",
+				ObjectName:      "test_table",
+				RowCount:        Int64Ptr(100),
+				ColumnCount:     Int64Ptr(10),
+				Reads:           Int64Ptr(100),
+				Writes:          Int64Ptr(100),
+				ReadsPerSecond:  Int64Ptr(10),
+				WritesPerSecond: Int64Ptr(10),
+				IsIndex:         true,
+				ObjectType:      "Table",
+				ParentTableName: StringPtr("parent_table"),
+				SizeInBytes:     Int64Ptr(1024),
+			},
+		},
+		Notes: []string{"Test note"},
 		UnsupportedDataTypes: []utils.TableColumnsDataTypes{
 			{
 				SchemaName: "public",
@@ -262,23 +281,6 @@ func TestAssessmentReportJson(t *testing.T) {
 				MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{"2024.1.1": newYbVersion},
 			},
 		},
-		TableIndexStats: &[]migassessment.TableIndexStats{
-			{
-				SchemaName:      "public",
-				ObjectName:      "test_table",
-				RowCount:        Int64Ptr(100),
-				ColumnCount:     Int64Ptr(10),
-				Reads:           Int64Ptr(100),
-				Writes:          Int64Ptr(100),
-				ReadsPerSecond:  Int64Ptr(10),
-				WritesPerSecond: Int64Ptr(10),
-				IsIndex:         true,
-				ObjectType:      "Table",
-				ParentTableName: StringPtr("parent_table"),
-				SizeInBytes:     Int64Ptr(1024),
-			},
-		},
-		Notes: []string{"Test note"},
 	}
 
 	// Make the report directory
@@ -341,6 +343,25 @@ func TestAssessmentReportJson(t *testing.T) {
 		},
 		"FailureReasoning": "Test failure reasoning"
 	},
+	"TableIndexStats": [
+		{
+			"SchemaName": "public",
+			"ObjectName": "test_table",
+			"RowCount": 100,
+			"ColumnCount": 10,
+			"Reads": 100,
+			"Writes": 100,
+			"ReadsPerSecond": 10,
+			"WritesPerSecond": 10,
+			"IsIndex": true,
+			"ObjectType": "Table",
+			"ParentTableName": "parent_table",
+			"SizeInBytes": 1024
+		}
+	],
+	"Notes": [
+		"Test note"
+	],
 	"UnsupportedDataTypes": [
 		{
 			"SchemaName": "public",
@@ -411,25 +432,6 @@ func TestAssessmentReportJson(t *testing.T) {
 				"2024.1.1": "2024.1.1.1"
 			}
 		}
-	],
-	"TableIndexStats": [
-		{
-			"SchemaName": "public",
-			"ObjectName": "test_table",
-			"RowCount": 100,
-			"ColumnCount": 10,
-			"Reads": 100,
-			"Writes": 100,
-			"ReadsPerSecond": 10,
-			"WritesPerSecond": 10,
-			"IsIndex": true,
-			"ObjectType": "Table",
-			"ParentTableName": "parent_table",
-			"SizeInBytes": 1024
-		}
-	],
-	"Notes": [
-		"Test note"
 	]
 }`
 
