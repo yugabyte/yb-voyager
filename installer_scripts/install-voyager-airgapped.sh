@@ -10,7 +10,6 @@ FORCE_INSTALL="false"
 PRINT_DEPENDENCIES="false"
 
 centos_yum_package_requirements=(
-  "gcc|min|0"
   "make|min|0"
   "sqlite|min|0"
   "perl|min|0"
@@ -28,7 +27,6 @@ centos_yum_package_requirements=(
 
 ubuntu_apt_package_requirements=(
   "sqlite3|min|0"
-  "gcc|min|0"
   "perl|min|0"
   "libdbi-perl|min|0"
   "libaio1|min|0"
@@ -50,9 +48,7 @@ cpan_modules_requirements=(
   "Capture::Tiny|min|0|Capture-Tiny-0.48.tar.gz"
   "Mock::Config|min|0.02|Mock-Config-0.03.tar.gz"
   "Devel::CheckLib|min|1.16|Devel-CheckLib-1.16.tar.gz"
-  "DBD::mysql|min|5.005|DBD-mysql-5.005.tar.gz"
   "Test::NoWarnings|min|1.06|Test-NoWarnings-1.06.tar.gz"
-  "DBD::Oracle|min|1.83|DBD-Oracle-1.83.tar.gz"
   "String::Random|min|0|String-Random-0.32.tar.gz"
   "IO::Compress::Base|min|0|IO-Compress-2.213.tar.gz"
 )
@@ -506,6 +502,9 @@ centos_main() {
         # Call the install function with module details
         install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
     done
+    sudo yum install -y -q mariadb-connector-c*.rpm 1>&2
+    sudo yum install -y -q perl-DBD-MySQL*.rpm 1>&2
+    sudo yum install -y -q perl-DBD-Oracle*.rpm 1>&2
 
     echo "Installing ora2pg..."
     sudo yum install -y -q ora2pg*.noarch.rpm 1>&2 
@@ -685,6 +684,9 @@ ubuntu_main() {
         # Call the install function with module details
         install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
     done
+    sudo apt install -y -q ./libdbd-mysql-perl*.deb 1>&2
+    sudo apt install -y -q ./libdbd-oracle-perl*.deb 1>&2
+
 
     echo "Installing ora2pg..."
     sudo apt install -y -q ./ora2pg*all.deb 1>&2
