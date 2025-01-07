@@ -18,7 +18,6 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
 export QUEUE_SEGMENT_MAX_BYTES=400
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
@@ -36,20 +35,6 @@ then
 else
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
-
-# export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_live_export-dir"}
-# if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
-#   EXPORT_DIR="${EXPORT_DIR}_ssl"
-# fi
-
-# if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
-#     export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_live"}
-# elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
-#     export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_live"} && export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
-# else
-#     echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
-#     exit 1
-# fi
 
 source ${SCRIPTS}/functions.sh
 
