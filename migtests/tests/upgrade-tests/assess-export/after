@@ -12,6 +12,12 @@
 		 "${TEST_DIR}/fix-schema"
 	fi
 
+	if [ "${MOVE_PK_FROM_ALTER_TO_CREATE}" = true ] ; then
+		"${SCRIPTS}/add-pk-from-alter-to-create"
+	fi
+
+	cat ${EXPORT_DIR}/schema/tables/INDEXES_table.sql
+
 	step "Import schema."
 	import_schema --continue-on-error true
 	run_ysql ${TARGET_DB_NAME} "\dt"
