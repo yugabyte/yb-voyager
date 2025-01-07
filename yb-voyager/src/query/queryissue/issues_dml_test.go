@@ -25,9 +25,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
-	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func testLOFunctionsIssue(t *testing.T) {
@@ -41,6 +41,17 @@ func testLOFunctionsIssue(t *testing.T) {
 	SELECT lo_create('2342');`)
 
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "Transaction for catalog table write operation 'pg_largeobject_metadata' not found", loDatatypeIssue)
+}
+
+func testJsonbSubscriptingIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "cannot subscript type jsonb because it is not an array", loDatatypeIssue)
 }
 
 func testRegexFunctionsIssue(t *testing.T) {
@@ -190,7 +201,7 @@ SELECT
 FROM any_value_ex
 GROUP BY department;`,
 
-`CREATE TABLE events (
+		`CREATE TABLE events (
     id SERIAL PRIMARY KEY,
     event_range daterange
 );
@@ -264,6 +275,8 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "json query functions", ybVersion), testJsonQueryFunctions)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "json subscripting", ybVersion), testJsonbSubscriptingIssue)
+	assert.True(t, success)
 	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testAggFunctions)
 	assert.True(t, success)
 

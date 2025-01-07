@@ -47,6 +47,42 @@ create view sales.employ_depart_view AS  SELECT
         any_value(name) AS any_employee
     FROM employees;
 
+CREATE TABLE sales.test_json_chk (
+    id int,
+    name text,
+    email text,
+    active text,
+    data jsonb,
+    CHECK (data['key']<>'{}')
+);
+
+INSERT INTO sales.test_json_chk (id, name, email, active, data)
+VALUES (1, 'John Doe', 'john@example.com', 'Y', jsonb_build_object('key', 'value',  'name', 'John Doe', 'active', 'Y'));
+
+INSERT INTO sales.test_json_chk (id, name, email, active, data)
+VALUES (2, 'Jane Smith', 'jane@example.com', 'N', jsonb_build_object('key', 'value',  'name', 'Jane Smith', 'active', 'N'));
+
+CREATE OR REPLACE FUNCTION sales.get_user_info(user_id INT)
+RETURNS JSONB AS $$
+BEGIN
+    PERFORM 
+        data,
+        data['name'] AS name, 
+        (data['active']) as active
+    FROM sales.test_json_chk;
+
+    RETURN (
+        SELECT jsonb_build_object(
+            'id', id,
+            'name', name,
+            'email', email,
+            'active', active
+        )
+        FROM sales.test_json_chk
+        WHERE id = user_id
+    );
+END;
+$$ LANGUAGE plpgsql;
 CREATE TABLE sales.events (
     id int PRIMARY KEY,
     event_range daterange

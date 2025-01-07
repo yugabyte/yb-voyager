@@ -25,15 +25,21 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 4,
-				"InvalidCount": 1,
-				"ObjectNames": "sales.json_data, analytics.metrics, sales.events, sales.orders"
+				"TotalCount": 5,
+				"InvalidCount": 2,
+				"ObjectNames": "analytics.metrics, sales.orders, sales.test_json_chk, sales.events, sales.json_data"
 			},
 			{
 				"ObjectType": "VIEW",
 				"TotalCount": 3,
 				"InvalidCount": 3,
-				"ObjectNames": "sales.event_analysis_view, sales.event_analysis_view2, sales.employ_depart_view"
+				"ObjectNames": "sales.employ_depart_view, sales.event_analysis_view, sales.event_analysis_view2"
+			},
+			{
+				"ObjectType": "FUNCTION",
+				"TotalCount": 1,
+				"InvalidCount": 1,
+				"ObjectNames": "sales.get_user_info"
 			}
 		]
 	},
@@ -43,9 +49,10 @@
 				"sales.orders",
 				"analytics.metrics",
 				"sales.events",
-				"sales.json_data"
+				"sales.json_data",
+				"sales.test_json_chk"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 4 objects (4 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 5 objects (5 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -86,6 +93,16 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
+			"FeatureName": "Jsonb Subscripting",
+			"Objects": [
+				{
+					"ObjectName": "sales.test_json_chk",
+					"SqlStatement": "CREATE TABLE sales.test_json_chk (\n    id integer,\n    name text,\n    email text,\n    active text,\n    data jsonb,\n    CONSTRAINT test_json_chk_data_check CHECK ((data['key'::text] \u003c\u003e '{}'::jsonb))\n);"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		},
+		{	
 			"FeatureName": "Json Type Predicate",
 			"Objects": [
 				{
@@ -98,6 +115,20 @@
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
+		{
+			"SchemaName": "sales",
+			"ObjectName": "test_json_chk",
+			"RowCount": 2,
+			"ColumnCount": 5,
+			"Reads": 6,
+			"Writes": 2,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
 		{
 			"SchemaName": "sales",
 			"ObjectName": "orders",
@@ -183,11 +214,47 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
+			"ConstructTypeName": "Jsonb Subscripting",
+			"Query": "SELECT \n    data,\n    data[$1] AS name, \n    (data[$2]) as active\nFROM sales.test_json_chk",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Jsonb Subscripting",
+			"Query": "SELECT (sales.get_user_info($1))[$2] AS user_info",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Jsonb Subscripting",
+			"Query": "SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "Jsonb Subscripting",
+			"Query": "SELECT ($1 :: jsonb)[$2][$3] as b",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"ConstructTypeName": "Json Type Predicate",
 			"Query": "SELECT * \nFROM sales.json_data\nWHERE array_column IS JSON ARRAY",
 			"DocsLink": "",
 			"MinimumVersionsFixedIn": null
 		}
 	],
-	"UnsupportedPlPgSqlObjects": null
+	"UnsupportedPlPgSqlObjects": [
+		{
+			"FeatureName": "Jsonb Subscripting",
+			"Objects": [
+				{
+					"ObjectType": "FUNCTION",
+					"ObjectName": "sales.get_user_info",
+					"SqlStatement": "SELECT\n        data,\n        data['name'] AS name,\n        (data['active']) as active\n    FROM sales.test_json_chk;"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		}
+	]
 }
