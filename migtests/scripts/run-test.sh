@@ -121,7 +121,8 @@ main() {
 	fi
 
 	cat ${EXPORT_DIR}/data/hstore_example_data.sql
-
+	cat ${EXPORT_DIR}/data/schemas/source_db_exporter/hstore_example_schema.json
+	cat ${EXPORT_DIR}/logs/debezium-source_db_exporter.log
 	
 	step "Fix data."
 	if [ -x "${TEST_DIR}/fix-data" ]
