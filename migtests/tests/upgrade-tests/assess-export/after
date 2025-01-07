@@ -16,8 +16,6 @@
 		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
-	cat ${EXPORT_DIR}/schema/tables/INDEXES_table.sql
-
 	step "Import schema."
 	import_schema --continue-on-error true
 	run_ysql ${TARGET_DB_NAME} "\dt"
