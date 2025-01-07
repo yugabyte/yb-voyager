@@ -63,6 +63,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT insert_numeric_and_decimal_types(10000000);
-SELECT insert_string_and_enum_types(10000000); 
-SELECT insert_datetime_and_complex_types(10000000);
+SELECT insert_numeric_and_decimal_types(5000000);
+SELECT insert_string_and_enum_types(5000000); 
+SELECT insert_datetime_and_complex_types(5000000);

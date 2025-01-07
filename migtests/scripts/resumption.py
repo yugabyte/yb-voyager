@@ -23,8 +23,7 @@ def load_config(config_file):
     if not os.path.exists(config_file):
         raise FileNotFoundError(f"Config file not found: {config_file}")
     with open(config_file, 'r') as file:
-        config = yaml.safe_load(file)
-        
+        config = yaml.safe_load(file)        
     return config
 
 def prepare_import_data_file_command(config):
@@ -194,7 +193,6 @@ def validate_row_counts(row_count, export_dir):
     for table_identifier, expected_row_count in row_count.items():
         print(f"\nValidating row count for table '{table_identifier}'...")
 
-        # Parse schema and table, always quote both
         if '.' in table_identifier:
             schema, table_name = table_identifier.split('.', 1)
         else:
