@@ -95,6 +95,15 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				))
 			}
 
+			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE && d.partitionTablesMap[c.ReferencedTable] {
+				issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(
+					TABLE_OBJECT_TYPE,
+					table.GetObjectName(),
+					"",
+					c.ConstraintName,
+				))
+			}
+
 			if c.IsPrimaryKeyORUniqueConstraint() {
 				for _, col := range c.Columns {
 					unsupportedColumnsForTable, ok := d.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
@@ -413,7 +422,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	switch alter.AlterType {
 	case queryparser.SET_OPTIONS:
 		if alter.NumSetAttributes > 0 {
-			issues = append(issues, NewSetAttributeIssue(
+			issues = append(issues, NewSetColumnAttributeIssue(
 				obj.GetObjectType(),
 				alter.GetObjectName(),
 				"", // query string
@@ -438,6 +447,17 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		if alter.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && alter.IsDeferrable {
 			issues = append(issues, NewDeferrableConstraintIssue(
 				obj.GetObjectType(),
+				alter.GetObjectName(),
+				"",
+				alter.ConstraintName,
+			))
+		}
+
+		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE &&
+			aid.partitionTablesMap[alter.ConstraintReferencedTable] {
+			//FK constraint references partitioned table
+			issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(
+				TABLE_OBJECT_TYPE,
 				alter.GetObjectName(),
 				"",
 				alter.ConstraintName,
@@ -475,7 +495,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 
 		}
 	case queryparser.DISABLE_RULE:
-		issues = append(issues, NewDisableRuleIssue(
+		issues = append(issues, NewAlterTableDisableRuleIssue(
 			obj.GetObjectType(),
 			alter.GetObjectName(),
 			"", // query string
