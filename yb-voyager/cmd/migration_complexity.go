@@ -58,22 +58,22 @@ func readEnvForAppOrSchemaCounts() {
 func calculateMigrationComplexity(sourceDBType string, schemaDirectory string, schemaAnalysisReport utils.SchemaReport) string {
 	if sourceDBType != ORACLE && sourceDBType != POSTGRESQL {
 		return NOT_AVAILABLE
-	} else if schemaAnalysisReport.MigrationComplexity != "" {
-		return schemaAnalysisReport.MigrationComplexity
 	}
 
-	if sourceDBType == ORACLE {
-		mc, err := calculateMigrationComplexityForOracle(schemaDirectory)
+	log.Infof("calculating migration complexity for %s...", sourceDBType)
+	switch sourceDBType {
+	case ORACLE:
+		migrationComplexity, err := calculateMigrationComplexityForOracle(schemaDirectory)
 		if err != nil {
 			log.Errorf("failed to get migration complexity for oracle: %v", err)
 			return NOT_AVAILABLE
 		}
-		return mc
-	} else if sourceDBType == POSTGRESQL {
-		log.Infof("Calculating migration complexity..")
+		return migrationComplexity
+	case POSTGRESQL:
 		return calculateMigrationComplexityForPG(schemaAnalysisReport)
+	default:
+		panic(fmt.Sprintf("unsupported source db type '%s' for migration complexity", sourceDBType))
 	}
-	return NOT_AVAILABLE
 }
 
 func calculateMigrationComplexityForPG(schemaAnalysisReport utils.SchemaReport) string {
@@ -110,7 +110,7 @@ func calculateMigrationComplexityForOracle(schemaDirectory string) (string, erro
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Errorf("Error while closing file %s: %v", ora2pgReportPath, err)
+			log.Errorf("Error while closing file %s: %w", ora2pgReportPath, err)
 		}
 	}()
 	// Sample file contents
