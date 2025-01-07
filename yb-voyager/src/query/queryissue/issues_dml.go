@@ -82,6 +82,7 @@ func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement s
 var aggregateFunctionIssue = issue.Issue{
 	Type:        AGGREGATE_FUNCTION,
 	Name:        AGGREGATION_FUNCTIONS_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "any_value, range_agg and range_intersect_agg functions not supported yet in YugabyteDB",
 	Suggestion:  "",
 	GH:          "",
@@ -99,6 +100,7 @@ func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatem
 var jsonConstructorFunctionsIssue = issue.Issue{
 	Type:        JSON_CONSTRUCTOR_FUNCTION,
 	Name:        JSON_CONSTRUCTOR_FUNCTION_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Postgresql 17 features not supported yet in YugabyteDB",
 	Suggestion:  "",
 	GH:          "",
@@ -116,6 +118,7 @@ func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlSt
 var jsonQueryFunctionIssue = issue.Issue{
 	Type:        JSON_QUERY_FUNCTION,
 	Name:        JSON_QUERY_FUNCTIONS_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Postgresql 17 features not supported yet in YugabyteDB",
 	Suggestion:  "",
 	GH:          "",
@@ -133,6 +136,7 @@ func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatemen
 var loFunctionsIssue = issue.Issue{
 	Type:        LARGE_OBJECT_FUNCTIONS,
 	Name:        LARGE_OBJECT_FUNCTIONS_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Large Objects functions are not supported in YugabyteDB",
 	Suggestion:  "Large objects functions are not yet supported in YugabyteDB, no workaround available right now",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
@@ -163,6 +167,7 @@ func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatemen
 var jsonPredicateIssue = issue.Issue{
 	Type:        JSON_TYPE_PREDICATE,
 	Name:        JSON_TYPE_PREDICATE_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "IS JSON predicate expressions not supported yet in YugabyteDB",
 	Suggestion:  "",
 	GH:          "",
@@ -204,6 +209,7 @@ func NewCopyOnErrorIssue(objectType string, objectName string, sqlStatement stri
 var fetchWithTiesIssue = issue.Issue{
 	Type:        FETCH_WITH_TIES,
 	Name:        "FETCH .. WITH TIES",
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "FETCH .. WITH TIES is not supported in YugabyteDB",
 	Suggestion:  "No workaround available right now",
 	GH:          "",

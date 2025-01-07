@@ -503,6 +503,7 @@ func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatem
 var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Type:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
 	Name:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
+	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "No workaround available ",
 	GH:         "", // TODO
 	DocsLink:   "", // TODO

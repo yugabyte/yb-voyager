@@ -1176,6 +1176,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 			referenceOrTablePartitionPresent = true
 			unsupportedPartitionTypes = append(unsupportedPartitionTypes, ObjectInfo{ObjectName: fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType)})
 
+			// For oracle migration complexity comes from ora2pg, so defining Impact not required right now
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:   constants.FEATURE,
 				Type:       "", // TODO
