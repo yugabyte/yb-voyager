@@ -171,13 +171,13 @@ func fetchUnsupportedObjectTypesV2() ([]AssessmentIssue, error) {
 			return nil, fmt.Errorf("error scanning rows:%w", err)
 		}
 
+		// For these oracle issues defining Impact not required, since oracle migration complexity comes from ora2pg
 		switch {
 		case slices.Contains(OracleUnsupportedIndexTypes, objectType):
 			assessmentIssues = append(assessmentIssues, AssessmentIssue{
 				Category:   constants.FEATURE,
 				Type:       "", // TODO
 				Name:       UNSUPPORTED_INDEXES_FEATURE,
-				Impact:     "", // TODO
 				ObjectType: "INDEX",
 				ObjectName: fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType),
 			})
@@ -186,7 +186,6 @@ func fetchUnsupportedObjectTypesV2() ([]AssessmentIssue, error) {
 				Category:   constants.FEATURE,
 				Type:       "", // TODO
 				Name:       VIRTUAL_COLUMNS_FEATURE,
-				Impact:     "", // TODO
 				ObjectName: objectName,
 			})
 		case objectType == INHERITED_TYPE:
@@ -194,7 +193,6 @@ func fetchUnsupportedObjectTypesV2() ([]AssessmentIssue, error) {
 				Category:   constants.FEATURE,
 				Type:       "", // TODO
 				Name:       INHERITED_TYPES_FEATURE,
-				Impact:     "", // TODO
 				ObjectName: objectName,
 			})
 		case objectType == REFERENCE_PARTITION || objectType == SYSTEM_PARTITION:
@@ -203,7 +201,6 @@ func fetchUnsupportedObjectTypesV2() ([]AssessmentIssue, error) {
 				Category:   constants.FEATURE,
 				Type:       "", // TODO
 				Name:       UNSUPPORTED_PARTITIONING_METHODS_FEATURE,
-				Impact:     "", // TODO
 				ObjectType: "TABLE",
 				ObjectName: fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType),
 			})
@@ -379,7 +376,7 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			CategoryDescription:   GetCategoryDescription(constants.DATATYPE),
 			Type:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
 			Name:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Impact:                "",               // TODO
+			Impact:                constants.IMPACT_LEVEL_3,
 			ObjectType:            constants.COLUMN,
 			ObjectName:            qualifiedColName,
 			DocsLink:              "",  // TODO
@@ -408,7 +405,7 @@ func fetchMigrationCaveatAssessmentIssues(unsupportedDataTypesForLiveMigration [
 					CategoryDescription: "",                                        // TODO
 					Type:                UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, // TODO add object type in type name
 					Name:                "",                                        // TODO
-					Impact:              "",                                        // TODO
+					Impact:              constants.IMPACT_LEVEL_1,                  // Caveat - we don't know the migration is offline/online;
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
 					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),
@@ -425,7 +422,7 @@ func fetchMigrationCaveatAssessmentIssues(unsupportedDataTypesForLiveMigration [
 					CategoryDescription: "",                                                   // TODO
 					Type:                UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, // TODO add object type in type name
 					Name:                "",                                                   // TODO
-					Impact:              "",                                                   // TODO
+					Impact:              constants.IMPACT_LEVEL_1,
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
 					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),
