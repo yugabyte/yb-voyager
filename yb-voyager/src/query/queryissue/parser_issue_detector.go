@@ -63,6 +63,12 @@ type ParserIssueDetector struct {
 	// Boolean to check if there are any unlogged tables that were filtered
 	// out because they are fixed as per the target db version
 	IsUnloggedTablesIssueFiltered bool
+
+	//Functions in exported schema
+	functionObjects []*queryparser.Function
+
+	//columns names with jsonb type
+	jsonbColumns []string
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -221,6 +227,11 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "user_defined_type"
 				}
 			}
+
+			if col.TypeName == "jsonb" {
+				// used to detect the jsonb subscripting happening on these columns
+				p.jsonbColumns = append(p.jsonbColumns, col.ColumnName)
+			}
 		}
 
 	case *queryparser.CreateType:
@@ -235,6 +246,9 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 		if index.AccessMethod == GIN_ACCESS_METHOD {
 			p.IsGinIndexPresentInSchema = true
 		}
+	case *queryparser.Function:
+		fn, _ := ddlObj.(*queryparser.Function)
+		p.functionObjects = append(p.functionObjects, fn)
 	}
 	return nil
 }
@@ -379,6 +393,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewCopyCommandUnsupportedConstructsDetector(query),
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
+		NewJsonbSubscriptingDetector(query, p.jsonbColumns, p.getJsonbReturnTypeFunctions()),
 		NewJsonPredicateExprDetector(query),
 	}
 
@@ -422,4 +437,30 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 	}
 
 	return result, nil
+}
+
+func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
+	var jsonbFunctions []string
+	jsonbColumns := p.jsonbColumns
+	for _, function := range p.functionObjects {
+		returnType := function.ReturnType
+		if strings.HasSuffix(returnType, "%TYPE") {
+			// e.g. public.table_name.column%TYPE
+			qualifiedColumn := strings.TrimSuffix(returnType, "%TYPE")
+			parts := strings.Split(qualifiedColumn, ".")
+			column := parts[len(parts)-1]
+			if slices.Contains(jsonbColumns, column) {
+				jsonbFunctions = append(jsonbFunctions, function.FuncName)
+			}
+		} else {
+			// e.g. public.udt_type, text, trigger, jsonb
+			parts := strings.Split(returnType, ".")
+			typeName := parts[len(parts)-1]
+			if typeName == "jsonb" {
+				jsonbFunctions = append(jsonbFunctions, function.FuncName)
+			}
+		}
+	}
+	jsonbFunctions = append(jsonbFunctions, catalogFunctionsReturningJsonb.ToSlice()...)
+	return jsonbFunctions
 }
