@@ -80,12 +80,12 @@ func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement s
 }
 
 var aggregateFunctionIssue = issue.Issue{
-	Type:            AGGREGATE_FUNCTION,
+	Type:        AGGREGATE_FUNCTION,
 	Name:        AGGREGATION_FUNCTIONS_NAME,
 	Description: "any_value, range_agg and range_intersect_agg functions not supported yet in YugabyteDB",
-	Suggestion:      "",
-	GH:              "",
-	DocsLink:        "",
+	Suggestion:  "",
+	GH:          "",
+	DocsLink:    "",
 }
 
 func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
@@ -148,12 +148,12 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 }
 
 var jsonbSubscriptingIssue = issue.Issue{
-	Type:            JSONB_SUBSCRIPTING,
-	TypeName:        JSONB_SUBSCRIPTING_NAME,
-	TypeDescription: "Jsonb subscripting is not supported in YugabyteDB yet",
-	Suggestion:      "Use Arrow operators (-> / ->>) to access the jsonb fields.",
-	GH:              "",
-	DocsLink:        "", //TODO
+	Type:        JSONB_SUBSCRIPTING,
+	Name:        JSONB_SUBSCRIPTING_NAME,
+	Description: "Jsonb subscripting is not supported in YugabyteDB yet",
+	Suggestion:  "Use Arrow operators (-> / ->>) to access the jsonb fields.",
+	GH:          "",
+	DocsLink:    "", //TODO
 }
 
 func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -161,12 +161,12 @@ func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatemen
 }
 
 var jsonPredicateIssue = issue.Issue{
-	Type:            JSON_TYPE_PREDICATE,
+	Type:        JSON_TYPE_PREDICATE,
 	Name:        JSON_TYPE_PREDICATE_NAME,
 	Description: "IS JSON predicate expressions not supported yet in YugabyteDB",
-	Suggestion:      "",
-	GH:              "",
-	DocsLink:        "", //TODO
+	Suggestion:  "",
+	GH:          "",
+	DocsLink:    "", //TODO
 }
 
 func NewJsonPredicateIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

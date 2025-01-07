@@ -1315,6 +1315,10 @@ func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	return &report, nil
 }
 
+func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
+	ar.Issues = append(ar.Issues, issues...)
+}
+
 func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
 	if ar.Sizing == nil {
 		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
