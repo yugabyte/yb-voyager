@@ -432,6 +432,18 @@ func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
 	return indexStmtNode, nil
 }
 
+func ProtoAsTableConstraint(msg protoreflect.Message) (*pg_query.Constraint, error) {
+	proto, ok := msg.Interface().(proto.Message)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to proto.Message")
+	}
+	constraintNode, ok := proto.(*pg_query.Constraint)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_TABLECONSTRAINT_NODE)
+	}
+	return constraintNode, nil
+}
+
 /*
 Example:
 options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}

@@ -16,13 +16,10 @@ limitations under the License.
 package queryissue
 
 import (
-	"fmt"
 	"slices"
 
 	mapset "github.com/deckarep/golang-set/v2"
-	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
@@ -479,16 +476,12 @@ func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error 
 			d.detected = true
 		}
 	} else if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_TABLECONSTRAINT_NODE {
-		proto, ok := msg.Interface().(proto.Message)
-		if !ok {
-			return fmt.Errorf("failed to cast msg to proto.Message")
-		}
-		constraintNode, ok := proto.(*pg_query.Constraint)
-		if !ok {
-			return fmt.Errorf("failed to cast msg to %s", queryparser.PG_QUERY_TABLECONSTRAINT_NODE)
+		constraintNode, err := queryparser.ProtoAsTableConstraint(msg)
+		if err != nil {
+			return err
 		}
 
-		if constraintNode.Contype == pg_query.ConstrType_CONSTR_UNIQUE && constraintNode.NullsNotDistinct {
+		if constraintNode.Contype == queryparser.UNIQUE_CONSTR_TYPE && constraintNode.NullsNotDistinct {
 			d.detected = true
 		}
 	}
