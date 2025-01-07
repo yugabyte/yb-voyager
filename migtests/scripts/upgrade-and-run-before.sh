@@ -42,16 +42,6 @@ if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
    export TARGET_DB_NAME="${TARGET_DB_NAME}_ssl"
 fi
 
-run_script() {
-    local script_file=$1
-    if [ -f "${script_file}" ]; then
-        step "Running script: ${script_file}"
-        source "${script_file}"
-    else
-        echo "Script ${script_file} not found, skipping."
-    fi
-}
-
 main() {
     echo ${REPO_ROOT}
     echo "Deleting and recreating export-dir."

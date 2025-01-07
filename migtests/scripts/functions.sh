@@ -1096,3 +1096,17 @@ verify_voyager_version() {
         return 1
     fi
 }
+
+run_script() {
+    local script_file=$1
+    if [ -f "${script_file}" ]; then
+        step "Running script: ${script_file}"
+        source "${script_file}"
+        if [ $? -ne 0 ]; then
+            echo "Error: Script ${script_file} returned an error. Exiting."
+            return 1
+        fi
+    else
+        echo "Script ${script_file} not found, skipping."
+    fi
+}
