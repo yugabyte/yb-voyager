@@ -1532,31 +1532,35 @@ func PackAndSendCallhomePayloadOnExit() {
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
+
+	status := lo.Ternary(utils.ErrExitErr != nil, ERROR, EXIT)
+	exitError := utils.ErrExitErr
+
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
-		packAndSendAssessMigrationPayload(EXIT, "Exiting....")
+		packAndSendAssessMigrationPayload(status, "Exiting....")
 	case assessMigrationBulkCmd.CommandPath():
-		packAndSendAssessMigrationBulkPayload(EXIT)
+		packAndSendAssessMigrationBulkPayload(status)
 	case exportSchemaCmd.CommandPath():
-		packAndSendExportSchemaPayload(EXIT)
+		packAndSendExportSchemaPayload(status)
 	case analyzeSchemaCmd.CommandPath():
-		packAndSendAnalyzeSchemaPayload(EXIT)
+		packAndSendAnalyzeSchemaPayload(status)
 	case importSchemaCmd.CommandPath():
-		packAndSendImportSchemaPayload(EXIT, "Exiting....")
+		packAndSendImportSchemaPayload(status, "Exiting....")
 	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-		packAndSendExportDataPayload(EXIT)
+		packAndSendExportDataPayload(status)
 	case exportDataFromTargetCmd.CommandPath():
-		packAndSendExportDataFromTargetPayload(EXIT)
+		packAndSendExportDataFromTargetPayload(status)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		packAndSendImportDataPayload(EXIT)
+		packAndSendImportDataPayload(status)
 	case importDataToSourceCmd.CommandPath():
-		packAndSendImportDataToSourcePayload(EXIT)
+		packAndSendImportDataToSourcePayload(status)
 	case importDataToSourceReplicaCmd.CommandPath():
-		packAndSendImportDataToSrcReplicaPayload(EXIT)
+		packAndSendImportDataToSrcReplicaPayload(status)
 	case endMigrationCmd.CommandPath():
-		packAndSendEndMigrationPayload(EXIT)
+		packAndSendEndMigrationPayload(status)
 	case importDataFileCmd.CommandPath():
-		packAndSendImportDataFilePayload(EXIT)
+		packAndSendImportDataFilePayload(status)
 	}
 }
 
