@@ -80,11 +80,11 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
-		sourceDBType = GetSourceDBTypeFromMSR()
 		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
+		sourceDBType = GetSourceDBTypeFromMSR()
 		err = validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
