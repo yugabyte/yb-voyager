@@ -31,7 +31,6 @@ ubuntu_apt_package_requirements=(
   "perl|min|0"
   "libdbi-perl|min|0"
   "libaio1|min|0"
-  "cpanminus|min|0"
   "libmysqlclient-dev|min|0"
   "oracle-instantclient-tools|exact|21.5.0.0.0"
   "oracle-instantclient-basic|exact|21.5.0.0.0"
