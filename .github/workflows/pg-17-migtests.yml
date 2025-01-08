@@ -117,6 +117,10 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-schema-migration.sh pg/osm
 
+      - name: "TEST: PG sample schemas (omnibus)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/omnibus
+
       - name: "TEST: PG sample schemas (adventureworks)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-schema-migration.sh pg/adventureworks

@@ -93,7 +93,7 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 			relName := GetStringField(relationMsg, "relname")
 			objectName := utils.BuildObjectName(schemaName, relName)
 			log.Debugf("[IUD] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
-			if c.predicate(schemaName, relName, "table") {
+			if c.predicate(schemaName, relName, constants.TABLE) {
 				c.addObject(objectName)
 			}
 		}

@@ -877,7 +877,13 @@ normalize_json() {
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
         if type == "object" then
-            .ObjectNames? |= (if type == "string" then split(", ") | sort | join(", ") else . end) |
+            .ObjectNames? |= (
+				if type == "string" then
+					split(", ") | sort | join(", ")
+				else
+					.
+				end
+			) |
             .VoyagerVersion? = "IGNORED" |
 			.TargetDBVersion? = "IGNORED" |
             .DbVersion? = "IGNORED" |
@@ -885,10 +891,17 @@ normalize_json() {
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
             .RowCount? = "IGNORED" |
-            .SqlStatement? |= (if type == "string" then gsub("\\n"; " ") else . end)
+            # Replace newline characters in SqlStatement with spaces
+			.SqlStatement? |= (
+				if type == "string" then
+					gsub("\\n"; " ")
+				else
+					.
+				end
+			)
         elif type == "array" then
-            sort_by(tostring)
-        else
+			sort_by(tostring)
+		else
             .
         end
     )' "$input_file" > "$temp_file"

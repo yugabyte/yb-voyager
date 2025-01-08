@@ -1195,13 +1195,15 @@ type AssessmentReport struct {
 	MigrationCaveats           []UnsupportedFeature              `json:"MigrationCaveats"`
 }
 
+// Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
 type AssessmentIssue struct {
-	Category              string
+	Category              string // expected values: feature, query_constrcuts, migration_caveats, plpgsql_objects, datatytpe
 	CategoryDescription   string
-	TypeName              string
-	TypeDescription       string
-	Impact                string
-	ObjectType            string
+	Type                  string // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	Name                  string // Ex: "Stored generated columns are not supported."
+	Description           string
+	Impact                string // Level-1, Level-2, Level-3 (default: Level-1 ??)
+	ObjectType            string // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName            string
 	SqlStatement          string
 	DocsLink              string
@@ -1311,6 +1313,10 @@ func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	}
 
 	return &report, nil
+}
+
+func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
+	ar.Issues = append(ar.Issues, issues...)
 }
 
 func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
