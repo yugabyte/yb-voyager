@@ -36,12 +36,9 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
                 break;
 
         }
-        LOGGER.info("column={}", column);
-        LOGGER.info("registration={}", registration);
         switch (column.typeName()) {
             case "tsvector":
             case "tsquery":
-            case "hstore":
                 registration.register(SchemaBuilder.string(), this::stringify);
                 break;
         }
