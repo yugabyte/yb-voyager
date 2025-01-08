@@ -24,16 +24,7 @@ import (
 )
 
 const (
-	PLPGSQL_EXPR = "PLpgSQL_expr"
-	QUERY        = "query"
 
-	ACTION           = "action"
-	DATUMS           = "datums"
-	PLPGSQL_VAR      = "PLpgSQL_var"
-	DATATYPE         = "datatype"
-	TYPENAME         = "typname"
-	PLPGSQL_TYPE     = "PLpgSQL_type"
-	PLPGSQL_FUNCTION = "PLpgSQL_function"
 )
 
 /*

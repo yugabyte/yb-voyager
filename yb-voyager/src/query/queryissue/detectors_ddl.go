@@ -603,6 +603,24 @@ func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssu
 	return issues, nil
 }
 
+// ================FUNCTION ISSUE DETECTOR ==================
+
+type FunctionIssueDetector struct{}
+
+func (v *FunctionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
+	function, ok := obj.(*queryparser.Function)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected View")
+	}
+	var issues []QueryIssue
+
+	if function.HasSqlBody {
+		// issues = append(issues)
+	}
+
+	return issues, nil
+}
+
 // ==============MVIEW ISSUE DETECTOR ======================
 
 type MViewIssueDetector struct{}
